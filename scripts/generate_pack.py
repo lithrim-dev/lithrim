@@ -31,9 +31,12 @@ from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.taxonomy import load_taxonomy
 
 
-def _walk_specs(cohort: SyntheaCohort) -> Iterator[EncounterSpec]:
+def _walk_specs(cohort: SyntheaCohort, requires_med: bool) -> Iterator[EncounterSpec]:
     for pid in cohort.patient_ids():
-        spec = cohort.first_encounter_with_active_medication(pid)
+        if requires_med:
+            spec = cohort.first_encounter_with_active_medication(pid)
+        else:
+            spec = cohort.first_encounter(pid)
         if spec is not None:
             yield spec
 
@@ -106,7 +109,7 @@ def main() -> None:
     matrix: list[tuple[str, str, str, list[str]]] = []
     skipped: list[str] = []
 
-    spec_iter = _walk_specs(cohort)
+    spec_iter = _walk_specs(cohort, pack.requires_active_medication)
     for slot in plan:
         spec = next(spec_iter, None)
         while spec is not None:

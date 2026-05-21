@@ -12,10 +12,13 @@ from typing import Any, Callable
 
 from .encounter_spec import EncounterSpec
 from .injectors import (
+    CODING_INJECTORS,
     SCHEDULING_INJECTORS,
     SCRIBE_INJECTORS,
     DefectInjector,
 )
+from .synthesizers.coding_artifact import synthesize_coding_artifact
+from .synthesizers.coding_transcript import synthesize_coding_transcript
 from .synthesizers.scheduling_artifact import synthesize_scheduling_artifact
 from .synthesizers.scheduling_transcript import synthesize_scheduling_transcript
 from .synthesizers.scribe_artifact import synthesize_scribe_artifact
@@ -39,6 +42,7 @@ class PackDefinition:
     transcript_fn: TranscriptFn
     artifact_fn: ArtifactFn
     injectors: list[type[DefectInjector]]
+    requires_active_medication: bool = False
 
 
 SCRIBE_PACK = PackDefinition(
@@ -47,6 +51,7 @@ SCRIBE_PACK = PackDefinition(
     transcript_fn=synthesize_scribe_transcript,
     artifact_fn=_wrap_single(synthesize_scribe_artifact),
     injectors=SCRIBE_INJECTORS,
+    requires_active_medication=True,
 )
 
 SCHEDULING_PACK = PackDefinition(
@@ -57,7 +62,16 @@ SCHEDULING_PACK = PackDefinition(
     injectors=SCHEDULING_INJECTORS,
 )
 
+CODING_PACK = PackDefinition(
+    name="coding_v1",
+    agent_type="coding",
+    transcript_fn=synthesize_coding_transcript,
+    artifact_fn=synthesize_coding_artifact,
+    injectors=CODING_INJECTORS,
+)
+
 PACKS: dict[str, PackDefinition] = {
     SCRIBE_PACK.name: SCRIBE_PACK,
     SCHEDULING_PACK.name: SCHEDULING_PACK,
+    CODING_PACK.name: CODING_PACK,
 }

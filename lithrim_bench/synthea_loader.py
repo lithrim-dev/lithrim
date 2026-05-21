@@ -85,6 +85,15 @@ class SyntheaCohort:
                 return spec
         return None
 
+    def first_encounter(self, patient_id: str) -> EncounterSpec | None:
+        """Return the patient's earliest encounter with no precondition filter."""
+        encs = self._encounters[self._encounters["PATIENT"] == patient_id]
+        for _, enc in encs.iterrows():
+            spec = self._build_spec(patient_id, enc["Id"])
+            if spec is not None:
+                return spec
+        return None
+
     def _build_spec(self, patient_id: str, encounter_id: str) -> EncounterSpec | None:
         prow = self._patients.loc[self._patients["Id"] == patient_id]
         if prow.empty:
