@@ -41,6 +41,53 @@ The CI on tuned-mock and structural-only is identical (0.23–0.60) because both
 
 Per-member κ stays at 0.687 across the tuned and worst-of rows because κ measures intra-ensemble agreement on the *semantic* axis; the structural axis is deterministic so it doesn't degrade κ.
 
+## Update — live measurement (post-calibration, same day)
+
+After completing the live-stack calibration (commits `3aa4151`, `e862ec6`, `4b8ec42`, `300c052`), re-ran the headline contrast with the **measured** per-judge accuracy (0.781, from the 4-pack live sweep against gpt-4.1 council) and the **live structural validator** (mapping 26 via `/v1/validate-artifact`) instead of mocks. Same 40-case pack, N=1.
+
+The honest metric (`defects_caught_on_HL7`, defined as the system emitted any non-approve verdict on a structural-defect case):
+
+| System | Defects caught | Clean correct |
+|---|---|---|
+| **Tuned-mock alone** (lit-anchor p=0.781, attach=0.167) | **0 / 28** (0.0%) | 12 / 12 (100%) |
+| **Live structural validator** (etlp-mapper mapping 26 via Lithrim middleware) | **8 / 28** (28.6%) | 12 / 12 (100%) |
+| **Worst-of(tuned-mock, live validator)** | **8 / 28** (28.6%) | 12 / 12 (100%) |
+
+**The composition's gain is +28.6 percentage points** of structural-defect catch on this pack. This is the *live* version of the +60-percentage-point illustrative number above.
+
+### Why the live number is smaller than the simulated number
+
+Two compounding effects in the deployed setup, both surfaced by today's smokes and documented in `docs/LIVE_SMOKE_2026-05-21.md`:
+
+1. **Validator coverage gap.** Mapping 26 is a field-presence validator; it catches 2 of the 5 bench defect classes (missing-required-field, missing-segment) at 100% recall, and emits PASS on the remaining 3 (malformed-date, invalid-field-format, trigger-event-mismatch). A stricter validator would close this.
+2. **Verdict severity calibration.** The validator emits WARN (not BLOCK) on the field-presence defects it catches. The worst-of rule lifts WARN to `needs_review`, not `reject`. Both are non-approve (so they show up in our `defects_caught` metric), but they do not bump the `expected_compliance_verdict=reject` to match — that's why `verdict_match_rate` on this run is 0.30 even though `defects_caught` is 0.286.
+
+The composition is the right shape; the recovery ceiling is determined by the validator's coverage and severity calibration on the defects the bench exercises. The paper's claim "worst-of recovers what the semantic side cannot" is empirically supported, with the magnitude pinned to "what the deployed validator catches."
+
+### Reproduction
+
+```bash
+# A. tuned-mock alone (literature-anchored parameters)
+python scripts/run_determinism.py --pack-path out/hl7_adt_v1.jsonl --n 1 \
+    --backend tuned-mock --tuned-per-member-accuracy 0.781 \
+    --tuned-flag-attachment-rate 0.167 --out out/hl7.A.tuned_only.ndjson
+
+# B. live structural validator alone
+python scripts/run_determinism.py --pack-path out/hl7_adt_v1.jsonl --n 1 \
+    --backend lithrim-validate-artifact --etlp-mapping-id 26 \
+    --out out/hl7.B.struct_only.ndjson
+
+# C. worst-of composition (the paper headline)
+python scripts/run_determinism.py --pack-path out/hl7_adt_v1.jsonl --n 1 \
+    --backend worst-of \
+    --worst-of-semantic tuned-mock --tuned-per-member-accuracy 0.781 \
+    --tuned-flag-attachment-rate 0.167 \
+    --worst-of-structural lithrim-validate-artifact --etlp-mapping-id 26 \
+    --out out/hl7.C.worstof.ndjson
+```
+
+Wall clock for all three: under 90 seconds total (validator + tuned-mock are both sub-second per case).
+
 ## What the paper can claim from this
 
 §4 (Method): the worst-of rule is `WorstOfBackend(semantic, structural)`. Two-line definition, ten-line implementation, mirrors backend's production rule.

@@ -76,7 +76,7 @@ def main() -> int:
     ap.add_argument("--tuned-flag-attachment-rate", type=float, default=0.80)
     ap.add_argument(
         "--worst-of-structural",
-        choices=["mock", "etlp"],
+        choices=["mock", "etlp", "lithrim-validate-artifact"],
         default="mock",
         help="Sub-backend used as the structural side of --backend worst-of.",
     )
@@ -152,6 +152,15 @@ def main() -> int:
                 flag_attachment_rate=0.0,
                 structural_drift_rate=args.structural_drift_rate,
                 noise_seed=args.noise_seed + 1,
+            )
+        if args.worst_of_structural == "lithrim-validate-artifact":
+            key, _ = _live_creds()
+            if not key:
+                sys.exit("--api-key/.live_env required for lithrim-validate-artifact structural side")
+            return LithrimValidateArtifactBackend(
+                base_url=args.base_url,
+                api_key=key,
+                etlp_mapping_id=args.etlp_mapping_id,
             )
         etlp_url = (
             args.base_url
