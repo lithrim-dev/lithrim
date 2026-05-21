@@ -43,11 +43,13 @@ class MockBackend(BackendClient):
         *,
         decision_flip_rate: float = 0.0,
         flag_attachment_rate: float = 1.0,
+        structural_drift_rate: float = 0.0,
         noise_seed: int = 0,
         judges: tuple[str, ...] = ("policy_judge", "risk_judge", "behavior_judge"),
     ):
         self.decision_flip_rate = decision_flip_rate
         self.flag_attachment_rate = flag_attachment_rate
+        self.structural_drift_rate = structural_drift_rate
         self.noise_seed = noise_seed
         self.judges = judges
         self._call_index: dict[str, int] = {}
@@ -62,6 +64,7 @@ class MockBackend(BackendClient):
             extra={
                 "decision_flip_rate": self.decision_flip_rate,
                 "flag_attachment_rate": self.flag_attachment_rate,
+                "structural_drift_rate": self.structural_drift_rate,
                 "noise_seed": self.noise_seed,
             },
         )
@@ -91,10 +94,27 @@ class MockBackend(BackendClient):
             j_flags = [f for f in expected_flags if j_rng.random() < self.flag_attachment_rate]
             per_judge[j] = JudgeOutput(judge_name=j, verdict=j_verdict, flags=j_flags)
 
+        expected_structural = case.get("expected_structural_verdict")
+        structural_verdict: str | None = None
+        structural_findings: list[str] = []
+        if expected_structural is not None:
+            s_rng = random.Random(_seed_for(self.noise_seed, case_id + "::struct", run_index))
+            if s_rng.random() < self.structural_drift_rate:
+                structural_verdict = "PASS" if expected_structural == "BLOCK" else "BLOCK"
+            else:
+                structural_verdict = expected_structural
+            if structural_verdict == "BLOCK":
+                structural_findings = [
+                    f for f in (case.get("expected_safety_flags") or [])
+                    if f.startswith("STRUCTURAL_")
+                ]
+
         return BackendVerdict(
             compliance_verdict=verdict,
             artifact_verdict=_ARTIFACT_FOR.get(verdict, "PASS"),
             flags=flags,
             per_judge=per_judge,
+            structural_verdict=structural_verdict,
+            structural_findings=structural_findings,
             raw={"mock": True, "run_index": run_index},
         )

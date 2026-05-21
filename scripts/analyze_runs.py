@@ -54,16 +54,22 @@ def main() -> int:
     md.append("")
     md.append("## Per-case (top 20 by instability)")
     md.append("")
-    md.append("| case_id | n | modal | instability | match_rate | flag_attachment | κ |")
-    md.append("|---|---|---|---|---|---|---|")
+    md.append("| case_id | n | modal | instability | match_rate | flag_attachment | κ | structural |")
+    md.append("|---|---|---|---|---|---|---|---|")
     sorted_cases = sorted(per_case, key=lambda c: -c["verdict_instability"])
     for c in sorted_cases[:20]:
         attach = ", ".join(f"{k}={v:.2f}" for k, v in c["flag_attachment_rate"].items()) or "(none)"
         kappa = f"{c['decision_layer_kappa']:.3f}" if c["decision_layer_kappa"] is not None else "—"
+        s = c.get("structural") or {}
+        s_str = (
+            f"exp={s.get('expected')} match={s.get('match_rate')}"
+            if s.get("expected") is not None
+            else "—"
+        )
         md.append(
             f"| `{c['case_id']}` | {c['n']} | {c['modal_verdict']} | "
             f"{c['verdict_instability']:.2f} | {c['verdict_match_rate']:.2f} | "
-            f"{attach} | {kappa} |"
+            f"{attach} | {kappa} | {s_str} |"
         )
     out_md.write_text("\n".join(md) + "\n")
 

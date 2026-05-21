@@ -31,6 +31,8 @@ class BackendVerdict:
     artifact_verdict: str
     flags: list[str]
     per_judge: dict[str, JudgeOutput] | None = None
+    structural_verdict: str | None = None
+    structural_findings: list[str] = field(default_factory=list)
     raw: dict[str, Any] | None = None
 
 

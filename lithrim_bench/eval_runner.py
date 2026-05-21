@@ -63,9 +63,12 @@ def _verdict_row(
         "artifact_verdict": v.artifact_verdict,
         "flags": list(v.flags),
         "per_judge": per_judge,
+        "structural_verdict": v.structural_verdict,
+        "structural_findings": list(v.structural_findings),
         "pin": pin,
         "expected_compliance_verdict": case.get("expected_compliance_verdict"),
         "expected_safety_flags": case.get("expected_safety_flags") or [],
+        "expected_structural_verdict": case.get("expected_structural_verdict"),
     }
 
 

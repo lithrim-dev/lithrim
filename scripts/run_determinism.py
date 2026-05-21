@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lithrim_bench.backends import LithrimHttpBackend, MockBackend
+from lithrim_bench.backends import EtlpStructuralBackend, LithrimHttpBackend, MockBackend
 from lithrim_bench.eval_runner import run_pack
 
 
@@ -36,9 +36,10 @@ def main() -> int:
     ap.add_argument("--pack-path", required=True, type=Path)
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--out", type=Path)
-    ap.add_argument("--backend", choices=["mock", "http"], default="mock")
+    ap.add_argument("--backend", choices=["mock", "http", "etlp-structural"], default="mock")
     ap.add_argument("--decision-flip-rate", type=float, default=0.0)
     ap.add_argument("--flag-attachment-rate", type=float, default=1.0)
+    ap.add_argument("--structural-drift-rate", type=float, default=0.0)
     ap.add_argument("--noise-seed", type=int, default=0)
     ap.add_argument("--base-url", default="http://localhost:8002")
     ap.add_argument("--api-key", default=None)
@@ -55,8 +56,12 @@ def main() -> int:
         backend = MockBackend(
             decision_flip_rate=args.decision_flip_rate,
             flag_attachment_rate=args.flag_attachment_rate,
+            structural_drift_rate=args.structural_drift_rate,
             noise_seed=args.noise_seed,
         )
+    elif args.backend == "etlp-structural":
+        etlp_url = args.base_url if args.base_url != "http://localhost:8002" else "http://localhost:3031"
+        backend = EtlpStructuralBackend(base_url=etlp_url, api_key=args.api_key)
     else:
         backend = LithrimHttpBackend(
             base_url=args.base_url,

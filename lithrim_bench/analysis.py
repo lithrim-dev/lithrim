@@ -131,6 +131,22 @@ def analyze_per_case(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             ]
             decision_kappa = _fleiss_kappa(per_judge_decisions)
 
+        structural_block = {
+            "expected": runs[0].get("expected_structural_verdict"),
+            "observed_distribution": dict(Counter(
+                r.get("structural_verdict") for r in runs if r.get("structural_verdict") is not None
+            )),
+            "match_rate": None,
+        }
+        if structural_block["expected"] is not None:
+            obs = [r.get("structural_verdict") for r in runs]
+            non_null = [v for v in obs if v is not None]
+            if non_null:
+                structural_block["match_rate"] = round(
+                    sum(1 for v in non_null if v == structural_block["expected"]) / len(non_null),
+                    4,
+                )
+
         out.append(
             {
                 "case_id": case_id,
@@ -143,6 +159,7 @@ def analyze_per_case(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "expected_safety_flags": expected_flags,
                 "flag_attachment_rate": attachment,
                 "decision_layer_kappa": decision_kappa,
+                "structural": structural_block,
             }
         )
     return out
@@ -173,6 +190,20 @@ def analyze_pack(
     kappas = [c["decision_layer_kappa"] for c in per_case if c["decision_layer_kappa"] is not None]
     mean_kappa = statistics.fmean(kappas) if kappas else None
 
+    structural_match_rates = [
+        c["structural"]["match_rate"]
+        for c in per_case
+        if c["structural"]["match_rate"] is not None
+    ]
+    structural_cases = sum(
+        1 for c in per_case if c["structural"]["expected"] in ("BLOCK", "WARN")
+    )
+    mean_structural_match = (
+        round(statistics.fmean(structural_match_rates), 4)
+        if structural_match_rates
+        else None
+    )
+
     return {
         "cases": len(per_case),
         "n_per_case": per_case[0]["n"],
@@ -181,4 +212,6 @@ def analyze_pack(
         "instability_rate": round(instability_rate, 4),
         "false_block_rate": round(false_block, 4) if false_block is not None else None,
         "mean_decision_layer_kappa": round(mean_kappa, 4) if mean_kappa is not None else None,
+        "structural_cases": structural_cases,
+        "mean_structural_match_rate": mean_structural_match,
     }
