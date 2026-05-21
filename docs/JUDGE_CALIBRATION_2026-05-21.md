@@ -72,6 +72,53 @@ The 60-percentage-point gap demonstrated in HEADLINE_CONTRAST_2026-05-21.md was 
 
 (The aggregate ensemble accuracy of 0.8125 means 26/32 correct.)
 
+## v2 calibration update (same day)
+
+After the v1 sweep surfaced specific transcript gaps in scheduling, coding, and triage, the three transcript synthesizers were rewritten to ground every artifact element textually:
+
+- `scheduling_transcript.py` v2 — booking turn now reads back patient name + DOB + MRN explicitly. When `PhiDisclosurePreVerificationInjector` removes the verification block, the PHI handling stays visible to the council.
+- `coding_transcript.py` v2 — provider dictation now names the ICD-10 code (`E11.9 type 2 diabetes`) and the CPT code (`99213 level 3`) explicitly, instead of abstract "the diagnosis" / "level 3 visit".
+- `triage_transcript.py` v2 — agent's turn now grounds the risk level (`high risk of acute coronary syndrome`) instead of just "this needs immediate evaluation".
+
+Re-running the 4-pack live sweep on these v2 packs (scribe stays at v3 from earlier today):
+
+| Pack | v1 overall | v2 overall | Δ | What moved |
+|---|---|---|---|---|
+| `scribe_v1` (v3 synth) | 6/8 | (kept) | — | already calibrated |
+| `scheduling_v1` | 4/8 | **6/8** | **+2** | PHI readback exposed the violation; 1/4 → 3/4 reject_correct |
+| `coding_v1` | 3/8 | **4/8** | +1 | UPCODE detection slightly stronger; clean cases still needs_review (Tier 3) |
+| `triage_v1` | 4/8 | 4/8 | 0 | injected detection stayed at 4/4; clean cases still needs_review |
+
+Combined re-calibration of TunedMockBackend parameters (mean per-judge metrics across all 4 packs at v2):
+
+| Metric | v1 sweep | **v2 sweep** |
+|---|---|---|
+| Ensemble majority-vote accuracy | 0.8125 | **0.8125** (steady — literature anchor) |
+| Mean per-judge accuracy | 0.781 | **0.802** |
+| Mean per-judge flag attachment | 0.167 | **0.218** |
+| `policy_judge` accuracy | 0.750 | **0.781** |
+| `risk_judge` accuracy | 0.750 | **0.781** |
+| `behavior_judge` accuracy | 0.844 | 0.844 (already best) |
+
+**Updated TunedMockBackend calibration:**
+
+```python
+TunedMockBackend(
+    ensemble_size=3,
+    per_member_semantic_accuracy=0.802,    # v2 sweep
+    per_member_flag_attachment_rate=0.218, # v2 sweep
+)
+```
+
+The ensemble accuracy stayed at 0.8125 — majority vote already covered the cases where individual judges disagreed. The calibration tightened the ensemble's *components* without inflating the headline; the v2 numbers are honest improvements.
+
+### Remaining calibration gaps
+
+- `coding_v1` clean cases still needs_review (Tier-3 INCOMPLETE_DOCUMENTATION-style soft warn). The FHIR Claim probably has a structurally-required field the deterministic synthesizer doesn't emit (e.g., `provider.npi`, `total`, `insurance` array). A v3 coding artifact synthesizer pass would close this.
+- `triage_v1` clean cases still needs_review. The FHIR RiskAssessment's `prediction` field has more sub-fields than the synthesizer fills (probability, period, rationale). v3 triage artifact pass would close this.
+
+Both remaining gaps are artifact-side, not transcript-side; documented for Phase 2.
+
 ## Honest limitations
 
 1. **N=1 per case.** At N=10 the bench would distinguish persistent miscalibration from per-call variance. With 32 single-call samples, the per-judge accuracy numbers have wide CIs that this doc does not yet report. Re-running at N=10 (5–7× wall clock) would give the paper's actual §6 numbers.
