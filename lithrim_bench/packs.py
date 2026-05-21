@@ -15,6 +15,7 @@ from .injectors import (
     CODING_INJECTORS,
     SCHEDULING_INJECTORS,
     SCRIBE_INJECTORS,
+    TRIAGE_INJECTORS,
     DefectInjector,
 )
 from .synthesizers.coding_artifact import synthesize_coding_artifact
@@ -23,6 +24,8 @@ from .synthesizers.scheduling_artifact import synthesize_scheduling_artifact
 from .synthesizers.scheduling_transcript import synthesize_scheduling_transcript
 from .synthesizers.scribe_artifact import synthesize_scribe_artifact
 from .synthesizers.transcript import synthesize_scribe_transcript
+from .synthesizers.triage_artifact import synthesize_triage_artifact
+from .synthesizers.triage_transcript import synthesize_triage_transcript
 
 TranscriptFn = Callable[[EncounterSpec], str]
 ArtifactFn = Callable[[EncounterSpec], list[dict[str, Any]] | dict[str, Any]]
@@ -70,8 +73,17 @@ CODING_PACK = PackDefinition(
     injectors=CODING_INJECTORS,
 )
 
+TRIAGE_PACK = PackDefinition(
+    name="triage_v1",
+    agent_type="triage",
+    transcript_fn=synthesize_triage_transcript,
+    artifact_fn=synthesize_triage_artifact,
+    injectors=TRIAGE_INJECTORS,
+)
+
 PACKS: dict[str, PackDefinition] = {
     SCRIBE_PACK.name: SCRIBE_PACK,
     SCHEDULING_PACK.name: SCHEDULING_PACK,
     CODING_PACK.name: CODING_PACK,
+    TRIAGE_PACK.name: TRIAGE_PACK,
 }
