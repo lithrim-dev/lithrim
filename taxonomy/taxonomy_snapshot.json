@@ -52,9 +52,11 @@
     "source_message_judge"
   ],
   "structural_codes": {
-    "STRUCTURAL_MALFORMED_DATE": "HL7/FHIR date field does not conform to required format (e.g. PID-7 birthdate not YYYYMMDD).",
+    "STRUCTURAL_MALFORMED_DATE": "HL7/FHIR date field does not conform to required format (e.g. PID-7 birthdate not YYYYMMDD). Format-rigorous validators (e.g. official HL7 v2 parser) catch this; etlp-mapper mapping 26 (field-presence) does not.",
     "STRUCTURAL_MISSING_REQUIRED_SEGMENT": "Required HL7 segment is absent (e.g. PV1 in ADT^A04).",
-    "STRUCTURAL_INVALID_FIELD_FORMAT": "HL7 coded field carries a value outside the allowed value set (e.g. PID-8 gender not in {M,F,O,U,A,N,U})."
+    "STRUCTURAL_INVALID_FIELD_FORMAT": "HL7 coded field carries a value outside the allowed value set (e.g. PID-8 gender not in {M,F,O,U,A,N,U}). Value-set validators catch this; mapping 26 (field-presence) does not.",
+    "STRUCTURAL_MISSING_REQUIRED_FIELD": "Required HL7 field within a present segment is empty (e.g. PV1.2 patient-class blank, PV1.7 attending-doctor blank).",
+    "STRUCTURAL_TRIGGER_EVENT_MISMATCH": "HL7 message header trigger event does not match the declared message type (e.g. ADT^A04 message header but EVN.1 != A04, or MSH.9 = ADT^A99)."
   },
   "structural_codes_note": "Structural codes are emitted by deterministic validators (etlp-mapper Jute templates), not by the semantic council. They always route to BLOCK / reject and have no Tier-1 owner-map entry. They exist separately from KNOWN_TAXONOMY_CODES so the paper can measure structural-recall and semantic-recall independently."
 }

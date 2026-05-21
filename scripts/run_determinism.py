@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lithrim_bench.backends import (
     EtlpStructuralBackend,
     LithrimHttpBackend,
+    LithrimValidateArtifactBackend,
     MockBackend,
     TunedMockBackend,
     WorstOfBackend,
@@ -44,8 +45,21 @@ def main() -> int:
     ap.add_argument("--out", type=Path)
     ap.add_argument(
         "--backend",
-        choices=["mock", "http", "etlp-structural", "worst-of", "tuned-mock"],
+        choices=[
+            "mock",
+            "http",
+            "etlp-structural",
+            "lithrim-validate-artifact",
+            "worst-of",
+            "tuned-mock",
+        ],
         default="mock",
+    )
+    ap.add_argument(
+        "--etlp-mapping-id",
+        type=int,
+        default=None,
+        help="Override etlp-mapper mapping ID for structural validation (e.g. 26 for HL7 ADT^A04).",
     )
     ap.add_argument(
         "--worst-of-semantic",
@@ -133,6 +147,23 @@ def main() -> int:
             else "http://localhost:3031"
         )
         backend = EtlpStructuralBackend(base_url=etlp_url, api_key=args.api_key)
+    elif args.backend == "lithrim-validate-artifact":
+        import os
+        key = args.api_key or os.environ.get("LITHRIM_API_KEY")
+        if not key:
+            env_path = Path(__file__).resolve().parent.parent / ".live_env"
+            if env_path.exists():
+                for line in env_path.read_text().splitlines():
+                    if line.startswith("LITHRIM_API_KEY="):
+                        key = line.split("=", 1)[1].strip()
+                        break
+        if not key:
+            sys.exit("--api-key required (or LITHRIM_API_KEY env, or .live_env file)")
+        backend = LithrimValidateArtifactBackend(
+            base_url=args.base_url,
+            api_key=key,
+            etlp_mapping_id=args.etlp_mapping_id,
+        )
     elif args.backend == "worst-of":
         backend = WorstOfBackend(semantic=_build_semantic(), structural=_build_structural())
     else:

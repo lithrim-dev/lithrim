@@ -130,8 +130,17 @@ def package_case(
                 taxonomy.production_owners_of(r.safety_flag)
             )
 
-    has_structural = any(taxonomy.is_structural(r.safety_flag) for r in recipes)
-    expected_structural_verdict = "BLOCK" if has_structural else ("PASS" if not recipes else None)
+    structural_recipes = [r for r in recipes if taxonomy.is_structural(r.safety_flag)]
+    if not recipes:
+        expected_structural_verdict = "PASS"
+    elif structural_recipes:
+        # Worst-of across structural recipes' declared validator verdicts.
+        expected_structural_verdict = max(
+            (r.expected_structural_verdict_when_caught for r in structural_recipes),
+            key=lambda v: _ARTIFACT_VERDICT_RANK.get(v, 0),
+        )
+    else:
+        expected_structural_verdict = None
 
     return {
         "case_id": case_id,

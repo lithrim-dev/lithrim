@@ -75,58 +75,32 @@ def _pid(spec: EncounterSpec) -> str:
 
 
 def _pv1(spec: EncounterSpec) -> str:
+    """ADT^A04 visit segment. Calibrated to mapping 26's required fields.
+
+    Live validator (etlp-mapper mapping 26 hl7-adt-a04-validator) checks:
+      PV1.2 patient_class — required, non-empty, in {I,O,E}
+      PV1.7 attending_doctor — required for order routing
+    """
     visit_id = spec.encounter.encounter_id[:12]
     location = _COMP.join(["WARD-A", "101", "1"])
-    return _FIELD.join([
-        "PV1",
-        "1",
-        "O",
-        location,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        visit_id,
-    ])
+    attending = _COMP.join(["DOC001", "Patel", "Anita", "", "", "DR"])
+    fields = ["PV1", "1", "O", location, "", "", "", attending]
+    fields.extend([""] * (44 - len(fields)))
+    fields.append(visit_id)
+    return _FIELD.join(fields)
 
 
 def _al1_for(spec: EncounterSpec) -> list[str]:
+    """At least one AL1 row — mapping 26's allergy-segment check fires
+    on absence. If the EncounterSpec has no allergies, emit an NKA marker
+    so the message remains compliant with the validator's expectation."""
+    if not spec.allergies:
+        return [_FIELD.join([
+            "AL1",
+            "1",
+            "DA",
+            f"NKA{_COMP}No known allergies{_COMP}LITHRIM",
+        ])]
     segments: list[str] = []
     for i, allergy in enumerate(spec.allergies[:3], start=1):
         segments.append(_FIELD.join([
@@ -136,6 +110,20 @@ def _al1_for(spec: EncounterSpec) -> list[str]:
             f"{allergy.snomed_code}{_COMP}{allergy.description}{_COMP}SNOMED-CT",
         ]))
     return segments
+
+
+def _in1(spec: EncounterSpec) -> str:
+    """Insurance segment — required by mapping 26's insurance-segment check.
+    Synthesized as a self-pay-equivalent commercial plan; the validator
+    only checks presence, not coverage adequacy."""
+    plan_name = _COMP.join(["DEMOPLAN-1", "Lithrim Bench Coverage"])
+    return _FIELD.join([
+        "IN1",
+        "1",
+        "PLAN001",
+        "INS001",
+        plan_name,
+    ])
 
 
 def synthesize_hl7_adt_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
@@ -151,6 +139,7 @@ def synthesize_hl7_adt_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
         _pv1(spec),
     ]
     segments.extend(_al1_for(spec))
+    segments.append(_in1(spec))
     body = "\r".join(segments) + "\r"
     return [
         {

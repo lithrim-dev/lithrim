@@ -30,6 +30,7 @@ class InjectionRecipe:
     pre_value: str
     post_value: str
     params: dict[str, Any] = field(default_factory=dict)
+    expected_structural_verdict_when_caught: str = "BLOCK"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +41,7 @@ class InjectionRecipe:
             "pre_value": self.pre_value,
             "post_value": self.post_value,
             "params": self.params,
+            "expected_structural_verdict_when_caught": self.expected_structural_verdict_when_caught,
         }
 
 

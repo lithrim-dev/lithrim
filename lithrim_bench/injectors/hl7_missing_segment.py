@@ -55,5 +55,6 @@ class Hl7MissingSegmentInjector(DefectInjector):
                 "missing_segment": self.segment,
                 "structural_defect_class": "missing_required_segment",
             },
+            expected_structural_verdict_when_caught="WARN",
         )
         return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)

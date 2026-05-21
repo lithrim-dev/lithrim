@@ -3,7 +3,9 @@ from .fabricated_history import FabricatedHistoryInjector
 from .hallucinated_detail import HallucinatedDetailInjector
 from .hl7_invalid_field_format import Hl7InvalidFieldFormatInjector
 from .hl7_malformed_date import Hl7MalformedDateInjector
+from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
 from .hl7_missing_segment import Hl7MissingSegmentInjector
+from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
 from .missed_escalation import MissedEscalationInjector
 from .missing_allergy import MissingAllergyInjector
 from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
@@ -35,6 +37,8 @@ HL7_ADT_INJECTORS: list[type[DefectInjector]] = [
     Hl7MalformedDateInjector,
     Hl7MissingSegmentInjector,
     Hl7InvalidFieldFormatInjector,
+    Hl7MissingRequiredFieldInjector,
+    Hl7TriggerEventMismatchInjector,
 ]
 
 ALL_INJECTORS: list[type[DefectInjector]] = (
@@ -51,7 +55,9 @@ __all__ = [
     "HallucinatedDetailInjector",
     "Hl7InvalidFieldFormatInjector",
     "Hl7MalformedDateInjector",
+    "Hl7MissingRequiredFieldInjector",
     "Hl7MissingSegmentInjector",
+    "Hl7TriggerEventMismatchInjector",
     "InjectionRecipe",
     "InjectionResult",
     "MissedEscalationInjector",
