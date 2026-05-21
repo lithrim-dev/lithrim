@@ -42,6 +42,7 @@ def main() -> int:
     bad_cases: list[tuple[str, str, str]] = []
     code_use: dict[str, int] = defaultdict(int)
     total = 0
+    excluded = 0
 
     with args.golden.open() as f:
         for line in f:
@@ -51,6 +52,9 @@ def main() -> int:
             total += 1
             row = json.loads(line)
             case_id = row.get("scenario_id") or row.get("case_id") or "<unknown>"
+            if row.get("reconciliation", {}).get("excluded") or row.get("is_eval_golden") is False:
+                excluded += 1
+                continue
             flags = row.get("expected_safety_flags") or []
             for flag in flags:
                 code_use[flag] += 1
@@ -59,6 +63,8 @@ def main() -> int:
 
     print(f"lint_golden_against_taxonomy: {total} cases scanned in {args.golden}")
     print(f"  taxonomy snapshot: {args.snapshot}")
+    print(f"  excluded (not scored): {excluded}")
+    print(f"  scored: {total - excluded}")
     print(f"  unique codes seen: {len(code_use)}")
     print()
     print("code usage:")

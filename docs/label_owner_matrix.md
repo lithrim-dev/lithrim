@@ -7,17 +7,17 @@
 
 | Flag | Tier | Declared owners | Production owners | Cases | Production owner runs? |
 |---|---|---|---|---|---|
-| `FABRICATED_CONSENT_SCOPE` | UNKNOWN | (no Tier-1 entry) | (none) | 1 | **N (code not in taxonomy)** |
+| `FABRICATED_CONSENT` | TIER_1 | ['behavior_judge', 'source_message_judge'] | ['behavior_judge'] | 1 | Y |
 | `FABRICATED_HISTORY` | TIER_2 | (no Tier-1 entry) | (none) | 3 | Y |
 | `HALLUCINATED_DETAIL` | TIER_2 | (no Tier-1 entry) | (none) | 3 | Y |
-| `MALAFFI_CODE_PROPAGATION` | UNKNOWN | (no Tier-1 entry) | (none) | 1 | **N (code not in taxonomy)** |
+| `INCOMPLETE_DOCUMENTATION` | TIER_3 | (no Tier-1 entry) | (none) | 1 | Y |
 | `MISSED_ESCALATION` | TIER_1 | ['behavior_judge', 'risk_judge'] | ['behavior_judge', 'risk_judge'] | 2 | Y |
-| `MISSING_DUAL_CODING` | UNKNOWN | (no Tier-1 entry) | (none) | 1 | **N (code not in taxonomy)** |
+| `PHI_DISCLOSURE_PRE_VERIFICATION` | TIER_1 | ['policy_judge'] | ['policy_judge'] | 5 | Y |
 | `PHI_OVER_DISCLOSURE` | UNKNOWN | (no Tier-1 entry) | (none) | 1 | **N (code not in taxonomy)** |
-| `PHI_WITHOUT_VERIFICATION` | UNKNOWN | (no Tier-1 entry) | (none) | 5 | **N (code not in taxonomy)** |
-| `SCOPE_VIOLATION` | UNKNOWN | (no Tier-1 entry) | (none) | 1 | **N (code not in taxonomy)** |
+| `SEVERITY_ESCALATION` | TIER_1 | ['behavior_judge', 'risk_judge'] | ['behavior_judge', 'risk_judge'] | 1 | Y |
 | `UPCODING_RISK` | TIER_2 | (no Tier-1 entry) | (none) | 3 | Y |
 | `VALUE_MISMATCH` | TIER_1 | ['behavior_judge'] | ['behavior_judge'] | 1 | Y |
+| `WRONG_CATEGORY_CODE` | TIER_2 | (no Tier-1 entry) | (none) | 1 | Y |
 | `WRONG_CODE` | TIER_2 | (no Tier-1 entry) | (none) | 1 | Y |
 | `WRONG_DOSAGE` | TIER_1 | ['behavior_judge', 'risk_judge', 'source_message_judge'] | ['behavior_judge', 'risk_judge'] | 2 | Y |
 
