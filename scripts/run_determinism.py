@@ -31,6 +31,7 @@ from lithrim_bench.backends import (
     EtlpStructuralBackend,
     LithrimHttpBackend,
     MockBackend,
+    TunedMockBackend,
     WorstOfBackend,
 )
 from lithrim_bench.eval_runner import run_pack
@@ -43,15 +44,18 @@ def main() -> int:
     ap.add_argument("--out", type=Path)
     ap.add_argument(
         "--backend",
-        choices=["mock", "http", "etlp-structural", "worst-of"],
+        choices=["mock", "http", "etlp-structural", "worst-of", "tuned-mock"],
         default="mock",
     )
     ap.add_argument(
         "--worst-of-semantic",
-        choices=["mock", "http"],
+        choices=["mock", "tuned-mock", "http"],
         default="mock",
         help="Sub-backend used as the semantic side of --backend worst-of.",
     )
+    ap.add_argument("--tuned-ensemble-size", type=int, default=3)
+    ap.add_argument("--tuned-per-member-accuracy", type=float, default=0.85)
+    ap.add_argument("--tuned-flag-attachment-rate", type=float, default=0.80)
     ap.add_argument(
         "--worst-of-structural",
         choices=["mock", "etlp"],
@@ -73,7 +77,17 @@ def main() -> int:
 
     out = args.out or args.pack_path.with_name(args.pack_path.stem + ".runs.ndjson")
 
+    def _build_tuned_mock():
+        return TunedMockBackend(
+            ensemble_size=args.tuned_ensemble_size,
+            per_member_semantic_accuracy=args.tuned_per_member_accuracy,
+            per_member_flag_attachment_rate=args.tuned_flag_attachment_rate,
+            noise_seed=args.noise_seed,
+        )
+
     def _build_semantic():
+        if args.worst_of_semantic == "tuned-mock":
+            return _build_tuned_mock()
         if args.worst_of_semantic == "mock":
             return MockBackend(
                 decision_flip_rate=args.decision_flip_rate,
@@ -110,6 +124,8 @@ def main() -> int:
             structural_drift_rate=args.structural_drift_rate,
             noise_seed=args.noise_seed,
         )
+    elif args.backend == "tuned-mock":
+        backend = _build_tuned_mock()
     elif args.backend == "etlp-structural":
         etlp_url = (
             args.base_url
