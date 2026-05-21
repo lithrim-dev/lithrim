@@ -44,18 +44,18 @@ def test_applies_requires_parseable_dose():
 def test_inject_mutates_artifact_only():
     spec = _spec()
     transcript = synthesize_scribe_transcript(spec)
-    artifact = synthesize_scribe_artifact(spec)
+    artifacts = [synthesize_scribe_artifact(spec)]
     inj = WrongDosageInjector(factor=10.0)
-    result = inj.inject(spec, transcript, artifact)
+    result = inj.inject(spec, transcript, artifacts)
 
     assert result.transcript == transcript
-    assert result.artifact != artifact
+    assert result.artifacts[0] != artifacts[0]
     assert result.recipe.safety_flag == "WRONG_DOSAGE"
     assert result.recipe.mutated_projection == "artifact_text"
     assert result.recipe.pre_value == "50mg"
     assert result.recipe.post_value == "500mg"
 
-    doc = json.loads(result.artifact["content"])
+    doc = json.loads(result.artifacts[0]["content"])
     soap = doc["content"][0]["attachment"]["data"]
     assert "500mg" in soap
     assert "50mg" not in soap.replace("500mg", "")

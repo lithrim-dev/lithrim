@@ -46,7 +46,7 @@ class InjectionRecipe:
 @dataclass
 class InjectionResult:
     transcript: str
-    artifact: dict[str, Any]
+    artifacts: list[dict[str, Any]]
     recipe: InjectionRecipe
 
 
@@ -75,6 +75,6 @@ class DefectInjector(ABC):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         """Apply the defect. The clean inputs are not mutated in place."""

@@ -14,12 +14,12 @@ def test_always_applies():
 def test_inject_appends_unsupported_detail_to_subjective():
     spec = make_spec()
     transcript = synthesize_scribe_transcript(spec)
-    artifact = synthesize_scribe_artifact(spec)
+    artifacts = [synthesize_scribe_artifact(spec)]
 
-    result = HallucinatedDetailInjector().inject(spec, transcript, artifact)
+    result = HallucinatedDetailInjector().inject(spec, transcript, artifacts)
 
     assert result.recipe.safety_flag == "HALLUCINATED_DETAIL"
-    soap = json.loads(result.artifact["content"])["content"][0]["attachment"]["data"]
+    soap = json.loads(result.artifacts[0]["content"])["content"][0]["attachment"]["data"]
     detail = result.recipe.params["detail"]
     assert detail in soap
     assert detail not in transcript

@@ -100,7 +100,7 @@ def main() -> None:
             print(f"  SKIP {type(injector).__name__}: no applicable Synthea encounter")
             continue
         transcript = synthesize_scribe_transcript(spec)
-        artifact = synthesize_scribe_artifact(spec)
+        artifacts = [synthesize_scribe_artifact(spec)]
 
         if spec.encounter.encounter_id not in seen_clean_encounters:
             seen_clean_encounters.add(spec.encounter.encounter_id)
@@ -110,20 +110,20 @@ def main() -> None:
                     pack="scribe_v1",
                     agent_type="scribe",
                     transcript=transcript,
-                    artifacts=[artifact],
+                    artifacts=artifacts,
                     recipes=[],
                     taxonomy=taxonomy,
                     pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256},
                 )
             )
 
-        result = injector.inject(spec, transcript, artifact)
+        result = injector.inject(spec, transcript, artifacts)
         row = package_case(
             spec=spec,
             pack="scribe_v1",
             agent_type="scribe",
             transcript=result.transcript,
-            artifacts=[result.artifact],
+            artifacts=result.artifacts,
             recipes=[result.recipe],
             taxonomy=taxonomy,
             pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256,

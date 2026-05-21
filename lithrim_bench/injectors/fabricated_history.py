@@ -52,7 +52,7 @@ class FabricatedHistoryInjector(DefectInjector):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         pick = self._pick(spec)
         if pick is None:
@@ -70,7 +70,7 @@ class FabricatedHistoryInjector(DefectInjector):
                 return head + sep + head2 + fabricated_line.strip() + "." + tail2
             return head + sep + fabricated_line + "\n" + tail
 
-        new_artifact, _, _ = mutate_soap_body(artifact, _insert)
+        new_artifacts, _, _ = mutate_soap_body(artifacts, _insert)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,
@@ -81,4 +81,4 @@ class FabricatedHistoryInjector(DefectInjector):
             post_value=desc,
             params={"fabricated_snomed_code": code, "fabricated_description": desc},
         )
-        return InjectionResult(transcript=transcript, artifact=new_artifact, recipe=recipe)
+        return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)

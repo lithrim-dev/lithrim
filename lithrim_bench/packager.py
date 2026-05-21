@@ -23,6 +23,18 @@ _ARTIFACT_VERDICT_RANK = {"PASS": 0, "WARN": 1, "BLOCK": 2}
 _TIER_VERDICT = {"TIER_1": "reject", "TIER_2": "reject", "TIER_3": "needs_review"}
 _TIER_ARTIFACT = {"TIER_1": "BLOCK", "TIER_2": "BLOCK", "TIER_3": "WARN"}
 
+# Synthesis markers used by injectors to locate dialogue regions.
+# They're stripped at packaging time so they never appear in produced cases.
+_SYNTHESIS_MARKERS = ("<!-- verification -->", "<!-- /verification -->")
+
+
+def _clean_transcript(transcript: str) -> str:
+    cleaned = "\n".join(
+        line for line in transcript.split("\n")
+        if line.strip() not in _SYNTHESIS_MARKERS
+    )
+    return cleaned.replace("\n\n\n", "\n\n").strip()
+
 
 def _case_id(spec: EncounterSpec, recipes: list[InjectionRecipe], pack: str) -> str:
     if not recipes:
@@ -131,7 +143,7 @@ def package_case(
             "active_medications": [m.description for m in spec.active_medications],
             "allergies": [a.description for a in spec.allergies],
         },
-        "transcript": transcript,
+        "transcript": _clean_transcript(transcript),
         "artifacts": artifacts,
         "injection_recipes": [r.to_dict() for r in recipes],
         "expected_compliance_verdict": expected_verdict,

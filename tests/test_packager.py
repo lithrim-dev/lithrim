@@ -14,16 +14,16 @@ from ._factories import make_spec
 def _setup():
     spec = make_spec()
     transcript = synthesize_scribe_transcript(spec)
-    artifact = synthesize_scribe_artifact(spec)
+    artifacts = [synthesize_scribe_artifact(spec)]
     taxonomy = load_taxonomy()
-    return spec, transcript, artifact, taxonomy
+    return spec, transcript, artifacts, taxonomy
 
 
 def test_clean_negative_pack():
-    spec, transcript, artifact, taxonomy = _setup()
+    spec, transcript, artifacts, taxonomy = _setup()
     row = package_case(
         spec=spec, pack="scribe_v1", agent_type="scribe",
-        transcript=transcript, artifacts=[artifact],
+        transcript=transcript, artifacts=artifacts,
         recipes=[], taxonomy=taxonomy, pinned={},
     )
     assert row["clean_negative"] is True
@@ -35,12 +35,12 @@ def test_clean_negative_pack():
 
 
 def test_single_defect_pack():
-    spec, transcript, artifact, taxonomy = _setup()
+    spec, transcript, artifacts, taxonomy = _setup()
     inj = WrongDosageInjector()
-    result = inj.inject(spec, transcript, artifact)
+    result = inj.inject(spec, transcript, artifacts)
     row = package_case(
         spec=spec, pack="scribe_v1", agent_type="scribe",
-        transcript=result.transcript, artifacts=[result.artifact],
+        transcript=result.transcript, artifacts=result.artifacts,
         recipes=[result.recipe], taxonomy=taxonomy, pinned={},
     )
     assert row["clean_negative"] is False
@@ -52,12 +52,12 @@ def test_single_defect_pack():
 
 
 def test_multi_defect_worst_of_verdict():
-    spec, transcript, artifact, taxonomy = _setup()
-    r1 = MissingAllergyInjector().inject(spec, transcript, artifact)
-    r2 = FabricatedHistoryInjector().inject(spec, r1.transcript, r1.artifact)
+    spec, transcript, artifacts, taxonomy = _setup()
+    r1 = MissingAllergyInjector().inject(spec, transcript, artifacts)
+    r2 = FabricatedHistoryInjector().inject(spec, r1.transcript, r1.artifacts)
     row = package_case(
         spec=spec, pack="scribe_v1", agent_type="scribe",
-        transcript=r2.transcript, artifacts=[r2.artifact],
+        transcript=r2.transcript, artifacts=r2.artifacts,
         recipes=[r1.recipe, r2.recipe], taxonomy=taxonomy, pinned={},
     )
     assert row["multi_defect"] is True
@@ -68,7 +68,7 @@ def test_multi_defect_worst_of_verdict():
 
 
 def test_unknown_code_raises():
-    spec, transcript, artifact, taxonomy = _setup()
+    spec, transcript, artifacts, taxonomy = _setup()
     from lithrim_bench.injectors.base import InjectionRecipe
 
     bogus = InjectionRecipe(
@@ -82,7 +82,7 @@ def test_unknown_code_raises():
     try:
         package_case(
             spec=spec, pack="scribe_v1", agent_type="scribe",
-            transcript=transcript, artifacts=[artifact],
+            transcript=transcript, artifacts=artifacts,
             recipes=[bogus], taxonomy=taxonomy, pinned={},
         )
     except ValueError as e:

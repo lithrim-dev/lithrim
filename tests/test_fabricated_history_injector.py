@@ -24,23 +24,23 @@ def test_applies_returns_false_when_patient_already_has_all_fabrications():
 def test_inject_adds_unknown_condition_to_pmh():
     spec = make_spec()
     transcript = synthesize_scribe_transcript(spec)
-    artifact = synthesize_scribe_artifact(spec)
+    artifacts = [synthesize_scribe_artifact(spec)]
 
-    result = FabricatedHistoryInjector().inject(spec, transcript, artifact)
+    result = FabricatedHistoryInjector().inject(spec, transcript, artifacts)
 
     assert result.recipe.safety_flag == "FABRICATED_HISTORY"
     fabricated = result.recipe.params["fabricated_description"]
     assert fabricated not in {c.description for c in spec.conditions}
-    soap = json.loads(result.artifact["content"])["content"][0]["attachment"]["data"]
+    soap = json.loads(result.artifacts[0]["content"])["content"][0]["attachment"]["data"]
     assert fabricated in soap
     assert result.transcript == transcript
 
 
 def test_inject_replaces_NSPMH_stub_when_no_conditions():
     spec = make_spec(with_conditions=False)
-    artifact = synthesize_scribe_artifact(spec)
-    assert "No significant past medical history." in artifact["_soap_text"]
+    artifacts = [synthesize_scribe_artifact(spec)]
+    assert "No significant past medical history." in artifacts[0]["_soap_text"]
 
-    result = FabricatedHistoryInjector().inject(spec, "tx", artifact)
-    soap = json.loads(result.artifact["content"])["content"][0]["attachment"]["data"]
+    result = FabricatedHistoryInjector().inject(spec, "tx", artifacts)
+    soap = json.loads(result.artifacts[0]["content"])["content"][0]["attachment"]["data"]
     assert result.recipe.params["fabricated_description"] in soap

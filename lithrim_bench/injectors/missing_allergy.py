@@ -28,7 +28,7 @@ class MissingAllergyInjector(DefectInjector):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         target = spec.allergies[0]
         target_line = f"  - {target.description}"
@@ -36,7 +36,7 @@ class MissingAllergyInjector(DefectInjector):
         def _drop(soap: str) -> str:
             return soap.replace(target_line + "\n", "", 1).replace("\n" + target_line, "", 1)
 
-        new_artifact, original, _ = mutate_soap_body(artifact, _drop)
+        new_artifacts, _, _ = mutate_soap_body(artifacts, _drop)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,
@@ -50,4 +50,4 @@ class MissingAllergyInjector(DefectInjector):
                 "allergy_description": target.description,
             },
         )
-        return InjectionResult(transcript=transcript, artifact=new_artifact, recipe=recipe)
+        return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)

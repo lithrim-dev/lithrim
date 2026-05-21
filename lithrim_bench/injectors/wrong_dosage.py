@@ -10,11 +10,11 @@ text-projection injectors.
 """
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
 from ..encounter_spec import EncounterSpec
+from ._soap import mutate_soap_body
 from .base import DefectInjector, InjectionRecipe, InjectionResult
 
 _DOSE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(mg|MG|mcg|MCG|g|G|ml|ML|units?|UNITS?)")
@@ -49,26 +49,17 @@ class WrongDosageInjector(DefectInjector):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         primary = spec.primary_active_medication()
         pre_dose, post_dose = _bump_dose(primary.dose, self.factor)
         if pre_dose == post_dose:
             raise ValueError(f"WrongDosageInjector could not parse dose: {primary.dose!r}")
 
-        new_artifact = json.loads(json.dumps(artifact))
-        doc = json.loads(new_artifact["content"])
-        attachment = doc["content"][0]["attachment"]
-        original_soap: str = attachment["data"]
-        mutated_soap = original_soap.replace(pre_dose, post_dose, 1)
-        if mutated_soap == original_soap:
-            raise ValueError(
-                f"WrongDosageInjector found med dose {pre_dose!r} in EncounterSpec "
-                f"but not in synthesized SOAP body"
-            )
-        attachment["data"] = mutated_soap
-        new_artifact["content"] = json.dumps(doc)
-        new_artifact["_soap_text"] = mutated_soap
+        def _swap(soap: str) -> str:
+            return soap.replace(pre_dose, post_dose, 1)
+
+        new_artifacts, _, _ = mutate_soap_body(artifacts, _swap)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,
@@ -79,4 +70,4 @@ class WrongDosageInjector(DefectInjector):
             post_value=post_dose,
             params={"factor": self.factor, "medication": primary.description},
         )
-        return InjectionResult(transcript=transcript, artifact=new_artifact, recipe=recipe)
+        return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)

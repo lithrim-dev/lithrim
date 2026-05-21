@@ -62,7 +62,7 @@ class ValueMismatchInjector(DefectInjector):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         obs = self._pick(spec)
         if obs is None:
@@ -79,7 +79,7 @@ class ValueMismatchInjector(DefectInjector):
         def _swap(soap: str) -> str:
             return soap.replace(pre_token, post_token, 1)
 
-        new_artifact, original, _ = mutate_soap_body(artifact, _swap)
+        new_artifacts, _, _ = mutate_soap_body(artifacts, _swap)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,
@@ -96,4 +96,4 @@ class ValueMismatchInjector(DefectInjector):
                 "post_value": drifted_val,
             },
         )
-        return InjectionResult(transcript=transcript, artifact=new_artifact, recipe=recipe)
+        return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)

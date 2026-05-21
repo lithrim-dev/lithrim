@@ -51,7 +51,7 @@ class HallucinatedDetailInjector(DefectInjector):
         self,
         spec: EncounterSpec,
         transcript: str,
-        artifact: dict[str, Any],
+        artifacts: list[dict[str, Any]],
     ) -> InjectionResult:
         pick = self._pick(spec, transcript)
         if pick is None:
@@ -64,7 +64,7 @@ class HallucinatedDetailInjector(DefectInjector):
             line_end = soap.find("\n", soap.index("SUBJECTIVE:"))
             return soap[:line_end] + " " + detail + soap[line_end:]
 
-        new_artifact, _, _ = mutate_soap_body(artifact, _append_to_subjective)
+        new_artifacts, _, _ = mutate_soap_body(artifacts, _append_to_subjective)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,
@@ -75,4 +75,4 @@ class HallucinatedDetailInjector(DefectInjector):
             post_value=detail,
             params={"topic": topic, "detail": detail},
         )
-        return InjectionResult(transcript=transcript, artifact=new_artifact, recipe=recipe)
+        return InjectionResult(transcript=transcript, artifacts=new_artifacts, recipe=recipe)
