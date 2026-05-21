@@ -6,6 +6,13 @@ complications, level 3 visit billed as CPT 99213"). v1 referred to
 "the diagnosis" abstractly, which caused the live council to flag
 clean cases as needs_review (no code grounding in transcript).
 
+v3 (2026-05-21): mirrors the billing anchors emitted by
+coding_artifact.py v3 (rendering provider NPI, payer, and visit
+charge in the coder readback line). The structural validator change
+is the load-bearing fix for the clean-recall=0/4 finding; this
+transcript update keeps the council's grounding tight against the
+new artifact shape.
+
 Contract preserved: the transcript NEVER mentions the
 `upcode_requires_evidence` clinical phrase for any condition, so any
 upcoded ICD in the artifact remains unsupported by construction.
@@ -14,6 +21,7 @@ from __future__ import annotations
 
 from ..encounter_spec import EncounterSpec
 from ._icd10_map import lookup
+from .coding_artifact import PAYER_DISPLAY, PROVIDER_NPI, VISIT_CHARGE_USD
 
 
 def synthesize_coding_transcript(spec: EncounterSpec) -> str:
@@ -39,6 +47,8 @@ def synthesize_coding_transcript(spec: EncounterSpec) -> str:
         "CPT 99213.",
         "Provider: No complications, no decompensation, no acute findings beyond "
         "what's already documented.",
-        f"Coder: Confirmed: ICD-10 {primary_icd} ({primary_desc}), CPT 99213 level 3. Submitting the claim.",
+        f"Coder: Confirmed: ICD-10 {primary_icd} ({primary_desc}), CPT 99213 level 3. "
+        f"Billing under provider NPI {PROVIDER_NPI}, payer {PAYER_DISPLAY}, "
+        f"total ${VISIT_CHARGE_USD:.2f}. Submitting the claim.",
     ]
     return "\n".join(lines)
