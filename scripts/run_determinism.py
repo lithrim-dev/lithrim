@@ -27,7 +27,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lithrim_bench.backends import EtlpStructuralBackend, LithrimHttpBackend, MockBackend
+from lithrim_bench.backends import (
+    EtlpStructuralBackend,
+    LithrimHttpBackend,
+    MockBackend,
+    WorstOfBackend,
+)
 from lithrim_bench.eval_runner import run_pack
 
 
@@ -36,7 +41,23 @@ def main() -> int:
     ap.add_argument("--pack-path", required=True, type=Path)
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--out", type=Path)
-    ap.add_argument("--backend", choices=["mock", "http", "etlp-structural"], default="mock")
+    ap.add_argument(
+        "--backend",
+        choices=["mock", "http", "etlp-structural", "worst-of"],
+        default="mock",
+    )
+    ap.add_argument(
+        "--worst-of-semantic",
+        choices=["mock", "http"],
+        default="mock",
+        help="Sub-backend used as the semantic side of --backend worst-of.",
+    )
+    ap.add_argument(
+        "--worst-of-structural",
+        choices=["mock", "etlp"],
+        default="mock",
+        help="Sub-backend used as the structural side of --backend worst-of.",
+    )
     ap.add_argument("--decision-flip-rate", type=float, default=0.0)
     ap.add_argument("--flag-attachment-rate", type=float, default=1.0)
     ap.add_argument("--structural-drift-rate", type=float, default=0.0)
@@ -52,6 +73,36 @@ def main() -> int:
 
     out = args.out or args.pack_path.with_name(args.pack_path.stem + ".runs.ndjson")
 
+    def _build_semantic():
+        if args.worst_of_semantic == "mock":
+            return MockBackend(
+                decision_flip_rate=args.decision_flip_rate,
+                flag_attachment_rate=args.flag_attachment_rate,
+                structural_drift_rate=1.0,  # blind on the structural axis by construction
+                noise_seed=args.noise_seed,
+            )
+        return LithrimHttpBackend(
+            base_url=args.base_url,
+            api_key=args.api_key,
+            judge_model=args.judge_model,
+            judge_model_version=args.judge_model_version,
+        )
+
+    def _build_structural():
+        if args.worst_of_structural == "mock":
+            return MockBackend(
+                decision_flip_rate=0.0,
+                flag_attachment_rate=0.0,
+                structural_drift_rate=args.structural_drift_rate,
+                noise_seed=args.noise_seed + 1,
+            )
+        etlp_url = (
+            args.base_url
+            if args.base_url != "http://localhost:8002"
+            else "http://localhost:3031"
+        )
+        return EtlpStructuralBackend(base_url=etlp_url, api_key=args.api_key)
+
     if args.backend == "mock":
         backend = MockBackend(
             decision_flip_rate=args.decision_flip_rate,
@@ -60,8 +111,14 @@ def main() -> int:
             noise_seed=args.noise_seed,
         )
     elif args.backend == "etlp-structural":
-        etlp_url = args.base_url if args.base_url != "http://localhost:8002" else "http://localhost:3031"
+        etlp_url = (
+            args.base_url
+            if args.base_url != "http://localhost:8002"
+            else "http://localhost:3031"
+        )
         backend = EtlpStructuralBackend(base_url=etlp_url, api_key=args.api_key)
+    elif args.backend == "worst-of":
+        backend = WorstOfBackend(semantic=_build_semantic(), structural=_build_structural())
     else:
         backend = LithrimHttpBackend(
             base_url=args.base_url,
