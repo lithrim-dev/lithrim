@@ -1,6 +1,7 @@
 from .base import BackendClient, BackendVerdict
 from .etlp_structural import EtlpStructuralBackend
 from .http import LithrimHttpBackend
+from .lithrim_pipeline import LithrimPipelineBackend
 from .lithrim_validate_artifact import LithrimValidateArtifactBackend
 from .mock import MockBackend
 from .tuned_mock import TunedMockBackend
@@ -11,6 +12,7 @@ __all__ = [
     "BackendVerdict",
     "EtlpStructuralBackend",
     "LithrimHttpBackend",
+    "LithrimPipelineBackend",
     "LithrimValidateArtifactBackend",
     "MockBackend",
     "TunedMockBackend",

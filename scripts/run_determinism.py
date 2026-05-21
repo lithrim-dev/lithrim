@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lithrim_bench.backends import (
     EtlpStructuralBackend,
     LithrimHttpBackend,
+    LithrimPipelineBackend,
     LithrimValidateArtifactBackend,
     MockBackend,
     TunedMockBackend,
@@ -50,11 +51,14 @@ def main() -> int:
             "http",
             "etlp-structural",
             "lithrim-validate-artifact",
+            "lithrim-pipeline",
             "worst-of",
             "tuned-mock",
         ],
         default="mock",
     )
+    ap.add_argument("--org-id", default=None, help="Org ID for /v1/pipeline/evaluate (read from .live_env if omitted)")
+    ap.add_argument("--gate-mode", action="store_true", help="Enable /v1/pipeline/evaluate fast-path gate mode")
     ap.add_argument(
         "--etlp-mapping-id",
         type=int,
@@ -63,7 +67,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--worst-of-semantic",
-        choices=["mock", "tuned-mock", "http"],
+        choices=["mock", "tuned-mock", "http", "lithrim-pipeline"],
         default="mock",
         help="Sub-backend used as the semantic side of --backend worst-of.",
     )
@@ -99,9 +103,34 @@ def main() -> int:
             noise_seed=args.noise_seed,
         )
 
+    def _read_live_env() -> dict[str, str]:
+        env_path = Path(__file__).resolve().parent.parent / ".live_env"
+        if not env_path.exists():
+            return {}
+        return dict(
+            line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line
+        )
+
+    def _live_creds():
+        import os
+        live = _read_live_env()
+        key = args.api_key or os.environ.get("LITHRIM_API_KEY") or live.get("LITHRIM_API_KEY")
+        org = args.org_id or os.environ.get("LITHRIM_ORG_ID") or live.get("LITHRIM_ORG_ID")
+        return key, org
+
+    def _build_pipeline():
+        key, org = _live_creds()
+        if not key or not org:
+            sys.exit("--api-key/--org-id required (or set LITHRIM_API_KEY/LITHRIM_ORG_ID, or .live_env)")
+        return LithrimPipelineBackend(
+            base_url=args.base_url, api_key=key, org_id=org, gate_mode=args.gate_mode,
+        )
+
     def _build_semantic():
         if args.worst_of_semantic == "tuned-mock":
             return _build_tuned_mock()
+        if args.worst_of_semantic == "lithrim-pipeline":
+            return _build_pipeline()
         if args.worst_of_semantic == "mock":
             return MockBackend(
                 decision_flip_rate=args.decision_flip_rate,
@@ -147,6 +176,8 @@ def main() -> int:
             else "http://localhost:3031"
         )
         backend = EtlpStructuralBackend(base_url=etlp_url, api_key=args.api_key)
+    elif args.backend == "lithrim-pipeline":
+        backend = _build_pipeline()
     elif args.backend == "lithrim-validate-artifact":
         import os
         key = args.api_key or os.environ.get("LITHRIM_API_KEY")
