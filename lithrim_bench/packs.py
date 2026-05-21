@@ -13,6 +13,7 @@ from typing import Any, Callable
 from .encounter_spec import EncounterSpec
 from .injectors import (
     CODING_INJECTORS,
+    HL7_ADT_INJECTORS,
     SCHEDULING_INJECTORS,
     SCRIBE_INJECTORS,
     TRIAGE_INJECTORS,
@@ -20,6 +21,8 @@ from .injectors import (
 )
 from .synthesizers.coding_artifact import synthesize_coding_artifact
 from .synthesizers.coding_transcript import synthesize_coding_transcript
+from .synthesizers.hl7_adt_artifact import synthesize_hl7_adt_artifact
+from .synthesizers.hl7_adt_transcript import synthesize_hl7_adt_transcript
 from .synthesizers.scheduling_artifact import synthesize_scheduling_artifact
 from .synthesizers.scheduling_transcript import synthesize_scheduling_transcript
 from .synthesizers.scribe_artifact import synthesize_scribe_artifact
@@ -81,9 +84,18 @@ TRIAGE_PACK = PackDefinition(
     injectors=TRIAGE_INJECTORS,
 )
 
+HL7_ADT_PACK = PackDefinition(
+    name="hl7_adt_v1",
+    agent_type="hl7_adt",
+    transcript_fn=synthesize_hl7_adt_transcript,
+    artifact_fn=synthesize_hl7_adt_artifact,
+    injectors=HL7_ADT_INJECTORS,
+)
+
 PACKS: dict[str, PackDefinition] = {
     SCRIBE_PACK.name: SCRIBE_PACK,
     SCHEDULING_PACK.name: SCHEDULING_PACK,
     CODING_PACK.name: CODING_PACK,
     TRIAGE_PACK.name: TRIAGE_PACK,
+    HL7_ADT_PACK.name: HL7_ADT_PACK,
 }

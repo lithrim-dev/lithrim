@@ -21,10 +21,17 @@ class Taxonomy:
     tier1_owners: dict[str, frozenset[str]]
     production_judges: frozenset[str]
     declared_but_not_running: frozenset[str]
+    structural_codes: frozenset[str] = frozenset()
 
     @property
     def known_codes(self) -> frozenset[str]:
         return self.tier_1 | self.tier_2 | self.tier_3
+
+    def is_structural(self, code: str) -> bool:
+        return code in self.structural_codes
+
+    def is_known(self, code: str) -> bool:
+        return code in self.known_codes or code in self.structural_codes
 
     def tier_of(self, code: str) -> str | None:
         if code in self.tier_1:
@@ -33,6 +40,8 @@ class Taxonomy:
             return "TIER_2"
         if code in self.tier_3:
             return "TIER_3"
+        if code in self.structural_codes:
+            return "STRUCTURAL"
         return None
 
     def owners_of(self, code: str) -> frozenset[str]:
@@ -54,4 +63,5 @@ def load_taxonomy(path: Path | None = None) -> Taxonomy:
         tier1_owners={k: frozenset(v) for k, v in raw["tier1_owners"].items()},
         production_judges=frozenset(raw["production_judges"]),
         declared_but_not_running=frozenset(raw["declared_but_not_running"]),
+        structural_codes=frozenset(raw.get("structural_codes", {}).keys()),
     )

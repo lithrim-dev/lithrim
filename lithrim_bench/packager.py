@@ -20,8 +20,18 @@ from .taxonomy import Taxonomy
 
 _VERDICT_RANK = {"approve": 0, "needs_review": 1, "reject": 2}
 _ARTIFACT_VERDICT_RANK = {"PASS": 0, "WARN": 1, "BLOCK": 2}
-_TIER_VERDICT = {"TIER_1": "reject", "TIER_2": "reject", "TIER_3": "needs_review"}
-_TIER_ARTIFACT = {"TIER_1": "BLOCK", "TIER_2": "BLOCK", "TIER_3": "WARN"}
+_TIER_VERDICT = {
+    "TIER_1": "reject",
+    "TIER_2": "reject",
+    "TIER_3": "needs_review",
+    "STRUCTURAL": "reject",
+}
+_TIER_ARTIFACT = {
+    "TIER_1": "BLOCK",
+    "TIER_2": "BLOCK",
+    "TIER_3": "WARN",
+    "STRUCTURAL": "BLOCK",
+}
 
 # Synthesis markers used by injectors to locate dialogue regions.
 # They're stripped at packaging time so they never appear in produced cases.
@@ -86,10 +96,11 @@ def package_case(
     """
     recipes = list(recipes or [])
     for r in recipes:
-        if r.safety_flag not in taxonomy.known_codes:
+        if not taxonomy.is_known(r.safety_flag):
             raise ValueError(
-                f"recipe.safety_flag {r.safety_flag!r} not in snapshotted taxonomy; "
-                f"refresh taxonomy/taxonomy_snapshot.json or fix the injector"
+                f"recipe.safety_flag {r.safety_flag!r} not in snapshotted taxonomy "
+                f"(semantic or structural); refresh taxonomy/taxonomy_snapshot.json "
+                f"or fix the injector"
             )
         if r.safety_flag in taxonomy.tier1_owners and not taxonomy.production_owners_of(
             r.safety_flag
@@ -118,6 +129,9 @@ def package_case(
             expected_owner_map[r.safety_flag] = sorted(
                 taxonomy.production_owners_of(r.safety_flag)
             )
+
+    has_structural = any(taxonomy.is_structural(r.safety_flag) for r in recipes)
+    expected_structural_verdict = "BLOCK" if has_structural else ("PASS" if not recipes else None)
 
     return {
         "case_id": case_id,
@@ -150,6 +164,7 @@ def package_case(
         "expected_artifact_verdict": expected_artifact_verdict,
         "expected_safety_flags": expected_flags,
         "expected_owner_map": expected_owner_map,
+        "expected_structural_verdict": expected_structural_verdict,
         "clean_negative": not recipes,
         "multi_defect": len(recipes) > 1,
         "severity": clinical_severity,

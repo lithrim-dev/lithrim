@@ -37,7 +37,7 @@ def main() -> int:
     args = ap.parse_args()
 
     taxonomy = load_taxonomy(args.snapshot)
-    known = taxonomy.known_codes
+    known = taxonomy.known_codes | taxonomy.structural_codes
 
     bad_cases: list[tuple[str, str, str]] = []
     verdict_flag_violations: list[tuple[str, str, str, object]] = []
