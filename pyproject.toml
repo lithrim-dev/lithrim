@@ -1,0 +1,30 @@
+[project]
+name = "lithrim-bench"
+version = "0.1.0"
+description = "Deterministically-labeled clinical-AI artifact verification benchmark generator. Backs the Lithrim research paper and the Lithrim Bench developer product."
+authors = [{name = "Lithrim"}]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "pandas>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lithrim_bench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

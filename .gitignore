@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Local data — track only the manifest pointer, not the cohort itself.
+data/synthea_sample_data_csv_latest/
+data/synthea/
+
+# Generated benchmark JSONL — produced by scripts/generate_proof_case.py
+examples/proof_case.jsonl
+out/

@@ -1,0 +1,89 @@
+"""Lint a golden JSONL against the snapshotted taxonomy.
+
+Closes EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md defect D1: golden cases
+referencing codes the system cannot emit.
+
+For each case, asserts every code in `expected_safety_flags` is in
+KNOWN_TAXONOMY_CODES (the union of TIER_1, TIER_2, TIER_3 in the
+snapshot). Unknown codes are reported with the case_id; the script
+exits non-zero if any case fails.
+
+Usage:
+    python scripts/lint_golden_against_taxonomy.py \
+        --golden /path/to/eval_golden.jsonl \
+        [--snapshot taxonomy/taxonomy_snapshot.json]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from lithrim_bench.taxonomy import load_taxonomy
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--golden", required=True, type=Path)
+    ap.add_argument(
+        "--snapshot",
+        default=Path(__file__).resolve().parent.parent / "taxonomy" / "taxonomy_snapshot.json",
+        type=Path,
+    )
+    args = ap.parse_args()
+
+    taxonomy = load_taxonomy(args.snapshot)
+    known = taxonomy.known_codes
+
+    bad_cases: list[tuple[str, str, str]] = []
+    code_use: dict[str, int] = defaultdict(int)
+    total = 0
+
+    with args.golden.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            total += 1
+            row = json.loads(line)
+            case_id = row.get("scenario_id") or row.get("case_id") or "<unknown>"
+            flags = row.get("expected_safety_flags") or []
+            for flag in flags:
+                code_use[flag] += 1
+                if flag not in known:
+                    bad_cases.append((case_id, flag, row.get("agent_type", "?")))
+
+    print(f"lint_golden_against_taxonomy: {total} cases scanned in {args.golden}")
+    print(f"  taxonomy snapshot: {args.snapshot}")
+    print(f"  unique codes seen: {len(code_use)}")
+    print()
+    print("code usage:")
+    for code, n in sorted(code_use.items(), key=lambda kv: (-kv[1], kv[0])):
+        status = "OK" if code in known else "UNKNOWN"
+        tier = taxonomy.tier_of(code) or "-"
+        print(f"  [{status:7}] {tier:7} {code:40} x{n}")
+
+    if bad_cases:
+        print()
+        print(f"FAIL: {len(bad_cases)} case-flag pairs reference codes not in taxonomy snapshot:")
+        for case_id, flag, agent in bad_cases:
+            print(f"  - {case_id} ({agent}): {flag!r}")
+        print()
+        print("Resolution (per EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md §1.2):")
+        print("  1. Fix taxonomy: add the code to the right tier in compliance_council.py")
+        print("     and re-snapshot via scripts/snapshot_taxonomy.py.")
+        print("  2. Relabel: change the case's expected_safety_flags to a code the system can emit.")
+        print("  3. Exclude: drop the case from the scored set and record why.")
+        return 1
+
+    print()
+    print("OK: every expected_safety_flags code resolves to the snapshotted taxonomy.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

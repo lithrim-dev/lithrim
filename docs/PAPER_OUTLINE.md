@@ -1,0 +1,74 @@
+# Paper Outline: Structural Validation as a Deterministic Floor Under LLM-as-Judge
+
+**Status:** scaffold for writing. Locked to the corrected, survives-scrutiny claim. Do not draft numeric results before the benchmark is clean (see EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+
+**Working title (primary):** A Deterministic Structural Floor Under LLM-as-Judge: Recovering Conformance Errors in Clinical Artifact Verification
+
+**Alternate title:** Semantic Judges Are Categorically Blind to Specification Violations: A Synthetic Benchmark and a Worst-of Composition
+
+**Target venue:** arXiv preprint first (immediate, citable, this is the public output that matters). Then a workshop, the LLM-evaluation or safety workshops at NeurIPS / ICLR / a SoLaR-style venue. Not a top conference first. The reproducible benchmark and harness on GitHub is as much the artifact as the PDF.
+
+**Scope discipline:** one claim. No LithrimJudge distillation, no multilingual, no Phase 3. Those are future work lines, not this paper.
+
+---
+
+## 1. The one claim (precise, corrected)
+
+A semantic LLM-as-judge is categorically blind to a class of specification-defined structural errors, and this blindness does not close with more judge accuracy because the judge is reasoning about meaning, not validating structure. Composing a deterministic structural validator with a semantic judge council under a worst-of rule recovers that error class. We quantify the recovered class, the false-positive cost of the composition, the run-to-run verdict distribution, and the recall cost and model-dependence of a faithfulness-preserving drop-only critique pass, on a synthetic, deterministically labeled clinical benchmark.
+
+**Explicitly not claimed:** a deterministic system; that structural composition beats a tuned judge on semantic correctness; system-level reliability or verdict propagation (that is engineering, it is a limitations note, not a result). The word is bounded recovery of a specific error class, not determinism.
+
+## 2. Contributions
+
+1. A reproducible, synthetic-by-construction clinical artifact verification benchmark. Synthea base records with pinned seed, programmatic single- and multi-defect injection, labels exact by construction, clean negatives included for false-positive measurement. Released as generator plus frozen test set.
+2. A characterization of categorical blindness: the specific error classes a semantic judge cannot detect at any accuracy, with the argument grounded in the structural-vs-semantic separation, not in a percentage ceiling.
+3. An empirical evaluation of structural-only vs a tuned semantic-judge baseline vs the worst-of composition, with a determinism protocol that separates a stable decision layer from a stochastic code-attribution layer, reports distributions over repeated runs, and measures false-block cost and the drop-only critique recall cost and model-dependence.
+4. A motivating real-world existence proof: one production pipeline run where a unanimous three-judge council passed a clinical note at faithfulness 1.0 while the deterministic structural validator caught a malformed medication entry and a missing allergies list, worst-of escalating to reject. Framed as motivation, not as the empirical result.
+
+## 3. Related work and positioning
+
+- LLM-as-judge reliability and cost-effective improvement (Lail and Markham, arXiv 2604.13717, RewardBench 2, up to ~85.8% with ensembling and criteria injection). Use it two ways: (a) build the strong baseline from it so the comparison is fair, not a single-call strawman, (b) position our axis as orthogonal, they reduce stochastic judge noise, we add a deterministic floor that judge-noise-control cannot provide.
+- Faithfulness and groundedness evaluation, clinical NLP evaluation. Position the negative-audit-trail signal (an asserted claim with no supporting source span is itself a finding) against hallucination-detection work.
+- FHIR and HL7 conformance validators (HAPI, the official HL7 validator). State plainly that structural validation implements a public specification and is replicable. The contribution is the composition, the benchmark, and the characterization, not a proprietary validator. This pre-empts the obvious reviewer objection.
+
+## 4. Method
+
+- The verification pipeline: the semantic council (the three judges that actually run in production, policy, risk, behavior), the structural validators (field-level checks, name them, e.g. medications_well_formed, allergies_present), the worst-of rule verdict = max(structural, semantic), and the drop-only critique pass.
+- Reconcile the council composition before writing this section. The declared _TIER1_OWNERS map references source_message_judge which does not run in the production three-judge config. The methods section must describe what actually runs and disclose the discrepancy, not the aspirational design.
+- Define the negative audit trail precisely and tie it to the injected ground truth: because the defect is injected, the contradicting or absent source span is known exactly, so unsupported-claim detection is measurable, not annotator-judged.
+
+## 5. Benchmark (depends on the eval spec)
+
+Pull construction from EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md. Synthea pinned version and seed, injection taxonomy, deterministic-by-construction labels, clean negatives, calibration/test split, the label-to-taxonomy-to-owner reconciliation. State sizes honestly: the current set is roughly 55 to 58 cases and is preliminary; the paper requires the scaled, lint-passing, full-coverage set. Do not report numbers on the current set.
+
+## 6. Experiment design
+
+- Systems: single-call judge, tuned judge (criteria injection plus ensembling, per the arXiv paper), structural-only, worst-of, each with and without the drop-only critique.
+- Metrics: per-error-class precision, recall, F1 against constructed ground truth; verdict distribution over N at least 10 with bootstrap CI; decision-layer agreement (Fleiss kappa) reported separately from code-attribution agreement; false-block rate on clean negatives; over-prune rate of the drop-only pass; confidence-gate as-shipped vs forced-open delta.
+- Ablations and the three-layer decomposition exactly as specified in the eval spec. The hba1c-style bistability becomes a measured result, not an anecdote.
+
+## 7. Threats to validity (write this section honestly, it earns credibility)
+
+- Synthea is a simulation with known distributional unrealism. The benchmark tests verification logic, not real-world clinical prevalence. State it directly.
+- Injected defects are explicit and well-specified; real agent failures are messier. The benchmark is a lower bound on difficulty.
+- Current N is small; the determinism protocol exists precisely because single-run verdicts are not trustworthy.
+- The mid-80s pure-judge number is from general reward benchmarks, not clinical conformance. It is motivation and a baseline-construction reference, not a result of this paper. Attribute it, do not assert it as a law.
+- Verdict propagation and system-level consistency are defective today (engine verdict can disagree with the surfaced verdict). This is a systems-engineering concern, explicitly out of the scientific claim, disclosed in limitations, not hidden.
+
+## 8. What exists now vs what must be produced
+
+Demonstrated now: the mechanism existence proof (production pipeline run, structural caught what the unanimous council missed), the pipeline implementation, the ETLP conformance-matrix gate, ETLP public on Clojars.
+
+Must be produced before results: the clean lint-passing full-coverage labeled benchmark, the tuned-judge baseline, N at least 10 runs, the metric tables, the ablations. Order is fixed by the eval spec: fix labels and coverage, stand up the Synthea generator and clean negatives, run the N-run determinism protocol, calibrate on a held-out split, build the tuned baseline, then results. Measuring before the benchmark is clean produces noise you discard.
+
+## 9. Draft abstract (honest version, results sentence deferred)
+
+LLM-as-judge is the default for evaluating generated artifacts, but on conformance-sensitive tasks in regulated domains it has a blind spot that more judge accuracy does not fix: a semantic judge cannot reliably detect violations of a machine-checkable specification, such as a clinical note with a malformed medication entry or a missing structured allergies list, because it reasons about meaning rather than validating structure. We characterize this categorical blindness and study composing a deterministic structural validator with a semantic LLM-judge council under a worst-of rule, evaluated on a synthetic, deterministically labeled clinical artifact benchmark generated from Synthea with programmatic defect injection. Against a strong tuned-judge baseline using criteria injection and ensembling, we measure the structural error class recovered, the false-positive cost of the composition, agreement decomposed into a stable decision layer and a stochastic code-attribution layer, and the recall cost and model-dependence of a faithfulness-preserving drop-only critique pass, reporting distributions over repeated runs rather than single verdicts. As motivation we include one production run where a unanimous three-judge council rated a clinical note faithful and complete while structural validation caught a malformed medication entry and a missing allergies list. [Results sentence to be written after the benchmark run.] We release the benchmark generator and evaluation harness.
+
+## 10. Writing order (do not write results first)
+
+Writable now from the code and the spec: Method, Benchmark, Related Work, Threats to Validity, and the abstract minus the results sentence. The Results section is a skeleton holding the existence proof and the metric tables as TODO until the benchmark runs. Do not draft a single numeric performance claim before the lint-passing benchmark exists. The honesty discipline that has governed everything else governs the paper too: demonstrated mechanism now, measured results after the benchmark, and the paper says which is which.
+
+## 11. Effort and the realistic shape of v1
+
+This is a method-plus-benchmark-plus-protocol paper with a motivating existence proof, not a we-beat-the-baseline-by-X paper yet. That is a legitimate and citable arXiv-then-workshop contribution. Effort is weeks to roughly two months part-time; the system exists, the bulk is benchmark construction, the tuned baseline, and the runs. Resist turning it into three papers.
