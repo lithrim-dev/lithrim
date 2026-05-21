@@ -1,6 +1,10 @@
 """Case packager: writes a JSONL row conforming to the eval spec schema.
 
 Schema source: EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md §1.1.
+
+Recipes are always a list. Empty = clean negative. One = single-defect.
+Two or more = multi-defect (the worst-of rule across recipe tiers
+drives the resulting verdict and artifact verdict).
 """
 from __future__ import annotations
 
@@ -14,12 +18,41 @@ from .encounter_spec import EncounterSpec
 from .injectors.base import InjectionRecipe
 from .taxonomy import Taxonomy
 
+_VERDICT_RANK = {"approve": 0, "needs_review": 1, "reject": 2}
+_ARTIFACT_VERDICT_RANK = {"PASS": 0, "WARN": 1, "BLOCK": 2}
+_TIER_VERDICT = {"TIER_1": "reject", "TIER_2": "reject", "TIER_3": "needs_review"}
+_TIER_ARTIFACT = {"TIER_1": "BLOCK", "TIER_2": "BLOCK", "TIER_3": "WARN"}
 
-def _case_id(spec: EncounterSpec, defect_type: str | None, pack: str) -> str:
-    digest_input = f"{spec.demographics.patient_id}|{spec.encounter.encounter_id}|{defect_type or 'clean'}"
-    h = hashlib.sha1(digest_input.encode()).hexdigest()[:12]
-    suffix = defect_type or "clean_negative"
-    return f"bench_{pack}_{suffix}_{h}"
+
+def _case_id(spec: EncounterSpec, recipes: list[InjectionRecipe], pack: str) -> str:
+    if not recipes:
+        suffix = "clean_negative"
+    elif len(recipes) == 1:
+        suffix = recipes[0].defect_type
+    else:
+        suffix = "multi_" + "+".join(r.defect_type for r in recipes)
+    digest = hashlib.sha1(
+        f"{spec.demographics.patient_id}|{spec.encounter.encounter_id}|{suffix}".encode()
+    ).hexdigest()[:12]
+    return f"bench_{pack}_{suffix}_{digest}"
+
+
+def _verdicts_for(recipes: list[InjectionRecipe], taxonomy: Taxonomy) -> tuple[str, str]:
+    if not recipes:
+        return "approve", "PASS"
+    compliance = "approve"
+    artifact = "PASS"
+    for r in recipes:
+        tier = taxonomy.tier_of(r.safety_flag)
+        if tier is None:
+            continue
+        c = _TIER_VERDICT[tier]
+        a = _TIER_ARTIFACT[tier]
+        if _VERDICT_RANK[c] > _VERDICT_RANK[compliance]:
+            compliance = c
+        if _ARTIFACT_VERDICT_RANK[a] > _ARTIFACT_VERDICT_RANK[artifact]:
+            artifact = a
+    return compliance, artifact
 
 
 def package_case(
@@ -29,37 +62,50 @@ def package_case(
     agent_type: str,
     transcript: str,
     artifacts: list[dict[str, Any]],
-    recipe: InjectionRecipe | None,
+    recipes: list[InjectionRecipe] | None = None,
     taxonomy: Taxonomy,
     pinned: dict[str, Any],
-    clinical_severity: str = "high",
+    clinical_severity: str | None = None,
 ) -> dict[str, Any]:
     """Build a single JSONL row.
 
-    Raises ValueError if the recipe's safety_flag is not in the snapshotted
-    taxonomy, or if no production judge owns it. This is the in-process
-    enforcement of defects D1 and D3.
+    Enforces D1 (flag in known codes) and D3 (Tier-1 flag has a
+    production owner) in-process. Raises ValueError on either.
     """
-    if recipe is not None:
-        if recipe.safety_flag not in taxonomy.known_codes:
+    recipes = list(recipes or [])
+    for r in recipes:
+        if r.safety_flag not in taxonomy.known_codes:
             raise ValueError(
-                f"recipe.safety_flag {recipe.safety_flag!r} is not in snapshotted "
-                f"KNOWN_TAXONOMY_CODES; refresh taxonomy/taxonomy_snapshot.json "
-                f"or fix the injector"
+                f"recipe.safety_flag {r.safety_flag!r} not in snapshotted taxonomy; "
+                f"refresh taxonomy/taxonomy_snapshot.json or fix the injector"
             )
-        if recipe.safety_flag in taxonomy.tier1_owners and not taxonomy.production_owners_of(
-            recipe.safety_flag
+        if r.safety_flag in taxonomy.tier1_owners and not taxonomy.production_owners_of(
+            r.safety_flag
         ):
             raise ValueError(
-                f"recipe.safety_flag {recipe.safety_flag!r} has no owner in "
-                f"production_judges; reassign ownership before scoring"
+                f"recipe.safety_flag {r.safety_flag!r} has no production-owning judge"
             )
 
-    expected_flags = [recipe.safety_flag] if recipe else []
-    expected_verdict = _verdict_for(recipe, taxonomy)
-    expected_artifact_verdict = _artifact_verdict_for(recipe, taxonomy)
+    expected_flags = sorted({r.safety_flag for r in recipes})
+    expected_verdict, expected_artifact_verdict = _verdicts_for(recipes, taxonomy)
 
-    case_id = _case_id(spec, recipe.defect_type if recipe else None, pack)
+    if clinical_severity is None:
+        clinical_severity = (
+            "low"
+            if not recipes
+            else "high"
+            if any(taxonomy.tier_of(r.safety_flag) in ("TIER_1", "TIER_2") for r in recipes)
+            else "medium"
+        )
+
+    case_id = _case_id(spec, recipes, pack)
+
+    expected_owner_map: dict[str, list[str]] = {}
+    for r in recipes:
+        if r.safety_flag in taxonomy.tier1_owners:
+            expected_owner_map[r.safety_flag] = sorted(
+                taxonomy.production_owners_of(r.safety_flag)
+            )
 
     return {
         "case_id": case_id,
@@ -82,53 +128,22 @@ def package_case(
                 "dob": spec.demographics.dob.isoformat(),
             },
             "conditions": [c.description for c in spec.conditions],
-            "active_medications": [
-                f"{m.description}".strip() for m in spec.active_medications
-            ],
+            "active_medications": [m.description for m in spec.active_medications],
             "allergies": [a.description for a in spec.allergies],
         },
         "transcript": transcript,
         "artifacts": artifacts,
-        "injection_recipe": recipe.to_dict() if recipe else None,
+        "injection_recipes": [r.to_dict() for r in recipes],
         "expected_compliance_verdict": expected_verdict,
         "expected_artifact_verdict": expected_artifact_verdict,
         "expected_safety_flags": expected_flags,
-        "expected_owner_map": (
-            {recipe.safety_flag: sorted(taxonomy.production_owners_of(recipe.safety_flag))}
-            if recipe and recipe.safety_flag in taxonomy.tier1_owners
-            else {}
-        ),
-        "clean_negative": recipe is None,
+        "expected_owner_map": expected_owner_map,
+        "clean_negative": not recipes,
+        "multi_defect": len(recipes) > 1,
         "severity": clinical_severity,
         "pinned": pinned,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
-
-
-def _verdict_for(recipe: InjectionRecipe | None, taxonomy: Taxonomy) -> str:
-    if recipe is None:
-        return "approve"
-    tier = taxonomy.tier_of(recipe.safety_flag)
-    if tier == "TIER_1":
-        return "reject"
-    if tier == "TIER_2":
-        return "reject"
-    if tier == "TIER_3":
-        return "needs_review"
-    return "needs_review"
-
-
-def _artifact_verdict_for(recipe: InjectionRecipe | None, taxonomy: Taxonomy) -> str:
-    if recipe is None:
-        return "PASS"
-    tier = taxonomy.tier_of(recipe.safety_flag)
-    if tier == "TIER_1":
-        return "BLOCK"
-    if tier == "TIER_2":
-        return "BLOCK"
-    if tier == "TIER_3":
-        return "WARN"
-    return "WARN"
 
 
 def write_jsonl(rows: list[dict[str, Any]], out: Path) -> None:

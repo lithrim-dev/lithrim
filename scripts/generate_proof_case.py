@@ -111,10 +111,9 @@ def main() -> None:
                     agent_type="scribe",
                     transcript=transcript,
                     artifacts=[artifact],
-                    recipe=None,
+                    recipes=[],
                     taxonomy=taxonomy,
                     pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256},
-                    clinical_severity="low",
                 )
             )
 
@@ -125,11 +124,10 @@ def main() -> None:
             agent_type="scribe",
             transcript=result.transcript,
             artifacts=[result.artifact],
-            recipe=result.recipe,
+            recipes=[result.recipe],
             taxonomy=taxonomy,
             pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256,
                     "injector": type(injector).__name__},
-            clinical_severity="high",
         )
         rows.append(row)
         print(f"  {type(injector).__name__}: {row['case_id']}")
