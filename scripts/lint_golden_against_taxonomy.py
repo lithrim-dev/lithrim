@@ -40,6 +40,7 @@ def main() -> int:
     known = taxonomy.known_codes
 
     bad_cases: list[tuple[str, str, str]] = []
+    verdict_flag_violations: list[tuple[str, str, str, object]] = []
     code_use: dict[str, int] = defaultdict(int)
     total = 0
     excluded = 0
@@ -61,6 +62,18 @@ def main() -> int:
                 if flag not in known:
                     bad_cases.append((case_id, flag, row.get("agent_type", "?")))
 
+            verdict = row.get("expected_compliance_verdict")
+            tier1_flags = [f for f in flags if f in taxonomy.tier_1]
+            if tier1_flags:
+                if isinstance(verdict, str):
+                    if verdict != "reject":
+                        verdict_flag_violations.append((case_id, tier1_flags[0], "verdict_not_reject", verdict))
+                elif isinstance(verdict, list):
+                    if not row.get("verdict_set_rationale"):
+                        verdict_flag_violations.append(
+                            (case_id, tier1_flags[0], "set_valued_without_rationale", verdict)
+                        )
+
     print(f"lint_golden_against_taxonomy: {total} cases scanned in {args.golden}")
     print(f"  taxonomy snapshot: {args.snapshot}")
     print(f"  excluded (not scored): {excluded}")
@@ -73,9 +86,11 @@ def main() -> int:
         tier = taxonomy.tier_of(code) or "-"
         print(f"  [{status:7}] {tier:7} {code:40} x{n}")
 
+    failed = False
+
     if bad_cases:
         print()
-        print(f"FAIL: {len(bad_cases)} case-flag pairs reference codes not in taxonomy snapshot:")
+        print(f"FAIL (D1): {len(bad_cases)} case-flag pairs reference codes not in taxonomy snapshot:")
         for case_id, flag, agent in bad_cases:
             print(f"  - {case_id} ({agent}): {flag!r}")
         print()
@@ -84,10 +99,27 @@ def main() -> int:
         print("     and re-snapshot via scripts/snapshot_taxonomy.py.")
         print("  2. Relabel: change the case's expected_safety_flags to a code the system can emit.")
         print("  3. Exclude: drop the case from the scored set and record why.")
+        failed = True
+
+    if verdict_flag_violations:
+        print()
+        print(f"FAIL (D8): {len(verdict_flag_violations)} verdict-flag-inconsistent case(s):")
+        for case_id, flag, kind, verdict in verdict_flag_violations:
+            if kind == "verdict_not_reject":
+                print(f"  - {case_id}: Tier-1 flag {flag!r} but expected_compliance_verdict={verdict!r}")
+                print("      (Tier-1 routes to reject on any single grounded firing)")
+            else:
+                print(f"  - {case_id}: set-valued verdict {verdict!r} without verdict_set_rationale")
+        print()
+        print("Resolution: rewrite the verdict, rewrite the flag, or set-value with rationale (§1.4).")
+        failed = True
+
+    if failed:
         return 1
 
     print()
-    print("OK: every expected_safety_flags code resolves to the snapshotted taxonomy.")
+    print("OK: every expected_safety_flags code resolves to the snapshotted taxonomy,")
+    print("    and every Tier-1 flag is paired with a reject verdict or rationalized set-value.")
     return 0
 
 
