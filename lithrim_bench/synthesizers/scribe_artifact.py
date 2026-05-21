@@ -14,6 +14,7 @@ import json
 from typing import Any
 
 from ..encounter_spec import EncounterSpec, Observation
+from ._pmh import clinical_conditions
 
 _LAB_INTEREST = {
     "4548-4",   # HbA1c
@@ -61,9 +62,10 @@ def _allergies_section(spec: EncounterSpec) -> list[str]:
 
 
 def _pmh_section(spec: EncounterSpec) -> list[str]:
-    if not spec.conditions:
+    pmh = clinical_conditions(spec.conditions)
+    if not pmh:
         return ["No significant past medical history."]
-    return [f"- {c.description}" for c in spec.conditions]
+    return [f"- {c.description}" for c in pmh]
 
 
 def _format_soap_text(spec: EncounterSpec) -> str:

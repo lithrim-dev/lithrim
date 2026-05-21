@@ -71,6 +71,26 @@ Three options, in increasing rigor:
 
 For the paper, option 1 + option 2 in combination (lengthen transcript AND tighten artifact) is the deterministic v2 path. Option 3 is the upgrade path for naturalness.
 
+## v2 + v3 calibration result (same session, 2026-05-21)
+
+After surfacing finding 2 the bench's transcript synthesizer was iterated twice. Each iteration was re-run against the live pipeline (same pack: `--size 8 --seed 7 --mix clean=0.5,single=0.5,multi=0.0`, N=1).
+
+| Iteration | What changed in synth | verdict_match | false_block_rate | Clean recall (correct/4) | Reject recall (correct/4) |
+|---|---|---|---|---|---|
+| v1 | Original: transcript mentions primary-med only | 0.50 | 1.00 | 0/4 | 4/4 |
+| v2 | Transcript enumerates every condition (raw Synthea) + every med + every allergy | 0.50 | 0.50 | 2/4 | 2/4 (regressed; signal lost in noise — 20+ raw conditions listed) |
+| **v3** | + `synthesizers/_pmh.py`: filter conditions to clinical disorders, dedupe, cap at 6. Both transcript and artifact PMH use the filter. | **0.75** | **0.25** | **3/4** | **3/4** |
+
+### v3 mechanism
+
+The v2 → v3 fix was 20 lines: `clinical_conditions()` drops Synthea's `(situation)` and most `(finding)` entries (Full-time employment, Social isolation, etc.), dedupes by snomed_code, and caps at 6. Both the transcript synthesizer and the SOAP PMH section use the same filtered list, so a fabricated condition inserted by the injector now stands out against a short, clinically-meaningful baseline instead of being lost in 20+ longitudinal entries.
+
+Net result: false_block_rate dropped from 1.00 → 0.50 → 0.25; reject recall recovered from 2/4 → 3/4 at v3. The bench moved from "uncalibrated" to "calibrated enough to be a paper baseline" in two iterations.
+
+### Remaining 25% gap
+
+At N=1, one clean case still false-blocks and one inject_condition case still false-approves. The false-block has flags `[INCOMPLETE_DOCUMENTATION, WRONG_DOSAGE]` on what should be a clean case — likely a specific patient's regimen tripping a low-confidence council finding. At N=10 the bench would distinguish persistent miscalibration from per-call variance; that's the next experiment.
+
 ## Cross-validating the headline contrast (preview)
 
 The numbers from this run are not yet the paper's headline contrast — that requires running the HL7 pack against the live pipeline, ideally with a stricter validator or a profile that catches the format-level defects the bench's HL7 synthesizer injects. The scribe smoke tells us the semantic side works on the cases it's calibrated to catch.
