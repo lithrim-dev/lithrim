@@ -144,6 +144,25 @@ class SyntheaCohort:
             for _, r in self._allergies[self._allergies["PATIENT"] == patient_id].iterrows()
         ]
 
+        observations: list[Observation] = []
+        if not self._observations.empty:
+            obs_rows = self._observations[self._observations["ENCOUNTER"] == encounter_id]
+            for _, r in obs_rows.iterrows():
+                if r.get("TYPE") != "numeric":
+                    continue
+                try:
+                    value = float(r["VALUE"])
+                except (ValueError, TypeError):
+                    continue
+                observations.append(
+                    Observation(
+                        loinc_code=r["CODE"],
+                        description=r["DESCRIPTION"],
+                        value=value,
+                        unit=r.get("UNITS") or None,
+                    )
+                )
+
         return EncounterSpec(
             demographics=demographics,
             encounter=encounter,
@@ -151,6 +170,6 @@ class SyntheaCohort:
             active_medications=[med_from_row(r) for _, r in active_meds.iterrows()],
             encounter_medications=[med_from_row(r) for _, r in enc_meds.iterrows()],
             allergies=allergies,
-            observations=[],
+            observations=observations,
             provenance=self.provenance,
         )

@@ -1,8 +1,13 @@
-"""v1 end-to-end proof: Synthea row -> SOAP note -> WRONG_DOSAGE -> JSONL.
+"""v1 end-to-end proof: Synthea row -> SOAP note -> defect injection -> JSONL.
 
-Demonstrates the engine spine. Produces one clean negative and one
-injected case for the same encounter, so both labels are anchored to
-identical ground truth.
+Demonstrates the engine spine. Produces one clean negative plus one
+injected case per available injector, all anchored to the same Synthea
+encounter where possible (so labels share identical ground truth).
+
+Patient selection finds the FIRST Synthea encounter for which all four
+injectors apply. If no single encounter satisfies all four, each
+unsatisfied injector is run against its own best-fit encounter (and the
+ground-truth alignment is per-injector instead).
 
 Usage:
     python scripts/generate_proof_case.py [--out examples/proof_case.jsonl]
@@ -13,16 +18,40 @@ import argparse
 import sys
 from pathlib import Path
 
-# Ensure the project root is on sys.path so `lithrim_bench` imports when
-# the script is run directly (no editable install required for the smoke).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lithrim_bench.injectors import WrongDosageInjector
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors import (
+    ALL_INJECTORS,
+    DefectInjector,
+    FabricatedHistoryInjector,
+    MissingAllergyInjector,
+    ValueMismatchInjector,
+    WrongDosageInjector,
+)
 from lithrim_bench.packager import package_case, write_jsonl
 from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
 from lithrim_bench.synthesizers.transcript import synthesize_scribe_transcript
 from lithrim_bench.taxonomy import load_taxonomy
+
+
+def _find_spec_for(cohort: SyntheaCohort, injectors: list[DefectInjector]) -> EncounterSpec | None:
+    for pid in cohort.patient_ids():
+        spec = cohort.first_encounter_with_active_medication(pid)
+        if spec is None:
+            continue
+        if all(inj.applies(spec) for inj in injectors):
+            return spec
+    return None
+
+
+def _best_fit_spec(cohort: SyntheaCohort, injector: DefectInjector) -> EncounterSpec | None:
+    for pid in cohort.patient_ids():
+        spec = cohort.first_encounter_with_active_medication(pid)
+        if spec is not None and injector.applies(spec):
+            return spec
+    return None
 
 
 def main() -> None:
@@ -42,63 +71,76 @@ def main() -> None:
     cohort = SyntheaCohort(args.cohort)
     taxonomy = load_taxonomy()
 
-    spec = None
-    for pid in cohort.patient_ids():
-        candidate = cohort.first_encounter_with_active_medication(pid)
-        if candidate is not None and WrongDosageInjector().applies(candidate):
-            spec = candidate
-            break
+    injectors: list[DefectInjector] = [
+        WrongDosageInjector(),
+        MissingAllergyInjector(),
+        FabricatedHistoryInjector(),
+        ValueMismatchInjector(),
+    ]
 
-    if spec is None:
-        sys.exit("no Synthea patient with a parseable medication dose found")
-
-    transcript = synthesize_scribe_transcript(spec)
-    artifact = synthesize_scribe_artifact(spec)
+    shared_spec = _find_spec_for(cohort, injectors)
+    if shared_spec is not None:
+        print(f"shared anchor encounter: {shared_spec.encounter.encounter_id} "
+              f"(patient {shared_spec.demographics.patient_id})")
+    else:
+        print("no single encounter satisfies all injectors; using per-injector best fit")
 
     pinned = {
         "generator_version": "lithrim-bench/0.1.0",
         "taxonomy_snapshot": "taxonomy/taxonomy_snapshot.json",
-        "synthea_cohort_sha256": spec.provenance.cohort_sha256,
-        "injector": "WrongDosageInjector(factor=10.0)",
         "deterministic_synthesis": True,
     }
 
-    clean_case = package_case(
-        spec=spec,
-        pack="scribe_v1",
-        agent_type="scribe",
-        transcript=transcript,
-        artifacts=[artifact],
-        recipe=None,
-        taxonomy=taxonomy,
-        pinned=pinned,
-        clinical_severity="low",
-    )
+    rows: list[dict] = []
+    seen_clean_encounters: set[str] = set()
 
-    inj = WrongDosageInjector(factor=10.0).inject(spec, transcript, artifact)
-    defect_case = package_case(
-        spec=spec,
-        pack="scribe_v1",
-        agent_type="scribe",
-        transcript=inj.transcript,
-        artifacts=[inj.artifact],
-        recipe=inj.recipe,
-        taxonomy=taxonomy,
-        pinned=pinned,
-        clinical_severity="high",
-    )
+    for injector in injectors:
+        spec = shared_spec if shared_spec is not None else _best_fit_spec(cohort, injector)
+        if spec is None:
+            print(f"  SKIP {type(injector).__name__}: no applicable Synthea encounter")
+            continue
+        transcript = synthesize_scribe_transcript(spec)
+        artifact = synthesize_scribe_artifact(spec)
 
-    write_jsonl([clean_case, defect_case], args.out)
-    print(f"wrote {args.out}")
-    print(f"  clean negative:  {clean_case['case_id']}")
-    print(f"  injected case:   {defect_case['case_id']}")
-    print(f"  recipe:          {defect_case['injection_recipe']['safety_flag']} via "
-          f"{defect_case['injection_recipe']['mutated_projection']} "
-          f"({defect_case['injection_recipe']['pre_value']!r} -> "
-          f"{defect_case['injection_recipe']['post_value']!r})")
-    print(f"  expected_compliance_verdict: {defect_case['expected_compliance_verdict']}")
-    print(f"  expected_artifact_verdict:   {defect_case['expected_artifact_verdict']}")
-    print(f"  expected_owner_map:          {defect_case['expected_owner_map']}")
+        if spec.encounter.encounter_id not in seen_clean_encounters:
+            seen_clean_encounters.add(spec.encounter.encounter_id)
+            rows.append(
+                package_case(
+                    spec=spec,
+                    pack="scribe_v1",
+                    agent_type="scribe",
+                    transcript=transcript,
+                    artifacts=[artifact],
+                    recipe=None,
+                    taxonomy=taxonomy,
+                    pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256},
+                    clinical_severity="low",
+                )
+            )
+
+        result = injector.inject(spec, transcript, artifact)
+        row = package_case(
+            spec=spec,
+            pack="scribe_v1",
+            agent_type="scribe",
+            transcript=result.transcript,
+            artifacts=[result.artifact],
+            recipe=result.recipe,
+            taxonomy=taxonomy,
+            pinned={**pinned, "synthea_cohort_sha256": spec.provenance.cohort_sha256,
+                    "injector": type(injector).__name__},
+            clinical_severity="high",
+        )
+        rows.append(row)
+        print(f"  {type(injector).__name__}: {row['case_id']}")
+        print(f"    flag={result.recipe.safety_flag}  "
+              f"verdict={row['expected_compliance_verdict']}  "
+              f"artifact={row['expected_artifact_verdict']}")
+        print(f"    pre={result.recipe.pre_value!r} -> post={result.recipe.post_value!r}")
+
+    write_jsonl(rows, args.out)
+    clean = sum(1 for r in rows if r["clean_negative"])
+    print(f"\nwrote {len(rows)} rows ({clean} clean, {len(rows) - clean} injected) to {args.out}")
 
 
 if __name__ == "__main__":
