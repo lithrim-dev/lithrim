@@ -38,10 +38,13 @@ class Hl7TriggerEventMismatchInjector(DefectInjector):
             nonlocal pre_value
             idx = find_segment(segments, "MSH")
             msh = segments[idx]
-            while len(msh) <= 9:
+            # MSH-9 (Message Type) is at split-index 8: MSH-1 is the field
+            # separator itself, so the pipe-split list is offset by one.
+            # msh[0]="MSH", msh[1]="^~\&" (MSH-2), ... msh[8]=MSH-9.
+            while len(msh) <= 8:
                 msh.append("")
-            pre_value = msh[9]
-            msh[9] = f"ADT^{self.replacement_trigger}"
+            pre_value = msh[8]
+            msh[8] = f"ADT^{self.replacement_trigger}"
             return segments
 
         new_artifacts, _, _ = mutate_hl7(artifacts, _swap)

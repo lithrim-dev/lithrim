@@ -2,6 +2,7 @@ from lithrim_bench.injectors import (
     Hl7InvalidFieldFormatInjector,
     Hl7MalformedDateInjector,
     Hl7MissingSegmentInjector,
+    Hl7TriggerEventMismatchInjector,
 )
 from lithrim_bench.injectors._hl7 import find_segment, parse_segments
 from lithrim_bench.packager import package_case
@@ -60,6 +61,23 @@ def test_invalid_field_format_injector_corrupts_pid8():
     segments = parse_segments(result.artifacts[0]["content"])
     pid_idx = find_segment(segments, "PID")
     assert segments[pid_idx][8] == "MALE"
+
+
+def test_trigger_event_mismatch_injector_corrupts_msh9_not_msh10():
+    spec = make_spec()
+    transcript = synthesize_hl7_adt_transcript(spec)
+    artifacts = synthesize_hl7_adt_artifact(spec)
+    result = Hl7TriggerEventMismatchInjector().inject(spec, transcript, artifacts)
+    assert result.recipe.safety_flag == "STRUCTURAL_TRIGGER_EVENT_MISMATCH"
+    segments = parse_segments(result.artifacts[0]["content"])
+    msh = segments[find_segment(segments, "MSH")]
+    evn = segments[find_segment(segments, "EVN")]
+    # MSH-9 (message type / trigger) is at split-index 8 — that's what
+    # must carry the corrupted trigger, NOT MSH-10 (control id, index 9).
+    assert msh[8] == "ADT^A99"
+    assert msh[9] != "ADT^A99"  # control id untouched
+    # the EVN-1 trigger stays A04 — that is the actual mismatch
+    assert evn[1] == "A04"
 
 
 def test_structural_case_packages_with_block_and_empty_owner_map():

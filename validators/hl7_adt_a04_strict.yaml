@@ -1,0 +1,302 @@
+$let:
+  c1:
+    $if: $ resource.MSH.type.code = "ADT"
+    $then:
+      name: msg-type-valid
+      field: MSH.9
+      status: pass
+      message: Message type is ADT (Admit/Discharge/Transfer)
+      value: $ resource.MSH.type.code
+    $else:
+      name: msg-type-valid
+      field: MSH.9
+      status: fail
+      message: Expected message type ADT — EHR will reject non-ADT messages
+      value: $ resource.MSH.type.code
+  c2:
+    $if: $ resource.MSH.type.event = "A04"
+    $then:
+      name: trigger-event-a04
+      field: MSH.9.2
+      status: pass
+      message: Trigger event A04 (Patient Registration)
+      value: $ resource.MSH.type.event
+    $else:
+      name: trigger-event-a04
+      field: MSH.9.2
+      status: fail
+      message: Expected trigger event A04 for patient registration
+      value: $ resource.MSH.type.event
+  c3:
+    $if: $ resource.MSH.version.id
+    $then:
+      name: hl7-version-present
+      field: MSH.12
+      status: pass
+      message: HL7 version specified
+      value: $ resource.MSH.version.id
+    $else:
+      name: hl7-version-present
+      field: MSH.12
+      status: fail
+      message: HL7 version missing — required for parser compatibility
+  c4:
+    $if: $ resource.MSH.id
+    $then:
+      name: msg-control-id
+      field: MSH.10
+      status: pass
+      message: Message Control ID present — enables acknowledgment tracking
+      value: $ resource.MSH.id
+    $else:
+      name: msg-control-id
+      field: MSH.10
+      status: fail
+      message: Message Control ID missing — EHR cannot send ACK/NAK
+  c5:
+    $if: $ resource.PID.name.0.family.surname
+    $then:
+      name: patient-family-name
+      field: PID.5.1
+      status: pass
+      message: Patient family name present
+      value: $ resource.PID.name.0.family.surname
+    $else:
+      name: patient-family-name
+      field: PID.5.1
+      status: fail
+      message: Patient family name missing — cannot register without surname
+  c6:
+    $if: $ resource.PID.name.0.given
+    $then:
+      name: patient-given-name
+      field: PID.5.2
+      status: pass
+      message: Patient given name present
+      value: $ resource.PID.name.0.given
+    $else:
+      name: patient-given-name
+      field: PID.5.2
+      status: fail
+      message: Patient given name missing — required for positive ID
+  c7:
+    $if: $ resource.PID.birth_date.time
+    $then:
+      name: patient-dob
+      field: PID.7
+      status: pass
+      message: Date of birth present
+      value: $ resource.PID.birth_date.time
+    $else:
+      name: patient-dob
+      field: PID.7
+      status: fail
+      message: Date of birth missing — required for patient matching
+  c8:
+    $if: $ resource.PID.gender
+    $then:
+      name: patient-gender
+      field: PID.8
+      status: pass
+      message: Administrative gender present
+      value: $ resource.PID.gender
+    $else:
+      name: patient-gender
+      field: PID.8
+      status: fail
+      message: Gender missing — required for clinical decision support
+  c9:
+    $if: $ resource.PID.identifiers.0.value
+    $then:
+      name: patient-id
+      field: PID.3
+      status: pass
+      message: Patient identifier present
+      value: $ resource.PID.identifiers.0.value
+    $else:
+      name: patient-id
+      field: PID.3
+      status: fail
+      message: Patient ID missing — cannot link to existing MRN
+  c10:
+    $if: $ resource.PID.address.0.state
+    $then:
+      name: patient-address-state
+      field: PID.11.4
+      status: pass
+      message: Patient state/province present
+      value: $ resource.PID.address.0.state
+    $else:
+      name: patient-address-state
+      field: PID.11.4
+      status: fail
+      message: State missing from address — required for insurance jurisdiction
+  c11:
+    $if: $ resource.PID.address.0.postal_code
+    $then:
+      name: patient-zip
+      field: PID.11.5
+      status: pass
+      message: Postal code present
+      value: $ resource.PID.address.0.postal_code
+    $else:
+      name: patient-zip
+      field: PID.11.5
+      status: fail
+      message: Postal code missing — needed for regional care routing
+  c12:
+    $if: $ resource.EVN.event_type_code = "A04"
+    $then:
+      name: evn-matches-msh
+      field: EVN.1
+      status: pass
+      message: EVN event type matches MSH trigger (A04)
+      value: $ resource.EVN.event_type_code
+    $else:
+      name: evn-matches-msh
+      field: EVN.1
+      status: fail
+      message: EVN event type does not match MSH trigger — message integrity error
+      value: $ resource.EVN.event_type_code
+  c13:
+    $if: $ resource.PV1.patient_class
+    $then:
+      name: patient-class
+      field: PV1.2
+      status: pass
+      message: Patient class present (I=Inpatient, O=Outpatient, E=Emergency)
+      value: $ resource.PV1.patient_class
+    $else:
+      name: patient-class
+      field: PV1.2
+      status: fail
+      message: Patient class missing — determines billing pathway
+  c14:
+    $if: $ resource.PV1.attending_doctor.0.id
+    $then:
+      name: attending-physician
+      field: PV1.7
+      status: pass
+      message: Attending physician ID present
+      value: $ resource.PV1.attending_doctor.0.id
+    $else:
+      name: attending-physician
+      field: PV1.7
+      status: fail
+      message: Attending physician missing — required for order routing
+  c15:
+    $if: $ resource.IN1
+    $then:
+      name: insurance-segment
+      field: IN1
+      status: pass
+      message: Insurance information present
+    $else:
+      name: insurance-segment
+      field: IN1
+      status: fail
+      message: No insurance segment — patient will default to self-pay
+  c16:
+    $if: $ resource.AL1
+    $then:
+      name: allergy-segment
+      field: AL1
+      status: pass
+      message: Allergy information present
+    $else:
+      name: allergy-segment
+      field: AL1
+      status: fail
+      message: No allergy data — CRITICAL safety risk for medication orders
+  dob_format_valid:
+    $let:
+      dob: $ resource.PID.birth_date.time
+    $body:
+      $if: $ dob && len(dob) = 8
+      $then:
+        name: dob-format-valid
+        field: PID.7
+        status: pass
+        message: Date of birth is a valid 8-digit YYYYMMDD date
+        value: $ dob
+      $else:
+        name: dob-format-valid
+        field: PID.7
+        status: fail
+        message: Date of birth is not a valid 8-digit YYYYMMDD date — EHR date parser will reject the message
+        value: $ dob
+  gender_value_valid:
+    $let:
+      gender: $ resource.PID.gender
+    $body:
+      $if: $ gender = "A" || gender = "F" || gender = "M" || gender = "N" || gender = "O" || gender = "U"
+      $then:
+        name: gender-value-valid
+        field: PID.8
+        status: pass
+        message: Administrative gender is a valid HL7 Table 0001 code
+        value: $ gender
+      $else:
+        name: gender-value-valid
+        field: PID.8
+        status: fail
+        message: Administrative gender is not a valid HL7 Table 0001 code (A,F,M,N,O,U)
+        value: $ gender
+  trigger_event_consistent:
+    $let:
+      evn: $ resource.EVN.event_type_code
+      msh: $ resource.MSH.type.event
+    $body:
+      $if: $ evn = msh
+      $then:
+        name: trigger-event-consistent
+        field: EVN.1
+        status: pass
+        message: EVN event type code matches the MSH-9 trigger event
+        value: $ evn
+      $else:
+        name: trigger-event-consistent
+        field: EVN.1
+        status: fail
+        message: EVN event type code does not match the MSH-9 trigger event — internally inconsistent message
+        value: $ evn
+$body:
+  $let:
+    checks:
+      - $ dob_format_valid
+      - $ gender_value_valid
+      - $ trigger_event_consistent
+      - $ c1
+      - $ c2
+      - $ c3
+      - $ c4
+      - $ c5
+      - $ c6
+      - $ c7
+      - $ c8
+      - $ c9
+      - $ c10
+      - $ c11
+      - $ c12
+      - $ c13
+      - $ c14
+      - $ c15
+      - $ c16
+  $body:
+    $let:
+      passedChecks:
+        $reduce: $ checks
+        $as: [acc, c]
+        $start: 0
+        $body:
+          $if: $ c.status = "pass"
+          $then: $ acc + 1
+          $else: $ acc
+    $body:
+      request:
+        valid: $ passedChecks = 19
+        resourceType: ADT-A04
+        totalChecks: 19
+        passedChecks: $ passedChecks
+        failedChecks: $ 19 - passedChecks
+        checks: $ checks
