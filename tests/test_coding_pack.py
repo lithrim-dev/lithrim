@@ -19,21 +19,58 @@ def _spec_with_diabetes():
     return spec
 
 
-def test_coding_artifact_carries_mapped_icd10():
+def _claim(artifacts):
+    return json.loads(next(a for a in artifacts if a["type"] == "fhir_claim")["content"])
+
+
+def _note(artifacts):
+    return json.loads(
+        next(a for a in artifacts if a["type"] == "fhir_document_reference")["content"]
+    )
+
+
+def test_coding_artifact_carries_claim_and_clinical_note():
     spec = _spec_with_diabetes()
     artifacts = synthesize_coding_artifact(spec)
-    assert len(artifacts) == 1
-    claim = json.loads(artifacts[0]["content"])
+    assert len(artifacts) == 2
+    types = {a["type"] for a in artifacts}
+    assert types == {"fhir_claim", "fhir_document_reference"}
+    claim = _claim(artifacts)
     assert claim["resourceType"] == "Claim"
     code = claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"][0]["code"]
     assert code == "E11.9"
+    note = _note(artifacts)
+    assert note["resourceType"] == "DocumentReference"
+    soap = note["content"][0]["attachment"]["data"]
+    assert "ASSESSMENT:" in soap and "type 2 diabetes mellitus" in soap.lower()
 
 
-def test_coding_transcript_avoids_upcode_evidence():
+def test_coding_transcript_is_a_clinical_encounter_not_a_code_dictation():
     spec = _spec_with_diabetes()
     transcript = synthesize_coding_transcript(spec)
+    # grounds the base diagnosis
     assert "type 2 diabetes mellitus" in transcript.lower()
+    # never dictates a billing code, never leaks upcode evidence
     assert "hyperglycemia" not in transcript.lower()
+    assert "code as" not in transcript.lower()
+    assert "icd-10" not in transcript.lower()
+    assert "99213" not in transcript
+
+
+def test_coding_routine_exam_fallback_is_age_appropriate():
+    minor = make_spec(with_conditions=False)
+    minor.demographics.age_at_encounter = 7
+    minor.conditions = []
+    claim = _claim(synthesize_coding_artifact(minor))
+    code = claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"][0]["code"]
+    assert code == "Z00.129"  # child health exam, not Z00.00 (adult)
+
+    adult = make_spec(with_conditions=False)
+    adult.demographics.age_at_encounter = 40
+    adult.conditions = []
+    claim = _claim(synthesize_coding_artifact(adult))
+    code = claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"][0]["code"]
+    assert code == "Z00.00"
 
 
 def test_upcoding_injector_swaps_icd_to_higher_billing_sibling():
@@ -48,9 +85,12 @@ def test_upcoding_injector_swaps_icd_to_higher_billing_sibling():
     assert result.recipe.safety_flag == "UPCODING_RISK"
     assert result.recipe.pre_value == "E11.9"
     assert result.recipe.post_value == "E11.65"
-    claim = json.loads(result.artifacts[0]["content"])
+    claim = _claim(result.artifacts)
     code = claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"][0]["code"]
     assert code == "E11.65"
+    # the clinical note is untouched — the upcoded claim is unsupported by it
+    note_soap = _note(result.artifacts)["content"][0]["attachment"]["data"]
+    assert "hyperglycemia" not in note_soap.lower()
     assert result.transcript == transcript
 
 

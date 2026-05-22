@@ -23,6 +23,28 @@ _FIELD = "|"
 _COMP = "^"
 _MSH_2 = "^~\\&"
 
+# Registration constants — shared with hl7_adt_transcript so the
+# transcript can ground every ADT field. v1 hardcoded these only in
+# the artifact emitter, leaving address / provider / ward / insurance
+# ungrounded in the (name/DOB/gender-only) transcript.
+REG_ADDRESS = {
+    "street": "123 Main St",
+    "city": "Boston",
+    "state": "MA",
+    "zip": "02101",
+    "country": "USA",
+}
+ATTENDING = {"id": "DOC001", "family": "Patel", "given": "Anita", "prefix": "DR"}
+WARD = {"point_of_care": "WARD-A", "room": "101", "bed": "1"}
+PATIENT_CLASS = "O"  # O = outpatient (ADT^A04 registration)
+PATIENT_CLASS_LABEL = "outpatient"
+INSURANCE = {
+    "plan_id": "PLAN001",
+    "company_id": "INS001",
+    "plan_code": "DEMOPLAN-1",
+    "plan_name": "Lithrim Bench Coverage",
+}
+
 
 def _msg_dt(spec: EncounterSpec) -> str:
     return spec.encounter.start.strftime("%Y%m%d%H%M%S")
@@ -57,7 +79,10 @@ def _evn(spec: EncounterSpec) -> str:
 def _pid(spec: EncounterSpec) -> str:
     demo = spec.demographics
     name = _COMP.join([demo.last_name, demo.first_name, ""])
-    address = _COMP.join(["123 Main St", "", "Boston", "MA", "02101", "USA"])
+    address = _COMP.join([
+        REG_ADDRESS["street"], "", REG_ADDRESS["city"],
+        REG_ADDRESS["state"], REG_ADDRESS["zip"], REG_ADDRESS["country"],
+    ])
     return _FIELD.join([
         "PID",
         "1",
@@ -82,9 +107,11 @@ def _pv1(spec: EncounterSpec) -> str:
       PV1.7 attending_doctor — required for order routing
     """
     visit_id = spec.encounter.encounter_id[:12]
-    location = _COMP.join(["WARD-A", "101", "1"])
-    attending = _COMP.join(["DOC001", "Patel", "Anita", "", "", "DR"])
-    fields = ["PV1", "1", "O", location, "", "", "", attending]
+    location = _COMP.join([WARD["point_of_care"], WARD["room"], WARD["bed"]])
+    attending = _COMP.join([
+        ATTENDING["id"], ATTENDING["family"], ATTENDING["given"], "", "", ATTENDING["prefix"],
+    ])
+    fields = ["PV1", "1", PATIENT_CLASS, location, "", "", "", attending]
     fields.extend([""] * (44 - len(fields)))
     fields.append(visit_id)
     return _FIELD.join(fields)
@@ -116,12 +143,12 @@ def _in1(spec: EncounterSpec) -> str:
     """Insurance segment — required by mapping 26's insurance-segment check.
     Synthesized as a self-pay-equivalent commercial plan; the validator
     only checks presence, not coverage adequacy."""
-    plan_name = _COMP.join(["DEMOPLAN-1", "Lithrim Bench Coverage"])
+    plan_name = _COMP.join([INSURANCE["plan_code"], INSURANCE["plan_name"]])
     return _FIELD.join([
         "IN1",
         "1",
-        "PLAN001",
-        "INS001",
+        INSURANCE["plan_id"],
+        INSURANCE["company_id"],
         plan_name,
     ])
 

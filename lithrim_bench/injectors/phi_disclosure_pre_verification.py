@@ -45,7 +45,9 @@ class PhiDisclosurePreVerificationInjector(DefectInjector):
         start_idx = transcript.index(VERIFICATION_START)
         end_idx = transcript.index(VERIFICATION_END) + len(VERIFICATION_END)
         removed_block = transcript[start_idx:end_idx]
-        new_transcript = transcript[:start_idx].rstrip() + transcript[end_idx:].lstrip("\n")
+        head = transcript[:start_idx].rstrip()
+        tail = transcript[end_idx:].lstrip("\n")
+        new_transcript = f"{head}\n{tail}" if head and tail else head + tail
         new_transcript = new_transcript.replace("\n\n\n", "\n\n")
         if new_transcript == transcript:
             raise ValueError("PHI injector produced no change")

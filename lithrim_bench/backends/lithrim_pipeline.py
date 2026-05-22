@@ -93,7 +93,7 @@ class LithrimPipelineBackend(BackendClient):
             "artifact": artifact["content"],
             "artifact_type": artifact_type,
             "context_kind": "transcript",
-            "context": case.get("transcript", ""),
+            "context": _build_context(case, artifacts),
             "org_id": self.org_id,
             "gate_mode": self.gate_mode,
         }
@@ -122,6 +122,33 @@ class LithrimPipelineBackend(BackendClient):
             structural_findings=[],
             raw={"skipped": why},
         )
+
+
+def _build_context(case: dict[str, Any], artifacts: list[dict[str, Any]]) -> str:
+    """Transcript plus any documentation-of-record artifacts.
+
+    The artifact under test is artifacts[0]. A case may carry
+    secondary documentation artifacts (e.g. a coding case carries the
+    FHIR Claim under test plus a fhir_document_reference clinical
+    note). The note is the documentation the codes must be faithful
+    to, so its text is folded into the context the council sees.
+    """
+    import json as _json
+
+    context = case.get("transcript", "") or ""
+    for extra in artifacts[1:]:
+        if extra.get("type") != "fhir_document_reference":
+            continue
+        soap = extra.get("_soap_text")
+        if not soap:
+            try:
+                doc = _json.loads(extra.get("content") or "{}")
+                soap = doc["content"][0]["attachment"]["data"]
+            except (ValueError, KeyError, IndexError, TypeError):
+                soap = None
+        if soap:
+            context = f"{context}\n\n--- CLINICAL NOTE (documentation of record) ---\n{soap}"
+    return context
 
 
 def _parse(payload: dict[str, Any]) -> BackendVerdict:

@@ -2,11 +2,13 @@
 
 Tier 2 high-risk. Routes to reject with 2+ judges, needs_review with 1.
 
-Mutated projection: artifact_structured. Locates the diagnosis array
-in the FHIR Claim, swaps the base code for its upcoded sibling. The
-sibling code requires clinical evidence (e.g., 'heart failure',
-'hyperglycemia') that the coding_transcript synthesizer is contracted
-never to produce — so the upcoded code is unsupported by construction.
+Mutated projection: artifact_structured. Locates the FHIR Claim among
+the case artifacts (by type, not index — a coding case also carries a
+fhir_document_reference clinical note) and swaps the diagnosis code
+for its upcoded sibling. The sibling code requires clinical evidence
+(e.g., 'heart failure', 'hyperglycemia') that neither the
+coding_transcript nor the coding_note synthesizer ever produces — so
+the upcoded code is unsupported by the documentation by construction.
 """
 from __future__ import annotations
 
@@ -43,7 +45,13 @@ class UpcodingRiskInjector(DefectInjector):
         if mapping is None:
             raise ValueError("no upcodable diagnosis available for this EncounterSpec")
         new_artifacts = json.loads(json.dumps(artifacts))
-        claim = json.loads(new_artifacts[0]["content"])
+        claim_idx = next(
+            (i for i, a in enumerate(new_artifacts) if a.get("type") == "fhir_claim"),
+            None,
+        )
+        if claim_idx is None:
+            raise ValueError("coding case has no fhir_claim artifact to mutate")
+        claim = json.loads(new_artifacts[claim_idx]["content"])
         diag_codings = claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"]
         target = next((c for c in diag_codings if c["code"] == mapping.icd10_base), None)
         if target is None:
@@ -52,7 +60,7 @@ class UpcodingRiskInjector(DefectInjector):
             )
         target["code"] = mapping.icd10_upcoded
         target["display"] = mapping.upcoded_description
-        new_artifacts[0]["content"] = json.dumps(claim)
+        new_artifacts[claim_idx]["content"] = json.dumps(claim)
 
         recipe = InjectionRecipe(
             defect_type=self.defect_type,

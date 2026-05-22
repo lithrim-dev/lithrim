@@ -1,54 +1,65 @@
-"""Deterministic coding transcript synthesis.
+"""Deterministic coding-encounter transcript synthesis.
 
-v2 (2026-05-21): the dictation now explicitly grounds the ICD-10 code
-the artifact carries (e.g., "Code as E11.9, type 2 diabetes without
-complications, level 3 visit billed as CPT 99213"). v1 referred to
-"the diagnosis" abstractly, which caused the live council to flag
-clean cases as needs_review (no code grounding in transcript).
+v3 (2026-05-22): the transcript is now a genuine clinical encounter —
+chief complaint, history, examination, and the provider's spoken
+assessment — NOT a coding dictation. v2's transcript literally
+dictated the codes ("Code as ICD-10 E11.9"), which made clean cases
+circular (the artifact only had to echo the dictation) and made the
+upcode defect a contradiction-with-dictation rather than a genuine
+unsupported-code defect.
 
-v3 (2026-05-21): mirrors the billing anchors emitted by
-coding_artifact.py v3 (rendering provider NPI, payer, and visit
-charge in the coder readback line). The structural validator change
-is the load-bearing fix for the clean-recall=0/4 finding; this
-transcript update keeps the council's grounding tight against the
-new artifact shape.
-
-Contract preserved: the transcript NEVER mentions the
-`upcode_requires_evidence` clinical phrase for any condition, so any
-upcoded ICD in the artifact remains unsupported by construction.
+The encounter establishes the base diagnosis (so the base ICD is
+grounded) and describes an established-patient, low-to-moderate
+complexity visit (so CPT 99213 is grounded), but it NEVER states a
+billing code and NEVER contains the `upcode_requires_evidence`
+clinical phrase. An upcoded ICD on the Claim is therefore unsupported
+by the encounter — and by the clinical note (coding_note.py) — by
+construction.
 """
 from __future__ import annotations
 
 from ..encounter_spec import EncounterSpec
-from ._icd10_map import lookup
-from .coding_artifact import PAYER_DISPLAY, PROVIDER_NPI, VISIT_CHARGE_USD
+from ._coding_dx import resolve_primary_dx
 
 
 def synthesize_coding_transcript(spec: EncounterSpec) -> str:
     demo = spec.demographics
-    primary_icd: str | None = None
-    primary_desc: str | None = None
-    for cond in spec.conditions:
-        mapping = lookup(cond.snomed_code)
-        if mapping is not None:
-            primary_icd = mapping.icd10_base
-            primary_desc = mapping.description
-            break
-    if primary_icd is None:
-        primary_icd = "Z00.00"
-        primary_desc = "Encounter for general adult medical examination without abnormal findings"
+    dx = resolve_primary_dx(spec)
+    name = f"{demo.first_name} {demo.last_name}"
+    seen = spec.encounter.start.date().isoformat()
 
-    lines = [
-        f"Provider: This is a coding dictation for {demo.first_name} {demo.last_name}, "
-        f"{demo.age_at_encounter}{demo.gender}, seen on {spec.encounter.start.date().isoformat()}.",
-        f"Provider: Primary diagnosis: {primary_desc}. Code as ICD-10 {primary_icd}.",
-        "Provider: Visit was a standard established-patient follow-up — history, "
-        "examination, and discussion of management. Code as a level 3 office visit, "
-        "CPT 99213.",
-        "Provider: No complications, no decompensation, no acute findings beyond "
-        "what's already documented.",
-        f"Coder: Confirmed: ICD-10 {primary_icd} ({primary_desc}), CPT 99213 level 3. "
-        f"Billing under provider NPI {PROVIDER_NPI}, payer {PAYER_DISPLAY}, "
-        f"total ${VISIT_CHARGE_USD:.2f}. Submitting the claim.",
+    lines: list[str] = [
+        f"Provider: Good morning {demo.first_name}, good to see you back. "
+        f"This is an established-patient visit for {name}, seen {seen}.",
+    ]
+
+    if dx.is_routine_exam:
+        lines += [
+            "Patient: I'm just here for my routine check-up, nothing new bothering me.",
+            "Provider: Let's go through it. Any new symptoms, pain, or concerns since "
+            "your last visit?",
+            "Patient: No, nothing new. I feel well.",
+            "Provider: Examination today is unremarkable, vitals are stable.",
+            f"Provider: Assessment: {dx.icd_description.lower()}. No abnormal "
+            "findings on today's visit.",
+        ]
+    else:
+        lines += [
+            f"Patient: I'm here for my follow-up on the {dx.icd_description.lower()}.",
+            "Provider: Let's review how you've been doing. Any new symptoms or "
+            "changes since the last visit?",
+            "Patient: No, it's been stable — nothing new, no flare-ups.",
+            "Provider: Good. Examination is unremarkable and your vitals are stable. "
+            "No complications or acute decompensation today.",
+            f"Provider: Assessment: {dx.icd_description.lower()}, stable on current "
+            "management.",
+        ]
+
+    lines += [
+        "Provider: This was a standard established-patient office visit — history, "
+        "examination, and a discussion of management, low-to-moderate complexity.",
+        "Provider: Continue your current management and we'll do a routine "
+        "follow-up in a month.",
+        "Patient: Sounds good, thank you.",
     ]
     return "\n".join(lines)

@@ -1,21 +1,26 @@
-"""Deterministic coding artifact synthesis.
+"""Deterministic coding artifact synthesis (FHIR Claim + clinical note).
 
-Matches the artifact shape used by lithrim-backend's existing coding
-eval cases (fhir_claim with embedded ICD-10 diagnosis and CPT procedure
-codes).
+A coding case carries two artifacts:
+  [0] fhir_claim             — the coding agent's output, the thing under test
+  [1] fhir_document_reference — the clinical note, the documentation of record
+
+v2 shipped only the Claim, with a "coding dictation" transcript that
+pre-stated the codes. That made clean cases circular and the upcode
+defect a contradiction-with-dictation. v3 adds the clinical note
+(coding_note.py) and a genuine clinical-encounter transcript
+(coding_transcript.py); the Claim's codes are now verified against
+real documentation.
 
 CPT defaults to 99213 (established-patient office visit, level 3) —
 the visit-level upcoding target sits one tier higher at 99215.
 
-v3 (2026-05-21): emits `provider.reference` and `insurance[0].coverage.reference`
+The Claim carries `provider.reference` and `insurance[0].coverage.reference`
 to satisfy the CARIN Claim Validator (etlp mapping 15) checks
-`has_provider` and `has_insurance`. v2 omitted both, which caused the
-live structural stage to return WARN on every clean case and the
-worst-of composition rule (semantic=approve ∧ structural=WARN →
-needs_review) flipped all 4/4 cleans away from approve. `total` and
-`provider.identifier` (NPI) are included as transcript anchors; they
-are not enforced by mapping 15 but produce a coherent billing
-narrative the council can ground against.
+`has_provider` and `has_insurance`.
+
+Primary diagnosis is resolved by `_coding_dx.resolve_primary_dx`,
+which fixes the age-blind ICD fallback: a routine exam on a minor is
+coded Z00.129 (child health exam), not Z00.00 (adult exam).
 """
 from __future__ import annotations
 
@@ -23,7 +28,8 @@ import json
 from typing import Any
 
 from ..encounter_spec import EncounterSpec
-from ._icd10_map import lookup
+from ._coding_dx import resolve_primary_dx
+from .coding_note import synthesize_coding_note
 
 PROVIDER_ID = "lithrim-clinic-001"
 PROVIDER_NPI = "1234567890"
@@ -32,20 +38,9 @@ PAYER_DISPLAY = "Medicare Part B"
 VISIT_CHARGE_USD = 148.00
 
 
-def synthesize_coding_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
+def _synthesize_claim(spec: EncounterSpec) -> dict[str, Any]:
     demo = spec.demographics
-    primary_icd: str | None = None
-    primary_desc: str | None = None
-    for cond in spec.conditions:
-        mapping = lookup(cond.snomed_code)
-        if mapping is not None:
-            primary_icd = mapping.icd10_base
-            primary_desc = mapping.description
-            break
-    if primary_icd is None:
-        primary_icd = "Z00.00"
-        primary_desc = "Encounter for general adult medical examination without abnormal findings"
-
+    dx = resolve_primary_dx(spec)
     claim = {
         "resourceType": "Claim",
         "status": "active",
@@ -83,8 +78,8 @@ def synthesize_coding_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
                     "coding": [
                         {
                             "system": "http://hl7.org/fhir/sid/icd-10-cm",
-                            "code": primary_icd,
-                            "display": primary_desc,
+                            "code": dx.icd_code,
+                            "display": dx.icd_description,
                         }
                     ]
                 },
@@ -109,10 +104,20 @@ def synthesize_coding_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
         ],
         "total": {"value": VISIT_CHARGE_USD, "currency": "USD"},
     }
+    return {
+        "type": "fhir_claim",
+        "content": json.dumps(claim),
+        "target_system": "EHR",
+    }
+
+
+def synthesize_coding_artifact(spec: EncounterSpec) -> list[dict[str, Any]]:
+    """Return [claim, clinical_note].
+
+    The Claim is artifact[0] (the agent output under test); the
+    DocumentReference note is artifact[1] (documentation of record).
+    """
     return [
-        {
-            "type": "fhir_claim",
-            "content": json.dumps(claim),
-            "target_system": "EHR",
-        }
+        _synthesize_claim(spec),
+        synthesize_coding_note(spec),
     ]
