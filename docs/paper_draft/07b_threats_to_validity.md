@@ -53,11 +53,22 @@ The lithrim-backend production pipeline can return an "engine verdict" that disa
 
 The `LithrimPipelineBackend` parser at [`lithrim_bench/backends/lithrim_pipeline.py:155-159`](../../lithrim_bench/backends/lithrim_pipeline.py#L155-L159) extracts `check_name` or `code` from each structural finding. Validators that emit findings keyed `name:` (e.g. etlp mapping 19, the FHIR R4 RiskAssessment Validator) have their finding-names dropped to `[]` in our NDJSON's `structural_findings` field, even though the structural verdict is correctly propagated. This is a cosmetic-only mismatch; it does not affect verdict-level metrics. We flagged it in the v3 commit (`1c68c55`) and will patch the parser in a follow-on. §7's verdict-level results are not affected; flag-name-level analyses for mapping-19-validated packs (`triage_v1`) will under-count when the finding list is the source.
 
-## 7b.8 The production pipeline has a third stage the §4 model abstracts away
+## 7b.8 The scheduling verdict is driven by the artifact_judge, not the council
 
-§4 describes the pipeline as a two-stage system (council + structural) composed under worst-of. The N=10 sweep on `scheduling_v1` surfaced rows where `compliance_verdict = reject` and `artifact_verdict = BLOCK` while **all three judges voted approve and `structural_verdict` was PASS** — the BLOCK comes from a third stage, `safety_prescreening` (gpt-4o-mini) in [`lithrim-backend/app/workflows/compliance_workflow.py:104`](../../../lithrim-backend/app/workflows/compliance_workflow.py#L104), which `LithrimPipelineBackend` does not isolate in its returned record.
+The N=10 sweep on `scheduling_v1` surfaced rows where `compliance_verdict = reject` while **all three council judges voted approve and `structural_verdict` was PASS**. The cause is the orchestrator's **Stage 2.5 `artifact_judge`** (the single gpt-4o-mini voice, §4.1) — not the council, not the validator.
 
-Implication: the **HL7 +28.6 pp** gain is genuinely structural (etlp mapping 26 is a Jute conformance template), and the **coding/triage Phase-2 calibration fixes** are genuinely structural-validator-coverage observations. The **scheduling +50 pp council-vs-composed gain (§7.1) is *not* primarily structural** — it is a pre-council semantic screen catching what the council misses. The paper frames each per-pack result accordingly; conflating them would misattribute the mechanism. A follow-on bench commit should split `LithrimPipelineBackend` into a three-way decomposition (`prescreening_verdict` / `council_verdict` / `structural_verdict` reported separately) so future sweeps attribute recovery to the correct stage without manual row-inspection.
+Verbatim evidence — three bench scheduling `pipeline_runs` (Mongo `pipeline_runs`, `artifact_type=fhir_appointment`):
+```
+stages_executed = [structural, semantic, artifact, verdict]
+structural = PASS   semantic(council) = PASS   artifact = BLOCK   → final = BLOCK
+```
+All three show council and validator passing while the artifact stage `BLOCK`s; `_worst_of_with_artifact` (§4.2) lifts that to `reject`. An earlier draft mis-attributed this `BLOCK` to a `safety_prescreening` stage — but that stage lives only in the async Celery `ComplianceWorkflow`, which `/v1/pipeline/evaluate` never invokes. The misattribution was an unchecked inference; we record the correction here.
+
+Implications for the per-pack results:
+- The **HL7 +28.6 pp** gain is genuinely structural (mapping 26 is a Jute conformance template); the **coding / triage Phase-2 calibration fixes** are genuine structural-validator-coverage observations.
+- The **scheduling pack's verdict behaviour — defect catches and the 0.38 false-block rate (§7.1) — is the artifact_judge**, a FP-prone single-model voice, not the council and not the validator. The worst-of *claim* rests on HL7, where the recovery is unambiguously structural.
+
+`LithrimPipelineBackend` records `structural_verdict` and per-judge votes but not the artifact stage separately; a follow-on commit should add `artifact_verdict_stage` to the NDJSON row so sweeps attribute the verdict without a Mongo round-trip.
 
 ## 7b.9 Synthetic transcripts are obviously synthetic
 
@@ -77,5 +88,5 @@ Approximately 1080 words. Under the 1500-word ceiling.
 | Simulated +60 pp ceiling | same |
 | Replicated 0.8125 ensemble | commit `aff3aa9` → `out/judge_calibration_v3.json` |
 | Pipeline-parser quirk | bench `lithrim_bench/backends/lithrim_pipeline.py:155-159` @ commit `e862ec6` |
-| Three-stage pipeline (scheduling BLOCK without council vote nor struct fail) | spot-check of `out/scheduling_v1.n10.ndjson`; cross-ref `lithrim-backend/app/workflows/compliance_workflow.py:104` |
+| Scheduling BLOCK = artifact_judge Stage 2.5 | Mongo `pipeline_runs` `artifact_type=fhir_appointment`: 3 runs all `structural=PASS semantic=PASS artifact=BLOCK`; `orchestrator.py` `_worst_of_with_artifact` |
 | D2 audit (hba1c bistability) | bench `docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md` defect D2 |

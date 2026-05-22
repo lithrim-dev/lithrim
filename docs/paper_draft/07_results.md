@@ -9,7 +9,7 @@ Source artifacts under `out/` (gitignored):
 
 ## 7.1 Per-pack pipeline accuracy
 
-The pipeline accuracy reported here is the **production system's `compliance_verdict`** — i.e. the worst-of composition over a three-stage pipeline (safety prescreening → council ensemble → structural validator). Each cell's CI is bootstrap-95% over the N=10 runs per case.
+The pipeline accuracy reported here is the **production system's `compliance_verdict`** — i.e. the worst-of composition over the three-stage synchronous orchestrator (structural validator + 3-judge council + artifact_judge; §4.1). Each cell's CI is bootstrap-95% over the N=10 runs per case.
 
 | Pack | verdict_match_rate (95% CI) | CI width | instability_rate | false_block_rate | clean modal correct | defect modal caught |
 |---|---|---|---|---|---|---|
@@ -44,7 +44,7 @@ The paper's central comparison is the per-pack delta between **council-only majo
 
 The **scheduling_v1 column is the cleanest empirical demonstration of categorical-axis-blindness on the bench**: the 3-judge council unanimously approves **all 30** defective cases (kappa = 1.000; ensemble-on-defects = 0/30). The composed pipeline catches 15 — a **+50 pp** recovery from a stage outside the council axis. The composition's false-block cost on cleans is +8/20 = +40 pp: higher defect-recall, worse precision than the council alone — the worst-of shape exactly.
 
-**Honest caveat (§7b.8):** the scheduling +50 pp is *not* primarily structural. One defect row spot-check confirms `structural_verdict=PASS` and all-approve per-judge votes co-occurring with `artifact_verdict=BLOCK` — the BLOCK comes from a pre-council `safety_prescreening` stage (gpt-4o-mini) the bench's §4 two-stage model does not isolate. Frame this as **"the production pipeline-as-shipped recovers what the semantic council misses"** rather than as a structural-axis win. For HL7 (§7.3) the recovery is genuinely structural.
+**Honest caveat (§7b.8):** the scheduling +50 pp is *not* structural. Three bench `pipeline_runs` confirm `structural=PASS` + all-approve council votes co-occurring with `artifact=BLOCK` — the BLOCK is the orchestrator's Stage 2.5 `artifact_judge` (a FP-prone gpt-4o-mini voice; §4.1). It is a finding about pipeline composition, not a structural-axis win; the worst-of claim rests on HL7 (§7.3).
 
 ## 7.2 Per-judge calibration (N=10, n=2000)
 
@@ -93,7 +93,7 @@ Source: `out/<pack>.n10.analysis.json` and `out/judge_calibration_n10.json`.
 | `coding_v1` | **1.000** | 0.000 | 0 |
 | `triage_v1` | **0.547** | 0.094 | 14 |
 
-`scheduling_v1`: **kappa = 1.000 with 15 of 50 cases unstable** — the eval-spec D2 signature of aggregator sensitivity, not judge stochasticity. Bistability lives in the prescreening axis on this pack. `coding_v1` is the cleanest fully-calibrated pack: council unanimous, zero instability, perfect accuracy. `scribe_v1` and `triage_v1` show moderate kappa (~0.5) with ~30% instability — most variance lives in the decision layer, not the aggregator.
+`scheduling_v1`: **kappa = 1.000 with 15 of 50 cases unstable** — the eval-spec D2 signature of aggregator sensitivity, not judge stochasticity. The council is unanimous; the instability lives in the artifact_judge axis (§7b.8) on this pack. `coding_v1` is the cleanest fully-calibrated pack: council unanimous, zero instability, perfect accuracy. `scribe_v1` and `triage_v1` show moderate kappa (~0.5) with ~30% instability — most variance lives in the decision layer, not the aggregator.
 
 ## 7.5 Decision-vs-attribution gap (paper §6 anchor)
 
@@ -128,4 +128,4 @@ Approximately 1380 words. Under the 1500-word ceiling.
 | Per-judge calibration at N=10 | `out/judge_calibration_n10.json` |
 | Council-only vs composed decomposition | computed from `out/<pack>.n10.ndjson` per-row `per_judge` + `compliance_verdict` fields |
 | HL7 +28.6 pp / +60 pp ceiling | commit `d5b49f2` → `docs/HEADLINE_CONTRAST_2026-05-21.md` |
-| Three-stage pipeline discovery (scheduling BLOCK with council-approve + struct-PASS) | spot-check of `out/scheduling_v1.n10.ndjson` row 0, case `bench_scheduling_v1_phi_before_verify_3846cc8b6327`; cross-ref `lithrim-backend/app/workflows/compliance_workflow.py:104` |
+| Scheduling BLOCK = artifact_judge (not council, not validator) | Mongo `pipeline_runs` (`artifact_type=fhir_appointment`): 3 runs `structural=PASS, semantic=PASS, artifact=BLOCK`; orchestrator `_worst_of_with_artifact` in `lithrim-backend/app/services/pipeline/orchestrator.py` |

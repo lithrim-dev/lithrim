@@ -2,75 +2,64 @@
 
 ## 4.1 The verification pipeline
 
-The system under test is a two-stage verification pipeline that takes (clinical transcript, structured artifact) as input and emits a `compliance_verdict ∈ {approve, needs_review, reject}`.
+The system under test is the **synchronous evaluation pipeline** exposed at `POST /v1/pipeline/evaluate` (lithrim-backend `PipelineOrchestrator`) — the "Lane 1" SDK gate. It takes (clinical transcript, structured artifact) and emits a `compliance_verdict ∈ {approve, needs_review, reject}`. It runs **three** stages, composed under a worst-of rule:
 
 ```
             ┌──────────────────────────────┐
             │  (transcript, artifact)      │
             └──────────────┬───────────────┘
                            │
-              ┌────────────┴────────────┐
-              │                         │
-   ┌──────────▼──────────┐    ┌─────────▼──────────┐
-   │   SEMANTIC STAGE    │    │  STRUCTURAL STAGE  │
-   │   3-judge council   │    │  Jute conformance  │
-   │   gpt-4.1 +         │    │  template (FHIR /  │
-   │   criteria-injection│    │  HL7 v2 / SOAP)    │
-   │                     │    │                    │
-   │ policy_judge        │    │  PASS / WARN /     │
-   │ risk_judge          │    │  BLOCK             │
-   │ behavior_judge      │    │                    │
-   └──────────┬──────────┘    └─────────┬──────────┘
-              │ approve / needs_review  │
-              │ / reject + flags        │
-              │                         │
-              └────────┬────────────────┘
-                       │
-              ┌────────▼────────┐
-              │  WORST-OF RULE  │
-              │   (§4.2)        │
-              └────────┬────────┘
-                       │
-            ┌──────────▼──────────┐
-            │  compliance_verdict │
-            └─────────────────────┘
+        ┌──────────────────┼────────────────────┐
+        │                  │                    │
+┌───────▼────────┐ ┌───────▼────────┐ ┌─────────▼─────────┐
+│ STRUCTURAL     │ │ SEMANTIC       │ │ ARTIFACT (2.5)    │
+│ Jute template  │ │ 3-judge council│ │ artifact_judge    │
+│ FHIR/HL7v2/SOAP│ │ gpt-4.1 +      │ │ single gpt-4o-mini│
+│                │ │ criteria-inj.  │ │ (transcript-only) │
+│ PASS/WARN/BLOCK│ │ policy/risk/   │ │ PASS/WARN/BLOCK   │
+│                │ │ behavior       │ │ BLOCK-only counts │
+└───────┬────────┘ └───────┬────────┘ └─────────┬─────────┘
+        │                  │                    │
+        └──────────────────┼────────────────────┘
+                           │
+                  ┌────────▼────────┐
+                  │  WORST-OF RULE  │
+                  │   (§4.2)        │
+                  └────────┬────────┘
+                           │
+                ┌──────────▼──────────┐
+                │  compliance_verdict │
+                └─────────────────────┘
 ```
 
-The three council judges (`policy_judge`, `risk_judge`, `behavior_judge`) are the same three that run in production; we did not invent or aspirational-spec them. The earlier `_TIER1_OWNERS` map in lithrim-backend referenced a `source_message_judge` that did not run in the production three-judge config (defect D3 in [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](../EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md)). The eval-spec lint (`scripts/lint_golden_against_taxonomy.py`) enforces that every expected_safety_flag in the golden set is owned by a judge that actually runs; commits `2ca28e4` and `e94c49f` on lithrim-backend reconcile the historical golden against the live taxonomy and ownership map.
+The three council judges (`policy_judge`, `risk_judge`, `behavior_judge`) are the same three that run in production; we did not aspirational-spec them. The earlier `_TIER1_OWNERS` map referenced a `source_message_judge` not in the running three-judge config (defect D3); the lint enforces that every expected flag is owned by a judge that runs, and lithrim-backend commits `2ca28e4` / `e94c49f` reconcile the historical golden.
 
-This methods section describes what runs. The aspirational design is explicitly out of scope; the paper does not pretend the production system has a fourth judge.
+**Stage 2.5 — the artifact_judge.** Beside the council, the orchestrator runs a fourth LLM voice: a single-model `artifact_judge` (gpt-4o-mini) that scores the artifact directly (transcript-only, skipped under `gate_mode`). It is documented false-positive-prone, so the worst-of rule (§4.2) counts only its `BLOCK`, not its `WARN`. We surface it explicitly because it materially affects the verdict — §7 attributes recovery and false-block cost per stage, and on the scheduling pack the artifact_judge, not the council or the validator, is what drives the verdict (§7b.8).
+
+**Scope honesty — which pipeline.** lithrim-backend has *two* production compliance paths: this synchronous orchestrator, and an asynchronous Celery `ComplianceWorkflow` that adds a safety-prescreening stage, a confidence gate (which can fast-path past the council), and a post-council guard. Both invoke the *same* 3-judge `ComplianceCouncil`. This paper measures the synchronous orchestrator path and says so; it does not claim to measure the async workflow. The composition under test is exactly the three stages above.
 
 ## 4.2 The worst-of rule
 
-Given the two stages' outputs, the combined verdict is the max-severity along each axis:
+The combined verdict is the max-severity across the three stages, on a `{PASS=0, WARN=1, BLOCK=2}` lattice, with one asymmetry: the artifact_judge contributes only its `BLOCK`.
 
 ```
-artifact_verdict_combined   = worst-of(semantic.artifact_verdict,
-                                       structural.artifact_verdict)
-                              using {PASS = 0, WARN = 1, BLOCK = 2}
-
-compliance_verdict_combined = worst-of(semantic.compliance_verdict,
-                                       lift(structural.artifact_verdict))
-                              using {approve = 0, needs_review = 1, reject = 2}
-                              where lift maps  BLOCK -> reject
-                                               WARN  -> needs_review
-                                               PASS  -> approve
+worst_of_inputs = { structural.status,
+                    semantic.status,
+                    artifact.status  IF artifact.status == BLOCK }   # WARN/PASS dropped
+verdict         = max-severity(worst_of_inputs)         # PASS / WARN / BLOCK
+compliance      = lift(verdict)   where BLOCK->reject, WARN->needs_review, PASS->approve
 ```
 
-The rule is the production rule. The canonical implementation lives in `lithrim-backend/app/services/artifact_evaluator.py:37-45` (pinning commit `b9412d1` on lithrim-backend):
+The artifact-`BLOCK`-only rule is deliberate: the artifact_judge is a single FP-prone gpt-4o-mini voice, so its `WARN` is treated as informational and never moves the verdict. The canonical implementation is `_worst_of_with_artifact` in `lithrim-backend/app/services/pipeline/orchestrator.py` (3-input composition), built on the severity primitive `_worst_verdict` in `app/services/artifact_evaluator.py:37-45` (pinning commit `b9412d1`):
 
 ```python
-# Verdict hierarchy for worst-of logic
+# severity primitive — app/services/artifact_evaluator.py:37-45
 _VERDICT_SEVERITY = {"PASS": 0, "WARN": 1, "BLOCK": 2}
-
-def _worst_verdict(verdicts: List[str]) -> str:
-    """Return the most severe verdict from a list."""
-    if not verdicts:
-        return "PASS"
-    return max(verdicts, key=lambda v: _VERDICT_SEVERITY.get(v, 0))
+def _worst_verdict(verdicts):
+    return max(verdicts, key=lambda v: _VERDICT_SEVERITY.get(v, 0)) if verdicts else "PASS"
 ```
 
-The bench's analysis-side mirror is in [`lithrim_bench/backends/worst_of.py`](../../lithrim_bench/backends/worst_of.py) (commit `0cf2a5a` on lithrim-bench). The mirror exists so the bench can compose any (semantic, structural) backend pair under the same rule the production pipeline applies, without round-tripping through the live backend for every experiment — useful for the simulated-validator coverage-ceiling experiments in §6.
+The bench's analysis-side mirror, [`lithrim_bench/backends/worst_of.py`](../../lithrim_bench/backends/worst_of.py) (commit `0cf2a5a`), composes a (semantic, structural) backend pair under the same rule for the simulated-validator coverage-ceiling experiments in §6; the live-pipeline measurements go through `/v1/pipeline/evaluate` directly and therefore exercise the full three-stage `_worst_of_with_artifact`, artifact_judge included.
 
 We chose worst-of (max severity) over a probabilistic combination (e.g. weighted vote, calibrated logistic on judge confidences) for three reasons, listed by importance:
 
