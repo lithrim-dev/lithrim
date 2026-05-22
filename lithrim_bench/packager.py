@@ -46,6 +46,19 @@ def _clean_transcript(transcript: str) -> str:
     return cleaned.replace("\n\n\n", "\n\n").strip()
 
 
+def _split_for(case_id: str) -> str:
+    """Deterministic calibration/test partition (~30% calibration).
+
+    Stable per case_id, so a regenerated pack keeps the same split and a
+    reviewer can confirm no synthesizer/threshold decision referenced a
+    `test`-split case_id. Hash is independent of the clean/defect class,
+    so the partition is proportional across classes in expectation
+    (eval spec §3.2: tune nothing on test).
+    """
+    h = int(hashlib.sha1(f"split|{case_id}".encode()).hexdigest()[:8], 16)
+    return "calibration" if (h % 100) < 30 else "test"
+
+
 def _case_id(spec: EncounterSpec, recipes: list[InjectionRecipe], pack: str) -> str:
     if not recipes:
         suffix = "clean_negative"
@@ -176,6 +189,7 @@ def package_case(
         "expected_structural_verdict": expected_structural_verdict,
         "clean_negative": not recipes,
         "multi_defect": len(recipes) > 1,
+        "split": _split_for(case_id),
         "severity": clinical_severity,
         "pinned": pinned,
         "generated_at": datetime.now(timezone.utc).isoformat(),

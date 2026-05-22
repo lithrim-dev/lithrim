@@ -8,6 +8,8 @@ Usage:
     python scripts/analyze_runs.py --runs out/scribe_v1.runs.ndjson
     python scripts/analyze_runs.py --runs out/scribe_v1.runs.ndjson \
         --pack out/scribe_v1.jsonl   # adds false_block_rate
+    python scripts/analyze_runs.py --runs out/scribe_v1.runs.ndjson \
+        --pack out/scribe_v1.jsonl --split test   # paper-reportable subset
 """
 from __future__ import annotations
 
@@ -25,6 +27,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True, type=Path)
     ap.add_argument("--pack", type=Path, default=None)
+    ap.add_argument("--split", choices=["calibration", "test", "all"], default="all",
+                    help="restrict analysis to one split (requires --pack); "
+                         "paper §7 numbers use --split test")
     ap.add_argument("--out-json", type=Path, default=None)
     ap.add_argument("--out-md", type=Path, default=None)
     args = ap.parse_args()
@@ -37,6 +42,16 @@ def main() -> int:
     if args.pack is not None and args.pack.exists():
         pack_rows = [json.loads(line) for line in args.pack.read_text().splitlines() if line.strip()]
 
+    if args.split != "all":
+        if pack_rows is None:
+            sys.exit("--split requires --pack (the split label lives in the pack rows)")
+        keep = {r["case_id"] for r in pack_rows if r.get("split") == args.split}
+        if not keep:
+            sys.exit(f"no cases with split={args.split!r} in {args.pack} "
+                     "(regenerate the pack — pre-split packs have no split field)")
+        rows = [r for r in rows if r["case_id"] in keep]
+        pack_rows = [r for r in pack_rows if r["case_id"] in keep]
+
     per_case = analyze_per_case(rows)
     pack_summary = analyze_pack(per_case, pack_rows=pack_rows)
 
@@ -47,7 +62,7 @@ def main() -> int:
     out_json.write_text(json.dumps(payload, indent=2))
 
     md = ["# Determinism analysis", "", f"- runs file: `{args.runs}`",
-          f"- rows: {len(rows)}", ""]
+          f"- split: `{args.split}`", f"- rows: {len(rows)}", ""]
     md.append("## Pack summary")
     for k, v in pack_summary.items():
         md.append(f"- **{k}**: `{v}`")

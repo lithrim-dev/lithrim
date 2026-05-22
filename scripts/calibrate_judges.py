@@ -52,6 +52,18 @@ def _is_defective(expected_compliance) -> bool:
     return expected_compliance == "reject"
 
 
+def _load_pack(pack_path, split: str) -> dict:
+    """case_id -> pack row, restricted to the requested split."""
+    rows = (json.loads(l) for l in pack_path.read_text().splitlines() if l.strip())
+    pack = {r["case_id"]: r for r in rows}
+    if split != "all":
+        pack = {cid: r for cid, r in pack.items() if r.get("split") == split}
+        if not pack:
+            sys.exit(f"no cases with split={split!r} in {pack_path} "
+                     "(regenerate the pack — pre-split packs have no split field)")
+    return pack
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", nargs="+", required=True, type=Path,
@@ -60,6 +72,8 @@ def main() -> int:
                     help="Pack JSONL files (one per --runs, same order)")
     ap.add_argument("--out", type=Path, default=Path("out/judge_calibration.json"))
     ap.add_argument("--md-out", type=Path, default=Path("out/judge_calibration.md"))
+    ap.add_argument("--split", choices=["calibration", "test", "all"], default="all",
+                    help="restrict to one split; paper §7 numbers use --split test")
     args = ap.parse_args()
 
     if len(args.runs) != len(args.packs):
@@ -71,10 +85,11 @@ def main() -> int:
     total_runs = 0
 
     for run_path, pack_path in zip(args.runs, args.packs):
-        pack = {row["case_id"]: row for row in
-                (json.loads(l) for l in pack_path.read_text().splitlines() if l.strip())}
-        rows = [json.loads(l) for l in run_path.read_text().splitlines() if l.strip()]
-        pack_name = rows[0].get("pack", "?") if rows else "?"
+        pack = _load_pack(pack_path, args.split)
+        all_rows = [json.loads(l) for l in run_path.read_text().splitlines() if l.strip()]
+        rows = [r for r in all_rows if r["case_id"] in pack]
+        pack_name = rows[0].get("pack", "?") if rows else (
+            all_rows[0].get("pack", "?") if all_rows else "?")
         pack_summaries.append({"pack": pack_name, "runs": len(rows), "cases": len(pack)})
         total_runs += len(rows)
 
@@ -131,18 +146,18 @@ def main() -> int:
     by_row: dict[tuple[str, int], list[str]] = defaultdict(list)
     expected_by_row: dict[tuple[str, int], object] = {}
     for run_path, pack_path in zip(args.runs, args.packs):
-        pack = {row["case_id"]: row for row in
-                (json.loads(l) for l in pack_path.read_text().splitlines() if l.strip())}
+        pack = _load_pack(pack_path, args.split)
         for r in (json.loads(l) for l in run_path.read_text().splitlines() if l.strip()):
+            case = pack.get(r["case_id"])
+            if case is None:  # filtered out by --split
+                continue
             key = (r["case_id"], r.get("run_index", 0))
             for judge_payload in (r.get("per_judge") or {}).values():
                 vote = {"reject": "BLOCK", "needs_review": "WARN", "approve": "PASS"}.get(
                     judge_payload.get("verdict"), "PASS"
                 )
                 by_row[key].append(vote)
-            case = pack.get(r["case_id"])
-            if case is not None:
-                expected_by_row[key] = case.get("expected_compliance_verdict")
+            expected_by_row[key] = case.get("expected_compliance_verdict")
 
     ensemble_correct = 0
     ensemble_total = 0
@@ -172,6 +187,7 @@ def main() -> int:
         "# Judge calibration (live council, gpt-4.1)",
         "",
         f"- packs scanned: {len(args.packs)}",
+        f"- split: {args.split}",
         f"- total rows: {total_runs}",
         f"- ensemble accuracy (majority vote): "
         f"**{pack_summary['ensemble_accuracy_majority_vote']}**",
