@@ -10,6 +10,8 @@
 
 **Scope discipline:** one claim. No LithrimJudge distillation, no multilingual, no Phase 3. Those are future work lines, not this paper.
 
+**Scope change — 2026-05-22 (Phase 2).** The drop-only critique pass (originally contribution #3 and named in §1/§9) is **deferred to future work**: evaluating it requires a critique on/off toggle on `/v1/pipeline/evaluate`, which `PipelineRequest` does not expose — a lithrim-backend API change judged out of scope for v1. The v1 paper's contributions are #1 (benchmark), #2 (categorical-blindness characterization), #4 (existence proof), plus the worst-of evaluation. The critique pass is still *described* in Method as part of the system under test, but its recall-cost/model-dependence is not measured here. Per-defect-class stratification is scoped to the two depth packs (`scribe_v1`, `hl7_adt_v1`, 5 injectors each); the three single-injector verticals (`scheduling`, `coding`, `triage`) are breadth checks. The near-miss case class remains deferred. These narrowings are recorded here rather than silently applied.
+
 ---
 
 ## 1. The one claim (precise, corrected)

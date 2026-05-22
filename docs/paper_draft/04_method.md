@@ -124,7 +124,7 @@ Eleven typed injectors total across the five packs; the five HL7-structural inje
 
 We retain (and report on) the production critique pass, which is a drop-only post-hoc step over the council's findings — a critique-pass model reviews each finding the council emitted and drops findings the critique deems unsupported. Importantly, it is _drop-only_: it cannot add findings. This preserves faithfulness (no new claim invented downstream) while letting the system reduce over-attribution.
 
-The critique pass is part of the system under test (per defect D7 in [`EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](../EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md)). §6 runs the eval in two arms — critique-off and critique-on, `purpose="council"` only — and reports the delta. Per the audit, `purpose="mini"` is documented insufficient (same-model blindspot), so it is excluded from the scored set.
+The critique pass is part of the system under test (per defect D7 in [`EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](../EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md)). We describe it here for completeness because it runs in the production pipeline, but **evaluating it (the critique-off/critique-on arms) is deferred to future work** — `/v1/pipeline/evaluate` exposes no critique toggle, and adding one is a backend API change out of scope for v1 (see `PAPER_OUTLINE.md` Phase-2 scope change, and §7b). All §7 numbers are with the critique pass in its production-default configuration.
 
 ## 4.5 The two-line composition is the contribution
 

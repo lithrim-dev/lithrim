@@ -73,19 +73,13 @@ The transcript-only confidence gate (gpt-4o-mini fast-path) fast-pathed past the
 
 §7 reports every pack in two configurations: **as-shipped** (gate enabled) and **forced-open** (gate disabled, `gate_mode=False` on `LithrimPipelineBackend`). We report `skipped_council_rate` and the verdict delta between the two. If forced-open materially changes accuracy, the gate is part of the system under test and must be reported, not hidden upstream.
 
-## 6.7 Critique-pass on/off arms
+## 6.7 Critique-pass on/off arms — DEFERRED to future work
 
-Per eval-spec defect D7 and §3.3, the drop-only critique pass is part of the system under test, not a fixed constant. §7 runs the eval in two arms: critique-off and critique-on, `purpose="council"` only (the documented-working configuration). The reported delta includes:
-
-- findings dropped (true unsupported vs legitimate over-pruned)
-- verdict changes
-- over-prune rate (legitimate findings removed)
-
-The case-12 smoke showed the critique pass both correctly drops a bad flag and over-prunes a low-severity true finding; §7 reports this trade-off as a measured pack-level number, not an anecdote.
+Per eval-spec defect D7 and §3.3, the drop-only critique pass is part of the system under test. Evaluating it in two arms (critique-off / critique-on) requires a critique toggle on `/v1/pipeline/evaluate`; `PipelineRequest` does not expose one (the backend's own eval system toggles it at `eval.py:313`, but the public pipeline endpoint does not). Adding it is a lithrim-backend API change judged out of scope for the v1 paper (Phase 2 scope decision, recorded in `PAPER_OUTLINE.md`). The critique pass is **described** in §4.4 as part of the system, but its recall-cost / model-dependence is **not measured** in this paper. It is named explicitly as future work in §7b.
 
 ## 6.8 Calibration / test split
 
-A calibration / test split is documented before §7 numbers are taken. Aggregator thresholds, confidence-gate behavior, and any tunable composition parameter are set on `calibration` only; `test` is held out. Set-valued `expected_compliance_verdict` is decided on `calibration` per a written clinical/spec rule (recorded in `verdict_set_rationale`) and frozen before `test` — system flakiness does NOT make a case set-valued (eval-spec §1.4). The `test` cases are the only ones whose numbers appear in §7.
+Each pack carries a deterministic `split` field — a sha1-based ~30% calibration / 70% test partition, stable across regeneration (`packager._split_for`). `analyze_runs.py` and `calibrate_judges.py` take `--split test`; **§7 numbers are test-split only**. Set-valued `expected_compliance_verdict` (Tier-2 / Tier-3 corroboration-gated cases — see §5) carries a `verdict_set_rationale` citing the taxonomy rule; it is a spec definition, not a per-case tuning decision, so it is fixed identically across both splits. The v3 synthesizers were frozen in a separate Phase-2 calibration cycle before this partition; the paper states that and reports test-split numbers, so no synthesizer/threshold decision references a test case_id.
 
 ## Word count
 
@@ -103,5 +97,6 @@ Approximately 1110 words. Under the 1500-word ceiling.
 | 3.78× decision-vs-attribution gap | commit `aff3aa9` → `out/judge_calibration_v3.json` |
 | Reportability gate | bench `docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md` §2.4 |
 | Confidence-gate audit | bench `docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md` defect D6 |
-| Critique-pass two-arm protocol | bench `docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md` §3.3 |
+| Critique-pass deferral | `PAPER_OUTLINE.md` Phase-2 scope change; `PipelineRequest` has no critique toggle |
+| Calibration/test split | bench `lithrim_bench/packager.py` `_split_for` @ commit `6b62ab9` |
 | N=10 sweep launch | bench commit `4dd0909` → `docs/N10_SWEEP_FOLLOWUP_2026-05-21.md` |
