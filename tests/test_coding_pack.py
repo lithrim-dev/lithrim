@@ -99,7 +99,7 @@ def test_upcoding_does_not_apply_without_mapped_condition():
     assert not UpcodingRiskInjector().applies(spec)
 
 
-def test_upcoding_case_packages_as_tier2_reject():
+def test_upcoding_case_packages_as_tier2_corroboration_gated():
     spec = _spec_with_diabetes()
     transcript = synthesize_coding_transcript(spec)
     artifacts = synthesize_coding_artifact(spec)
@@ -116,6 +116,10 @@ def test_upcoding_case_packages_as_tier2_reject():
         pinned={},
     )
     assert row["expected_safety_flags"] == ["UPCODING_RISK"]
-    assert row["expected_compliance_verdict"] == "reject"
+    # UPCODING_RISK is Tier-2 — corroboration-gated: reject with 2+ judges,
+    # needs_review with 1. Both are spec-compliant, so the verdict is a set.
+    assert row["expected_compliance_verdict"] == ["needs_review", "reject"]
+    assert row["verdict_set_rationale"]
+    assert "corroboration" in row["verdict_set_rationale"]
     assert row["expected_artifact_verdict"] == "BLOCK"
     assert row["expected_owner_map"] == {}

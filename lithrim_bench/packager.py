@@ -20,18 +20,29 @@ from .taxonomy import Taxonomy
 
 _VERDICT_RANK = {"approve": 0, "needs_review": 1, "reject": 2}
 _ARTIFACT_VERDICT_RANK = {"PASS": 0, "WARN": 1, "BLOCK": 2}
-_TIER_VERDICT = {
-    "TIER_1": "reject",
-    "TIER_2": "reject",
-    "TIER_3": "needs_review",
-    "STRUCTURAL": "reject",
-}
 _TIER_ARTIFACT = {
     "TIER_1": "BLOCK",
     "TIER_2": "BLOCK",
     "TIER_3": "WARN",
     "STRUCTURAL": "BLOCK",
 }
+
+# Tier -> expected compliance verdict. TIER_1 / STRUCTURAL always route
+# to reject. TIER_2 / TIER_3 are corroboration-gated per the live
+# taxonomy (lithrim-backend compliance_council.py:181-194): a Tier-2
+# defect is reject with 2+ corroborating judges, needs_review with 1;
+# a Tier-3 defect is needs_review with 2+, approve(flagged) with 1.
+# Both outcomes are spec-compliant, so the expected verdict is the set
+# — scoring a single-judge needs_review on a Tier-2 defect as a miss
+# would penalize the system for behaving exactly per spec.
+_TIER2_VERDICT_SET = ["needs_review", "reject"]
+_TIER3_VERDICT_SET = ["approve", "needs_review"]
+_VERDICT_SET_RATIONALE = (
+    "Tier-{tier} corroboration rule (compliance_council.py:181-194): the "
+    "compliance verdict depends on judge corroboration — {hi} with 2+ "
+    "concurring judges, {lo} with 1. Both are spec-compliant outcomes for "
+    "a single Tier-{tier} defect, so the expected verdict is the set."
+)
 
 # Synthesis markers used by injectors to locate dialogue regions.
 # They're stripped at packaging time so they never appear in produced cases.
@@ -72,22 +83,43 @@ def _case_id(spec: EncounterSpec, recipes: list[InjectionRecipe], pack: str) -> 
     return f"bench_{pack}_{suffix}_{digest}"
 
 
-def _verdicts_for(recipes: list[InjectionRecipe], taxonomy: Taxonomy) -> tuple[str, str]:
+def _verdicts_for(
+    recipes: list[InjectionRecipe], taxonomy: Taxonomy
+) -> tuple[str | list[str], str, str | None]:
+    """Return (expected_compliance_verdict, expected_artifact_verdict,
+    verdict_set_rationale).
+
+    expected_compliance_verdict is scalar for clean cases and for cases
+    carrying any Tier-1 / structural defect (always reject). It is
+    set-valued for cases whose worst defect is Tier-2 or Tier-3, because
+    the live taxonomy makes those verdicts corroboration-dependent.
+    verdict_set_rationale is non-None exactly when the verdict is a set.
+    """
     if not recipes:
-        return "approve", "PASS"
-    compliance = "approve"
+        return "approve", "PASS", None
+    tiers = [t for t in (taxonomy.tier_of(r.safety_flag) for r in recipes) if t]
+
     artifact = "PASS"
-    for r in recipes:
-        tier = taxonomy.tier_of(r.safety_flag)
-        if tier is None:
-            continue
-        c = _TIER_VERDICT[tier]
-        a = _TIER_ARTIFACT[tier]
-        if _VERDICT_RANK[c] > _VERDICT_RANK[compliance]:
-            compliance = c
+    for t in tiers:
+        a = _TIER_ARTIFACT[t]
         if _ARTIFACT_VERDICT_RANK[a] > _ARTIFACT_VERDICT_RANK[artifact]:
             artifact = a
-    return compliance, artifact
+
+    if any(t in ("TIER_1", "STRUCTURAL") for t in tiers):
+        return "reject", artifact, None
+    if "TIER_2" in tiers:
+        return (
+            list(_TIER2_VERDICT_SET),
+            artifact,
+            _VERDICT_SET_RATIONALE.format(tier=2, hi="reject", lo="needs_review"),
+        )
+    if "TIER_3" in tiers:
+        return (
+            list(_TIER3_VERDICT_SET),
+            artifact,
+            _VERDICT_SET_RATIONALE.format(tier=3, hi="needs_review", lo="approve"),
+        )
+    return "approve", artifact, None
 
 
 def package_case(
@@ -123,7 +155,9 @@ def package_case(
             )
 
     expected_flags = sorted({r.safety_flag for r in recipes})
-    expected_verdict, expected_artifact_verdict = _verdicts_for(recipes, taxonomy)
+    expected_verdict, expected_artifact_verdict, verdict_set_rationale = _verdicts_for(
+        recipes, taxonomy
+    )
 
     if clinical_severity is None:
         clinical_severity = (
@@ -183,6 +217,7 @@ def package_case(
         "artifacts": artifacts,
         "injection_recipes": [r.to_dict() for r in recipes],
         "expected_compliance_verdict": expected_verdict,
+        "verdict_set_rationale": verdict_set_rationale,
         "expected_artifact_verdict": expected_artifact_verdict,
         "expected_safety_flags": expected_flags,
         "expected_owner_map": expected_owner_map,
