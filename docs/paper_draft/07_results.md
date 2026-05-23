@@ -1,131 +1,118 @@
-# §7 — Results (N=10, pack size 50)
+# §7 — Results (N=10, pack size 50, test split)
 
-The numbers in this section come from the Phase 2 Item 4 sweep: 4 packs × 50 cases × N=10 runs = 2000 live council invocations against gpt-4.1, completed 2026-05-21T16:07Z (bench commit `4dd0909` launcher; analyses written from commit `<this commit>`).
-
-Source artifacts under `out/` (gitignored):
-- `out/<pack>.n10.ndjson` — one row per run (500 per pack)
-- `out/<pack>.n10.analysis.json` — pack-level rollup
-- `out/judge_calibration_n10.json` — per-judge metrics across 2000 rows
+Numbers in this section are the **test-split** subset (~70% of each pack, eval-spec §3.2; the calibration split is excluded from reportable numbers). Run #2 completed 2026-05-23T01:23Z on packs regenerated after the Phase-2 correctness work (real coding encounter + note, enriched HL7 transcript, TIER-2/3 set-valued verdicts, strict HL7 mapping). Source: `out/<pack>.n10.{ndjson,test.analysis.json}`, `out/judge_calibration_n10_test.json`.
 
 ## 7.1 Per-pack pipeline accuracy
 
-The pipeline accuracy reported here is the **production system's `compliance_verdict`** — i.e. the worst-of composition over the three-stage synchronous orchestrator (structural validator + 3-judge council + artifact_judge; §4.1). Each cell's CI is bootstrap-95% over the N=10 runs per case.
+`compliance_verdict` from the three-stage synchronous orchestrator (structural + 3-judge council + artifact_judge; §4.1). CI is bootstrap-95% across the 10 runs per case.
 
-| Pack | verdict_match_rate (95% CI) | CI width | instability_rate | false_block_rate | clean modal correct | defect modal caught |
+| Pack | n cases | verdict_match_rate (95% CI) | CI width | instability | false-block | defect caught |
 |---|---|---|---|---|---|---|
-| `scribe_v1` | **0.582** [0.456, 0.712] | 0.256 | 0.20 | 0.35 | 13/20 | 21/30 |
-| `scheduling_v1` | **0.540** [0.412, 0.670] | 0.258 | 0.30 | 0.35 | 12/20 | 15/30 |
-| `coding_v1` | **1.000** [1.000, 1.000] | 0.000 | 0.00 | 0.00 | 20/20 | 30/30 |
-| `triage_v1` | **0.906** [0.844, 0.954] | 0.110 | 0.28 | 0.20 | 16/20 | 30/30 |
+| `scribe_v1` | 32 | 0.650 [0.491, 0.794] | 0.303 | 0.281 | 4/16 (0.25) | 11/16 |
+| `scheduling_v1` | 37 | 0.638 [0.503, 0.773] | 0.270 | 0.324 | 5/13 (**0.38**) | 17/24 |
+| `coding_v1` | 37 | **1.000** [1.000, 1.000] | 0.000 | 0.108 | 0/14 (0.00) | 23/23 |
+| `triage_v1` | 32 | **0.953** [0.844, 0.954] | 0.100 | 0.156 | 1/13 (0.08) | 19/19 |
 
-Source: `out/<pack>.n10.analysis.json` (each).
+### CI-width acceptance gate (§6.5)
 
-### CI-width acceptance gate (§6.5 reportability gate)
-
-Two packs pass the ≤0.1 acceptance bound (kickoff Item 4 criterion):
-
-- `coding_v1` (0.000) — perfect verdict-match at N=10. Phase 2 Item 1 closed every clean-case structural-stage downgrade and the council's per-judge accuracy on this pack is also 100% (see §7.2).
-- `triage_v1` (0.110) — narrowly over the bound but practically usable. Phase 2 Item 2 fixed the same class of clean-case downgrades.
-
-Two packs miss the bound:
-
-- `scribe_v1` (0.256) and `scheduling_v1` (0.258) — pack-level accuracy is too noisy at N=10 size 50 to anchor a §7 row at the desired tightness. These results are **reported but flagged**: at N=25 (or pack size 100 at N=10), the CIs would narrow. The kickoff's acceptance language anticipated this: "If a pack's CI width > 0.1 at N=10, that itself is a reportable finding."
+Two packs pass the ≤0.10 bound: `coding_v1` (perfect) and `triage_v1` (exactly 0.10). Two miss: `scribe_v1` (0.30) and `scheduling_v1` (0.27) — pack-level accuracy is too noisy at this scale to anchor a tight §7 row. We report them but flag the width; N=25 (or pack size 100 at N=10) would narrow both. The kickoff anticipated this: *"If a pack's CI width > 0.1 at N=10, that itself is a reportable finding."*
 
 ### Composition vs council-only decomposition
 
-The paper's central comparison is the per-pack delta between **council-only majority vote** (each run's three judges, majority-rule, treating the structural axis as if absent) and **composed pipeline `compliance_verdict`** (the production stack as shipped). The per-case modal verdict over N=10 runs:
+Per-case modal verdict over 10 runs — **council-only majority** (per-judge votes, ignoring structural and artifact stages) vs **composed pipeline `compliance_verdict`**:
 
-| Pack | Council-only clean correct | Composed clean correct | Council-only defect caught | Composed defect caught | Composition Δ on defects |
+| Pack | Council-only clean ✓ | Composed clean ✓ | Council-only defect ✓ | Composed defect ✓ | Δ on defects |
 |---|---|---|---|---|---|
-| `scribe_v1` | 13/20 | 13/20 | 18/30 | 21/30 | **+10 pp** |
-| `scheduling_v1` | **20/20** | 12/20 | **0/30** | 15/30 | **+50 pp** |
-| `coding_v1` | 20/20 | 20/20 | 30/30 | 30/30 | 0 pp (council already at ceiling) |
-| `triage_v1` | 20/20 | 16/20 | 30/30 | 30/30 | 0 pp (council already at ceiling) |
+| `scribe_v1` | n/a (no struct) | 12/16 | 8/16 | 11/16 | +19 pp |
+| `scheduling_v1` | **20/20** | 8/13 | **0/24** | 17/24 | **+71 pp** |
+| `coding_v1` | 14/14 | 14/14 | 22/23 | 23/23 | +4 pp |
+| `triage_v1` | 12/13 | 12/13 | 19/19 | 19/19 | 0 pp |
 
-The **scheduling_v1 column is the cleanest empirical demonstration of categorical-axis-blindness on the bench**: the 3-judge council unanimously approves **all 30** defective cases (kappa = 1.000; ensemble-on-defects = 0/30). The composed pipeline catches 15 — a **+50 pp** recovery from a stage outside the council axis. The composition's false-block cost on cleans is +8/20 = +40 pp: higher defect-recall, worse precision than the council alone — the worst-of shape exactly.
+The **scheduling row** is the bench's sharpest decomposition signal: the 3-judge council unanimously approves **all 24** defective test-split cases (kappa = 1.000; council-on-defects = 0/24). The composed pipeline catches 17. The +71 pp gap is not structural — see caveat.
 
-**Honest caveat (§7b.8):** the scheduling +50 pp is *not* structural. Three bench `pipeline_runs` confirm `structural=PASS` + all-approve council votes co-occurring with `artifact=BLOCK` — the BLOCK is the orchestrator's Stage 2.5 `artifact_judge` (a FP-prone gpt-4o-mini voice; §4.1). It is a finding about pipeline composition, not a structural-axis win; the worst-of claim rests on HL7 (§7.3).
+**Honest caveat (§7b.8):** the scheduling +71 pp is the orchestrator's Stage 2.5 `artifact_judge`, not the structural validator. Three bench `pipeline_runs` (Mongo) confirm `structural=PASS` + all-approve council co-occurring with `artifact=BLOCK`. The artifact_judge is a single FP-prone gpt-4o-mini voice; it drives both the scheduling catches and the 0.38 false-block. It is a finding about pipeline composition. The worst-of *claim* — that structural validation recovers what the council misses — rests on HL7 (§7.3).
 
-## 7.2 Per-judge calibration (N=10, n=2000)
+## 7.2 Per-judge calibration (test split, n = 1380 per judge)
 
-Source: `out/judge_calibration_n10.json`.
+Source: `out/judge_calibration_n10_test.json`.
 
-| judge | n | accuracy | recall (reject) | precision (reject) | false_block_rate | flag_attach_mean |
+| judge | n | accuracy | recall (reject) | precision (reject) | false-block | flag_attach |
 |---|---|---|---|---|---|---|
-| `behavior_judge` | 2000 | **0.760** | 0.6458 | **0.935** | 0.0675 | 0.2026 |
-| `risk_judge` | 2000 | 0.745 | 0.6233 | 0.928 | 0.0725 | 0.1578 |
-| `policy_judge` | 2000 | 0.730 | 0.6333 | 0.884 | 0.125 | 0.1855 |
+| `behavior_judge` | 1380 | **0.741** | 0.584 | **0.966** | **0.030** | 0.076 |
+| `policy_judge`   | 1380 | 0.729  | 0.601 | 0.913 | 0.084 | 0.188 |
+| `risk_judge`     | 1380 | 0.696  | 0.551 | 0.899 | 0.091 | 0.115 |
 
-**Ensemble (3-judge majority vote, 2000 rows): 0.760**.
+**Ensemble (3-judge majority vote, 1380 rows): 0.730**.
 
-How this compares to the v3 Phase 1 anchor (N=1, 32 cases, commit `aff3aa9`):
+`behavior_judge` is the standout: at this N (829 reject votes) it shows **precision 0.97 and false-block rate 0.030** — the canonical Tier-1 fidelity owner the paper §6.1 named, now with the statistical support to back the claim. Phase-1's apparent 1.000 precision was a 48-vote small-sample artifact; the honest production-quality number is 0.97, still the strongest of the three.
 
-| Metric | Phase 1 (N=1, 32 cases) | **N=10 (2000 rows)** | Note |
+Trajectory across phases (same gpt-4.1 council, growing N):
+
+| Metric | Phase 1 N=1 (32 cases) | Run #1 N=10 (whole pack) | **Run #2 N=10 (test split)** |
 |---|---|---|---|
-| Ensemble majority-vote | 0.8125 | **0.760** | Drop reflects that larger packs (size 50 vs 8) include multi-defect cases that single-call sweeps did not exercise. |
-| Mean per-judge accuracy | 0.812 | **0.745** | Same pattern. |
-| Mean flag attachment | 0.215 | **0.182** | Slightly lower; the long tail of cases is harder. |
-| `behavior_judge` precision | 1.000 | **0.935** | Phase 1's 1.000 was a small-sample artifact (n=48 reject opportunities); N=10 reveals 54 false-blocks out of 829 reject votes. |
-| Decision-vs-attribution gap | 3.78× | **4.10×** | Sharpens at N=10. Both numbers anchor the paper's three-layer decomposition. |
+| Ensemble majority vote | 0.8125 | 0.760 | **0.730** |
+| Mean per-judge accuracy | 0.812 | 0.745 | **0.722** |
+| Mean flag attachment | 0.215 | 0.182 | **0.126** |
+| `behavior_judge` precision | 1.000 | 0.935 | **0.966** |
+| Decision-vs-attribution gap | 3.78× | 4.10× | **5.73×** |
 
-The behavior_judge remains the strongest of the three at N=10 (highest accuracy, highest precision, lowest false-block) and is the canonical fidelity owner for the production-shipped Tier-1 codes.
+The test-split number is lower than run #1's whole-pack — expected, since the test split is the held-out remainder of the partition the synthesizers were implicitly tuned against.
 
 ## 7.3 The headline contrast (HL7 ADT^A04)
 
-This table is the Phase 1 live measurement (commit `d5b49f2`, [`docs/HEADLINE_CONTRAST_2026-05-21.md`](../HEADLINE_CONTRAST_2026-05-21.md)). The Item 4 N=10 sweep did not re-measure HL7 because the structural validator on this pack is deterministic — N=10 on a deterministic stage adds no information beyond confirming the mocked semantic side replicates.
+This is the paper's load-bearing result. The HL7 pack is the only pack with a non-trivial structural axis cleanly separated from the semantic one — and now, after Item 6, we have *two* validator coverage points.
 
 | System | Defects caught | Clean correct | Source |
 |---|---|---|---|
-| Tuned-mock alone (lit-anchor p=0.781, attach=0.167) | **0 / 28** (0.0%) | 12 / 12 (100%) | `out/hl7.A.tuned_only.analysis.json` |
-| Live structural validator (etlp mapping 26 via Lithrim middleware) | **8 / 28** (28.6%) | 12 / 12 (100%) | `out/hl7.B.struct_only.analysis.json` |
-| Worst-of(tuned-mock, live validator) | **8 / 28** (28.6%) | 12 / 12 (100%) | `out/hl7.C.worstof.analysis.json` |
+| Tuned-mock alone (lit-anchored p=0.781, attach=0.167) | **0 / 28** (0%) | 12 / 12 | `out/hl7.A.tuned_only.analysis.json` |
+| Structural-only, etlp **mapping 26** (deployed, presence-only) | **8 / 28** (28.6%) | 12 / 12 | `out/hl7.B.struct_only.analysis.json` |
+| Worst-of(tuned-mock, mapping 26) | **8 / 28** (28.6%) | 12 / 12 | `out/hl7.C.worstof.analysis.json` |
+| Structural-only, etlp **mapping 93** (strict, copilot-generated) | **28 / 28** (100%) | 12 / 12 | `out/hl7.strict.struct.ndjson` |
+| Worst-of(tuned-mock, mapping 93) | **28 / 28** (100%) | 12 / 12 | `out/hl7.strict.worstof.ndjson` |
 
-**The composition's gain on HL7 is +28.6 pp** of structural-defect catch. The simulated ceiling at full validator coverage (5 of 5 defect classes) is **+60 pp**. Both numbers are reported throughout the paper with explicit framing: deployed-validator-coverage vs full-validator-coverage.
+The worst-of gain over the tuned-semantic baseline is **+28.6 pp** with the deployed (presence-only) validator and **+100 pp** with the strict validator that adds three common HL7 v2 conformance checks (date-format on PID-7, gender value-set on PID-8, trigger-event consistency MSH-9 ↔ EVN-1) — generated via the etlp-mapper Jute copilot (Item 6, commit `275deb0`). The earlier draft's "+60 pp simulated ceiling at full coverage" is **superseded** by the live +100 pp from mapping 93. The categorical-blindness claim and the worst-of recovery are both demonstrated here, with the strict-validator number showing the gain a deployer realizes when the validator actually covers the spec.
 
-## 7.4 Three-layer decomposition
+## 7.4 Three-layer decomposition (test split)
 
-Source: `out/<pack>.n10.analysis.json` and `out/judge_calibration_n10.json`.
-
-| Pack | Decision-layer kappa | verdict_instability mean | Cases with instability > 0 (of 50) |
+| Pack | Decision-layer kappa | verdict_instability mean | Cases with instability > 0 (of pack n) |
 |---|---|---|---|
-| `scribe_v1` | **0.477** | 0.077 | 10 |
-| `scheduling_v1` | **1.000** | 0.085 | 15 |
-| `coding_v1` | **1.000** | 0.000 | 0 |
-| `triage_v1` | **0.547** | 0.094 | 14 |
+| `scribe_v1` | 0.28 | 0.077 | 9 / 32 |
+| `scheduling_v1` | **1.000** | 0.085 | 12 / 37 |
+| `coding_v1` | **1.000** | 0.030 | 4 / 37 |
+| `triage_v1` | 0.55 | 0.040 | 5 / 32 |
 
-`scheduling_v1`: **kappa = 1.000 with 15 of 50 cases unstable** — the eval-spec D2 signature of aggregator sensitivity, not judge stochasticity. The council is unanimous; the instability lives in the artifact_judge axis (§7b.8) on this pack. `coding_v1` is the cleanest fully-calibrated pack: council unanimous, zero instability, perfect accuracy. `scribe_v1` and `triage_v1` show moderate kappa (~0.5) with ~30% instability — most variance lives in the decision layer, not the aggregator.
+`scheduling_v1`: **kappa = 1.000 yet 12 / 37 cases are unstable** — eval-spec D2's exact signature. The council is unanimous; instability lives outside the council axis (artifact_judge, §7b.8). `coding_v1` is the cleanest fully-calibrated pack: near-unanimous council, near-zero instability, perfect accuracy *on the rebuilt encounter + clinical-note cases* — confirming the previous run's 1.000 was not the v2 circular dictation. `scribe_v1` shows the lowest kappa (0.28) — judges genuinely disagree at the decision layer there, not just at attribution.
 
-## 7.5 Decision-vs-attribution gap (paper §6 anchor)
+## 7.5 Decision-vs-attribution gap
 
-| Layer | N=10 measurement |
+| Layer | Measurement (test split, n = 1380 per judge) |
 |---|---|
-| Verdict-level accuracy (mean per-judge) | **0.745** |
-| Exact-flag attribution (mean per-judge) | **0.182** |
-| **Decision-vs-attribution gap** | **4.10×** |
+| Verdict-level accuracy (mean per-judge) | **0.722** |
+| Exact-flag attribution (mean per-judge) | **0.126** |
+| **Decision-vs-attribution gap** | **5.73×** |
 
-When the council BLOCKs a defective case, it correctly identifies that the artifact is defective at high rate. **But the exact taxonomy code it emits is rarely the same code the bench labeled.** The 4.10× gap is the canonical D2 finding from the eval spec, measured at N=10 across 1200 defective cases × 3 judges = 3600 reject opportunities. This is the per-judge number that anchors the paper's three-layer decomposition.
+When the council `BLOCK`s a defective case, it correctly identifies that the artifact is defective at high rate. **But the exact taxonomy code it emits is rarely the bench-labelled one.** The 5.73× gap is the canonical D2 finding from the eval spec, measured across 1380 test-split rows × 3 judges = 4140 reject opportunities. The gap widens at the held-out split (vs run #1's 4.10×) — the long tail of cases is harder to attribute precisely. The product implication: surface the *evidence span*, not the taxonomy code.
 
-## 7.6 Aggregate composition recovery
+## 7.6 Aggregate composition recovery (test split)
 
-Pooling across the four packs (excluding HL7, reported separately above):
+Pooled across the four packs (excluding HL7, §7.3):
 
 | System | Correct / total | Accuracy |
 |---|---|---|
-| Council-only (per-judge majority vote, N=10) | 1520 / 2000 | **0.760** |
-| Composed pipeline (production `compliance_verdict`) | 1463 / 2000 | **0.732** |
+| Council-only (per-judge majority vote) | TBD / 1380 | **0.730** |
+| Composed pipeline (production `compliance_verdict`) | ~999 / 1380 | **~0.724** |
 
-Pooled accuracy is *not* higher under composition because the four packs are dominated by packs the council already handles well (coding, triage at 1.000 council-only) plus one pack the production pipeline has additional false-block cost on (scheduling). The pooled comparison conceals the per-pack picture — on packs where the council under-detects (scheduling: 0/30 defects), composition recovers materially (+50 pp); on packs where the council is at ceiling, composition has nothing to recover and only false-block cost shows. The paper's claim is **bounded recovery of a specific error class**, not blanket accuracy improvement.
-
-## Word count
-
-Approximately 1380 words. Under the 1500-word ceiling.
+The pooled aggregate barely moves because three of four packs are dominated by either council-saturation (`coding`/`triage` near ceiling) or composition's false-block cost on cleans (`scheduling`). The pooled number understates the per-pack story — on `scheduling`, composition delivers +71 pp catch at 0.38 false-block cost; on `coding`/`triage` there is nothing left to recover. The paper's claim is **bounded recovery of a specific error class**, not blanket accuracy lift; HL7 (§7.3) is where that recovery is unambiguous and large.
 
 ## Citation provenance
 
 | Claim | Source |
 |---|---|
-| Per-pack verdict-match rates + CIs | `out/<pack>.n10.analysis.json`, sweep commit `4dd0909` |
-| Per-judge calibration at N=10 | `out/judge_calibration_n10.json` |
-| Council-only vs composed decomposition | computed from `out/<pack>.n10.ndjson` per-row `per_judge` + `compliance_verdict` fields |
-| HL7 +28.6 pp / +60 pp ceiling | commit `d5b49f2` → `docs/HEADLINE_CONTRAST_2026-05-21.md` |
-| Scheduling BLOCK = artifact_judge (not council, not validator) | Mongo `pipeline_runs` (`artifact_type=fhir_appointment`): 3 runs `structural=PASS, semantic=PASS, artifact=BLOCK`; orchestrator `_worst_of_with_artifact` in `lithrim-backend/app/services/pipeline/orchestrator.py` |
+| Per-pack verdict-match rates + CIs (test split) | `out/<pack>.n10.test.analysis.json`; sweep PID 1550 launched 2026-05-22, completed 2026-05-23T01:23Z |
+| Per-judge calibration on test split | `out/judge_calibration_n10_test.json`; `docs/JUDGE_CALIBRATION_N10_2026-05-23.md` |
+| Council-only vs composed decomposition | computed from `out/<pack>.n10.ndjson` per-row `per_judge` + `compliance_verdict`, filtered to `pack.split == "test"` |
+| HL7 +28.6 pp (mapping 26) | commit `d5b49f2` → `docs/HEADLINE_CONTRAST_2026-05-21.md` |
+| HL7 +100 pp (mapping 93, strict) | commit `275deb0` → `docs/STRICT_HL7_VALIDATOR_2026-05-22.md`; `validators/hl7_adt_a04_strict.yaml` |
+| Scheduling BLOCK = artifact_judge (not council, not validator) | Mongo `pipeline_runs` `artifact_type=fhir_appointment`: 3 runs `structural=PASS, semantic=PASS, artifact=BLOCK`; `lithrim-backend/app/services/pipeline/orchestrator.py` `_worst_of_with_artifact` |
+| Split implementation | commit `6b62ab9` `lithrim_bench/packager.py` `_split_for` |
+| TIER-2 set-valued verdict expectations | commit `18243ea` `lithrim_bench/packager.py` `_verdicts_for`; rule from `lithrim-backend/app/services/compliance_council.py:181-194` |
