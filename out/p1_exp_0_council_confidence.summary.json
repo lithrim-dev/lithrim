@@ -1,0 +1,107 @@
+{
+  "input_path": "out/p1_exp_0_council_confidence.ndjson",
+  "n_repeats": 1,
+  "total_rows": 40,
+  "error_rows": 0,
+  "clean_total": 12,
+  "defect_total": 28,
+  "silent_subset_size": 10,
+  "silent_subset_definition": "council-layer: defect case where every per_judge[*].verdict == 'approve' (approved by \u00a75 framing per PAPER_FRAMING_DECISIONS A1; replaces driver \u00a72 Deliverable 3 literal filter mid-cycle \u2014 see deviations in session log)",
+  "pipeline_silent_subset_size": 0,
+  "pipeline_silent_subset_definition": "driver \u00a72 Deliverable 3 literal: council-silent AND pipeline compliance_verdict == 'approve' (reported for audit trail; not used for \u00a75 because the pipeline gate already composes the \u00a76 solution)",
+  "pipeline_gate_on_silent": {
+    "needs_review": 10
+  },
+  "agreement_breakdown": {
+    "unanimous_approve": 10,
+    "split": 15,
+    "unanimous_reject": 3,
+    "other": 0
+  },
+  "structural_outcome_on_defects": {
+    "WARN": 21,
+    "BLOCK": 7
+  },
+  "structural_outcome_on_silent": {
+    "WARN": 10
+  },
+  "per_judge_stats": {
+    "policy_judge": {
+      "n": 10,
+      "mean": 1.0,
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "min": 1.0,
+      "max": 1.0,
+      "histogram_0p1_buckets": {
+        "0.0-0.1": 0,
+        "0.1-0.2": 0,
+        "0.2-0.3": 0,
+        "0.3-0.4": 0,
+        "0.4-0.5": 0,
+        "0.5-0.6": 0,
+        "0.6-0.7": 0,
+        "0.7-0.8": 0,
+        "0.8-0.9": 0,
+        "0.9-1.0": 10
+      }
+    },
+    "risk_judge": {
+      "n": 10,
+      "mean": 1.0,
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "min": 1.0,
+      "max": 1.0,
+      "histogram_0p1_buckets": {
+        "0.0-0.1": 0,
+        "0.1-0.2": 0,
+        "0.2-0.3": 0,
+        "0.3-0.4": 0,
+        "0.4-0.5": 0,
+        "0.5-0.6": 0,
+        "0.6-0.7": 0,
+        "0.7-0.8": 0,
+        "0.8-0.9": 0,
+        "0.9-1.0": 10
+      }
+    },
+    "behavior_judge": {
+      "n": 10,
+      "mean": 1.0,
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "min": 1.0,
+      "max": 1.0,
+      "histogram_0p1_buckets": {
+        "0.0-0.1": 0,
+        "0.1-0.2": 0,
+        "0.2-0.3": 0,
+        "0.3-0.4": 0,
+        "0.4-0.5": 0,
+        "0.5-0.6": 0,
+        "0.6-0.7": 0,
+        "0.7-0.8": 0,
+        "0.8-0.9": 0,
+        "0.9-1.0": 10
+      }
+    }
+  },
+  "silent_case_ids": [
+    "bench_hl7_adt_v1_hl7_missing_segment_df41cb92f787",
+    "bench_hl7_adt_v1_hl7_missing_required_field_d39df5b6a2c0",
+    "bench_hl7_adt_v1_hl7_malformed_date_dc57c49eb10e",
+    "bench_hl7_adt_v1_hl7_invalid_field_format_c753e2161ed8",
+    "bench_hl7_adt_v1_hl7_malformed_date_87f955a09df5",
+    "bench_hl7_adt_v1_hl7_missing_segment_e0fddcb6fb65",
+    "bench_hl7_adt_v1_hl7_malformed_date_720831965f5b",
+    "bench_hl7_adt_v1_hl7_malformed_date_c1f4aec440b7",
+    "bench_hl7_adt_v1_hl7_missing_segment_54fe5a399ff0",
+    "bench_hl7_adt_v1_hl7_malformed_date_12ea2d75135a"
+  ],
+  "pipeline_silent_case_ids": [],
+  "error_case_ids": []
+}
