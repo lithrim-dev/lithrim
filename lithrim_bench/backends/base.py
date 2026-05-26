@@ -11,6 +11,7 @@ decomposition. A backend that doesn't (or a mock that emits only the
 top-level verdict) leaves it None; downstream analysis then reports
 layer-1 metrics only.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -23,6 +24,7 @@ class JudgeOutput:
     judge_name: str
     verdict: str
     flags: list[str] = field(default_factory=list)
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)
