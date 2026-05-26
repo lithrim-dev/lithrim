@@ -53,7 +53,7 @@ The lithrim-backend production pipeline can return an "engine verdict" that disa
 
 The `LithrimPipelineBackend` parser at [`lithrim_bench/backends/lithrim_pipeline.py:155-159`](../../lithrim_bench/backends/lithrim_pipeline.py#L155-L159) extracts `check_name` or `code` from each structural finding. Validators that emit findings keyed `name:` (e.g. etlp mapping 19, the FHIR R4 RiskAssessment Validator) have their finding-names dropped to `[]` in our NDJSON's `structural_findings` field, even though the structural verdict is correctly propagated. This is a cosmetic-only mismatch; it does not affect verdict-level metrics. We flagged it in the v3 commit (`1c68c55`) and will patch the parser in a follow-on. §7's verdict-level results are not affected; flag-name-level analyses for mapping-19-validated packs (`triage_v1`) will under-count when the finding list is the source.
 
-## 7b.8 The scheduling verdict is driven by the artifact_judge, not the council
+## 7b.8 The scheduling verdict is driven by the artifact_judge, not the council — and the structural axis is contractually blind
 
 The N=10 sweep on `scheduling_v1` surfaced rows where `compliance_verdict = reject` while **all three council judges voted approve and `structural_verdict` was PASS**. The cause is the orchestrator's **Stage 2.5 `artifact_judge`** (the single gpt-4o-mini voice, §4.1) — not the council, not the validator.
 
@@ -62,11 +62,16 @@ Verbatim evidence — three bench scheduling `pipeline_runs` (Mongo `pipeline_ru
 stages_executed = [structural, semantic, artifact, verdict]
 structural = PASS   semantic(council) = PASS   artifact = BLOCK   → final = BLOCK
 ```
-All three show council and validator passing while the artifact stage `BLOCK`s; `_worst_of_with_artifact` (§4.2) lifts that to `reject`. An earlier draft mis-attributed this `BLOCK` to a `safety_prescreening` stage — but that stage lives only in the async Celery `ComplianceWorkflow`, which `/v1/pipeline/evaluate` never invokes. The misattribution was an unchecked inference; we record the correction here.
 
-Implications for the per-pack results:
-- The **HL7 +28.6 pp** gain is genuinely structural (mapping 26 is a Jute conformance template); the **coding / triage Phase-2 calibration fixes** are genuine structural-validator-coverage observations.
-- The **scheduling pack's verdict behaviour — defect catches and the 0.38 false-block rate (§7.1) — is the artifact_judge**, a FP-prone single-model voice, not the council and not the validator. The worst-of *claim* rests on HL7, where the recovery is unambiguously structural.
+The 2026-05-26 measurement audit ([`docs/research/MEASUREMENT_AUDIT_2026-05-26.md`](../research/MEASUREMENT_AUDIT_2026-05-26.md) §2.2) confirmed this pattern across **all 278 fhir_appointment BLOCK verdicts** in the 22-23 window (verbatim Mongo count: verdict-BLOCK = artifact-BLOCK = 278; the two sets coincide exactly). An earlier draft mis-attributed this BLOCK to a `safety_prescreening` stage — but that stage lives only in the async Celery `ComplianceWorkflow`, which `/v1/pipeline/evaluate` never invokes. The misattribution was an unchecked inference; we record the correction here.
+
+Implications for the per-pack results — the scheduling pack's defect-catch behaviour (17/24 in §7.1) is the **artifact_judge** acting as the **only voice** with category coverage for the defects the bench injects:
+
+- The council unanimously approves on the 24 test-split defective cases (κ = 1.000, council-on-defects = 0/24).
+- The registered structural validator (mapping 17, envelope/presence-grade per §5.2) is **contractually blind** to the bench's `PhiDisclosurePreVerification` injectors — it checks status enum, start, end, participant, serviceType presence, none of which the bench's date-plausibility / context-date injectors perturb.
+- The artifact_judge is the sole detector — and carries the 0.38 false-block cost on cleans as a consequence.
+
+- The **HL7 +28.6 pp** (mapping 26) and **+100 pp** (mapping 93) gains (§7.3) are genuinely structural, but come from validator-pinned direct backend calls (`LithrimValidateArtifactBackend`) — **not** from the orchestrator's profile-resolved structural stage. The worst-of *claim* rests on HL7, where the recovery is unambiguously structural and the validator's coverage is the gating variable.
 
 `LithrimPipelineBackend` records `structural_verdict` and per-judge votes but not the artifact stage separately; a follow-on commit should add `artifact_verdict_stage` to the NDJSON row so sweeps attribute the verdict without a Mongo round-trip.
 

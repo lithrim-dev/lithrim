@@ -3,6 +3,7 @@
 Covers all 9 combinations of (semantic_artifact, structural_artifact) and
 verifies the lifted compliance correctly escalates.
 """
+
 import pytest
 
 from lithrim_bench.backends.base import (
@@ -103,3 +104,30 @@ def test_pin_records_both_sub_backends():
     assert pin.backend == "WorstOfBackend"
     assert pin.extra["semantic"]["backend"] == "sem-x"
     assert pin.extra["structural"]["backend"] == "struct-y"
+
+
+def test_worst_of_rank_skips_structural_not_applicable_and_preserves_in_report():
+    """BRS-0b: WorstOfBackend must treat a structural artifact_verdict of
+    'not_applicable' as rank-0 (semantic dominates) AND surface
+    structural_verdict='not_applicable' on the composed BackendVerdict.
+
+    This locks the no-code-change invariant: `.get(..., default)` in
+    `_worst` and `_LIFT_TO_COMPLIANCE` naturally rank-skip unknown
+    statuses, while the structural_verdict pass-through (worst_of.py:89)
+    preserves the reporting distinction. If a future refactor changes
+    composition behavior on 'not_applicable', this test catches it.
+    """
+    sem = _Fixed(_semantic("reject", "BLOCK", flags=["WRONG_DOSAGE"]))
+    struct = BackendVerdict(
+        compliance_verdict="approve",
+        artifact_verdict="not_applicable",
+        flags=[],
+        structural_verdict="not_applicable",
+        structural_findings=[],
+    )
+    composed = WorstOfBackend(semantic=sem, structural=_Fixed(struct)).evaluate({"case_id": "x"})
+    # semantic dominates because not_applicable is rank-skipped
+    assert composed.artifact_verdict == "BLOCK"
+    assert composed.compliance_verdict == "reject"
+    # reporting preserves the distinct status (worst_of.py:89 passthrough)
+    assert composed.structural_verdict == "not_applicable"

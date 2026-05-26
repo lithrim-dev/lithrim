@@ -119,6 +119,12 @@ The critique pass is part of the system under test (per defect D7 in [`EVAL_BENC
 
 The method's load-bearing observation is small: a two-line composition rule over a two-axis system materially changes what the pipeline catches. The size of the change depends on what fraction of real failures live on each axis. The claim that conformance-sensitive domains have substantial structural-axis failure mass — and therefore stand to benefit from this composition — is the empirical scope we test in §7. The method itself is one rule, deliberately.
 
+## 4.6 Validator coverage and its decomposition from the worst-of rule
+
+The worst-of rule (§4.2) composes the verdict-axis severity across three stages, but a stage's contribution is gated by whether it has anything to *say* about the defect class. The structural stage runs the artifact_profile-resolved Jute template; what that template checks determines the structural axis's coverage of injected defect classes. As of the 2026-05-26 measurement audit ([`docs/research/MEASUREMENT_AUDIT_2026-05-26.md`](../research/MEASUREMENT_AUDIT_2026-05-26.md) §1.3, commit `85901d8`), the five default-registered structural validators for the bench's org are envelope/presence-grade: mapping 18 (FHIR R4 DocumentReference Validator) checks 5 presence conditions on `status`, `type.coding`, `subject.reference`, `content.attachment`, `attachment.contentType`; it never inspects `content[0].attachment.data`, the base64-encoded SOAP body where the bench's scribe injectors place their defects. The other four primary-pack validators follow the same envelope/presence pattern — see [MEASUREMENT_AUDIT_2026-05-26.md §1.3](../research/MEASUREMENT_AUDIT_2026-05-26.md#13-what-the-validators-actually-check-phase-2--ask-2) for the per-mapping check inventory verbatim.
+
+The empirical implication: across 2,009 FHIR pipeline_runs in the N=10 sweep, the structural stage emitted `status="PASS"` on 100% of rows — including 100% of injected-defect rows. The structural axis is **registered**; it is **coverage-limited** against the defect classes the bench injects. §7's per-pack decomposition (§7.1) and the HL7 contrast (§7.3) are read under this constraint.
+
 ## Word count
 
 Approximately 1150 words. Under the 1500-word ceiling.

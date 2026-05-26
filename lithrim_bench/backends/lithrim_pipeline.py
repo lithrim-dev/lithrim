@@ -20,6 +20,7 @@ artifact_type is taken from the case's first artifact; override via
 `artifact_type_override` if needed (e.g. to route to a different
 profile).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -31,7 +32,7 @@ _STAGE_STATUS_NORMALIZE = {
     "PASS": "PASS",
     "WARN": "WARN",
     "BLOCK": "BLOCK",
-    "not_applicable": "PASS",
+    "not_applicable": "not_applicable",  # BRS-0b: preserve distinct status, was: "PASS"
 }
 
 
@@ -158,11 +159,14 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
     semantic = payload.get("semantic") or {}
     structural = payload.get("structural") or {}
 
-    flags = sorted({
-        f.get("code") or f.get("check_name") or ""
-        for f in semantic.get("findings") or []
-        if f.get("code") or f.get("check_name")
-    } - {""})
+    flags = sorted(
+        {
+            f.get("code") or f.get("check_name") or ""
+            for f in semantic.get("findings") or []
+            if f.get("code") or f.get("check_name")
+        }
+        - {""}
+    )
 
     per_judge: dict[str, JudgeOutput] | None = None
     judge_votes = semantic.get("judge_votes") or []
@@ -171,7 +175,9 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
         for jv in judge_votes:
             role = jv.get("judge_role", "<unknown>")
             vote = jv.get("vote", "PASS")
-            verdict_lifted = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "approve"}.get(vote, "approve")
+            verdict_lifted = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "approve"}.get(
+                vote, "approve"
+            )
             per_judge[role] = JudgeOutput(
                 judge_name=role,
                 verdict=verdict_lifted,
@@ -179,11 +185,14 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
             )
 
     structural_v = _STAGE_STATUS_NORMALIZE.get(structural.get("status", "PASS"), "PASS")
-    structural_findings = sorted({
-        f.get("check_name") or f.get("code") or ""
-        for f in structural.get("findings") or []
-        if f.get("check_name") or f.get("code")
-    } - {""})
+    structural_findings = sorted(
+        {
+            f.get("check_name") or f.get("code") or ""
+            for f in structural.get("findings") or []
+            if f.get("check_name") or f.get("code")
+        }
+        - {""}
+    )
 
     return BackendVerdict(
         compliance_verdict=compliance_v,

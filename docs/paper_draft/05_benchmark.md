@@ -14,19 +14,17 @@ The bench cohort and all generation logic are seeded; the cohort manifest, the s
 
 The Phase 1 release covers five packs spanning the production agent surface:
 
-| Pack | Agent type | Artifact type | Live structural validator | Injectors |
-|---|---|---|---|---|
-| `scribe_v1` | clinical scribe | `fhir_document_reference` (SOAP body) | none (semantic-only by design) | `WrongDosage`, `MissingAllergy`, `FabricatedHistory`, `ValueMismatch`, `HallucinatedDetail` |
-| `scheduling_v1` | scheduling agent | `scheduling_action` | `scheduling-action/v1` (etlp mapping 22) | `PhiDisclosurePreVerification` |
-| `coding_v1` | coding agent | `fhir_claim` | CARIN Claim Validator (etlp mapping 15) | `UpcodingRisk` |
-| `triage_v1` | triage agent | `fhir_risk_assessment` | FHIR R4 RiskAssessment Validator (etlp mapping 19) | `MissedEscalation` |
-| `hl7_adt_v1` | ADT^A04 emitter | `hl7_adt_a04` (raw HL7 v2 pipe-delimited text) | hl7-adt-a04-validator (etlp mapping 26) | 5 HL7-structural injectors |
+| Pack | Agent type | Artifact type (POSTed) | Default-org structural validator | Validator scope | Injectors |
+|---|---|---|---|---|---|
+| `scribe_v1` | clinical scribe | `fhir_document_reference` | **mapping 18** (FHIR R4 DocumentReference Validator) | envelope/presence-only on outer DocumentReference; does **not** inspect base64 attachment body | `WrongDosage`, `MissingAllergy`, `FabricatedHistory`, `ValueMismatch`, `HallucinatedDetail` |
+| `scheduling_v1` | scheduling agent | `fhir_appointment` | **mapping 17** (Lithrim FHIR R4 Appointment Validator) | envelope (status enum, start, end, participant, serviceType presence); does not inspect date plausibility | `PhiDisclosurePreVerification` |
+| `coding_v1` | coding agent | `fhir_claim` | mapping 15 (CARIN Claim Validator) | envelope (5 presence checks); does not inspect ICD code values | `UpcodingRisk` |
+| `triage_v1` | triage agent | `fhir_risk_assessment` | mapping 19 (FHIR R4 RiskAssessment Validator) | envelope + value-range (`probabilityDecimal` ∈ [0,1]); does not inspect risk narrative | `MissedEscalation` |
+| `hl7_adt_v1` | ADT^A04 emitter | `hl7_adt_a04` | **mapping 42 default** (HL7 v2.5 ADT^A04 Lenient Validator); §7.3 references use **mapping 26** (deployed presence-only) and **mapping 93** (strict, copilot-generated) **via direct backend, bypassing profile resolution** | 26 catches segment+field presence (2 of 5 defect classes); 93 catches all 5 (incl. date format, gender value-set, trigger-event consistency); 42 is the active profile but is NOT what §7.3 measures | 5 HL7-structural injectors: `Hl7MalformedDate`, `Hl7MissingSegment`, `Hl7InvalidFieldFormat`, `Hl7MissingRequiredField`, `Hl7TriggerEventMismatch` |
 
-`scribe_v1` is intentionally semantic-only — there is no widely-deployed SOAP-body structural validator that maps to the bench's defect classes, and a contrived validator would be circular evidence. This pack is the **negative control** for the categorical-blindness claim: a pack where the worst-of composition should approach the semantic-only baseline because the structural axis is degenerate.
+The five default-registered structural validators are envelope/presence-grade. They run on every case but, by validator-template construction, are blind to the semantic content the bench's FHIR injectors mutate (SOAP-body claims, ICD codes, RiskAssessment narratives). `scribe_v1` is **not** a clean structural-axis negative control — the validator runs and emits PASS, but it has no contractual visibility into the attachment body where the defects live. The 2026-05-26 measurement audit ([`docs/research/MEASUREMENT_AUDIT_2026-05-26.md`](../research/MEASUREMENT_AUDIT_2026-05-26.md) §1.3) documents the per-mapping check inventory verbatim.
 
-`hl7_adt_v1` is the **positive control**: HL7 v2 conformance is the cleanest case of a public-spec, deterministically-checkable structural axis. The +28.6 pp worst-of gain on this pack ([`docs/HEADLINE_CONTRAST_2026-05-21.md`](../HEADLINE_CONTRAST_2026-05-21.md), commit `d5b49f2`) is the empirical center of gravity.
-
-The three middle packs (`scheduling_v1`, `coding_v1`, `triage_v1`) are calibration territory: each carries one production-shipped structural validator with a published Jute template. The structural axis is real but partial. These packs test how the composition behaves at intermediate validator-coverage levels.
+`hl7_adt_v1` is the **positive control**: HL7 v2 conformance is the cleanest case of a public-spec, deterministically-checkable structural axis. The §7.3 +28.6 pp gain (mapping 26 deployed-reference) and +100 pp gain (mapping 93 copilot-generated strict) come from direct calls to `LithrimValidateArtifactBackend` pinned to the specific mapping id, **not** from the orchestrator's profile-resolved structural stage. The bench's default org would, on a `POST /v1/pipeline/evaluate` of an `hl7_adt_a04` payload, resolve to mapping 42 (Lenient) — a different validator from either §7.3 measurement. §7.3 demonstrates what a deployer-of-record realizes after explicit profile registration, not what runs by default.
 
 ## 5.3 Deterministic-by-construction labels
 

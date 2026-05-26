@@ -4,6 +4,7 @@ Pure unit tests against the _parse function; no live HTTP. Verifies
 that the live-response shapes documented in the openapi spec map
 correctly onto BackendVerdict fields.
 """
+
 from lithrim_bench.backends.lithrim_pipeline import _parse
 
 
@@ -16,15 +17,35 @@ def test_block_reject_with_three_judges():
             "status": "BLOCK",
             "findings": [
                 {"type": "semantic", "code": "WRONG_DOSAGE", "severity": "HIGH", "detail": "..."},
-                {"type": "semantic", "code": "FABRICATED_HISTORY", "severity": "HIGH", "detail": "..."},
+                {
+                    "type": "semantic",
+                    "code": "FABRICATED_HISTORY",
+                    "severity": "HIGH",
+                    "detail": "...",
+                },
             ],
             "judge_votes": [
-                {"judge_role": "policy_judge", "vote": "BLOCK", "confidence": 1.0,
-                 "model": "gpt-4.1", "findings": ["WRONG_DOSAGE", "FABRICATED_HISTORY"]},
-                {"judge_role": "risk_judge", "vote": "BLOCK", "confidence": 1.0,
-                 "model": "gpt-4.1", "findings": ["WRONG_DOSAGE"]},
-                {"judge_role": "behavior_judge", "vote": "BLOCK", "confidence": 1.0,
-                 "model": "gpt-4.1", "findings": ["FABRICATED_HISTORY"]},
+                {
+                    "judge_role": "policy_judge",
+                    "vote": "BLOCK",
+                    "confidence": 1.0,
+                    "model": "gpt-4.1",
+                    "findings": ["WRONG_DOSAGE", "FABRICATED_HISTORY"],
+                },
+                {
+                    "judge_role": "risk_judge",
+                    "vote": "BLOCK",
+                    "confidence": 1.0,
+                    "model": "gpt-4.1",
+                    "findings": ["WRONG_DOSAGE"],
+                },
+                {
+                    "judge_role": "behavior_judge",
+                    "vote": "BLOCK",
+                    "confidence": 1.0,
+                    "model": "gpt-4.1",
+                    "findings": ["FABRICATED_HISTORY"],
+                },
             ],
         },
         "structural": {"status": "PASS", "findings": []},
@@ -65,8 +86,12 @@ def test_warn_with_structural_findings_only():
         "structural": {
             "status": "WARN",
             "findings": [
-                {"type": "structural", "check_name": "attending-physician",
-                 "severity": "MEDIUM", "detail": "Attending physician missing"},
+                {
+                    "type": "structural",
+                    "check_name": "attending-physician",
+                    "severity": "MEDIUM",
+                    "detail": "Attending physician missing",
+                },
             ],
         },
         "provenance": {"pipeline_run_id": "test-run-3"},
@@ -78,7 +103,20 @@ def test_warn_with_structural_findings_only():
     assert v.structural_findings == ["attending-physician"]
 
 
-def test_not_applicable_normalizes_to_pass():
+def test_structural_not_applicable_preserved_through_backend_verdict():
+    """BRS-0b: _parse must surface structural.status='not_applicable' as
+    BackendVerdict.structural_verdict='not_applicable', not collapsed to 'PASS'.
+
+    The orchestrator emits 'not_applicable' at the per-stage level when
+    no artifact_profile resolves for the artifact_type. Future runs with
+    absent profiles must now report that distinction; the previous
+    `_STAGE_STATUS_NORMALIZE: not_applicable -> PASS` collapse silently
+    hid validator-coverage gaps in the reporting chain.
+
+    artifact_verdict (top-level pipeline `verdict`) is independent: the
+    orchestrator never emits 'not_applicable' at the overall verdict
+    level (only per-stage), so artifact_verdict stays PASS here.
+    """
     payload = {
         "verdict": "PASS",
         "gate_decision": "allow",
@@ -89,4 +127,4 @@ def test_not_applicable_normalizes_to_pass():
     }
     v = _parse(payload)
     assert v.artifact_verdict == "PASS"
-    assert v.structural_verdict == "PASS"
+    assert v.structural_verdict == "not_applicable"
