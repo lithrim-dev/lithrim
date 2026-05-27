@@ -1,0 +1,156 @@
+{
+  "session_id": "session-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28",
+  "stream": "paper-1-copilot",
+  "phase": "P1-CANONICAL-PACK",
+  "driver_bundle_id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
+  "started_at": "2026-05-28T22:00:00Z",
+  "ended_at": "2026-05-28T23:50:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench", "lithrim-backend"],
+
+  "plan_review": {
+    "posted_at": "2026-05-28T22:45:00Z",
+    "user_approved_at": "2026-05-28T23:05:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Schema-handling D1: chose Option C (real S3 upload + minimal Path T fields on EvalCase) over driver's enumerated A (synthetic keys) / B (Optional transcript field + eval-runner fallback). No backend code change for transcript dimension.",
+        "evidence": "plan-review §3 + §8 D1; user 'go' 2026-05-28T23:05Z applies to entire plan-review",
+        "decided_at": "2026-05-28T23:05:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Schema-handling D2: renamed driver's `expected_compliance_verdict` to `expected_compliance_verdict_list` (Path T list) to avoid collision with existing `EvalCase.expected_verdict: str` field.",
+        "evidence": "plan-review §8 D2; lithrim-backend app/models/eval_case.py:72-82 lands the renamed field",
+        "decided_at": "2026-05-28T23:05:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Schema-handling D3: pack/cases written as raw dicts via pymongo (not Pydantic) so organization_id lands on eval_pack per existing precedent (Pydantic EvalPack model omits the field but the collection writes carry it).",
+        "evidence": "plan-review §8 D3; scripts/build_canonical_pack.py:_build_eval_pack_doc",
+        "decided_at": "2026-05-28T23:05:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver §2.3 sample doc had `case_ids: [<12 ObjectIds>]`; actual EvalPack model field is `eval_case_ids: List[str]` (string IDs, not ObjectIds).",
+        "evidence": "lithrim-backend app/models/eval_pack.py:49 declares `eval_case_ids: List[str]`",
+        "decided_at": "2026-05-28T22:45:00Z"
+      },
+      {
+        "kind": "REJECTED-MID-CYCLE",
+        "summary": "S2 mid-cycle widening NOT applied: calibration revealed S2 dropped WRONG_DOSAGE (S-P1-13 council non-determinism), and adding {WRONG_DOSAGE: [MEDICATION_NOT_IN_TRANSCRIPT]} to S2's substitutes would lift all-three-pass 10→11/12. Held off to preserve the dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation. Auto-mode call made without halting; surfaced in REPORT §3 + here for monitor review at audit.",
+        "evidence": "calibration NDJSON pipeline_run_id=78d49fc0 S2 actual_codes=['FABRICATED_HISTORY','INCOMPLETE_DOCUMENTATION','MEDICATION_NOT_IN_TRANSCRIPT'] vs P1-VALIDATE-12 S2 actual_codes=['FABRICATED_HISTORY','INCOMPLETE_DOCUMENTATION','MEDICATION_NOT_IN_TRANSCRIPT','WRONG_DOSAGE']",
+        "decided_at": "2026-05-28T23:40:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "2e4a000",
+      "repo": "lithrim-bench",
+      "title": "feat(bench): paper_v1_n12_canonical pack author script + Path T contract spec",
+      "summary": "lithrim_bench/picklist.py (resolver factor-out) + out/paper_v1_n12_canonical.spec.json (12-case manifest with Path T contract) + scripts/build_canonical_pack.py (S3 upload + Mongo insert)"
+    },
+    {
+      "hash": "d6f288e",
+      "repo": "lithrim-bench",
+      "title": "feat(bench): harness honors expected_safety_flags_accepted_substitutes",
+      "summary": "scripts/validate_canonical_12_via_sdk.py _grade() updated: strict + accepted_substitutes + structural_block_with_high_severity pathways; backwards-compat fallback; 4-scenario smoke test green"
+    },
+    {
+      "hash": "092404a",
+      "repo": "lithrim-backend",
+      "title": "feat(eval-case): Path T contract fields on EvalCase schema",
+      "summary": "Five additive Optional Path T fields on EvalCase (paper_pick_label, expected_safety_flags_strict, expected_safety_flags_accepted_substitutes, expected_compliance_verdict_list, expected_structural_verdict). All Optional; existing docs unaffected. No eval-runner change."
+    },
+    {
+      "hash": "59a4e3d",
+      "repo": "lithrim-bench",
+      "title": "analysis(paper-1): paper_v1_n12_canonical pack + calibration run report",
+      "summary": "scripts/calibrate_canonical_pack.py + out/paper_v1_n12_canonical_calibration.{ndjson,md} + docs/research/REPORT_paper_v1_n12_canonical_pack.md. Calibration: all-three-pass 10/12, verdict-match 12/12 (A5 floor 9/12 cleared by +3)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — `build_canonical_pack.py` runs end-to-end without errors",
+      "verdict": "PASS",
+      "evidence": "Exit 0; stdout: 'inserted: 1 eval_pack + 12 eval_case docs into velto.eval_pack / velto.eval_case'; bench commit d6f288e at run time"
+    },
+    {
+      "criterion": "A2 — Mongo confirms 1 eval_pack with 12 case_ids + 12 eval_case docs",
+      "verdict": "PASS",
+      "evidence": "db.eval_pack.findOne({pack_id:'paper_v1_n12_canonical'}).eval_case_ids.length === 12; db.eval_case.countDocuments({pack_id:'paper_v1_n12_canonical'}) === 12; pack _id 6a178087f0909a761d4fc1f6"
+    },
+    {
+      "criterion": "A3 — every eval_case has paper_pick_label + expected_safety_flags_strict + expected_safety_flags_accepted_substitutes populated",
+      "verdict": "PASS",
+      "evidence": "Mongo aggregation: db.eval_case.countDocuments with all three field-exists guards === 12; spot-check S1/S8/C2 confirms shape"
+    },
+    {
+      "criterion": "A4 — out/paper_v1_n12_canonical.spec.json exists with 12 cases + Path T contract",
+      "verdict": "PASS",
+      "evidence": "spec.json committed in 2e4a000; sha256 57de4fbf80b4c8a30945b2c4890a8474ac25513836183e2f36498960a3002591; 12 cases per case_count field; each row carries the contract"
+    },
+    {
+      "criterion": "A5 — calibration eval_run verdict_match >= 9/12 under the relaxed contract",
+      "verdict": "PASS",
+      "evidence": "out/paper_v1_n12_canonical_calibration.ndjson: verdict_match 12/12 (cleared the floor with +3 margin); all-three-pass 10/12; flags-match 10/12; no structural FP 12/12"
+    },
+    {
+      "criterion": "A6 — validate_canonical_12_via_sdk.py re-runs cleanly against the new pack data shape",
+      "verdict": "PASS",
+      "evidence": "4-scenario smoke test in d6f288e commit body confirms backwards-compat (legacy S2) + Path T substitute pathway + structural-catch pathway + clean-negative pathway all green"
+    },
+    {
+      "criterion": "A7 — docs/research/REPORT_paper_v1_n12_canonical_pack.md with §1-§5",
+      "verdict": "PASS",
+      "evidence": "REPORT committed in 59a4e3d; §1-§8 present; every CONFIRMED tag in §3 has fenced evidence block; §3 S2 deviation surfaced"
+    },
+    {
+      "criterion": "A8 — session log written per SESSION_LOG_TEMPLATE.json",
+      "verdict": "PASS",
+      "evidence": "this file"
+    },
+    {
+      "criterion": "A9 — STREAM + streams.json + index.json updated, current_phase set to P1-CANONICAL-N5-PILOT",
+      "verdict": "PASS",
+      "evidence": "Commit 5 (close-out commit, this session)"
+    }
+  ],
+
+  "diagnostic_stats": {
+    "calibration_total_elapsed_s": 280.9,
+    "calibration_mean_per_case_s": 23.4,
+    "calibration_min_per_case_s": 12.1,
+    "calibration_max_per_case_s": 38.6,
+    "mistral_content_filter_incidence": 0,
+    "estimated_llm_cost_usd": 0.36,
+    "mongo_insert_latency_s_approx": 0.4,
+    "s3_uploads": 24,
+    "pack_id": "paper_v1_n12_canonical",
+    "pack_mongo_id": "6a178087f0909a761d4fc1f6",
+    "spec_sha256": "57de4fbf80b4c8a30945b2c4890a8474ac25513836183e2f36498960a3002591"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-P1-19",
+      "title": "No POST /eval-cases route — direct Mongo insert was the only authoring path for canonical packs",
+      "severity": "low",
+      "fix_location": "lithrim-backend/app/routes/eval.py",
+      "impact": "API-hygiene gap. Programmatic pack authoring (e.g. CI-generated paper packs, third-party reviewers) needs a documented API path. Current scripts bypass FastAPI validation entirely.",
+      "confidence": "CONFIRMED",
+      "evidence": "grep across lithrim-backend/app/routes/*.py returns no POST /v1/eval-cases endpoint; existing transcript_s3_key construction sites at app/routes/eval.py:1238 + :1278 are inside the conversation-promotion code path only"
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "Pack `paper_v1_n12_canonical` (1 eval_pack + 12 eval_case docs) authored in velto Mongo with the Path T contract end-to-end. Calibration cleared the driver §5 A5 floor convincingly (verdict-match 12/12 vs floor of 9; all-three-pass 10/12 vs 3/12 literal in P1-VALIDATE-12). Every authored Path T pathway (substitutes on S1/S5/S6/M1/M2; structural_block_with_high_severity on S8) fired in production. Two flag-FAILs preserved unmodified: S7 is the documented paper §5.5 residual (S-P1-8 + S-P1-15); S2 is a NEW S-P1-13 manifestation (council non-determinism: WRONG_DOSAGE emitted in P1-VALIDATE-12 but not this run; substitute MEDICATION_NOT_IN_TRANSCRIPT empirically active in both). The S2 deviation was observed at calibration time and held back from a same-cycle widening so the dispersion signal remains in the pack as P1-CANONICAL-N5-PILOT's explicit motivation — surface for monitor audit. One new seam (S-P1-19, low) opened. Backend touched in one commit (092404a, additive Optional schema fields); eval-runner unchanged. Monitor's first audit step should walk the §4 substitutes table case-by-case against `out/paper_v1_n12_canonical_calibration.ndjson` and confirm S2 disposition.",
+
+  "next_session_hint": "monitor: run /devloop-audit paper-1-copilot P1-CANONICAL-PACK; then /devloop-close-phase paper-1-copilot P1-CANONICAL-PACK; primary next cycle is P1-CANONICAL-N5-PILOT (N>=5 dispersion measurement on the new pack with focus on C1/C2/S2/S6); P1-FHIR-CONFORMANCE-MINI remains queued in parallel"
+}

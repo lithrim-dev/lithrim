@@ -23,17 +23,17 @@
       "name": "Paper 1 — Closing the Validator-Authoring Bottleneck (Jute Copilot)",
       "status": "active",
       "owner": "monitor",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": ["lithrim-bench", "lithrim-backend"],
       "state_doc": "STREAM_paper-1-copilot.md",
       "task_pack": "tasks/TASK_PACK_paper-1-copilot.json",
-      "current_phase": "P1-CANONICAL-PACK driver authoring (full 12 cases now promotable post S-P1-14 closure) || P1-FHIR-CONFORMANCE driver authoring (parallel, paper-broadening)",
-      "previous_phase": "P1-VALIDATE-12",
+      "current_phase": "P1-CANONICAL-N5-PILOT (paper-N dispersion measurement on the new pack — focus on C1/C2/S2/S6 per S-P1-13) || P1-FHIR-CONFORMANCE-MINI driver (parallel, paper-broadening, ready)",
+      "previous_phase": "P1-CANONICAL-PACK",
       "previous_phase_closed_at": "2026-05-28",
       "launch_tag": "external",
       "created": "2026-05-27",
       "updated": "2026-05-28",
       "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form.",
-      "cycle_state_note": "P1-VALIDATE-12 closed 2026-05-28 NON-BLOCKING FINDINGS / Path T. S-P1-14 + S-P1-18 closed same day via lithrim-backend e8147d8 NKA propagation patch + lithrim-bench bb2384c reverify (C1 BLOCK→PASS; C2 BLOCK→WARN/needs_review matching offline bench; on-backend FP rate 0/2 at single-sample, §5.5 corrective claim replicates). Full 12-case set NOW PROMOTABLE for P1-CANONICAL-PACK. NEXT MONITOR: two parallel priorities — (1) P1-CANONICAL-PACK driver authoring with all 12 case_ids AND N>=5 sampling for C1+C2 per S-P1-13 (council non-determinism corroborated by Mistral content_filter anomaly during reverify); (2) P1-FHIR-CONFORMANCE driver authoring per user 2026-05-28 insight (Synthea-FHIR + multi-validator Jute-Copilot pass turns paper §6 into a 5-FHIR-resource demonstration matrix). Six remaining seams S-P1-12, 13, 15, 16, 17 (S-P1-14 + S-P1-18 closed). Reverify execution note: Mistral hit Azure ResponsibleAI content_filter on first C1 attempt (HTTP 400, ResponsibleAI block) — transient, not the patch's effect; clean re-run produced the actual outcome. S-P1-13 corroborated. Paper §5.5: «0/2 FP on cleans» replicates on-backend post-patch. Closing commits: lithrim-bench 4d76d8a..6d497e8 (VALIDATE-12) + lithrim-sdk 49e8a56 + lithrim-bench 1b3caa0 (close-out) + lithrim-backend e8147d8 (NKA patch) + lithrim-bench 1c2c0d7 (triage report) + lithrim-bench bb2384c (reverify + REPORT §10 closure addendum)."
+      "cycle_state_note": "P1-CANONICAL-PACK closed 2026-05-28 PROCEED-WITH-CAVEATS. Authored eval_pack=paper_v1_n12_canonical (1 eval_pack + 12 eval_case docs) in velto Mongo with Path T contract end-to-end (paper_pick_label + expected_safety_flags_strict + expected_safety_flags_accepted_substitutes + expected_compliance_verdict_list + expected_structural_verdict on every doc). Calibration cleared driver §5 A5 floor cleanly: verdict-match 12/12 (floor 9/12), all-three-pass 10/12 (vs 3/12 literal in P1-VALIDATE-12), flags-match 10/12, no structural FP 12/12. Every authored Path T pathway fired in production (substitutes on S1/S5/S6/M1/M2, structural_block_with_high_severity on S8, post NKA-patch C1→PASS + C2→WARN/needs_review). Two flag-FAILs preserved unmodified: S7 = paper-bearing residual per S-P1-8 + S-P1-15; S2 = NEW S-P1-13 manifestation (WRONG_DOSAGE emitted in P1-VALIDATE-12 but dropped this calibration run while substitute MEDICATION_NOT_IN_TRANSCRIPT empirically active in both — substitute-widening held off as P1-CANONICAL-N5-PILOT's load-bearing motivation, surface for monitor audit). Opens S-P1-19 (low — no POST /eval-cases route). Closing commits: lithrim-bench 2e4a000 (spec + builder + picklist factor-out) + d6f288e (harness Path-T awareness) + lithrim-backend 092404a (EvalCase additive Optional fields) + lithrim-bench 59a4e3d (calibration script + outputs + REPORT) + close-out commit. NEXT MONITOR: (1) /devloop-audit paper-1-copilot P1-CANONICAL-PACK — walk §4 substitutes table case-by-case, spot-check 3 eval_case docs, decide S2 widening; (2) draft P1-CANONICAL-N5-PILOT driver (N=5 × 12 cases, focus on C1/C2/S2/S6 dispersion); (3) P1-FHIR-CONFORMANCE-MINI ready in parallel."
     }
   ]
 }

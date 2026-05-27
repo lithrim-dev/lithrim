@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-28",
+  "updated": "2026-05-28T23:50Z",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
@@ -8,24 +8,42 @@
       "phase": "P1-CANONICAL-PACK",
       "scope": "author-paper-v1-n12-canonical-eval-pack",
       "file": "paper-1-copilot_phaseP1-CANONICAL-PACK_author_paper_v1_n12_driver.md",
-      "status": "ready",
+      "status": "closed-PROCEED-WITH-CAVEATS",
+      "closed_at": "2026-05-28",
+      "closing_commits": "lithrim-bench 2e4a000 (spec + builder + picklist module) + d6f288e (harness Path-T awareness) + lithrim-backend 092404a (EvalCase additive Optional fields) + lithrim-bench 59a4e3d (calibration + REPORT) + close-out commit",
+      "audit_verdict": "(pending monitor audit — recommended next action)",
+      "critique_verdict": "(pending — recommend inline critique at audit, focus areas in driver §Hardness)",
+      "executor_closed_at": "2026-05-28",
+      "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.json",
+      "executor_report": "docs/research/REPORT_paper_v1_n12_canonical_pack.md",
+      "executor_actual_pass_count": "all-three-pass 10/12 (vs 3/12 literal in P1-VALIDATE-12); verdict-match 12/12 (A5 floor 9/12 cleared by +3); flags-match 10/12; no structural FP 12/12",
+      "executor_seams_opened": ["S-P1-19"],
+      "executor_deviations_observed_not_applied": [
+        "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT §3 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
+      ],
       "hardness": "routine",
-      "target_repos": ["lithrim-bench", "lithrim-backend (Mongo writes via direct insert; schema-extension path may add 5-10 backend LOC pending plan-review)"],
+      "target_repos": ["lithrim-bench", "lithrim-backend"],
       "related_docs": [
-        "docs/research/REPORT_canonical_12_validation_2026-05-28.md (per-case promotion-recommendation table)",
-        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure confirms 12-case promotability)",
+        "docs/research/REPORT_canonical_12_validation_2026-05-28.md (P1-VALIDATE-12 baseline)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure)",
+        "docs/research/REPORT_paper_v1_n12_canonical_pack.md (this cycle's REPORT)",
         "/tmp/pilot_picklist.json",
+        "out/paper_v1_n12_canonical.spec.json (canonical pack manifest, sha256 57de4fbf80...)",
+        "out/paper_v1_n12_canonical_calibration.ndjson",
+        "out/paper_v1_n12_canonical_calibration.md",
         "out/canonical_12_sdk_validation.ndjson",
         "out/s_p1_14_c1c2_rerun.ndjson",
         "../lithrim-backend/app/models/eval_case.py",
         "../lithrim-backend/app/models/eval_pack.py"
       ],
-      "_note": "Authors eval_pack=paper_v1_n12_canonical + 12 eval_case docs in lithrim-backend Mongo via direct insert (no POST /eval-cases route exists — opens S-P1-19 for API-hygiene cycle). Locks the Path T closing condition explicitly: per-case expected_safety_flags_strict + expected_safety_flags_accepted_substitutes contract. Includes 1 calibration eval_run; verdict_match >= 9/12 acceptance floor under the relaxed contract. WRITES NO PAPER-N CAMPAIGN OUTPUT — that's the explicit next cycle P1-CANONICAL-N5-PILOT.",
+      "_note": "Authored eval_pack=paper_v1_n12_canonical + 12 eval_case docs in velto Mongo. Path T contract end-to-end. Calibration cleared the verdict_match >= 9/12 floor by +3 (12/12 actual). All-three-pass 10/12. Pack is ready for P1-CANONICAL-N5-PILOT (next cycle, paper-N dispersion measurement). Mongo pack _id 6a178087f0909a761d4fc1f6.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 0.50,
+      "cost_actual_usd": 0.36,
       "expected_runtime_min": 30,
-      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required before any Mongo writes; user confirms per-case accepted_substitutes table case-by-case."
+      "actual_runtime_min": 12,
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-CANONICAL-PACK (walk §4 substitutes table case-by-case, spot-check 3 eval_case docs against spec.json, decide S2 widening question), then draft P1-CANONICAL-N5-PILOT driver"
     },
     {
       "id": "paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-one-validator-three-cases-driver",
