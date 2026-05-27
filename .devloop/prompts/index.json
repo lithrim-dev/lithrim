@@ -1,7 +1,31 @@
 {
   "version": "1",
-  "updated": "2026-05-27",
+  "updated": "2026-05-28",
   "bundles": [
+    {
+      "id": "paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-VALIDATE-12",
+      "scope": "sdk-canonical-12-validation",
+      "file": "paper-1-copilot_phaseP1-VALIDATE-12_sdk_canonical_validation_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "scripts/validate_canonical_12_via_sdk.py",
+        "/tmp/pilot_picklist.json",
+        "../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
+        "out/pilot_thesis_n12_trio_v3.ndjson",
+        "out/pilot_thesis_n12_trio_v3.summary.md"
+      ],
+      "_note": "Measurement + triage cycle. Runs the bench's N=12 picklist through lithrim-sdk -> POST /v1/pipeline/evaluate on the local backend (assumes COMPLIANCE_COUNCIL_VERSION=v2 already set + backend restarted). Grades each case against three independent gates (verdict / flags / structural-no-FP). Produces per-case promotion-readiness verdicts that the next cycle (P1-CANONICAL-PACK) consumes to author eval_pack=paper_v1_n12_canonical in lithrim-backend. WRITES NO BACKEND OR SDK CODE.",
+      "created": "2026-05-28",
+      "last_re_verified": "2026-05-28",
+      "predicted_pass_count": "9-11/12 (S7 is paper-documented residual per S-P1-8; C1/C2 are at-risk for structural over-fire per medications_well_formed pathology observed in council_v2_smoke_pack run 6a17562b98b1c3a21b033e65)",
+      "cost_envelope_usd": 0.36,
+      "expected_runtime_min": 4,
+      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required before harness runs."
+    },
     {
       "id": "brs-arc-phaseBRS-1-provenance-observability-driver",
       "stream": "brs-arc",
@@ -63,6 +87,59 @@
       "created": "2026-05-27",
       "last_re_verified": null,
       "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-§2"
+    },
+    {
+      "id": "paper-1-copilot-phaseP1-§5-silent-confident-certification-cycle",
+      "stream": "paper-1-copilot",
+      "phase": "P1-§5",
+      "scope": "silent-confident-certification + cross-provider-trio-architectural-correction",
+      "file": null,
+      "_note": "No driver file authored — cycle started as routine §5 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
+      "status": "shipped",
+      "hardness": "routine-grew-to-research",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/paper_draft/05_section_5_silent_confident_certification.md (prior 393-word stub, superseded)",
+        "docs/paper_draft/05_section_5_silent_confident_certification_v2.md (corrective, this cycle's deliverable)",
+        "docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (next-cycle integration driver)",
+        "out/pilot_thesis_n12_trio_v3.{ndjson,summary.md} (empirical evidence base)"
+      ],
+      "created": "2026-05-27",
+      "closed_at": "2026-05-27",
+      "closing_commits": "(none yet — working tree drift; see S-P1-11)",
+      "audit_verdict": "(not yet audited — pending flush of working-tree drift in 3 atomic commits)",
+      "critique_verdict": "(not yet — recommend inline critique on §5 + spec content before any further paper sections)",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_close_2026-05-27.md",
+      "headline_numbers": {
+        "silent_confident_certifications_eliminated": "5/10 → 0/10",
+        "false_positives_on_cleans_eliminated": "2/2 → 0/2",
+        "verdict_match_against_deterministic_labels": "9/12 → 11/12",
+        "confidence_calibration": "36/36 votes @ 1.000 → gpt-4.1 mean 0.93 (range 0.51–1.00); Llama mean 0.95 (range 0.73–1.00); Mistral N/A (Azure rejects logprobs)",
+        "residual_limitation": "S7 — fine-grained HL7 structural defects; LLM-as-judge limitation handled by §6 worst-of structural composition (paper-bearing, documented)"
+      },
+      "new_seams_opened": ["S-P1-7", "S-P1-8", "S-P1-9", "S-P1-10", "S-P1-11"],
+      "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc — recommend P1-§6."
+    },
+    {
+      "id": "paper-1-copilot-phaseP1-COUNCIL-V2-cross-provider-integration-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-COUNCIL-V2",
+      "scope": "cross-provider-trio-backend-integration",
+      "file": "docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
+      "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) — cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-backend"],
+      "related_docs": [
+        "docs/paper_draft/05_section_5_silent_confident_certification_v2.md (motivation)",
+        "out/pilot_thesis_n12_trio_v3.{ndjson,summary.md} (validation data)",
+        "scripts/test_n12_trio_v3.py (canonical v3 prompt source)",
+        "scripts/analyze_composition_strategies.py (canonical llama-veto-approve definition)"
+      ],
+      "blocked_by_decision": "BRS-2 (failure-cluster rekey) + BRS-5 (evidence-span surfacing) must ship first to avoid compliance_workflow.py conflicts",
+      "created": "2026-05-27",
+      "last_re_verified": "2026-05-27",
+      "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec §4 + kickoff in fresh lithrim-backend exec session."
     }
   ]
 }
