@@ -195,6 +195,18 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
         - {""}
     )
 
+    # Rich Finding payloads preserved alongside the flat-code surfaces. The
+    # API emits semantic.findings as full Finding dicts (type, severity,
+    # detail, field, check_name, code, chunk_id, start_ms, end_ms, speaker);
+    # structural.findings as StructuralFinding dicts. Carrying them through
+    # lets analysis surface per-finding timeline anchors / span fields that
+    # the flat code list discards. Defensive copy so mutations downstream
+    # don't tunnel back into the raw payload.
+    findings_rich = [dict(f) for f in (semantic.get("findings") or []) if isinstance(f, dict)]
+    structural_findings_rich = [
+        dict(f) for f in (structural.get("findings") or []) if isinstance(f, dict)
+    ]
+
     return BackendVerdict(
         compliance_verdict=compliance_v,
         artifact_verdict=artifact_v,
@@ -209,4 +221,6 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
             "semantic_status": semantic.get("status"),
             "structural_status": structural.get("status"),
         },
+        findings_rich=findings_rich,
+        structural_findings_rich=structural_findings_rich,
     )

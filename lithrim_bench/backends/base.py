@@ -36,6 +36,13 @@ class BackendVerdict:
     structural_verdict: str | None = None
     structural_findings: list[str] = field(default_factory=list)
     raw: dict[str, Any] | None = None
+    # Rich Finding payloads alongside the flat-code surfaces above. Additive
+    # so the BRS-0b §7 byte-identical invariance test (which keys off `flags`
+    # and `structural_findings`) stays intact. Backends that don't expose
+    # rich findings leave these empty; downstream analysis falls back to the
+    # flat code lists.
+    findings_rich: list[dict[str, Any]] = field(default_factory=list)
+    structural_findings_rich: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
