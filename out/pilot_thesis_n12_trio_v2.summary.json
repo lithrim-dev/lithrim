@@ -1,0 +1,55 @@
+{
+  "n_total": 12,
+  "n_defects": 10,
+  "n_cleans": 2,
+  "any_catch_on_defects": 10,
+  "all_catch_on_defects": 7,
+  "false_positives_on_cleans": 1,
+  "unanimous_verdict_count": 4,
+  "split_verdict_count": 8,
+  "verdict_match_worst_of": 9,
+  "per_model": {
+    "gpt-4.1": {
+      "supports_logprobs": true,
+      "catches_on_defects": 9,
+      "false_positives_on_cleans": 1,
+      "verdict_distribution": {
+        "needs_review": 6,
+        "reject": 4,
+        "approve": 2
+      },
+      "n_confidences": 12,
+      "mean_verdict_confidence": 0.9163,
+      "min_verdict_confidence": 0.5622,
+      "max_verdict_confidence": 1.0,
+      "all_confidences_at_1": false,
+      "confidence_lt_0_99_count": 4
+    },
+    "Mistral-Large-3": {
+      "supports_logprobs": false,
+      "catches_on_defects": 9,
+      "false_positives_on_cleans": 0,
+      "verdict_distribution": {
+        "needs_review": 6,
+        "reject": 3,
+        "approve": 3
+      }
+    },
+    "Llama-4-Maverick-17B-128E-Instruct-FP8": {
+      "supports_logprobs": true,
+      "catches_on_defects": 7,
+      "false_positives_on_cleans": 0,
+      "verdict_distribution": {
+        "approve": 5,
+        "needs_review": 5,
+        "reject": 2
+      },
+      "n_confidences": 12,
+      "mean_verdict_confidence": 0.997,
+      "min_verdict_confidence": 0.9707,
+      "max_verdict_confidence": 1.0,
+      "all_confidences_at_1": false,
+      "confidence_lt_0_99_count": 1
+    }
+  }
+}

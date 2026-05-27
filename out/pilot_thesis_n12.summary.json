@@ -1,0 +1,54 @@
+{
+  "n_total": 12,
+  "n_defects": 10,
+  "n_cleans": 2,
+  "verdict_match_total": 9,
+  "artifact_verdict_match_total": 8,
+  "silent_confident_council_count": 5,
+  "silent_confident_council_ratio_of_defects": 0.5,
+  "silent_confident_pipeline_count": 1,
+  "unanimous_approve_on_defects": 5,
+  "unanimous_reject_on_defects": 5,
+  "mean_judge_confidence_all_rows": 1.0,
+  "all_confidences_at_1": true,
+  "data_checks_all_pass_count": 12,
+  "by_pack": {
+    "scribe_v1": {
+      "n": 6,
+      "verdict_match": 5,
+      "artifact_verdict_match": 4,
+      "silent_confident_council": 2,
+      "silent_confident_pipeline": 1
+    },
+    "scheduling_v1": {
+      "n": 1,
+      "verdict_match": 1,
+      "artifact_verdict_match": 1,
+      "silent_confident_council": 1,
+      "silent_confident_pipeline": 0
+    },
+    "coding_v1": {
+      "n": 1,
+      "verdict_match": 1,
+      "artifact_verdict_match": 1,
+      "silent_confident_council": 0,
+      "silent_confident_pipeline": 0
+    },
+    "triage_v1": {
+      "n": 1,
+      "verdict_match": 1,
+      "artifact_verdict_match": 1,
+      "silent_confident_council": 0,
+      "silent_confident_pipeline": 0
+    },
+    "hl7_adt_v1": {
+      "n": 3,
+      "verdict_match": 1,
+      "artifact_verdict_match": 1,
+      "silent_confident_council": 2,
+      "silent_confident_pipeline": 0
+    }
+  },
+  "n_ok": 12,
+  "n_err": 0
+}
