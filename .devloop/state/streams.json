@@ -1,20 +1,22 @@
 {
   "version": "1",
   "repo": "lithrim-bench",
-  "updated": "2026-05-27",
+  "updated": "2026-05-28",
   "streams": [
     {
       "id": "brs-arc",
       "name": "Bench Reporting Series (BRS-0a → BRS-6)",
       "status": "active",
       "owner": "monitor",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": ["lithrim-bench", "lithrim-backend"],
       "state_doc": "STREAM_brs-arc.md",
       "task_pack": "tasks/TASK_PACK_brs-arc.json",
-      "current_phase": "BRS-1",
+      "current_phase": "BRS-2",
       "launch_tag": "internal",
       "created": "2026-05-26",
-      "north_star": "Close measurement + observability gaps surfaced by BRS-0a so the paper claims are auditable end-to-end."
+      "updated": "2026-05-27",
+      "north_star": "Close measurement + observability gaps surfaced by BRS-0a so the paper claims are auditable end-to-end.",
+      "cycle_state_note": "BRS-0a + BRS-0b + BRS-1 all closed (commits 85901d8, 956e07c, bb2bb38 respectively). BRS-3 DROPPED. BRS-2 + BRS-5 in flight (target repos: lithrim-backend + lithrim-sdk + lithrim-ui per cc-side monitor). BRS-4 queued. BRS-6 blocked on BRS-1 + BRS-0b + BRS-4. Bench-side STREAM_brs-arc.md is out of date relative to cc-side; authoritative state lives in lithrim-command-center/.lithrim/."
     },
     {
       "id": "paper-1-copilot",
@@ -24,10 +26,14 @@
       "target_repos": ["lithrim-bench"],
       "state_doc": "STREAM_paper-1-copilot.md",
       "task_pack": "tasks/TASK_PACK_paper-1-copilot.json",
-      "current_phase": "P1-§5",
+      "current_phase": "P1-VALIDATE-12",
+      "previous_phase": "P1-§5",
+      "previous_phase_closed_at": "2026-05-27",
       "launch_tag": "external",
       "created": "2026-05-27",
-      "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form."
+      "updated": "2026-05-28",
+      "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form.",
+      "cycle_state_note": "P1-§5 closed 2026-05-27. P1-COUNCIL-V2 implementation landed 2026-05-28 as lithrim-backend commit 496bb41 (single commit, not the spec's 5-atomic; 10 unit tests pass). Monitor audit verdict: NON-BLOCKING FINDINGS (cost4 telemetry §3.8a gap + 5 cosmetic drifts; behavioral fidelity holds). BRS-2 closed (b81914f); BRS-5 1/3 landed (4b8f5cc). User confirms 'waiting for final testing' — that final testing is P1-VALIDATE-12, current_phase. Validation harness shipped 2026-05-28 (scripts/validate_canonical_12_via_sdk.py + driver). PRIORITY-0: kick off P1-VALIDATE-12 in fresh exec session; on pass (>=9/12 floor) the next cycle is P1-CANONICAL-PACK (author eval_pack=paper_v1_n12_canonical in lithrim-backend). S-P1-11 working-tree close-out half (STREAM/handoff/scaffold) still drifts; flush alongside P1-VALIDATE-12 close-out or in its own chore commit."
     }
   ]
 }
