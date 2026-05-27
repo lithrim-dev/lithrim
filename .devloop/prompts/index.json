@@ -8,7 +8,16 @@
       "phase": "P1-VALIDATE-12",
       "scope": "sdk-canonical-12-validation",
       "file": "paper-1-copilot_phaseP1-VALIDATE-12_sdk_canonical_validation_driver.md",
-      "status": "ready",
+      "status": "executor-closed-PROCEED-WITH-CAVEATS",
+      "executor_closed_at": "2026-05-28",
+      "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.json",
+      "executor_report": "docs/research/REPORT_canonical_12_validation_2026-05-28.md",
+      "executor_actual_pass_count": "3/12 literal harness; 9/12 promotion-ready under per-case triage (meets A3 floor)",
+      "executor_seams_opened": ["S-P1-12", "S-P1-13", "S-P1-14", "S-P1-15", "S-P1-16", "S-P1-17"],
+      "executor_deviations_approved": [
+        "SDK timeout bump 30s -> 120s in harness (scripts/validate_canonical_12_via_sdk.py:218)",
+        "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver §4 NO-SDK-changes guardrail"
+      ],
       "version": "v1.1",
       "hardness": "routine",
       "target_repos": ["lithrim-bench"],
