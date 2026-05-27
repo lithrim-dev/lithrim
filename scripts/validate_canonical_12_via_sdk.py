@@ -42,48 +42,15 @@ except ImportError:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from lithrim_bench.picklist import resolve_case_fixtures as _resolve_case_fixtures  # noqa: E402
+
 PICKLIST_PATH = Path("/tmp/pilot_picklist.json")
 OUT_DIR = REPO_ROOT / "out"
 RESULTS_NDJSON = OUT_DIR / "canonical_12_sdk_validation.ndjson"
 RESULTS_REPORT = OUT_DIR / "canonical_12_sdk_validation.md"
-
-# Pack-name → fixture-file resolution (verified 2026-05-28: every picklist
-# case_id resolves cleanly via this map).
-PACK_FILES: dict[str, list[Path]] = {
-    "scribe_v1": [
-        REPO_ROOT / "out" / "scribe_v1.n10.jsonl",
-        REPO_ROOT / "out" / "scribe_v1.jsonl",
-    ],
-    "scheduling_v1": [
-        REPO_ROOT / "out" / "scheduling_v1.n10.jsonl",
-        REPO_ROOT / "out" / "scheduling_v1.jsonl",
-    ],
-    "coding_v1": [
-        REPO_ROOT / "out" / "coding_v1.jsonl",
-    ],
-    "triage_v1": [
-        REPO_ROOT / "out" / "triage_v1.n10.jsonl",
-        REPO_ROOT / "out" / "triage_v1.jsonl",
-    ],
-    "hl7_adt_v1": [
-        REPO_ROOT / "out" / "hl7_adt_v1.jsonl",
-    ],
-}
-
-
-def _resolve_case_fixtures(case_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """Walk the bench's pack files; return case_id → fully-loaded case row."""
-    found: dict[str, dict[str, Any]] = {}
-    for pack_name, paths in PACK_FILES.items():
-        for fp in paths:
-            if not fp.exists():
-                continue
-            for line in fp.open():
-                row = json.loads(line)
-                cid = row.get("case_id") or row.get("id")
-                if cid in case_ids and cid not in found:
-                    found[cid] = row
-    return found
 
 
 def _normalize_expected_verdict(expected: Any) -> tuple[str, ...]:
@@ -121,25 +88,41 @@ def _build_context(case: dict[str, Any], artifacts: list[dict[str, Any]]) -> str
 def _grade(pick: dict[str, Any], evaluate_payload: dict[str, Any]) -> dict[str, Any]:
     """Compute pass/fail per case.
 
-    Pass/fail is broken into three independent gates so we can see *which*
-    contract a case fails:
+    Three independent gates so we can see *which* contract a case fails:
 
-    - VERDICT match: backend ``verdict`` (BLOCK/WARN/PASS) maps to the
-      picklist's ``expected_compliance_verdict`` (reject/needs_review/approve)
-      via worst-of stage status.
-    - FLAGS match: every code in ``expected_safety_flags`` appears in the
-      backend's flat semantic-finding codes (substring tolerance is OFF —
-      taxonomy codes must match exactly).
-    - STRUCTURAL no-false-fire: for cases the picklist marks ``clean_negative``
-      OR where ``expected_structural_verdict == "PASS"``, the backend's
-      structural stage MUST NOT produce a finding above LOW severity. This
-      catches the ``medications_well_formed`` over-fire we saw on
+    - VERDICT match: backend ``verdict`` (BLOCK/WARN/PASS) maps to
+      reject/needs_review/approve and must be in the case's accepted-verdict
+      set. The case can carry ``expected_compliance_verdict`` (legacy single
+      or list) OR ``expected_compliance_verdict_list`` (Path T list); the
+      latter wins when both are present.
+    - FLAGS match: every code in ``expected_safety_flags_strict`` (or legacy
+      ``expected_safety_flags``) must be matched by either (a) the exact code
+      appearing in the backend's semantic findings, or (b) ANY substitute in
+      ``expected_safety_flags_accepted_substitutes[code]`` appearing in those
+      findings, or (c) — when the case carries
+      ``structural_catch_via="structural_block_with_high_severity"`` and the
+      strict code is a STRUCTURAL_* flag — the structural stage producing
+      status=BLOCK with at least one severity≥HIGH finding (works around
+      S-P1-16 ``code:null`` until backfilled).
+    - STRUCTURAL no-false-fire: for cases the picklist marks
+      ``clean_negative`` OR where ``expected_structural_verdict == "PASS"``,
+      the backend's structural stage MUST NOT produce a finding above LOW
+      severity. Catches the ``medications_well_formed`` over-fire we saw on
       ``council_v2_smoke_nka_clean``.
+
+    Backwards-compatible: a case-fixture with NO ``_strict`` /
+    ``_accepted_substitutes`` / ``structural_catch_via`` fields falls back to
+    strict exact-code matching (current pre-Path-T behavior).
     """
     verdict_map = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "approve"}
     actual_v_raw = evaluate_payload.get("verdict", "PASS")
     actual_v = verdict_map.get(actual_v_raw, "approve")
-    expected_v_set = _normalize_expected_verdict(pick.get("expected_compliance_verdict"))
+    expected_v_raw = (
+        pick.get("expected_compliance_verdict_list")
+        if pick.get("expected_compliance_verdict_list") is not None
+        else pick.get("expected_compliance_verdict")
+    )
+    expected_v_set = _normalize_expected_verdict(expected_v_raw)
     verdict_match = actual_v in expected_v_set
 
     semantic_findings = (evaluate_payload.get("semantic") or {}).get("findings") or []
@@ -148,19 +131,55 @@ def _grade(pick: dict[str, Any], evaluate_payload: dict[str, Any]) -> dict[str, 
         for f in semantic_findings
         if (f.get("code") or f.get("check_name"))
     }
-    expected_flags = set(pick.get("expected_safety_flags") or [])
-    flags_matched = sorted(expected_flags & actual_codes)
-    flags_missed = sorted(expected_flags - actual_codes)
-    flags_match = not flags_missed
 
     structural = evaluate_payload.get("structural") or {}
     structural_findings = structural.get("findings") or []
+    structural_status = (structural.get("status") or "").upper()
+    structural_has_high = any(
+        (f.get("severity") or "").upper() in {"HIGH", "BLOCK"}
+        for f in structural_findings
+    )
+    structural_block_with_high = (
+        structural_status == "BLOCK" and structural_has_high
+    )
+
+    # Path T contract: strict + accepted_substitutes. Falls back to legacy
+    # `expected_safety_flags` when the strict field is absent.
+    strict_flags = pick.get("expected_safety_flags_strict")
+    if strict_flags is None:
+        strict_flags = pick.get("expected_safety_flags") or []
+    accepted_substitutes = pick.get("expected_safety_flags_accepted_substitutes") or {}
+    structural_catch_via = pick.get("structural_catch_via")
+
+    flags_matched: list[str] = []
+    flags_missed: list[str] = []
+    flag_match_via: dict[str, str] = {}
+    for code in strict_flags:
+        if code in actual_codes:
+            flags_matched.append(code)
+            flag_match_via[code] = "strict"
+            continue
+        substitutes = set(accepted_substitutes.get(code) or [])
+        hit_subs = substitutes & actual_codes
+        if hit_subs:
+            flags_matched.append(code)
+            flag_match_via[code] = f"substitute:{sorted(hit_subs)[0]}"
+            continue
+        if (
+            structural_catch_via == "structural_block_with_high_severity"
+            and code.startswith("STRUCTURAL_")
+            and structural_block_with_high
+        ):
+            flags_matched.append(code)
+            flag_match_via[code] = "structural_block_with_high_severity"
+            continue
+        flags_missed.append(code)
+    flags_match = not flags_missed
+
     expected_structural_v = pick.get("expected_structural_verdict") or "PASS"
     is_clean_artifact = pick.get("clean_negative") or expected_structural_v == "PASS"
     structural_over_fired = False
     if is_clean_artifact:
-        # Any MEDIUM or higher severity structural finding on a case the
-        # picklist says should pass structurally = over-fire.
         for f in structural_findings:
             if (f.get("severity") or "").upper() in {"MEDIUM", "HIGH", "BLOCK"}:
                 structural_over_fired = True
@@ -172,14 +191,16 @@ def _grade(pick: dict[str, Any], evaluate_payload: dict[str, Any]) -> dict[str, 
         "actual_verdict": actual_v,
         "expected_verdict": list(expected_v_set),
         "flags_match": flags_match,
-        "flags_matched": flags_matched,
-        "flags_missed": flags_missed,
-        "actual_codes": sorted(actual_codes),
+        "flags_matched": sorted(flags_matched),
+        "flags_missed": sorted(flags_missed),
+        "flag_match_via": flag_match_via,
+        "actual_codes": sorted(c for c in actual_codes if c),
         "structural_over_fired": structural_over_fired,
         "structural_findings_count": len(structural_findings),
         "structural_finding_codes": [
             (f.get("check_name") or f.get("code")) for f in structural_findings
         ],
+        "structural_block_with_high": structural_block_with_high,
         "all_three_pass": (
             verdict_match
             and flags_match
