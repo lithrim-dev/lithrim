@@ -3,6 +3,57 @@
   "updated": "2026-05-28",
   "bundles": [
     {
+      "id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-CANONICAL-PACK",
+      "scope": "author-paper-v1-n12-canonical-eval-pack",
+      "file": "paper-1-copilot_phaseP1-CANONICAL-PACK_author_paper_v1_n12_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench", "lithrim-backend (Mongo writes via direct insert; schema-extension path may add 5-10 backend LOC pending plan-review)"],
+      "related_docs": [
+        "docs/research/REPORT_canonical_12_validation_2026-05-28.md (per-case promotion-recommendation table)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure confirms 12-case promotability)",
+        "/tmp/pilot_picklist.json",
+        "out/canonical_12_sdk_validation.ndjson",
+        "out/s_p1_14_c1c2_rerun.ndjson",
+        "../lithrim-backend/app/models/eval_case.py",
+        "../lithrim-backend/app/models/eval_pack.py"
+      ],
+      "_note": "Authors eval_pack=paper_v1_n12_canonical + 12 eval_case docs in lithrim-backend Mongo via direct insert (no POST /eval-cases route exists — opens S-P1-19 for API-hygiene cycle). Locks the Path T closing condition explicitly: per-case expected_safety_flags_strict + expected_safety_flags_accepted_substitutes contract. Includes 1 calibration eval_run; verdict_match >= 9/12 acceptance floor under the relaxed contract. WRITES NO PAPER-N CAMPAIGN OUTPUT — that's the explicit next cycle P1-CANONICAL-N5-PILOT.",
+      "created": "2026-05-28",
+      "last_re_verified": "2026-05-28",
+      "cost_envelope_usd": 0.50,
+      "expected_runtime_min": 30,
+      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required before any Mongo writes; user confirms per-case accepted_substitutes table case-by-case."
+    },
+    {
+      "id": "paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-one-validator-three-cases-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-FHIR-CONFORMANCE-MINI",
+      "scope": "one-validator-three-cases-derisk",
+      "file": "paper-1-copilot_phaseP1-FHIR-CONFORMANCE-MINI_one_validator_three_cases_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench", "etlp-mapper (Jute Copilot validator generation)", "lithrim-backend (Mongo writes for artifact_profile)"],
+      "related_docs": [
+        "../etlp-mapper/src/etlp_mapper/copilot/prompt.clj (Jute Copilot mechanism source)",
+        "../etlp-mapper/resources/etlp_mapper/jute_dsl_spec.json",
+        "../lithrim-backend/app/services/artifact_evaluator.py:643-727 (ARTIFACT_TYPE_MAP)",
+        "../lithrim-backend/app/models/artifact_profile.py",
+        "lithrim_bench/synthea_loader.py (pattern source for synthea_fhir_loader)",
+        "/Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ (existing CSV cohort to seed-match)",
+        "https://hl7.org/fhir/us/core/STU7/StructureDefinition-us-core-patient.html"
+      ],
+      "_note": "Derisk cycle: ONE FHIR R4 US Core Patient validator via Jute Copilot + THREE eval cases (clean / structural-only / semantic-only) demonstrating worst-of composition end-to-end before committing P1-FHIR-CONFORMANCE-FULL (4 more validators + 27 more cases). Backend already routes 7 fhir_* artifact types in ARTIFACT_TYPE_MAP but artifact_profile collection is empty (zero validators provisioned). MINI lands the first one + 3 cases + decision-gate REPORT §5 with explicit go/no-go for FULL. Independent of P1-CANONICAL-PACK and P1-CANONICAL-N5-PILOT — different artifact types, different code paths, can run in parallel.",
+      "created": "2026-05-28",
+      "last_re_verified": "2026-05-28",
+      "cost_envelope_usd": 0.50,
+      "expected_runtime_days": 2.5,
+      "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment)",
+      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for Synthea export scope (3/30/112 patient slice) + Jute Copilot iteration budget + per-case transcript+artifact-diff confirmation."
+    },
+    {
       "id": "paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver",
       "stream": "paper-1-copilot",
       "phase": "P1-VALIDATE-12",
