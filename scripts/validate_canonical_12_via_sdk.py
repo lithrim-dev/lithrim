@@ -215,7 +215,7 @@ def main() -> int:
     print(f"Pre-flight: COMPLIANCE_COUNCIL_VERSION should be 'v2' in backend env.")
     print()
 
-    client = Lithrim(api_key=api_key, base_url=base_url)
+    client = Lithrim(api_key=api_key, base_url=base_url, timeout=120.0)
 
     rows: list[dict[str, Any]] = []
     for pick in picklist:
