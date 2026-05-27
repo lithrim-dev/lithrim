@@ -1,0 +1,68 @@
+{
+  "version": "1",
+  "updated": "2026-05-27",
+  "bundles": [
+    {
+      "id": "brs-arc-phaseBRS-1-provenance-observability-driver",
+      "stream": "brs-arc",
+      "phase": "BRS-1",
+      "scope": "provenance-observability",
+      "file": "brs-arc_phaseBRS-1_provenance_observability_driver.md",
+      "status": "stub",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/research/MEASUREMENT_AUDIT_2026-05-26.md",
+        "docs/HANDOFF_BRS_0b_2026-05-26.md"
+      ],
+      "starting_reference": "../lithrim-command-center/.lithrim/prompts/brs_01_provenance_observability_exec_driver.md",
+      "created": "2026-05-27",
+      "last_re_verified": null,
+      "next_action": "run /devloop-expand-driver brs-arc BRS-1"
+    },
+    {
+      "id": "paper-1-copilot-phaseP1-EXP-0-council-confidence-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-EXP-0",
+      "scope": "council-confidence",
+      "file": "paper-1-copilot_phaseP1-EXP-0_council_confidence_driver.md",
+      "status": "shipped",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/HANDOFF_2026-05-23.md",
+        "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md",
+        "out/hl7_adt_v1.jsonl",
+        "../lithrim-backend/app/services/pipeline/models.py (JudgeVote.confidence — confirms API emits it)"
+      ],
+      "created": "2026-05-27",
+      "last_re_verified": "2026-05-27",
+      "s_p1_1_verification": "resolved 2026-05-27 — $0 path unavailable; cost firmly ~$5 + ~30min plumbing; see driver §0 for evidence-tagged diagnosis",
+      "closed_at": "2026-05-27",
+      "closing_commits": "32d1bf7..7f6858c (4 atomic) + 4fb93cc (executor close-out)",
+      "audit_verdict": "DRIFT (1 substantive, acknowledged via S-P1-4 fold-in; 1 minor process-improvement for future driver template)",
+      "critique_verdict": "NON-BLOCKING FINDINGS (Q1 0/0/0; Q2 0/1/0; Q3 0/0/0; Q4 0/0/3) — critique file `.devloop/sessions/critique-paper-1-copilot-phaseP1-EXP-0-2026-05-27.md`",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_kickoff_2026-05-27.md",
+      "next_action": "user decides between P1-§5 (recommended; routine; expand 393-word draft) and P1-§2 (HARD GATE; needs S-P1-3 user confirm first)"
+    },
+    {
+      "id": "paper-1-copilot-phase-§2-jute-copilot-mechanism-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-§2",
+      "scope": "jute-copilot-mechanism",
+      "file": "paper-1-copilot_phase-§2_jute_copilot_mechanism_driver.md",
+      "status": "stub",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Full mechanism disclosure (A2) is a one-way decision; spec-adherence pass + user confirmation gate this cycle",
+      "target_repos": ["lithrim-bench", "etlp-mapper (read-only)"],
+      "related_docs": [
+        "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md (A2 amendment)",
+        "../etlp-mapper/src/etlp_mapper/handler/copilot.clj"
+      ],
+      "blocked_by_decision": "S-P1-3 — confirm full disclosure with user before drafting",
+      "created": "2026-05-27",
+      "last_re_verified": null,
+      "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-§2"
+    }
+  ]
+}

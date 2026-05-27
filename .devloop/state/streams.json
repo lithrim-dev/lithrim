@@ -1,0 +1,33 @@
+{
+  "version": "1",
+  "repo": "lithrim-bench",
+  "updated": "2026-05-27",
+  "streams": [
+    {
+      "id": "brs-arc",
+      "name": "Bench Reporting Series (BRS-0a → BRS-6)",
+      "status": "active",
+      "owner": "monitor",
+      "target_repos": ["lithrim-bench"],
+      "state_doc": "STREAM_brs-arc.md",
+      "task_pack": "tasks/TASK_PACK_brs-arc.json",
+      "current_phase": "BRS-1",
+      "launch_tag": "internal",
+      "created": "2026-05-26",
+      "north_star": "Close measurement + observability gaps surfaced by BRS-0a so the paper claims are auditable end-to-end."
+    },
+    {
+      "id": "paper-1-copilot",
+      "name": "Paper 1 — Closing the Validator-Authoring Bottleneck (Jute Copilot)",
+      "status": "active",
+      "owner": "monitor",
+      "target_repos": ["lithrim-bench"],
+      "state_doc": "STREAM_paper-1-copilot.md",
+      "task_pack": "tasks/TASK_PACK_paper-1-copilot.json",
+      "current_phase": "P1-§5",
+      "launch_tag": "external",
+      "created": "2026-05-27",
+      "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form."
+    }
+  ]
+}
