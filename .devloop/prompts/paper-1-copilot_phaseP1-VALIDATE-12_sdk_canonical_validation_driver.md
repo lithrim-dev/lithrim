@@ -7,7 +7,7 @@
 > **Bundle ID:** `paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver`
 > **Version:** v1
 > **Authored:** 2026-05-28
-> **Last re-verified against code:** 2026-05-28
+> **Last re-verified against code:** 2026-05-28 (refresh — fixed 3 spec-path drifts; spec lives in lithrim-bench/docs/specs/, not lithrim-backend)
 
 ---
 
@@ -25,7 +25,7 @@ Read in this order:
   2. .devloop/prompts/paper-1-copilot_phaseP1-VALIDATE-12_sdk_canonical_validation_driver.md   (this doc; you are reading the kickoff already)
   3. scripts/validate_canonical_12_via_sdk.py     (the harness — read end-to-end, including the _grade() function)
   4. /tmp/pilot_picklist.json     (the 12 cases under test)
-  5. ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md §3 + §7 (so you know what "v2 is correct" looks like)
+  5. docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md §3 + §7 (in *this* repo — lithrim-bench; the cross-repo driver that authored 496bb41 in lithrim-backend — so you know what "v2 is correct" looks like)
   6. .devloop/state/STREAM_paper-1-copilot.md     (current stream state + S-P1-7/8/10 — these define the known limitations)
 
 Then post your plan-review per EXECUTOR.md §"Plan-review (non-negotiable)".
@@ -69,7 +69,7 @@ Open in this order before posting plan-review:
 4. `/tmp/pilot_picklist.json` — the 12 picklist rows. Skim all 12; note `pick_label`, `case_id`, `expected_compliance_verdict`, `expected_safety_flags`, `expected_structural_verdict`, `clean_negative`.
 5. `lithrim_bench/backends/lithrim_pipeline.py:84-115` (the bench's reference `evaluate()` adapter — the harness mirrors this) and `lithrim_bench/backends/lithrim_pipeline.py:155-209` (the response-parsing logic — useful when you triage a failing case and need to know what fields to inspect).
 6. `../lithrim-sdk/lithrim/client.py:593-653` — the SDK's `evaluate()` shape; confirms the harness's call sites match the SDK's typed contract.
-7. `../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md` §3 (deliverables) + §7 (acceptance criteria). §7 A4 specifically says "row-by-row replication of `pilot_thesis_n12_trio_v3.ndjson` under v2" — this cycle IS A4, just driven through the SDK rather than direct Azure calls.
+7. `docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md` §3 (deliverables) + §7 (acceptance criteria). §7 A4 verbatim: *"Bench replication (manual): with `COUNCIL_VERSION=v2`, run the bench's N=12 picklist via the production pipeline endpoint and verify the per-row results match `out/pilot_thesis_n12_trio_v3.ndjson` within tolerance"* (10/12 exact verdict match, 11/12 worst-of-council match, 0/2 FP on C1/C2, Mistral no logprobs, gpt-4.1+Llama non-null confidence). **This cycle IS A4**, just driven through the SDK rather than direct Azure calls. (Spec lives in lithrim-bench/docs/specs/, not lithrim-backend.)
 8. `../lithrim-backend/app/services/compliance_council.py:463-497` (v2 trio registration) + `:1812-1851` (`_compose_council_verdict_v2`) + `:2347-2352` (the Tier-1 safety floor interaction). Confirms what the council does — useful when you triage why a case behaved a particular way.
 9. `.devloop/state/STREAM_paper-1-copilot.md` — current stream state. Pay specific attention to:
    - **S-P1-7** (high) — council v2 corrective architecture; this cycle is the on-backend validation
@@ -271,7 +271,7 @@ LITHRIM_API_KEY=<KEY> LITHRIM_BASE_URL=http://localhost:8002 \
 
 ## 9. References
 
-- Spec: `../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md` §3, §7
+- Spec: `docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md` §3, §7 (in lithrim-bench; cross-repo driver for lithrim-backend)
 - Stream state: `.devloop/state/STREAM_paper-1-copilot.md`
 - Prior cycle: `.devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_close_2026-05-27.md` (P1-§5 close-out — context for why this cycle exists)
 - Prior cycle session log: `.devloop/sessions/session-paper-1-copilot-phaseP1-EXP-0-2026-05-27.json`

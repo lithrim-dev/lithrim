@@ -9,18 +9,30 @@
       "scope": "sdk-canonical-12-validation",
       "file": "paper-1-copilot_phaseP1-VALIDATE-12_sdk_canonical_validation_driver.md",
       "status": "ready",
+      "version": "v1.1",
       "hardness": "routine",
       "target_repos": ["lithrim-bench"],
       "related_docs": [
         "scripts/validate_canonical_12_via_sdk.py",
         "/tmp/pilot_picklist.json",
-        "../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
+        "docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
         "out/pilot_thesis_n12_trio_v3.ndjson",
         "out/pilot_thesis_n12_trio_v3.summary.md"
       ],
       "_note": "Measurement + triage cycle. Runs the bench's N=12 picklist through lithrim-sdk -> POST /v1/pipeline/evaluate on the local backend (assumes COMPLIANCE_COUNCIL_VERSION=v2 already set + backend restarted). Grades each case against three independent gates (verdict / flags / structural-no-FP). Produces per-case promotion-readiness verdicts that the next cycle (P1-CANONICAL-PACK) consumes to author eval_pack=paper_v1_n12_canonical in lithrim-backend. WRITES NO BACKEND OR SDK CODE.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
+      "re_verification_log": [
+        {
+          "date": "2026-05-28",
+          "actor": "monitor (/devloop-expand-driver refresh)",
+          "checked": 10,
+          "confirmed": 9,
+          "drifted": 1,
+          "missing": 0,
+          "drift_notes": "Spec path was cited as ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (3 occurrences: §1.5, §1.7, §9). Actual location is lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md — cross-repo driver lives in the bench repo. Fixed in driver v1.1. Also tightened §1.7 to quote spec §7 A4 verbatim (was a paraphrase). Code citations all CONFIRMED: harness symbols at L74/L96/L121; bench evaluate adapter L84; bench _parse L155; SDK evaluate L593; council v2 trio L463; _compose_council_verdict_v2 L1812; Tier-1 safety floor L2347-2352."
+        }
+      ],
       "predicted_pass_count": "9-11/12 (S7 is paper-documented residual per S-P1-8; C1/C2 are at-risk for structural over-fire per medications_well_formed pathology observed in council_v2_smoke_pack run 6a17562b98b1c3a21b033e65)",
       "cost_envelope_usd": 0.36,
       "expected_runtime_min": 4,
