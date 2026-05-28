@@ -1,0 +1,74 @@
+[
+  {
+    "pick_label": "A_CLEAN",
+    "kind": "clean_negative",
+    "why": "FHIR R4 Patient under US Core 7.0.0 \u2014 clean negative baseline (mapping 41 8/8 PASS expected)",
+    "case_id": "bench_fhir_patient_mini_a_clean_ea24979d56ad",
+    "pack": "fhir_patient_mini",
+    "severity": "low",
+    "clean_negative": true,
+    "multi_defect": false,
+    "artifact_types": [
+      "fhir_patient"
+    ],
+    "expected_compliance_verdict_list": [
+      "approve"
+    ],
+    "expected_artifact_verdict": "PASS",
+    "expected_structural_verdict": "PASS",
+    "expected_safety_flags_strict": [],
+    "expected_safety_flags_accepted_substitutes": {}
+  },
+  {
+    "pick_label": "B_STRUCT_STRIP_IDENTIFIER",
+    "kind": "defect",
+    "why": "FHIR R4 Patient structural-only \u2014 identifier stripped; mapping 41 catches via has_identifier + identifier_system_required (council should approve)",
+    "case_id": "bench_fhir_patient_mini_b_struct_strip_identifier_8ac715b77b2e",
+    "pack": "fhir_patient_mini",
+    "severity": "high",
+    "clean_negative": false,
+    "multi_defect": false,
+    "artifact_types": [
+      "fhir_patient"
+    ],
+    "expected_compliance_verdict_list": [
+      "needs_review",
+      "reject"
+    ],
+    "expected_artifact_verdict": "BLOCK",
+    "expected_structural_verdict": "BLOCK",
+    "expected_safety_flags_strict": [
+      "STRUCTURAL_MISSING_REQUIRED_FIELD"
+    ],
+    "expected_safety_flags_accepted_substitutes": {},
+    "structural_catch_via": "structural_block_with_high_severity"
+  },
+  {
+    "pick_label": "C_SEM_GENDER_MISMATCH",
+    "kind": "defect",
+    "why": "FHIR R4 Patient semantic-only \u2014 transcript says female/Mrs., artifact gender=male; mapping 41 8/8 PASS; council should BLOCK with VALUE_MISMATCH (or NEGATION_REVERSAL substitute)",
+    "case_id": "bench_fhir_patient_mini_c_sem_gender_mismatch_41bc803be3c9",
+    "pack": "fhir_patient_mini",
+    "severity": "high",
+    "clean_negative": false,
+    "multi_defect": false,
+    "artifact_types": [
+      "fhir_patient"
+    ],
+    "expected_compliance_verdict_list": [
+      "needs_review",
+      "reject"
+    ],
+    "expected_artifact_verdict": "BLOCK",
+    "expected_structural_verdict": "PASS",
+    "expected_safety_flags_strict": [
+      "VALUE_MISMATCH"
+    ],
+    "expected_safety_flags_accepted_substitutes": {
+      "VALUE_MISMATCH": [
+        "NEGATION_REVERSAL",
+        "FABRICATED_HISTORY"
+      ]
+    }
+  }
+]
