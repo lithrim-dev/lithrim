@@ -38,17 +38,31 @@
       "audit_verdict": "PENDING (monitor /devloop-close-phase)",
       "critique_verdict": "PENDING (monitor /devloop-close-phase)",
       "headline_dispersion_stat": "verdict-layer 12/12 cases at 5/5 modal; per-judge splits 4/12; finding-code splits 7/12; content_filter 0/60; S2=WIDEN; C1 BLOCK 5/5 (S-P1-21)",
-      "closing_commits": [],
+      "closing_commits": [
+        "1e07e94 feat(bench): N=5 dispersion pilot script for paper_v1_n12_canonical",
+        "b09b567 analysis(paper-1): N=5 pilot raw outputs + dispersion table",
+        "b92ca3d analysis(paper-1): N=5 pilot REPORT + S2 decision + S-P1-13 disposition",
+        "(close-out commit pending — session log + STREAM + state + index)"
+      ],
       "report": "docs/research/REPORT_p1_canonical_n5_pilot_2026-05-28.md",
       "session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-2026-05-28.json",
       "outputs": [
         "out/p1_canonical_n5_pilot.ndjson",
-        "out/p1_canonical_n5_pilot.dispersion.md"
+        "out/p1_canonical_n5_pilot.dispersion.md",
+        "out/p1_canonical_n5_pilot.smoke.ndjson"
       ],
       "new_seams": [
         "S-P1-21"
       ],
-      "closed_seams": []
+      "closed_seams": [],
+      "cost_actual_usd_conservative_blend": 3.40,
+      "cost_actual_usd_driver_blend": 2.20,
+      "actual_runtime_min": 22.6,
+      "mid_cycle_deviations_approved": [
+        "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver §3.3 mongo path corrected — CITATION-DRIFT logged",
+        "Hard ledger ceiling raised $2.50 → $5.00 after smoke revealed $0.057/call (user 'cost is okay')",
+        "New seam ID renumbered S-P1-20 → S-P1-21 (collision with FHIR-MINI's S-P1-20)"
+      ]
     },
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
