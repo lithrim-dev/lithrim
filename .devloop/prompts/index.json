@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-28T06:30+05:30",
+  "updated": "2026-05-28T01:05Z",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
@@ -8,9 +8,11 @@
       "phase": "P1-CANONICAL-N5-PILOT",
       "scope": "n5-dispersion-measurement-on-paper-v1-n12-canonical",
       "file": "paper-1-copilot_phaseP1-CANONICAL-N5-PILOT_dispersion_measurement_driver.md",
-      "status": "ready",
+      "status": "closed",
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "out/paper_v1_n12_canonical.spec.json (sha256 57de4fbf80...)",
         "out/paper_v1_n12_canonical_calibration.ndjson (N=1 baseline)",
@@ -23,14 +25,30 @@
       "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases × 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule ≥1/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY — no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper §5.4 reads from this cycle's outputs verbatim.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
-      "cost_envelope_usd": 1.80,
-      "cost_max_acceptable_usd": 2.50,
+      "cost_envelope_usd": 1.8,
+      "cost_max_acceptable_usd": 2.5,
       "expected_runtime_min": 40,
       "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for cost confirmation + content_filter retry policy + dispersion-stat computation plan.",
       "decision_rules": {
         "s2_widening": "If WRONG_DOSAGE fires ≥1/5 in N=5 → KEEP S2 strict as-is. If 0/5 → WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
         "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 — close-with-paper-footnote if small (paper §8 threats item); stay-open as paper-§5.4 finding if meaningful."
-      }
+      },
+      "closed_at": "2026-05-28",
+      "executor_verdict": "PROCEED-WITH-CAVEATS",
+      "audit_verdict": "PENDING (monitor /devloop-close-phase)",
+      "critique_verdict": "PENDING (monitor /devloop-close-phase)",
+      "headline_dispersion_stat": "verdict-layer 12/12 cases at 5/5 modal; per-judge splits 4/12; finding-code splits 7/12; content_filter 0/60; S2=WIDEN; C1 BLOCK 5/5 (S-P1-21)",
+      "closing_commits": [],
+      "report": "docs/research/REPORT_p1_canonical_n5_pilot_2026-05-28.md",
+      "session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-2026-05-28.json",
+      "outputs": [
+        "out/p1_canonical_n5_pilot.ndjson",
+        "out/p1_canonical_n5_pilot.dispersion.md"
+      ],
+      "new_seams": [
+        "S-P1-21"
+      ],
+      "closed_seams": []
     },
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
@@ -48,12 +66,17 @@
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.json",
       "executor_report": "docs/research/REPORT_paper_v1_n12_canonical_pack.md",
       "executor_actual_pass_count": "all-three-pass 10/12 (vs 3/12 literal in P1-VALIDATE-12); verdict-match 12/12 (A5 floor 9/12 cleared by +3); flags-match 10/12; no structural FP 12/12",
-      "executor_seams_opened": ["S-P1-19"],
+      "executor_seams_opened": [
+        "S-P1-19"
+      ],
       "executor_deviations_observed_not_applied": [
         "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT §3 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
       ],
       "hardness": "routine",
-      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "related_docs": [
         "docs/research/REPORT_canonical_12_validation_2026-05-28.md (P1-VALIDATE-12 baseline)",
         "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure)",
@@ -70,7 +93,7 @@
       "_note": "Authored eval_pack=paper_v1_n12_canonical + 12 eval_case docs in velto Mongo. Path T contract end-to-end. Calibration cleared the verdict_match >= 9/12 floor by +3 (12/12 actual). All-three-pass 10/12. Pack is ready for P1-CANONICAL-N5-PILOT (next cycle, paper-N dispersion measurement). Mongo pack _id 6a178087f0909a761d4fc1f6.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
-      "cost_envelope_usd": 0.50,
+      "cost_envelope_usd": 0.5,
       "cost_actual_usd": 0.36,
       "expected_runtime_min": 30,
       "actual_runtime_min": 12,
@@ -89,7 +112,10 @@
       "executor_report": "docs/research/REPORT_p1_fhir_mini_2026-05-28.md",
       "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / §6.5 paper claim NO-GO on FHIR Patient under current architecture",
       "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) — case A clean→BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
-      "executor_seams_opened": ["S-P1-20", "S-P1-15-fhir-extension"],
+      "executor_seams_opened": [
+        "S-P1-20",
+        "S-P1-15-fhir-extension"
+      ],
       "executor_deviations_approved": [
         "Plan-review pivot to Option A (MINI-AS-AUDIT) — use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT §4 instead of fresh Copilot session log.",
         "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ — existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
@@ -102,7 +128,9 @@
         "Driver §8 first-move: assumed Synthea generator available locally → had to install v4.0.0 JAR (~$0, ~5 min)"
       ],
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "../lithrim-backend/app/services/artifact_evaluator.py:649-734 (ARTIFACT_TYPE_MAP + _get_artifact_profile)",
         "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver §2.3)",
@@ -120,8 +148,8 @@
       "_note": "Derisk cycle for §6.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver §0 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but §6.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT §5 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
-      "cost_envelope_usd": 0.50,
-      "cost_actual_usd": 0.10,
+      "cost_envelope_usd": 0.5,
+      "cost_actual_usd": 0.1,
       "expected_runtime_days": 2.5,
       "actual_runtime_hours": 5,
       "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) — NO-GO TRIGGERED 2026-05-28 (case A clean→BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
@@ -143,14 +171,23 @@
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.json",
       "executor_report": "docs/research/REPORT_canonical_12_validation_2026-05-28.md",
       "executor_actual_pass_count": "3/12 literal harness; 9/12 promotion-ready under per-case triage (meets A3 floor)",
-      "executor_seams_opened": ["S-P1-12", "S-P1-13", "S-P1-14", "S-P1-15", "S-P1-16", "S-P1-17"],
+      "executor_seams_opened": [
+        "S-P1-12",
+        "S-P1-13",
+        "S-P1-14",
+        "S-P1-15",
+        "S-P1-16",
+        "S-P1-17"
+      ],
       "executor_deviations_approved": [
         "SDK timeout bump 30s -> 120s in harness (scripts/validate_canonical_12_via_sdk.py:218)",
         "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver §4 NO-SDK-changes guardrail"
       ],
       "version": "v1.1",
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "scripts/validate_canonical_12_via_sdk.py",
         "/tmp/pilot_picklist.json",
@@ -185,7 +222,9 @@
       "file": "brs-arc_phaseBRS-1_provenance_observability_driver.md",
       "status": "stub",
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/research/MEASUREMENT_AUDIT_2026-05-26.md",
         "docs/HANDOFF_BRS_0b_2026-05-26.md"
@@ -203,7 +242,9 @@
       "file": "paper-1-copilot_phaseP1-EXP-0_council_confidence_driver.md",
       "status": "shipped",
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/HANDOFF_2026-05-23.md",
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md",
@@ -229,7 +270,10 @@
       "status": "stub",
       "hardness": "HARD-GATE",
       "hardness_reason": "Full mechanism disclosure (A2) is a one-way decision; spec-adherence pass + user confirmation gate this cycle",
-      "target_repos": ["lithrim-bench", "etlp-mapper (read-only)"],
+      "target_repos": [
+        "lithrim-bench",
+        "etlp-mapper (read-only)"
+      ],
       "related_docs": [
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md (A2 amendment)",
         "../etlp-mapper/src/etlp_mapper/handler/copilot.clj"
@@ -248,7 +292,9 @@
       "_note": "No driver file authored — cycle started as routine §5 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
       "status": "shipped",
       "hardness": "routine-grew-to-research",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/paper_draft/05_section_5_silent_confident_certification.md (prior 393-word stub, superseded)",
         "docs/paper_draft/05_section_5_silent_confident_certification_v2.md (corrective, this cycle's deliverable)",
@@ -268,7 +314,13 @@
         "confidence_calibration": "36/36 votes @ 1.000 → gpt-4.1 mean 0.93 (range 0.51–1.00); Llama mean 0.95 (range 0.73–1.00); Mistral N/A (Azure rejects logprobs)",
         "residual_limitation": "S7 — fine-grained HL7 structural defects; LLM-as-judge limitation handled by §6 worst-of structural composition (paper-bearing, documented)"
       },
-      "new_seams_opened": ["S-P1-7", "S-P1-8", "S-P1-9", "S-P1-10", "S-P1-11"],
+      "new_seams_opened": [
+        "S-P1-7",
+        "S-P1-8",
+        "S-P1-9",
+        "S-P1-10",
+        "S-P1-11"
+      ],
       "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc — recommend P1-§6."
     },
     {
@@ -280,7 +332,9 @@
       "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) — cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
       "status": "ready",
       "hardness": "routine",
-      "target_repos": ["lithrim-backend"],
+      "target_repos": [
+        "lithrim-backend"
+      ],
       "related_docs": [
         "docs/paper_draft/05_section_5_silent_confident_certification_v2.md (motivation)",
         "out/pilot_thesis_n12_trio_v3.{ndjson,summary.md} (validation data)",
