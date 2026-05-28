@@ -13,6 +13,8 @@ dist/
 # Local data — track only the manifest pointer, not the cohort itself.
 data/synthea_sample_data_csv_latest/
 data/synthea/
+data/synthea_*/*
+!data/synthea_*/MANIFEST.txt
 
 # Generated benchmark JSONL — produced by scripts/generate_proof_case.py
 examples/proof_case.jsonl

@@ -36,6 +36,9 @@ PACK_FILES: dict[str, list[Path]] = {
     "hl7_adt_v1": [
         REPO_ROOT / "out" / "hl7_adt_v1.jsonl",
     ],
+    "fhir_patient_mini": [
+        REPO_ROOT / "out" / "fhir_patient_mini.jsonl",
+    ],
 }
 
 
