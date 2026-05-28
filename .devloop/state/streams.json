@@ -1,7 +1,7 @@
 {
   "version": "1",
   "repo": "lithrim-bench",
-  "updated": "2026-05-28",
+  "updated": "2026-05-28T06:30+05:30",
   "streams": [
     {
       "id": "brs-arc",
@@ -26,14 +26,14 @@
       "target_repos": ["lithrim-bench", "lithrim-backend"],
       "state_doc": "STREAM_paper-1-copilot.md",
       "task_pack": "tasks/TASK_PACK_paper-1-copilot.json",
-      "current_phase": "P1-CANONICAL-N5-PILOT (paper-N dispersion measurement on the new pack — focus on C1/C2/S2/S6 per S-P1-13) || P1-FHIR-CONFORMANCE-MINI driver (parallel, paper-broadening, ready)",
-      "previous_phase": "P1-CANONICAL-PACK",
+      "current_phase": "P1-FHIR-S-P1-15-EXTENSION (backend fix, queued) || P1-FHIR-MINI-SEMANTIC-DECOMPOSITION (stripped-artifact 3-case re-test, queued) || P1-CANONICAL-N5-PILOT (paper-N dispersion measurement, queued — independent of FHIR follow-ups)",
+      "previous_phase": "P1-FHIR-CONFORMANCE-MINI",
       "previous_phase_closed_at": "2026-05-28",
       "launch_tag": "external",
       "created": "2026-05-27",
       "updated": "2026-05-28",
       "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form.",
-      "cycle_state_note": "P1-CANONICAL-PACK closed 2026-05-28 PROCEED-WITH-CAVEATS. Authored eval_pack=paper_v1_n12_canonical (1 eval_pack + 12 eval_case docs) in velto Mongo with Path T contract end-to-end (paper_pick_label + expected_safety_flags_strict + expected_safety_flags_accepted_substitutes + expected_compliance_verdict_list + expected_structural_verdict on every doc). Calibration cleared driver §5 A5 floor cleanly: verdict-match 12/12 (floor 9/12), all-three-pass 10/12 (vs 3/12 literal in P1-VALIDATE-12), flags-match 10/12, no structural FP 12/12. Every authored Path T pathway fired in production (substitutes on S1/S5/S6/M1/M2, structural_block_with_high_severity on S8, post NKA-patch C1→PASS + C2→WARN/needs_review). Two flag-FAILs preserved unmodified: S7 = paper-bearing residual per S-P1-8 + S-P1-15; S2 = NEW S-P1-13 manifestation (WRONG_DOSAGE emitted in P1-VALIDATE-12 but dropped this calibration run while substitute MEDICATION_NOT_IN_TRANSCRIPT empirically active in both — substitute-widening held off as P1-CANONICAL-N5-PILOT's load-bearing motivation, surface for monitor audit). Opens S-P1-19 (low — no POST /eval-cases route). Closing commits: lithrim-bench 2e4a000 (spec + builder + picklist factor-out) + d6f288e (harness Path-T awareness) + lithrim-backend 092404a (EvalCase additive Optional fields) + lithrim-bench 59a4e3d (calibration script + outputs + REPORT) + close-out commit. NEXT MONITOR: (1) /devloop-audit paper-1-copilot P1-CANONICAL-PACK — walk §4 substitutes table case-by-case, spot-check 3 eval_case docs, decide S2 widening; (2) draft P1-CANONICAL-N5-PILOT driver (N=5 × 12 cases, focus on C1/C2/S2/S6 dispersion); (3) P1-FHIR-CONFORMANCE-MINI ready in parallel."
+      "cycle_state_note": "P1-FHIR-CONFORMANCE-MINI closed 2026-05-28 PROCEED-WITH-CAVEATS / §6.5 paper claim NO-GO on FHIR Patient under current architecture. Pivoted at plan-review to Option A (MINI-AS-AUDIT — use existing mapping 41) after pre-flight survey found driver §0 stale: artifact_profiles (plural) has 17 active docs including fhir_patient at mapping 41 (already US-Core-pinned, already Jute-Copilot-flavored prior art). Installed Synthea v4.0.0, regen'd 121-patient FHIR+CSV cohort at data/synthea_2026-05-28/ at seed=1 (existing CSV cohort UNTOUCHED), wrote synthea_fhir_loader + 3 Path T cases + harness + REPORT with forensic §4 of mapping 41 vs US Core 7.0.0 STU7 (8/15 presence coverage, 0/2 valueset bindings, 0/3 extension cardinality checks). Harness all-three-pass 1/3. Two new seams: S-P1-20 medium (council over-fires FABRICATED_HISTORY on all 3 cases — US-Core-required structured fields vs transcript asymmetry; affects FULL cycle scope across 4 more FHIR resource types) + S-P1-15-fhir-extension medium (mapping 41 severity=HIGH does not produce backend status=BLOCK on FHIR; generalization of HL7 S-P1-15). Cost actual ~$0.10 + ~5 hours — derisked $15 + 6 days of FULL spend BEFORE commitment. P1-CANONICAL-PACK closed 2026-05-28 PROCEED-WITH-CAVEATS in prior session (pack paper_v1_n12_canonical authored in velto Mongo, 12/12 verdict-match, 10/12 all-three-pass, S-P1-19 opened). NEXT MONITOR: (1) /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI — walk REPORT §5 NO-GO criteria against §3 evidence blocks; (2) draft P1-FHIR-S-P1-15-EXTENSION driver (backend fix, ~half day); (3) draft P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (bench-only re-test with stripped artifacts, ~half day); (4) P1-CANONICAL-N5-PILOT remains queued and runs independently of FHIR follow-ups; (5) P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (2) lands."
     }
   ]
 }

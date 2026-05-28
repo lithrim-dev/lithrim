@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-28T23:50Z",
+  "updated": "2026-05-28T06:30+05:30",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
@@ -82,25 +82,50 @@
       "phase": "P1-FHIR-CONFORMANCE-MINI",
       "scope": "one-validator-three-cases-derisk",
       "file": "paper-1-copilot_phaseP1-FHIR-CONFORMANCE-MINI_one_validator_three_cases_driver.md",
-      "status": "ready",
-      "hardness": "routine",
-      "target_repos": ["lithrim-bench", "etlp-mapper (Jute Copilot validator generation)", "lithrim-backend (Mongo writes for artifact_profile)"],
-      "related_docs": [
-        "../etlp-mapper/src/etlp_mapper/copilot/prompt.clj (Jute Copilot mechanism source)",
-        "../etlp-mapper/resources/etlp_mapper/jute_dsl_spec.json",
-        "../lithrim-backend/app/services/artifact_evaluator.py:643-727 (ARTIFACT_TYPE_MAP)",
-        "../lithrim-backend/app/models/artifact_profile.py",
-        "lithrim_bench/synthea_loader.py (pattern source for synthea_fhir_loader)",
-        "/Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ (existing CSV cohort to seed-match)",
-        "https://hl7.org/fhir/us/core/STU7/StructureDefinition-us-core-patient.html"
+      "status": "closed-PROCEED-WITH-CAVEATS-fhir-NO-GO",
+      "closed_at": "2026-05-28",
+      "executor_closed_at": "2026-05-28",
+      "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json",
+      "executor_report": "docs/research/REPORT_p1_fhir_mini_2026-05-28.md",
+      "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / §6.5 paper claim NO-GO on FHIR Patient under current architecture",
+      "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) — case A clean→BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
+      "executor_seams_opened": ["S-P1-20", "S-P1-15-fhir-extension"],
+      "executor_deviations_approved": [
+        "Plan-review pivot to Option A (MINI-AS-AUDIT) — use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT §4 instead of fresh Copilot session log.",
+        "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ — existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
+        "Generate 112 patients (driver §3 plan-review default) — actual produced 121 records (112 alive + 9 dead per Synthea report)."
       ],
-      "_note": "Derisk cycle: ONE FHIR R4 US Core Patient validator via Jute Copilot + THREE eval cases (clean / structural-only / semantic-only) demonstrating worst-of composition end-to-end before committing P1-FHIR-CONFORMANCE-FULL (4 more validators + 27 more cases). Backend already routes 7 fhir_* artifact types in ARTIFACT_TYPE_MAP but artifact_profile collection is empty (zero validators provisioned). MINI lands the first one + 3 cases + decision-gate REPORT §5 with explicit go/no-go for FULL. Independent of P1-CANONICAL-PACK and P1-CANONICAL-N5-PILOT — different artifact types, different code paths, can run in parallel.",
+      "executor_citation_drift_logged": [
+        "Driver §0: 'db.artifact_profile.countDocuments({}) == 0 — ZERO validators provisioned' → actual collection is artifact_profiles (plural) with 17 active docs; fhir_patient already provisioned at mapping 41",
+        "Driver §2.3 schema (target_standard, is_active, metadata) → actual model has target_format, active, no metadata field",
+        "Driver §6 commit-1: '.edn mapping file' → etlp-mapper mappings are DB-resident YAML strings, not on-disk .edn files",
+        "Driver §8 first-move: assumed Synthea generator available locally → had to install v4.0.0 JAR (~$0, ~5 min)"
+      ],
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "../lithrim-backend/app/services/artifact_evaluator.py:649-734 (ARTIFACT_TYPE_MAP + _get_artifact_profile)",
+        "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver §2.3)",
+        "data/synthea_2026-05-28/MANIFEST.txt (Synthea v4.0.0 cohort manifest; seed=1; sha256 ed43c20a...)",
+        "data/picklist_fhir_mini.json (3 Path T picklist rows)",
+        "out/fhir_patient_mini.jsonl (3 cases)",
+        "out/fhir_mini_harness_results.{ndjson,md}",
+        "scripts/build_fhir_mini_pack.py (case authoring; idempotent)",
+        "scripts/validate_fhir_mini_via_sdk.py (harness; ported from canonical-12)",
+        "lithrim_bench/synthea_fhir_loader.py",
+        "lithrim_bench/picklist.py (PACK_FILES extended with fhir_patient_mini)",
+        "docs/research/REPORT_p1_fhir_mini_2026-05-28.md (this cycle's REPORT)",
+        ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json"
+      ],
+      "_note": "Derisk cycle for §6.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver §0 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but §6.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT §5 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 0.50,
+      "cost_actual_usd": 0.10,
       "expected_runtime_days": 2.5,
-      "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment)",
-      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for Synthea export scope (3/30/112 patient slice) + Jute Copilot iteration budget + per-case transcript+artifact-diff confirmation."
+      "actual_runtime_hours": 5,
+      "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) — NO-GO TRIGGERED 2026-05-28 (case A clean→BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI — walk REPORT §5 NO-GO criteria against §3 verbatim evidence blocks; then author (a) P1-FHIR-S-P1-15-EXTENSION driver (backend status-translation fix; ~half day) AND (b) P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (stripped-artifact 3-case re-test, bench-only; ~half day). P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (a) lands."
     },
     {
       "id": "paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver",
