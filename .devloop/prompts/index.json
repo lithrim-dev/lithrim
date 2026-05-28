@@ -3,6 +3,36 @@
   "updated": "2026-05-28T23:50Z",
   "bundles": [
     {
+      "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
+      "stream": "paper-1-copilot",
+      "phase": "P1-CANONICAL-N5-PILOT",
+      "scope": "n5-dispersion-measurement-on-paper-v1-n12-canonical",
+      "file": "paper-1-copilot_phaseP1-CANONICAL-N5-PILOT_dispersion_measurement_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "out/paper_v1_n12_canonical.spec.json (sha256 57de4fbf80...)",
+        "out/paper_v1_n12_canonical_calibration.ndjson (N=1 baseline)",
+        ".devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md §Q4-A (S2 widening empirical rule)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10.5 (S-P1-13 dispersion-motivation context)",
+        "scripts/validate_canonical_12_via_sdk.py (functions to port: _build_context, _grade)",
+        "lithrim_bench/picklist.py (case-fixture resolution module)",
+        ".devloop/state/STREAM_paper-1-copilot.md"
+      ],
+      "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases × 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule ≥1/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY — no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper §5.4 reads from this cycle's outputs verbatim.",
+      "created": "2026-05-28",
+      "last_re_verified": "2026-05-28",
+      "cost_envelope_usd": 1.80,
+      "cost_max_acceptable_usd": 2.50,
+      "expected_runtime_min": 40,
+      "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for cost confirmation + content_filter retry policy + dispersion-stat computation plan.",
+      "decision_rules": {
+        "s2_widening": "If WRONG_DOSAGE fires ≥1/5 in N=5 → KEEP S2 strict as-is. If 0/5 → WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
+        "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 — close-with-paper-footnote if small (paper §8 threats item); stay-open as paper-§5.4 finding if meaningful."
+      }
+    },
+    {
       "id": "paper-1-copilot-phaseP1-CANONICAL-PACK-author-paper-v1-n12-driver",
       "stream": "paper-1-copilot",
       "phase": "P1-CANONICAL-PACK",
