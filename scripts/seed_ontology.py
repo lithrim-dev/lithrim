@@ -34,6 +34,19 @@ prevent. Flags with no entry get ``owner_roles: []``; the full owner set is kept
 verbatim (incl. source_message_judge) — the invariant-#4 exclusion is a WS-4
 scoring-time rule, not a seed-time edit.
 
+gradeable policy (S-BS-10, Option A — snapshot-authoritative + lint gate): a flag
+is ``gradeable`` iff the runtime council assigns it a tier (``bool(tier)`` — i.e.
+the council would actually score it). The snapshot
+(``taxonomy/taxonomy_snapshot.json``, the CLAUDE.md contract-of-record) is the
+*gate*: ``--check`` / a fresh build FAILS if any gradeable flag is outside the
+snapshot's 19-code tier union. In steady state runtime-tier and the snapshot agree,
+so gradeable == in-snapshot; the lint fires only when the council tiers a flag the
+snapshot has not blessed (the fix is to re-snapshot, never to hand-edit — CLAUDE.md
+§"Taxonomy snapshot is the contract"). Out-of-snapshot flags (the 4 fork flags
+FABRICATED_CONSENT_SCOPE / MALAFFI_CODE_PROPAGATION / MISSING_DUAL_CODING /
+WRONG_PATIENT_INFO) carry ``gradeable=false, tier=null`` and are skip-logged by
+grounding, never scored.
+
     python scripts/seed_ontology.py            # writes data/ontology/clinical_v1.json
     python scripts/seed_ontology.py --check     # fail if the committed seed is stale
 """
@@ -53,6 +66,7 @@ SAFETY_FLAGS_PY = COUNCIL_DIR / "safety_flags.py"
 COMPLIANCE_PY = COUNCIL_DIR / "compliance_council.py"
 ROLE_DIR = COUNCIL_DIR / "council_roles"
 OUT_PATH = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+SNAPSHOT_PATH = REPO_ROOT / "taxonomy" / "taxonomy_snapshot.json"
 
 ONTOLOGY_VERSION = "clinical/1"
 DOMAIN = "clinical"
@@ -122,6 +136,31 @@ def _module_assign(source: str, name: str) -> ast.expr:
     raise KeyError(f"top-level assignment {name!r} not found in source")
 
 
+def load_snapshot_codes(path: Path = SNAPSHOT_PATH) -> set[str]:
+    """The 19-code tier union from ``taxonomy_snapshot.json`` — the gradeable gate.
+
+    The snapshot is the CLAUDE.md contract-of-record; its ``tiers`` union (tier_1 +
+    tier_2 + tier_3) is the authoritative set of codes the harness may score.
+    """
+    data = json.loads(path.read_text())
+    codes: set[str] = set()
+    for tier_codes in data["tiers"].values():
+        codes.update(tier_codes)
+    return codes
+
+
+def gradeable_flags_outside_snapshot(flags: list[dict], snapshot_codes: set[str]) -> list[str]:
+    """S-BS-10 lint: gradeable flags that the snapshot has NOT blessed (a failure).
+
+    Pure so it is unit-testable on a crafted (flags, snapshot) pair. A non-empty
+    return is a hard seed error: the runtime council tiers a flag the snapshot does
+    not carry — re-snapshot (``scripts/snapshot_taxonomy.py``), never hand-edit.
+    """
+    return sorted(
+        f["flag"] for f in flags if f.get("gradeable") and f["flag"] not in snapshot_codes
+    )
+
+
 def parse_tiers_and_owners(source: str) -> tuple[dict[str, str], dict[str, list[str]]]:
     """AST-literal-parse the tier sets + _TIER1_OWNERS (no import — openai absent)."""
     tier_of: dict[str, str] = {}
@@ -188,6 +227,7 @@ def build_seed() -> dict:
                 "when_NOT_to_use": d.when_NOT_to_use,
                 "owner_roles": owners.get(d.flag, []),
                 "tier": tier_of.get(d.flag),
+                "gradeable": bool(tier_of.get(d.flag)),
                 "reliability_pillar": d.reliability_pillar,
             }
         )
@@ -220,9 +260,16 @@ def build_seed() -> dict:
                 "looser eligible-raiser notion and are NOT merged. Flags without an "
                 "entry have owner_roles=[] by ground truth, not omission."
             ),
+            "gradeable_note": (
+                "gradeable=bool(tier) (S-BS-10 Option A): a flag is gradeable iff "
+                "the runtime council tiers it. The snapshot taxonomy/taxonomy_snapshot.json "
+                "is the gate — the seed FAILS if a gradeable flag is outside its 19-code "
+                "tier union. In steady state gradeable == in-snapshot."
+            ),
             "untiered_note": (
-                "4 flags are defined but not in any tier set (tier=null): they are "
-                "outside KNOWN_TAXONOMY_CODES in the runtime council."
+                "4 flags are defined but not in any tier set (tier=null, gradeable=false): "
+                "they are outside the snapshot tier union (the contract-of-record) and are "
+                "reference-only — skip-logged by grounding, never scored."
             ),
         },
     }
@@ -250,6 +297,18 @@ def main() -> int:
     for f in seed["flags"]:
         if f["owner_roles"] and f["flag"] not in flag_codes:
             raise SystemExit(f"owner for unknown flag {f['flag']}")
+
+    # S-BS-10 gate: the snapshot is the membership authority. A gradeable flag
+    # outside the snapshot's 19-code tier union is a hard error — re-snapshot
+    # (scripts/snapshot_taxonomy.py), never hand-edit the seed past this.
+    snapshot_codes = load_snapshot_codes()
+    offenders = gradeable_flags_outside_snapshot(seed["flags"], snapshot_codes)
+    if offenders:
+        raise SystemExit(
+            "S-BS-10 LINT FAIL: gradeable flag(s) outside the taxonomy snapshot "
+            f"({SNAPSHOT_PATH.name}): {', '.join(offenders)}. Re-snapshot the taxonomy; "
+            "do not hand-edit the seed."
+        )
     serialized = _serialize(seed)
 
     out = Path(args.out)
@@ -264,10 +323,11 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(serialized)
     n_owned = sum(1 for f in seed["flags"] if f["owner_roles"])
-    n_tiered = sum(1 for f in seed["flags"] if f["tier"])
+    n_gradeable = sum(1 for f in seed["flags"] if f["gradeable"])
+    n_reference = len(seed["flags"]) - n_gradeable
     print(
         f"wrote {out}: {len(seed['flags'])} flags "
-        f"({n_tiered} tiered, {n_owned} owner-mapped), "
+        f"({n_gradeable} gradeable, {n_reference} reference, {n_owned} owner-mapped), "
         f"{len(seed['questions'])} questions, "
         f"{len(seed['verification_contracts'])} contract(s)."
     )

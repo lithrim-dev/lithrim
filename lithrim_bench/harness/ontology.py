@@ -10,8 +10,11 @@ seed-build time, by ``scripts/seed_ontology.py``; see that script and WS-1 §3.1
 
 Shapes (all data, no behaviour):
   - ``FlagDefinition``        — flag + category + definition + when_to_use /
-    when_NOT_to_use + owner_roles + tier (+ reliability_pillar, carried from the
-    seed source as free structured data).
+    when_NOT_to_use + owner_roles + tier + ``gradeable`` (+ reliability_pillar,
+    carried from the seed source as free structured data). ``gradeable`` is the
+    S-BS-10 partition: True iff the flag is in ``taxonomy/taxonomy_snapshot.json``
+    (the contract-of-record). Out-of-snapshot "reference" flags carry
+    ``gradeable=False, tier=None`` and are never scored (grounding skip-logs them).
   - ``JudgeQuestion``         — (role, ordinal, text) parsed from a role prompt's
     numbered "KEY QUESTIONS TO ANSWER" block.
   - ``VerificationContractDecl`` — the *declaration* of a tool-check: flag_code,
@@ -44,6 +47,7 @@ class FlagDefinition:
     when_NOT_to_use: str
     owner_roles: tuple[str, ...]
     tier: str | None
+    gradeable: bool = False
     reliability_pillar: str | None = None
 
 
@@ -100,6 +104,24 @@ class Ontology:
     def flag(self, code: str) -> FlagDefinition | None:
         return next((f for f in self.flags if f.flag == code), None)
 
+    def gradeable_flags(self) -> tuple[FlagDefinition, ...]:
+        """The in-snapshot flags that may drive a verdict (S-BS-10 partition)."""
+        return tuple(f for f in self.flags if f.gradeable)
+
+    def is_gradeable(self, code: str) -> bool:
+        """True iff ``code`` is a known, in-snapshot (gradeable) flag."""
+        f = self.flag(code)
+        return bool(f and f.gradeable)
+
+    def is_reference(self, code: str) -> bool:
+        """True iff ``code`` is a known but out-of-snapshot (reference) flag.
+
+        Reference flags are skip-logged by grounding, never scored. An unknown
+        code (not a declared flag at all) is neither gradeable nor reference.
+        """
+        f = self.flag(code)
+        return bool(f and not f.gradeable)
+
     def owners_of(self, code: str) -> tuple[str, ...]:
         f = self.flag(code)
         return f.owner_roles if f else ()
@@ -122,6 +144,7 @@ def from_dict(data: dict[str, Any]) -> Ontology:
             when_NOT_to_use=f["when_NOT_to_use"],
             owner_roles=tuple(f.get("owner_roles") or ()),
             tier=f.get("tier"),
+            gradeable=bool(f.get("gradeable", False)),
             reliability_pillar=f.get("reliability_pillar"),
         )
         for f in data["flags"]
