@@ -88,9 +88,11 @@ injected.
 > **Citation note (read before trusting these):** this driver was authored in
 > a tool session with intermittent garbled/empty/interleaved command output.
 > Two false readings were caught and retracted mid-pass (a fabricated "drift"
-> table and a false "backend is corrupted" finding — the backend is clean,
-> HEAD `7017ab0`). Every row below was re-confirmed by a **clean,
-> internally-consistent** grep AFTER the retractions. Still: **the executor
+> table and a false "backend is corrupted" finding — the backend is NOT
+> corrupted, HEAD `7017ab0`; but it IS dirty with an in-flight remediation, see
+> the dirty-tree note below, which a later monitor pass also initially
+> mis-described and the executor corrected). Every citation row below was
+> re-confirmed by a **clean, internally-consistent** grep. Still: **the executor
 > must re-grep each row at plan-review and log drift before editing.**
 
 | Anchor | Cited | Status |
@@ -110,7 +112,7 @@ injected.
 | `scripts/seed_ontology.py` `parse_tiers_and_owners` / `build_seed` / `main` (**no snapshot cross-check yet — D0 adds it**) | :125 / :173 / :235 | **CONFIRMED** |
 | `scripts/run_eval.py` `build_record` / `run` / `main` | :46 / :81 / :150 | **CONFIRMED** |
 | **BACKEND** (`../lithrim-backend/`) | | |
-| `app/services/pipeline/models.py` `PipelineRequest` (**has NO `council_config`/`ontology`/`semantic_meta` field today** — WS-2 adds them) | :237 | **CONFIRMED** (working tree; clean-HEAD is :226, shifted by an unrelated +17/-2 `confidence`/`council_error` edit) |
+| `app/services/pipeline/models.py` `PipelineRequest` (**has NO `council_config`/`ontology`/`semantic_meta` field today** — WS-2 adds them) | :237 | **CONFIRMED** (working tree; clean-HEAD is :226 — shifted by the in-flight backend remediation, see the dirty-tree note below) |
 | ↳ `PipelineRequest.org_id` / `.eval_mode` | :244 / :256 | **CONFIRMED** |
 | ↳ `PipelineProvenance` (the persisted AUDIT record) | :176 | **CONFIRMED** |
 | ↳ `PipelineProvenance.council_config` — **this is the audit field the task pack mis-described as "the hook"; it is NOT a request input** | :191 | **CONFIRMED (task-pack framing DRIFTED)** |
@@ -129,9 +131,29 @@ injected.
 pack's "`semantic_meta` already carries a `council_config` object = the hook"
 is WRONG — `PipelineRequest` has no such field; `council_config:191` is on
 `PipelineProvenance`. (2) `PipelineRequest` is at :237 in the working tree
-(:226 clean-HEAD). 0 MISSING.** The backend is clean (HEAD `7017ab0`); its only
-working-tree change is an unrelated `confidence`/`council_error` edit
-(`+17/-2`) — **keep that out of the WS-2 diff.**
+(:226 clean-HEAD). 0 MISSING.**
+
+> ⚠️ **BACKEND WORKING TREE IS DIRTY — corrected 2026-05-31 (executor caught a
+> monitor error).** The backend HEAD is `7017ab0`, but the working tree is NOT
+> "one unrelated `models.py` edit" as an earlier monitor pass wrongly claimed.
+> It carries a **coherent multi-file remediation in progress** — the same theme
+> as HEAD `7017ab0` ("eval-report + verification-surface remediation driver"):
+> **8 modified tracked files** (`app/routes/pipeline.py`,
+> `app/services/artifact_evaluator.py`,
+> `app/services/pipeline/{models.py,orchestrator.py,stages.py}`,
+> `scripts/phase4_pilot/cached_uscore_condition_validator.json`,
+> `tests/eval_packs/council_v2_smoke.jsonl`,
+> `tests/services/test_artifact_evaluator_severity.py`; `+145/-8`) plus
+> untracked tests/docs/scripts/out. **Two of these overlap the WS-2 backend
+> targets: `models.py` (their JudgeVote/PipelineProvenance/AuditView hunks vs.
+> your `PipelineRequest` add) and `stages.py` (their council_error hunks vs.
+> your `run_semantic`/`_run_council_and_map` threading)** — different
+> classes/functions, hunk-separable, but a clean per-repo atomic WS-2 commit
+> is not possible until the WIP is resolved. **DECISION (user, 2026-05-31): the
+> user lands/stashes this in-flight remediation FIRST, before the executor
+> reaches the (gated) backend commits.** The executor must **not** touch, fix,
+> or revert any of it. `compliance_council.py` (the `build_prompt` target) is
+> clean.
 
 > **Citation discipline & a landmine:** `lithrim_bench/runtime/` (the M1
 > vendored council the ontology *seeds* from) is untracked working-tree drift
@@ -233,8 +255,9 @@ Per `.devloop/personas/EXECUTOR.md`, post a plan with:
      ontology** into `grade_live`'s body (lean: YES). This is the WS-1
      "stored-only" becoming "injected".
 - Test plan (which assertions cover A1–A5; what runs offline vs the one live smoke)
-- **Backend-cleanliness note:** confirm the unrelated `confidence`/`council_error`
-  working-tree change in `models.py` is excluded from the WS-2 diff.
+- **Backend-cleanliness note:** confirm the in-flight backend remediation (8
+  modified files + untracked; see §1 dirty-tree note) is landed/stashed by the
+  user and fully excluded from the WS-2 diff.
 - Risks (backward-compat blast radius on every `:8002` caller; seed determinism;
   cross-repo commit hygiene)
 - Any proposed deviations
@@ -252,8 +275,11 @@ Wait for **"go"** before writing code.
 - **Frontend (WS-5), in-process swap (WS-6).**
 - **Option B (backfill the 4 fork flags into backend tiers) or Option C
   (snapshot-carries-prose)** — both rejected for WS-2; D0 is Option A only.
-- **The unrelated `confidence`/`council_error` edit in backend `models.py`** —
-  not WS-2; leave it out of the diff. Do not "fix" or revert it.
+- **The in-flight backend remediation** (the 8 modified files +
+  untracked tests/docs — `confidence`/`council_error`/verification-surface work
+  across `models.py`/`stages.py`/`pipeline.py`/`artifact_evaluator.py`/etc.; see
+  the §1 dirty-tree note) — not WS-2. Do not touch, fix, or revert any of it.
+  The user lands/stashes it before the gated backend commits.
 - **Touching `PipelineProvenance` / the audit-record `council_config:191`** —
   WS-2 adds *request* fields, not audit fields.
 - **Re-snapshotting the taxonomy / hand-editing `taxonomy_snapshot.json`** — D0
@@ -289,8 +315,8 @@ The cycle is done when ALL of these are PASS:
   config through.
 - **A5 (suites green, both repos).** `pytest -q` green in `lithrim-bench` AND
   `lithrim-backend`; `ruff check .`/`ruff format .` clean on new/modified files
-  in `lithrim-bench`. The unrelated backend `confidence`/`council_error` change
-  is NOT in the WS-2 commits.
+  in `lithrim-bench`. None of the in-flight backend remediation (the 8 modified
+  files + untracked; see §1 dirty-tree note) is in the WS-2 commits.
 
 Each gets a row in the session log's `acceptance` array.
 
@@ -339,11 +365,12 @@ The backend commits in particular wait for the HARD-GATE fresh-critic + sign-off
 
 - [ ] All acceptance A1–A5 PASS (per §5)
 - [ ] All commits exist in BOTH repos; working trees clean (note: pre-existing
-      `runtime/` + docs drift in bench, and the unrelated `confidence`/`council_error`
-      change in backend `models.py`, are NOT yours — don't sweep them in)
+      bench drift — `runtime/`, docs, `backends/*.py`, `eval_runner.py`,
+      `tests/test_structural_backend.py` — and the in-flight backend remediation
+      (8 files + untracked; §1 dirty-tree note) are NOT yours — don't sweep them in)
 - [ ] `pytest -q` green in both repos + ruff clean on new/modified bench files — record commands
-- [ ] No file in the diff outside §2; **no `PipelineProvenance` edit**, **no
-      `confidence`/`council_error` backend change**, **no live `runtime/` import**
+- [ ] No file in the diff outside §2; **no `PipelineProvenance` edit**, **none of
+      the in-flight backend remediation**, **no live `runtime/` import**
 - [ ] Backward-compat proven: `council_config=None, ontology=None` == current behavior
 - [ ] Only ONE live paid call ran (the smoke); cost within envelope — state with evidence
 - [ ] No services autostarted; no pushes / publishes / tags
@@ -392,7 +419,8 @@ The backend commits in particular wait for the HARD-GATE fresh-critic + sign-off
   the `KNOWN_TAXONOMY_CODES` symbol lives in `compliance_council.py:279` as the
   tier union; the de-facto known set is 19 tier-union + 5 structural) +
   `CLAUDE.md` §"Taxonomy snapshot is the contract" + `scripts/snapshot_taxonomy.py`
-- Backend surface (clean; HEAD `7017ab0`; **re-grep exact lines at plan-review**):
+- Backend surface (HEAD `7017ab0`; **working tree DIRTY — in-flight remediation,
+  see §1 dirty-tree note; re-grep exact lines at plan-review**):
   `app/services/pipeline/models.py` (`PipelineRequest` :237 — no config fields
   today; `PipelineProvenance.council_config` :191 is the audit record),
   `app/services/pipeline/stages.py` (`run_semantic` :916),
