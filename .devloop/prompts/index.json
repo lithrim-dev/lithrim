@@ -399,14 +399,29 @@
       "phase": "WS-0",
       "scope": "one-case-over-live",
       "file": "bench-salvage_phaseWS-0_one_case_over_live_driver.md",
-      "status": "stub",
+      "status": "ready",
+      "version": "v1",
       "hardness": "routine",
       "target_repos": [
         "lithrim-bench"
       ],
       "scope_note": "Walking-skeleton spine. Grading PROVEN LIVE 2026-05-30 (baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Build persist + harness-side grounding (S-BS-7 presence-check) OFFLINE against the saved baseline \u2014 zero new paid calls. Expand with /devloop-expand-driver bench-salvage WS-0.",
       "created": "2026-05-30",
-      "next_action": "Run /devloop-expand-driver bench-salvage WS-0."
+      "last_re_verified": "2026-05-30",
+      "re_verification_log": [
+        {
+          "date": "2026-05-30",
+          "actor": "monitor (/devloop-expand-driver)",
+          "checked": 12,
+          "confirmed": 12,
+          "drifted": 0,
+          "missing": 0,
+          "drift_notes": "All 12 file:line + fixture citations CONFIRMED against current code. Backend live contract: PipelineRequest @ models.py:237, org_id:244 (required in body), eval_mode:256, council_config:191 (WS-2 hook, unused in WS-0); route POST /evaluate @ pipeline.py:66, X-API-Key auth @ :13 docstring/resolve_org_id. Harness anchors: eval_runner per_judge.reason:62 + findings_rich:79; base.py JudgeOutput.reason:32; local_pipeline _map_result:103/reason:118; picklist PACK_FILES scribe_v1:20-23. Baseline (24KB) + .live_env both present. Baseline content re-verified: 8 findings (MED_NOT_IN_TRANSCRIPT FP judges=2; FABRICATED_HISTORY judges=2; FABRICATED_CONSENT+INCOMPLETE_DOCUMENTATION = S-BS-2 live over-fire; 4 null-code = S-BS-8), verdict BLOCK, judge-vote shape {judge_role,vote,confidence,reason,model,findings}, 2 non-null confidences both 1.0, 'zidovudine 300 MG' verbatim in transcript (disproves the FP)."
+        }
+      ],
+      "cost_envelope_usd": 0,
+      "may_be_zero_cost": true,
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required before any code (offline against the captured baseline; --live path present but unexercised)."
     }
   ]
 }
