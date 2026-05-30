@@ -1,0 +1,72 @@
+{
+  "session_id": "session-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30",
+  "stream": "bench-salvage",
+  "phase": "COUNCIL-EVIDENCE-GATE",
+  "driver_bundle_id": "bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-consensus-evidence-gate-driver",
+  "started_at": "2026-05-30T13:28:00+05:30",
+  "ended_at": "2026-05-30T14:30:00+05:30",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-05-30T13:40:00+05:30",
+    "user_approved_at": "2026-05-30T13:55:00+05:30",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver Deliverable 2 mis-located the block-driving site: named _apply_consensus :1962-1971 (legacy branch), but the operative escalation is the evidence-blind Tier-2 branch :2170-2190. Both FP and true defect are TIER_2_HIGH_RISK.",
+        "evidence": "compliance_council.py:201-204 (TIER_2_HIGH_RISK contains both MEDICATION_NOT_IN_TRANSCRIPT and FABRICATED_HISTORY); :2170-2190 (if judge_count>=2: tier2_triggered, no evidence check)",
+        "decided_at": "2026-05-30T13:55:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Second dual-shape output-contract block at build_source_message_prompt :1080/:1128, not named in the driver (Deliverable 1 cited only build_prompt :742/:748-750). User approved tightening both blocks.",
+        "evidence": "compliance_council.py:1080 (evidence gate) + :1128 (violations_found request)",
+        "decided_at": "2026-05-30T13:55:00+05:30"
+      }
+    ]
+  },
+
+  "commits": [],
+
+  "acceptance": [
+    { "criterion": "A1 — FP suppressed on case 1", "verdict": "SKIP", "evidence": "Fix not implemented — pre-check P0 falsified the specified fix before coding. No r3d.ndjson produced." },
+    { "criterion": "A2 — true defect retained", "verdict": "SKIP", "evidence": "Fix not implemented." },
+    { "criterion": "A3 — verdict unchanged", "verdict": "SKIP", "evidence": "Fix not implemented." },
+    { "criterion": "A4 — no true-defect regression on batch", "verdict": "SKIP", "evidence": "Paid 30-case sweep not run (owner-gated; blocked on a non-falsified fix)." },
+    { "criterion": "A5 — false-block on cleans unchanged-or-improved", "verdict": "SKIP", "evidence": "Paid sweep not run." },
+    { "criterion": "A6 — determinism preserved", "verdict": "PASS", "evidence": "_eval_seed :63 / use :2539 untouched. Temporary R3D_DEBUG_RAW capture was flag-guarded + reverted (grep 0). --limit 1 reproduced the M1 FP exactly: got=reject exp=reject flags=[FABRICATED_HISTORY, MEDICATION_NOT_IN_TRANSCRIPT] — clean deterministic A/B baseline." },
+    { "criterion": "A7 — tests green", "verdict": "SKIP", "evidence": "No code change to test; fix re-scoped before any edit. Existing suite untouched." }
+  ],
+
+  "diagnostic_stats": {
+    "D1_pure_legacy_vs_findings_first": "SYMMETRIC / findings-first. All 3 judges emitted findings[] with per-code evidence_spans; MED carries 2 spans (policy + behavior) surviving _validate_evidence_spans at overlap 1.000. NOT pure-legacy.",
+    "D2_v2_overfire_span_check": "INCONCLUSIVE OFFLINE. v2 NDJSON persists judge_votes[*].findings as flat code strings (109+7 records, 0 with spans); semantic_findings has no evidence_spans field by schema. Needs raw capture under v2 (P2-COUNCIL).",
+    "D3_pack_level_numbers": "NOT PRODUCED — paid sweep not run.",
+    "D4_cost_and_wallclock": "~$0.10 (3 gpt-4.1 calls, --limit 1). Single deterministic reproduction; no batch.",
+    "instrumentation_reverted": "true (grep R3D_DEBUG_RAW = 0)",
+    "code_changed": "false",
+    "commits": "0",
+    "working_tree": "clean of cycle code; only new artifacts (report, session log, evidence ndjson) + pre-existing M1/paper baseline drift"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-7",
+      "title": "MEDICATION_NOT_IN_TRANSCRIPT FP is a judge-calibration error, not an aggregation bypass. Findings-first + fully-evidenced + symmetric with the true defect; no aggregation lever (:1530 / :1962-1971 / :2170) separates them; the OMISSION-code corpus-narrowing shortcut also fails (self-refuting span is transcript text).",
+      "severity": "high",
+      "fix_location": "P1 / P1-VEC — a per-question presence-check / KB-query tool ('is zidovudine in the transcript?') before flag emission. First concrete SME presence-check question for the ontology.",
+      "impact": "Re-routes the FP out of COUNCIL-EVIDENCE-GATE into P1. The council-capability fix is calibration, not consensus aggregation.",
+      "confidence": "CONFIRMED",
+      "evidence": "docs/research/r3d_precheck_P0_raw_evidence_2026-05-30.ndjson — policy_judge + behavior_judge each emit MEDICATION_NOT_IN_TRANSCRIPT with n_evidence_spans=2; the 2nd span cites the transcript zidovudine line. Full-corpus overlap 1.000 (survives _validate_evidence_spans :1699). MED not in OMISSION_TYPE_CODES :336."
+    }
+  ],
+
+  "seams_closed": ["S-BS-1"],
+
+  "verdict": "BLOCKED",
+
+  "report": "HALT / BLOCKED-AND-RE-SCOPE. Pre-check P0 (~$0.10, 3 gpt-4.1 calls, --limit 1, deterministic seed) falsified the specified R3(d) fix BEFORE any code or the ~$5 paid sweep. CONFIRMED: the MEDICATION_NOT_IN_TRANSCRIPT false positive is a findings-first, fully-evidenced, semantically-validated finding (policy_judge + behavior_judge each give it 2 spans surviving validation at overlap 1.000), symmetric with the true defect FABRICATED_HISTORY on every aggregation-readable signal. The self-refuting span the judge cites as proof-of-absence is the transcript line that contains the medication. SPEC §2b's 'legacy span-less bypass' diagnosis is empirically false — the persisted spans=[] was an NDJSON projection artifact (evidence_spans 0x in all persisted files). All three driver-authorized levers are inert: :1530 keeps MED (has a validated finding); :1962-1971 is a dead branch (findings-first routes to :1907); an evidence-aware :2170 still escalates (evidence_judge_count(MED)=2). The OMISSION-code corpus-narrowing shortcut is ruled out (the surviving span is transcript text). D2: the v2 over-fire span question is unanswerable offline (same projection lossiness); S-BS-2 needs raw capture under v2 (P2-COUNCIL). Root cause is judge calibration; re-routed to P1/P1-VEC as the first SME presence-check question. No code changed, no commits, working tree clean (R3D_DEBUG_RAW reverted, grep empty), paid sweep not run. Falsification record: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md. HARD-GATE fresh-critic: monitor accepted no separate critic session (no-code halt — no implementation to critique; the load-bearing claim, the raw spans, was independently re-verified against the preserved evidence this session). NOTE: out/ is gitignored (.gitignore:4) — the canonical raw evidence is committed-tracked at docs/research/r3d_precheck_P0_raw_evidence_2026-05-30.ndjson; the out/ copies (scribe_v1.local.r3d_precheck_raw.ndjson, .r3d_precheck.ndjson) are durable-on-disk run companions per the existing A/B-anchor convention.",
+
+  "next_session_hint": "monitor: run /devloop-close-phase bench-salvage COUNCIL-EVIDENCE-GATE — add SPEC §2b correction banner, disposition S-BS-1 (resolved-not-pure-legacy) + S-BS-2 (open, v2 debug under P2-COUNCIL) + S-BS-7 (new, route to P1), re-route the FP into the P1 task pack as its first SME presence-check question."
+}

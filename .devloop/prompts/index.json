@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-28T01:05Z",
+  "updated": "2026-05-30T12:00Z",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
@@ -55,8 +55,8 @@
         "S-P1-21"
       ],
       "closed_seams": [],
-      "cost_actual_usd_conservative_blend": 3.40,
-      "cost_actual_usd_driver_blend": 2.20,
+      "cost_actual_usd_conservative_blend": 3.4,
+      "cost_actual_usd_driver_blend": 2.2,
       "actual_runtime_min": 22.6,
       "mid_cycle_deviations_approved": [
         "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver §3.3 mongo path corrected — CITATION-DRIFT logged",
@@ -359,6 +359,39 @@
       "created": "2026-05-27",
       "last_re_verified": "2026-05-27",
       "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec §4 + kickoff in fresh lithrim-backend exec session."
+    },
+    {
+      "id": "bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-consensus-evidence-gate-driver",
+      "stream": "bench-salvage",
+      "phase": "COUNCIL-EVIDENCE-GATE",
+      "scope": "consensus-evidence-gate",
+      "file": "bench-salvage_phaseCOUNCIL-EVIDENCE-GATE_consensus_evidence_gate_driver.md",
+      "status": "halted-rescoped",
+      "close_verdict": "BLOCKED-AND-RE-SCOPE 2026-05-30 — pre-check P0 falsified the R3(d) fix (SPEC §2b FALSIFIED); 0 commits; root cause is judge calibration, re-routed to P1 as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md + .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30. HARD-GATE fresh-critic waived (no-code halt; monitor independently re-verified raw evidence).",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Changes the council OUTPUT CONTRACT (build_prompt findings-first instruction) and the consensus aggregation that turns flags into a BLOCK vote. Blast radius is every case. Requires a fresh-critic session (cannot close on inline critique) plus user confirmation before the one-way change lands.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/research/SPEC_consensus_evidence_gate_bypass_2026-05-30.md (the R3(d) fix design + validation protocol + confidence ledger; status: spec only, no council code edited)",
+        "docs/HANDOFF_BENCH_SALVAGE_2026-05-29.md (M1 close-out; the CONFIRMED case-1 FP that motivates this cycle; run command)",
+        "docs/research/REPORT_council_overfire_convergence_2026-05-28.md (v2 over-fire R1-R4 context; R3(d) is the additive new R3(d), composes with R3(a))",
+        "lithrim_bench/runtime/council/compliance_council.py (build_prompt :517 / scribe elif :645 / evidence-gate :685 / dual-shape :742 + :749; _normalize_result :1461 / derive-from-findings guard :1530 / return :1555; _apply_consensus :1853 / format selector :1907 / legacy branch :1962-1971; seed :63)",
+        "lithrim_bench/backends/local_pipeline.py:118 (_map_result captures reason)",
+        "lithrim_bench/eval_runner.py:57-65 (per-judge reason :62) + :79-80 (findings_rich)",
+        "lithrim_bench/backends/base.py:32 (JudgeOutput.reason persistence enabler)",
+        "scripts/run_local_scribe.py (acceptance-test runner; --limit, --n)",
+        "out/scribe_v1.local.ndjson (M1 baseline) + out/scribe_v1.local.guardfix.ndjson (reasoning-captured re-run)",
+        "out/p1_canonical_n5_pilot.ndjson + out/fhir_mini_harness_results.ndjson (existing 2026-05-28 v2 NDJSON for the offline span-less re-inspection, S-BS-2)",
+        ".devloop/state/STREAM_bench-salvage.md"
+      ],
+      "created": "2026-05-30",
+      "last_re_verified": "2026-05-30",
+      "cost_envelope_usd": 0,
+      "cost_max_acceptable_usd": 5,
+      "expected_runtime_min": 30,
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required before any code; HARD GATE means a fresh-critic close (not inline) plus user sign-off on the every-case blast radius."
     }
   ]
 }
