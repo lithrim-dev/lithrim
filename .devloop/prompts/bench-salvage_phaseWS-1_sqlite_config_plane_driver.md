@@ -69,20 +69,20 @@ WS-1 re-drives the captured WS-0 baseline from config — zero new paid calls.
 
 | Anchor (ontology seed source) | Cited (task pack) | Actual | Status |
 |---|---|---|---|
-| `runtime/council/safety_flags.py` `class SafetyFlagDefinition` | :37 | **:28** (class); `SAFETY_FLAG_DEFINITIONS` list at :37 (24 flags) | **DRIFTED** (class is :28; :37 is the list) |
+| `runtime/council/safety_flags.py` `class SafetyFlagDefinition` | :37 | **:28** (class); `SAFETY_FLAG_DEFINITIONS` list at :37 (**23 flags** — corrected post-cycle; `grep -c "SafetyFlagDefinition("` returns 24 only because it also counts the `class` line) | **DRIFTED** (class is :28; :37 is the list; count 24→23) |
 | `runtime/council/compliance_council.py` `TIER_1_NEVER_EVENTS` | `TIER_1`:176 | :176 | **CONFIRMED** (name refined) |
 | ↳ `TIER_2_HIGH_RISK` | `TIER_2`:201 | :201 | **CONFIRMED** |
 | ↳ `TIER_3_MEDIUM` | `TIER_3`:212 | :212 | **CONFIRMED** |
 | ↳ `_TIER1_OWNERS: Dict[str, set]` (flag → owner judge-roles) | :232 | :232 | **CONFIRMED** |
-| `runtime/council/council_roles/*.txt` (freetext KEY QUESTIONS) | named | 5 files: behavior/faithfulness/policy/risk/source_message_judge | **CONFIRMED** |
+| `runtime/council/council_roles/*.txt` (freetext KEY QUESTIONS) | named | 5 files exist, but **only 3 carry a numbered `KEY QUESTIONS TO ANSWER` block** (policy/risk/source_message — corrected post-cycle; behavior/faithfulness use a different prose structure) | **DRIFTED** (3, not 5) |
 | WS-0 `harness/grounding.py` `WS0_CONTRACTS` / `MedPresenceCheck` | (WS-0) | :153 / :107 (flag_code:116, version:118) | **CONFIRMED** |
 | WS-0 `harness/correction.py` `ONTOLOGY_VERSION="ws0-hardcoded/0"` | (WS-0) | :28 | **CONFIRMED** |
 | WS-0 `scripts/run_ws0.py` hardcoded argparse (`--case/--source/--baseline`) | (WS-0) | :103-105 | **CONFIRMED** |
 | `lithrim_bench/picklist.py` `resolve_case_fixtures` + `PACK_FILES` n10-first (S-BS-9 site) | :45 / :20-22 | :45 / :20 | **CONFIRMED** |
 | backend `PipelineRequest.council_config` (WS-2 injection hook — **stored only in WS-1**) | :191 | :191 | **CONFIRMED** |
 
-**1 DRIFTED (updated), 0 MISSING.** Seed-source data shapes confirmed:
-`SafetyFlagDefinition` = `{flag, category, definition, when_to_use, when_NOT_to_use, reliability_pillar}` (24 instances); `_TIER1_OWNERS` maps each flag → a `set` of owner judge-roles (e.g. `WRONG_DOSAGE → {behavior_judge, source_message_judge, risk_judge}`); council_roles `*.txt` carry numbered `KEY QUESTIONS TO ANSWER`. The 4 doc-shim collection names (`conversation_item`, `conversation_session`, `call_kpi`, `compliance_report`) currently appear only **inside** the M1 vendored runtime — there is **no SQLite doc-shim layer yet**; WS-1 builds it.
+**3 DRIFTED (corrected post-cycle: flag count 24→23, role-files 5→3, class line :28 vs list :37), 0 MISSING.** Seed-source data shapes confirmed:
+`SafetyFlagDefinition` = `{flag, category, definition, when_to_use, when_NOT_to_use, reliability_pillar}` (**23 instances**; the `grep -c` of 24 counted the `class` definition line); `_TIER1_OWNERS` maps each flag → a `set` of owner judge-roles (e.g. `WRONG_DOSAGE → {behavior_judge, source_message_judge, risk_judge}`); **3 of the 5** council_roles `*.txt` carry a numbered `KEY QUESTIONS TO ANSWER` block (policy/risk/source_message). The 4 doc-shim collection names (`conversation_item`, `conversation_session`, `call_kpi`, `compliance_report`) currently appear only **inside** the M1 vendored runtime — there is **no SQLite doc-shim layer yet**; WS-1 builds it. *(These three drifts were caught by the executor at plan-review and corrected here at close-out; original authoring overcounted.)*
 
 > **Citation discipline & a landmine:** the seed sources live under
 > `lithrim_bench/runtime/` which is **untracked working-tree drift** (the M1 vendored
@@ -175,7 +175,7 @@ Each gets a row in the session log's `acceptance` array.
 - **S-BS-6 ratified:** the eval-profile `council_config` records compose-over-live-v2 — report the stored disposition.
 - **S-BS-9 disposition:** report the normalization chosen (normalized shape vs documented shape contract) and that the n10-first ambiguity is resolved.
 - **Critique carry-forward status:** Q4.2 (severity_map as data) and Q4.3 (extraction params explicit) **closed in WS-1**; Q4.1 (role-aware calibration) **recorded-only, deferred to WS-4** — state this explicitly.
-- **Ontology coverage:** N flags / N tiers / N owners / N questions / N contracts seeded (report the counts; 24 flags expected from `SAFETY_FLAG_DEFINITIONS`).
+- **Ontology coverage:** N flags / N tiers / N owners / N questions / N contracts seeded (report the counts; **23 flags** from `SAFETY_FLAG_DEFINITIONS` — actual seeded count, corrected post-cycle from the driver's original "24").
 
 ---
 
