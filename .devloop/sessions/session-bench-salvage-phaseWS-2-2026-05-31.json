@@ -36,6 +36,18 @@
         "summary": "Design leans 1-4 confirmed: D0-first/harness-only; PipelineRequest fields Optional[...]=None additive; backend threads injected config with exact fallback-to-current when None; harness injects stored council_config + ontology.",
         "evidence": "User: 'Design leans 1–4 confirmed'.",
         "decided_at": "2026-05-30T21:55:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D2 council seam (2nd plan-checkpoint) LOCKED: Surface A (TIER_1/2/3 + _TIER1_OWNERS + KNOWN_TAXONOMY_CODES made instance-resolvable in ComplianceCouncil.__init__, default=module constants, override from injected ontology; None==byte-identical) + Surface B (council_config overrides model selection). Prompt threading is ADDITIVE-BLOCK-ONLY (injected ontology appends a supplementary taxonomy/questions block; hardcoded clinical prose stays). Full domain-agnostic prompt rewrite (S-BS-11) is OUT of WS-2.",
+        "evidence": "User answer: 'Additive block only (rec.)'.",
+        "decided_at": "2026-05-30T22:30:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Live :8002 smoke (~$0.10, A3 end-to-end) runs AFTER backend D1/D2 land (post fresh-critic + sign-off), captured like the WS-0 baseline; report-only, not a gate.",
+        "evidence": "User answer: 'After backend D1/D2 land (rec.)'.",
+        "decided_at": "2026-05-30T22:30:00Z"
       }
     ]
   },
