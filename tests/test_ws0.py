@@ -100,7 +100,7 @@ def test_correction_record_emitted(baseline, case, tmp_path):
     assert rec["corrected_label"] is None
     assert rec["composite_before"] == "BLOCK"
     assert rec["composite_after"] == "BLOCK"
-    assert rec["ontology_version"] == "ws0-hardcoded/0"
+    assert rec["ontology_version"] == "clinical/1"  # WS-1: sentinel → real ontology version
     assert rec["contract_version"] == "med-presence-check/v1"
     assert rec["tool_result"]["disproved"] is True
 

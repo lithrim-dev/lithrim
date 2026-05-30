@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .grounding import SEVERITY_WEIGHT, GroundedResult
+from .grounding import GroundedResult
 
 _STAGE_TO_COMPLIANCE = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "approve"}
 
@@ -22,7 +22,7 @@ _STAGE_TO_COMPLIANCE = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "appr
 def composite(grounded: GroundedResult) -> dict[str, Any]:
     """Composite verdict + score + the grounded adjustments (report shape)."""
     score = max(
-        (SEVERITY_WEIGHT.get(f.get("severity"), 0.0) for f in grounded.active),
+        (grounded.weights.get(f.get("severity"), 0.0) for f in grounded.active),
         default=0.0,
     )
     adjustments = [

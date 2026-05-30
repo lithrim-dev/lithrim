@@ -19,13 +19,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .ontology import Ontology, load_ontology
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SCHEMA_VERSION = "ws0-correction/1"
-# No ontology table yet (that is WS-1); the contract set is hardcoded in
-# grounding.WS0_CONTRACTS. Pin a sentinel so downstream consumers can tell which
-# ontology generation produced the record.
-ONTOLOGY_VERSION = "ws0-hardcoded/0"
 
 DEFAULT_CORRECTIONS_PATH = REPO_ROOT / "out" / "ws0" / "corrections.ndjson"
 
@@ -36,8 +34,16 @@ def build_correction(
     result: dict[str, Any],
     composite_before: str,
     composite_after: str,
+    ontology: Ontology | None = None,
 ) -> dict[str, Any]:
-    """Assemble one correction record for a disproved (suppressed) finding."""
+    """Assemble one correction record for a disproved (suppressed) finding.
+
+    ``ontology_version`` and the corrected flag's ``owner_roles`` are read from the
+    ontology (default: the committed clinical ontology). The owners are recorded so
+    a later, role-aware calibration (WS-0 critique Q4.1, fixed in WS-4) can tell
+    whose vote was corrected — WS-1 only *records* them.
+    """
+    ontology = ontology or load_ontology()
     finding = suppressed_entry["finding"]
     verdict = suppressed_entry["verdict"]
     contract = suppressed_entry["contract"]
@@ -73,9 +79,10 @@ def build_correction(
         },
         "original_label": code,
         "corrected_label": None,
+        "owner_roles": list(ontology.owners_of(code)),
         "composite_before": composite_before,
         "composite_after": composite_after,
-        "ontology_version": ONTOLOGY_VERSION,
+        "ontology_version": ontology.ontology_version,
         "contract_version": contract.version,
     }
 
