@@ -18,7 +18,7 @@
     "lithrim_bench/eval_runner.py",
     "scripts/run_local_scribe.py"
   ],
-  "north_star": "Salvage-and-compose the shipped Lithrim verification stack (compliance council + sync /v1/pipeline/evaluate orchestrator) into a local in-process engine (no Mongo/Pinecone/Celery/etlp-mapper) that reproduces our own paper eval-run findings on the product path, then layer the SME-Question Ontology, local vector retrieval, the Clojure server, and the desktop shell on top. Acceptance test: reproduce the paper findings on the salvaged in-process analyze->council->eval path. Paper guardrail: scribe is semantic-only by construction (paper semantic-baseline characterization, never thesis validation, HL7 owns the structural-floor demonstration).",
+  "north_star": "Build a domain-agnostic, tool-grounded eval/calibration harness for agentic-LLM outputs by COMPOSING OVER the live verification stack (:8002 /v1/pipeline/evaluate + :3031 JUTE copilot/validate + pinecone KB), with SQLite as the configuration plane and the ontology as the domain definition. Walking-skeleton: one case end-to-end first (WS-0), then thicken. Tool-grounding can flip verdicts (logged); every correction is a fine-tuning-ready record for the future RLVR/data-lake north star. Paper: replicate current state on the harness, then strengthen via tool-grounded correction of confident-but-wrong judges (S-BS-7 = exhibit). In-process salvage (M1) demoted to WS-6 compartmentalize-local.",
   "generated_at": "2026-05-30T00:00:00Z",
   "tasks": [
     {
@@ -40,7 +40,7 @@
         "lithrim_bench/runtime/{council,pipeline,services}/ (NEW, vendored cluster A council + cluster B sync orchestrator path)",
         "lithrim_bench/backends/local_pipeline.py (NEW, in-process LocalPipelineBackend: F4-correct context_payload, transcript at call_context.transcript, agent_metadata.category=scribe, consensus -> BackendVerdict)",
         "scripts/run_local_scribe.py (NEW, runs eval_runner.run_pack over scribe_v1 with LocalPipelineBackend; --limit, --n; prints verdict-vs-expected)",
-        "lithrim_bench/backends/base.py:32 (JudgeOutput.reason field, persisted per-judge reasoning enabler, SPEC §6)",
+        "lithrim_bench/backends/base.py:32 (JudgeOutput.reason field, persisted per-judge reasoning enabler, SPEC \u00a76)",
         "out/scribe_v1.local.ndjson (M1 baseline) + out/scribe_v1.local.guardfix.ndjson (reasoning-captured re-run)"
       ],
       "acceptance": [
@@ -64,7 +64,7 @@
       "phase": "COUNCIL-EVIDENCE-GATE",
       "title": "Council-evidence-gate fix (R3(d)), close the legacy violations_found per-flag bypass in consensus",
       "status": "halted-rescoped",
-      "close_note": "HALTED / BLOCKED-AND-RE-SCOPE 2026-05-30, 0 commits, no code changed. Pre-check P0 ($0.10) falsified the specified fix: the MEDICATION_NOT_IN_TRANSCRIPT FP is findings-first + fully-evidenced + symmetric with the true defect; SPEC §2b 'legacy span-less bypass' is FALSIFIED (NDJSON projection artifact). All authorized aggregation levers inert; root cause is judge calibration. Re-routed to P1/P1-VEC as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md, docs/research/r3d_precheck_P0_raw_evidence_2026-05-30.ndjson, .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30.{json,md}. HARD-GATE fresh-critic waived (no-code halt; monitor re-verified raw evidence).",
+      "close_note": "HALTED / BLOCKED-AND-RE-SCOPE 2026-05-30, 0 commits, no code changed. Pre-check P0 ($0.10) falsified the specified fix: the MEDICATION_NOT_IN_TRANSCRIPT FP is findings-first + fully-evidenced + symmetric with the true defect; SPEC \u00a72b 'legacy span-less bypass' is FALSIFIED (NDJSON projection artifact). All authorized aggregation levers inert; root cause is judge calibration. Re-routed to P1/P1-VEC as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md, docs/research/r3d_precheck_P0_raw_evidence_2026-05-30.ndjson, .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30.{json,md}. HARD-GATE fresh-critic waived (no-code halt; monitor re-verified raw evidence).",
       "priority": "P0-gating",
       "estimated_effort_hours": 10,
       "estimated_llm_cost_usd": 5,
@@ -106,230 +106,211 @@
       ]
     },
     {
-      "id": "P1",
-      "phase": "P1",
-      "title": "Phase 1, SQLite data layer + SME-Question Ontology (the product's IP) + first SME presence-check question (re-routed scribe_v1 MED FP, S-BS-7)",
+      "id": "WS-0",
+      "phase": "WS-0",
+      "title": "WS-0 \u2014 one case end-to-end over live APIs (the walking-skeleton spine)",
       "status": "ready",
-      "blocked_by": [],
-      "unblocked_note": "UNBLOCKED 2026-05-30 by the COUNCIL-EVIDENCE-GATE halt. The premise that P1 must wait for 'corrected aggregation' inverted: the scribe_v1 MED FP is a judge-calibration error (S-BS-7), and its fix — a per-question presence-check / KB-query tool — LIVES in P1/P1-VEC, not in consensus aggregation. P1 is now the next executable cycle.",
-      "blocked_by_decision": "S-BS-4: SQLite data layer = Mongo-shaped DOCUMENT SHIM vs RELATIONAL TABLES (recommended document shim), must be made consciously in P1 (a decision made DURING P1, not a blocker); gates the P-CLUSTERS vendoring shape and P4 separability.",
-      "priority": "P1",
-      "estimated_effort_hours": 24,
-      "estimated_llm_cost_usd": 0,
-      "may_be_zero_cost": true,
-      "zero_cost_pre_check": "Schema/data-layer work, no new eval sweeps beyond reusing the COUNCIL-EVIDENCE-GATE batch outputs.",
-      "target": "executor",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP1-sqlite-data-layer-sme-ontology-driver",
-      "deliverables": [
-        "lithrim_bench/runtime/services/ (NEW, SQLite document-store on the slim path; 4 Mongo collections -> SQLite: conversation_item, conversation_session, call_kpi, compliance_report; ~14 writes; scribe-first)",
-        "the SME-Question Ontology + the 3 bindings wired: (1) prompt-shaping (KEY QUESTIONS baked into council_roles/*.txt + safety_flags.get_flag_prompt_section), (2) per-question KB retrieval policy (namespace + filters + top_k), (3) reporting dimension (the 4 Reliability-Contract dims via SAFETY_FLAG_TO_PILLAR + failure_clustering)",
-        "data-driven council constants (TIER_1/2/3_*, _TIER1_OWNERS) + reliability dims off the ontology",
-        "FIRST SME PRESENCE-CHECK QUESTION (S-BS-7 re-route): encode 'is <med> actually in the transcript?' as the worked-example SME question — a per-question presence-check / KB-query binding that lets a judge falsify MEDICATION_NOT_IN_TRANSCRIPT before emitting. This is the calibration lever the COUNCIL-EVIDENCE-GATE pre-check proved aggregation cannot provide. Falsifier-test on scribe_v1 case 1 (deterministic seed) lands in P1-VEC."
-      ],
-      "acceptance": [
-        "SME-Question Ontology data-drives the council key-question constants + the 4 reliability dims (no longer hardcoded in three disconnected places)",
-        "4 slim-path collections persist to SQLite scribe-first",
-        "The scribe_v1 MED FP (S-BS-7) is encoded as the first SME presence-check question; the binding is specified (falsifier-test of whether it suppresses the FP without dropping the true defect runs in P1-VEC, where retrieval is real)",
-        "S-BS-4 doc-shim-vs-relational decision recorded with rationale"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "Vendoring the ~28 analyze-flow modules (P-CLUSTERS, gated by the doc-shim decision made here)",
-        "Local vector retrieval (P1-VEC)",
-        "New paid eval sweeps"
-      ]
-    },
-    {
-      "id": "P1-VEC",
-      "phase": "P1-VEC",
-      "title": "Local vector + per-question retrieval (replace the retrieval stub)",
-      "status": "blocked",
-      "blocked_by": [
-        "P1"
-      ],
-      "priority": "P1",
-      "estimated_effort_hours": 16,
-      "estimated_llm_cost_usd": 0,
-      "may_be_zero_cost": true,
-      "zero_cost_pre_check": "Spike = numpy brute-force over the existing lithrim-rag-via-etlp receipts (vectors precomputed; no LLM, no embedding calls).",
-      "target": "executor",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP1-VEC-local-vector-per-question-retrieval-driver",
-      "deliverables": [
-        "lithrim_bench/runtime/pipeline/retrieval.py (replace the stub returning empty matches with real per-question retrieval; numpy brute-force over lithrim-rag-via-etlp/reports/{hipaa,clinical,hl7v2,medication}/receipts-*.jsonl)",
-        "wires the per-question retrieval policy binding from P1 to actual grounding so judges have evidence spans"
-      ],
-      "acceptance": [
-        "retrieval.py returns real matches (not empty) for the per-question policy; judges receive grounding evidence spans",
-        "Spike uses numpy (sqlite-vec is blocked, neither python3 3.12.8 nor debuglithrim 3.10.15 has enable_load_extension); productized local-vector choice DEFERRED (S-BS-5)"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "Productized local-vector store choice (sqlite-vec via apsw / LanceDB / Qdrant / Clojure-side xerial, deferred, likely settled in P2)",
-        "New embedding cost (vectors are precomputed)"
-      ]
-    },
-    {
-      "id": "P-CLUSTERS",
-      "phase": "P-CLUSTERS",
-      "title": "Salvage the remaining clusters, analyze flow, audio, eval/promote/compare, reporting",
-      "status": "blocked",
-      "blocked_by": [
-        "P1-VEC"
-      ],
-      "blocked_by_decision": "Vendoring shape of the ~28 analyze-flow modules is gated by the S-BS-4 P1 doc-shim-vs-relational decision.",
-      "priority": "P1",
-      "estimated_effort_hours": 40,
-      "estimated_llm_cost_usd": 10,
-      "may_be_zero_cost": false,
-      "target": "executor",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP-CLUSTERS-analyze-flow-eval-loop-salvage-driver",
-      "deliverables": [
-        "the ~28-module analyze flow vendored in-process, no Celery (observation_workflow + compliance_workflow; observation_tasks with Celery stripped; the 6 signal agents; artifact_evaluator/compliance_guard/hipaa_retrieval/evidence_extraction/failure_clustering/transcript_parser)",
-        "the eval/promote/compare loop (routes/eval.py promote-to-eval-case; eval_comparison_service regressions/improvements; bench analysis.py = verdict-instability/false-block/Fleiss-kappa/bootstrap-CI)",
-        "reporting/dimensions data-driven off the P1 ontology",
-        "analyzeWithAudio sub-track: enable the commented-out local whisper loader (transcription_service.py:44-75), fix the audio_bytes use-after-delete (~:340/:393), add TRANSCRIPTION_PROVIDER=local|cloud"
-      ],
-      "acceptance": [
-        "The analyze flow runs in-process (the eval harness IS the analyze flow looped over pack cases, F2 unifier; internal eval runner already loops ObservationWorkflow per case)",
-        "eval/promote/compare loop reproduces on the local stack; batch-then-validate, reuse pack fixtures"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "Audio (DEFERRED to M2, ~1.1GB whisper/pyannote; scribe pack is text+artifact so audio is not on the critical path)",
-        "Gemini signal-agents as council inputs (STUBBED in M1, routed through BYOK provider in M3, they feed KPI signals, not the paper-measured verdict)"
-      ]
-    },
-    {
-      "id": "P2",
-      "phase": "P2",
-      "title": "Phase 2, consolidated Clojure server (uberjar) + KB ingest -> local vector",
-      "status": "blocked",
-      "blocked_by": [
-        "P-CLUSTERS"
-      ],
-      "priority": "P1",
-      "estimated_effort_hours": 40,
-      "estimated_llm_cost_usd": 2,
-      "may_be_zero_cost": false,
-      "target": "executor",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP2-clojure-server-kb-ingest-driver",
-      "deliverables": [
-        "consolidated Clojure server (~60-80% exists): Jute mappings + AI copilot POST /mappings/generate (etlp-mapper copilot/engine.clj, llm/client.clj, azure/anthropic BYOK) + ETLP processor trigger (etlp-base EtlpSource/EtlpDestination protocols + integrant; HTTP trigger net-new) + KB->embeddings populate (lithrim-rag-via-etlp: source->chunk->ONNX mpnet+SPLADE->Jute->destination)",
-        "NEW local-vector destination so KB ingest writes to the productized local store"
-      ],
-      "acceptance": [
-        "Clojure server stands up as an uberjar (all Clojure projects have :uberjar profiles; jute.clj is GraalVM-safe)",
-        "KB ingest writes to the productized local-vector destination; productized choice likely settled here (Clojure-side xerial sqlite-jdbc supports the load-extension that blocks Python sqlite-vec)"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "GraalVM native-image (deferred to P4; instaparse needs reflection config)",
-        "Bulk copilot generation (copilot generate is BYOK + on-demand, not a sweep)"
-      ]
-    },
-    {
-      "id": "P2-COUNCIL",
-      "phase": "P2-COUNCIL",
-      "title": "v1 vs v2 council fidelity for full paper reproduction",
-      "status": "blocked",
-      "blocked_by": [
-        "COUNCIL-EVIDENCE-GATE"
-      ],
-      "blocked_by_decision": "S-BS-6: v1 (3x gpt-4.1) vs v2 (cross-provider) as the canonical reproduction config; tied to S-BS-2 (whether v2 over-fires share the legacy bypass). Cheap first step: re-check the existing 2026-05-28 v2 NDJSON for span-less companion flags BEFORE any paid v2 run.",
-      "priority": "P1",
+      "priority": "P0-gating",
       "estimated_effort_hours": 8,
-      "estimated_llm_cost_usd": 13,
-      "may_be_zero_cost": false,
-      "target": "executor",
-      "note": "DEFERRED, late-phase cheap-first rule: defer the paid v2/cross-provider sweep until the free v2-NDJSON check decides v2 is actually needed.",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP2-COUNCIL-v1-vs-v2-fidelity-driver",
-      "deliverables": [
-        "decision: shipped/paper path reproduces on v1 or must move to v2 (cross-provider: risk gpt-4.1 / policy mistral / faithfulness llama; requires Azure Mistral/Llama deployments)",
-        "resolution of the COUNCIL-EVIDENCE-GATE open HYPOTHESIS: whether the 2026-05-28 v2 over-fires ride the same legacy span-less path R3(d) closes (then R3(d) partially fixes v2) or carry real evidenced spans (then R3(a) is still needed for the structured-detail-asymmetry class)"
-      ],
-      "acceptance": [
-        "v1-vs-v2 canonical reproduction config decided with the cheap v2-NDJSON check done first",
-        "If a paid v2 sweep is required, cost confirmed in plan-review (more expensive than v1; needs Azure Mistral/Llama)"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "Running the paid v2 sweep before the free v2-NDJSON legacy-path check decides v2 is needed"
-      ]
-    },
-    {
-      "id": "P3",
-      "phase": "P3",
-      "title": "Phase 3, desktop shell + calibration journey UI + demo voice agent",
-      "status": "blocked",
-      "blocked_by": [
-        "P2"
-      ],
-      "priority": "P1",
-      "estimated_effort_hours": 60,
-      "estimated_llm_cost_usd": 5,
-      "may_be_zero_cost": false,
-      "target": "executor",
-      "note": "DEFERRED. Demos must be live (cite THIS run), not replayed fixtures. UI is a FRESH BUILD, not code-salvaged. lithrim-ui is BEHAVIOR REFERENCE ONLY; conversation-detail features reimplemented from ConversationDetail.jsx, NOT CallKPISideSheet (dead UI).",
-      "repos": [
-        "lithrim-bench"
-      ],
-      "prompt_bundle": "bench-salvage-phaseP3-desktop-shell-journey-ui-driver",
-      "deliverables": [
-        "desktop shell (Tauri/launcher spawns the Python + Clojure sidecars on localhost)",
-        "calibration journey UI (TS+Tailwind+shadcn scaffolded from mapify-io, theme from lithrim-ui/lithrim.com)",
-        "conversational/generative authoring agent (plain English -> Jute conditional/retrieval policy/question, fronting the etlp-mapper copilot)",
-        "intentional-miscalibration seeding (knob = tuned_mock + ontology defaults)",
-        "demo scribe voice agent (live, cites THIS run) + observability importers (Arize/LangSmith)"
-      ],
-      "acceptance": [
-        "journey steps 5/10 run on the salvaged in-process analyze->council->eval path, reproducing paper findings",
-        "demo voice agent and live-verify runs cite this run (live, not replayed)"
-      ],
-      "scope_guardrails_not_in_scope": [
-        "Code-salvaging the UI (the journey-mode UI, generative authoring agent, miscalibration seeding, demo voice agent, importers are net-new; lithrim-ui is behavior reference only)",
-        "Replayed/fixture demos (must be live, cite this run)"
-      ]
-    },
-    {
-      "id": "P4",
-      "phase": "P4",
-      "title": "Phase 4, packaging/installer + licensed-production separability",
-      "status": "blocked",
-      "blocked_by": [
-        "P3"
-      ],
-      "priority": "P1",
-      "estimated_effort_hours": 24,
       "estimated_llm_cost_usd": 0,
       "may_be_zero_cost": true,
-      "zero_cost_pre_check": "Packaging, no LLM cost.",
+      "zero_cost_pre_check": "The single live grade is ALREADY CAPTURED (out/scribe_v1.live_pipeline_evaluate.<case>.json, 2026-05-30). Persist + grounding code is built/tested OFFLINE against it \u2014 zero new paid calls.",
       "target": "executor",
-      "note": "DEFERRED. The P1 document-shim is what makes the swap-back-to-Mongo-for-cloud separability clean.",
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseP4-packaging-licensed-separability-driver",
+      "prompt_bundle": "bench-salvage-phaseWS-0-one-case-over-live-driver",
       "deliverables": [
-        "packaging/installer (Bundle = uberjar + JRE + PyInstaller/bundled venv)",
-        "licensed-production separability: same services as container images on ACA/ECS; served UI + SDK + integrations point at their URLs; Clojure ingestion/ETLP + Python council scale independently; state = managed store + served vector",
-        "the core exposed BOTH as a library (eval/paper test, in-process) and as the FastAPI service (product runtime)"
+        "GRADING (proven live 2026-05-30): POST :8002/v1/pipeline/evaluate \u2014 inline transcript+artifact, sync ~40s, X-API-Key auth, org_id REQUIRED in body (handler overwrites from auth but Pydantic validates first), eval_mode=true for deterministic per-(case,judge) seed. Baseline saved out/scribe_v1.live_pipeline_evaluate.bench_scribe_v1_inject_condition_1bd0f10dc7b5.json.",
+        "PERSIST: fs blob + SQLite metadata (doc-shim, S-BS-4) \u2014 store {request, PipelineResult, provenance} keyed by case_id.",
+        "GROUNDING (harness-side, post-hoc): for each finding, look up its ontology verification_contract; the S-BS-7 presence-check ('is <med> present in the transcript?') disproves MEDICATION_NOT_IN_TRANSCRIPT -> suppress + re-score. Built/tested OFFLINE against the saved baseline.",
+        "CORRECTION RECORD (fine-tuning-ready, RLVR north star): {rollout = judge prompt/output/confidence, tool call+result, corrected label, composite before/after, pinned ontology+contract version}. Append-only, lake-bound (later via etlp file->S3 connector).",
+        "COMPOSITE report: {score, verdict, reasoning, grounded-adjustments}.",
+        "CALIBRATION (step-1 adopted, REPORT-ONLY not a gate): reliability diagram + ECE over the council confidences in the report."
       ],
       "acceptance": [
-        "one artifact serves both desktop-download and licensed-cloud (UI is a pure HTTP/WSS client on env base URL; state is the swappable boundary)",
-        "Bundle = uberjar + JRE + PyInstaller now; GraalVM native-image deferred"
+        "The M1 scribe case runs ingest -> grade(live :8002) -> ground -> report end-to-end.",
+        "The MED FP (MEDICATION_NOT_IN_TRANSCRIPT) is disproved+suppressed by the presence-check; FABRICATED_HISTORY retained; composite verdict stays BLOCK/reject.",
+        "A structured, versioned correction record is emitted for the disproved finding.",
+        "Persist + grounding code is offline-testable against out/scribe_v1.live_pipeline_evaluate.<case>.json (no new paid calls beyond the one captured grade)."
+      ],
+      "diagnostic_stats_reported": [
+        "Calibration: reliability diagram + ECE on the confidences (reported, NOT a gate).",
+        "Live v2 over-fire: live backend = COMPLIANCE_COUNCIL_VERSION=v2, emits FABRICATED_CONSENT + INCOMPLETE_DOCUMENTATION + an artifact-judge stage that M1's v1 semantic-only path did not (S-BS-2 confirmed live); these are ADDITIONAL grounding targets."
       ],
       "scope_guardrails_not_in_scope": [
-        "GraalVM native-image (deferred)"
+        "Backend changes to :8002 (compose-only in WS-0; injecting config = WS-2).",
+        "Calibration as a pass/fail GATE (report-only; gate = WS-4).",
+        "Eval-pack loop (WS-4), frontend shell (WS-5), in-process swap (WS-6).",
+        "New paid council calls beyond the one already captured."
+      ],
+      "note": "Grading seam PROVEN LIVE 2026-05-30. v1-vs-v2 harness baseline is S-BS-6 (decide here/WS-1; lean compose-over-live-v2 + let grounding clean the over-fire)."
+    },
+    {
+      "id": "WS-1",
+      "phase": "WS-1",
+      "title": "WS-1 \u2014 SQLite config plane (Agent eval-profile + the ontology data model)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-0"
+      ],
+      "priority": "P1",
+      "estimated_llm_cost_usd": 0,
+      "may_be_zero_cost": true,
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-1-sqlite-config-plane-driver",
+      "deliverables": [
+        "SQLite as the CONFIG plane: Agent + eval-profile {judges, council_config, ontology, tools, kb_bindings}; drive the WS-0 run from config instead of hardcoded args.",
+        "Ontology data model (unifies the scattered clinical structures: SafetyFlagDefinition safety_flags.py:37 + TIER_1/2/3 compliance_council.py:176/201/212 + _TIER1_OWNERS :232 + freetext KEY QUESTIONS in council_roles/*.txt) PLUS a per-question verification_contract (JUTE claim->tool-query->verdict). Domain-agnostic by construction.",
+        "4 slim-path collections doc-shim (S-BS-4 DECIDED=document shim): conversation_item, conversation_session, call_kpi, compliance_report.",
+        "the re-routed S-BS-7 MED presence-check encoded as the ontology's first verification contract."
+      ],
+      "acceptance": [
+        "The WS-0 run is driven entirely from SQLite config (Agent eval-profile).",
+        "Ontology is the single source for flags/tiers/owners/questions/contracts.",
+        "S-BS-4 doc-shim applied with rationale recorded."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Generalizing :8002 (WS-2)",
+        "Real retrieval/mid-loop grounding (WS-3)",
+        "The ~28 analyze-flow modules (WS-6)"
+      ]
+    },
+    {
+      "id": "WS-2",
+      "phase": "WS-2",
+      "title": "WS-2 \u2014 generalize :8002 grading to accept injected config (domain-agnostic)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-1"
+      ],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-2-generalize-backend-config-injection-driver",
+      "deliverables": [
+        "Add optional council_config / ontology to PipelineRequest (services/pipeline/models.py:237), threaded into run_semantic/build_prompt + model selection + tier/owner/question lookup \u2014 ADDITIVE, backward-compatible (semantic_meta already carries a council_config object = the hook).",
+        "Harness injects the Agent's SQLite ontology+judges+council_config into the evaluate call; grading becomes domain-agnostic (no disk-prompts / COMPLIANCE_COUNCIL_VERSION env dependence)."
+      ],
+      "acceptance": [
+        "A non-clinical ontology can drive the live council via injected config.",
+        "Existing clinical callers unaffected (Optional fields, default = current behavior)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Mid-loop tool grounding (WS-3)",
+        "Eval-pack loop (WS-4)"
+      ]
+    },
+    {
+      "id": "WS-3",
+      "phase": "WS-3",
+      "title": "WS-3 \u2014 tool-grounding generalized + mid-loop (contracts, pinecone query, local vector)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-1"
+      ],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-3-tool-grounding-midloop-driver",
+      "deliverables": [
+        "JUTE verification contracts authored agentically via :3031 /mappings/generate (generate->validate->refine->persist in SQLite).",
+        "per-question KB-query tool via :8002 /v1/kb/{namespace}/search; local-vector option (S-BS-5: numpy brute-force over lithrim-rag-via-etlp receipts).",
+        "graduate grounding from post-hoc to MID-LOOP (judge-calls-tool, generalizing the :8002 /v1/playground/validate-with-council tool-loop pattern).",
+        "resolve S-BS-2 (v2 over-fire) and the additional v2 over-fire flags as grounding targets."
+      ],
+      "acceptance": [
+        "A judge can call a tool mid-evaluation; contracts confirm/disprove findings against KB + transcript.",
+        "S-BS-2 over-fire flags grounded; S-BS-5 retrieval returns real matches."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Eval-pack calibration gate (WS-4)",
+        "Productized vector store (WS-6)"
+      ]
+    },
+    {
+      "id": "WS-4",
+      "phase": "WS-4",
+      "title": "WS-4 \u2014 eval-pack loop + LOCKED calibration gate (Avenridge-style standing)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-3"
+      ],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-4-evalpack-loop-calibration-gate-driver",
+      "deliverables": [
+        "Eval-pack curation + external SDK run + /eval-runs/compare (regressions/improvements), over live :8002.",
+        "Eval-pack = PREREGISTERED, LOCKED criteria incl. a CALIBRATION GATE (step-2: lock an ECE/reliability threshold a system can fail even at high accuracy \u2014 the DistilBERT lesson).",
+        "NULL/regression parity reporting (publish fails with the same prominence as passes)."
+      ],
+      "acceptance": [
+        "A locked eval-pack grades a run on BOTH verdict-match and calibration standing; a high-accuracy/poorly-calibrated agent FAILS the gate.",
+        "Regression vs a prior run is reported with parity."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Frontend (WS-5)"
+      ]
+    },
+    {
+      "id": "WS-5",
+      "phase": "WS-5",
+      "title": "WS-5 \u2014 frontend shell + one plugin UI (bring-in-data journey)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-4"
+      ],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver",
+      "deliverables": [
+        "Frontend shell that loads UI apps as plugins; first plugin = bring-in-data + view a graded+grounded case + its calibration report."
+      ],
+      "acceptance": [
+        "One plugin runs the WS-0..WS-4 vertical from the shell on a real case (live, cites this run)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Code-salvaging lithrim-ui (behavior reference only); replayed/fixture demos (must be live)."
+      ]
+    },
+    {
+      "id": "WS-6",
+      "phase": "WS-6",
+      "title": "WS-6 \u2014 compartmentalize-local (offline/licensed; the old bench-salvage targets)",
+      "status": "blocked",
+      "blocked_by": [
+        "WS-5"
+      ],
+      "priority": "P2",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver",
+      "deliverables": [
+        "Swap the live :8002 grade for the in-process M1 council (LocalPipelineBackend) behind the same harness interface; local vector for pinecone; offline/licensed packaging.",
+        "Folds the deferred bottom-up targets: the ~28-module analyze flow (no Celery), the consolidated Clojure server (etlp-mapper copilot + etlp ingest), desktop shell packaging (uberjar+JRE+PyInstaller), licensed-production separability (the doc-shim makes swap-back-to-Mongo clean)."
+      ],
+      "acceptance": [
+        "The harness runs the full vertical with NO external services (in-process council + local vector), reproducing the live-path findings within tolerance."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "GraalVM native-image (later)"
       ]
     }
   ],
@@ -340,7 +321,7 @@
       "severity": "medium",
       "fix_location": "one-line debug log in the council judge-output capture path; settled on the COUNCIL-EVIDENCE-GATE validating re-run",
       "opened_in": "COUNCIL-EVIDENCE-GATE planning",
-      "status": "resolved 2026-05-30 — NOT pure-legacy; all 3 judges findings-first with per-code evidence_spans (pre-check P0). Persisted spans=[] was an NDJSON projection artifact.",
+      "status": "resolved 2026-05-30 \u2014 NOT pure-legacy; all 3 judges findings-first with per-code evidence_spans (pre-check P0). Persisted spans=[] was an NDJSON projection artifact.",
       "impact": "Determines whether the FP came via findings-first discard or pure-legacy; the cheap pre-check gates the paid sweep",
       "monitor_lean": "Add the one-line raw per-judge findings[]/violations_found log on the single re-run (no extra paid calls; seed deterministic); non-empty findings[] with spans => findings-first discard, only violations_found => pure-legacy confirmed"
     },
@@ -350,7 +331,7 @@
       "severity": "medium",
       "fix_location": "offline re-inspection of existing v2 NDJSON (out/p1_canonical_n5_pilot.ndjson, out/fhir_mini_harness_results.ndjson); decides whether R3(d) also helps v2 vs R3(a) still needed",
       "opened_in": "COUNCIL-EVIDENCE-GATE planning",
-      "status": "open",
+      "status": "open \u2014 CONFIRMED on live v2 by the WS-0 smoke test 2026-05-30 (FABRICATED_CONSENT + INCOMPLETE_DOCUMENTATION over-fire on the scribe note). These are ADDITIONAL grounding targets; lands in WS-3.",
       "impact": "Span-less => R3(d) partially fixes both; spans present => R3(a) pre-stage normalization still required for the structured-detail-asymmetry class",
       "monitor_lean": "Purely offline (no new calls) now that per-judge reason + consensus spans are persisted, do it as a pre-flight step in the COUNCIL-EVIDENCE-GATE driver"
     },
@@ -360,7 +341,7 @@
       "severity": "high",
       "fix_location": "the COUNCIL-EVIDENCE-GATE validating batch run (full 30-case scribe_v1 or the stratified subset: 2 cleans + S1/S3 true-FABRICATED_HISTORY + the FP case)",
       "opened_in": "COUNCIL-EVIDENCE-GATE planning",
-      "status": "superseded/moot 2026-05-30 — the make-findings-authoritative fix this blast-radius guarded does NOT land (R3(d) falsified). Re-activates only if a future aggregation change is attempted.",
+      "status": "superseded/moot 2026-05-30 \u2014 the make-findings-authoritative fix this blast-radius guarded does NOT land (R3(d) falsified). Re-activates only if a future aggregation change is attempted.",
       "impact": "Gating decision for the cycle's acceptance, needs the multi-case batch, not a 1-case check",
       "user_decision_required": false
     },
@@ -370,10 +351,10 @@
       "severity": "medium",
       "fix_location": "lithrim_bench/runtime/services/ data layer; the SQLite document-store stood up in P1",
       "opened_in": "M1 close-out 2026-05-29",
-      "status": "open",
-      "impact": "Did NOT block M1/COUNCIL-EVIDENCE-GATE (eval_runner writes NDJSON); must be made consciously in P1, do not let it ride",
+      "status": "DECIDED 2026-05-30 = DOCUMENT SHIM (user). Applies in WS-1.",
+      "impact": "Did NOT block M1/COUNCIL-EVIDENCE-GATE (eval_runner writes NDJSON); decided up front so P1-DATA can specify the data-layer shape without re-litigating",
       "monitor_lean": "Document shim (vendored code runs with import-path rewrites only, swaps back to Mongo for cloud); add indexed columns for reporting later",
-      "user_decision_required": true
+      "user_decision_required": false
     },
     {
       "id": "S-BS-5",
@@ -381,7 +362,7 @@
       "severity": "medium",
       "fix_location": "lithrim_bench/runtime/pipeline/retrieval.py (numpy spike in P1-VEC); productized choice likely settled in P2 (Clojure host via xerial sqlite-jdbc which supports extensions)",
       "opened_in": "M1 close-out 2026-05-29",
-      "status": "open",
+      "status": "open \u2014 lands in WS-3 (numpy over rag receipts; pinecone query via :8002 /v1/kb/search is the alternative).",
       "impact": "P1-VEC spike uses numpy brute-force over precomputed receipts; productized local-vector (sqlite-vec via apsw / LanceDB / Qdrant) deferred"
     },
     {
@@ -390,7 +371,7 @@
       "severity": "medium",
       "fix_location": "compliance_council.py v2 config; resolved in P2-COUNCIL after the cheap v2-NDJSON check",
       "opened_in": "M1 close-out 2026-05-29",
-      "status": "open",
+      "status": "open \u2014 WS-0 smoke test CONFIRMS live backend = v2 (over-fires). Decide harness baseline v1-vs-v2 in WS-0/WS-1; monitor lean = compose-over-live-v2 + let grounding clean the over-fire.",
       "impact": "v2 fidelity is a full-reproduction question, not an M1 blocker; defer the paid v2 sweep until the free v2-NDJSON legacy-path check decides v2 is needed",
       "monitor_lean": "Cheap first step: re-check the existing 2026-05-28 v2 NDJSON for span-less companion flags BEFORE committing to any paid v2 run"
     },
@@ -398,13 +379,22 @@
       "id": "S-BS-7",
       "title": "MEDICATION_NOT_IN_TRANSCRIPT FP is a judge-calibration error, not an aggregation bypass. Findings-first + fully-evidenced + semantically-validated (overlap 1.000) + symmetric with the true defect on every aggregation-readable signal; no aggregation lever (:1530 / :1962-1971 / evidence-aware :2170) separates it, and the OMISSION-code corpus-narrowing shortcut also fails (the self-refuting span is transcript text). The judge cites the transcript line that contains zidovudine as proof of its absence.",
       "severity": "high",
-      "fix_location": "P1 / P1-VEC — a per-question presence-check / KB-query tool ('is <med> in the transcript?') before flag emission; P1's first concrete SME presence-check question",
+      "fix_location": "P1 / P1-VEC \u2014 a per-question presence-check / KB-query tool ('is <med> in the transcript?') before flag emission; P1's first concrete SME presence-check question",
       "opened_in": "COUNCIL-EVIDENCE-GATE pre-check P0 2026-05-30",
-      "status": "open — re-routed to P1 (the calibration fix)",
+      "status": "open \u2014 WS-0 worked example (the presence-check that disproves the MED FP); reproduces on the LIVE path (smoke test 2026-05-30).",
       "impact": "Re-routes the FP out of COUNCIL-EVIDENCE-GATE into P1; the council-capability fix is calibration, not consensus aggregation",
-      "confidence": "CONFIRMED (FP characterization); HYPOTHESIS that a presence-check tool closes it — falsifier-test on scribe_v1 case 1 in P1-VEC",
+      "confidence": "CONFIRMED (FP characterization); HYPOTHESIS that a presence-check tool closes it \u2014 falsifier-test on scribe_v1 case 1 in P1-VEC",
       "evidence": "docs/research/r3d_precheck_P0_raw_evidence_2026-05-30.ndjson; docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md",
-      "monitor_lean": "Encode as P1's first SME question; do not assume the tool works — falsifier-test it on the exact FP case under deterministic seed"
+      "monitor_lean": "Encode as P1's first SME question; do not assume the tool works \u2014 falsifier-test it on the exact FP case under deterministic seed"
+    },
+    {
+      "id": "S-BS-8",
+      "title": "Live :8002 /v1/pipeline/evaluate returns structural/artifact findings with NULL taxonomy code (4 null-code findings in the WS-0 baseline; generalization of S-P1-16). The harness's finding->verification_contract lookup keys on the code, so null-code findings can't be grounded or scored by code.",
+      "severity": "medium",
+      "fix_location": "harness finding-normalization (map null-code structural/artifact findings to a synthetic key or skip-with-log); upstream backfill is lithrim-backend artifact_evaluator (out of WS-0 scope)",
+      "opened_in": "WS-0 smoke test 2026-05-30",
+      "status": "open \u2014 handle in WS-0 grounding (skip+log null-code findings) or WS-2",
+      "impact": "null-code findings are unmappable to contracts; surface them in the report but don't silently drop"
     }
   ]
 }

@@ -16,13 +16,13 @@
       "related_docs": [
         "out/paper_v1_n12_canonical.spec.json (sha256 57de4fbf80...)",
         "out/paper_v1_n12_canonical_calibration.ndjson (N=1 baseline)",
-        ".devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md §Q4-A (S2 widening empirical rule)",
-        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10.5 (S-P1-13 dispersion-motivation context)",
+        ".devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md \u00a7Q4-A (S2 widening empirical rule)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md \u00a710.5 (S-P1-13 dispersion-motivation context)",
         "scripts/validate_canonical_12_via_sdk.py (functions to port: _build_context, _grade)",
         "lithrim_bench/picklist.py (case-fixture resolution module)",
         ".devloop/state/STREAM_paper-1-copilot.md"
       ],
-      "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases × 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule ≥1/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY — no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper §5.4 reads from this cycle's outputs verbatim.",
+      "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases \u00d7 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule \u22651/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY \u2014 no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper \u00a75.4 reads from this cycle's outputs verbatim.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 1.8,
@@ -30,8 +30,8 @@
       "expected_runtime_min": 40,
       "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for cost confirmation + content_filter retry policy + dispersion-stat computation plan.",
       "decision_rules": {
-        "s2_widening": "If WRONG_DOSAGE fires ≥1/5 in N=5 → KEEP S2 strict as-is. If 0/5 → WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
-        "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 — close-with-paper-footnote if small (paper §8 threats item); stay-open as paper-§5.4 finding if meaningful."
+        "s2_widening": "If WRONG_DOSAGE fires \u22651/5 in N=5 \u2192 KEEP S2 strict as-is. If 0/5 \u2192 WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
+        "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 \u2014 close-with-paper-footnote if small (paper \u00a78 threats item); stay-open as paper-\u00a75.4 finding if meaningful."
       },
       "closed_at": "2026-05-28",
       "executor_verdict": "PROCEED-WITH-CAVEATS",
@@ -42,7 +42,7 @@
         "1e07e94 feat(bench): N=5 dispersion pilot script for paper_v1_n12_canonical",
         "b09b567 analysis(paper-1): N=5 pilot raw outputs + dispersion table",
         "b92ca3d analysis(paper-1): N=5 pilot REPORT + S2 decision + S-P1-13 disposition",
-        "(close-out commit pending — session log + STREAM + state + index)"
+        "(close-out commit pending \u2014 session log + STREAM + state + index)"
       ],
       "report": "docs/research/REPORT_p1_canonical_n5_pilot_2026-05-28.md",
       "session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-2026-05-28.json",
@@ -59,9 +59,9 @@
       "cost_actual_usd_driver_blend": 2.2,
       "actual_runtime_min": 22.6,
       "mid_cycle_deviations_approved": [
-        "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver §3.3 mongo path corrected — CITATION-DRIFT logged",
-        "Hard ledger ceiling raised $2.50 → $5.00 after smoke revealed $0.057/call (user 'cost is okay')",
-        "New seam ID renumbered S-P1-20 → S-P1-21 (collision with FHIR-MINI's S-P1-20)"
+        "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver \u00a73.3 mongo path corrected \u2014 CITATION-DRIFT logged",
+        "Hard ledger ceiling raised $2.50 \u2192 $5.00 after smoke revealed $0.057/call (user 'cost is okay')",
+        "New seam ID renumbered S-P1-20 \u2192 S-P1-21 (collision with FHIR-MINI's S-P1-20)"
       ]
     },
     {
@@ -73,9 +73,9 @@
       "status": "closed-PROCEED-WITH-CAVEATS",
       "closed_at": "2026-05-28",
       "closing_commits": "lithrim-bench 2e4a000 (spec + builder + picklist module) + d6f288e (harness Path-T awareness) + lithrim-backend 092404a (EvalCase additive Optional fields) + lithrim-bench 59a4e3d (calibration + REPORT) + close-out commit",
-      "audit_verdict": "CLEAN — all 9 A* acceptance criteria PASS on live re-verification (spec.json sha256 + Mongo pack _id + case_count + paper_pick_labels all match executor claims verbatim); 5+1 atomic commits per driver §6; backend diff scoped to app/models/eval_case.py only with all new fields Optional. See .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md §1 + §3.",
-      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode; monitor authored the driver — Q1 spec-vs-impl independence reduced but executor-vs-critique independence preserved since exec was a separate session). Q1 0/1/0 (cosmetic — pack doc created_by=undefined); Q2 0/0/0 CLEAN (3 case chains S1+S8+C2 trace end-to-end); Q3 0/0/0 CLEAN (backend diff is single file, additive Optional); Q4 0/0/3 (S2 widening disposition / pack created_by gap / substitutes-contract asymmetry between S2 and M1). Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md.",
-      "monitor_recommendation_s2_widening": "HOLD WITH EXECUTOR — defer to P1-CANONICAL-N5-PILOT close-out; widening S2 now would mask the most visible S-P1-13 dispersion signal the N=5 pilot is designed to surface. Add explicit decision-deferral note to N=5 driver.",
+      "audit_verdict": "CLEAN \u2014 all 9 A* acceptance criteria PASS on live re-verification (spec.json sha256 + Mongo pack _id + case_count + paper_pick_labels all match executor claims verbatim); 5+1 atomic commits per driver \u00a76; backend diff scoped to app/models/eval_case.py only with all new fields Optional. See .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md \u00a71 + \u00a73.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode; monitor authored the driver \u2014 Q1 spec-vs-impl independence reduced but executor-vs-critique independence preserved since exec was a separate session). Q1 0/1/0 (cosmetic \u2014 pack doc created_by=undefined); Q2 0/0/0 CLEAN (3 case chains S1+S8+C2 trace end-to-end); Q3 0/0/0 CLEAN (backend diff is single file, additive Optional); Q4 0/0/3 (S2 widening disposition / pack created_by gap / substitutes-contract asymmetry between S2 and M1). Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md.",
+      "monitor_recommendation_s2_widening": "HOLD WITH EXECUTOR \u2014 defer to P1-CANONICAL-N5-PILOT close-out; widening S2 now would mask the most visible S-P1-13 dispersion signal the N=5 pilot is designed to surface. Add explicit decision-deferral note to N=5 driver.",
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.json",
       "executor_report": "docs/research/REPORT_paper_v1_n12_canonical_pack.md",
@@ -84,7 +84,7 @@
         "S-P1-19"
       ],
       "executor_deviations_observed_not_applied": [
-        "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT §3 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
+        "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT \u00a73 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
       ],
       "hardness": "routine",
       "target_repos": [
@@ -93,7 +93,7 @@
       ],
       "related_docs": [
         "docs/research/REPORT_canonical_12_validation_2026-05-28.md (P1-VALIDATE-12 baseline)",
-        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md \u00a710 (C1+C2 closure)",
         "docs/research/REPORT_paper_v1_n12_canonical_pack.md (this cycle's REPORT)",
         "/tmp/pilot_picklist.json",
         "out/paper_v1_n12_canonical.spec.json (canonical pack manifest, sha256 57de4fbf80...)",
@@ -111,7 +111,7 @@
       "cost_actual_usd": 0.36,
       "expected_runtime_min": 30,
       "actual_runtime_min": 12,
-      "next_action": "monitor: /devloop-audit paper-1-copilot P1-CANONICAL-PACK (walk §4 substitutes table case-by-case, spot-check 3 eval_case docs against spec.json, decide S2 widening question), then draft P1-CANONICAL-N5-PILOT driver"
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-CANONICAL-PACK (walk \u00a74 substitutes table case-by-case, spot-check 3 eval_case docs against spec.json, decide S2 widening question), then draft P1-CANONICAL-N5-PILOT driver"
     },
     {
       "id": "paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-one-validator-three-cases-driver",
@@ -124,22 +124,22 @@
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json",
       "executor_report": "docs/research/REPORT_p1_fhir_mini_2026-05-28.md",
-      "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / §6.5 paper claim NO-GO on FHIR Patient under current architecture",
-      "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) — case A clean→BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
+      "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / \u00a76.5 paper claim NO-GO on FHIR Patient under current architecture",
+      "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) \u2014 case A clean\u2192BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
       "executor_seams_opened": [
         "S-P1-20",
         "S-P1-15-fhir-extension"
       ],
       "executor_deviations_approved": [
-        "Plan-review pivot to Option A (MINI-AS-AUDIT) — use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT §4 instead of fresh Copilot session log.",
-        "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ — existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
-        "Generate 112 patients (driver §3 plan-review default) — actual produced 121 records (112 alive + 9 dead per Synthea report)."
+        "Plan-review pivot to Option A (MINI-AS-AUDIT) \u2014 use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT \u00a74 instead of fresh Copilot session log.",
+        "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ \u2014 existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
+        "Generate 112 patients (driver \u00a73 plan-review default) \u2014 actual produced 121 records (112 alive + 9 dead per Synthea report)."
       ],
       "executor_citation_drift_logged": [
-        "Driver §0: 'db.artifact_profile.countDocuments({}) == 0 — ZERO validators provisioned' → actual collection is artifact_profiles (plural) with 17 active docs; fhir_patient already provisioned at mapping 41",
-        "Driver §2.3 schema (target_standard, is_active, metadata) → actual model has target_format, active, no metadata field",
-        "Driver §6 commit-1: '.edn mapping file' → etlp-mapper mappings are DB-resident YAML strings, not on-disk .edn files",
-        "Driver §8 first-move: assumed Synthea generator available locally → had to install v4.0.0 JAR (~$0, ~5 min)"
+        "Driver \u00a70: 'db.artifact_profile.countDocuments({}) == 0 \u2014 ZERO validators provisioned' \u2192 actual collection is artifact_profiles (plural) with 17 active docs; fhir_patient already provisioned at mapping 41",
+        "Driver \u00a72.3 schema (target_standard, is_active, metadata) \u2192 actual model has target_format, active, no metadata field",
+        "Driver \u00a76 commit-1: '.edn mapping file' \u2192 etlp-mapper mappings are DB-resident YAML strings, not on-disk .edn files",
+        "Driver \u00a78 first-move: assumed Synthea generator available locally \u2192 had to install v4.0.0 JAR (~$0, ~5 min)"
       ],
       "hardness": "routine",
       "target_repos": [
@@ -147,7 +147,7 @@
       ],
       "related_docs": [
         "../lithrim-backend/app/services/artifact_evaluator.py:649-734 (ARTIFACT_TYPE_MAP + _get_artifact_profile)",
-        "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver §2.3)",
+        "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver \u00a72.3)",
         "data/synthea_2026-05-28/MANIFEST.txt (Synthea v4.0.0 cohort manifest; seed=1; sha256 ed43c20a...)",
         "data/picklist_fhir_mini.json (3 Path T picklist rows)",
         "out/fhir_patient_mini.jsonl (3 cases)",
@@ -159,15 +159,15 @@
         "docs/research/REPORT_p1_fhir_mini_2026-05-28.md (this cycle's REPORT)",
         ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json"
       ],
-      "_note": "Derisk cycle for §6.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver §0 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but §6.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT §5 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
+      "_note": "Derisk cycle for \u00a76.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver \u00a70 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but \u00a76.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT \u00a75 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 0.5,
       "cost_actual_usd": 0.1,
       "expected_runtime_days": 2.5,
       "actual_runtime_hours": 5,
-      "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) — NO-GO TRIGGERED 2026-05-28 (case A clean→BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
-      "next_action": "monitor: /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI — walk REPORT §5 NO-GO criteria against §3 verbatim evidence blocks; then author (a) P1-FHIR-S-P1-15-EXTENSION driver (backend status-translation fix; ~half day) AND (b) P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (stripped-artifact 3-case re-test, bench-only; ~half day). P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (a) lands."
+      "decision_gate": "REPORT \u00a75 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) \u2014 NO-GO TRIGGERED 2026-05-28 (case A clean\u2192BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI \u2014 walk REPORT \u00a75 NO-GO criteria against \u00a73 verbatim evidence blocks; then author (a) P1-FHIR-S-P1-15-EXTENSION driver (backend status-translation fix; ~half day) AND (b) P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (stripped-artifact 3-case re-test, bench-only; ~half day). P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (a) lands."
     },
     {
       "id": "paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver",
@@ -178,9 +178,9 @@
       "status": "closed-NON-BLOCKING-FINDINGS-Path-T",
       "closed_at": "2026-05-28",
       "closing_commits": "lithrim-bench 4d76d8a..6d497e8 (3 atomic) + lithrim-sdk 49e8a56 (1 approved mid-cycle deviation for S-P1-12) + close-out commit",
-      "audit_verdict": "(7-item mechanical audit folded into inline critique pass) — CLEAN: 3 atomic commits per driver §6; deliverables D1-D5 all present per driver §2; both mid-cycle deviations logged with verbatim user authorization; STREAM + state + index edits land per driver §6 close-out.",
-      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode, executor-running-as-monitor; honesty caveat preserved in critique §Discipline self-check). Q1 0/2/1; Q2 0/0/1; Q3 0/1/0; Q4 0/0/3. Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.md.",
-      "arbitration": "Ambiguity 1 (driver §5 A3 literal 3/12 FAIL vs triage-relaxed 9/12 PASS): USER ELECTED PATH T 2026-05-28 under engineering-velocity tradeoff. Precedent acknowledged: A3-floor re-interpretation at close-out is now a documented possibility; future cycle drivers should phrase A3 to make literal-vs-triage explicit if literal is intended (e.g. 'all_three_pass count >= 9/12 STRICTLY' or 'all_three_pass count + triage-relaxed-promote count >= 9/12'). Path T closing condition: picklist-taxonomy-widening contract becomes an explicit P1-CANONICAL-PACK driver requirement, not implicit.",
+      "audit_verdict": "(7-item mechanical audit folded into inline critique pass) \u2014 CLEAN: 3 atomic commits per driver \u00a76; deliverables D1-D5 all present per driver \u00a72; both mid-cycle deviations logged with verbatim user authorization; STREAM + state + index edits land per driver \u00a76 close-out.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode, executor-running-as-monitor; honesty caveat preserved in critique \u00a7Discipline self-check). Q1 0/2/1; Q2 0/0/1; Q3 0/1/0; Q4 0/0/3. Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.md.",
+      "arbitration": "Ambiguity 1 (driver \u00a75 A3 literal 3/12 FAIL vs triage-relaxed 9/12 PASS): USER ELECTED PATH T 2026-05-28 under engineering-velocity tradeoff. Precedent acknowledged: A3-floor re-interpretation at close-out is now a documented possibility; future cycle drivers should phrase A3 to make literal-vs-triage explicit if literal is intended (e.g. 'all_three_pass count >= 9/12 STRICTLY' or 'all_three_pass count + triage-relaxed-promote count >= 9/12'). Path T closing condition: picklist-taxonomy-widening contract becomes an explicit P1-CANONICAL-PACK driver requirement, not implicit.",
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.json",
       "executor_report": "docs/research/REPORT_canonical_12_validation_2026-05-28.md",
@@ -195,7 +195,7 @@
       ],
       "executor_deviations_approved": [
         "SDK timeout bump 30s -> 120s in harness (scripts/validate_canonical_12_via_sdk.py:218)",
-        "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver §4 NO-SDK-changes guardrail"
+        "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver \u00a74 NO-SDK-changes guardrail"
       ],
       "version": "v1.1",
       "hardness": "routine",
@@ -220,7 +220,7 @@
           "confirmed": 9,
           "drifted": 1,
           "missing": 0,
-          "drift_notes": "Spec path was cited as ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (3 occurrences: §1.5, §1.7, §9). Actual location is lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md — cross-repo driver lives in the bench repo. Fixed in driver v1.1. Also tightened §1.7 to quote spec §7 A4 verbatim (was a paraphrase). Code citations all CONFIRMED: harness symbols at L74/L96/L121; bench evaluate adapter L84; bench _parse L155; SDK evaluate L593; council v2 trio L463; _compose_council_verdict_v2 L1812; Tier-1 safety floor L2347-2352."
+          "drift_notes": "Spec path was cited as ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (3 occurrences: \u00a71.5, \u00a71.7, \u00a79). Actual location is lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md \u2014 cross-repo driver lives in the bench repo. Fixed in driver v1.1. Also tightened \u00a71.7 to quote spec \u00a77 A4 verbatim (was a paraphrase). Code citations all CONFIRMED: harness symbols at L74/L96/L121; bench evaluate adapter L84; bench _parse L155; SDK evaluate L593; council v2 trio L463; _compose_council_verdict_v2 L1812; Tier-1 safety floor L2347-2352."
         }
       ],
       "predicted_pass_count": "9-11/12 (S7 is paper-documented residual per S-P1-8; C1/C2 are at-risk for structural over-fire per medications_well_formed pathology observed in council_v2_smoke_pack run 6a17562b98b1c3a21b033e65)",
@@ -263,24 +263,24 @@
         "docs/HANDOFF_2026-05-23.md",
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md",
         "out/hl7_adt_v1.jsonl",
-        "../lithrim-backend/app/services/pipeline/models.py (JudgeVote.confidence — confirms API emits it)"
+        "../lithrim-backend/app/services/pipeline/models.py (JudgeVote.confidence \u2014 confirms API emits it)"
       ],
       "created": "2026-05-27",
       "last_re_verified": "2026-05-27",
-      "s_p1_1_verification": "resolved 2026-05-27 — $0 path unavailable; cost firmly ~$5 + ~30min plumbing; see driver §0 for evidence-tagged diagnosis",
+      "s_p1_1_verification": "resolved 2026-05-27 \u2014 $0 path unavailable; cost firmly ~$5 + ~30min plumbing; see driver \u00a70 for evidence-tagged diagnosis",
       "closed_at": "2026-05-27",
       "closing_commits": "32d1bf7..7f6858c (4 atomic) + 4fb93cc (executor close-out)",
       "audit_verdict": "DRIFT (1 substantive, acknowledged via S-P1-4 fold-in; 1 minor process-improvement for future driver template)",
-      "critique_verdict": "NON-BLOCKING FINDINGS (Q1 0/0/0; Q2 0/1/0; Q3 0/0/0; Q4 0/0/3) — critique file `.devloop/sessions/critique-paper-1-copilot-phaseP1-EXP-0-2026-05-27.md`",
-      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_kickoff_2026-05-27.md",
-      "next_action": "user decides between P1-§5 (recommended; routine; expand 393-word draft) and P1-§2 (HARD GATE; needs S-P1-3 user confirm first)"
+      "critique_verdict": "NON-BLOCKING FINDINGS (Q1 0/0/0; Q2 0/1/0; Q3 0/0/0; Q4 0/0/3) \u2014 critique file `.devloop/sessions/critique-paper-1-copilot-phaseP1-EXP-0-2026-05-27.md`",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-\u00a75_kickoff_2026-05-27.md",
+      "next_action": "user decides between P1-\u00a75 (recommended; routine; expand 393-word draft) and P1-\u00a72 (HARD GATE; needs S-P1-3 user confirm first)"
     },
     {
-      "id": "paper-1-copilot-phase-§2-jute-copilot-mechanism-driver",
+      "id": "paper-1-copilot-phase-\u00a72-jute-copilot-mechanism-driver",
       "stream": "paper-1-copilot",
-      "phase": "P1-§2",
+      "phase": "P1-\u00a72",
       "scope": "jute-copilot-mechanism",
-      "file": "paper-1-copilot_phase-§2_jute_copilot_mechanism_driver.md",
+      "file": "paper-1-copilot_phase-\u00a72_jute_copilot_mechanism_driver.md",
       "status": "stub",
       "hardness": "HARD-GATE",
       "hardness_reason": "Full mechanism disclosure (A2) is a one-way decision; spec-adherence pass + user confirmation gate this cycle",
@@ -292,18 +292,18 @@
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md (A2 amendment)",
         "../etlp-mapper/src/etlp_mapper/handler/copilot.clj"
       ],
-      "blocked_by_decision": "S-P1-3 — confirm full disclosure with user before drafting",
+      "blocked_by_decision": "S-P1-3 \u2014 confirm full disclosure with user before drafting",
       "created": "2026-05-27",
       "last_re_verified": null,
-      "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-§2"
+      "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-\u00a72"
     },
     {
-      "id": "paper-1-copilot-phaseP1-§5-silent-confident-certification-cycle",
+      "id": "paper-1-copilot-phaseP1-\u00a75-silent-confident-certification-cycle",
       "stream": "paper-1-copilot",
-      "phase": "P1-§5",
+      "phase": "P1-\u00a75",
       "scope": "silent-confident-certification + cross-provider-trio-architectural-correction",
       "file": null,
-      "_note": "No driver file authored — cycle started as routine §5 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
+      "_note": "No driver file authored \u2014 cycle started as routine \u00a75 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
       "status": "shipped",
       "hardness": "routine-grew-to-research",
       "target_repos": [
@@ -317,16 +317,16 @@
       ],
       "created": "2026-05-27",
       "closed_at": "2026-05-27",
-      "closing_commits": "(none yet — working tree drift; see S-P1-11)",
-      "audit_verdict": "(not yet audited — pending flush of working-tree drift in 3 atomic commits)",
-      "critique_verdict": "(not yet — recommend inline critique on §5 + spec content before any further paper sections)",
-      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_close_2026-05-27.md",
+      "closing_commits": "(none yet \u2014 working tree drift; see S-P1-11)",
+      "audit_verdict": "(not yet audited \u2014 pending flush of working-tree drift in 3 atomic commits)",
+      "critique_verdict": "(not yet \u2014 recommend inline critique on \u00a75 + spec content before any further paper sections)",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-\u00a75_close_2026-05-27.md",
       "headline_numbers": {
-        "silent_confident_certifications_eliminated": "5/10 → 0/10",
-        "false_positives_on_cleans_eliminated": "2/2 → 0/2",
-        "verdict_match_against_deterministic_labels": "9/12 → 11/12",
-        "confidence_calibration": "36/36 votes @ 1.000 → gpt-4.1 mean 0.93 (range 0.51–1.00); Llama mean 0.95 (range 0.73–1.00); Mistral N/A (Azure rejects logprobs)",
-        "residual_limitation": "S7 — fine-grained HL7 structural defects; LLM-as-judge limitation handled by §6 worst-of structural composition (paper-bearing, documented)"
+        "silent_confident_certifications_eliminated": "5/10 \u2192 0/10",
+        "false_positives_on_cleans_eliminated": "2/2 \u2192 0/2",
+        "verdict_match_against_deterministic_labels": "9/12 \u2192 11/12",
+        "confidence_calibration": "36/36 votes @ 1.000 \u2192 gpt-4.1 mean 0.93 (range 0.51\u20131.00); Llama mean 0.95 (range 0.73\u20131.00); Mistral N/A (Azure rejects logprobs)",
+        "residual_limitation": "S7 \u2014 fine-grained HL7 structural defects; LLM-as-judge limitation handled by \u00a76 worst-of structural composition (paper-bearing, documented)"
       },
       "new_seams_opened": [
         "S-P1-7",
@@ -335,7 +335,7 @@
         "S-P1-10",
         "S-P1-11"
       ],
-      "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc — recommend P1-§6."
+      "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc \u2014 recommend P1-\u00a76."
     },
     {
       "id": "paper-1-copilot-phaseP1-COUNCIL-V2-cross-provider-integration-driver",
@@ -343,7 +343,7 @@
       "phase": "P1-COUNCIL-V2",
       "scope": "cross-provider-trio-backend-integration",
       "file": "docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
-      "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) — cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
+      "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) \u2014 cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
       "status": "ready",
       "hardness": "routine",
       "target_repos": [
@@ -358,7 +358,7 @@
       "blocked_by_decision": "BRS-2 (failure-cluster rekey) + BRS-5 (evidence-span surfacing) must ship first to avoid compliance_workflow.py conflicts",
       "created": "2026-05-27",
       "last_re_verified": "2026-05-27",
-      "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec §4 + kickoff in fresh lithrim-backend exec session."
+      "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec \u00a74 + kickoff in fresh lithrim-backend exec session."
     },
     {
       "id": "bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-consensus-evidence-gate-driver",
@@ -367,7 +367,7 @@
       "scope": "consensus-evidence-gate",
       "file": "bench-salvage_phaseCOUNCIL-EVIDENCE-GATE_consensus_evidence_gate_driver.md",
       "status": "halted-rescoped",
-      "close_verdict": "BLOCKED-AND-RE-SCOPE 2026-05-30 — pre-check P0 falsified the R3(d) fix (SPEC §2b FALSIFIED); 0 commits; root cause is judge calibration, re-routed to P1 as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md + .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30. HARD-GATE fresh-critic waived (no-code halt; monitor independently re-verified raw evidence).",
+      "close_verdict": "BLOCKED-AND-RE-SCOPE 2026-05-30 \u2014 pre-check P0 falsified the R3(d) fix (SPEC \u00a72b FALSIFIED); 0 commits; root cause is judge calibration, re-routed to P1 as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md + .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30. HARD-GATE fresh-critic waived (no-code halt; monitor independently re-verified raw evidence).",
       "hardness": "HARD-GATE",
       "hardness_reason": "Changes the council OUTPUT CONTRACT (build_prompt findings-first instruction) and the consensus aggregation that turns flags into a BLOCK vote. Blast radius is every case. Requires a fresh-critic session (cannot close on inline critique) plus user confirmation before the one-way change lands.",
       "target_repos": [
@@ -392,6 +392,21 @@
       "cost_max_acceptable_usd": 5,
       "expected_runtime_min": 30,
       "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required before any code; HARD GATE means a fresh-critic close (not inline) plus user sign-off on the every-case blast radius."
+    },
+    {
+      "id": "bench-salvage-phaseWS-0-one-case-over-live-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-0",
+      "scope": "one-case-over-live",
+      "file": "bench-salvage_phaseWS-0_one_case_over_live_driver.md",
+      "status": "stub",
+      "hardness": "routine",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "scope_note": "Walking-skeleton spine. Grading PROVEN LIVE 2026-05-30 (baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Build persist + harness-side grounding (S-BS-7 presence-check) OFFLINE against the saved baseline \u2014 zero new paid calls. Expand with /devloop-expand-driver bench-salvage WS-0.",
+      "created": "2026-05-30",
+      "next_action": "Run /devloop-expand-driver bench-salvage WS-0."
     }
   ]
 }

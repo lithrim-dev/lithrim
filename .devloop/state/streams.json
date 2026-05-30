@@ -1,14 +1,17 @@
 {
   "version": "1",
   "repo": "lithrim-bench",
-  "updated": "2026-05-28T06:30+05:30",
+  "updated": "2026-05-30T12:00+05:30",
   "streams": [
     {
       "id": "brs-arc",
-      "name": "Bench Reporting Series (BRS-0a → BRS-6)",
+      "name": "Bench Reporting Series (BRS-0a \u2192 BRS-6)",
       "status": "active",
       "owner": "monitor",
-      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "state_doc": "STREAM_brs-arc.md",
       "task_pack": "tasks/TASK_PACK_brs-arc.json",
       "current_phase": "BRS-2",
@@ -20,20 +23,43 @@
     },
     {
       "id": "paper-1-copilot",
-      "name": "Paper 1 — Closing the Validator-Authoring Bottleneck (Jute Copilot)",
+      "name": "Paper 1 \u2014 Closing the Validator-Authoring Bottleneck (Jute Copilot)",
       "status": "active",
       "owner": "monitor",
-      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "state_doc": "STREAM_paper-1-copilot.md",
       "task_pack": "tasks/TASK_PACK_paper-1-copilot.json",
-      "current_phase": "P1-PACK-V2-WIDEN (apply S2 substitute, queued) || P1-COUNCIL-V2-POLICY-JUDGE-NARROWING (S-P1-21 follow-up, queued) || P1-FHIR-S-P1-15-EXTENSION (backend fix, queued) || P1-FHIR-MINI-SEMANTIC-DECOMPOSITION (stripped-artifact 3-case re-test, queued) || paper §5.4 draft cycle (reads dispersion.md directly, parallel)",
+      "current_phase": "P1-PACK-V2-WIDEN (apply S2 substitute, queued) || P1-COUNCIL-V2-POLICY-JUDGE-NARROWING (S-P1-21 follow-up, queued) || P1-FHIR-S-P1-15-EXTENSION (backend fix, queued) || P1-FHIR-MINI-SEMANTIC-DECOMPOSITION (stripped-artifact 3-case re-test, queued) || paper \u00a75.4 draft cycle (reads dispersion.md directly, parallel)",
       "previous_phase": "P1-CANONICAL-N5-PILOT",
       "previous_phase_closed_at": "2026-05-28",
       "launch_tag": "external",
       "created": "2026-05-27",
       "updated": "2026-05-28",
       "north_star": "Ship arXiv-first publication of the Jute Copilot mechanism + HL7 demonstration + silent-confident-certification motivation. Paired with framework deck refresh + outreach wave + LinkedIn long-form.",
-      "cycle_state_note": "P1-CANONICAL-N5-PILOT closed 2026-05-28 PROCEED-WITH-CAVEATS. 60-call dispersion measurement on paper_v1_n12_canonical complete: verdict-layer empirically deterministic (12/12 cases at 5/5 modal), per-judge votes split in 4/12, finding-code emission dispersed in 7/12, content_filter incidence 0/60. S2 mechanical decision: WIDEN (WRONG_DOSAGE 0/5; substitute MEDICATION_NOT_IN_TRANSCRIPT 5/5 — symmetric with M1; contract change deferred to follow-up P1-PACK-V2-WIDEN per measurement-only scope). S-P1-13 disposition: stays OPEN as paper-§5.4 methodology limitation with the dispersion stats as the published characterization; investigation deferred post-arXiv. C1 clean-negative regressed to BLOCK 5/5 under N=5 — policy_judge (Mistral) fires FABRICATED_CONSENT 4/5 despite the S-P1-18 NKA patch that closed the risk_judge leg. New seam S-P1-21 medium (paper §5.5 0/2 FP on cleans claim does NOT replicate at N=5; needs methodology caveat OR a follow-up cycle similar to S-P1-18 NKA propagation but on the policy_judge FABRICATED_CONSENT leg). Cost actual $3.40 conservative blend / $2.20 driver's empirical blend (user confirmed cost is okay mid-cycle; hard ledger raised $2.50→$5.00). NEXT MONITOR: (1) /devloop-close-phase paper-1-copilot P1-CANONICAL-N5-PILOT — walk REPORT §3 S2 decision + §4 illustrative-case picks + S-P1-21 wording; (2) draft P1-PACK-V2-WIDEN driver (small, surgical, ~10 min); (3) draft P1-COUNCIL-V2-POLICY-JUDGE-NARROWING driver (S-P1-21 follow-up, paper-bearing); (4) paper §5.4 can read from dispersion table + §4 picks; §5.5 either gets methodology caveat OR waits for (3); (5) FHIR follow-ups from prior monitor session unchanged (S-P1-15-fhir-extension + MINI-SEMANTIC-DECOMPOSITION + FULL stays NO-GO)."
+      "cycle_state_note": "P1-CANONICAL-N5-PILOT closed 2026-05-28 PROCEED-WITH-CAVEATS. 60-call dispersion measurement on paper_v1_n12_canonical complete: verdict-layer empirically deterministic (12/12 cases at 5/5 modal), per-judge votes split in 4/12, finding-code emission dispersed in 7/12, content_filter incidence 0/60. S2 mechanical decision: WIDEN (WRONG_DOSAGE 0/5; substitute MEDICATION_NOT_IN_TRANSCRIPT 5/5 \u2014 symmetric with M1; contract change deferred to follow-up P1-PACK-V2-WIDEN per measurement-only scope). S-P1-13 disposition: stays OPEN as paper-\u00a75.4 methodology limitation with the dispersion stats as the published characterization; investigation deferred post-arXiv. C1 clean-negative regressed to BLOCK 5/5 under N=5 \u2014 policy_judge (Mistral) fires FABRICATED_CONSENT 4/5 despite the S-P1-18 NKA patch that closed the risk_judge leg. New seam S-P1-21 medium (paper \u00a75.5 0/2 FP on cleans claim does NOT replicate at N=5; needs methodology caveat OR a follow-up cycle similar to S-P1-18 NKA propagation but on the policy_judge FABRICATED_CONSENT leg). Cost actual $3.40 conservative blend / $2.20 driver's empirical blend (user confirmed cost is okay mid-cycle; hard ledger raised $2.50\u2192$5.00). NEXT MONITOR: (1) /devloop-close-phase paper-1-copilot P1-CANONICAL-N5-PILOT \u2014 walk REPORT \u00a73 S2 decision + \u00a74 illustrative-case picks + S-P1-21 wording; (2) draft P1-PACK-V2-WIDEN driver (small, surgical, ~10 min); (3) draft P1-COUNCIL-V2-POLICY-JUDGE-NARROWING driver (S-P1-21 follow-up, paper-bearing); (4) paper \u00a75.4 can read from dispersion table + \u00a74 picks; \u00a75.5 either gets methodology caveat OR waits for (3); (5) FHIR follow-ups from prior monitor session unchanged (S-P1-15-fhir-extension + MINI-SEMANTIC-DECOMPOSITION + FULL stays NO-GO)."
+    },
+    {
+      "id": "bench-salvage",
+      "name": "Bench Salvage, salvage-and-compose the shipped council + pipeline into an in-process local stack",
+      "status": "active",
+      "owner": "monitor",
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
+      "state_doc": "STREAM_bench-salvage.md",
+      "task_pack": "tasks/TASK_PACK_bench-salvage.json",
+      "current_phase": "WS-0 (one case end-to-end over live APIs; grading seam PROVEN LIVE 2026-05-30) || WS-1 sqlite-config-plane || WS-2 generalize-:8002 || WS-3 tool-grounding-midloop || WS-4 evalpack+calibration-gate || WS-5 shell || WS-6 compartmentalize-local",
+      "previous_phase": "COUNCIL-EVIDENCE-GATE (halted/re-scoped)",
+      "previous_phase_closed_at": "2026-05-30",
+      "launch_tag": "internal",
+      "created": "2026-05-30",
+      "updated": "2026-05-30",
+      "north_star": "Domain-agnostic, tool-grounded eval/calibration harness composed over live :8002/:3031 + pinecone, SQLite=config plane, ontology=domain. Walking-skeleton: WS-0 one case end-to-end, then thicken. Grounding flips verdicts (logged) \u2192 fine-tuning-ready records (RLVR/data-lake north star). In-process M1 demoted to WS-6.",
+      "cycle_state_note": "2026-05-30 PIVOT to walking-skeleton (compose-over-live, not bottom-up vendoring). COUNCIL-EVIDENCE-GATE halted (R3(d) falsified; FP is judge-calibration \u2192 S-BS-7). WS-0 grading seam proven live (POST :8002/v1/pipeline/evaluate, inline, sync ~40s, X-API-Key, org_id-in-body, eval_mode; baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Live backend=v2 \u2192 over-fires (S-BS-2 confirmed live; extra grounding targets). NEXT: /devloop-expand-driver bench-salvage WS-0, then build persist+harness-side-grounding OFFLINE against the baseline (zero paid calls). Seams: S-BS-1 resolved, S-BS-3 moot, S-BS-4 decided doc-shim, S-BS-6 (live=v2) decide in WS-0/1, S-BS-7 WS-0 worked example, S-BS-8 null-code findings new."
     }
   ]
 }
