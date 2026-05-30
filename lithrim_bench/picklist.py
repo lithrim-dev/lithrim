@@ -48,6 +48,16 @@ def resolve_case_fixtures(case_ids: set[str]) -> dict[str, dict[str, Any]]:
     Identical semantics to the original
     ``scripts/validate_canonical_12_via_sdk.py:_resolve_case_fixtures`` so
     callers can be swapped one-for-one.
+
+    COLLISION-RESOLUTION ORDER (S-BS-9, documented + deterministic):
+    ``PACK_FILES`` order is authoritative. Within a pack, the FIRST listed file
+    wins on a ``case_id`` clash (``cid not in found`` keeps the first), so for
+    ``scribe_v1`` the ``*.n10.jsonl`` file wins over the base ``*.jsonl`` — the same
+    row may then carry a *different* ``expected_compliance_verdict`` shape (a list in
+    n10 vs a bare string in the base file). Consumers that need a specific shape
+    pin the source file explicitly via :func:`load_case` (the eval-profile
+    ``dataset.source`` does this for the WS-0 case); the shape itself is normalized
+    by :func:`normalize_expected_verdict`. No silent precedence beyond this rule.
     """
     found: dict[str, dict[str, Any]] = {}
     for _pack_name, paths in PACK_FILES.items():
@@ -60,3 +70,43 @@ def resolve_case_fixtures(case_ids: set[str]) -> dict[str, dict[str, Any]]:
                 if cid in case_ids and cid not in found:
                     found[cid] = row
     return found
+
+
+# S-BS-9 shape contract: ``expected_compliance_verdict`` is EITHER a bare string
+# verdict ("reject") OR an accept-set list of acceptable verdicts
+# (["needs_review", "reject"]). Both normalize to a set of acceptable verdicts.
+ACCEPTABLE_VERDICTS = {"approve", "needs_review", "reject"}
+
+
+def normalize_expected_verdict(value: Any) -> set[str]:
+    """Normalize either shape of ``expected_compliance_verdict`` to a verdict set."""
+    if value is None:
+        return set()
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, (list, tuple, set)):
+        return {str(v) for v in value}
+    raise ValueError(f"unsupported expected_compliance_verdict shape: {value!r}")
+
+
+def expected_block(case: dict[str, Any]) -> bool:
+    """True when 'reject' is (or is among) the case's expected compliance verdict.
+
+    Subsumes the WS-0 ``run_ws0.expected_block`` shape-tolerant workaround into the
+    single documented shape contract above.
+    """
+    return "reject" in normalize_expected_verdict(case.get("expected_compliance_verdict"))
+
+
+def load_case(case_id: str, *, source: str | Path | None = None) -> dict[str, Any] | None:
+    """Load one case row by id. If ``source`` is given, that file is pinned (the
+    S-BS-9 source-pin); otherwise fall back to the documented pack resolution order.
+    """
+    if source is not None:
+        source = Path(source)
+        if source.exists():
+            for line in source.open():
+                row = json.loads(line)
+                if (row.get("case_id") or row.get("id")) == case_id:
+                    return row
+    return resolve_case_fixtures({case_id}).get(case_id)
