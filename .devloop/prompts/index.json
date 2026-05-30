@@ -508,9 +508,17 @@
       "phase": "WS-2",
       "scope": "generalize-backend-config-injection",
       "file": "bench-salvage_phaseWS-2_generalize_backend_config_injection_driver.md",
-      "status": "ready",
+      "status": "interim-bench-closed-backend-HARD-GATE-paused",
       "version": "v1",
       "hardness": "HARD-GATE",
+      "bench_side_close_2026_05_31": {
+        "commits": "8b396d3..5ba1bec (7; D0/S-BS-10 + D3 + D4)",
+        "verdict": "PROCEED-WITH-CAVEATS (bench-side faithful; A1/A4/A5-bench PASS; A2/A3/A5-backend SKIP, gated)",
+        "monitor_audit": "CLEAN — 7/7 mechanical; 107 tests green; hygiene verified (zero ../lithrim-backend files in the bench diff; backend WIP untouched); scope held (9 in-repo files).",
+        "fresh_critic_verdict": "NON-BLOCKING FINDINGS — .devloop/sessions/critique-bench-salvage-phaseWS-2-2026-05-31.md (FRESH session, base 3e7f7f7..5ba1bec). S-BS-10 lint gate + 19/4 partition ENFORCED (seed_ontology gradeable_flags_outside_snapshot:160 → SystemExit:307; reference removed from active pre-rescore grounding.py:204); None-injection byte-identical to WS-0/WS-1 (grade.py:79); locked D2 seam stayed strictly additive (no backend/build_prompt edit in range; S-BS-11 prose rewrite NOT pre-empted).",
+        "critique_findings": "Q1 0/1/0 (new gradeable_flags/is_gradeable/is_reference predicates vs extending flag/owners_of — intent met); Q4 0/0/3. Most material: Q4.1 = one-directional lint (S-BS-12). Q4.2/Q4.3 = reference-removed vs S-BS-8-null-retained (correct, spec phrasing ambiguous) + lint covers 19 tier codes not the 5 structural (WS-3).",
+        "new_seams": ["S-BS-11 (build_prompt prose; D2 scope locked)", "S-BS-12 (one-directional snapshot lint)"]
+      },
       "hardness_reason": "First cross-repo cycle since the walking-skeleton pivot — adds Optional council_config + ontology to the backend PipelineRequest contract (blast radius = every :8002 caller). Additive/backward-compatible, but a one-way public-shape change requires a fresh-critic close (NOT inline) + user sign-off before the backend commit lands.",
       "target_repos": [
         "lithrim-bench",
@@ -535,7 +543,7 @@
       "plan_review_decisions_2026_05_31": "Executor posted plan-review; user answered: (1) backend in-flight WIP handling = user LANDS/STASHES it first, executor never touches it (see blocked_by_decision); (2) one ~$0.10 live :8002 /v1/pipeline/evaluate smoke with injected config AUTHORIZED (diagnostic, not a gate; A3 also covered offline). Design leans 1–4 (D0-first; Optional=None additive; backend fallback-to-current; harness injects stored config) implicitly accepted pending 'go'. Executor's plan-review also flagged the dirty-tree error this entry now corrects.",
       "cost_envelope_usd": 0.1,
       "cost_max_acceptable_usd": 0.5,
-      "next_action": "User to give 'go'. Executor does deliverable-0 (harness-only snapshot lint gate) FIRST; lands D0–D4 (harness, bench repo) before touching ../lithrim-backend/. The backend commits additionally wait for: user lands/stashes the in-flight backend WIP + HARD GATE fresh-critic close (/devloop-critique bench-salvage WS-2, NOT inline) + user sign-off on the every-:8002-caller blast radius. One ~$0.10 live smoke authorized."
+      "next_action": "BENCH-SIDE LANDED + fresh-critic NON-BLOCKING (gate condition 2 met for the bench half). BACKEND D1/D2/D4 STILL GATED on: (1) user lands/stashes the in-flight backend WIP (8 files) — executor never touches it; (3) user sign-off on the every-:8002-caller blast radius. THEN executor implements backend D1/D2/D4 + runs the one ~$0.10 A3 live smoke; the BACKEND commits require their OWN fresh-critic pass before they land (the bench-side critic did not see them). A2/A3/A5-backend remain SKIP until then — monitor must NOT treat them as PASS. Carry S-BS-12 (bidirectional lint) into the backend driver / a follow-up."
     }
   ]
 }
