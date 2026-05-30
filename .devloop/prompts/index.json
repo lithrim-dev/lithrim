@@ -446,6 +446,38 @@
       ],
       "cost_envelope_usd": 0,
       "may_be_zero_cost": true
+    },
+    {
+      "id": "bench-salvage-phaseWS-1-sqlite-config-plane-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-1",
+      "scope": "sqlite-config-plane",
+      "file": "bench-salvage_phaseWS-1_sqlite_config_plane_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "routine",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "scope_note": "SQLite config plane (Agent eval-profile {judges, council_config, ontology, tools, kb_bindings, severity_map}) + the ontology data model (flags/tiers/owners/questions + per-flag verification_contract), domain-agnostic by construction. Promotes the WS-0 hardcoded MedPresenceCheck to the ontology's first verification_contract; drives the WS-0 replay from config not hardcoded args. Carries WS-0 critique Q4.2/Q4.3 (closed: severity_map + extraction params as data), Q4.1 (recorded-only → WS-4). Ratifies S-BS-6 (compose-over-live-v2, stored). Normalizes S-BS-9. ZERO new paid calls (re-drives the captured WS-0 baseline).",
+      "created": "2026-05-30",
+      "last_re_verified": "2026-05-30",
+      "_registration_note": "Bundle had no stub entry in index.json (close-out left WS-1 implicit); registered + expanded in one pass 2026-05-30 per /devloop-expand-driver reconcile path. Task pack TASK_PACK_bench-salvage.json#WS-1 is the authoritative source.",
+      "re_verification_log": [
+        {
+          "date": "2026-05-30",
+          "actor": "monitor (/devloop-expand-driver)",
+          "checked": 11,
+          "confirmed": 10,
+          "drifted": 1,
+          "missing": 0,
+          "drift_notes": "1 DRIFTED: safety_flags.py SafetyFlagDefinition class is at :28 (task pack cited :37, which is the SAFETY_FLAG_DEFINITIONS list start, 24 flags) — driver records both. CONFIRMED: compliance_council.py TIER_1_NEVER_EVENTS:176 / TIER_2_HIGH_RISK:201 / TIER_3_MEDIUM:212 / _TIER1_OWNERS:232 (flag→owner-roles set); council_roles/*.txt (5 judge files, numbered KEY QUESTIONS); WS-0 harness anchors grounding.WS0_CONTRACTS:153 / MedPresenceCheck:107 / correction.ONTOLOGY_VERSION:28 / run_ws0.py argparse:103-105; picklist resolve_case_fixtures:45 + PACK_FILES:20 (S-BS-9 site); backend PipelineRequest.council_config:191 (WS-2 hook, stored-only in WS-1). LANDMINE recorded in driver §4: seed sources live in untracked lithrim_bench/runtime/ (M1 vendored council, WS-6) — ontology must SEED from values, not take a live runtime import on the eval path."
+        }
+      ],
+      "cost_envelope_usd": 0,
+      "may_be_zero_cost": true,
+      "blocked_by_decision": "none — WS-0 closed 2026-05-30 unblocks it",
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required: resolve the 4 design decisions (seed-not-import; tracked-seed source-of-truth; doc-shim split; contract = declaration+executor). Offline against the captured WS-0 baseline."
     }
   ]
 }
