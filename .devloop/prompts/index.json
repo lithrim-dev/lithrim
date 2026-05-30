@@ -399,7 +399,7 @@
       "phase": "WS-0",
       "scope": "one-case-over-live",
       "file": "bench-salvage_phaseWS-0_one_case_over_live_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "routine",
       "target_repos": [
@@ -408,6 +408,31 @@
       "scope_note": "Walking-skeleton spine. Grading PROVEN LIVE 2026-05-30 (baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Build persist + harness-side grounding (S-BS-7 presence-check) OFFLINE against the saved baseline \u2014 zero new paid calls. Expand with /devloop-expand-driver bench-salvage WS-0.",
       "created": "2026-05-30",
       "last_re_verified": "2026-05-30",
+      "closed_at": "2026-05-30",
+      "closing_commits": "9001a36..0859c8d (6 atomic) + 9d2b721 (session log) + close-out commit (this)",
+      "audit_verdict": "CLEAN \u2014 7/7 mechanical items; re-ran 7 WS-0 + 89 full tests green, ruff clean on new files; A4 zero-paid-call confirmed (suite never invokes grade_live/--live/httpx); nothing pushed. Two non-blocking notes: pre-existing working-tree drift outside the cycle; one ratified+documented mid-cycle deviation (S-BS-9 source-pin).",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline). Q1 0/2/0 (additive kwargs + correction-schema-as-dict); Q2 0/0/0 (3 behavior chains close: MED-FP suppress, versioned correction record, S-BS-8 skip-log); Q3 0/0/0 (no intrusion); Q4 0/0/4 (open-questions: calibration role-conflation \u2192 WS-4 gate; _rescore thresholds + med-extraction heuristic \u2192 WS-1 ontology contract; S-BS-9 pack-shape). File: .devloop/sessions/critique-bench-salvage-phaseWS-0-2026-05-30.md.",
+      "executor_verdict": "CLEAN",
+      "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-0-2026-05-30.json",
+      "report": "(no standalone REPORT \u2014 session log + critique carry the findings)",
+      "outputs": [
+        "lithrim_bench/harness/{__init__,grade,persist,grounding,correction,report}.py",
+        "scripts/run_ws0.py",
+        "tests/test_ws0.py",
+        "tests/fixtures/ws0/{baseline,case}.<case>.{json,jsonl}",
+        "out/ws0/<case>.json + out/ws0/ws0.sqlite + out/ws0/corrections.ndjson (runtime artifacts, gitignored)"
+      ],
+      "new_seams": [
+        "S-BS-9"
+      ],
+      "seams_advanced": [
+        "S-BS-7 (HYPOTHESIS confirmed: presence-check disproves live MED FP)",
+        "S-BS-8 (handled: skip-log)",
+        "S-BS-6 (disposition recorded: compose-over-live-v2; ratify WS-1)"
+      ],
+      "cost_actual_usd": 0,
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-1_kickoff_2026-05-30.md",
+      "next_action": "monitor: /devloop-expand-driver bench-salvage WS-1 (SQLite config plane + ontology data model; promote MedPresenceCheck to the first verification_contract; carry critique Q4.1\u2192WS-4, Q4.2/Q4.3\u2192WS-1; ratify S-BS-6; normalize S-BS-9).",
       "re_verification_log": [
         {
           "date": "2026-05-30",
@@ -420,8 +445,7 @@
         }
       ],
       "cost_envelope_usd": 0,
-      "may_be_zero_cost": true,
-      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required before any code (offline against the captured baseline; --live path present but unexercised)."
+      "may_be_zero_cost": true
     }
   ]
 }
