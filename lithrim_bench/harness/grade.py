@@ -47,31 +47,21 @@ def grade_replay(case: dict[str, Any], baseline_path: str | Path) -> dict[str, A
     return json.loads(Path(baseline_path).read_text())
 
 
-def grade_live(
+def build_request_body(
     case: dict[str, Any],
     *,
-    env: str | Path = DEFAULT_ENV,
-    base_url: str = "http://localhost:8002",
-    timeout: float = 180.0,
+    org_id: str,
+    council_config: dict[str, Any] | None = None,
+    ontology: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """POST one case to the live council and return the parsed PipelineResult dict.
+    """Construct the ``/v1/pipeline/evaluate`` request body for one case.
 
-    Builds the ``PipelineRequest`` body inline (transcript + artifact), with
-    ``org_id`` from ``.live_env`` **in the body** and ``eval_mode=true`` for a
-    deterministic per-(case, judge) seed (driver §2.1). Auth = ``X-API-Key``.
-
-    NOTE: this is the live, paid path. WS-0 acceptance does NOT exercise it; it is
-    reachable only via ``run_ws0.py --live``. Composing over ``:8002`` here is the
-    walking-skeleton intent — no backend change (``council_config`` injection = WS-2).
+    Factored out so the WS-2 config injection is inspectable offline (no paid
+    call). ``council_config`` + ``ontology`` are the Agent's *stored* config
+    (S-BS-6 disposition + the domain ontology); each is included **only when
+    truthy**, so a caller with no stored config produces exactly the WS-0/WS-1
+    body and the backend's Optional-with-default fields see ``None``.
     """
-    import httpx
-
-    cfg = _load_env(env)
-    api_key = cfg.get("LITHRIM_API_KEY", "").strip()
-    org_id = cfg.get("LITHRIM_ORG_ID", "").strip()
-    if not api_key or not org_id:
-        raise ValueError(f"LITHRIM_API_KEY / LITHRIM_ORG_ID missing from {env}")
-
     artifacts = case.get("artifacts") or []
     if not artifacts:
         raise ValueError("case has no artifacts to grade")
@@ -85,6 +75,46 @@ def grade_live(
         "org_id": org_id,
         "eval_mode": True,
     }
+    if council_config:
+        body["council_config"] = council_config
+    if ontology:
+        body["ontology"] = ontology
+    return body
+
+
+def grade_live(
+    case: dict[str, Any],
+    *,
+    env: str | Path = DEFAULT_ENV,
+    base_url: str = "http://localhost:8002",
+    timeout: float = 180.0,
+    council_config: dict[str, Any] | None = None,
+    ontology: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """POST one case to the live council and return the parsed PipelineResult dict.
+
+    Builds the ``PipelineRequest`` body (transcript + artifact), with ``org_id``
+    from ``.live_env`` **in the body** and ``eval_mode=true`` for a deterministic
+    per-(case, judge) seed (driver §2.1). Auth = ``X-API-Key``.
+
+    WS-2: when the Agent has a stored ``council_config`` / ``ontology``, they are
+    injected into the body (additive, backward-compatible — the backend reads them
+    as Optional-with-default). This is the WS-1 "stored-only" disposition becoming
+    "injected" — a new domain drives the live council via its ontology row, not a
+    backend code change.
+
+    NOTE: this is the live, paid path. WS-0/WS-2 offline acceptance does NOT
+    exercise it; it is reachable only via ``run_eval.py --live`` (paid).
+    """
+    import httpx
+
+    cfg = _load_env(env)
+    api_key = cfg.get("LITHRIM_API_KEY", "").strip()
+    org_id = cfg.get("LITHRIM_ORG_ID", "").strip()
+    if not api_key or not org_id:
+        raise ValueError(f"LITHRIM_API_KEY / LITHRIM_ORG_ID missing from {env}")
+
+    body = build_request_body(case, org_id=org_id, council_config=council_config, ontology=ontology)
 
     with httpx.Client(timeout=timeout) as client:
         resp = client.post(

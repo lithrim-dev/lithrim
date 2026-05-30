@@ -21,6 +21,7 @@ opts into a real, paid ``:8002 /v1/pipeline/evaluate`` call and is OFF by defaul
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -90,7 +91,14 @@ def run(agent: Agent, *, live: bool = False, out_dir: str | Path | None = None) 
 
     if live:
         sys.stderr.write("WARNING: --live makes a real paid council call.\n")
-        result = grade_live(case)
+        # WS-2: inject the Agent's stored council_config + ontology so the live
+        # council is driven by config, not backend code. The ontology is sent as
+        # its committed JSON dict (the faithful "stored ontology"); council_config
+        # is the S-BS-6 disposition from the eval-profile. Both are additive —
+        # absent => exactly the WS-0/WS-1 body.
+        council_config = agent.eval_profile.council_config or None
+        ontology_payload = json.loads(agent.ontology_abspath().read_text())
+        result = grade_live(case, council_config=council_config, ontology=ontology_payload)
         grade_path = "live"
     else:
         result = grade_replay(case, agent.baseline_abspath())
