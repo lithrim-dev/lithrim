@@ -36,10 +36,12 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         for s in grounded.suppressed
     ]
     n_suppressed = len(grounded.suppressed)
+    n_reference = len(grounded.skipped_non_gradeable)
     reasoning = (
         f"{len(grounded.active)} active finding(s) after grounding; "
         f"{n_suppressed} suppressed by contract; "
-        f"{len(grounded.ungrounded)} null-code finding(s) skip-logged (ungrounded). "
+        f"{len(grounded.ungrounded)} null-code finding(s) skip-logged (ungrounded); "
+        f"{n_reference} reference finding(s) skip-logged (out-of-snapshot, not scored). "
         f"Composite stage verdict {grounded.verdict} "
         f"(was {grounded.original_verdict} pre-grounding)."
     )
@@ -51,6 +53,7 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         "grounded_adjustments": adjustments,
         "active_findings": [f.get("code") or f.get("detail") for f in grounded.active],
         "ungrounded_count": len(grounded.ungrounded),
+        "skipped_non_gradeable_count": n_reference,
     }
 
 

@@ -64,6 +64,7 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
                 for s in grounded.suppressed
             ],
             "ungrounded": grounded.ungrounded,
+            "skipped_non_gradeable": grounded.skipped_non_gradeable,
         },
         "composite": comp,
         "calibration": cal,
@@ -132,6 +133,7 @@ def _print(agent: Agent, record: dict, *, live: bool) -> None:
     print(f"composite score: {comp['score']}")
     print(f"active findings: {comp['active_findings']}")
     print(f"ungrounded (null-code, skip-logged): {comp['ungrounded_count']}")
+    print(f"reference (out-of-snapshot, skip-logged): {comp['skipped_non_gradeable_count']}")
     print("--- grounded corrections (S-BS-7) ---")
     if not record["corrections"]:
         print("  (none)")

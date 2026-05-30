@@ -20,6 +20,14 @@ S-BS-8 null-code findings (structural/artifact findings the live pipeline return
 with ``code=None``) cannot be keyed to a contract — they are skip-logged into an
 "ungrounded" bucket, surfaced in the report, and kept in the active set; never
 silently dropped.
+
+S-BS-10 reference findings (coded with a known *out-of-snapshot* flag — the 4 fork
+flags FABRICATED_CONSENT_SCOPE / MALAFFI_CODE_PROPAGATION / MISSING_DUAL_CODING /
+WRONG_PATIENT_INFO) are not gradeable: the snapshot (contract-of-record) has not
+blessed them. They are skip-logged into ``skipped_non_gradeable`` and — unlike
+null-code findings — removed from the active set so they never silently drive the
+verdict re-score. Surfaced in the report; never dropped. An unknown code (not a
+declared flag at all) is left in active unchanged, as before.
 """
 
 from __future__ import annotations
@@ -48,9 +56,11 @@ class GroundedResult:
     ``active`` is every finding that still contributes to the verdict (retained
     coded findings + null-code findings). ``suppressed`` are the disproved ones
     (removed from ``active``). ``ungrounded`` is the null-code subset (S-BS-8),
-    a reporting view — those findings remain in ``active`` too. ``weights`` is the
-    ontology severity→weight map, carried so the report can score without
-    re-importing a constant.
+    a reporting view — those findings remain in ``active`` too.
+    ``skipped_non_gradeable`` is the S-BS-10 reference subset (known out-of-snapshot
+    codes) — skip-logged and removed from ``active`` so they never drive the
+    re-score. ``weights`` is the ontology severity→weight map, carried so the
+    report can score without re-importing a constant.
     """
 
     active: list[dict[str, Any]]
@@ -58,6 +68,7 @@ class GroundedResult:
     ungrounded: list[dict[str, Any]]
     verdict: str
     original_verdict: str | None
+    skipped_non_gradeable: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     result: dict[str, Any] = field(repr=False, default_factory=dict)
     case: dict[str, Any] = field(repr=False, default_factory=dict)
@@ -170,7 +181,10 @@ def ground(
     Contracts and the severity map come from ``ontology`` (default: the committed
     clinical ontology). Disproved findings are removed from the active set.
     Null-code findings (S-BS-8) are skip-logged into ``ungrounded`` and retained in
-    ``active``. Coded findings with no matching contract are retained unchanged.
+    ``active``. Reference findings (S-BS-10 — coded with a known non-gradeable flag)
+    are skip-logged into ``skipped_non_gradeable`` and removed from ``active`` so
+    they are never scored. Coded findings with no matching contract are retained
+    unchanged.
     """
     ontology = ontology or load_ontology()
     contracts = {decl.flag_code: _build_contract(decl) for decl in ontology.contracts}
@@ -182,12 +196,17 @@ def ground(
     active: list[dict[str, Any]] = []
     suppressed: list[dict[str, Any]] = []
     ungrounded: list[dict[str, Any]] = []
+    skipped_non_gradeable: list[dict[str, Any]] = []
 
     for finding in findings:
         code = finding.get("code")
         if code is None:
             ungrounded.append(finding)
             active.append(finding)
+            continue
+        if ontology.is_reference(code):
+            # S-BS-10: a known out-of-snapshot flag — skip-logged, never scored.
+            skipped_non_gradeable.append(finding)
             continue
         contract = contracts.get(code)
         if contract is None:
@@ -207,6 +226,7 @@ def ground(
         active=active,
         suppressed=suppressed,
         ungrounded=ungrounded,
+        skipped_non_gradeable=skipped_non_gradeable,
         verdict=ontology.severity_map.rescore(active),
         original_verdict=result.get("verdict"),
         weights=dict(ontology.severity_map.weights),
