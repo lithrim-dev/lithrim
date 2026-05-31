@@ -25,6 +25,11 @@ class JudgeOutput:
     verdict: str
     flags: list[str] = field(default_factory=list)
     confidence: float = 0.0
+    # Per-judge rationale (council summary/rationale). Populated from
+    # JudgeVote.reason; "" when the backend exposes no per-judge reasoning.
+    # Needed to root-cause calibration misses (e.g. a false MEDICATION_NOT_IN_
+    # TRANSCRIPT) offline without re-running the paid council.
+    reason: str = ""
 
 
 @dataclass(frozen=True)

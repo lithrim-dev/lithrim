@@ -182,7 +182,7 @@ def _parse(payload: dict[str, Any]) -> BackendVerdict:
                 judge_name=role,
                 verdict=verdict_lifted,
                 flags=list(jv.get("findings") or []),
-                confidence=float(jv.get("confidence", 0.0)),
+                confidence=float(jv.get("confidence") or 0.0),
             )
 
     structural_v = _STAGE_STATUS_NORMALIZE.get(structural.get("status", "PASS"), "PASS")

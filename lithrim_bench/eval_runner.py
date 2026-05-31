@@ -16,11 +16,17 @@ Output schema (one NDJSON row per run):
       "compliance_verdict": str,
       "artifact_verdict": str,
       "flags": list[str],
-      "per_judge": dict[str, {"verdict": str, "flags": list[str]}] | null,
+      "per_judge": dict[str, {"verdict": str, "flags": list[str], "confidence": float, "reason": str}] | null,
+      "findings_rich": list[dict],          # full Finding.model_dump() (detail/code/severity/chunk_id/spans)
+      "structural_findings_rich": list[dict],
       "pin": dict,
       "expected_compliance_verdict": str | list[str],
       "expected_safety_flags": list[str]
     }
+
+per_judge.reason + findings_rich.detail are the offline root-cause surface: a
+calibration miss (e.g. a false MEDICATION_NOT_IN_TRANSCRIPT) can be diagnosed
+from the persisted row without re-issuing the paid council call.
 """
 from __future__ import annotations
 
@@ -49,7 +55,12 @@ def _verdict_row(
     per_judge = None
     if v.per_judge is not None:
         per_judge = {
-            name: {"verdict": j.verdict, "flags": list(j.flags)}
+            name: {
+                "verdict": j.verdict,
+                "flags": list(j.flags),
+                "confidence": j.confidence,
+                "reason": j.reason,
+            }
             for name, j in v.per_judge.items()
         }
     return {
@@ -65,6 +76,8 @@ def _verdict_row(
         "per_judge": per_judge,
         "structural_verdict": v.structural_verdict,
         "structural_findings": list(v.structural_findings),
+        "findings_rich": list(v.findings_rich),
+        "structural_findings_rich": list(v.structural_findings_rich),
         "pin": pin,
         "expected_compliance_verdict": case.get("expected_compliance_verdict"),
         "expected_safety_flags": case.get("expected_safety_flags") or [],
