@@ -13,10 +13,13 @@ export function Brand({ size = 22, color = "currentColor" }) {
   );
 }
 
-/* The conversation's AI-assistant avatar = the Lithrim mark, white on the coral
-   avatar square. Drop-in for the prototype's placeholder `Mark`. */
+/* The conversation's AI-assistant avatar = the Lithrim mark on a themed square
+   (the `icon_dark_bg.png` look): a dark navy square + light bars on the light
+   theme, inverted to a light square + dark bars on dark. `.msg .av.ai` paints the
+   square with `--ink`; the bars take `var(--bg)` — so the avatar flips with the
+   theme automatically (no per-theme asset). */
 export function Mark({ size = 22 }) {
-  return <Brand size={size} color="#fff" />;
+  return <Brand size={size} color="var(--bg)" />;
 }
 
 /* Full horizontal lockup (mark + wordmark) for the rail / chrome. */
