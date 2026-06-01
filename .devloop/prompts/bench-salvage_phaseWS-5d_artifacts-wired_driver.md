@@ -8,6 +8,7 @@
 > **Version:** v1
 > **Authored:** 2026-06-01
 > **Last re-verified against code:** 2026-06-01 (per MONITOR §Phase 1a — shell + BFF re-grepped at HEAD `e960234`, all citations CONFIRMED, 0 drift)
+> **CITATION-DRIFT (logged at plan-review, monitor authoring error):** the Python BFF suite is repo-root **`tests/test_ws5_bff.py`** (it `sys.path`-inserts `apps/bff` and imports `app`); there is **no `apps/bff/tests/`**. Run it as `pytest tests/test_ws5_bff.py`, NOT `pytest apps/bff`. Corrected inline below (D6/§5/§7). No symbol missing.
 > **Hardness:** HARD-GATE (SPEC §8: every shell phase is HARD-GATE-class; this phase lands the deferred `PUT /v1/ontology` **write** surface on the locked v1 BFF API — §10:144 — a contract-touching change). Fresh-critic close recommended.
 
 ---
@@ -95,7 +96,7 @@ Open these in order before posting plan-review:
 
 ### D6 — tests + docs
 
-9. **`apps/bff/`** — extend `tests/test_ws5_bff.py` (the existing Python BFF suite): `PUT /v1/ontology` accepts a valid write to the working copy + **rejects** a snapshot-violating / malformed write (the clobber-safety + validation gate) + the judge-council surface (D0).
+9. **`tests/test_ws5_bff.py`** (repo-root — the existing Python BFF suite; NOT `apps/bff/tests/`) — extend it: `PUT /v1/ontology` accepts a valid write to the working copy + **rejects** a snapshot-violating / malformed write (the clobber-safety + validation gate) + the judge-council surface (D0).
 10. **`apps/shell/src/*.test.jsx`** — React binding tests: JudgeTab + ConfigTab render real BFF data (mock fetch); the corpus tab renders `corpus-row/1` rows + empty-state; the FlagEditor persist path calls `putOntology`; the locked datapoint prop shape (D5). (jsdom layout limits per S-BS-20 still hold — assert via default/value paths.)
 11. **`apps/shell/README.md`** — status update (artifacts wired; corpus view + PUT-ontology landed; WS-5e next).
 
@@ -137,9 +138,9 @@ The cycle is done when ALL of these are PASS:
 
 - **A1.** `JudgeTab` renders the **real** judge-council data from the BFF (D0); `ConfigTab` renders the **real** ontology config from `GET /v1/ontology` — neither reads `data.jsx JUDGES`/`CONFIG_YAML` for its live content. Verify: `npm test` (tab binding tests) + grep `artifact.jsx` for the removed mock imports on the wired paths.
 - **A2.** A `corpus` artifact tab renders `GET /v1/corpus` rows in the `corpus-row/1` shape; the empty corpus renders a clean empty-state (no crash). Verify: `npm test` (corpus tab test, populated + empty).
-- **A3.** `PUT /v1/ontology` lands additively on the locked v1 surface, writes to a **non-committed** working copy (the committed `clinical_v1.json` is byte-unchanged after a PUT), **validates** the write (a snapshot-violating / malformed ontology is rejected with a 4xx), and the FlagEditor persist path round-trips (a PUT then `GET` reflects the edit). Verify: `pytest apps/bff` (PUT accept + reject + no-clobber) + `npm test` (FlagEditor persist).
+- **A3.** `PUT /v1/ontology` lands additively on the locked v1 surface, writes to a **non-committed** working copy (the committed `clinical_v1.json` is byte-unchanged after a PUT), **validates** the write (a snapshot-violating / malformed ontology is rejected with a 4xx), and the FlagEditor persist path round-trips (a PUT then `GET` reflects the edit). Verify: `pytest tests/test_ws5_bff.py` (PUT accept + reject + no-clobber) + `npm test` (FlagEditor persist).
 - **A4.** S-BS-19 closed: a scripted host mounts the 3 input tool-parts (FlagEditor/ContractBuilder/KbPicker); each widget's `onResult` threads into config-plane/UI state; the datapoint `part.output` prop convention is locked to ONE shape and both `VerdictCard` + `CalibrationChart` conform. Verify: `npm test` (host-mount + prop-shape tests) + the disposition recorded in the session log.
-- **A5.** `npm run build` clean + `npm test` green + `pytest apps/bff` green (re-run; record commands). The shell's React test count grows (new bindings); the BFF suite covers the PUT.
+- **A5.** `npm run build` clean + `npm test` green + `pytest tests/test_ws5_bff.py` green (re-run; record commands). The shell's React test count grows (new bindings); the BFF suite covers the PUT.
 - **A6.** Diff confined to `apps/shell/` + `apps/bff/`; **NO** `lithrim_bench/`, `scripts/`, or `../lithrim-backend` edits; Python default install unchanged (BFF deps stay in the `[bff]` extra; no new default dep). Verify: `git diff --stat` + `git status` + `pip install -e .` diff check.
 - **A7.** The **`:5180` visual-parity smoke** (the standing per-shell-phase human-eyeball gate, OWED since WS-5c): light/dark × Shell/Journey renders unchanged AND the 4 wired artifact tabs (report/judges/config/corpus) render correctly. **User-run under no-autostart** (`cd apps/shell && npm run dev` → `:5180`); recorded as a verification item, not auto-PASSed.
 
@@ -178,7 +179,7 @@ See .devloop/sessions/session-bench-salvage-phaseWS-5d-2026-06-01.json
 
 - [ ] All acceptance criteria PASS (per §5)
 - [ ] All commits exist; working tree clean
-- [ ] `npm run build` clean + `npm test` green + `pytest apps/bff` green (re-run; record commands used)
+- [ ] `npm run build` clean + `npm test` green + `pytest tests/test_ws5_bff.py` green (re-run; record commands used)
 - [ ] No file in the diff outside `apps/shell/` + `apps/bff/` (scope held); no `lithrim_bench/` / `scripts/` / backend edits; no new Python default deps
 - [ ] The committed `data/ontology/clinical_v1.json` is byte-unchanged after a PUT (clobber-safety verified)
 - [ ] No services were autostarted (the BFF is needed for live A3/A7 smoke; tests mock fetch / use TestClient) (user preference)
