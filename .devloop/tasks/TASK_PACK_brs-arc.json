@@ -1,0 +1,165 @@
+{
+  "id": "TASK_PACK_brs-arc",
+  "stream": "brs-arc",
+  "name": "Bench Reporting Series — close measurement + observability gaps surfaced by BRS-0a so the paper claims are auditable end-to-end",
+  "owner": "monitor",
+  "visibility": "internal",
+  "target_repos": ["lithrim-bench"],
+  "reference_docs": [
+    "docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md",
+    "docs/PAPER_OUTLINE.md",
+    "docs/research/MEASUREMENT_AUDIT_2026-05-26.md",
+    "docs/HANDOFF_BRS_0b_2026-05-26.md",
+    "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md"
+  ],
+  "north_star": "Close the measurement + observability gaps in lithrim-bench so the paper's silent-confident-certification motivation and worst-of recovery claims are auditable per-pipeline-run.",
+  "generated_at": "2026-05-27T00:00:00Z",
+  "tasks": [
+    {
+      "id": "BRS-0a",
+      "phase": "BRS-0a",
+      "title": "Bench measurement audit — validator coverage framing",
+      "status": "done",
+      "closed_at": "2026-05-26",
+      "commit_hash": "85901d8",
+      "verdict": "PROCEED",
+      "priority": "P0",
+      "actual_effort_hours": null,
+      "deliverables": [
+        "docs/research/MEASUREMENT_AUDIT_2026-05-26.md"
+      ],
+      "acceptance": [
+        "Audit doc landed with §1.3 validator coverage decomposition, §2.2 278 fhir_appointment BLOCK count, §3 mapping reconciliation table"
+      ]
+    },
+    {
+      "id": "BRS-0b",
+      "phase": "BRS-0b",
+      "title": "Bench reporting fix + paper framing rewrite",
+      "status": "done",
+      "closed_at": "2026-05-26",
+      "commit_hash": "956e07c",
+      "verdict": "PROCEED",
+      "priority": "P0",
+      "actual_effort_hours": null,
+      "deliverables": [
+        "lithrim_bench/backends/lithrim_pipeline.py (not_applicable preserved)",
+        "tests/test_lithrim_pipeline_parser.py (renamed + tightened)",
+        "tests/test_worst_of_backend.py (rank-skip invariance test)",
+        "tests/test_brs_0b_section_7_invariance.py (§7 snapshot regression guard)",
+        "tests/fixtures/brs_0b_section7_snapshot.json (pre-change baseline)",
+        "docs/paper_draft/04_method.md §4.6 (new validator-coverage subsection)",
+        "docs/paper_draft/05_benchmark.md §5.2 (S17 + S18 closures)",
+        "docs/paper_draft/07_results.md §7.1 framing note + §7.3 rewrite",
+        "docs/paper_draft/07b_threats_to_validity.md §7b.8 rewrite"
+      ],
+      "acceptance": [
+        "78/78 tests pass including 3 new",
+        "§7 numerical invariance: byte-identical on all 4 packs vs pre-change baseline",
+        "ruff clean",
+        "Pre-existing working-tree state (PAPER_OUTLINE, PAPER_FRAMING_DECISIONS, label_owner_matrix) excluded from commit"
+      ]
+    },
+    {
+      "id": "BRS-1",
+      "phase": "BRS-1",
+      "title": "Provenance observability — silent_confident_certification + verdict_flipped_by_stage + validator-template-pin",
+      "status": "ready",
+      "priority": "P0",
+      "estimated_effort_hours": 12,
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "brs-arc-phaseBRS-1-provenance-observability-driver",
+      "starting_reference_driver": "../lithrim-command-center/.lithrim/prompts/brs_01_provenance_observability_exec_driver.md",
+      "deliverables": [
+        "PipelineProvenance schema gains: silent_confident_certification: bool (true when council verdict APPROVE && validator BLOCKs && council confidence >= threshold), verdict_flipped_by_stage: str (which stage's verdict overrode the council)",
+        "PipelineProvenance schema gains: validator_template_id: str, checks_run_count: int, checks_failed_count: int (validator-template-pin: lets §5 audit which validator template was active for each pipeline run, closing the BRS-0a validator-coverage observability gap)",
+        "Backend writer updates so all new fields land in `out/*.n10.ndjson` for every run",
+        "analyze_runs.py / analyze_pack rollups include the new fields",
+        "Tests covering each new field: positive case + negative case + clean-negative case",
+        "Regenerate §7 fixtures (the brs_0b_section7_snapshot.json regen contract); confirm §7 numerical invariance still byte-identical"
+      ],
+      "acceptance": [
+        "All new PipelineProvenance fields populated on every row in a fresh N=10 sweep on all 4 (or 5 incl hl7) packs",
+        "silent_confident_certification=true exactly when council APPROVE && validator BLOCK && council_confidence >= configured threshold (test with crafted fixture)",
+        "validator_template_id present on every row; matches the active YAML's frontmatter (or a stable ID per mapping)",
+        "checks_run_count + checks_failed_count present + non-negative; ratio derivable for the §5 measurement",
+        "§7 byte-identical to BRS-0b baseline on all packs (run analyze_runs.py + diff)",
+        "78/78 tests + new tests pass; ruff clean"
+      ],
+      "diagnostic_stats_reported": [
+        "Per-pack distribution of silent_confident_certification (NOT a gate; informational for §5 narrative)",
+        "Per-pack distribution of verdict_flipped_by_stage (NOT a gate; informational for §6/§7 narrative)"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Backend code in lithrim-backend (this is bench-side schema; backend is consumed via existing ndjson contract)",
+        "etlp-mapper validator engine changes (validator-template-pin reads the id; doesn't author it)",
+        "Any §7 numerical change (gate: byte-identical)",
+        "Paper drafting (BRS-6 territory)",
+        "Council-confidence experiment (P1-EXP-0 in paper-1-copilot stream — separate)"
+      ]
+    },
+    {
+      "id": "BRS-3",
+      "phase": "BRS-3",
+      "title": "Variant B critique pass — structural findings as immutable critique context (deprecation candidate)",
+      "status": "deprecation-candidate",
+      "priority": "P2",
+      "estimated_effort_hours": 8,
+      "decision_pending": "cancel OR rescope to HL7-only after profile registration; FHIR packs currently have zero structural findings at current validator coverage so there's nothing for critique to defend",
+      "deliverables": [],
+      "acceptance": [],
+      "scope_guardrails_not_in_scope": []
+    },
+    {
+      "id": "BRS-4",
+      "phase": "BRS-4",
+      "title": "artifact_judge per-artifact-type opt-out (rescope candidate)",
+      "status": "rescope-candidate",
+      "priority": "P2",
+      "estimated_effort_hours": 12,
+      "decision_pending": "rescope to 'improve artifact_judge precision via critique pass'; opt-out target is fhir_appointment not scheduling_confirmation; opt-out costs all 278 BLOCKs in the sweep",
+      "deliverables": [],
+      "acceptance": [],
+      "scope_guardrails_not_in_scope": []
+    },
+    {
+      "id": "BRS-6",
+      "phase": "BRS-6",
+      "title": "Paper amendment — Paper 1 = Jute Copilot paper per A1–A6 (now executed in paper-1-copilot stream)",
+      "status": "moved-to-paper-1-copilot-stream",
+      "blocked_by": ["BRS-1"],
+      "priority": "P0",
+      "note": "Per A1–A6 reframe, paper drafting is now the paper-1-copilot stream. BRS-6 entry kept here for the BRS arc audit trail; live tracking lives at .devloop/state/STREAM_paper-1-copilot.md."
+    }
+  ],
+  "seams": [
+    {
+      "id": "S-BRS-1",
+      "title": "triage_v1 CI in JSON vs paper §7.1 drift",
+      "severity": "low",
+      "fix_location": "docs/paper_draft/07_results.md §7.1",
+      "opened_in": "BRS-0b",
+      "status": "open",
+      "deferred_to": "BRS-6 / paper-1-copilot stream"
+    },
+    {
+      "id": "S-BRS-2",
+      "title": "Pre-existing working-tree drift (PAPER_OUTLINE.md, PAPER_FRAMING_DECISIONS_2026-05-26.md, label_owner_matrix.md not yet committed)",
+      "severity": "low",
+      "fix_location": "working tree",
+      "opened_in": "BRS-0b",
+      "status": "open",
+      "proposed_resolution": "Separate doc-only commit cycle OR fold into BRS-1's commit story; decide before BRS-1 kicks off"
+    },
+    {
+      "id": "S-BRS-3",
+      "title": "S17/S18 closures rely on manual paper-text consistency vs injector list; no automated guard",
+      "severity": "medium",
+      "fix_location": "tests/ (new test or fixture)",
+      "opened_in": "BRS-0b",
+      "status": "open",
+      "candidate_resolution": "BRS-1 — add a test that diffs paper §5.2 injector list against lithrim_bench/injectors/__init__.py exports"
+    }
+  ]
+}
