@@ -1,9 +1,19 @@
 /* panes.jsx — left rail, center conversation (ported verbatim; placeholder mark → real logo). */
+import { useState } from "react";
 import { Icon } from "./icons.jsx";
 import { Mark, Wordmark } from "./brand.jsx";
 import { ConfigCard } from "./cards.jsx";
 import { renderTool } from "./genui/index.js";
 import { THREADS, STEPS } from "./data.jsx";
+
+// S-BS-19: the scripted host emits INPUT tool-parts; each widget's onResult threads
+// the collected config into local config-plane state (the §3 "the conversation writes
+// the config plane" loop). Local state per decision #3 (Zustand deferred).
+const SETUP_PARTS = [
+  ["tool-flag_editor", "flags"],
+  ["tool-contract_builder", "contract"],
+  ["tool-kb_picker", "kb"],
+];
 
 /* ============================ LEFT RAIL ============================ */
 export function LeftRail({ width, active, setActive }) {
@@ -67,6 +77,11 @@ export function LeftRail({ width, active, setActive }) {
 
 /* ============================ CENTER ============================ */
 export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus }) {
+  // config-plane state the input tool-parts write into (S-BS-19).
+  const [setup, setSetup] = useState({});
+  const captureSetup = (key) => (result) => setSetup((s) => ({ ...s, [key]: result }));
+  const captured = Object.keys(setup);
+
   return (
     <main className="center">
       <div className="center-hd">
@@ -120,6 +135,22 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Calibration on the dry run is tight — predicted confidence tracks observed accuracy within <strong>±3%</strong>, so the council's scores are trustworthy as a stopping signal.</p>
               {renderTool({ type: "tool-calibration_chart", state: "output-available" })}
+            </div>
+          </div>
+
+          <div className="msg">
+            <div className="av ai"><Mark size={17} /></div>
+            <div className="content">
+              <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <p>Before the full run, let's lock the config plane. Edit the flags &amp; severity, author a verification contract, and bind the knowledge base — each one writes straight into your eval profile.</p>
+              {SETUP_PARTS.map(([type, key]) => (
+                <div key={key}>
+                  {renderTool({ type, state: "output-available" }, { onResult: captureSetup(key) })}
+                </div>
+              ))}
+              <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                Config plane captured: <strong>{captured.length ? captured.join(" · ") : "nothing yet"}</strong>
+              </p>
             </div>
           </div>
 

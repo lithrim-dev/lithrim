@@ -2,7 +2,13 @@
    Promoted from cards.jsx into the gen-UI registry. Kept visually faithful on the
    existing .icard chrome CSS (incremental adoption, SPEC §4 — the bespoke CSS is
    not rewritten into utilities); the foundation is exercised by the D2 input
-   widgets. Accepts an optional datapoint via part.output; defaults to the demo. */
+   widgets.
+
+   LOCKED datapoint prop convention (S-BS-19 / fresh-critic Ambiguity-2): a datapoint
+   card destructures its fields DIRECTLY from props, which renderTool spreads from
+   part.output ({...part.output}). NO {data} wrapper. Each field defaults to the demo
+   value, so an output-less mount renders the demo. CalibrationChart already conforms
+   (it spreads {points, ece, brier}); this card is conformed to match. */
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
@@ -19,8 +25,17 @@ const DEMO = {
   verdict: "PASS",
 };
 
-export default function VerdictCard({ data } = {}) {
-  const d = { ...DEMO, ...(data || {}) };
+export default function VerdictCard({
+  id = DEMO.id,
+  question = DEMO.question,
+  answer = DEMO.answer,
+  confidence = DEMO.confidence,
+  agreement = DEMO.agreement,
+  pillar = DEMO.pillar,
+  pillarStatus = DEMO.pillarStatus,
+  verdict = DEMO.verdict,
+} = {}) {
+  const d = { id, question, answer, confidence, agreement, pillar, pillarStatus, verdict };
   return (
     <div className="icard">
       <div className="icard-hd">

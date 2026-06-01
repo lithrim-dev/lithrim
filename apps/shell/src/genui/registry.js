@@ -52,7 +52,14 @@ function toolFallback(type) {
    - output-available → the registered component (props = part.output + handlers)
    - output-error     → an inline error note
    - input states     → a lightweight "preparing" placeholder
-   - unknown type     → fallback */
+   - unknown type     → fallback
+
+   LOCKED prop convention (S-BS-19 / fresh-critic Ambiguity-2): part.output is SPREAD
+   as props ({...part.output}), plus `part` and any handlers (e.g. onResult). Every
+   component — datapoint cards AND input widgets — destructures the specific fields it
+   needs directly from props. NO {data}/{output} wrapper. So a datapoint's payload is
+   `part.output = {confidence, verdict, …}` (flat), never `{data: {…}}`. VerdictCard +
+   CalibrationChart both conform to this flat-spread shape. */
 export function renderTool(part, handlers = {}) {
   if (!part || typeof part.type !== "string") return toolFallback(part?.type);
 
