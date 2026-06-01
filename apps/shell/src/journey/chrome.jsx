@@ -2,7 +2,7 @@
    AgentMsg (ESM port of journeyrail.jsx; AgentMsg lifted out of jp1 since all four
    phases use it). */
 import { Icon } from "../icons.jsx";
-import { Mark } from "../brand.jsx";
+import { Mark, Wordmark } from "../brand.jsx";
 import { ModeSwitch } from "../components/ModeSwitch.jsx";
 import { ACTS, SCENARIOS, AGENT_TYPES } from "./journeyData.js";
 
@@ -43,14 +43,10 @@ export function LeftRailJ({ width, phase, setPhase, calib }) {
   }
   return (
     <aside className="rail" style={{ width }}>
+      <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
+        <Wordmark markSize={18} />
+      </div>
       <div className="rail-sec">
-        <div className="rail-foot" style={{ border: "none", padding: "0 6px 12px" }}>
-          <div className="avatar" style={{ background: "var(--accent)", borderRadius: 8 }}><Mark size={18} /></div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="who">Lithrim</div>
-            <div className="org">Bench · acme-health</div>
-          </div>
-        </div>
         <div className="tb-cmd" style={{ position: "static", transform: "none", width: "100%", height: 32 }}>
           <Icon name="search" size={14} /><span>Search</span><span className="kbd">⌘K</span>
         </div>
@@ -107,6 +103,7 @@ export function TopBarJ({ theme, setTheme, panelOn, togglePanel, phase, mode, se
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
+      {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
       <div className="tb-crumb">
         <span className="ws-pill"><span className="dot" /> acme-health</span>
         <span className="crumb-sep"><Icon name="chevR" size={14} /></span>
@@ -114,7 +111,6 @@ export function TopBarJ({ theme, setTheme, panelOn, togglePanel, phase, mode, se
       </div>
       <div className="tb-cmd"><Icon name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
       <div className="tb-right">
-        {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
         <span className="kbd" style={{ marginRight: 2 }}>← → to navigate</span>
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
           <Icon name={theme === "light" ? "moon" : "sun"} size={16} />

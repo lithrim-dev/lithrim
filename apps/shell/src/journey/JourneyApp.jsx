@@ -25,8 +25,9 @@ const ART_META = {
 
 export function JourneyApp({ theme, setTheme, mode, setMode }) {
   const [phase, setPhase] = useState(1);
-  const [leftW, setLeftW] = useState(280);
-  const [rightW, setRightW] = useState(460);
+  // Pane defaults match the Shell (app.jsx) so toggling Shell↔Journey doesn't jump.
+  const [leftW, setLeftW] = useState(270);
+  const [rightW, setRightW] = useState(440);
   const [open, setOpen] = useState(true);
   const [full, setFull] = useState(false);
 
@@ -83,7 +84,7 @@ export function JourneyApp({ theme, setTheme, mode, setMode }) {
         <TopBarJ theme={theme} setTheme={setTheme} panelOn={open} togglePanel={() => { setOpen((o) => !o); setFull(false); }} phase={phase} mode={mode} setMode={setMode} />
         <div className="body">
           <LeftRailJ width={leftW} phase={phase} setPhase={setPhase} calib={calib} />
-          <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 240, 380)} />
+          <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
 
           <main className="center">
             <div className="center-hd">
@@ -103,7 +104,7 @@ export function JourneyApp({ theme, setTheme, mode, setMode }) {
             <PhaseFoot phase={phase} setPhase={setPhase} />
           </main>
 
-          {open && !full && <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 360, 720, true)} />}
+          {open && !full && <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />}
           {open && (
             <section className={"artifact" + (full ? " full" : "")} style={full ? {} : { width: rightW }}>
               <div className="art-hd">

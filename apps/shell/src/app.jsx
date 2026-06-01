@@ -11,6 +11,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
+      {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
       <div className="tb-crumb">
         <span className="ws-pill"><span className="dot" /> acme-health</span>
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
@@ -19,8 +20,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
 
       <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
 
-      <div className="tb-right">
-        {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
+      <div className="tb-right">}
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
           <I name={theme === "light" ? "moon" : "sun"} size={16} />
         </button>
