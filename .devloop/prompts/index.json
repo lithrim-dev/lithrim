@@ -668,6 +668,21 @@
       "last_re_verified": "2026-06-01",
       "_note": "The DE-RISK phase (pays down SPEC sec.9 honest-bet: the shell has been mock-only through WS-5/WS-5b). Prove the React<->Python bridge with ONE real artifact: React -> FastAPI BFF -> run_eval.run() (replay default + one live) -> composite -> ReportTab. Harness surface re-grepped HEAD f6d99af (run_eval.run:101; report.composite:29 + calibration_check:159; corpus.read_corpus:104/project:64; evalpack:81/117). 6 plan-review decisions incl. lock v1 endpoints + DEFER Tauri to WS-5e (rec) + one live-run cost. Tauri sidecar packaging is OUT (WS-5e) unless plan-review elects minimal. First real test bar for the shell.",
       "next_action": "Run /devloop-kickoff bench-salvage WS-5-BFF; paste into a fresh executor session. Plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'. HARD GATE: fresh-critic close recommended."
+    },
+    {
+      "id": "bench-salvage-phaseWS-6a-backend-baseline-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6a",
+      "scope": "backend baseline — curate + commit the pending ../lithrim-backend WIP (WS-6 step a)",
+      "file": "bench-salvage_phaseWS-6a_backend-baseline_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Backend repo commits (curation cycle). Diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
+      "target_repos": ["lithrim-backend"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_note": "WS-6 step a (broken out 2026-06-01, user). CROSS-REPO: fresh executor session ROOTED IN ../lithrim-backend; the .devloop scaffold + session log live in lithrim-bench. Curation cycle — commit EXISTING diagnosed WIP (mvp-ready: 8 modified structural-verdict/severity files + ~12 untracked docs/scripts/tests + transient out/ + test-results/), NOT build. Atomic per-concern commits + gitignore transients + backend tests green first. Strangle-not-fix holds (baseline + preserve). 5 plan-review decisions + the D0 triage manifest. WIP re-grepped 2026-06-01.",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-6a; open the fresh session ROOTED IN ../lithrim-backend. Plan-review resolves the 5 decisions + the D0 triage manifest before 'go'."
     }
   ]
 }

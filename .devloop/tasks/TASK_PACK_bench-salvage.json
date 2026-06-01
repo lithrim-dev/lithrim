@@ -435,6 +435,52 @@
       "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5-BFF-driver, ready). Kick off in a fresh executor session; plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'."
     },
     {
+      "id": "WS-6a",
+      "phase": "WS-6a",
+      "title": "WS-6a — backend baseline: curate + commit the pending ../lithrim-backend WIP",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P2",
+      "target": "executor",
+      "repos": [
+        "lithrim-backend"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-6a-backend-baseline-driver",
+      "origin": "NEW 2026-06-01 (user): WS-6 broken into WS-6a…e; folded the ../lithrim-backend baseline in as step a (can't audit/strangle a dirty tree). Curation cycle — commit existing diagnosed WIP, not build. Strangle-not-fix holds (baseline + preserve, not invest).",
+      "wip_snapshot_regrepped_2026_06_01": "../lithrim-backend branch mvp-ready: 8 modified (app/routes/pipeline.py, app/services/artifact_evaluator.py, app/services/pipeline/{models,orchestrator,stages}.py, scripts/phase4_pilot/cached_uscore_condition_validator.json, tests/eval_packs/council_v2_smoke.jsonl, tests/services/test_artifact_evaluator_severity.py — INFERRED the structural-verdict/severity remediation, S-P1-15-adjacent) + ~12 untracked (docs specs/audits/handoffs/research; scripts migrations/analysis; 2 new tests) + transient out/ + test-results/.",
+      "deliverables": [
+        "D0 triage manifest (path -> commit-group / gitignore / stash / remove; diagnose-before-edit).",
+        "D1 backend tests green BEFORE commit (if structural-verdict WIP incomplete -> surface/checkpoint/stash; do NOT build to finish).",
+        "D2 .gitignore the transients (out/, test-results/).",
+        "D3 resolve the stray bench-duplicated docs (EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md, PAPER_OUTLINE.md): keep/remove/gitignore.",
+        "D4 atomic per-concern commits on mvp-ready (fix structural-verdict + test / docs / chore scripts+gitignore).",
+        "D5 session log + the triage manifest (in lithrim-bench/.devloop/sessions/)."
+      ],
+      "acceptance": [
+        "A1 ../lithrim-backend git status clean (committed / gitignored / explicitly stashed).",
+        "A2 backend suite green (record cmd); nothing committed broken.",
+        "A3 commits atomic per-concern; every commit backed by the D0 manifest (diagnose-before-edit).",
+        "A4 transients gitignored not committed; stray docs resolved.",
+        "A5 no lithrim-bench code touched (only the session log); no etlp-mapper touched."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO new backend features / NO finishing half-done WIP beyond minimal-green (surface, don't build).",
+        "NO de-Mongo / strangle / council-port (WS-6c/d).",
+        "NO lithrim-bench code edits (only the session log); NO etlp-mapper edits.",
+        "Don't 'fix' pre-existing backend issues found while reading — log as seams."
+      ],
+      "plan_review_decisions": [
+        "Commit grouping + file->commit mapping (the fix(structural-verdict) boundary).",
+        "gitignore set (out/, test-results/).",
+        "Stray bench-docs disposition (keep/remove/gitignore).",
+        "Structural-verdict completeness — commit / checkpoint / stash / minimal-green (strangle-tension: don't over-invest).",
+        "Branch = mvp-ready (confirm, not main)."
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Backend repo commits (STREAM WS-2 note: backend commits need their own fresh-critic). BUT a curation cycle — diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
+      "next_action": "Driver authored 2026-06-01 (ready). Kick off in a fresh executor session ROOTED IN ../lithrim-backend; plan-review resolves the 5 decisions + the D0 triage manifest before 'go'."
+    },
+    {
       "id": "WS-6",
       "phase": "WS-6",
       "title": "WS-6 \u2014 compartmentalize-local (offline/licensed; the old bench-salvage targets)",
@@ -447,7 +493,8 @@
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver",
+      "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver (umbrella — superseded by the WS-6a…e breakdown)",
+      "breakdown_2026_06_01": "Broken into WS-6a…e (user; topology spec phased breakdown). This WS-6 entry = the program umbrella. WS-6a = backend baseline (curate+commit the ../lithrim-backend WIP; READY, bundle bench-salvage-phaseWS-6a-backend-baseline-driver); WS-6b = consolidation audit (GATE, read-only); WS-6c = port v2 council Mongo-free (PORT not rewrite, behind the frozen run_eval/§10 contract); WS-6d = persistence swap (Mongo out); WS-6e = ETLP JVM sidecar (coord WS-5e). The frozen-contract rule keeps the track parallel-safe with WS-5c.",
       "rescope_note": "REFRAMED 2026-06-01 as the PYTHON-LAYER CONSOLIDATION track (strangler-fig completion) per docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md. Now a PARALLEL track (sequencing B), not strictly after WS-5: port the validated v2 council Mongo-free (extends the M1 v1 in-process salvage -> v2; PORT, do not rewrite the calibration/NKA/prompt IP) + swap persistence Mongo->SQLite/PG behind a repository interface; ETLP stays a JVM-sidecar service. FIRST STEP / GATE: audit ../lithrim-backend (v2-council Mongo-coupling surface + the persistence surface to swap) BEFORE porting. The blocked_by WS-5 below is no longer strict (parallel).",
       "deliverables": [
         "Swap the live :8002 grade for the in-process M1 council (LocalPipelineBackend) behind the same harness interface; local vector for pinecone; offline/licensed packaging.",

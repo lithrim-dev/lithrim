@@ -35,7 +35,21 @@ The shell **BFF targets the harness as it already composes over live `:8002`/`:3
 
 Port the **validated v2 council** Mongo-free — extends the M1 v1 salvage → v2 (cross-provider trio + llama-veto-approve + calibration + the NKA patches + prompts). **PORT, do not rewrite** — this is validated IP (the calibration + NKA work is load-bearing). Swap persistence Mongo → SQLite/PG behind the repository interface.
 
-- **First step / GATE: audit `../lithrim-backend`** to confirm (a) the **v2 council's Mongo-coupling surface** — *CONFIRMED separable for v1 by M1; v2 separability is **INFERRED** (same architecture, cross-provider config + prompt deltas), verify before porting*; (b) the **persistence surface** to swap (`pipeline_runs`, `eval_packs`/`eval_cases`, `artifact_profiles`, …). Do this at consolidation kickoff, not now (per sequencing B).
+- **First step / GATE: audit `../lithrim-backend`** to confirm (a) the **v2 council's Mongo-coupling surface** — *CONFIRMED separable for v1 by M1; v2 separability is **INFERRED** (same architecture, cross-provider config + prompt deltas), verify before porting*; (b) the **persistence surface** to swap (`pipeline_runs`, `eval_packs`/`eval_cases`, `artifact_profiles`, …).
+
+### Phased breakdown (WS-6a…e) — broken out 2026-06-01 (user)
+
+Folded the `../lithrim-backend` **baseline** in as step **a** — you can't cleanly audit/strangle a dirty tree, and the pending WIP holds moat/paper-relevant work that shouldn't be lost:
+
+| Phase | Scope | Repo |
+|---|---|---|
+| **WS-6a** | **Backend baseline** — curate + commit the pending `../lithrim-backend` WIP (8 modified files = the structural-verdict/severity remediation, S-P1-15-adjacent; + ~12 untracked docs/scripts/tests; + transient `out/`/`test-results/`). Atomic per-concern commits, gitignore transients, **backend tests green first**. *Baseline + preserve — NOT invest (strangle-not-fix holds).* | `../lithrim-backend` |
+| **WS-6b** | **Consolidation audit (the GATE)** — read-only: confirm the v2-council Mongo-coupling surface (INFERRED→CONFIRMED) + map the persistence surface (`pipeline_runs`, `eval_packs`/`eval_cases`, `artifact_profiles`). Produces the port plan. *(Unblocked by 6a's clean tree.)* | reads `../lithrim-backend` |
+| **WS-6c** | **Port the v2 council Mongo-free** → `lithrim_bench/runtime/council/` (extends the M1 v1 salvage → v2; **PORT, not rewrite** the calibration/NKA/prompt IP), **behind the frozen harness/§10 BFF contract.** | `lithrim-bench` |
+| **WS-6d** | **Persistence swap** — repository interface + SQLite(desktop)/PG(VPC); **Mongo out.** | `lithrim-bench` |
+| **WS-6e** | **ETLP JVM sidecar** packaging — coordinate with [`SPEC_PRODUCT_SHELL.md`](SPEC_PRODUCT_SHELL.md) WS-5e. | `lithrim-bench` |
+
+The **frozen-contract rule** (WS-6c+ ports *behind* `run_eval.run` / `report.composite` / the §10 v1 BFF surface — it swaps the implementation, never the signature) keeps this whole track **parallel-safe with the WS-5c shell work**.
 
 ## Packaging tiers
 
