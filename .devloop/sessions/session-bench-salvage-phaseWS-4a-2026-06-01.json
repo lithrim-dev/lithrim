@@ -1,0 +1,127 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-4a-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-4a",
+  "driver_bundle_id": "bench-salvage-phaseWS-4a-flywheel-slice-driver",
+  "started_at": "2026-06-01T00:00:00Z",
+  "ended_at": "2026-06-01T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T00:00:00Z",
+    "user_approved_at": "2026-06-01T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision (a) corpus schema reconciliation: corpus-row/1 is a projection that WRAPS the existing ws0-correction/1 + ws3-floor-correction/1 records; build_correction/build_floor_correction untouched; case_id threaded from run context (records lack it)",
+        "evidence": "user 'Go' + 'wrap-don't-re-author CONFIRMED'; grep -c case_id correction.py == 0",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "SCHEMA FIX 1 (user): drop the conflated original_label|injected_label field — it inverted the floor meaning (floor original_label is None; injected_label is the ADDED flag) AND duplicated contract_id. action already encodes direction, so the corrected flag is one field, flag_code = tool_call.flag_code (both directions)",
+        "evidence": "user: 'original_label ← original_label|injected_label is mislabeled and redundant ... action already encodes direction, so you don't need a separate label field at all'; correction.py:116/137 (floor code == tool_call.flag_code)",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "SCHEMA FIX 2 (user): contract_id ← tool_call.flag_code was mislabeled (flag_code is the flag, not the contract identity). Renamed to `contract` = tool_call.contract (suppress, class name) | tool_call.contract_type (floor). Also renamed council_verdict→verdict_before, adjusted_verdict→verdict_after (they're the pre/post-GROUNDING composite). Added owner_roles (free, in both records; WS-4b role-aware calibration needs it)",
+        "evidence": "user: 'contract_id ← tool_call.flag_code is also mislabeled ... The contract identity is tool_call.contract / tool_call.contract_type'; '+owner_roles for free'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision (b): committed example-fixture AND runtime-store — schema+reader in harness/corpus.py; committed example tests/fixtures/ws4a/corpus.example.ndjson; runtime appends gitignored under out/ws4a/",
+        "evidence": "user confirmed driver lean; git check-ignore out/ws4a/corpus.ndjson == ignored",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Required test addition (user): A1 must cover project() on BOTH a suppress AND a floor record (floor synthesized via build_floor_correction exactly as tests/verification/test_grounding_floor.py does), else corpus-row/1's floor path ships untested",
+        "evidence": "user: 'A1 covers project() on both a suppress record AND a floor record'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Three executor decisions confirmed by user as defaults-are-right: (1) one-case-thin eval-pack (no synthesized baselines, no --live); (2) D2 status from verdict-match ONLY, ECE diagnostic, advisory non-preregistered (not the WS-4b locked gate); (3) keep D0/D1 as two modules",
+        "evidence": "user: 'Your three decisions — all confirmed (defaults are right)'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "No code citation drift — every driver §1 file:line CONFIRMED on HEAD e1f1e4a (driver re-verified same day). Only nuance: D2 'reusing calibration:88' aggregates calibration()'s per-case OUTPUT embedded in the run record (calibration() is per-result), not a re-call; surfaced at plan-review, no halt",
+        "evidence": "report.py composite:22 + calibration:88 CONFIRMED; run_eval run:101/build_record:51 CONFIRMED",
+        "decided_at": "2026-06-01T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "894cc4d",
+      "repo": "lithrim-bench",
+      "title": "feat(ws4a): versioned correction corpus over the grounding correction stream [D0]",
+      "summary": "corpus.py — corpus-row/1 projection over both correction shapes (wrap-not-re-author); flag_code/contract/verdict_before/after/owner_roles/rollout_ref; read/append API"
+    },
+    {
+      "hash": "fe9290b",
+      "repo": "lithrim-bench",
+      "title": "feat(ws4a): thin eval-pack build/load over a picklist pack [D1]",
+      "summary": "evalpack.py — evalpack/1 frozen {pack_id, cases, outcomes} via run_eval.run; JSON round-trippable; N-agent-general; one-baseline thin limitation documented"
+    },
+    {
+      "hash": "4c5f3d6",
+      "repo": "lithrim-bench",
+      "title": "feat(ws4a): minimal report-only calibration check (verdict-match + ECE) [D2]",
+      "summary": "report.calibration_check — {verdict_match_rate, ece, status}; status advisory PASS/WARN from verdict-match ONLY; ece pooled diagnostic; NOT the WS-4b locked gate"
+    },
+    {
+      "hash": "529cbf3",
+      "repo": "lithrim-bench",
+      "title": "test(ws4a): flywheel slice tests (offline, replay, deterministic) [D3]",
+      "summary": "test_ws4a.py (7 tests) + committed corpus.example.ndjson — A1 suppress+floor projection+round-trip+determinism, A2 evalpack round-trip, A3 calibration PASS + verdict-match-only WARN"
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — flywheel over the WS-0 case (replay) emits a versioned correction-corpus entry with full provenance; re-running byte-deterministic",
+      "verdict": "PASS",
+      "evidence": "test_project_suppress_record + test_project_floor_record + test_corpus_append_read_roundtrip_and_deterministic + test_committed_example_corpus_fixture_shape all green. corpus-row/1 carries {case_id, action, flag_code, verdict_before/after, contract, contract_version, ontology_version, owner_roles, rollout_ref}. Re-projection identical; serialized row byte-equal to re-project. Floor branch covered (action=floor, contract=jute_gen, PASS->BLOCK, owner_roles=[structural_validator])."
+    },
+    {
+      "criterion": "A2 — an eval-pack is built from a PACK_FILES pack and round-trips (build -> load -> identical)",
+      "verdict": "PASS",
+      "evidence": "test_evalpack_build_load_roundtrip green: build_pack('ws4a_thin',[agent]) over the WS-0 case (resolved via load_case from the scribe source) -> dump_pack -> load_pack == pack (identity). cases[0].expected == {compliance_verdict: reject, safety_flags: [FABRICATED_HISTORY]}; outcome.verdict == reject; outcome.corrections[0].action == suppress (corpus-row/1 provenance carried)."
+    },
+    {
+      "criterion": "A3 — minimal calibration check yields verdict-match + ECE (reported PASS/WARN, not a locked gate)",
+      "verdict": "PASS",
+      "evidence": "test_calibration_check_reports_match_and_ece: {verdict_match_rate:1.0, ece:0.5, status:PASS, n_with_confidence:2, caveat:'small N...advisory, not a gate'}. test_calibration_check_warns_on_verdict_mismatch: a record with perfect ece(0.0) but a verdict miss still returns status WARN + verdict_match_rate 0.0 — proving status is verdict-match-driven and ECE is diagnostic-only."
+    },
+    {
+      "criterion": "A4 — pytest -q green offline no network; ruff check + format --check clean on new/modified files; default-deps unchanged",
+      "verdict": "PASS",
+      "evidence": "python3 -m pytest -q => 171 passed, 3 skipped (dspy importorskip), 0.37s, no network (+7 over WS-3's 164). ruff check + ruff format --check on corpus.py/evalpack.py/report.py/test_ws4a.py => 'All checks passed!' + '4 files already formatted'. pyproject dependencies == ['pydantic>=2.6','pandas>=2.1'] (unchanged); optional.verification untouched."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "corpus_size_and_action_split": "1 corpus-row/1 over the WS-0 replay case (1 suppress, 0 floor on the shipped clinical_v1 — it is floor-less by design); the floor projection is exercised on a synthesized floor_test_v1 ontology only. NOT a gate.",
+    "ece_reliability": "pooled ECE 0.5 over 2 non-null confidences (both 1.0) on the WS-0 baseline; honest small-N caveat surfaced. NOT a gate (the locked gate is WS-4b).",
+    "test_count_delta": "164 -> 171 collected-passing (+7 WS-4a; 3 dspy-skips unchanged): test_ws4a 7 tests",
+    "thin_slice_limitation_surfaced": "replay needs one captured baseline per case and WS-4a ships exactly one (the WS-0 scribe case), so the replay eval-pack is genuinely one case — it fully exercises the build->load->freeze MECHANISM (what A2 tests) but not multi-case breadth. Documented in evalpack.py docstring + build_pack comment, not faked. Multi-case baselines + floor-apply replay capture are WS-4b, already gated by S-BS-13.",
+    "s_bs_13_s_bs_16_inert": "CONFIRMED inert this cycle: clinical_v1 declares 0 floor contracts (load_ontology().contracts == 1 presence_check only), so no floor runs through run_eval's http_client=None path (S-BS-13) and no inject_flag_code/inject_severity is read unvalidated on a shipped ontology (S-BS-16). The floor projection test uses an in-test ontology with an injected fake http client."
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "WS-4a (the thin flywheel slice) landed clean in 4 atomic commits (894cc4d..529cbf3) on the floor-less clinical_v1. D0 corpus.py turns the WS-3a correction stream into a stable, versioned corpus-row/1 that WRAPS both record shapes (suppress + floor) without re-authoring them — case_id threaded from run context, the corrected flag is tool_call.flag_code, contract identity is contract|contract_type, and the user's two plan-review schema fixes (drop the conflated/redundant label field; rename contract_id->contract + add owner_roles) are baked in. D1 evalpack.py freezes a JSON-round-trippable {pack_id, cases, outcomes} via the canonical run_eval.run core (one grounding path), explicitly one-case-thin by the one-baseline constraint (documented, not faked). D2 report.calibration_check reports {verdict_match_rate, ece, status} with status driven ONLY by verdict-match (advisory PASS/WARN) and ECE as a pure diagnostic — deliberately NOT the WS-4b locked gate. D3's 7 offline replay tests cover A1 on BOTH directions (the user-required floor-projection coverage) + round-trips + the verdict-match-only WARN proof. A1-A4 all PASS; full suite 171 passed/3 dspy-skipped offline; ruff clean; default deps untouched; scope held to exactly the 5 §2 files; zero new paid calls; S-BS-13/S-BS-16 confirmed inert. No new seams. ON AUDIT, CHECK FIRST: (1) the corpus-row/1 schema matches the user's corrected shape verbatim (no original/injected label field; contract != flag_code; owner_roles present) — this was the load-bearing plan-review correction; (2) the one-case-thin A2 is acknowledged-not-hidden (evalpack.py docstring + comment); (3) D2 status never reads ECE (test_calibration_check_warns_on_verdict_mismatch is the proof).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-4a (7-item mechanical), then the inline critique per the driver's routine hardness; on close, /devloop-expand-driver bench-salvage WS-4b (HARD-GATE: eval-pack loop + LOCKED calibration gate + /eval-runs/compare; gated on S-BS-13 floor-apply replay + S-BS-16 inject-param validation before any floor-declaring ontology ships)."
+}
