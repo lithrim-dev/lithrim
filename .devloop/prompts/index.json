@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-01T18:30Z",
+  "updated": "2026-06-02T00:00Z",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
@@ -783,6 +783,34 @@
       "a5_live_smoke": "PASS (Azure dev resource lithrim-dev-ai via ../lithrim-backend/.env; v2 trio reject 1.0/None/1.0 -> consensus reject@1.0; Mistral confidence=None end-to-end; ~$0.15-0.25 actual vs ~$0.10 envelope, payload-bug overage, user-aware)",
       "new_seams": ["S-BS-31"],
       "seams_closed": ["S-BS-30", "S-BS-28"]
+    },
+    {
+      "id": "bench-salvage-phaseWS-6c-DSPy-judge-rebuild-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c-DSPy",
+      "scope": "rebuild the per-judge layer on DSPy emitting the §6 per-judge dict seam, wrapping the ported v2 consensus UNCHANGED",
+      "file": "bench-salvage_phaseWS-6c-DSPy_dspy-judge-rebuild_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-02",
+      "last_re_verified": "2026-06-02",
+      "_note": "WS-6 step c-DSPy, the first DSPy-rebuild. Rebuild the council's per-judge prompt-and-parse as DSPy modules (RECOMPOSITION_PLAN §3), each emitting the EXACT per-judge dict seam (runtime/council/__init__.py:45) the WS-6c-ported _apply_consensus:1853 consumes, so the validated consensus IP wraps DSPy judges UNCHANGED (the §6 hybrid). INCREMENTAL (Ratification Q3: one judge first; mixed DSPy/imperative fan-out valid). Score via by-construction recipe=label packs reusing the jute_dspy bench-accept metric pattern (make_bench_metric:200). DSPy lives strictly ABOVE the seam -- a prompt-opt can never weaken a Tier-1 rule. Does NOT change consensus math (A4 byte-identical to tip) and does NOT wire into grade (A6; grade.py/run_eval.py frozen -- that is WS-6c-AGENTIC). S-BS-31 stays inert (no real cases scored). Prior art reference-only (S-BS-27 worktree council_v2.py/council_dspy.py -- do NOT import; emits a non-conforming shape + dropped the IP). NOT in scope: grade-wire/AGENTIC, persistence (6d), KB (6d-KB), backend/etlp edits, LLM auto-harden loop.",
+      "_registration_note": "BOTH-ABSENT reconcile (no stub + no task-pack entry; same pattern as WS-5c/WS-5d/WS-6b/WS-6c). Authored TASK_PACK#WS-6c-DSPy + this bundle + the driver in one /devloop-expand-driver pass 2026-06-02. Sourced from RECOMPOSITION_PLAN_ws6.md §3/§6/§7 + §Ratification Q3 + HANDOFF_bench-salvage_phaseWS-6c-DSPy_kickoff_2026-06-01.md. All citations re-grepped in-repo at the WS-6c tip (no ../lithrim-backend read needed -- the council IP is already ported + verified byte-faithful to 493b533 at WS-6c).",
+      "re_verification_log": [
+        {
+          "date": "2026-06-02",
+          "actor": "monitor (/devloop-expand-driver, both-absent reconcile)",
+          "checked": 18,
+          "confirmed": 18,
+          "drifted": 0,
+          "missing": 0,
+          "drift_notes": "All 18 citation clusters CONFIRMED in-repo at the WS-6c tip. Seam doc runtime/council/__init__.py:38-54 (shape :45, 'WS-6c-DSPy must emit' :51). Imperative seam built compliance_council.py:1550(model)/:1556(findings)/:1567(errors) inside evaluate():2400 (loop :2489, _invoke_model:1406); consumed UNCHANGED by _apply_consensus:1853 (reads :1985/1986/1899/1911/1914/1979/1578). Ported consensus to keep: _compose_council_verdict_v2:1812, _worst_of_verdicts:1799, extract_verdict_confidence:413, _TIER1_OWNERS:232. v2 trio inline __init__:463 (no JUDGES_V2 constant; comment :381). jute_dspy bench-accept: score_template:130/make_bench_metric:200/build_generator:333/Signature:311/lazy-dspy:309,351. Extras pyproject.toml verification=[dspy>=3.2,httpx]:24-26 + council=[openai,tenacity]:42-44 + testpaths:57. DSPy prior art worktree present (council_v2.py/council_dspy.py). clinical_v1.json 23 flags/16 questions/1 verification_contract. Packs data/verification_packs/{fhir_patient,fhir_observation,transaction}_v1.jsonl + examples/proof_case.jsonl + picklist PACK_FILES:20 scribe_v1:21. Frozen seam grade_replay:40/grade_live:85/run_eval.run:101/report.composite:29. TWO driver-text corrections inherited from the WS-6c critique applied at authoring (not drift): JUDGES_V2 is a comment not a constant; 4 not 5 AZURE_OPENAI_DEPLOYMENT_* ids."
+        }
+      ],
+      "next_action": "Stub->ready (both-absent reconcile, authored at ready). Run /devloop-kickoff bench-salvage WS-6c-DSPy; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions (which judge first + optimizer-vs-gate + the live-smoke cost) before 'go'. Parallel-safe with WS-6c-AGENTIC (S-BS-31-gated) + the shell track."
     }
   ]
 }

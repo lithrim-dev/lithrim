@@ -726,6 +726,63 @@
       "hardness": "HARD-GATE",
       "hardness_reason": "Ports validated safety-critical IP (the council consensus) into the product runtime; v2-only commits the cross-provider trio. Fresh-critic at close recommended; the diagnose-before-edit port-fidelity diff (A2) is load-bearing. User MAY elect inline.",
       "next_action": "Driver authored 2026-06-01 (ready; both-absent reconcile). Run /devloop-kickoff bench-salvage WS-6c; fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend @ 493b533). Plan-review resolves the 5 decisions + the live-smoke cost envelope before 'go'."
+    },
+    {
+      "id": "WS-6c-DSPy",
+      "phase": "WS-6c-DSPy",
+      "title": "WS-6c-DSPy -- rebuild the per-judge layer on DSPy, wrapping the ported v2 consensus (the §6 hybrid)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseWS-6c-DSPy-judge-rebuild-driver",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c). Authored TASK_PACK#WS-6c-DSPy + the bundle + the driver in one /devloop-expand-driver pass. Sourced from RECOMPOSITION_PLAN_ws6.md §3/§6/§7 + §Ratification Q3 + the WS-6c handoff (HANDOFF_bench-salvage_phaseWS-6c-DSPy_kickoff_2026-06-01.md).",
+      "seam_regrepped_2026_06_02_ws6c_tip": "The per-judge dict seam DSPy must emit is documented at runtime/council/__init__.py:38-54 ({model, decision, confidence:float|None, findings:[{taxonomy_code,evidence_spans}], errors:[]}); built imperatively today at compliance_council.py:1550(model)/:1556(findings)/:1567(errors) inside evaluate():2400 (judge loop :2489 via _invoke_model:1406); CONSUMED UNCHANGED by _apply_consensus:1853 (reads decision:1986, findings/taxonomy_code/evidence_spans:1899/1911/1914, confidence:1979, errors:1578, model:1985). Ported consensus to KEEP byte-identical: _compose_council_verdict_v2:1812 (llama-veto), _worst_of_verdicts:1799, extract_verdict_confidence:413 (None-tolerant), _TIER1_OWNERS:232. v2 trio built INLINE at __init__:463 (no JUDGES_V2 constant; only a comment at :381). Bench-accept oracle pattern to REUSE: verification/jute_dspy.py make_bench_metric:200/score_template:130/build_generator:333 (lazy `import dspy` :309/:351). Prior art REFERENCE-ONLY (do NOT import; S-BS-27): .claude/worktrees/agent-adefc36309f77ed1b/experiments/dspy_council_smoke/{council_v2.py,council_dspy.py} -- emits a NON-CONFORMING simplified shape ({decision,violations:[str],confidence,reason,error}) + dropped the consensus IP (council_dspy.py:17-21). Extras present: pyproject.toml verification=[dspy>=3.2,httpx]:24, council=[openai,tenacity]:42, testpaths includes runtime/council/tests:57. Frozen seam (A6 untouched): grade.py grade_replay:40/grade_live:85, run_eval.run:101, report.composite:29.",
+      "deliverables": [
+        "D0 runtime/council/judges_dspy.py (NEW): a findings-first dspy.Signature + a Judge dspy.Module (one Predict per role, bound to its Azure deployment via the salvaged llm_provider factory) whose forward returns the EXACT per-judge dict seam ({model, decision, confidence:float|None, findings:[{taxonomy_code,evidence_spans}], errors:[]}); per-judge try/except -> errors[]; confidence None-tolerant (never coerce); dspy import lazy/guarded. INCREMENTAL (Q3): ONE judge first, the other two pluggable behind the same signature (mixed DSPy/imperative fan-out is valid).",
+        "D1 runtime/council/judge_metric.py (NEW or folded): the bench-accept metric for judges -- score findings vs a by-construction case's expected_safety_flags (recipe=label) -> precision/recall + a hard-accept (0-FP on cleans, the judge analogue of jute's 0-FP). Mirrors jute_dspy.make_bench_metric/score_template. The bench is the acceptance oracle for judge-prompt authoring.",
+        "D2 the §6 hybrid wiring (in judges_dspy.py, NOT a new grade entrypoint): fan out the DSPy judge(s), collect the per-judge dict list, call the PORTED _apply_consensus UNCHANGED; prove same fixtured per-judge dicts -> identical verdict imperative-vs-DSPy. No edit to compliance_council.py consensus functions.",
+        "D3 runtime/council/tests/ (offline; importorskip dspy; mock LM/injected predictor): (a) seam shape exact incl. confidence=None round-trip + errors[] on a simulated failure; (b) DSPy judges + ported _apply_consensus reproduce the WS-6c oracle verdicts; (c) judge_metric runs offline vs a recipe=label case; (d) consensus IP unchanged (existing test_consensus.py stays green).",
+        "D4 .devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-...json: session log incl. the seam-conformance proof (key-by-key vs _apply_consensus reads), the rebuilt-judge pack score, the consensus-unchanged diff (zero logic delta vs WS-6c tip), and the live-smoke verdict + cost."
+      ],
+      "acceptance": [
+        "A1 the DSPy judge emits the EXACT per-judge dict seam (model/decision/confidence:float|None/findings[taxonomy_code+evidence_spans]/errors[]) -- verified key-by-key vs _apply_consensus reads (compliance_council.py:1985/1986/1899/1911/1914/1979/1578), incl. a confidence=None round-trip never coerced + errors[] on a simulated judge failure",
+        "A2 at least ONE judge (incremental, Q3) is rebuilt on DSPy and scored by a by-construction pack (recipe=label) via judge_metric (the reused jute_dspy bench-accept pattern); pack score recorded",
+        "A3 DSPy judges + the ported _apply_consensus reproduce the WS-6c offline oracle verdicts (Tier-1 one-strike, Tier-2 2+, PHI-FP, NKA, llama-veto, artifact-BLOCK, None-confidence) on fixtured judge outputs",
+        "A4 the ported consensus IP is UNCHANGED -- _apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables byte-identical to the WS-6c tip (diff-vs-tip = zero logic delta in the session log); DSPy strictly above the seam",
+        "A5 determinism preserved -- the DSPy judge honors the per-(case,judge) reproducibility contract (temperature=0 + cache + seed per plan-review #5); a fixtured/replay case is byte-deterministic",
+        "A6 no contract change -- grade.py/run_eval.run/report.composite/§10 untouched; the DSPy judges are importable + tested but NOT wired into the grade seam (WS-6c-AGENTIC); S-BS-31 stays inert",
+        "A7 default install unchanged -- the DSPy judge path gated behind [verification](dspy)+[council](openai); pytest -q green on default deps with dspy tests importorskip-skipping; ruff clean",
+        "A8 scope held -- no AGENTIC/persistence/KB/consensus-math/backend/etlp edits; the throwaway worktree code referenced not imported"
+      ],
+      "diagnostic_stats_reported": [
+        "the rebuilt judge's pack score (precision/recall on recipe=label) -- reported, not a gate",
+        "optimizer delta (raw-prompt baseline vs DSPy-optimized accept-rate on the pack) IF an optimizer pass is run -- reported, not a gate",
+        "one cost-confirmed live Azure smoke (the rebuilt judge, one case -> seam dict -> consensus verdict) -- verdict + per-judge confidence + cost",
+        "which judge was rebuilt first + the plan for the remaining two"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables stay byte-identical to the WS-6c tip; DSPy strictly ABOVE the seam -- the §6 invariant: a prompt-opt must never weaken a Tier-1 rule)",
+        "NO harness grade-seam wire / in-process grade (grade.py/run_eval.py untouched; the in-process grade path is WS-6c-AGENTIC). The DSPy judges are importable + tested, not wired into grade",
+        "NO LangGraph recompose / agents recompose (WS-6c-AGENTIC)",
+        "NO S-BS-31 resolution (orphaned-Tier-1-owner reassign-vs-corroboration is a backend-IP/clinical call that GATES WS-6c-AGENTIC; inert here since the judges grade no real cases through the seam; do NOT hand-edit _TIER1_OWNERS)",
+        "NO persistence swap / repository interface / Mongo (WS-6d); NO KB/RAG/pinecone/ONNX (WS-6d-KB)",
+        "NO importing the throwaway worktree DSPy code (S-BS-27 reference-only; re-author clean -- it emits a non-conforming seam + dropped the consensus IP)",
+        "NO LLM auto-hardening loop beyond the bench-accept gate (WS-3a §7: land the GATE, not the fallible auto-harden)",
+        "NO taxonomy re-snapshot / hand-edit (done at WS-6c); no ../lithrim-backend or etlp-mapper edits"
+      ],
+      "plan_review_decisions": [
+        "1 Which judge first (Q3 incremental) -- the role the packs score most cleanly (default: risk_judge, owns WRONG_DOSAGE/FABRICATED_HISTORY exercised by scribe_v1+proof_case) vs all three at once",
+        "2 Module layout -- runtime/council/judges_dspy.py sibling to the ported council (default) vs a new runtime/judges/ package",
+        "3 Judge metric home + shape -- a thin council-specific findings-vs-recipe metric mirroring jute_dspy.make_bench_metric (default) vs reusing the structural jute metric directly",
+        "4 Optimizer scope -- land the bench-accept GATE + a seeded/hand-authored prompt only (WS-3a discipline; default) vs run a DSPy optimizer now (confirm LLM cost if so)",
+        "5 Determinism contract -- how the DSPy judge honors the per-(case,judge) seed (temperature=0 + cache + seed pass-through; document)",
+        "6 Live-smoke scope + cost -- exactly ONE cost-confirmed live Azure smoke (confirm the envelope before the call)"
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing and an independent read of the judge prompts earns its keep. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
+      "next_action": "Driver authored 2026-06-02 (ready; both-absent reconcile). Run /devloop-kickoff bench-salvage WS-6c-DSPy; fresh executor session ROOTED IN lithrim-bench (everything in-repo; no ../lithrim-backend read this cycle). Plan-review resolves the 6 decisions (incl. which judge first + optimizer-vs-gate + the live-smoke cost) before 'go'. Parallel-safe with WS-6c-AGENTIC (S-BS-31-gated) + the shell track."
     }
   ],
   "seams": [
