@@ -1,0 +1,109 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-5-BFF-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-5-BFF",
+  "driver_bundle_id": "bench-salvage-phaseWS-5-BFF-driver",
+  "started_at": "2026-06-01T09:30:00Z",
+  "ended_at": "2026-06-01T10:32:26Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T09:45:00Z",
+    "user_approved_at": "2026-06-01T10:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "BFF folds calibration_check([record]) into /v1/run-eval — run_eval.run() returns per-case `calibration`, not the run-level `calibration_check`; driver A1 wording conflated them. Monitor: mirrors tests/test_ws4a.py:275-280 exactly, so it's the established pattern, not a real divergence. Constraint: render the N=1 result as a degenerate diagnostic, NOT the WS-4b gate.",
+        "evidence": "tests/test_ws4a.py:273-280 (run_eval.run(...) -> calibration_check([record]), asserts ece==0.5); apps/bff/app.py run_eval_endpoint",
+        "decided_at": "2026-06-01T10:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Defer PUT /v1/ontology to the phase that wires it (WS-5c/WS-5d). Locking an unexercised write that would clobber the committed clinical_v1.json is worse than deferring. v1 surface is read-mostly: run-eval + GET corpus + GET ontology. Monitor: the better call; will-not-count as under-delivery; reconciles SPEC §10 at close.",
+        "evidence": "SPEC_PRODUCT_SHELL.md §10 (read/write-ontology); apps/bff/app.py (GET /v1/ontology only)",
+        "decided_at": "2026-06-01T10:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Added a 4-line ruff.toml [lint.flake8-bugbear] extend-immutable-calls allowance for fastapi.Depends/Query (B008 is a false-positive for the FastAPI idiom). Touches a config file beyond the planned set but exists solely to lint the new BFF — surfaced in the halt before final hand-back; not a silent drive-by.",
+        "evidence": "ruff.toml:11-15; ruff check apps/bff/app.py was clean after the allowance",
+        "decided_at": "2026-06-01T10:20:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "S-BS-17's cited `app.jsx:14` (\"acme-support\") is now app.jsx:15 (WS-5b shifted the TopBar line). Cosmetic; noted by monitor at plan-review.",
+        "evidence": "apps/shell/src/app.jsx:15 — `<span className=\"ws-pill\"><span className=\"dot\" /> acme-support</span>`",
+        "decided_at": "2026-06-01T10:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "f19dee4",
+      "repo": "lithrim-bench",
+      "title": "feat(ws5-bff): FastAPI BFF over run_eval + harness (judge-capability API v1)",
+      "summary": "apps/bff/app.py — FastAPI app importing lithrim_bench.harness + scripts/run_eval; v1 surface POST /v1/run-eval (+ folded calibration_check) / GET /v1/corpus / GET /v1/ontology / GET /health; FastAPI/uvicorn/httpx behind a [bff] optional extra; ruff bugbear allowance for the Depends idiom."
+    },
+    {
+      "hash": "e6e023f",
+      "repo": "lithrim-bench",
+      "title": "feat(ws5-bff): React bridge + wire the real eval-report into ReportTab",
+      "summary": "apps/shell/src/bff.js fetch client (VITE_BFF_URL or relative-via-proxy) + vite dev proxy (/v1,/health -> :8787); app.jsx run state + doRun(live) + Run eval/Run live/Run evaluation buttons; artifact.jsx ReportTab renders the real composite (verdict/score/active findings/grounded adjustments + N=1 calibration diagnostic) with loading/empty/error states; mock TILES/FAILURE_MODES dropped."
+    },
+    {
+      "hash": "b15adc5",
+      "repo": "lithrim-bench",
+      "title": "test(ws5-bff): BFF round-trip smoke (replay) — the shell's first behavioral test",
+      "summary": "tests/test_ws5_bff.py — hermetic, replay-only, no network: drives the FastAPI BFF over tests/fixtures/ws0 via a tmp config DB + dependency overrides; asserts real composite + folded calibration_check + corpus/ontology reads + 404; importorskip('fastapi') keeps the default suite green. README run docs (apps/bff + apps/shell)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — The BFF serves a REAL eval-report (replay): POST /v1/run-eval returns run_eval.run()'s dict with a well-formed composite + calibration_check.",
+      "verdict": "PASS",
+      "evidence": "Green smoke test (TestClient drives the real app) + manual curl on the running BFF: grade_path=replay, verdict=reject, stage=BLOCK, score=1.0, active includes FABRICATED_HISTORY, grounded_suppressed=[MEDICATION_NOT_IN_TRANSCRIPT], calibration_check={verdict_match_rate:1.0,status:PASS,ece:0.5,n_cases:1}."
+    },
+    {
+      "criterion": "A2 — The React eval-report renders real data (not mock) in Shell mode.",
+      "verdict": "PASS",
+      "evidence": "User screenshot (2026-06-01): Report tab shows 'Blocked by quality gate'/BLOCK, Verdict reject, Risk score 1, Active findings 7, Grounded suppressions 1, the active-findings list, the MEDICATION_NOT_IN_TRANSCRIPT grounded adjustment with its reason, and the N=1 calibration diagnostic — not data.jsx TILES/FAILURE_MODES. Vite proxy verified: :5180/v1/run-eval -> :8787 returns the real composite."
+    },
+    {
+      "criterion": "A3 — ONE live run works (opt-in, cost-confirmed): POST /v1/run-eval {live:true} makes exactly one real council call and renders.",
+      "verdict": "PASS",
+      "evidence": "One paid :8002 call (~59s, user-authorized; :8002/:3031 both 200, .live_env valid): grade_path=live, verdict=reject, stage=BLOCK, score=1.0; live verdict == replay verdict; MEDICATION_NOT_IN_TRANSCRIPT still grounded-suppressed on the LIVE result (S-BS-7 holds end-to-end on live data). Replay remains the default."
+    },
+    {
+      "criterion": "A4 — First test passes: the BFF round-trip smoke (replay) is green.",
+      "verdict": "PASS",
+      "evidence": "pytest tests/test_ws5_bff.py -> 5 passed. Full suite: 176 passed, 3 skipped (dspy / [verification] extra absent). ruff clean on apps/bff/app.py + tests/test_ws5_bff.py."
+    },
+    {
+      "criterion": "A5 — Dep isolation + scope: default pip install unchanged; harness suite green; diff confined; no ../lithrim-backend/Mongo; no floor ontology.",
+      "verdict": "PASS",
+      "evidence": "git diff 11e0ca7..HEAD confined to apps/bff/ + apps/shell/ + pyproject.toml + ruff.toml + tests/test_ws5_bff.py (11 files). core deps still [pydantic>=2.6, pandas>=2.1]; fastapi/uvicorn/httpx only in [bff]. No lithrim-backend/Mongo path touched; ws0_default/clinical_v1 is floor-less (S-BS-13/16 inert)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "bff_v1_surface": "POST /v1/run-eval, GET /v1/corpus, GET /v1/ontology, GET /health (PUT /v1/ontology deferred)",
+    "live_run_latency": "~59s for one /v1/pipeline/evaluate council call",
+    "live_vs_replay_verdict": "identical (reject/BLOCK/score 1.0); live active over-fires differ (WRONG_CATEGORY_CODE vs FABRICATED_CONSENT) — v2 non-determinism, grounded outcome stable",
+    "calibration_check_N1": "degenerate diagnostic: verdict_match 1.0, status PASS, ece 0.5, n_with_confidence 2 (small-N caveat) — NOT the WS-4b gate",
+    "test_count_delta": "171 (WS-4a) -> 176 passed (+5 BFF smoke); 3 dspy skips unchanged",
+    "vite_build": "44 modules, clean; bff.js code-split (dynamic import)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "WS-5-BFF de-risk landed: the whole React->Python stack is proven with one real artifact. A local FastAPI BFF (apps/bff/, the judge-capability API v1) fronts run_eval.run() + the harness; the React ReportTab in Shell mode renders the real clinical composite over the BFF (replay default + one cost-confirmed live call), and a hermetic round-trip smoke is the shell's first behavioral test (WS-5/WS-5b shipped none). All A1-A5 PASS. Three approved deviations: fold calibration_check (mirrors test_ws4a), defer PUT /v1/ontology (read-mostly v1 surface), and a 4-line ruff bugbear allowance for the FastAPI Depends idiom. Verdict is PROCEED-WITH-CAVEATS (not CLEAN) for two reasons the monitor should weigh at close: (1) S-BS-17 is now visually live — a clinical report renders inside customer-support chrome (support-agent-v4 / acme-support / k 0.88), accepted+surfaced per decision #6, not converged; (2) this LOCKS a public-ish API surface, so a fresh-critic close was recommended in the driver Hardness block. Monitor should run /devloop-audit first, then reconcile SPEC §8 (Tauri -> WS-5e) + §10 (PUT-ontology deferred to WS-5c/d).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-5-BFF, then a FRESH-CRITIC close (locks the v1 API surface, per driver Hardness) — not inline; then reconcile SPEC §8 Tauri->WS-5e + §10 PUT-ontology deferred."
+}
