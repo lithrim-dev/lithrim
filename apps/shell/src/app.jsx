@@ -6,7 +6,7 @@ import { ArtifactPane } from "./artifact.jsx";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-function TopBar({ theme, setTheme, artifactOpen, toggleArtifact }) {
+function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus }) {
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
@@ -25,7 +25,13 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact }) {
         <button className={"icon-btn" + (artifactOpen ? " on" : "")} title="Toggle artifact panel" onClick={toggleArtifact}>
           <I name="panel" size={16} />
         </button>
-        <button className="btn btn-primary"><I name="bolt" size={14} /> Run eval</button>
+        <button className="btn btn-ghost" title="One real, PAID :8002 council call"
+          disabled={runStatus === "loading"} onClick={() => onRunEval(true)}>
+          <I name="bolt" size={14} /> Run live
+        </button>
+        <button className="btn btn-primary" disabled={runStatus === "loading"} onClick={() => onRunEval(false)}>
+          <I name="bolt" size={14} /> {runStatus === "loading" ? "Running…" : "Run eval"}
+        </button>
       </div>
     </div>
   );
@@ -63,6 +69,27 @@ function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
   const setTheme = setThemeProp ?? setThemeLocal;
   const [active, setActive] = useState("t1");
 
+  // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
+  // render its composite in the ReportTab. replay is the $0 default; live is one paid call.
+  const [runStatus, setRunStatus] = useState("idle"); // idle | loading | ready | error
+  const [runResult, setRunResult] = useState(null);
+  const [runError, setRunError] = useState(null);
+
+  const doRun = async (live = false) => {
+    setRunStatus("loading");
+    setRunError(null);
+    setTab("report");
+    setOpen(true);
+    try {
+      const { runEval } = await import("./bff.js");
+      setRunResult(await runEval({ live }));
+      setRunStatus("ready");
+    } catch (err) {
+      setRunError(String(err.message || err));
+      setRunStatus("error");
+    }
+  };
+
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
 
   const drag = (e, base, apply, lo, hi, invert) => {
@@ -85,11 +112,13 @@ function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
     <div className="desk">
       <div className="win">
         <TopBar theme={theme} setTheme={setTheme} artifactOpen={open}
-          toggleArtifact={() => { setOpen((o) => !o); setFull(false); }} />
+          toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
+          onRunEval={doRun} runStatus={runStatus} />
         <div className="body">
           <LeftRail width={leftW} active={active} setActive={setActive} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
-          <CenterPane onOpenArtifact={openArtifact} artifactOpen={open} />
+          <CenterPane onOpenArtifact={openArtifact} artifactOpen={open}
+            onRunEval={doRun} runStatus={runStatus} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
           )}
@@ -98,6 +127,7 @@ function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
               width={rightW} full={full} tab={tab} setTab={setTab}
               onClose={() => { setOpen(false); setFull(false); }}
               onToggleFull={() => setFull((f) => !f)}
+              runStatus={runStatus} runResult={runResult} runError={runError}
             />
           )}
         </div>

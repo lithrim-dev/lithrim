@@ -65,7 +65,7 @@ export function LeftRail({ width, active, setActive }) {
 }
 
 /* ============================ CENTER ============================ */
-export function CenterPane({ onOpenArtifact, artifactOpen }) {
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus }) {
   return (
     <main className="center">
       <div className="center-hd">
@@ -128,7 +128,10 @@ export function CenterPane({ onOpenArtifact, artifactOpen }) {
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Everything checks out. Running all 2,400 will take about <strong>6 minutes</strong>; I'll stream verdicts into the report as they land.</p>
               <div className="msg-actions">
-                <button className="btn btn-primary"><Icon name="bolt" size={14} /> Run evaluation</button>
+                <button className="btn btn-primary" disabled={runStatus === "loading"}
+                  onClick={() => onRunEval(false)}>
+                  <Icon name="bolt" size={14} /> {runStatus === "loading" ? "Running…" : "Run evaluation"}
+                </button>
                 <button className="btn btn-ghost" onClick={() => onOpenArtifact("report")}>
                   <Icon name="panel" size={14} /> Open report
                 </button>
