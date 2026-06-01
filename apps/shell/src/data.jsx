@@ -1,27 +1,27 @@
 /* data.jsx — representative content for the Lithrim shell (ported verbatim). */
 
 export const THREADS = [
-  { id: "t1", title: "Support Agent v4", sub: "Setup · step 5 of 6", meta: "running · 3m", color: "var(--accent)", active: true },
-  { id: "t2", title: "Refund classifier", sub: "Passed · 0.94 acc", meta: "2h ago", color: "var(--teal)" },
-  { id: "t3", title: "RAG answer quality", sub: "Running · 1,820 / 3k", meta: "live", color: "var(--amber)" },
-  { id: "t4", title: "Tone & safety sweep", sub: "Needs review · 38 flags", meta: "yesterday", color: "var(--amber)" },
-  { id: "t5", title: "Onboarding bot", sub: "Passed · 0.91 acc", meta: "Mon", color: "var(--teal)" },
-  { id: "t6", title: "Email draft grader", sub: "Draft", meta: "Mon", color: "var(--border-strong)" },
+  { id: "t1", title: "Scribe Agent v4", sub: "Setup · step 5 of 6", meta: "running · 3m", color: "var(--accent)", active: true },
+  { id: "t2", title: "Discharge summary grader", sub: "Passed · 0.94 acc", meta: "2h ago", color: "var(--teal)" },
+  { id: "t3", title: "Triage note quality", sub: "Running · 1,820 / 3k", meta: "live", color: "var(--amber)" },
+  { id: "t4", title: "Allergy & safety sweep", sub: "Needs review · 38 flags", meta: "yesterday", color: "var(--amber)" },
+  { id: "t5", title: "Intake summarizer", sub: "Passed · 0.91 acc", meta: "Mon", color: "var(--teal)" },
+  { id: "t6", title: "Referral letter grader", sub: "Draft", meta: "Mon", color: "var(--border-strong)" },
 ];
 
 export const STEPS = [
-  { name: "Domain", desc: "Customer support · transcripts", state: "done" },
+  { name: "Domain", desc: "Clinical scribe · encounter transcripts", state: "done" },
   { name: "Judge", desc: "Council of 3 · cross-checked", state: "done" },
-  { name: "Oracle", desc: "Human labels + ground truth", state: "done" },
-  { name: "Knowledge Base", desc: "12 policy docs indexed", state: "done" },
+  { name: "Oracle", desc: "Patient record + ground truth", state: "done" },
+  { name: "Knowledge Base", desc: "12 HIPAA + formulary docs indexed", state: "done" },
   { name: "Run", desc: "2,400 samples · in progress", state: "current" },
   { name: "Review", desc: "Inspect verdicts & report", state: "todo" },
 ];
 
 export const FAILURE_MODES = [
-  { name: "Hallucinated policy", val: 58, pct: 41, color: "var(--accent)" },
-  { name: "Incomplete answer", val: 39, pct: 27, color: "var(--amber)" },
-  { name: "Tone mismatch", val: 27, pct: 19, color: "var(--slate)" },
+  { name: "Fabricated allergy", val: 58, pct: 41, color: "var(--accent)" },
+  { name: "Incomplete documentation", val: 39, pct: 27, color: "var(--amber)" },
+  { name: "Fabricated consent", val: 27, pct: 19, color: "var(--slate)" },
   { name: "Missed escalation", val: 18, pct: 13, color: "var(--teal)" },
 ];
 
@@ -48,8 +48,8 @@ export const CALIB = [
 ];
 
 export const CONFIG_YAML = [
-  { k: "domain:", v: ' "customer_support"', t: "str" },
-  { k: "dataset:", v: ' "support_transcripts.jsonl"', t: "str" },
+  { k: "domain:", v: ' "clinical"', t: "str" },
+  { k: "dataset:", v: ' "scribe_transcripts.jsonl"', t: "str" },
   { k: "samples:", v: " 2400", t: "num" },
   { k: "", v: "", t: "blank" },
   { k: "judge:", v: "", t: "key" },
@@ -58,10 +58,10 @@ export const CONFIG_YAML = [
   { k: "  require_agreement:", v: " 0.66", t: "num", ind: 1 },
   { k: "", v: "", t: "blank" },
   { k: "metrics:", v: "  # active checks", t: "cmt" },
-  { k: "  - accuracy", v: "", t: "key", ind: 1 },
-  { k: "  - tone", v: "", t: "key", ind: 1 },
-  { k: "  - policy_compliance", v: "", t: "key", ind: 1 },
+  { k: "  - faithfulness", v: "", t: "key", ind: 1 },
+  { k: "  - safety", v: "", t: "key", ind: 1 },
+  { k: "  - structural", v: "", t: "key", ind: 1 },
   { k: "", v: "", t: "blank" },
-  { k: "oracle:", v: ' "human_labels.csv"', t: "str" },
+  { k: "oracle:", v: ' "patient_record.json"', t: "str" },
   { k: "fail_fast:", v: " false", t: "bool" },
 ];

@@ -196,7 +196,7 @@ function ConfigTab() {
 
 export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
-    report: ["Evaluation report", "support-agent-v4 · run #218"],
+    report: ["Evaluation report", "scribe-agent-v4 · run #218"],
     judges: ["Judge council", "3 models · weighted vote"],
     config: ["Config editor", "eval.config.yaml"],
   };

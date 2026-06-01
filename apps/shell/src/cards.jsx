@@ -8,7 +8,7 @@ import { Icon } from "./icons.jsx";
 /* ---- Domain config widget ---- */
 export function ConfigCard({ onOpen }) {
   const [samples, setSamples] = useState(2400);
-  const [metrics, setMetrics] = useState({ Accuracy: true, Tone: true, Policy: true, Latency: false });
+  const [metrics, setMetrics] = useState({ Faithfulness: true, Safety: true, Structural: true, Completeness: false });
   const toggle = (k) => setMetrics((m) => ({ ...m, [k]: !m[k] }));
   return (
     <div className="icard">
@@ -22,11 +22,11 @@ export function ConfigCard({ onOpen }) {
         <div className="field-grid" style={{ marginBottom: 13 }}>
           <div className="field">
             <span className="flbl">Domain</span>
-            <div className="select"><span>Customer support</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
+            <div className="select"><span>Clinical scribe</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
           </div>
           <div className="field">
             <span className="flbl">Dataset</span>
-            <div className="select"><span className="fa-mono">support_transcripts.jsonl</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
+            <div className="select"><span className="fa-mono">scribe_transcripts.jsonl</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
           </div>
         </div>
         <div className="field" style={{ marginBottom: 14 }}>

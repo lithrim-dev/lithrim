@@ -12,9 +12,9 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
       <div className="tb-crumb">
-        <span className="ws-pill"><span className="dot" /> acme-support</span>
+        <span className="ws-pill"><span className="dot" /> acme-health</span>
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
-        <span className="crumb-txt">Evaluations <span className="crumb-sep">/</span> <b>Support Agent v4</b></span>
+        <span className="crumb-txt">Evaluations <span className="crumb-sep">/</span> <b>Scribe Agent v4</b></span>
       </div>
 
       <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>

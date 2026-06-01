@@ -57,7 +57,7 @@ export function LeftRail({ width, active, setActive }) {
         <div className="avatar">JR</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="who">Jordan Reyes</div>
-          <div className="org">acme-support · Pro</div>
+          <div className="org">acme-health · Pro</div>
         </div>
         <button className="icon-btn"><Icon name="dots" size={16} /></button>
       </div>
@@ -71,7 +71,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
     <main className="center">
       <div className="center-hd">
         <div style={{ minWidth: 0 }}>
-          <div className="h-title">Support Agent v4</div>
+          <div className="h-title">Scribe Agent v4</div>
         </div>
         <span className="chip"><span className="d" style={{ background: "var(--accent)" }} /> Run in progress</span>
         <span className="chip">2,400 samples</span>
@@ -92,7 +92,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Welcome back. We're configuring an evaluation for <strong>Support Agent v4</strong>. Four of six steps are done — let's confirm the domain, then kick off the full run.</p>
+              <p>Welcome back. We're configuring an evaluation for <strong>Scribe Agent v4</strong>. Four of six steps are done — let's confirm the domain, then kick off the full run.</p>
               <ConfigCard onOpen={() => onOpenArtifact("config")} />
             </div>
           </div>
@@ -101,7 +101,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="av user">JR</div>
             <div className="content">
               <div className="name">Jordan</div>
-              <p>Looks right. Bump it to the full <code className="inl">2,400</code> samples and keep policy-compliance on — that's the one we keep failing.</p>
+              <p>Looks right. Bump it to the full <code className="inl">2,400</code> samples and keep the safety checks on — fabricated allergies are the one we keep failing.</p>
             </div>
           </div>
 
