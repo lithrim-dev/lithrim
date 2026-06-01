@@ -20,7 +20,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
 
       <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
 
-      <div className="tb-right">}
+      <div className="tb-right">
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
           <I name={theme === "light" ? "moon" : "sun"} size={16} />
         </button>
