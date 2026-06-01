@@ -790,7 +790,7 @@
       "phase": "WS-6c-DSPy",
       "scope": "rebuild the per-judge layer on DSPy emitting the §6 per-judge dict seam, wrapping the ported v2 consensus UNCHANGED",
       "file": "bench-salvage_phaseWS-6c-DSPy_dspy-judge-rebuild_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE",
       "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
@@ -810,7 +810,17 @@
           "drift_notes": "All 18 citation clusters CONFIRMED in-repo at the WS-6c tip. Seam doc runtime/council/__init__.py:38-54 (shape :45, 'WS-6c-DSPy must emit' :51). Imperative seam built compliance_council.py:1550(model)/:1556(findings)/:1567(errors) inside evaluate():2400 (loop :2489, _invoke_model:1406); consumed UNCHANGED by _apply_consensus:1853 (reads :1985/1986/1899/1911/1914/1979/1578). Ported consensus to keep: _compose_council_verdict_v2:1812, _worst_of_verdicts:1799, extract_verdict_confidence:413, _TIER1_OWNERS:232. v2 trio inline __init__:463 (no JUDGES_V2 constant; comment :381). jute_dspy bench-accept: score_template:130/make_bench_metric:200/build_generator:333/Signature:311/lazy-dspy:309,351. Extras pyproject.toml verification=[dspy>=3.2,httpx]:24-26 + council=[openai,tenacity]:42-44 + testpaths:57. DSPy prior art worktree present (council_v2.py/council_dspy.py). clinical_v1.json 23 flags/16 questions/1 verification_contract. Packs data/verification_packs/{fhir_patient,fhir_observation,transaction}_v1.jsonl + examples/proof_case.jsonl + picklist PACK_FILES:20 scribe_v1:21. Frozen seam grade_replay:40/grade_live:85/run_eval.run:101/report.composite:29. TWO driver-text corrections inherited from the WS-6c critique applied at authoring (not drift): JUDGES_V2 is a comment not a constant; 4 not 5 AZURE_OPENAI_DEPLOYMENT_* ids."
         }
       ],
-      "next_action": "Stub->ready (both-absent reconcile, authored at ready). Run /devloop-kickoff bench-salvage WS-6c-DSPy; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions (which judge first + optimizer-vs-gate + the live-smoke cost) before 'go'. Parallel-safe with WS-6c-AGENTIC (S-BS-31-gated) + the shell track."
+      "next_action": "CLOSED 2026-06-02 (95174c0..4e1d3cc; audit CLEAN 7/7; critique NON-BLOCKING; HARD-GATE inline-by-continuation, full fresh-critic independence routed to 6c-AGENTIC; live smoke PASS $0.0067, D2 logprobs bridge live-validated). Next: /devloop-expand-driver bench-salvage WS-6c-AGENTIC (S-BS-31-GATED; the genuinely-fresh-critic home) parallel the remaining two judges (policy/faithfulness on DSPy, same seam).",
+      "closed_at": "2026-06-02",
+      "closing_commits": "95174c0..4e1d3cc (4 atomic on branch bench-salvage/ws6c-dspy, not pushed) + close-out commit (pending)",
+      "audit_verdict": "CLEAN (7/7; monitor independently re-verified: A4 consensus byte-ZERO-delta vs 6bae3c0 over the full ported set incl. __init__.py; scope held only runtime/council/+log, frozen seam intact; 39 passed/1 skipped on debuglithrim; ruff clean on the 4 new files; S-BS-32 3-RED directly reproduced at HEAD + confirmed pre-existing/test-files-byte-unchanged).",
+      "critique_verdict": "NON-BLOCKING FINDINGS (HARD-GATE, inline-by-continuation; the critic adopted an adversarial from-source stance and surfaced 2 findings the monitor audit missed -- citations_used seam-doc gap + A3-NKA non-reproducibility). 0 BLOCKING / 4 NB-OQ (citations_used omission -> S-BS-33; A2 ad-hoc proof_case score [met via live scribe_v1 smoke + metric test]; A3-NKA is a role-prompt suppression not a consensus rule; driver dec#1 FABRICATED_HISTORY mis-assignment = the plan-review D1). Independence caveat recorded; full fresh-critic deferred to 6c-AGENTIC (where the council first scores real cases). File: .devloop/sessions/critique-bench-salvage-phaseWS-6c-DSPy-2026-06-02.md",
+      "a5_live_smoke": "PASS (1 gpt-4.1 call via ../lithrim-backend/.env, $0.0067 vs $0.05 ceiling; DSPy risk_judge -> reject on WRONG_DOSAGE w/ 2 grounded spans -> ported _apply_consensus -> reject, matches recipe=label; D2 logprobs bridge live-validated confidence=0.999999, Mistral None-path pinned offline).",
+      "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-2026-06-02.json",
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md",
+      "new_seams": ["S-BS-32", "S-BS-33"],
+      "seams_closed": ["S-BS-27"],
+      "close_out_driver_fixes": "D1 (driver §3 dec1: risk_judge prohibited from FABRICATED_HISTORY per risk_judge.txt:24) + D3 (class ComplianceCouncil :459->:453) + A3-NKA (role-prompt suppression, not a consensus-oracle scenario) corrected in the driver at close."
     }
   ]
 }
