@@ -4,21 +4,24 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-// FlagEditor reads GET /v1/ontology via bff.getOntology — mock it (read-only).
+// FlagEditor reads GET /v1/ontology (read-only) + persists via PUT /v1/ontology — mock both.
 vi.mock("../bff.js", () => ({
   getOntology: vi.fn().mockResolvedValue({
+    domain: "clinical",
+    ontology_version: "clinical/1",
     severity_map: { block_at_or_above: 0.5, warn_above: 0, weights: { HIGH: 1, MEDIUM: 0.5, LOW: 0.2 } },
     flags: [
       { flag: "FABRICATED_ALLERGY", category: "medication", tier: "TIER_1", gradeable: true, owner_roles: ["risk_judge"] },
       { flag: "DURATION_FABRICATION", category: "fidelity", tier: "TIER_3", gradeable: true, owner_roles: [] },
     ],
   }),
+  putOntology: vi.fn().mockResolvedValue({ status: "ok", working_copy: "/tmp/ont/ws0_default.json" }),
 }));
 
 import FlagEditor from "./FlagEditor.jsx";
 import ContractBuilder from "./ContractBuilder.jsx";
 import KbPicker from "./KbPicker.jsx";
-import { getOntology } from "../bff.js";
+import { getOntology, putOntology } from "../bff.js";
 
 describe("FlagEditor (tool-flag_editor)", () => {
   it("reads the ontology via GET and returns severity_map + per-flag config", async () => {
@@ -38,6 +41,32 @@ describe("FlagEditor (tool-flag_editor)", () => {
     expect(result.severity_map.weights.HIGH).toBe(1);
     expect(result.flags).toHaveLength(2);
     expect(result.flags[0]).toMatchObject({ flag: "FABRICATED_ALLERGY", tier: "TIER_1", gradeable: true });
+  });
+
+  it("persists a draft via PUT /v1/ontology, merging edits into the FULL ontology (D4)", async () => {
+    putOntology.mockClear();
+    render(<FlagEditor onResult={vi.fn()} />);
+    expect(await screen.findByText(/Flags & severity/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Persist draft/i }));
+
+    await waitFor(() => expect(putOntology).toHaveBeenCalledTimes(1));
+    const body = putOntology.mock.calls[0][0];
+    // the PUT body is the FULL ontology (round-trips through from_dict), not the partial
+    expect(body.domain).toBe("clinical");
+    expect(body.ontology_version).toBe("clinical/1");
+    expect(body.flags.map((f) => f.flag)).toContain("FABRICATED_ALLERGY");
+    expect(body.severity_map).toBeTruthy();
+    expect(await screen.findByText(/draft saved/i)).toBeInTheDocument();
+  });
+
+  it("surfaces a rejected PUT (422) in the footer", async () => {
+    putOntology.mockRejectedValueOnce(new Error("PUT /v1/ontology → 422: snapshot violation"));
+    render(<FlagEditor onResult={vi.fn()} />);
+    expect(await screen.findByText(/Flags & severity/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Persist draft/i }));
+    expect(await screen.findByText(/422/)).toBeInTheDocument();
   });
 });
 

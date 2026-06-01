@@ -1,0 +1,98 @@
+/* artifact.test.jsx — A1/A2: the artifact tabs render REAL BFF data (not data.jsx
+   mock). JudgeTab takes realized council votes via props; ConfigTab self-fetches GET
+   /v1/ontology; CorpusTab self-fetches GET /v1/corpus (populated + empty-state). */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+// ConfigTab + CorpusTab self-fetch through bff.js — mock the two getters.
+vi.mock("./bff.js", () => ({
+  getOntology: vi.fn(),
+  getCorpus: vi.fn(),
+}));
+
+import { ArtifactPane } from "./artifact.jsx";
+import { getOntology, getCorpus } from "./bff.js";
+
+const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
+
+beforeEach(() => {
+  getOntology.mockReset();
+  getCorpus.mockReset();
+});
+
+const COUNCIL_RESULT = {
+  case_id: "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+  grade_path: "replay",
+  council: {
+    votes: [
+      { judge_role: "risk_judge", vote: "PASS", confidence: 1.0, model: "gpt-4.1", reason: "no HIPAA issue" },
+      { judge_role: "policy_judge", vote: "FAIL", confidence: null, model: "gpt-4.1", reason: "fabricated history" },
+      { judge_role: "faithfulness_judge", vote: "PASS", confidence: 0.8, model: "gpt-4.1", reason: "" },
+    ],
+    configured: ["risk_judge"],
+  },
+};
+
+describe("JudgeTab — realized council votes (A1)", () => {
+  it("renders the per-judge votes threaded via props (not data.jsx JUDGES)", () => {
+    render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runResult={COUNCIL_RESULT} runError={null} />);
+    expect(screen.getByText("risk_judge")).toBeInTheDocument();
+    expect(screen.getByText("policy_judge")).toBeInTheDocument();
+    expect(screen.getByText("faithfulness_judge")).toBeInTheDocument();
+    expect(screen.getByText("1 blocking vote(s)")).toBeInTheDocument(); // the FAIL
+    // confidence:null tolerated (WS-6a D-E) — rendered as n/a, not a crash
+    expect(screen.getByText(/confidence n\/a/)).toBeInTheDocument();
+  });
+
+  it("prompts to run when there is no run yet", () => {
+    render(<ArtifactPane {...paneProps} tab="judges" runStatus="idle" runResult={null} runError={null} />);
+    expect(screen.getByText(/per-case votes/i)).toBeInTheDocument();
+  });
+});
+
+describe("ConfigTab — ontology config from GET /v1/ontology (A1)", () => {
+  it("renders the real ontology config (domain, flags, severity, contracts)", async () => {
+    getOntology.mockResolvedValue({
+      domain: "clinical",
+      ontology_version: "clinical/1",
+      severity_map: { block_at_or_above: 1.0, warn_above: 0, weights: { HIGH: 1, MEDIUM: 0.5, LOW: 0.2 } },
+      flags: [
+        { flag: "FABRICATED_ALLERGY", tier: "TIER_1", gradeable: true, owner_roles: ["risk_judge"] },
+        { flag: "FABRICATED_CONSENT_SCOPE", tier: null, gradeable: false, owner_roles: [] },
+      ],
+      verification_contracts: [
+        { flag_code: "MEDICATION_NOT_IN_TRANSCRIPT", contract_type: "presence_check", version: "med-presence-check/v1", question: "present?" },
+      ],
+    });
+    render(<ArtifactPane {...paneProps} tab="config" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/clinical · clinical\/1/)).toBeInTheDocument();
+    expect(screen.getByText("FABRICATED_ALLERGY")).toBeInTheDocument();
+    expect(screen.getByText("gradeable")).toBeInTheDocument();
+    expect(screen.getByText("reference")).toBeInTheDocument(); // the non-gradeable flag
+    expect(screen.getByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument(); // contract
+  });
+});
+
+describe("CorpusTab — GET /v1/corpus (A2)", () => {
+  it("renders corpus-row/1 rows when populated", async () => {
+    getCorpus.mockResolvedValue({
+      rows: [
+        {
+          case_id: "bench_scribe_v1", action: "suppress", flag_code: "MEDICATION_NOT_IN_TRANSCRIPT",
+          verdict_before: "BLOCK", verdict_after: "PASS", contract: "med-presence-check/v1",
+          owner_roles: ["risk_judge"], rollout_ref: "abc123def456",
+        },
+      ],
+    });
+    render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument();
+    expect(screen.getByText("suppress")).toBeInTheDocument();
+    expect(screen.getByText(/BLOCK → PASS/)).toBeInTheDocument();
+  });
+
+  it("renders a clean empty-state when the corpus is empty (no crash)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/No corrections yet/i)).toBeInTheDocument();
+  });
+});

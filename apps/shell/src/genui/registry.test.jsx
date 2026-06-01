@@ -56,4 +56,18 @@ describe("renderTool registry", () => {
     render(<div>{renderTool({ type: "tool-kb_picker", state: "input-streaming" })}</div>);
     expect(screen.getByText(/Preparing tool-kb_picker/i)).toBeInTheDocument();
   });
+
+  // S-BS-19 / Ambiguity-2: the LOCKED datapoint prop convention is flat-spread
+  // (part.output fields are direct props, no {data} wrapper). Both datapoint cards conform.
+  it("renders VerdictCard from flat-spread part.output (locked convention)", () => {
+    render(<div>{renderTool({ type: "tool-verdict_card", state: "output-available", output: { verdict: "FAIL", confidence: "0.10" } })}</div>);
+    expect(screen.getByText("FAIL")).toBeInTheDocument(); // flat field, not output.data.verdict
+    expect(screen.getByText("0.10")).toBeInTheDocument();
+  });
+
+  it("renders CalibrationChart from flat-spread part.output (locked convention)", () => {
+    render(<div>{renderTool({ type: "tool-calibration_chart", state: "output-available", output: { ece: "9.9%", brier: "0.500" } })}</div>);
+    expect(screen.getByText("9.9%")).toBeInTheDocument();
+    expect(screen.getByText("0.500")).toBeInTheDocument();
+  });
 });
