@@ -25,6 +25,15 @@ verification = [
     "dspy>=3.2",
     "httpx>=0.27",
 ]
+# WS-5-BFF: the optional shell BFF (the judge-capability API v1 — apps/bff/).
+# FastAPI/uvicorn are kept OUT of `dependencies` so the default install stays
+# the offline-deterministic pydantic+pandas core. httpx is the FastAPI TestClient
+# transport (and run_eval's live :8002 client). Mirrors the `[verification]` pattern.
+bff = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "httpx>=0.27",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
