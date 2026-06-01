@@ -35,8 +35,8 @@
       },
       "closed_at": "2026-05-28",
       "executor_verdict": "PROCEED-WITH-CAVEATS",
-      "audit_verdict": "PENDING (monitor /devloop-close-phase)",
-      "critique_verdict": "PENDING (monitor /devloop-close-phase)",
+      "audit_verdict": "CLEAN (catch-up close 2026-06-01) — dispersion stats monitor-re-verified vs dispersion.md + raw ndjson (60 rows; verdict 12/12 @ 5/5 modal; judge-split 4/12; finding-code-split 7/12; content_filter 0/60 by value; S2 WRONG_DOSAGE 0/5; C1 BLOCK 5/5 w/ FABRICATED_CONSENT 4/5; total $3.4002). Scope lithrim-bench only (no backend). A4 cost FAIL-WITH-CAVEAT ($3.40 vs $2.50, blend-assumption gap) was user-approved mid-cycle (ceiling $2.50->$5.00); documented, not silent.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline) — 0 BLOCKING. File: .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-2026-06-01.md. S2 WIDEN mechanical (no override); S-P1-13 KEEP-OPEN as paper-§5.4 limitation; S-P1-21 CONFIRMED (behavior) / INFERRED (build_prompt root-cause) — honestly tagged.",
       "headline_dispersion_stat": "verdict-layer 12/12 cases at 5/5 modal; per-judge splits 4/12; finding-code splits 7/12; content_filter 0/60; S2=WIDEN; C1 BLOCK 5/5 (S-P1-21)",
       "closing_commits": [
         "1e07e94 feat(bench): N=5 dispersion pilot script for paper_v1_n12_canonical",
