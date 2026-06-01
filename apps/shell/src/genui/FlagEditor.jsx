@@ -1,16 +1,17 @@
 /* FlagEditor.jsx — generative-UI input component (tool-flag_editor, SPEC §5b).
 
    The ontology editor's first appearance. Reads the agent's committed ontology via
-   GET /v1/ontology (read-only — no PUT this phase, WS-5d) and surfaces TWO distinct
-   things, per the ontology's actual schema:
+   GET /v1/ontology and surfaces TWO distinct things, per the ontology's actual schema:
 
      1. per-flag {tier, gradeable, owner_roles}  — gradeable/tier are editable,
         owner_roles shown read-only (ground-truth ownership per the invariant);
      2. the GLOBAL severity_map {block_at_or_above, warn_above, weights{HIGH/MED/LOW}}.
 
-   Severity is NOT a per-flag field — the HIGH/MEDIUM/LOW weights are global. The
-   edited config is returned via onResult() into conversation/UI state; nothing is
-   persisted (no PUT). Built on shadcn primitives + the @theme token bridge. */
+   Severity is NOT a per-flag field — the HIGH/MEDIUM/LOW weights are global. Two
+   distinct return paths (WS-5d): the edited config is returned via onResult() into
+   conversation/UI state, AND "Persist draft" writes it via PUT /v1/ontology to a
+   BFF-local working copy (NOT the committed seed — drafts do not feed an eval run;
+   S-BS-26). Built on shadcn primitives + the @theme token bridge. */
 import { useEffect, useState } from "react";
 import { getOntology, putOntology } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
@@ -129,7 +130,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
         <span className="text-primary"><Icon name="flag" size={15} /></span>
         <CardTitle>Flags &amp; severity</CardTitle>
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          {flags.length} flags · read-only ontology
+          {flags.length} flags · editable draft
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
