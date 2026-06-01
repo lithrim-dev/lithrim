@@ -3,7 +3,7 @@ from pathlib import Path
 
 from lithrim_bench.analysis import analyze_pack, analyze_per_case
 from lithrim_bench.backends import MockBackend
-from lithrim_bench.backends.etlp_structural import _failed_checks
+from lithrim_bench.backends.etlp_structural import _extract_checks, _failed_checks
 from lithrim_bench.eval_runner import run_pack
 from lithrim_bench.packager import package_case
 from lithrim_bench.packs import HL7_ADT_PACK
@@ -14,22 +14,49 @@ from lithrim_bench.taxonomy import load_taxonomy
 from ._factories import make_spec
 
 
-def test_failed_checks_dict_layout():
-    checks = {
-        "msh2_separators": {"pass": True, "message": "ok"},
-        "pid7_date_format": {"pass": False, "message": "1973-09-11 not YYYYMMDD"},
-        "pv1_present": {"pass": True, "message": "ok"},
-    }
-    failed = _failed_checks(checks)
-    assert failed == ["pid7_date_format"]
-
-
-def test_failed_checks_list_layout():
+def test_failed_checks_real_shape():
+    # The /apply checks carry {name, field, status: "pass"|"fail", message}.
     checks = [
-        {"name": "msh2_separators", "pass": True},
-        {"name": "pid7_date_format", "pass": False},
+        {"name": "dob-format-valid", "field": "PID.7", "status": "fail", "message": "not YYYYMMDD"},
+        {"name": "gender-value-valid", "field": "PID.8", "status": "pass", "message": "ok"},
     ]
-    assert _failed_checks(checks) == ["pid7_date_format"]
+    assert _failed_checks(checks) == ["dob-format-valid"]
+
+
+def test_extract_checks_nested_under_result_request():
+    # HL7 mapping 93 shape: result.request.checks
+    body = {
+        "result": {
+            "request": {
+                "valid": False,
+                "totalChecks": 2,
+                "checks": [
+                    {"name": "dob-format-valid", "status": "fail"},
+                    {"name": "msg-type-valid", "status": "pass"},
+                ],
+            }
+        },
+        "org/id": "x",
+    }
+    assert _failed_checks(_extract_checks(body)) == ["dob-format-valid"]
+
+
+def test_extract_checks_directly_under_result():
+    # FHIR validator shape: result.checks
+    body = {
+        "result": {
+            "resourceType": "Patient",
+            "checks": [
+                {"name": "name-present", "status": "pass"},
+                {"name": "birthdate-present", "status": "fail"},
+            ],
+        }
+    }
+    assert _failed_checks(_extract_checks(body)) == ["birthdate-present"]
+
+
+def test_extract_checks_absent_returns_empty():
+    assert _extract_checks({"result": {"error": "no mapping"}}) == []
 
 
 def test_mock_backend_emits_structural_verdict_for_hl7_cases(tmp_path: Path):
