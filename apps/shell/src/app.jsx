@@ -50,13 +50,17 @@ function StatusBar() {
   );
 }
 
-function App() {
+function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
   const [leftW, setLeftW] = useState(270);
   const [rightW, setRightW] = useState(440);
   const [open, setOpen] = useState(true);
   const [full, setFull] = useState(false);
   const [tab, setTab] = useState("report");
-  const [theme, setTheme] = useState("light");
+  // Theme is owned by root.jsx (shared with the journey) when mounted there; fall back to
+  // local state when App is rendered standalone.
+  const [themeLocal, setThemeLocal] = useState("light");
+  const theme = themeProp ?? themeLocal;
+  const setTheme = setThemeProp ?? setThemeLocal;
   const [active, setActive] = useState("t1");
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);

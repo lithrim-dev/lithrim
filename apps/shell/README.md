@@ -39,10 +39,22 @@ npm run dev          # http://localhost:5180
 
 ## Status & next
 
-- **Done:** the shell (this).
-- **Next (WS-5b–e per `docs/specs/SPEC_PRODUCT_SHELL.md`):** port the 4-phase **journey**
-  (`jp1–jp4` from the handoff) into `src/journey/`; wire the conversational layer +
-  generative-UI components to the FastAPI BFF; Tauri desktop wrapper + VPC packaging.
+- **Done:** the shell skeleton (WS-5) + the conversational **journey layer** (WS-5b) —
+  the 4-act activation arc (`src/journey/`, ESM port of `jp1–jp4`) with a top-level
+  Shell↔Journey switch (`src/root.jsx`, default Journey) sharing the window theme.
+- **Next (WS-5c–e + WS-5-BFF per `docs/specs/SPEC_PRODUCT_SHELL.md`):** WS-5c =
+  generative-UI components + the Tailwind v4 / shadcn foundation; WS-5-BFF = the FastAPI
+  BFF sidecar + React↔Python bridge + one real `run_eval` vertical; WS-5e = Tauri desktop
+  + VPC packaging.
+
+### Journey layer (`src/journey/`, WS-5b)
+
+| File | Role |
+|---|---|
+| `journeyData.js` | the 4-act content (ACTS, PILLARS, AGENT_TYPES, PACK, EXCHANGE, SCENARIOS, ALIGN, JUTE, SDK_LINES, PRO_FEATURES) |
+| `chrome.jsx` | journey rail / top bar / status bar / phase footer + the shared `AgentMsg` |
+| `jp1.jsx … jp4.jsx` | the four acts (center conversation + right-pane artifact); jp2 verify-reveal + jp3 calibration are the hero screens |
+| `JourneyApp.jsx` | composition: phase state machine (1–4), `runVerify`/`runCalib` hero timers, ←/→ nav, resizable panes |
 - Fonts load from Google Fonts (dev). WS-5e swaps to self-hosted `@fontsource` for
   offline/desktop.
 - Stack note: kept the design's CSS system verbatim for fidelity; Tailwind/shadcn
