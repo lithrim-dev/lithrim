@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from datetime import date
@@ -50,6 +51,23 @@ def _git_sha(backend_path: Path) -> str:
         return "unknown"
 
 
+def _derive_production_judges(council) -> list[str]:
+    """S-BS-30: derive the production trio from the v2 council config instead of
+    hardcoding it.
+
+    ``ComplianceCouncil.__init__`` builds the v2 cross-provider trio inline
+    (risk_judge / policy_judge / faithfulness_judge) when
+    ``COMPLIANCE_COUNCIL_VERSION == "v2"`` — there is no module-level constant to
+    read, so instantiating the council and reading ``[m.name for m in
+    council.models]`` is the single source of truth for "which judges actually
+    run". ``main`` forces ``COMPLIANCE_COUNCIL_VERSION=v2`` +
+    ``LITHRIM_LLM_PROVIDER=openai`` before the backend module is imported, so this
+    stays offline (no Azure endpoint/key validation; the trio *names* are
+    provider-independent) and pins the ratified v2-only production set.
+    """
+    return [m.name for m in council.ComplianceCouncil().models]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend-path", required=True, type=Path)
@@ -60,7 +78,16 @@ def main() -> None:
     )
     args = ap.parse_args()
 
+    # S-BS-30: the snapshot documents the *running* production trio, which under
+    # the ratified v2-only decision is the cross-provider v2 trio. Force v2 +
+    # provider=openai BEFORE importing the backend council so its module-level
+    # Settings() singleton resolves the v2 trio, and the derivation stays offline
+    # (provider=openai skips Azure validation; trio names are provider-independent).
+    os.environ["COMPLIANCE_COUNCIL_VERSION"] = "v2"
+    os.environ["LITHRIM_LLM_PROVIDER"] = "openai"
+
     council = _load_council_module(args.backend_path)
+    production_judges = _derive_production_judges(council)
 
     snapshot = {
         "snapshot_metadata": {
@@ -75,7 +102,7 @@ def main() -> None:
             "TIER_3_MEDIUM": sorted(council.TIER_3_MEDIUM),
         },
         "tier1_owners": {k: sorted(v) for k, v in council._TIER1_OWNERS.items()},
-        "production_judges": ["policy_judge", "risk_judge", "behavior_judge"],
+        "production_judges": production_judges,
         "declared_but_not_running": [],
     }
 

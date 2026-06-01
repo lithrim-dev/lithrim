@@ -67,11 +67,12 @@
     ]
   },
   "production_judges": [
-    "policy_judge",
     "risk_judge",
-    "behavior_judge"
+    "policy_judge",
+    "faithfulness_judge"
   ],
   "declared_but_not_running": [
+    "behavior_judge",
     "source_message_judge"
   ],
   "structural_codes": {
