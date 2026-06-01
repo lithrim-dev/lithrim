@@ -34,16 +34,18 @@ npm run test:run    # vitest run (CI / one-shot)
 ```
 
 Vitest + React Testing Library + jsdom (WS-5c, the shell's first JS test infra). Covers
-the gen-UI registry (all 5 tools render + graceful fallback), the 3 input widgets
-(collect + return a result; ontology read via GET only), and the `bff.js → ReportTab`
-binding (mocked fetch, real-composite render — S-BS-18).
+the gen-UI registry (all 5 tools render + graceful fallback + the locked flat-spread
+datapoint prop convention), the 3 input widgets (collect + return a result; FlagEditor
+reads ontology via GET + persists a draft via PUT), the `bff.js → ReportTab` binding
+(S-BS-18), the wired artifact tabs (Judge council / Config / Corpus over real BFF data),
+and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
 
 ## What's here
 
 - **Pixel-faithful port** of the design's shell: floating window, 3 resizable panes,
   the Domain→Judge→Oracle→KB→Run→Review journey stepper, three inline cards
   (config / verdict / calibration), and the right artifact pane (Report · Judge council ·
-  Config) with fullscreen + a light/dark theme toggle.
+  Config · Corpus — all over real BFF data, WS-5d) with fullscreen + a light/dark theme toggle.
 - **Generative-UI layer (WS-5c)** — a `tool-<name>` → React component registry
   (`src/genui/`, AI-SDK message-parts shape): input widgets (flag/severity editor,
   contract builder, KB picker) + datapoint cards (verdict, calibration). `renderTool(part)`
@@ -67,10 +69,10 @@ binding (mocked fetch, real-composite render — S-BS-18).
 | `src/app.jsx` | shell composition: titlebar, resizable panes, status bar, theme |
 | `src/panes.jsx` | left rail (brand + threads + journey stepper) + center conversation |
 | `src/cards.jsx` | inline cards: config widget / verdict / calibration chart |
-| `src/artifact.jsx` | right pane: Report (real BFF data) / Judge council / Config tabs + fullscreen |
-| `src/bff.js` | the React↔Python bridge client (fetch over the FastAPI BFF; WS-5-BFF) |
+| `src/artifact.jsx` | right pane: Report / Judge council / Config / Corpus tabs — all real BFF data (WS-5d) + fullscreen |
+| `src/bff.js` | the React↔Python bridge client (run-eval / corpus / get+put ontology; WS-5-BFF + WS-5d) |
 | `src/brand.jsx` | the real Lithrim logo (mark + wordmark) |
-| `src/icons.jsx` · `src/data.jsx` | line-icon set · representative content — clinical/Scribe demo (JudgeTab/ConfigTab still mock) |
+| `src/icons.jsx` · `src/data.jsx` | line-icon set · representative content — clinical/Scribe demo (rail threads / journey stepper) |
 | `src/theme.css` | Tailwind v4 + `@theme` token bridge over `styles.css` (WS-5c) |
 | `src/components/ui/` | shadcn/ui copy-ins (button/input/label/card/separator/switch/slider/select/dialog) |
 | `src/components/ModeSwitch.jsx` | the Shell↔Journey segmented control (in the titlebar) |
@@ -89,9 +91,19 @@ binding (mocked fetch, real-composite render — S-BS-18).
   moved into the titlebar chrome; the demo domain reconciled to clinical/Scribe (S-BS-17);
   and the shell's first JS test infra (Vitest + RTL) incl. the `bff.js → ReportTab`
   binding test (S-BS-18).
-- **Next (WS-5d–e per `docs/specs/SPEC_PRODUCT_SHELL.md`):** WS-5d = wire the
-  judge-council + config tabs to the BFF (+ PUT ontology) + the corpus view; WS-5e =
-  Tauri desktop + VPC packaging.
+- **WS-5d (this phase):** the artifact pane is **wired** — JudgeTab renders the realized
+  per-case council votes + ConfigTab the live ontology (`GET /v1/ontology`); a 4th
+  **Corpus** tab renders the correction flywheel (`GET /v1/corpus`); the deferred
+  **`PUT /v1/ontology`** write surface landed (clobber-safe working copy + validated),
+  making the FlagEditor read-write; S-BS-19 closed for the Shell host (input tool-parts
+  mount + thread `onResult` into config-plane state) + the datapoint prop convention
+  locked to flat-spread. *Edits persist as a draft working copy — they do not yet feed
+  an eval run (run_eval reads the committed seed); wiring drafts into grading is a
+  follow-up.*
+- **Next (WS-5e per `docs/specs/SPEC_PRODUCT_SHELL.md`):** Tauri desktop installers +
+  the deferred Tauri sidecar + VPC packaging + offline-license + the Playwright/E2E layer
+  for Radix popover/drag interactions (S-BS-20). Journey-act (`jp1–jp4`) tool-part
+  mounting is also still open.
 
 ### Journey layer (`src/journey/`, WS-5b)
 
