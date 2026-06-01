@@ -250,12 +250,53 @@
       ]
     },
     {
-      "id": "WS-4",
-      "phase": "WS-4",
+      "id": "WS-4a",
+      "phase": "WS-4a",
+      "title": "WS-4a -- flywheel slice: correction corpus + thin eval-pack + minimal calibration check (offline, bench-only)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "estimated_effort_hours": 8,
+      "estimated_llm_cost_usd": 0,
+      "may_be_zero_cost": true,
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-4a-flywheel-slice-driver",
+      "note": "THIN vertical slice (user chose the messy/thin slice over proper-API-first 2026-06-01). Closes the data-flywheel loop on clinical_v1 using the judge + WS-3a structural floor that already exist; produces the verified-correction corpus (RLVR/data-lake seed) and reveals the judge-capability API shape before hardening it. Split out of the original full WS-4 (now WS-4b). Independent of WS-2's paused backend (replay/offline; no :8002 config injection). clinical_v1 stays floor-less so S-BS-16 + S-BS-13 remain inert.",
+      "deliverables": [
+        "D0: correction CORPUS -- promote the append-only stream (correction.py build_correction:32 + build_floor_correction:91 -> emit:156 -> DEFAULT_CORRECTIONS_PATH, today gitignored out/ws0/corrections.ndjson) into a first-class, versioned corpus with a stable RLVR-row schema (case_id, council verdict, action=suppress|floor, original->adjusted verdict, contract id+version, ontology version, rollout ref) + a small reader/append API. Decide committed example-fixture vs runtime-store.",
+        "D1: thin eval-pack abstraction -- additive {pack_id, cases (case+expected), grounded outcome + correction provenance}; builder runs scripts/run_eval.py run():101 over a picklist PACK_FILES:20 pack and freezes a reusable artifact (reuses load_case:101).",
+        "D2: minimal calibration check over an eval-run -- verdict-match + ECE summary on report.py calibration:88 / composite:22, reported PASS/WARN (NOT the locked gate).",
+        "D3: tests -> tests/ (offline; replay-only via grade.py grade_replay:40; byte-deterministic; ruff clean)."
+      ],
+      "acceptance": [
+        "A1: the flywheel over the WS-0 case (replay) emits a versioned correction-corpus entry with the full provenance schema; re-running is byte-deterministic.",
+        "A2: an eval-pack is built from a PACK_FILES pack and round-trips (build -> load -> identical).",
+        "A3: the minimal calibration check yields a verdict-match + ECE summary over an eval-run (reported, not a locked gate).",
+        "A4: pytest -q green offline + no network; ruff clean; default-deps install (pydantic+pandas) unchanged."
+      ],
+      "diagnostic_stats_reported": [
+        "Corpus size + suppress/floor action split over the available cases (reported, not a gate).",
+        "ECE / reliability summary on the council confidences (reported, not a gate -- the gate is WS-4b)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "No new floor-declaring ontology (clinical_v1 stays floor-less; keeps S-BS-16 + S-BS-13 inert).",
+        "No WS-2 backend dependency / no council_config or ontology injection into :8002 (use grade_replay/grade_live as-is).",
+        "No /eval-runs/compare regression-parity (WS-4b).",
+        "No LOCKED preregistered calibration gate (WS-4b).",
+        "Frontend (WS-5); RL training (records only); any lithrim-backend edit.",
+        "Hardening / extracting a clean public judge-capability API (let the slice reveal the shape first; deferred)."
+      ]
+    },
+    {
+      "id": "WS-4b",
+      "phase": "WS-4b",
       "title": "WS-4 \u2014 eval-pack loop + LOCKED calibration gate (Avenridge-style standing)",
       "status": "blocked",
       "blocked_by": [
-        "WS-3"
+        "WS-4a"
       ],
       "priority": "P1",
       "target": "executor",
@@ -263,7 +304,13 @@
         "lithrim-bench",
         "lithrim-backend"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-4-evalpack-loop-calibration-gate-driver",
+      "prompt_bundle": "bench-salvage-phaseWS-4b-evalpack-locked-gate-driver",
+      "gates": [
+        "S-BS-13 (floor-apply offline replay)",
+        "S-BS-16 (floor inject-param validation at ontology-load; core invariant)"
+      ],
+      "carries": "WS-1 Q4.2 (role-aware vs eligible-raiser ownership for the calibration gate)",
+      "split_note": "Split from the original WS-4 on 2026-06-01; WS-4a is the thin flywheel slice, this WS-4b is the rigorous locked-gate half. Consume WS-4a's corpus + thin eval-pack, do not re-author them.",
       "deliverables": [
         "Eval-pack curation + external SDK run + /eval-runs/compare (regressions/improvements), over live :8002.",
         "Eval-pack = PREREGISTERED, LOCKED criteria incl. a CALIBRATION GATE (step-2: lock an ECE/reliability threshold a system can fail even at high accuracy \u2014 the DistilBERT lesson).",

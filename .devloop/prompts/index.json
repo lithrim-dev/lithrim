@@ -580,6 +580,39 @@
       "cost_envelope_usd": 0,
       "cost_max_acceptable_usd": 1,
       "next_action": "monitor: on user sign-off, land the 5 atomic commits (D0-D4) + append real hashes to the session log, then land the close-out commit; flip status->shipped + fill closing_commits + mark the STREAM WS-3 row done. Then choose next cycle WS-3b vs WS-4 (do NOT autostart). S-BS-16 (floor inject-param validation, core-invariant) + S-BS-13 (floor-apply replay) GATE any floor-declaring ontology."
+    },
+    {
+      "id": "bench-salvage-phaseWS-4a-flywheel-slice-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-4a",
+      "scope": "flywheel-slice: correction-corpus + thin eval-pack + minimal calibration check",
+      "file": "bench-salvage_phaseWS-4a_flywheel_slice_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "cost_envelope_usd": 0,
+      "may_be_zero_cost": true,
+      "_note": "Split out of the original full WS-4 (now WS-4b) 2026-06-01 per user choice of the thin/messy flywheel slice. Closes the data-flywheel loop on clinical_v1 over the existing judge + WS-3a floor; offline/replay; no WS-2 backend dep; clinical_v1 floor-less so S-BS-16/S-BS-13 stay inert. Citations re-grepped against HEAD 1788ed5 (all CONFIRMED).",
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required (corpus schema vs existing correction-record shape; committed-fixture vs runtime-store). ROUTINE -> inline critique close."
+    },
+    {
+      "id": "bench-salvage-phaseWS-4b-evalpack-locked-gate-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-4b",
+      "scope": "eval-pack loop + LOCKED calibration gate + /eval-runs/compare",
+      "file": null,
+      "status": "stub",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Locks a preregistered calibration gate (a public eval contract) + cross-repo (lithrim-backend) /eval-runs/compare; one-way contract decision -> fresh-critic close.",
+      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "created": "2026-06-01",
+      "last_re_verified": null,
+      "blocked_by": ["WS-4a"],
+      "gates": ["S-BS-13", "S-BS-16"],
+      "_note": "Rigorous half split from the original WS-4 2026-06-01. Builds on WS-4a's corpus + thin eval-pack. Carries WS-1 Q4.2 (role-aware vs eligible-raiser ownership). GATED on S-BS-13 (floor replay) + S-BS-16 (floor inject-param validation, core-invariant) before any floor-declaring ontology ships through the locked gate.",
+      "next_action": "After WS-4a closes: run /devloop-expand-driver bench-salvage WS-4b."
     }
   ]
 }
