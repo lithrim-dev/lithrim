@@ -3,6 +3,7 @@
    phases use it). */
 import { Icon } from "../icons.jsx";
 import { Mark } from "../brand.jsx";
+import { ModeSwitch } from "../components/ModeSwitch.jsx";
 import { ACTS, SCENARIOS, AGENT_TYPES } from "./journeyData.js";
 
 /* The journey guide's message bubble — shared by all four acts. */
@@ -102,7 +103,7 @@ export function LeftRailJ({ width, phase, setPhase, calib }) {
   );
 }
 
-export function TopBarJ({ theme, setTheme, panelOn, togglePanel, phase }) {
+export function TopBarJ({ theme, setTheme, panelOn, togglePanel, phase, mode, setMode }) {
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
@@ -113,6 +114,7 @@ export function TopBarJ({ theme, setTheme, panelOn, togglePanel, phase }) {
       </div>
       <div className="tb-cmd"><Icon name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
       <div className="tb-right">
+        {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
         <span className="kbd" style={{ marginRight: 2 }}>← → to navigate</span>
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
           <Icon name={theme === "light" ? "moon" : "sun"} size={16} />

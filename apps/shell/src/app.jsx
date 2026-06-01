@@ -3,10 +3,11 @@ import { useState, useEffect } from "react";
 import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
+import { ModeSwitch } from "./components/ModeSwitch.jsx";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus }) {
+function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode }) {
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
@@ -19,6 +20,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
       <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
 
       <div className="tb-right">
+        {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
           <I name={theme === "light" ? "moon" : "sun"} size={16} />
         </button>
@@ -56,7 +58,7 @@ function StatusBar() {
   );
 }
 
-function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
+function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [leftW, setLeftW] = useState(270);
   const [rightW, setRightW] = useState(440);
   const [open, setOpen] = useState(true);
@@ -113,7 +115,7 @@ function App({ theme: themeProp, setTheme: setThemeProp } = {}) {
       <div className="win">
         <TopBar theme={theme} setTheme={setTheme} artifactOpen={open}
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
-          onRunEval={doRun} runStatus={runStatus} />
+          onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode} />
         <div className="body">
           <LeftRail width={leftW} active={active} setActive={setActive} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />

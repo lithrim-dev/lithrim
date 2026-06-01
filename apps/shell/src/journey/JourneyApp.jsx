@@ -23,7 +23,7 @@ const ART_META = {
   4: ["Your evalpack", "scribe-v4 · 84 cases"],
 };
 
-export function JourneyApp({ theme, setTheme }) {
+export function JourneyApp({ theme, setTheme, mode, setMode }) {
   const [phase, setPhase] = useState(1);
   const [leftW, setLeftW] = useState(280);
   const [rightW, setRightW] = useState(460);
@@ -80,7 +80,7 @@ export function JourneyApp({ theme, setTheme }) {
   return (
     <div className="desk">
       <div className="win">
-        <TopBarJ theme={theme} setTheme={setTheme} panelOn={open} togglePanel={() => { setOpen((o) => !o); setFull(false); }} phase={phase} />
+        <TopBarJ theme={theme} setTheme={setTheme} panelOn={open} togglePanel={() => { setOpen((o) => !o); setFull(false); }} phase={phase} mode={mode} setMode={setMode} />
         <div className="body">
           <LeftRailJ width={leftW} phase={phase} setPhase={setPhase} calib={calib} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 240, 380)} />
