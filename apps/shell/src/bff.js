@@ -26,3 +26,9 @@ export const runEval = ({ agent = "ws0_default", live = false } = {}) =>
 export const getCorpus = () => call("/v1/corpus");
 export const getOntology = (agent = "ws0_default") =>
   call(`/v1/ontology?agent=${encodeURIComponent(agent)}`);
+
+/* PUT /v1/ontology — persist an edited ontology to a non-committed working copy
+   (WS-5d). The body is the full ontology JSON; the BFF validates it (round-trip +
+   snapshot lint) and rejects a malformed/snapshot-violating write with 422. */
+export const putOntology = (ontology, agent = "ws0_default") =>
+  call(`/v1/ontology?agent=${encodeURIComponent(agent)}`, { method: "PUT", body: ontology });

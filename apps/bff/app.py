@@ -5,16 +5,23 @@ React/Tauri shell (SPEC_PRODUCT_SHELL §5). It imports ``lithrim_bench.harness``
 + ``scripts/run_eval`` and exposes the locked v1 surface:
 
     POST /v1/run-eval     {agent?, live?}  -> run_eval.run() record + folded
-                                              calibration_check([record])
+                                              calibration_check([record]) + council view
     GET  /v1/corpus                        -> corpus.read_corpus() rows
-    GET  /v1/ontology     {agent?}         -> the agent's committed ontology JSON
+    GET  /v1/ontology     {agent?}         -> the agent's ontology JSON (working copy
+                                              if a PUT wrote one, else committed seed)
+    PUT  /v1/ontology     {agent?} <body>  -> validate + persist an edited ontology to a
+                                              non-committed working copy (WS-5d)
 
 Replay (``live=false``) is the default + the $0 path. ``live=true`` opts into
 exactly one real, paid ``:8002`` council call (run_eval warns on stderr).
 
-PUT /v1/ontology is DEFERRED to the phase that wires an ontology editor
-(WS-5c/WS-5d) — locking an unexercised write that would clobber the committed
-``clinical_v1.json`` is worse than deferring it (SPEC §10 reconciled at close).
+PUT /v1/ontology (WS-5d, SPEC §10:144) is clobber-safe by construction: it NEVER
+writes the committed ``data/ontology/clinical_v1.json`` seed — it validates the body
+(round-trip through ``ontology.from_dict`` + the S-BS-10/12 snapshot lint, import-only)
+and persists to an agent-scoped working copy under the BFF out-dir. GET prefers that
+working copy so a PUT then GET round-trips. The working copy is a DRAFT — it does not
+feed an eval run, which still reads the committed seed (run_eval.py:118); wiring edits
+into grading is a later phase (open seam, recorded at close).
 
 Strangler-fig (SPEC_PRODUCT_SERVICE_TOPOLOGY, sequencing B): this targets the
 harness, which composes over live :8002/:3031. No Mongo, no ../lithrim-backend.
@@ -28,7 +35,7 @@ import json
 import sys
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -39,6 +46,7 @@ for _p in (str(REPO_ROOT), str(_SCRIPTS)):
         sys.path.insert(0, _p)
 
 import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors tests/test_ws4a.py)
+import seed_ontology  # noqa: E402  (scripts/ — import-only: snapshot lint for the PUT gate)
 
 from lithrim_bench.harness import corpus  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
@@ -46,9 +54,17 @@ from lithrim_bench.harness.config import (  # noqa: E402
     load_agent,
     seed_config_db,
 )
+from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
 
 DEFAULT_AGENT = "ws0_default"
+# Where PUT /v1/ontology persists edited ontologies. A non-committed working dir —
+# NEVER data/ontology/ (the committed seed is the source of truth, clobber-safe).
+DEFAULT_ONTOLOGY_WORKDIR = REPO_ROOT / "out" / "bff" / "ontology"
+# Module-level Body singleton: the FastAPI idiom for a whole-request-body param,
+# hoisted out of the default to satisfy ruff B008 (the ruff.toml allowance only
+# whitelists Depends/Query; this avoids widening it).
+_ONTOLOGY_BODY = Body(...)
 
 
 def get_config_db() -> Path:
@@ -59,6 +75,11 @@ def get_config_db() -> Path:
 def get_out_dir() -> Path | None:
     """Where run_eval persists its blob/sqlite (None -> run_eval default). Override in tests."""
     return None
+
+
+def get_ontology_workdir() -> Path:
+    """Where PUT /v1/ontology persists working copies (never the committed seed). Override in tests."""
+    return DEFAULT_ONTOLOGY_WORKDIR
 
 
 def _load_agent(name: str, db_path: Path):
@@ -113,7 +134,34 @@ def run_eval_endpoint(
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])
     record["grade_path"] = record["provenance"].get("grade_path")
+    record["council"] = _council_view(record)
     return record
+
+
+def _council_view(record: dict) -> dict:
+    """Project the REALIZED per-judge council votes for the JudgeTab (D0).
+
+    The votes the council actually cast on this case live in
+    ``record["result"]["semantic"]["judge_votes"]`` (the live/replay grade carries
+    them). This is the per-case truth — what each judge voted — not the configured
+    roster. ``confidence`` is ``float | null`` (WS-6a D-E) and passed through as-is.
+    The configured roster (best-effort, diagnostic-only) comes off the grade's
+    provenance ``council_config.judges``.
+    """
+    result = record.get("result") or {}
+    semantic = result.get("semantic") or {}
+    votes = [
+        {
+            "judge_role": v.get("judge_role"),
+            "vote": v.get("vote"),
+            "confidence": v.get("confidence"),  # float | null
+            "model": v.get("model"),
+            "reason": v.get("reason"),
+        }
+        for v in (semantic.get("judge_votes") or [])
+    ]
+    prov_council = (result.get("provenance") or {}).get("council_config") or {}
+    return {"votes": votes, "configured": list(prov_council.get("judges") or [])}
 
 
 @app.get("/v1/corpus")
@@ -126,11 +174,58 @@ def corpus_endpoint() -> dict:
 def ontology_endpoint(
     agent: str = DEFAULT_AGENT,
     db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
 ) -> dict:
-    """The agent's committed ontology JSON (the same 'stored ontology' the live
-    council is sent at run_eval.py:118). Read-only in v1 (PUT deferred)."""
+    """The agent's ontology JSON. Prefers a working copy a prior PUT wrote (so a
+    PUT then GET round-trips); else the committed seed (the same 'stored ontology'
+    the live council is sent at run_eval.py:118)."""
+    wc = workdir / f"{agent}.json"
+    if wc.exists():
+        return json.loads(wc.read_text())
     ag = _load_agent(agent, db_path)
     path = ag.ontology_abspath()
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"ontology not found: {path}")
     return json.loads(path.read_text())
+
+
+def _validate_ontology(ontology: dict) -> None:
+    """The PUT gate: reject malformed or snapshot-violating ontologies (HTTP 422).
+
+    Two checks, both import-only over the harness (no edits to lithrim_bench / scripts):
+      1. structural round-trip through ``ontology.from_dict`` (the eval-load path);
+      2. the S-BS-10/12 snapshot lint — a ``gradeable`` flag outside
+         ``taxonomy/taxonomy_snapshot.json`` is rejected loudly (the CLAUDE.md core
+         invariant: never silently score a flag the contract-of-record has not blessed).
+    """
+    try:
+        ontology_from_dict(ontology)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"malformed ontology: {exc}") from exc
+    offenders = seed_ontology.gradeable_flags_outside_snapshot(
+        ontology.get("flags") or [], seed_ontology.load_snapshot_codes()
+    )
+    if offenders:
+        raise HTTPException(
+            status_code=422,
+            detail=f"gradeable flags outside taxonomy snapshot (re-snapshot, do not hand-edit): {offenders}",
+        )
+
+
+@app.put("/v1/ontology")
+def put_ontology_endpoint(
+    ontology: dict = _ONTOLOGY_BODY,
+    agent: str = DEFAULT_AGENT,
+    workdir: Path = Depends(get_ontology_workdir),
+) -> dict:
+    """Validate + persist an edited ontology to a non-committed working copy (WS-5d).
+
+    Clobber-safe by construction: the write target is ``workdir/<agent>.json``, never
+    the committed seed. Validation (``_validate_ontology``) rejects malformed or
+    snapshot-violating bodies with 422 before anything lands.
+    """
+    _validate_ontology(ontology)
+    workdir.mkdir(parents=True, exist_ok=True)
+    path = workdir / f"{agent}.json"
+    path.write_text(json.dumps(ontology, indent=2, sort_keys=True))
+    return {"status": "ok", "agent": agent, "working_copy": str(path)}

@@ -59,6 +59,8 @@ def client(tmp_path):
     save_agent(_fixture_agent(), db_path=db_path)
     bff.app.dependency_overrides[bff.get_config_db] = lambda: db_path
     bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
+    # PUT writes go to a tmp working dir, never the committed seed (clobber-safety).
+    bff.app.dependency_overrides[bff.get_ontology_workdir] = lambda: tmp_path / "ont"
     try:
         yield TestClient(bff.app)
     finally:
@@ -109,3 +111,79 @@ def test_ontology_read(client):
 
 def test_unknown_agent_is_404(client):
     assert client.post("/v1/run-eval", json={"agent": "nope"}).status_code == 404
+
+
+# ── D0: the judge-council view folded into /v1/run-eval ──────────────────────
+
+
+def test_run_eval_carries_realized_council_votes(client):
+    """D0 — the run response surfaces the REALIZED per-judge votes for the JudgeTab."""
+    body = client.post("/v1/run-eval", json={"agent": "ws5_bff_test", "live": False}).json()
+    council = body["council"]
+    votes = council["votes"]
+    # the WS-0 baseline cast 3 real votes (risk / policy / faithfulness)
+    assert {v["judge_role"] for v in votes} == {"risk_judge", "policy_judge", "faithfulness_judge"}
+    for v in votes:
+        assert v["vote"] in {"PASS", "WARN", "FAIL", "BLOCK"}
+        # confidence is float | null (WS-6a D-E) — the reader must tolerate either
+        assert v["confidence"] is None or isinstance(v["confidence"], (int, float))
+        assert "model" in v
+    assert isinstance(council["configured"], list)
+
+
+# ── D1: PUT /v1/ontology — clobber-safe + validated ──────────────────────────
+
+
+def _seed_body() -> dict:
+    import json
+
+    return json.loads(ONTOLOGY_SEED.read_text())
+
+
+def test_put_ontology_accepts_and_round_trips(client):
+    """A3 — a valid PUT lands on the working copy; a subsequent GET reflects the edit."""
+    ont = _seed_body()
+    ont["severity_map"]["block_at_or_above"] = 0.75  # a benign, valid edit
+    res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont)
+    assert res.status_code == 200
+    assert "working_copy" in res.json()
+
+    got = client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()
+    assert got["severity_map"]["block_at_or_above"] == 0.75  # the working copy is served
+
+
+def test_put_ontology_rejects_malformed(client):
+    """A3 — a structurally malformed ontology is rejected (422), nothing persists."""
+    res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json={"not": "an ontology"})
+    assert res.status_code == 422
+    # GET still serves the committed seed (no working copy was written)
+    assert client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()["domain"] == "clinical"
+
+
+def test_put_ontology_rejects_snapshot_violation(client):
+    """A3 — a gradeable flag outside the taxonomy snapshot is rejected loudly (S-BS-10/12)."""
+    ont = _seed_body()
+    ont["flags"].append(
+        {
+            "flag": "NOT_IN_SNAPSHOT_CODE",
+            "category": "fidelity",
+            "definition": "x",
+            "when_to_use": "x",
+            "when_NOT_to_use": "x",
+            "owner_roles": [],
+            "tier": "TIER_1",
+            "gradeable": True,  # gradeable + not in the snapshot → must 422
+        }
+    )
+    res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont)
+    assert res.status_code == 422
+    assert "NOT_IN_SNAPSHOT_CODE" in res.text
+
+
+def test_put_ontology_never_clobbers_the_committed_seed(client):
+    """A3 — the committed clinical_v1.json is byte-unchanged after a PUT (clobber-safety)."""
+    before = ONTOLOGY_SEED.read_bytes()
+    ont = _seed_body()
+    ont["severity_map"]["warn_above"] = 0.123
+    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont).status_code == 200
+    assert ONTOLOGY_SEED.read_bytes() == before  # the seed on disk did not move
