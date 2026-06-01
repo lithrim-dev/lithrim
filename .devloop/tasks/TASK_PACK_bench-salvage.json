@@ -494,6 +494,65 @@
       "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5c-generative-ui-foundation-driver, ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. S-BS-17 + shadcn scope) before 'go'."
     },
     {
+      "id": "WS-5d",
+      "phase": "WS-5d",
+      "title": "WS-5d — artifacts pane wired (judge-council + config/ontology tabs to the BFF) + corpus/flywheel view + deferred PUT /v1/ontology + S-BS-19 scripted-host wiring + datapoint prop-convention lock",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "estimated_llm_cost_usd": 0,
+      "may_be_zero_cost": true,
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-5d-artifacts-wired-driver",
+      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5d had NO task-pack entry AND no index stub — it lived only as forward-references (STREAM first-move §1 WS-5d row + WS-5c next_action/close-note + SPEC_PRODUCT_SHELL §8:131 + §10:144 PUT-deferral + the WS-5d handoff brief). Registered here as the authoritative source in ONE /devloop-expand-driver reconcile pass (same BOTH-absent pattern as WS-5c). WS-5/WS-5b/WS-5-BFF/WS-5c all DONE — this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF). The lead shell phase per SPEC §8 FE-first re-cut: WS-5d shifts from 'build' to 'wire'.",
+      "shell_surface_regrepped_2026_06_01_HEAD_e960234": "apps/bff/app.py: run_eval_endpoint:94 (per-judge record source) / corpus_endpoint:119 (GET /v1/corpus live) / ontology_endpoint:125 (GET, read-only) + PUT-deferred docstring:15-17 (the seam WS-5d fills). apps/shell/src/artifact.jsx: ReportTab:22 (real-BFF wiring template) / JudgeTab:130 (mock JUDGES) / ConfigTab:167 (mock CONFIG_YAML) / ArtifactPane:197 + tab strip:220-223 (report/judges/config — corpus adds a 4th). apps/shell/src/bff.js: runEval:23 / getCorpus:26 / getOntology:27 (GET; putOntology to add). apps/shell/src/data.jsx: JUDGES:35 / CONFIG_YAML:50 (the mock the tabs replace). apps/shell/src/genui/registry.js renderTool(part,handlers):56 (threads onResult); FlagEditor.jsx apply:86-98 (onResult-only, no PUT) + getOntology:49; ContractBuilder.jsx onResult:34/:54; KbPicker.jsx onResult:27/:42; VerdictCard.jsx:22 {data} vs CalibrationChart.jsx:10 {points,ece,brier} (the inconsistent datapoint prop convention — S-BS-19 lock). apps/shell/src/panes.jsx CenterPane:69 mounts 2 datapoint cards (:113/:122) but NO input tool-parts; journey/JourneyApp.jsx:26 mounts none either (grep-confirmed). lithrim_bench/harness/corpus.py read_corpus:104/project:64 (corpus-row/1 shape); scripts/run_eval.py run:101 (ontology committed-JSON send ~:118); config.py Agent.ontology_abspath:70 (PUT target path).",
+      "deliverables": [
+        "D0 BFF judge-council source (SPEC §3/§8:131): surface real per-judge council data for the JudgeTab — fold the per-judge breakdown into POST /v1/run-eval (run_eval_endpoint:94, the WS-5-BFF ReportTab-over-/v1/run-eval pattern) OR a derived GET /v1/judges off the eval-profile council_config (plan-review #1). Additive to the locked v1 surface; replay default $0.",
+        "D1 BFF PUT /v1/ontology (SPEC §10:144 deferred write): add the write surface to apps/bff/app.py (replaces the PUT-deferred docstring:15-17). Clobber-safe — write to an agent-scoped working copy / out-dir, NEVER overwrite the committed data/ontology/clinical_v1.json seed. Validate the write via the ontology-load path (Ontology.from_dict/load_ontology) + the S-BS-10/S-BS-12 snapshot lint + CLAUDE.md core invariant (a gradeable flag outside taxonomy_snapshot.json is REJECTED loudly); import-only use of lithrim_bench/scripts.seed_ontology. + apps/shell/src/bff.js putOntology writer.",
+        "D2 Shell wire JudgeTab + ConfigTab off mock (SPEC §8:131): artifact.jsx JudgeTab:130 renders real judge-council (D0) not JUDGES:35; ConfigTab:167 renders real ontology from GET /v1/ontology not CONFIG_YAML:50 (the §3 ontology-config-editor view; loading/empty/error states like ReportTab:22; data threaded via ArtifactPane:197 props).",
+        "D3 Shell corpus/flywheel artifact view (SPEC §3/§8:131): add a 4th 'corpus' tab to ArtifactPane:197 (titles:198-202 + tab strip:220-223) rendering getCorpus:26 → corpus.read_corpus:104 rows in the corpus-row/1 shape; empty-state handled (clinical_v1 suppress-only/may be empty — no crash).",
+        "D4 Shell FlagEditor persistence: wire FlagEditor.jsx apply:86-98 (onResult-only today) to putOntology (D1) so the editor is read-write (was GET-only in WS-5c); surface the PUT accept/reject in the footer; keep onResult for the config-plane return (D5).",
+        "D5 S-BS-19 scripted-host wiring + prop lock: wire panes.jsx CenterPane:69 (and/or journey/* per plan-review #3) to emit INPUT tool-parts mounting FlagEditor/ContractBuilder/KbPicker (today only the 2 datapoint cards mount, :113/:122); thread each onResult into config-plane/UI state; LOCK the datapoint part.output prop convention to ONE shape (VerdictCard:22 {data} vs CalibrationChart:10 {points,ece,brier} — fresh-critic Ambiguity-2) + conform both cards + the registry test.",
+        "D6 tests + docs: extend apps/bff tests/test_ws5_bff.py (PUT accept + reject-on-snapshot-violation + no-clobber + judge-council surface); React binding tests (JudgeTab/ConfigTab real-data render, corpus tab populated+empty, FlagEditor persist calls putOntology, locked datapoint prop shape); apps/shell/README.md status update."
+      ],
+      "acceptance": [
+        "A1 JudgeTab renders real judge-council data (D0) + ConfigTab renders real ontology (GET /v1/ontology) — neither reads data.jsx JUDGES/CONFIG_YAML for live content.",
+        "A2 a corpus artifact tab renders GET /v1/corpus rows (corpus-row/1) + a clean empty-state (no crash).",
+        "A3 PUT /v1/ontology lands additively, writes a NON-committed working copy (clinical_v1.json byte-unchanged after a PUT), validates the write (snapshot-violating/malformed → 4xx), and the FlagEditor persist round-trips (PUT then GET reflects the edit).",
+        "A4 S-BS-19 closed: a scripted host mounts the 3 input tool-parts; each onResult threads into config-plane/UI state; the datapoint part.output prop convention is locked to one shape (both cards conform).",
+        "A5 npm run build clean + npm test green + pytest apps/bff green.",
+        "A6 diff confined to apps/shell/ + apps/bff/; NO lithrim_bench/ / scripts/ / ../lithrim-backend edits; Python default install unchanged ([bff] extra only).",
+        "A7 the :5180 visual-parity smoke (standing per-shell-phase human-eyeball gate, OWED since WS-5c): light/dark × Shell/Journey unchanged + the 4 wired tabs render — USER-RUN under no-autostart; recorded, not auto-PASSed."
+      ],
+      "diagnostic_stats_reported": [
+        "Corpus size + suppress/floor action split rendered in the corpus tab (reported, not a gate; clinical_v1 suppress-only/may be empty).",
+        "Judge-council realized-votes vs configured-roster shape (whichever decision #1 lands; reported, not a gate)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Tauri / sidecar packaging / installers / VPC / offline-license + the deferred Tauri sidecar (WS-5e).",
+        "Radix Select/Slider popover/drag E2E (S-BS-20) → WS-5e (Playwright; jsdom can't).",
+        "The eval-pack loop + LOCKED calibration gate + /eval-runs/compare (WS-4b) — the corpus view READS the corpus, does not preregister/lock a gate.",
+        "LLM-driven conversation — scripted-default (§5c); no LLM host.",
+        "Backend :8002 config injection / any ../lithrim-backend edit (WS-2, HARD-GATE-paused).",
+        "Rewriting bespoke chrome CSS into Tailwind utilities (SPEC §4 incremental; styles.css/journey.css stay — the WS-5c invariant).",
+        "Any lithrim_bench/harness, scripts/, or ../lithrim-backend edit (the BFF + widgets compose import-only; if the PUT needs a harness change, halt — likely the working-copy path belongs in the BFF).",
+        "Drive-by formatting / dependency bumps / 'while I was here' edits."
+      ],
+      "plan_review_decisions": [
+        "Judge-council data source: fold per-judge breakdown into /v1/run-eval (rec) vs a derived GET /v1/judges off council_config (realized votes vs configured roster).",
+        "PUT /v1/ontology clobber-safety + validation depth: working copy / out-dir (rec — never overwrite the committed seed) + snapshot-lint + core-invariant reject (rec) vs schema-only.",
+        "S-BS-19 host placement: Shell CenterPane vs journey acts vs both; onResult → local state vs a Zustand store (SPEC §4 names Zustand).",
+        "Datapoint part.output prop convention lock: {data} vs spread vs {output} wrapper — pick one, conform both cards + registry.",
+        "Corpus view placement: 4th artifact tab (rec) vs center datapoint card; confirm whether a live run is needed for a non-empty corpus demo or the committed out/ws4a/corpus.ndjson suffices (replay/$0 default holds)."
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5d lands the deferred PUT /v1/ontology — a WRITE on the locked v1 BFF API (§10:144). The WS-5-BFF fresh-critic ratified the READ surface; the write needs its own fresh-critic pass + the clobber-safety/validation gate is load-bearing. User MAY elect inline (WS-5/WS-5b precedent — UI wiring). The WS-5c :5180 visual-parity smoke (A7) is the one gate build-green + unit-tests-green cannot cover.",
+      "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5d-artifacts-wired-driver, ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. PUT clobber-safety + the prop-convention lock) before 'go'. Run /devloop-kickoff bench-salvage WS-5d."
+    },
+    {
       "id": "WS-6a",
       "phase": "WS-6a",
       "title": "WS-6a — backend baseline: curate + commit the pending ../lithrim-backend WIP",

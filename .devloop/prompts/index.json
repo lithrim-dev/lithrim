@@ -688,12 +688,44 @@
       "next_action": "CLOSED 2026-06-01. Next shell phase = WS-5d (artifacts pane wired + corpus view + S-BS-19 host-wiring + deferred PUT /v1/ontology). Run /devloop-expand-driver bench-salvage WS-5d (no pack task/stub yet — same reconcile pattern as WS-5c; SPEC §8:131 + §10:144). Still owed on WS-5c: the 60s :5180 visual-parity smoke (user runs it). Handoff: .devloop/sessions/HANDOFF_bench-salvage_phaseWS-5d_kickoff_2026-06-01.md."
     },
     {
+      "id": "bench-salvage-phaseWS-5d-artifacts-wired-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-5d",
+      "scope": "artifacts pane wired (judge-council + config/ontology tabs to the BFF) + corpus/flywheel view + deferred PUT /v1/ontology + S-BS-19 scripted-host wiring + datapoint prop-convention lock",
+      "file": "bench-salvage_phaseWS-5d_artifacts-wired_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5d lands the deferred PUT /v1/ontology — a WRITE on the locked v1 BFF API (§10:144). The WS-5-BFF fresh-critic ratified the READ surface; the write needs its own fresh-critic pass + the clobber-safety/validation gate is load-bearing. User MAY elect inline (WS-5/WS-5b precedent — UI wiring).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "cost_envelope_usd": 0,
+      "may_be_zero_cost": true,
+      "_registration_note": "WS-5d had NO stub here AND no task-pack entry — it lived only as forward-references (STREAM first-move §1 WS-5d row; WS-5c next_action/close-note; SPEC_PRODUCT_SHELL §8:131 + §10:144 PUT-deferral; the WS-5d handoff brief). Authored the TASK_PACK_bench-salvage.json#WS-5d task + this stub + the driver in ONE /devloop-expand-driver reconcile pass 2026-06-01 (same BOTH-absent pattern as WS-5c). Task pack #WS-5d is the authoritative source. Independent of WS-2's paused backend (composes over the existing BFF).",
+      "_note": "The lead next shell phase (WS-5/WS-5b/WS-5-BFF/WS-5c all DONE 2026-06-01). SPEC §8 FE-first re-cut shifts WS-5d from 'build' to 'wire': wire the already-built (mock) JudgeTab/ConfigTab to the BFF + add the corpus/flywheel view + land the deferred PUT /v1/ontology write (clobber-safe working copy; never overwrites the committed clinical_v1.json; validated via the snapshot lint + core invariant) + close S-BS-19 (mount the 3 input tool-parts + lock the datapoint part.output prop convention — VerdictCard {data} vs CalibrationChart {points,ece,brier}). Shell + BFF re-grepped 2026-06-01 at HEAD e960234 (all CONFIRMED, 0 drift — built fresh in WS-5-BFF/WS-5c). Zero new paid calls (replay default). 5 plan-review decisions (esp. PUT clobber-safety + the prop-convention lock). The OWED WS-5c :5180 visual-parity smoke is acceptance A7 (user-run, no-autostart).",
+      "re_verification_log": [
+        {
+          "date": "2026-06-01",
+          "actor": "monitor (/devloop-expand-driver)",
+          "checked": 26,
+          "confirmed": 26,
+          "drifted": 0,
+          "missing": 0,
+          "drift_notes": "All 26 file:line + spec citations CONFIRMED at HEAD e960234 (shell + BFF built fresh in WS-5-BFF/WS-5c, no inter-cycle drift). BFF: apps/bff/app.py run_eval_endpoint:94 / corpus_endpoint:119 (GET /v1/corpus live) / ontology_endpoint:125 (GET read-only) + PUT-deferred docstring:15-17. SHELL: artifact.jsx ReportTab:22 (wiring template) / JudgeTab:130 (mock JUDGES) / ConfigTab:167 (mock CONFIG_YAML) / ArtifactPane:197 + tabs:220-223; bff.js runEval:23/getCorpus:26/getOntology:27; data.jsx JUDGES:35/CONFIG_YAML:50; genui/registry.js renderTool:56 (threads handlers/onResult); FlagEditor.jsx apply:86-98 (onResult-only) + getOntology:49; ContractBuilder.jsx onResult:34/:54; KbPicker.jsx onResult:27/:42; VerdictCard.jsx:22 {data} vs CalibrationChart.jsx:10 {points,ece,brier} (S-BS-19 prop divergence CONFIRMED); panes.jsx CenterPane:69 + datapoint mounts :113/:122 (NO input tool-parts); journey/JourneyApp.jsx:26 (mounts none — grep-confirmed). HARNESS (compose-over, import-only): corpus.py read_corpus:104/project:64 (corpus-row/1); run_eval.py run:101 + ontology committed-JSON send ~:118; config.py Agent.ontology_abspath:70. SPEC: SPEC_PRODUCT_SHELL.md §8:131 (WS-5d row) + §10:144 (PUT-deferred-to-WS-5c/d). S-BS-19 'journey doesn't yet emit input tool-parts' VERIFIED by grep (no renderTool/tool-/onResult/genui ref in apps/shell/src/journey/)."
+        }
+      ],
+      "next_action": "Driver authored 2026-06-01 (ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. PUT clobber-safety + the prop-convention lock) before 'go'. Run /devloop-kickoff bench-salvage WS-5d. HARD GATE: fresh-critic close recommended (user MAY elect inline)."
+    },
+    {
       "id": "bench-salvage-phaseWS-6a-backend-baseline-driver",
       "stream": "bench-salvage",
       "phase": "WS-6a",
       "scope": "backend baseline — curate + commit the pending ../lithrim-backend WIP (WS-6 step a)",
       "file": "bench-salvage_phaseWS-6a_backend-baseline_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "hardness": "HARD-GATE",
       "hardness_reason": "Backend repo commits (curation cycle). Diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
       "target_repos": ["lithrim-backend"],
