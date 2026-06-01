@@ -20,10 +20,10 @@
 > the **FULL agentic recomposition** (LangGraph workflows + agents + council + taxonomy + tools + the
 > salvaged enabling infra), not council+persistence alone. **Port-source discipline (load-bearing):**
 > port from **`lithrim-backend@493b533`**, NOT the stale parked mirror `lithrim_bench/runtime/council/`
-> (it differs from backend; **S-BS-27**); re-snapshot first (snapshot stale @ `ba84608`; **S-BS-28**);
+> (it differs from backend; **S-BS-28**); re-snapshot first (snapshot stale @ `ba84608`; **S-BS-29**);
 > the tier tables split across `compliance_council.py` + `app/models/safety_flags.py` (grabbing only
 > one loses owner-gating). New downstream sub-phases: **WS-6c-DSPy** (rebuild judges), **WS-6c-AGENTIC**
-> (recompose LangGraph + agents), **WS-6d-KB** (off 6c). DSPy council prior art = **S-BS-26**
+> (recompose LangGraph + agents), **WS-6d-KB** (off 6c). DSPy council prior art = **S-BS-27**
 > (`council_v2.py` + `v2_runs.ndjson`; reference-only throwaway).
 
 ---
