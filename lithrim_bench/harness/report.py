@@ -6,14 +6,21 @@ contract flipped), and the ungrounded (null-code) bucket.
 
 ``calibration`` builds a reliability diagram + ECE over the council's per-judge
 confidences. This is a DIAGNOSTIC, not a gate — the locked calibration gate is
-WS-4. The WS-0 baseline has only two non-null confidences (both 1.0), so the
+WS-4b. The WS-0 baseline has only two non-null confidences (both 1.0), so the
 report is honest about the small N.
+
+``calibration_check`` (WS-4a) aggregates the per-case ``composite`` + ``calibration``
+outputs of an eval-run into a one-line ``{verdict_match_rate, ece, status}`` summary.
+It is deliberately NOT the WS-4b locked gate: ``status`` is an ADVISORY,
+non-preregistered PASS/WARN driven ONLY by verdict-match; ``ece`` is reported as a
+pure diagnostic and never drives ``status``. No threshold here is locked.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from ..picklist import normalize_expected_verdict
 from .grounding import GroundedResult
 
 _STAGE_TO_COMPLIANCE = {"BLOCK": "reject", "WARN": "needs_review", "PASS": "approve"}
@@ -145,5 +152,55 @@ def calibration(
         "n_with_confidence": n,
         "n_null_confidence": n_null,
         "expected_block": expected_block,
+        "caveat": caveat,
+    }
+
+
+def calibration_check(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Minimal eval-run calibration summary — REPORT-ONLY, NOT a locked gate (WS-4b).
+
+    ``records`` are per-case run records (each carries the ``composite`` and
+    ``calibration`` outputs of :func:`composite` / :func:`calibration`, plus a
+    ``provenance.expected_compliance_verdict``). Returns:
+
+      - ``verdict_match_rate`` — fraction of cases whose composite verdict is in the
+        case's expected verdict set (:func:`normalize_expected_verdict`).
+      - ``ece`` — the per-case ECEs pooled by ``n_with_confidence`` (a confidence-
+        count-weighted mean). Carried as a DIAGNOSTIC only.
+      - ``status`` — ADVISORY ``PASS`` iff every case matched, else ``WARN``. Driven
+        ONLY by verdict-match; ``ece`` never moves it. This is intentionally not the
+        WS-4b preregistered/locked calibration gate — no threshold is locked here.
+    """
+    n_cases = len(records)
+    n_matched = 0
+    ece_weighted_sum = 0.0
+    n_pooled = 0
+    for rec in records:
+        expected = normalize_expected_verdict(rec["provenance"]["expected_compliance_verdict"])
+        if rec["composite"]["verdict"] in expected:
+            n_matched += 1
+        cal = rec["calibration"]
+        n = cal["n_with_confidence"]
+        ece_weighted_sum += cal["ece"] * n
+        n_pooled += n
+
+    verdict_match_rate = round(n_matched / n_cases, 4) if n_cases else 0.0
+    ece = round(ece_weighted_sum / n_pooled, 4) if n_pooled else 0.0
+    status = "PASS" if n_cases and n_matched == n_cases else "WARN"
+
+    caveat = None
+    if n_pooled < 5:
+        caveat = (
+            f"small N: only {n_pooled} non-null confidence(s) pooled across "
+            f"{n_cases} case(s); ece is indicative only (advisory, not a gate)"
+        )
+
+    return {
+        "verdict_match_rate": verdict_match_rate,
+        "ece": ece,
+        "status": status,
+        "n_cases": n_cases,
+        "n_matched": n_matched,
+        "n_with_confidence": n_pooled,
         "caveat": caveat,
     }
