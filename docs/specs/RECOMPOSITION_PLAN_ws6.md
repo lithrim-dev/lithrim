@@ -258,7 +258,7 @@ The topology spec defines WS-6c (port council) / WS-6d (persistence swap) / WS-6
 WS-6b ratified (monitor + user). The 6 open questions are locked:
 
 - **Q1 (council version) → v2-ONLY (Azure trio).** Port the cross-provider v2 (gpt-4.1 + Mistral + Llama via deployment-id); drop the v1 code path. **Makes Q2 load-bearing:** the product's target Azure AI Foundry resource MUST host all three deployments. v2-only fixes the recomposed council's production trio as `risk/policy/faithfulness_judge` (see S-BS-30).
-- **Q2 (Azure deployment-id substitution) → pre-WS-6c verification.** Verify the Mistral/Llama-via-deployment-id route against the PRODUCT's target Azure resource (not just dev) before WS-6c. Checklist item, not a blocker now.
+- **Q2 (Azure deployment-id substitution) → ✅ VERIFIED 2026-06-01 (user).** The product's target Azure resource hosts all three v2 deployments (gpt-4.1 + Mistral + Llama) and they are accessible. The deployment-id substitution route is confirmed against the product resource (not just dev), so **v2-only is fully unblocked on the Azure-access front.**
 - **Q3 (DSPy judge rollout) → incremental** (one judge first; the §6 hybrid wraps DSPy or non-DSPy judges identically). Final call at the WS-6c-DSPy plan-review.
 - **Q4 (agents scope) → recompose the 6 KPI agents; DROP the dead `evaluation_agent`; PARK the LiveKit `simulation_agent`** (live-call/voice ingest out of WS-6).
 - **Q5 (KB/RAG) → DEFER to WS-6d-KB.** WS-6 core runs on the structural floor + suppress registry; author floor `VerificationContractDecl`s in the ontology (clinical_v1 declares none today).
