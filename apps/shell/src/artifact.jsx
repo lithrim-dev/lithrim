@@ -1,14 +1,26 @@
 /* artifact.jsx — right-hand inspectable surface with tabs + fullscreen.
-   ReportTab renders the REAL eval-report from the BFF (run_eval.run() composite);
-   JudgeTab/ConfigTab stay mock until WS-5d wires them. */
+   All four tabs render REAL BFF data (WS-5d wired them off the data.jsx mocks):
+     - ReportTab  — runResult.composite (threaded via props; per-run)
+     - JudgeTab   — runResult.council.votes (threaded via props; per-run realized votes)
+     - ConfigTab  — GET /v1/ontology (self-fetched; the standing ontology config)
+     - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
+import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { JUDGES, CONFIG_YAML } from "./data.jsx";
+import { getOntology, getCorpus } from "./bff.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
 const VERDICT_UI = {
   approve: { icon: "check", label: "Passed quality gate", color: "var(--teal)" },
   needs_review: { icon: "flag", label: "Needs review", color: "var(--amber)" },
   reject: { icon: "flag", label: "Blocked by quality gate", color: "var(--accent)" },
+};
+
+// a judge vote (PASS|WARN|FAIL|BLOCK) → chip color.
+const VOTE_COLOR = {
+  PASS: "var(--teal)",
+  WARN: "var(--amber)",
+  FAIL: "var(--accent)",
+  BLOCK: "var(--accent)",
 };
 
 function ReportMessage({ children }) {
@@ -127,69 +139,168 @@ function ReportTab({ runStatus, runResult, runError }) {
   );
 }
 
-function JudgeTab() {
+// The realized per-judge votes the council cast on THIS case (run-eval `council`).
+// Per-case truth (what each judge voted + its confidence), not a configured roster.
+function JudgeTab({ runStatus, runResult, runError }) {
+  if (runStatus === "loading")
+    return <ReportMessage>Running the council over the harness…</ReportMessage>;
+  if (runStatus === "error")
+    return (
+      <ReportMessage>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
+      </ReportMessage>
+    );
+  if (!runResult)
+    return (
+      <ReportMessage>
+        No run yet. Press <strong>Run eval</strong> to see the council's per-case votes.
+      </ReportMessage>
+    );
+
+  const council = runResult.council || { votes: [], configured: [] };
+  const votes = council.votes || [];
+  if (votes.length === 0)
+    return <ReportMessage>This run carried no per-judge council votes.</ReportMessage>;
+
+  const blocking = votes.filter((v) => v.vote === "FAIL" || v.vote === "BLOCK").length;
   return (
     <div>
       <div className="consensus" style={{ marginBottom: 18 }}>
-        <div className="big">0.88</div>
+        <div className="big">{votes.length}</div>
         <div>
-          <div className="ct">Strong council agreement</div>
-          <div className="cs">Fleiss' κ across 3 judges over 2,400 samples. 94% reached the 0.66 floor on first pass.</div>
+          <div className="ct">{blocking ? `${blocking} blocking vote(s)` : "No blocking votes"}</div>
+          <div className="cs">
+            Realized votes on {runResult.case_id} · {runResult.grade_path === "live" ? "live · paid" : "replay · $0"}
+          </div>
         </div>
       </div>
-      <div className="art-h2">Council members <span className="cnt">weighted vote</span></div>
-      {JUDGES.map((j) => (
-        <div className="judge" key={j.name}>
-          <div className="judge-top">
-            <div className="judge-av" style={{ background: j.avc }}>{j.av}</div>
-            <div style={{ minWidth: 0 }}>
-              <div className="judge-name">{j.name}</div>
-              <div className="judge-model">{j.model}</div>
+      <div className="art-h2">Council members <span className="cnt">realized vote</span></div>
+      {votes.map((v, i) => {
+        const color = VOTE_COLOR[v.vote] || "var(--muted)";
+        const conf = typeof v.confidence === "number" ? v.confidence : null;
+        return (
+          <div className="judge" key={v.judge_role || i}>
+            <div className="judge-top">
+              <div className="judge-av" style={{ background: color }}>
+                {(v.judge_role || "?").charAt(0).toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div className="judge-name">{v.judge_role || "judge"}</div>
+                <div className="judge-model">{v.model || "—"}</div>
+              </div>
+              <div className="judge-w">
+                <div className="k">vote</div>
+                <div className="v" style={{ color }}>{v.vote}</div>
+              </div>
             </div>
-            <div className="judge-w"><div className="k">weight</div><div className="v">{j.weight}</div></div>
+            <div className="vbar">
+              <i style={{ width: (conf == null ? 0 : conf * 100) + "%", background: color }} />
+            </div>
+            <div className="vbar-leg">
+              <span>
+                <span className="d" style={{ background: color }} /> confidence{" "}
+                {conf == null ? "n/a" : conf.toFixed(2)}
+              </span>
+              {v.reason && <span style={{ color: "var(--muted)" }}>{v.reason.slice(0, 80)}{v.reason.length > 80 ? "…" : ""}</span>}
+            </div>
           </div>
-          <div className="vbar">
-            <i style={{ width: j.pass + "%", background: "var(--teal)" }} />
-            <i style={{ width: j.warn + "%", background: "var(--amber)" }} />
-            <i style={{ width: j.fail + "%", background: "var(--accent)" }} />
-          </div>
-          <div className="vbar-leg">
-            <span><span className="d" style={{ background: "var(--teal)" }} /> pass {j.pass}%</span>
-            <span><span className="d" style={{ background: "var(--amber)" }} /> warn {j.warn}%</span>
-            <span><span className="d" style={{ background: "var(--accent)" }} /> fail {j.fail}%</span>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function ConfigTab() {
+// The standing ontology config, read from GET /v1/ontology (the §3 "ontology config
+// editor" view, read-only here — edits go through the FlagEditor/PUT path, not a
+// textarea). Self-fetches because the ontology is run-independent.
+function ConfigTab({ agent = "ws0_default" }) {
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [ont, setOnt] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setStatus("loading");
+    getOntology(agent)
+      .then((o) => { if (live) { setOnt(o); setStatus("ready"); } })
+      .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
+    return () => { live = false; };
+  }, [agent]);
+
+  if (status === "loading") return <ReportMessage>Loading ontology config…</ReportMessage>;
+  if (status === "error")
+    return (
+      <ReportMessage>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read ontology</div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+      </ReportMessage>
+    );
+
+  const sm = ont.severity_map || {};
+  const flags = ont.flags || [];
+  const contracts = ont.verification_contracts || [];
+  const gradeable = flags.filter((f) => f.gradeable).length;
+
   return (
-    <div className="editor">
-      <div className="editor-hd">
-        <ICN name="layers" size={14} style={{ color: "var(--accent)" }} />
-        <span className="fname">eval.config.yaml</span>
-        <span className="badge">read-only · synced</span>
-        <button className="icon-btn" style={{ width: 26, height: 26 }}><ICN name="copy" size={14} /></button>
+    <div>
+      <div className="art-sec">
+        <div className="art-h2">
+          Ontology <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
+        </div>
+        <div className="tiles">
+          {[
+            { k: "Flags", v: String(flags.length), d: `${gradeable} gradeable` },
+            { k: "Contracts", v: String(contracts.length), d: "verification floor" },
+            { k: "Block ≥", v: String(sm.block_at_or_above ?? "—"), d: "severity weight" },
+            { k: "Warn >", v: String(sm.warn_above ?? "—"), d: "severity weight" },
+          ].map((t) => (
+            <div className="tile" key={t.k}>
+              <div className="tk">{t.k}</div>
+              <div className="tv" style={{ fontSize: 18 }}>{t.v}</div>
+              <div className="td">{t.d}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="code">
-        {CONFIG_YAML.map((l, i) => (
-          <div className="ln" key={i}>
-            <span className="gutter">{l.t === "blank" ? "" : i + 1}</span>
-            {l.t === "cmt" ? (
-              <span><span className="key">{l.k}</span><span className="cmt">{l.v}</span></span>
-            ) : l.t === "blank" ? (
-              <span>&nbsp;</span>
-            ) : (
-              <span>
-                <span className="key">{l.k}</span>
-                <span className={l.t === "str" ? "str" : l.t === "num" ? "num" : l.t === "bool" ? "bool" : ""}>{l.v}</span>
-              </span>
-            )}
+
+      <div className="art-sec">
+        <div className="art-h2">Severity weights <span className="cnt">global</span></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {Object.entries(sm.weights || {}).map(([k, v]) => (
+            <span key={k} className="cnt" style={{ fontFamily: "var(--mono)" }}>{k} {v}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="art-sec">
+        <div className="art-h2">
+          Flags <span className="cnt">tier · gradeable · owners</span>
+        </div>
+        {flags.map((f) => (
+          <div key={f.flag} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
+            <span style={{ fontFamily: "var(--mono)", fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{f.flag}</span>
+            <span className="cnt">{f.tier || "—"}</span>
+            <span style={{ color: f.gradeable ? "var(--teal)" : "var(--muted)" }}>{f.gradeable ? "gradeable" : "reference"}</span>
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>{(f.owner_roles || []).length || "no"} owner(s)</span>
           </div>
         ))}
       </div>
+
+      {contracts.length > 0 && (
+        <div className="art-sec" style={{ marginBottom: 4 }}>
+          <div className="art-h2">Verification contracts <span className="cnt">structural floor</span></div>
+          {contracts.map((c, i) => (
+            <div key={i} style={{ padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{c.flag_code}</span>
+                <span style={{ color: "var(--teal)", whiteSpace: "nowrap" }}>{c.contract_type} · {c.version}</span>
+              </div>
+              {c.question && <div style={{ color: "var(--muted)", marginTop: 3 }}>{c.question}</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -226,7 +337,7 @@ export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, 
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
-          {tab === "judges" && <JudgeTab />}
+          {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab />}
         </div>
       </div>
