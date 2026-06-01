@@ -305,11 +305,92 @@ function ConfigTab({ agent = "ws0_default" }) {
   );
 }
 
+// The correction-corpus / flywheel view — GET /v1/corpus (corpus-row/1). Each row is
+// a logged grounding correction (suppress | floor) with before→after verdict + the
+// contract + owner roles + a rollout pointer. clinical_v1 is suppress-only and the
+// corpus may be empty until a run writes corrections — empty-state, never a crash.
+function CorpusTab() {
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [rows, setRows] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setStatus("loading");
+    getCorpus()
+      .then((body) => { if (live) { setRows(body.rows || []); setStatus("ready"); } })
+      .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
+    return () => { live = false; };
+  }, []);
+
+  if (status === "loading") return <ReportMessage>Loading correction corpus…</ReportMessage>;
+  if (status === "error")
+    return (
+      <ReportMessage>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read corpus</div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+      </ReportMessage>
+    );
+  if (rows.length === 0)
+    return (
+      <ReportMessage>
+        No corrections yet. The flywheel fills as grounding suppresses a false flag or a
+        structural floor catches a missed one.
+      </ReportMessage>
+    );
+
+  const suppress = rows.filter((r) => r.action === "suppress").length;
+  const floor = rows.filter((r) => r.action === "floor").length;
+  return (
+    <div>
+      <div className="art-sec">
+        <div className="art-h2">
+          Correction flywheel <span className="cnt">{rows.length} row(s)</span>
+        </div>
+        <div className="tiles">
+          {[
+            { k: "Corrections", v: String(rows.length), d: "tool-grounded" },
+            { k: "Suppress", v: String(suppress), d: "confident FP disproved" },
+            { k: "Floor", v: String(floor), d: "missed violation caught" },
+          ].map((t) => (
+            <div className="tile" key={t.k}>
+              <div className="tk">{t.k}</div>
+              <div className="tv" style={{ fontSize: 18 }}>{t.v}</div>
+              <div className="td">{t.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="art-sec" style={{ marginBottom: 4 }}>
+        <div className="art-h2">Corrections <span className="cnt">corpus-row/1</span></div>
+        {rows.map((r, i) => (
+          <div key={r.rollout_ref || i} style={{ padding: "9px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{r.flag_code}</span>
+              <span className="cnt" style={{ color: r.action === "floor" ? "var(--accent)" : "var(--teal)" }}>{r.action}</span>
+            </div>
+            <div style={{ color: "var(--muted)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--mono)" }}>{r.verdict_before} → {r.verdict_after}</span>
+              {r.contract && <span>· {r.contract}</span>}
+              {(r.owner_roles || []).length > 0 && <span>· {r.owner_roles.join(", ")}</span>}
+            </div>
+            <div style={{ color: "var(--muted)", marginTop: 3, fontFamily: "var(--mono)", fontSize: 10.5 }}>
+              {r.case_id} · {(r.rollout_ref || "").slice(0, 12)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
     report: ["Evaluation report", "scribe-agent-v4 · run #218"],
-    judges: ["Judge council", "3 models · weighted vote"],
-    config: ["Config editor", "eval.config.yaml"],
+    judges: ["Judge council", "per-case realized votes"],
+    config: ["Config editor", "ontology · read-only"],
+    corpus: ["Correction corpus", "tool-grounded flywheel"],
   };
   const [t1, t2] = titles[tab];
   return (
@@ -329,7 +410,7 @@ export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, 
           </div>
         </div>
         <div className="art-tabs">
-          {[["report", "Report"], ["judges", "Judge council"], ["config", "Config"]].map(([k, label]) => (
+          {[["report", "Report"], ["judges", "Judge council"], ["config", "Config"], ["corpus", "Corpus"]].map(([k, label]) => (
             <button key={k} className={"art-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
@@ -339,6 +420,7 @@ export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, 
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab />}
+          {tab === "corpus" && <CorpusTab />}
         </div>
       </div>
     </section>
