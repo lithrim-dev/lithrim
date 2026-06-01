@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-30T12:00Z",
+  "updated": "2026-06-01T00:00Z",
   "bundles": [
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
@@ -544,6 +544,36 @@
       "cost_envelope_usd": 0.1,
       "cost_max_acceptable_usd": 0.5,
       "next_action": "BENCH-SIDE LANDED + fresh-critic NON-BLOCKING (gate condition 2 met for the bench half). BACKEND D1/D2/D4 STILL GATED on: (1) user lands/stashes the in-flight backend WIP (8 files) — executor never touches it; (3) user sign-off on the every-:8002-caller blast radius. THEN executor implements backend D1/D2/D4 + runs the one ~$0.10 A3 live smoke; the BACKEND commits require their OWN fresh-critic pass before they land (the bench-side critic did not see them). A2/A3/A5-backend remain SKIP until then — monitor must NOT treat them as PASS. Carry S-BS-12 (bidirectional lint) into the backend driver / a follow-up."
+    },
+    {
+      "id": "bench-salvage-phaseWS-3-dspy-jute-validator-generator-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-3",
+      "scope": "dspy-jute-validator-generator + structural-floor grounding wiring (WS-3a)",
+      "file": "bench-salvage_phaseWS-3_dspy_jute_validator_generator_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "New lithrim_bench/verification/ module + new optional deps ([verification] = dspy/httpx) + a harness/grounding contract-surface change (adds the structural-floor executor to _CONTRACT_EXECUTORS, can flip PASS->BLOCK) + live :3031 side-effects via persist. Additive/backward-compatible, but a new-module + contract-surface + live-side-effect cycle requires a fresh-critic close (not inline) + user sign-off.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "scope_note": "WS-3a = promote the spike (spike/verification-toolbox) verification core into lithrim_bench/verification/ (spec/etlp_client/tools/jute_gen/jute_dspy/mutation/router; heavy imports guarded) behind a [verification] extra, and wire the bench-accepted JUTE VerificationContract into harness/grounding as the FLOOR direction (PASS->BLOCK on a real structural violation the council missed) via the pre-marked _CONTRACT_EXECUTORS seam (grounding.py:165-166). KB/RAG/ONNX stack (kb_rag.py + embeddings.py + the ~960MB models, S-BS-5) + judge-calls-tool MID-LOOP into the live :8002 council DEFERRED to WS-3b (the latter also needs WS-2's HARD-GATE-paused backend injection). Land the mutation/joint GATE as the assurance primitive; do NOT land the LLM auto-harden loop (handoff §7 meta-finding).",
+      "related_docs": [
+        "experiments/dspy_council_smoke/HANDOFF_WS3_verification_toolbox_2026-05-31.md (spike state + §7 mutation/joint-gate findings)",
+        "experiments/dspy_council_smoke/REPORT_jute_dspy_generator.md (Copilot 0/3 vs DSPy accept)",
+        "experiments/dspy_council_smoke/devloop_draft/PLACEMENT.md (proposed layout)",
+        "lithrim_bench/harness/grounding.py (_CONTRACT_EXECUTORS seam :165-166; ground :176)",
+        "lithrim_bench/harness/ontology.py (VerificationContractDecl :62)",
+        "lithrim_bench/backends/http.py:32 (guarded-import precedent) + pyproject.toml (packaging site)",
+        "spike branch spike/verification-toolbox: verification/{spec,etlp_client,tools,jute_gen,jute_dspy,mutation,router}.py + tests/",
+        ".devloop/state/STREAM_bench-salvage.md"
+      ],
+      "_note": "Promotes the parallel verification-toolbox spike into main as bench-salvage WS-3a. The spike (branch spike/verification-toolbox, HEAD 18aeaf3, 66 offline tests) proved: raw etlp Copilot 0/3 accepted on the by-construction pack vs the DSPy bench-gated generator ACCEPTS (the refine loop is load-bearing); cross-domain (Patient/Observation/Transaction, 0 interventions on 2/3); and the oracle-completeness limit (the joint recall+precision GATE is the reliable primitive, LLM auto-hardening is fallible). Landed onto a clean base (5 base-cleanup commits a7cee09..847b7e8 flushed the working tree first). Feeds paper-1-copilot §4/§6/§7; the DSPy generator becomes what §2's A2 disclosure (S-P1-3) concerns — see S-P1-22.",
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "cost_envelope_usd": 0,
+      "cost_max_acceptable_usd": 1,
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required (fresh re-grep on BOTH main + spike/verification-toolbox; the 5 design decisions incl. contract-system reconciliation). HARD GATE: fresh-critic close (/devloop-critique bench-salvage WS-3) + user sign-off before commits land. The only paid/live call is one optional :3031 bench-accept smoke (no LLM cost on the GOLDEN replay path)."
     }
   ]
 }

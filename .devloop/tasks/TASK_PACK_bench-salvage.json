@@ -210,30 +210,43 @@
     {
       "id": "WS-3",
       "phase": "WS-3",
-      "title": "WS-3 \u2014 tool-grounding generalized + mid-loop (contracts, pinecone query, local vector)",
-      "status": "blocked",
-      "blocked_by": [
-        "WS-1"
-      ],
+      "title": "WS-3a \u2014 promote the verification-toolbox core (DSPy bench-gated JUTE generator + mutation/joint gate) into lithrim_bench/verification/ + wire the structural floor into harness/grounding",
+      "status": "ready",
+      "blocked_by": [],
       "priority": "P1",
+      "estimated_effort_hours": 10,
+      "estimated_llm_cost_usd": 0,
+      "may_be_zero_cost": true,
       "target": "executor",
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-3-tool-grounding-midloop-driver",
+      "prompt_bundle": "bench-salvage-phaseWS-3-dspy-jute-validator-generator-driver",
+      "note": "Prototyped in parallel on spike/verification-toolbox (HEAD 18aeaf3, 66 offline tests, ruff clean): the DSPy bench-gated JUTE validator generator (generate->test->refine; raw Copilot 0/3 vs DSPy ACCEPT), the by-construction packs (Patient/Observation/Transaction), the pinned validator, and the mutation/joint coverage GATE. WS-3a promotes the CORE only + wires the bench-accepted VerificationContract into harness/grounding as the FLOOR direction (PASS->BLOCK on a real structural violation the council missed) via the pre-marked _CONTRACT_EXECUTORS seam. WS-1 closed unblocks it; WS-3a is INDEPENDENT of WS-2's paused backend :8002 injection (it composes over :3031). Land the GATE, NOT the LLM auto-harden loop (handoff \u00a77). Feeds paper-1-copilot \u00a74/\u00a76/\u00a77 + S-P1-22.",
       "deliverables": [
-        "JUTE verification contracts authored agentically via :3031 /mappings/generate (generate->validate->refine->persist in SQLite).",
-        "per-question KB-query tool via :8002 /v1/kb/{namespace}/search; local-vector option (S-BS-5: numpy brute-force over lithrim-rag-via-etlp receipts).",
-        "graduate grounding from post-hoc to MID-LOOP (judge-calls-tool, generalizing the :8002 /v1/playground/validate-with-council tool-loop pattern).",
-        "resolve S-BS-2 (v2 over-fire) and the additional v2 over-fire flags as grounding targets."
+        "D0: lithrim_bench/verification/ (NEW) \u2014 promote spec/etlp_client/tools/jute_gen/jute_dspy/mutation/router from the spike; heavy imports guarded/lazy (httpx in EtlpJuteClient._http; dspy lazy in jute_dspy); imports clean on DEFAULT deps + no network. DEFER kb_rag.py + embeddings.py (drop the KbRagTool import from __init__).",
+        "D1: pyproject.toml [project.optional-dependencies] verification = [dspy, httpx]; default install (pydantic+pandas) unchanged.",
+        "D2: wire the structural floor into harness/grounding.py \u2014 add a structural_jute executor to _CONTRACT_EXECUTORS (the marked WS-3 seam), declared as an ontology VerificationContractDecl; on conforms=False inject a BLOCK-driving finding so severity_map.rescore flips PASS->BLOCK; log the flip via correction.build_correction; the structural-contract-absent path is byte-identical to current ground().",
+        "D3: home the by-construction packs (data/verification_packs/{fhir_patient,fhir_observation,transaction}_v1.jsonl + build_*.py) + the pinned validator (validators/fhir_us_core_patient_validator.generated.jute) + a provenance README (mapping ids 101/102/103; 103 = the kept buggy-timestamp evidence).",
+        "D4: tests -> tests/verification/ (offline; mock :3031 + injected predictor; pytest.importorskip dspy)."
       ],
       "acceptance": [
-        "A judge can call a tool mid-evaluation; contracts confirm/disprove findings against KB + transcript.",
-        "S-BS-2 over-fire flags grounded; S-BS-5 retrieval returns real matches."
+        "A1: import lithrim_bench.verification + the stdlib-only grounding seam import succeed on DEFAULT deps, no network.",
+        "A2: default install unchanged; [verification] enables generate/apply; no new default dependency.",
+        "A3: offline test \u2014 a bench-accepted (replayed) structural contract flips a council PASS -> BLOCK, the flip is logged + a correction emitted; structural-contract-absent == current ground() byte-identical.",
+        "A4: packs load (10/8/10) + regenerate byte-deterministically; pinned validator + provenance README land.",
+        "A5: pytest -q green on default deps + no network; dspy tests importorskip-skip cleanly; ruff clean."
+      ],
+      "diagnostic_stats_reported": [
+        "One live :3031 bench-accept smoke on the pinned Patient validator (verdict only; report, not a gate).",
+        "Deferred-to-WS-3b inventory (KB/RAG/ONNX stack + judge-calls-tool mid-loop into live :8002)."
       ],
       "scope_guardrails_not_in_scope": [
-        "Eval-pack calibration gate (WS-4)",
-        "Productized vector store (WS-6)"
+        "WS-3b: the KB/RAG/ONNX stack (kb_rag.py, embeddings.py, pinecone, the ~960MB models, S-BS-5 local vector).",
+        "Judge-calls-tool MID-LOOP into the live :8002 council (needs WS-2's paused backend injection).",
+        "The LLM auto-hardening loop (land the GATE only; deterministic/human fixes \u2014 handoff \u00a77 meta-finding).",
+        "Any ../lithrim-backend/ edit; council prompt rewrite; re-snapshotting the taxonomy.",
+        "The spike throwaway (council_*.py, run_smoke*.py, *.log, smoke_result*.json, kb_index_explore.py)."
       ]
     },
     {
