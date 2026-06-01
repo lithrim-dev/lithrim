@@ -16,6 +16,15 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
 ]
+# WS-3a: the optional verification harness (DSPy bench-gated JUTE validator
+# generator + live :3031 apply). Kept OUT of `dependencies` so the default
+# install stays offline-deterministic (pydantic+pandas only). The KB/RAG/ONNX
+# stack (pinecone, onnxruntime) lands as a separate `verification-kb` extra in
+# WS-3b with that code. Versions track the spike venv (dspy 3.2.1, httpx 0.28.1).
+verification = [
+    "dspy>=3.2",
+    "httpx>=0.27",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
