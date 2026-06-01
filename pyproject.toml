@@ -34,6 +34,16 @@ bff = [
     "uvicorn>=0.27",
     "httpx>=0.27",
 ]
+# WS-6c: the vendored compliance council (lithrim_bench/runtime/council/, ported
+# from lithrim-backend@493b533). openai + tenacity are the council module's
+# top-level imports; pydantic-settings backs its config subset. Kept OUT of core
+# so the default install stays the offline pydantic+pandas core — the council
+# tests `importorskip("openai")` and skip cleanly when this extra is absent.
+council = [
+    "openai>=1.0",
+    "tenacity>=8.0",
+    "pydantic-settings>=2.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -44,5 +54,5 @@ where = ["."]
 include = ["lithrim_bench*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "lithrim_bench/runtime/council/tests"]
 addopts = "-ra"
