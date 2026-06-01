@@ -337,15 +337,17 @@
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver",
+      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver (SUPERSEDED — thin stdlib driver; the real shell driver gets expanded against the spec)",
+      "rescope_note": "RE-SCOPED 2026-06-01 to the PRODUCT SHELL PROGRAM (user direction). Authoritative phasing in docs/specs/SPEC_PRODUCT_SHELL.md sec.8: WS-5 = the REAL 3-pane React/Tauri/Tailwind shell skeleton + FastAPI BFF Tauri-sidecar + ONE vertical (eval-report artifact over the WS-4a vertical); WS-5b conversational journey; WS-5c generative-UI components; WS-5d artifacts pane; WS-5e Tauri packaging + VPC. Service topology: docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md (strangler-fig, Mongo-out, sequencing B).",
       "deliverables": [
-        "Frontend shell that loads UI apps as plugins; first plugin = bring-in-data + view a graded+grounded case + its calibration report."
+        "WS-5 (this phase): the real 3-pane shell skeleton (React/Vite + Tauri v2 + Tailwind/brand + the FastAPI BFF Tauri-sidecar) with ONE vertical end-to-end (eval-report artifact over the WS-4a vertical via run_eval.run; replay default + one live run). Per SPEC_PRODUCT_SHELL.md sec.8.",
+        "WS-5b..WS-5e: conversational journey / generative-UI components / artifacts pane / Tauri+VPC packaging — per SPEC_PRODUCT_SHELL.md sec.8 (each gets its own driver)."
       ],
       "acceptance": [
-        "One plugin runs the WS-0..WS-4 vertical from the shell on a real case (live, cites this run)."
+        "Per SPEC_PRODUCT_SHELL.md acceptance for the WS-5 skeleton phase: shell loads the plugin; the vertical renders (replay) + one live run; frontend deps isolated (Python default install unchanged). Later phases carry their own acceptance."
       ],
       "scope_guardrails_not_in_scope": [
-        "Code-salvaging lithrim-ui (behavior reference only); replayed/fixture demos (must be live)."
+        "No ../lithrim-backend edit; no code-salvage of lithrim-ui (behavior reference only); no heavy frontend framework. The BFF targets the harness (composes over live :8002/:3031); the Mongo backend is a strangled dev-dep, NOT a product component (SPEC_PRODUCT_SERVICE_TOPOLOGY.md)."
       ]
     },
     {
@@ -362,6 +364,7 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver",
+      "rescope_note": "REFRAMED 2026-06-01 as the PYTHON-LAYER CONSOLIDATION track (strangler-fig completion) per docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md. Now a PARALLEL track (sequencing B), not strictly after WS-5: port the validated v2 council Mongo-free (extends the M1 v1 in-process salvage -> v2; PORT, do not rewrite the calibration/NKA/prompt IP) + swap persistence Mongo->SQLite/PG behind a repository interface; ETLP stays a JVM-sidecar service. FIRST STEP / GATE: audit ../lithrim-backend (v2-council Mongo-coupling surface + the persistence surface to swap) BEFORE porting. The blocked_by WS-5 below is no longer strict (parallel).",
       "deliverables": [
         "Swap the live :8002 grade for the in-process M1 council (LocalPipelineBackend) behind the same harness interface; local vector for pinecone; offline/licensed packaging.",
         "Folds the deferred bottom-up targets: the ~28-module analyze flow (no Celery), the consolidated Clojure server (etlp-mapper copilot + etlp ingest), desktop shell packaging (uberjar+JRE+PyInstaller), licensed-production separability (the doc-shim makes swap-back-to-Mongo clean)."
