@@ -551,7 +551,13 @@
       "phase": "WS-3",
       "scope": "dspy-jute-validator-generator + structural-floor grounding wiring (WS-3a)",
       "file": "bench-salvage_phaseWS-3_dspy_jute_validator_generator_driver.md",
-      "status": "ready",
+      "status": "shipped",
+      "audit_verdict": "CLEAN — 7/7 mechanical; A1/A3/A4/A5 monitor-re-verified (import-isolation [], floor test 5/5, packs diff==0, 164 passed/3 dspy-skipped); no commits landed (HARD GATE, working tree); session-log shape valid; all deviations documented + monitor-approved at plan-review.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (fresh-critic, HARD GATE) — 0 BLOCKING / 6 NON-BLOCKING / 3 OPEN-QUESTION. File: .devloop/sessions/critique-bench-salvage-phaseWS-3-2026-06-01.md. Q4-1 byte-identical→additive wording; Q4-2 S-BS-13 floor replay→WS-4; Q4-3 floor inject-param validation→S-BS-16.",
+      "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-3-2026-06-01.json",
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-4_kickoff_2026-06-01.md",
+      "new_seams": ["S-BS-13", "S-BS-14", "S-BS-15", "S-BS-16"],
+      "closing_commits": "59a3cba..d6fe96f (5 atomic D0-D4) + close-out commit (this)",
       "hardness": "HARD-GATE",
       "hardness_reason": "New lithrim_bench/verification/ module + new optional deps ([verification] = dspy/httpx) + a harness/grounding contract-surface change (adds the structural-floor executor to _CONTRACT_EXECUTORS, can flip PASS->BLOCK) + live :3031 side-effects via persist. Additive/backward-compatible, but a new-module + contract-surface + live-side-effect cycle requires a fresh-critic close (not inline) + user sign-off.",
       "target_repos": [
@@ -573,7 +579,7 @@
       "last_re_verified": "2026-06-01",
       "cost_envelope_usd": 0,
       "cost_max_acceptable_usd": 1,
-      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required (fresh re-grep on BOTH main + spike/verification-toolbox; the 5 design decisions incl. contract-system reconciliation). HARD GATE: fresh-critic close (/devloop-critique bench-salvage WS-3) + user sign-off before commits land. The only paid/live call is one optional :3031 bench-accept smoke (no LLM cost on the GOLDEN replay path)."
+      "next_action": "monitor: on user sign-off, land the 5 atomic commits (D0-D4) + append real hashes to the session log, then land the close-out commit; flip status->shipped + fill closing_commits + mark the STREAM WS-3 row done. Then choose next cycle WS-3b vs WS-4 (do NOT autostart). S-BS-16 (floor inject-param validation, core-invariant) + S-BS-13 (floor-apply replay) GATE any floor-declaring ontology."
     }
   ]
 }

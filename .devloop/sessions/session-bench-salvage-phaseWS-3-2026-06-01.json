@@ -1,0 +1,142 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-3-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-3",
+  "driver_bundle_id": "bench-salvage-phaseWS-3-dspy-jute-validator-generator-driver",
+  "started_at": "2026-06-01T00:00:00Z",
+  "ended_at": "2026-06-01T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T00:00:00Z",
+    "user_approved_at": "2026-06-01T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "grade_live is at grade.py:85, not :50 (:50 is build_request_body)",
+        "evidence": "lithrim_bench/harness/grade.py:85 def grade_live; :50 def build_request_body",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "report.build_report (driver D2) does not exist; floor surfaces via report.composite (:22)",
+        "evidence": "lithrim_bench/harness/report.py exports composite + calibration; no build_report",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "correction.build_correction is suppress-shaped (suppressed_entry={finding,verdict,contract}); the floor flip is the inverse shape",
+        "evidence": "lithrim_bench/harness/correction.py:31 build_correction reads verdict.disproved",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 6: add sibling build_floor_correction + surface floor via composite() rather than bend the suppress-shaped function/cited build_report",
+        "evidence": "monitor ruling: 'approve. Forced by the drift and correctly resolved'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 2: wire floor via a sibling _FLOOR_CONTRACT_TYPES registry + ground() floor sub-path, NOT the per-finding suppress _CONTRACT_EXECUTORS registry",
+        "evidence": "monitor ruling: 'approve, and it's more faithful to the code than my driver was'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Refinements folded in: (1) A3 backward-compat = pre-existing fields+verdict identical AND floor_blocks==[]; (2) committed floor uses jute_gen pinned-template path; (3) assert floor validator is the clean Patient one; (4) httpx-undeclared = S-P1-5, referenced not re-opened",
+        "evidence": "monitor: 'Four refinements to fold into execution (for the fresh-critic to check)'",
+        "decided_at": "2026-06-01T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    "59a3cba feat(ws3): promote verification core module (guarded heavy imports) [D0]",
+    "07a3b23 build(ws3): add [verification] optional extra [D1]",
+    "17588fa feat(ws3): wire structural-floor VerificationContract into harness grounding [D2]",
+    "1e549a9 chore(ws3): home by-construction verification packs + pinned validator [D3]",
+    "d6fe96f test(ws3): verification core tests (offline; importorskip dspy) [D4]"
+  ],
+  "commits_pending": [
+    "feat(ws3): promote verification core module (guarded heavy imports) [D0]",
+    "build(ws3): add [verification] optional extra [D1]",
+    "feat(ws3): wire structural-floor VerificationContract into harness grounding [D2]",
+    "chore(ws3): home by-construction verification packs + pinned validator [D3]",
+    "test(ws3): verification core tests (offline; importorskip dspy) [D4]"
+  ],
+  "commits_note": "LANDED 2026-06-01 (range 59a3cba..d6fe96f) after fresh-critic NON-BLOCKING close + user sign-off; hashes recorded in commits[]. Monitor close-out commit (STREAM/index/handoff/critique/this log) follows. Audit re-verified A1/A3/A4/A5.",
+
+  "acceptance": [
+    {
+      "criterion": "A1 (isolation) — import lithrim_bench.verification + stdlib-only seam imports succeed on default deps, no network; no dspy/httpx/pinecone/onnx pulled",
+      "verdict": "PASS",
+      "evidence": "main pyenv 3.12.8 has neither dspy/httpx/pinecone/onnxruntime installed; `import lithrim_bench.verification` + import of VerificationResult/VerificationSpec/StructuralJuteTool/build_generator/score_template succeed; sys.modules leak check empty. Only isolation fix: dropped __init__.py `from .kb_rag import KbRagTool` + the KbRagTool __all__ entry."
+    },
+    {
+      "criterion": "A2 (packaging) — default install unchanged; [verification] enables generate/apply; no new default dependency",
+      "verdict": "PASS",
+      "evidence": "pyproject project.dependencies == ['pydantic>=2.6','pandas>=2.1'] (unchanged); optional-dependencies.verification == ['dspy>=3.2','httpx>=0.27']; tomllib assertion green."
+    },
+    {
+      "criterion": "A3 (floor wiring) — offline test: bench-accepted contract flips council PASS->BLOCK, flip logged + correction emitted; floor-undeclared is identical to current ground() (floor_blocks==[])",
+      "verdict": "PASS",
+      "evidence": "tests/verification/test_grounding_floor.py: test_floor_flips_pass_to_block_and_emits_correction (faked jute_gen floor reporting a failed check flips PASS->BLOCK, composite verdict reject, build_floor_correction -> ws3-floor-correction/1, inverse-rollout retains the PASS vote); test_backward_compat_default_ontology_has_no_floor (default clinical ontology declares 0 floor contracts, ground() floor_blocks==[] and verdict unchanged, _BoomHttp proves no floor HTTP call). Pre-existing 107-test suite still green."
+    },
+    {
+      "criterion": "A4 (artifacts) — packs home + load (10/8/10), build scripts regenerate byte-deterministically; pinned validator + provenance README land",
+      "verdict": "PASS",
+      "evidence": "data/verification_packs/{fhir_patient_v1(10),fhir_observation_v1(8),transaction_v1(10)}.jsonl; scripts/build_{fhir_patient,fhir_observation,transaction}_pack.py regenerate with diff==0 (fixed GENERATED_AT + sha256 case_id); validators/fhir_us_core_patient_validator.generated.jute (clean Patient, no timestamp check); data/verification_packs/README.md records 101/102/103 provenance + lint_golden non-applicability."
+    },
+    {
+      "criterion": "A5 (suites green) — pytest -q green on default deps + no network; dspy tests importorskip-skip cleanly; ruff clean on new/modified files",
+      "verdict": "PASS",
+      "evidence": "pytest tests/ -q => 164 passed, 3 skipped (the 3 build_generator dspy tests skip on default deps via pytest.importorskip('dspy')); ruff check (scoped to new+modified files) 'All checks passed!'; ruff format --check (scoped) '21 files already formatted'."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "live_3031_smoke": "PASS (NOT a gate) — MAIN promoted code via spike-venv httpx: pinned Patient validator over live :3031 test-template ACCEPTS clean Patient (5/5 checks) + BLOCKs stripped-identifier defect (1 failed); $0 LLM (engine-only, no DB write, no Azure).",
+    "test_count_delta": "107 -> 167 collected (164 passed + 3 dspy-skipped); +60 verification items: test_toolbox 24, test_jute_dspy 18 (3 skip), test_mutation 10, test_grounding_floor 5",
+    "deferred_to_ws3b": "KB/RAG/ONNX stack (kb_rag.py KbRagTool, embeddings.py, pinecone, onnxruntime, ~960MB models, S-BS-5 local vector, the _CONTRACT_EXECUTORS 'KB/vector' executors); judge-calls-tool MID-LOOP into the live :8002 council (waits on WS-2's paused backend council_config/ontology injection)",
+    "paper_feed": "WS-3a landed -> the DSPy bench-gated generator is now the mechanism paper-1-copilot §4/§6/§7 discloses; settles the S-P1-22 §2/§4 reframe (resolve after this lands)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-13",
+      "title": "run_eval passes http_client=None so a declared floor uses the LIVE :3031 path even under --replay",
+      "severity": "medium",
+      "fix_location": "scripts/run_eval.py run() (the ground() call) + a floor-apply replay capture",
+      "impact": "A domain that declares a structural-floor contract cannot be graded fully offline via run_eval today (the suppress path replays, the floor path would hit live :3031). Inert now (clinical_v1 declares no floor). Needs a floor-replay capture for WS-4's eval-pack loop.",
+      "confidence": "CONFIRMED",
+      "evidence": "scripts/run_eval.py calls ground(result, case, ontology=ontology) with no http_client; grounding._run_floor defaults to a lazily-created live httpx client when http_client is None."
+    },
+    {
+      "id": "S-BS-14",
+      "title": "Floor declared without the [verification] extra raises ImportError at apply-time, not at config-load",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/grounding.py _run_floor (or an ontology-load validation)",
+      "impact": "Declaring a structural_jute/jute_gen floor in an ontology while running a default-deps install fails only when ground() first runs the floor (lazy httpx import), not with an early/clear 'install lithrim-bench[verification]' message. Cosmetic/DX, not correctness.",
+      "confidence": "CONFIRMED",
+      "evidence": "EtlpJuteClient._http()/StructuralJuteTool._acquire() import httpx lazily; with no http_client injected and httpx absent, the import raises at apply time."
+    },
+    {
+      "id": "S-BS-15",
+      "title": "_CONTRACT_EXECUTORS is now the SUPPRESS-only registry but keeps its generic name",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/grounding.py",
+      "impact": "Naming clarity only. Monitor explicitly deferred the rename to _SUPPRESS_EXECUTORS as not worth the churn this cycle; recorded so a future reader/cleanup knows it is intentional.",
+      "confidence": "CONFIRMED",
+      "evidence": "grounding.py _CONTRACT_EXECUTORS = {'presence_check': PresenceCheck}; the WS-3 floor types live in the sibling _FLOOR_CONTRACT_TYPES."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "WS-3a is implemented and fully green, staged but NOT committed pending the HARD-GATE close. Promoted the verification-toolbox core (spec/etlp_client/tools/jute_gen/jute_dspy/mutation/router + __init__ with KbRagTool dropped) into lithrim_bench/verification/ as an optional, import-isolated module (A1 proven on a genuinely dspy/httpx-absent interpreter); added the [verification] extra leaving default deps untouched (A2). The headline: wired the structural FLOOR into harness/grounding via a sibling _FLOOR_CONTRACT_TYPES registry + a ground() floor sub-path (new injectable http_client, the grade_replay/grade_live mirror) that injects a BLOCK the council missed and flips PASS->BLOCK, with a new GroundedResult.floor_blocks field (defaulted), a build_floor_correction sibling (inverse rollout), and composite() surfacing — all additive and backward-compatible (the committed clinical ontology declares no floor, so ground() is byte-equivalent: pre-existing fields+verdict identical AND floor_blocks==[]; the full pre-existing 107-test suite stays green). Homed the 3 by-construction packs (10/8/10, byte-deterministic regen) + the clean pinned Patient validator + a provenance README; promoted the offline core tests (importorskip dspy; grounding-shim + kb_rag excluded) + a new floor test. One live :3031 smoke (diagnostic, $0) confirms the substrate seam end-to-end. AUDIT FIRST: (1) the A3 backward-compat assertion + that the 107 pre-existing tests are unchanged (this is the contract-surface risk); (2) the 3 citation-drifts and Decision-6 resolution; (3) S-BS-13 (floor not replayable in run_eval). HARD GATE: requires /devloop-critique bench-salvage WS-3 (fresh critic session, NOT inline) + user sign-off BEFORE the 5 atomic commits land.",
+
+  "next_session_hint": "monitor: trigger the fresh-critic via /devloop-critique bench-salvage WS-3 (NOT inline); on sign-off, executor lands the 5 atomic commits + appends real hashes to this log; then run /devloop-audit bench-salvage WS-3."
+}
