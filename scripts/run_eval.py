@@ -35,7 +35,11 @@ from lithrim_bench.harness.config import (  # noqa: E402
     load_agent,
     seed_config_db,
 )
-from lithrim_bench.harness.correction import build_correction, emit  # noqa: E402
+from lithrim_bench.harness.correction import (  # noqa: E402
+    build_correction,
+    build_floor_correction,
+    emit,
+)
 from lithrim_bench.harness.grade import grade_live, grade_replay  # noqa: E402
 from lithrim_bench.harness.grounding import ground  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
@@ -66,6 +70,20 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
             ],
             "ungrounded": grounded.ungrounded,
             "skipped_non_gradeable": grounded.skipped_non_gradeable,
+            "floor_blocks": [
+                {
+                    "flag": (b["injected_finding"] or {}).get("code")
+                    or b["decl"].params.get("inject_flag_code"),
+                    "contract_type": b["decl"].contract_type,
+                    "contract": b["decl"].version,
+                    "conforms": b["result"].conforms,
+                    "disposition": b["result"].disposition,
+                    "injected": b["injected_finding"] is not None,
+                    "evidence": b["result"].evidence,
+                    "manifest": b["result"].manifest,
+                }
+                for b in grounded.floor_blocks
+            ],
         },
         "composite": comp,
         "calibration": cal,
@@ -112,6 +130,19 @@ def run(agent: Agent, *, live: bool = False, out_dir: str | Path | None = None) 
     for entry in grounded.suppressed:
         rec = build_correction(
             suppressed_entry=entry,
+            result=result,
+            composite_before=grounded.original_verdict or comp["stage_verdict"],
+            composite_after=grounded.verdict,
+            ontology=ontology,
+        )
+        emit(rec)
+        corrections.append(rec)
+    # WS-3 structural-floor flips emit the inverse correction (council missed it).
+    for block in grounded.floor_blocks:
+        if block["injected_finding"] is None:
+            continue  # inconclusive floor: surfaced in composite, no flip => no correction
+        rec = build_floor_correction(
+            floor_block=block,
             result=result,
             composite_before=grounded.original_verdict or comp["stage_verdict"],
             composite_after=grounded.verdict,

@@ -37,6 +37,26 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
     ]
     n_suppressed = len(grounded.suppressed)
     n_reference = len(grounded.skipped_non_gradeable)
+
+    # WS-3 structural floor: contracts that injected a BLOCK the council missed
+    # (or ran inconclusively). Empty whenever no floor is declared — so the floor
+    # additions below are inert for the committed clinical default.
+    floor_blocks = getattr(grounded, "floor_blocks", []) or []
+    floor_adjustments = [
+        {
+            "flag": (b["injected_finding"] or {}).get("code")
+            or b["decl"].params.get("inject_flag_code"),
+            "action": "floor_block" if b["injected_finding"] else "floor_inconclusive",
+            "contract_type": b["decl"].contract_type,
+            "contract": b["decl"].version,
+            "conforms": b["result"].conforms,
+            "disposition": b["result"].disposition,
+        }
+        for b in floor_blocks
+    ]
+    n_floor_block = sum(1 for b in floor_blocks if b["injected_finding"] is not None)
+    n_floor_inconclusive = len(floor_blocks) - n_floor_block
+
     reasoning = (
         f"{len(grounded.active)} active finding(s) after grounding; "
         f"{n_suppressed} suppressed by contract; "
@@ -45,15 +65,23 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         f"Composite stage verdict {grounded.verdict} "
         f"(was {grounded.original_verdict} pre-grounding)."
     )
+    if floor_blocks:
+        reasoning += (
+            f" Structural floor: {n_floor_block} block(s) injected"
+            f"{f', {n_floor_inconclusive} inconclusive' if n_floor_inconclusive else ''}."
+        )
+
     return {
         "verdict": _STAGE_TO_COMPLIANCE.get(grounded.verdict, "needs_review"),
         "stage_verdict": grounded.verdict,
         "score": score,
         "reasoning": reasoning,
         "grounded_adjustments": adjustments,
+        "floor_adjustments": floor_adjustments,
         "active_findings": [f.get("code") or f.get("detail") for f in grounded.active],
         "ungrounded_count": len(grounded.ungrounded),
         "skipped_non_gradeable_count": n_reference,
+        "floor_block_count": n_floor_block,
     }
 
 

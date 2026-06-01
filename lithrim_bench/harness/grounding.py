@@ -61,6 +61,18 @@ class GroundedResult:
     codes) — skip-logged and removed from ``active`` so they never drive the
     re-score. ``weights`` is the ontology severity→weight map, carried so the
     report can score without re-importing a constant.
+
+    ``floor_blocks`` is the WS-3 structural-floor direction (the inverse of
+    ``suppressed``): each entry is a floor contract that ran over the *artifact*
+    independent of any finding. On a real structural violation the council missed
+    (tool ``conforms is False``), a BLOCK-driving finding is injected into
+    ``active`` so the re-score flips PASS→BLOCK; the entry's ``injected_finding``
+    is that finding. A floor contract that is inconclusive (``conforms is None`` —
+    drift / no-compile / not-configured) is recorded with ``injected_finding=None``
+    and NEVER flips the verdict (surfaced, never silent). A satisfied floor
+    (``conforms is True``) is a no-op and not recorded — so ``floor_blocks == []``
+    whenever no floor is declared OR every floor passes, and ``ground()`` is
+    otherwise identical to its pre-WS-3 behaviour.
     """
 
     active: list[dict[str, Any]]
@@ -69,6 +81,7 @@ class GroundedResult:
     verdict: str
     original_verdict: str | None
     skipped_non_gradeable: list[dict[str, Any]] = field(default_factory=list)
+    floor_blocks: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     result: dict[str, Any] = field(repr=False, default_factory=dict)
     case: dict[str, Any] = field(repr=False, default_factory=dict)
@@ -162,8 +175,18 @@ class PresenceCheck(VerificationContract):
         )
 
 
-# contract_type -> executor factory. WS-3 adds JUTE / KB / vector executors here.
+# contract_type -> executor factory. This is the SUPPRESS registry (per-finding
+# contracts that disprove an existing confident-but-wrong finding). The structural
+# FLOOR direction (artifact-level contracts that inject a BLOCK the council missed)
+# is a categorically different shape — it is keyed in ``_FLOOR_CONTRACT_TYPES`` and
+# run by ``_run_floor``, not here.
 _CONTRACT_EXECUTORS = {"presence_check": PresenceCheck}
+
+# contract_type set for the WS-3 structural floor. These resolve to the promoted
+# ``lithrim_bench.verification`` tools (imported lazily in ``_run_floor`` so this
+# module's own import stays stdlib-only — no httpx/dspy pulled). KB / vector floor
+# executors land in WS-3b.
+_FLOOR_CONTRACT_TYPES = {"structural_jute", "jute_gen"}
 
 
 def _build_contract(decl: VerificationContractDecl) -> VerificationContract:
@@ -173,8 +196,88 @@ def _build_contract(decl: VerificationContractDecl) -> VerificationContract:
     return factory(decl)
 
 
+def _artifact_content(case: dict[str, Any]) -> Any:
+    """The first artifact's content (the thing a structural floor validates), or None."""
+    artifacts = case.get("artifacts") or []
+    if not artifacts or not isinstance(artifacts[0], dict):
+        return None
+    return artifacts[0].get("content")
+
+
+def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_client: Any | None):
+    """Run one structural-floor contract over the case artifact.
+
+    Adapts the ontology's ``VerificationContractDecl`` into the promoted
+    ``verification`` toolbox's ``VerificationSpec`` + ``Claim`` and runs the tool,
+    returning its tri-state ``VerificationResult`` (or ``None`` when the case has no
+    artifact to validate). ``http_client`` is injectable (the ``grade_replay`` /
+    ``grade_live`` mirror): a fake/replay client for offline tests, ``None`` for the
+    live ``:3031`` path (the tool creates an ``httpx.Client`` lazily — which requires
+    the optional ``[verification]`` extra).
+
+    The committed/reproducible floor uses ``contract_type="jute_gen"`` with a
+    ``pinned_template`` (read from the repo, applied in-memory via
+    ``/mappings/test-template`` — no DB write, no :3031 mutation). ``structural_jute``
+    with a ``mapping_selector`` is the live-mapping convenience path.
+    """
+    artifact = _artifact_content(case)
+    if artifact is None:
+        return None
+
+    from lithrim_bench.verification import (
+        STRUCTURAL_CONFORMANCE,
+        Claim,
+        JuteGenValidatorTool,
+        StructuralJuteTool,
+        VerificationSpec,
+    )
+
+    params = decl.params
+    locus = params.get("locus", "")
+    if decl.contract_type == "jute_gen":
+        tool = JuteGenValidatorTool(http_client=http_client)
+        reference = {
+            "service": params["service"],
+            "artifact_kind": params["artifact_kind"],
+            "pinned_template": params["pinned_template"],
+        }
+        if params.get("pinned_template_sha256"):
+            reference["pinned_template_sha256"] = params["pinned_template_sha256"]
+    elif decl.contract_type == "structural_jute":
+        tool = StructuralJuteTool(http_client=http_client)
+        reference = {
+            "service": params["service"],
+            "mapping_selector": params["mapping_selector"],
+            "artifact_kind": params["artifact_kind"],
+        }
+        if params.get("pinned_content_sha256"):
+            reference["pinned_content_sha256"] = params["pinned_content_sha256"]
+    else:  # pragma: no cover - guarded by the partition in ground()
+        raise ValueError(f"no floor executor for contract_type {decl.contract_type!r}")
+
+    spec = VerificationSpec(
+        tool=decl.contract_type,
+        applies_to_flags=(decl.flag_code,),
+        locus=locus,
+        reference=reference,
+        version=decl.version,
+    )
+    claim = Claim(
+        claim_type=STRUCTURAL_CONFORMANCE,
+        flag_code=decl.flag_code,
+        subject=artifact,
+        locus=locus,
+        source=case,
+    )
+    return tool.verify(claim, spec)
+
+
 def ground(
-    result: dict[str, Any], case: dict[str, Any], *, ontology: Ontology | None = None
+    result: dict[str, Any],
+    case: dict[str, Any],
+    *,
+    ontology: Ontology | None = None,
+    http_client: Any | None = None,
 ) -> GroundedResult:
     """Run every matching contract over the result's findings; re-score the verdict.
 
@@ -185,9 +288,29 @@ def ground(
     are skip-logged into ``skipped_non_gradeable`` and removed from ``active`` so
     they are never scored. Coded findings with no matching contract are retained
     unchanged.
+
+    WS-3 structural floor: after the per-finding suppress pass, any floor contract
+    declared in the ontology (``contract_type`` in ``_FLOOR_CONTRACT_TYPES``) runs
+    over the *artifact*. A real structural violation the council missed
+    (``conforms is False``) injects a BLOCK-driving finding into ``active`` so the
+    re-score flips PASS→BLOCK. ``http_client`` is injectable for the floor's apply
+    (a fake/replay client offline; ``None`` => the live ``:3031`` path). When the
+    ontology declares NO floor contract — the committed clinical default — the floor
+    pass is a no-op and the result is identical to the pre-WS-3 ``ground()`` (with
+    ``floor_blocks == []``).
     """
     ontology = ontology or load_ontology()
-    contracts = {decl.flag_code: _build_contract(decl) for decl in ontology.contracts}
+    suppress_decls = [d for d in ontology.contracts if d.contract_type in _CONTRACT_EXECUTORS]
+    floor_decls = [d for d in ontology.contracts if d.contract_type in _FLOOR_CONTRACT_TYPES]
+    unknown = [
+        d
+        for d in ontology.contracts
+        if d.contract_type not in _CONTRACT_EXECUTORS
+        and d.contract_type not in _FLOOR_CONTRACT_TYPES
+    ]
+    if unknown:
+        raise ValueError(f"no executor registered for contract_type {unknown[0].contract_type!r}")
+    contracts = {decl.flag_code: _build_contract(decl) for decl in suppress_decls}
     semantic_evidence = {
         ev.get("violation_code"): ev for ev in (result.get("semantic") or {}).get("evidence", [])
     }
@@ -222,11 +345,35 @@ def ground(
         else:
             active.append(finding)
 
+    # WS-3 structural floor (the inverse direction): inject a BLOCK the council missed.
+    floor_blocks: list[dict[str, Any]] = []
+    for decl in floor_decls:
+        vr = _run_floor(decl, case, http_client=http_client)
+        if vr is None:
+            continue
+        if vr.conforms is False:
+            injected = {
+                "code": decl.params["inject_flag_code"],
+                "severity": decl.params["inject_severity"],
+                "detail": (
+                    f"structural floor: artifact violates pinned {decl.contract_type} "
+                    f"contract ({decl.params.get('artifact_kind')})"
+                ),
+                "_floor": True,
+                "_contract_version": decl.version,
+            }
+            active.append(injected)
+            floor_blocks.append({"decl": decl, "result": vr, "injected_finding": injected})
+        elif vr.conforms is None:
+            # inconclusive (drift / no-compile / not-configured) — surfaced, never flips.
+            floor_blocks.append({"decl": decl, "result": vr, "injected_finding": None})
+
     return GroundedResult(
         active=active,
         suppressed=suppressed,
         ungrounded=ungrounded,
         skipped_non_gradeable=skipped_non_gradeable,
+        floor_blocks=floor_blocks,
         verdict=ontology.severity_map.rescore(active),
         original_verdict=result.get("verdict"),
         weights=dict(ontology.severity_map.weights),
