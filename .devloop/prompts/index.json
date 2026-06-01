@@ -670,6 +670,23 @@
       "next_action": "Run /devloop-kickoff bench-salvage WS-5-BFF; paste into a fresh executor session. Plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'. HARD GATE: fresh-critic close recommended."
     },
     {
+      "id": "bench-salvage-phaseWS-5c-generative-ui-foundation-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-5c",
+      "scope": "generative-UI components + Tailwind v4/@theme/shadcn foundation + mode-switch integration + first React<->BFF test + S-BS-17 reconcile",
+      "file": "bench-salvage_phaseWS-5c_generative-ui-foundation_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5c introduces TWO contracts — the Tailwind v4/@theme styling-system foundation + the §5b generative-UI tool-<name> component-registry protocol (§6.2). Fresh-critic close recommended; user MAY elect inline as for WS-5/WS-5b.",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_registration_note": "WS-5c had NO stub here AND no task-pack entry — it lived only as forward-references (STREAM first-move §1; SPEC_PRODUCT_SHELL §8:129 + §4:58-61 + §10:144; other phases' deferral notes + critique OQs). Authored the TASK_PACK_bench-salvage.json#WS-5c task + this stub + the driver in ONE /devloop-expand-driver reconcile pass 2026-06-01 (deeper than WS-1's index-only reconcile: BOTH pack + index were absent). Task pack #WS-5c is the authoritative source. User elected ONE-CYCLE (all of it) sizing.",
+      "_note": "The lead next shell phase (WS-5/WS-5b/WS-5-BFF all DONE 2026-06-01). Builds the §5b generative-UI tool-<name>↔component registry (flag/severity editor, contract builder, KB picker + verdict/calibration datapoint cards) + the Tailwind v4/@theme/shadcn foundation (SPEC §4/§129 decision; mirrors ../v0-lithrim-landing-page/app/globals.css:1/:57 — incremental, chrome CSS NOT rewritten) + integrates the WS-5b floating mode-switch into the chrome (NB) + the shell's FIRST React<->BFF binding test (S-BS-18) + reconciles S-BS-17 (demo-domain). Shell surface re-grepped 2026-06-01 (all CONFIRMED, 0 drift — shell freshly built): cards.jsx :7/:60/:94, panes.jsx CenterPane:68, root.jsx ModeSwitch:16, bff.js :23-27, artifact.jsx ReportTab:22, data.jsx :3/:12/:50, styles.css :root:5-34. Composes over the existing BFF GET reads (read-only ontology; PUT deferred WS-5d). Independent of WS-2's paused backend. Zero new paid calls. 5 plan-review decisions (esp. S-BS-17 + shadcn scope).",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-5c; paste into a fresh executor session. Plan-review resolves the 5 decisions (S-BS-17 demo-domain + shadcn scope + mode-switch placement + genui registry shape + Vitest) before 'go'. HARD GATE: fresh-critic close recommended."
+    },
+    {
       "id": "bench-salvage-phaseWS-6a-backend-baseline-driver",
       "stream": "bench-salvage",
       "phase": "WS-6a",

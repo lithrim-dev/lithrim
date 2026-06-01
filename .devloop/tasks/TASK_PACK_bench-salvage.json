@@ -435,6 +435,65 @@
       "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5-BFF-driver, ready). Kick off in a fresh executor session; plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'."
     },
     {
+      "id": "WS-5c",
+      "phase": "WS-5c",
+      "title": "WS-5c — generative-UI components + Tailwind v4/@theme/shadcn foundation + mode-switch integration + first React<->BFF test + S-BS-17 reconcile",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "estimated_llm_cost_usd": 0,
+      "may_be_zero_cost": true,
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-5c-generative-ui-foundation-driver",
+      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5c was the named-but-unregistered next shell phase (forward-referenced in STREAM first-move §1 + SPEC_PRODUCT_SHELL §8 row :129 + §4 :58-61 Tailwind decision + §10 :144 PUT-deferral; never a pack task or index stub). Registered here as the authoritative source; user elected ONE-CYCLE (all of it) sizing 2026-06-01. WS-5/WS-5b/WS-5-BFF all DONE — this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF GET reads).",
+      "shell_surface_regrepped_2026_06_01": "apps/shell/ Vite6+React18, NO Tailwind/shadcn yet (package.json:12-19 react+vite only; styles.css :root:5-34 + [data-theme=dark]:36-58 are the brand token source). Inline cards = cards.jsx ConfigCard:7 / VerdictCard:60 / CalibrationChart:94, rendered in panes.jsx CenterPane:68 (:95/:112/:121). Mode-switch = root.jsx ModeSwitch:16 (fixed-position floating overlay :22) / RootApp:51 default 'journey'. BFF bridge = bff.js runEval:23/getCorpus:26/getOntology:27 (GET reads; vite proxy /v1->:8787 vite.config.js:12-13). Real-composite render = artifact.jsx ReportTab:22 + ArtifactPane:197 (tabs :220-223). Demo-domain mock (S-BS-17) = data.jsx THREADS:3 'Support Agent v4' / STEPS:12 'Customer support' / CONFIG_YAML:50 'customer_support' + app.jsx:14 'acme-support'. BFF ontology read-only (app.py ontology_endpoint:125; PUT deferred comment:15). NO JS test infra (package.json no test script). Tailwind @theme pattern reference = ../v0-lithrim-landing-page/app/globals.css:1 (@import 'tailwindcss') + :57 (@theme inline { --color-* : var(--*) }).",
+      "deliverables": [
+        "D0 Tailwind v4 + @theme token bridge + shadcn foundation (SPEC §4:58-61 / §129 decision): apps/shell/package.json (+ tailwindcss@4, @tailwindcss/vite, cva/clsx/tailwind-merge, shadcn Radix primitives — dev-deps, frontend-isolated) + vite.config.js (@tailwindcss/vite plugin) + NEW apps/shell/src/theme.css (@import 'tailwindcss' + @theme inline bridging the EXISTING styles.css :root/[data-theme=dark] tokens so brand holds across both systems; @custom-variant dark -> [data-theme='dark']) + main.jsx import + components.json + src/lib/utils.js (cn). INCREMENTAL — existing chrome CSS NOT rewritten into utilities.",
+        "D1 generative-UI component registry (SPEC §5b:87-89 / §6.2): NEW apps/shell/src/genui/registry.js — the tool-<name> -> React component map + renderTool(part) resolving part.state==='output-available' (assistant-ui makeAssistantToolUI / AI SDK message-parts pattern). The 5 §5b tools: tool-flag_editor, tool-contract_builder, tool-kb_picker, tool-verdict_card, tool-calibration_chart.",
+        "D2 input components: NEW src/genui/FlagEditor.jsx (flag/severity-map editor over ontology flags/tiers/owners + severity_map; reads via bff.js getOntology:27 GET — read-only, returns edited config into conversation/state), ContractBuilder.jsx (verification-contract builder claim->tool-query->verdict, the WS-3a floor-contract shape), KbPicker.jsx (EvalProfile.kb_bindings picker).",
+        "D3 datapoint cards on the foundation: promote cards.jsx VerdictCard:60 + CalibrationChart:94 into the registry as tool-verdict_card / tool-calibration_chart (re-home on Tailwind/shadcn; ConfigCard:7 stays inline summary or folds to tool-flag_editor).",
+        "D4 integrate the mode-switch into the chrome (WS-5b NB): move root.jsx ModeSwitch:16 out of the fixed-position floating overlay (:22) into the titlebar/chrome (app.jsx TopBar:9 / journey chrome TopBarJ); Shell<->Journey still toggles sharing theme.",
+        "D5 S-BS-17 demo-domain reconcile (plan-review decision): converge shell mock (data.jsx THREADS:3/STEPS:12/CONFIG_YAML:50 + app.jsx:14) with journey + harness clinical_v1 — clinical/Scribe vs neutral — since this is the 'shell mock is next touched' moment. Close or re-disposition S-BS-17.",
+        "D6 S-BS-18 first React<->BFF binding test: stand up shell JS test infra (Vitest + React Testing Library; package.json test script) + a component test for bff.js->artifact.jsx ReportTab:22 binding (the shell's first JS test; Python BFF smoke test_ws5_bff.py already exists, the React side does not).",
+        "D7 component tests for the new genui components (render + return-result) + apps/shell/README.md status update."
+      ],
+      "acceptance": [
+        "A1 Tailwind v4 + @theme bridge builds clean (npm run build); brand tokens resolve through BOTH the bespoke :root CSS and @theme (existing chrome visually unchanged — build clean + manual parity); Python default install (pydantic+pandas) unchanged (frontend deps isolated).",
+        "A2 the tool-<name> registry renders each of the 5 §5b components from a typed tool-part; an unknown tool degrades gracefully (component test).",
+        "A3 FlagEditor/ContractBuilder/KbPicker collect input + return a result object; ontology read via GET /v1/ontology only (NO PUT — write deferred WS-5d).",
+        "A4 mode-switch integrated into the chrome (no longer a fixed floating overlay); Shell<->Journey toggles sharing theme.",
+        "A5 S-BS-17 reconciled per plan-review (shell/journey/harness demo-domain agree, or explicitly recorded neutral); seam closed or re-dispositioned.",
+        "A6 S-BS-18 — shell JS test infra exists; bff.js->ReportTab binding test passes; npm test green.",
+        "A7 vite build clean; diff confined to apps/shell/ (+ shadcn copy-ins); NO apps/bff/, lithrim_bench/, or ../lithrim-backend edits; no new Python deps."
+      ],
+      "diagnostic_stats_reported": [
+        "shadcn primitives introduced (count + names) — reported, not a gate.",
+        "Tailwind utility adoption is incremental (existing chrome CSS NOT rewritten) — reported, not a gate."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "PUT /v1/ontology write-wiring / ontology-editor persistence -> WS-5d (SPEC §8:131 + §10:144); WS-5c reads ontology only (GET).",
+        "Wiring judge-council + config artifact tabs to the BFF (artifact.jsx JudgeTab/ConfigTab stay mock) -> WS-5d.",
+        "Corpus/flywheel view (GET /v1/corpus render) -> WS-5d.",
+        "Tauri / sidecar / installers / VPC / offline-license -> WS-5e.",
+        "LLM-driven conversation — scripted-default holds (SPEC §5c); no LLM host this phase.",
+        "Rewriting existing chrome CSS into Tailwind utilities (SPEC §4: incremental adoption, NOT a rewrite).",
+        "Any lithrim_bench/harness, apps/bff/, or ../lithrim-backend edit; backend :8002 config injection (WS-2)."
+      ],
+      "plan_review_decisions": [
+        "S-BS-17 demo-domain: converge shell mock to clinical/Scribe (matches JOURNEY_brief + harness clinical_v1) vs keep neutral customer-support demo (rec: decide here — the shell mock is being touched).",
+        "shadcn scope: which primitives to copy in (button/slider/dialog/select…) — keep minimal, only what the 3 input components + datapoint cards need.",
+        "Mode-switch chrome placement (titlebar segmented control vs left-rail) + whether it stays a dev/demo toggle or starts gating real first-run activation.",
+        "genui/ file layout + the registry's tool-part shape (assistant-ui vs AI SDK message-parts) — pick one pattern.",
+        "JS test runner = Vitest + React Testing Library (confirm; first shell test infra)."
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5c introduces TWO contracts — the Tailwind v4/@theme styling-system foundation + the §5b generative-UI tool-<name> component-registry protocol (§6.2). Fresh-critic close recommended; user MAY elect inline as for WS-5/WS-5b (close-time decision).",
+      "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5c-generative-ui-foundation-driver, ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. S-BS-17 + shadcn scope) before 'go'."
+    },
+    {
       "id": "WS-6a",
       "phase": "WS-6a",
       "title": "WS-6a — backend baseline: curate + commit the pending ../lithrim-backend WIP",
