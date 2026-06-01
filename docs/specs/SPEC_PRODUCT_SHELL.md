@@ -57,6 +57,8 @@ This is the same "Agent=SUT, SQLite=config plane, ontology=domain, verification-
 - **Tauri v2** — the desktop wrapper (Rust shell; small binaries; native installers).
 - **Tailwind (v4) + brand theme** — theme tokens / palette as CSS variables, adapted to the Lithrim brand (palette + type — **open question §10**). Brand look is *ours*, not MUI.
 - **Component layer: shadcn/ui (Radix primitives + Tailwind)** — copy-in, fully brand-controllable, Tailwind-native. (`../lithrim-ui` is React/**MUI** — BEHAVIOR-REFERENCE-ONLY; do not code-salvage, and we are not adopting MUI.)
+
+> **CSS/Tailwind sequencing (decision 2026-06-01).** The WS-5 skeleton + the WS-5b journey port ship on the design's **verbatim plain CSS** (pixel-faithful; `apps/shell/src/{styles,journey}.css`). The **Tailwind v4 foundation + `@theme` token bridge + shadcn/ui land at WS-5c** (the first net-new components), mirroring the proven in-family pattern in `../v0-lithrim-landing-page/app/globals.css`, and are adopted **incrementally** — the existing bespoke chrome CSS is **not** rewritten into utilities (high churn / regression risk / low value). Brand consistency holds across both styling systems because both consume one token source (`:root` custom properties ↔ `@theme`).
 - **State: TanStack Query** (server-state from the BFF) + **Zustand** (pane/journey UI state). Lightweight, no Redux.
 - **Chat / generative-UI layer: assistant-ui** (purpose-built React chat + tool→component "generative UI", Tailwind-friendly) or the Vercel AI SDK `useChat` message-parts pattern — see §5b.
 
@@ -105,14 +107,28 @@ Generative UI = **tool-call → React component** ([Vercel AI SDK generative UI]
 
 ## 8. Phasing — re-scope `bench-salvage` WS-5 into a program
 
-The thin stdlib WS-5 is **superseded**. New phases (each HARD-GATE-class; thin vertical first, then thicken):
+The thin stdlib WS-5 is **superseded**. New phases (each HARD-GATE-class):
+
+> **Amendment 2026-06-01 (front-end-first re-cut).** The original WS-5 row bundled the
+> FastAPI BFF + Tauri + one real `run_eval` vertical into the skeleton ("thin vertical
+> first"). In practice the shell was built **front-end-surface-first** (a brand-exact 3-pane
+> skeleton on representative/mock data — `apps/shell/`), with the bridge sequenced later.
+> The WS-5 spec-adherence critique (`.devloop/sessions/critique-bench-salvage-phaseWS-5-2026-06-01.md`)
+> flagged this as BLOCKING drift against the old §8 (3 of 5 named components — BFF, Tauri,
+> vertical — absent). **Resolution (user, 2026-06-01): re-cut §8 to match the front-end-first
+> reality** — WS-5 = the skeleton (the as-built); the displaced "prove the whole stack + the
+> bridge" half becomes a new dedicated **WS-5-BFF** phase (still owed, still HARD-GATE, still
+> tracked — not dropped); WS-5d shifts from "build" to "wire". The §9 "honest bet" framing is
+> unchanged — the surface still goes ahead of full proof of the core; the bridge debt is now
+> explicit.
 
 | Phase | Scope |
 |---|---|
-| **WS-5** | The **real 3-pane shell skeleton** — React/Vite + Tauri v2 + Tailwind/brand + the FastAPI BFF sidecar — with **ONE vertical working end-to-end**: the **eval-report artifact** in pane 3 over the WS-4a vertical (`run_eval.run`, replay default + one live run). Proves the whole stack + the bridge with one real artifact. |
-| **WS-5b** | Conversational **journey layer** (scripted state-machine; left rail + center) — the domain→judge→oracle→KB→eval→review flow writing the config-plane. |
-| **WS-5c** | **Generative-UI components** — the inline config widgets (flag/severity editor, contract builder, KB picker) + datapoint cards. |
-| **WS-5d** | **Artifacts pane thickened** — judge-council view + ontology-config editor + corpus/flywheel view. |
+| **WS-5** ✅ | The real 3-pane shell **skeleton** — React/Vite + brand theme (Tailwind deferred, additive — see §4 + the 2026-06-01 decision) — floating window, 3 resizable panes, journey rail, inline cards (config / verdict / calibration), artifact pane (report / judge-council / config tabs) + fullscreen + light/dark. **Representative/mock data — no BFF, no Tauri yet.** **DONE 2026-06-01** (`apps/shell/`; pixel-faithful Claude Design port, `vite build` clean). |
+| **WS-5b** | Conversational **journey layer** (scripted state-machine; left rail + center) — port the 4-phase activation journey (`jp1–jp4`, §2.1) + the domain→judge→oracle→KB→eval→review flow writing the config-plane. |
+| **WS-5c** | **Generative-UI components** — the inline config widgets (flag/severity editor, contract builder, KB picker) + datapoint cards (the §5b `tool-<name>` ↔ component registry). **Tailwind v4 foundation + `@theme` token bridge + shadcn/ui are introduced here** (first net-new components; decision 2026-06-01) — adopted incrementally; the existing chrome CSS is **not** rewritten. |
+| **WS-5-BFF** (NEW · HARD-GATE) | **The displaced "prove the whole stack + the bridge" half of the original WS-5.** The local **FastAPI BFF sidecar** (§5) + the React↔Python bridge + a **minimal Tauri shell** hosting the sidecar + **ONE vertical working end-to-end**: the **eval-report artifact** in pane 3 over the WS-4a vertical (`run_eval.run`, replay default + one live run). Proves the whole stack with one real artifact. **Parallelizable with WS-5b/c.** Acceptance must include a BFF round-trip smoke test (WS-5 shipped zero tests; see the critique). |
+| **WS-5d** | **Artifacts pane wired** (re-cut "thickened/build" → **wire**): wire the already-built judge-council view + config/ontology editor (shipped as **mock** in WS-5, `artifact.jsx`) to the BFF + add the corpus/flywheel view. |
 | **WS-5e** | **Packaging** — Tauri installers (desktop) + the VPC-hosted deployment (containerized BFF + static React) + offline-license. |
 
 (Exact split is a recommendation — the user can re-cut. Each phase gets its own driver via `/devloop-expand-driver`.)
