@@ -12,6 +12,20 @@
 > `../lithrim-backend` tree. Strangle-not-fix holds: the plan is for *porting validated IP*
 > (PORT, not rewrite), not investing in the legacy backend.
 
+> **⚠️ UPDATE 2026-06-01: SCOPE BROADENED + PLAN PRE-PRODUCED.** The recomposition-audit workflow
+> (8 agents, all citations CONFIRMED against source) pre-produced the full plan at
+> **`docs/specs/RECOMPOSITION_PLAN_ws6.md`**. READ IT FIRST. WS-6b is now **RATIFY-not-produce**:
+> spot-re-grep the plan's CONFIRMED citations, resolve its **6 open questions (§8)** with the user at
+> plan-review, and **re-snapshot the taxonomy @ `493b533`** (`scripts/snapshot_taxonomy.py`). Scope is
+> the **FULL agentic recomposition** (LangGraph workflows + agents + council + taxonomy + tools + the
+> salvaged enabling infra), not council+persistence alone. **Port-source discipline (load-bearing):**
+> port from **`lithrim-backend@493b533`**, NOT the stale parked mirror `lithrim_bench/runtime/council/`
+> (it differs from backend; **S-BS-27**); re-snapshot first (snapshot stale @ `ba84608`; **S-BS-28**);
+> the tier tables split across `compliance_council.py` + `app/models/safety_flags.py` (grabbing only
+> one loses owner-gating). New downstream sub-phases: **WS-6c-DSPy** (rebuild judges), **WS-6c-AGENTIC**
+> (recompose LangGraph + agents), **WS-6d-KB** (off 6c). DSPy council prior art = **S-BS-26**
+> (`council_v2.py` + `v2_runs.ndjson`; reference-only throwaway).
+
 ---
 
 ## KICKOFF (paste into a fresh executor session — ROOTED IN `lithrim-bench`)
@@ -29,7 +43,8 @@ EITHER repo this cycle.
 Read in this order:
   1. /Users/aregee/Workspace/github.com/lithrim-bench/.devloop/personas/EXECUTOR.md   (your role)
   2. /Users/aregee/Workspace/github.com/lithrim-bench/.devloop/prompts/bench-salvage_phaseWS-6b_consolidation-audit_driver.md   (this doc)
-  3. /Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md   (the consolidation track; §WS-6 table lines 38/47; PORT-not-rewrite; sequencing B)
+  3. /Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/RECOMPOSITION_PLAN_ws6.md   (THE PLAN — pre-produced; ratify it + resolve its §8 open questions)
+  4. /Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md   (the consolidation track; §WS-6 table lines 38/47; PORT-not-rewrite; sequencing B)
   4. ../lithrim-backend/app/services/compliance_council.py  (the v2 council — read the v2 branches; CONFIRM Mongo-free)
   5. ../lithrim-backend/app/services/pipeline/provenance.py + app/services/pipeline/stages.py  (persistence interface + the orchestrator council call)
   6. /Users/aregee/Workspace/github.com/lithrim-bench/.devloop/sessions/HANDOFF_bench-salvage_phaseWS-6b_kickoff_2026-06-01.md  (WS-6a close context + the S-BS-24 suite caveat)
