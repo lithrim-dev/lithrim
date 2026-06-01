@@ -652,6 +652,21 @@
       "last_re_verified": "2026-06-01",
       "_note": "Plain-CSS ESM port of the Claude Design journey prototype into apps/shell/src/journey/ + a Shell<->Journey mode switch. Builds on the WS-5 skeleton (842db03). Monitor re-verified 2026-06-01 against the prototype (/tmp/lithrim_design/x/lithrim-bench/project/{journeydata,journeyrail,journeyapp,jp1-jp4}.jsx) + the shell: ALL journey icons already in icons.jsx; ALL journey CSS classes present (29/30 journey.css + .h-sub styles.css:286); Mark/Wordmark + Icon exported; central task = window.* globals -> ESM imports. Tailwind/shadcn + BFF/vertical + Tauri all OUT of scope (WS-5c / WS-5-BFF). 4 plan-review decisions in the driver sec.3.",
       "next_action": "Run /devloop-kickoff bench-salvage WS-5b; paste into a fresh executor session. Plan-review resolves the 4 decisions (switch mechanism + default; S-BS-17 domain split; AgentMsg placement; journey/ layout) before 'go'."
+    },
+    {
+      "id": "bench-salvage-phaseWS-5-BFF-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-5-BFF",
+      "scope": "FastAPI BFF + React<->Python bridge + ONE real run_eval eval-report vertical + first test",
+      "file": "bench-salvage_phaseWS-5-BFF_bff_vertical_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Locks the v1 BFF endpoint surface (the judge-capability API, SPEC sec.10) + a live :8002 side-effect on the A3 run. Fresh-critic close recommended (contract/API surface).",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_note": "The DE-RISK phase (pays down SPEC sec.9 honest-bet: the shell has been mock-only through WS-5/WS-5b). Prove the React<->Python bridge with ONE real artifact: React -> FastAPI BFF -> run_eval.run() (replay default + one live) -> composite -> ReportTab. Harness surface re-grepped HEAD f6d99af (run_eval.run:101; report.composite:29 + calibration_check:159; corpus.read_corpus:104/project:64; evalpack:81/117). 6 plan-review decisions incl. lock v1 endpoints + DEFER Tauri to WS-5e (rec) + one live-run cost. Tauri sidecar packaging is OUT (WS-5e) unless plan-review elects minimal. First real test bar for the shell.",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-5-BFF; paste into a fresh executor session. Plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'. HARD GATE: fresh-critic close recommended."
     }
   ]
 }

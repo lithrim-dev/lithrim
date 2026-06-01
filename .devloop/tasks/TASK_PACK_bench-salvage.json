@@ -398,15 +398,24 @@
       "id": "WS-5-BFF",
       "phase": "WS-5-BFF",
       "title": "WS-5-BFF — FastAPI BFF + React<->Python bridge + minimal Tauri + ONE real run_eval vertical",
-      "status": "queued",
+      "status": "ready",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "(to be expanded)",
-      "origin": "NEW 2026-06-01 — the displaced 'prove the whole stack + the bridge' half of the original WS-5, carved out by the WS-5 critique + the SPEC sec.8 FE-first re-cut. Parallelizable with WS-5b/c.",
+      "prompt_bundle": "bench-salvage-phaseWS-5-BFF-driver",
+      "origin": "NEW 2026-06-01 — the displaced 'prove the whole stack + the bridge' half of the original WS-5, carved out by the WS-5 critique + the SPEC sec.8 FE-first re-cut. Parallelizable with WS-5c. Driver authored 2026-06-01.",
+      "harness_surface_regrepped_HEAD_f6d99af": "BFF wraps: run_eval.run() scripts/run_eval.py:101 (replay default; --live opt-in :111); report.composite:29 + calibration_check:159; corpus.read_corpus:104/project:64; evalpack.build_pack:81/load_pack:117. Eval-report consumer = apps/shell/src/artifact.jsx ReportTab:5 (currently mock TILES/FAILURE_MODES).",
+      "plan_review_decisions": [
+        "BFF location + dep isolation (rec apps/bff/ + [bff] optional extra; default pip install unchanged).",
+        "Lock the v1 endpoint surface (SPEC sec.10: run-eval / report / corpus / ontology) — the judge-capability API v1.",
+        "React->BFF targeting (rec VITE_BFF_URL + vite dev proxy).",
+        "Tauri sidecar NOW (minimal) vs DEFER to WS-5e (rec DEFER — prove the bridge in dev first; Tauri is a packaging long-pole).",
+        "The ONE live run cost confirmation (services up; replay is the default demo path).",
+        "S-BS-17 within Shell mode (real composite is clinical; Shell chrome is customer-support mock)."
+      ],
       "deliverables": [
         "Local FastAPI BFF (SPEC sec.5) bundled as a Tauri sidecar + the React<->Python bridge over localhost HTTP.",
         "Minimal Tauri shell hosting the sidecar.",
@@ -421,7 +430,8 @@
         "Lock the v1 BFF endpoints at plan-review (SPEC sec.10: run-eval / get-report / get-corpus / read-write-ontology). BFF targets the harness (sequencing B); the Mongo backend is a strangled dev-dep, not a product component."
       ],
       "hardness": "HARD-GATE",
-      "next_action": "Expand after (or in parallel with) WS-5b: /devloop-expand-driver bench-salvage WS-5-BFF."
+      "hardness_reason": "Locks the v1 BFF endpoint surface (the judge-capability API, SPEC sec.10) + a live :8002 side-effect on the A3 run. Fresh-critic close recommended (contract/API surface).",
+      "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5-BFF-driver, ready). Kick off in a fresh executor session; plan-review locks the v1 endpoint surface + Tauri defer + the one live-run cost before 'go'."
     },
     {
       "id": "WS-6",
