@@ -1,0 +1,214 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-6a-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-6a",
+  "driver_bundle_id": "bench-salvage-phaseWS-6a-backend-baseline-driver",
+  "started_at": "2026-06-01T12:00:00Z",
+  "ended_at": "2026-06-01T12:56:01Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-backend"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T12:20:00Z",
+    "user_approved_at": "2026-06-01T12:30:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Commit grouping = Option C (lineage-aligned: 2 code commits split at the 43b20f6 vs PIPELINE_GRADING_AUDIT_2026-05-28 boundary) supersedes the driver's inferred grouping in section D4. Driver D4 lumped all 8 modified files into one fix(structural-verdict) and split tests off; the diff shows two distinct lineages and that D-E/D-J share one regression test (inseparable).",
+        "evidence": "user 2026-06-01: 'Option C approved (your diff-grounded split supersedes the driver inferred D4; log under plan_review.deviations).'",
+        "decided_at": "2026-06-01T12:30:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "cached_uscore_condition_validator.json: git restore (drop the timestamp-only churn, posted_at 2026-05-01 -> 2026-05-27, validator_yaml identical) rather than commit. Not in any commit.",
+        "evidence": "user 2026-06-01: 'cached_uscore_condition_validator.json: git restore it (drop the timestamp-only churn) rather than commit.'",
+        "decided_at": "2026-06-01T12:30:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Remove both stray bench-doc copies (EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md byte-identical to bench; PAPER_OUTLINE.md a stale strict subset, backend 74 lines vs bench 84 with amendments through 2026-06-01).",
+        "evidence": "user 2026-06-01: '#3 remove both stray docs approved (independently verified safe - EVAL byte-identical, PAPER_OUTLINE is a strict subset of bench).'",
+        "decided_at": "2026-06-01T12:30:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Decision #4 (suite gate): user started Mongo and asked for the broad -m 'not slow' run before C1/C2. Run surfaced 52 pre-existing failures + 2 collection errors (Mongo up); CONFIRMED zero WIP regressions by comparing the failure set against clean HEAD (WIP stashed) - identical. Proceeded to commit.",
+        "evidence": "user 2026-06-01: 'services are up'; clean-HEAD vs WIP failure-set comparison identical (52 failed / 2 errors both runs).",
+        "decided_at": "2026-06-01T12:50:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "No citation drift. The monitor's 2026-06-01 git-status snapshot in the driver matched the live tree exactly (8 modified + the listed untracked set); parents 43b20f6 and 7017ab0 confirmed in the log; branch mvp-ready confirmed current.",
+        "evidence": "git status / git log --oneline -8 on mvp-ready, 2026-06-01.",
+        "decided_at": "2026-06-01T12:15:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "2f04a40",
+      "repo": "lithrim-backend",
+      "title": "fix(structural-verdict): prefer validator-declared check severity over the \"required\" heuristic",
+      "summary": "artifact_evaluator._check_severity prefers an explicit per-check severity from the validator template (critical/high->high, medium/moderate->medium, low->low), falling back to the legacy 'required'-in-message heuristic only when none is emitted. Extends 43b20f6 (P0-1). + 5 tests in test_artifact_evaluator_severity.py."
+    },
+    {
+      "hash": "4b3e4e4",
+      "repo": "lithrim-backend",
+      "title": "fix(pipeline-grading): audit-view surface + council_error provenance (PIPELINE_GRADING_AUDIT_2026-05-28 D-E/D-J/D-K)",
+      "summary": "D-J: _extract_structural_checks derives passed/detail from status/message (was rendering every check passed=False). D-E: JudgeVote.confidence is Optional[float]=None (stop coercing None->0.0). D-K: PipelineProvenance/AuditView carry council_error so WARN-on-error is excluded from accuracy. + test_audit_view_surface_fixes.py and test_council_error_flag.py."
+    },
+    {
+      "hash": "379d1d3",
+      "repo": "lithrim-backend",
+      "title": "docs: backend reliability/grading audits + clean-eval enablement plan",
+      "summary": "5 backend-authored docs: PIPELINE_GRADING_AUDIT_2026-05-28 (the audit behind 4b3e4e4), CLEAN_EVAL_ENABLEMENT_PLAN_2026-05-29, 2 handoffs (reliability audit, e2e analyze investigation), 1 research report (production overblock)."
+    },
+    {
+      "hash": "a845809",
+      "repo": "lithrim-backend",
+      "title": "chore(dev-workflow): vendor .devloop scaffold + backend migration assessment",
+      "summary": "docs/dev-workflow/ (30 files): reusable .devloop scaffold v0.1 (personas/templates/kickoffs + devloop-init) plus COMPARISON.md and MIGRATION_ASSESSMENT.md (lithrim-backend -> .devloop, 4-phase hybrid)."
+    },
+    {
+      "hash": "493b533",
+      "repo": "lithrim-backend",
+      "title": "chore: analysis/migration scripts + gitignore run/test artifacts",
+      "summary": "3 analysis/migration scripts (q4 overblock measure, scribe_demo_v2 relabel migration, council_v2_smoke external rerun) + council_v2_smoke.jsonl case-A medications string->structured array + .gitignore adds out/ and test-results/."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 - lithrim-backend git status is clean (every path committed, gitignored, or explicitly discarded with a logged reason)",
+      "verdict": "PASS",
+      "evidence": "git status --short after C5 = empty. cached_uscore_condition_validator.json discarded via git restore (logged). Stray docs removed. out/ and test-results/ gitignored."
+    },
+    {
+      "criterion": "A2 - backend test suite green; nothing committed broken; any incomplete WIP stashed/checkpointed with a logged reason",
+      "verdict": "PASS",
+      "evidence": "WIP blast radius: 24 passed (test_artifact_evaluator_severity + test_audit_view_surface_fixes + test_council_error_flag), 0.76s. Broad suite (PYENV_VERSION=debuglithrim pyenv exec python -m pytest -m 'not slow' -p no:cacheprovider --continue-on-collection-errors, Mongo up): 52 failed / 1422 passed / 23 skipped / 31 deselected / 2 errors in 82.88s. Clean-HEAD comparison (WIP stashed, ignoring the 2 untracked WIP test files): IDENTICAL failure set -> the WIP introduces ZERO regressions. All 52 failures + 2 errors are pre-existing on mvp-ready (see seams). No WIP was left incomplete/red."
+    },
+    {
+      "criterion": "A3 - commits atomic per-concern; every commit backed by the D0 triage manifest (diagnose-before-edit, no untagged claims)",
+      "verdict": "PASS",
+      "evidence": "5 commits 2f04a40/4b3e4e4/379d1d3/a845809/493b533; C1+C2 carry fenced evidence blocks. Concern split: C1 extends 43b20f6 (grep of PIPELINE_GRADING_AUDIT has no _check_severity; git show 43b20f6 touched exactly artifact_evaluator + a test); C2 = the audit's D-E/D-J/D-K (D-E and D-J share test_audit_view_surface_fixes.py, inseparable)."
+    },
+    {
+      "criterion": "A4 - transients (out/, test-results/) gitignored not committed; stray bench-docs resolved",
+      "verdict": "PASS",
+      "evidence": "git status --ignored shows '!! out/' and '!! test-results/'; git ls-files confirms neither is tracked. EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md and PAPER_OUTLINE.md removed (No such file)."
+    },
+    {
+      "criterion": "A5 - no lithrim-bench code touched (only this session log); no etlp-mapper touched",
+      "verdict": "PASS",
+      "evidence": "git diff --name-only 7017ab0..HEAD = only lithrim-backend paths (grep -iE 'etlp|lithrim-bench' = none). The only bench write is this session log under .devloop/sessions/."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "structural_verdict_fix_summary": "C1 (2f04a40) closes the gap left by 43b20f6: 43b20f6 added a 'required'-in-message heuristic for structural-check severity; C1 adds _check_severity() which prefers an explicit severity emitted by the validator template (e.g. the strict HL7 validator marks dob-format-valid as high), so the validator that owns conformance semantics declares which structural failures BLOCK, with the heuristic as a zero-regression fallback.",
+    "broad_suite_result": "52 failed / 1422 passed / 23 skipped / 31 deselected / 2 errors (Mongo up, -m 'not slow'); failure set identical clean-HEAD vs WIP = zero regressions.",
+    "wip_blast_radius_result": "24 passed (severity + audit-view + council_error test files), 0.76s; restored byte-identical after a diagnostic stash round-trip (diff --stat 145/8 unchanged).",
+    "d0_triage_manifest": {
+      "app/services/artifact_evaluator.py": "commit C1 (2f04a40) - _check_severity",
+      "tests/services/test_artifact_evaluator_severity.py": "commit C1 (2f04a40) - +5 severity tests",
+      "app/routes/pipeline.py": "commit C2 (4b3e4e4) - _extract_structural_checks (D-J) + _denormalise_audit_view council_error (D-K)",
+      "app/services/pipeline/models.py": "commit C2 (4b3e4e4) - JudgeVote.confidence Optional (D-E) + council_error fields (D-K)",
+      "app/services/pipeline/stages.py": "commit C2 (4b3e4e4) - confidence None (D-E) + _run_council_and_map council_error (D-K)",
+      "app/services/pipeline/orchestrator.py": "commit C2 (4b3e4e4) - council_error computation (D-K)",
+      "tests/routes/test_audit_view_surface_fixes.py": "commit C2 (4b3e4e4) - tests D-E + D-J",
+      "tests/services/pipeline/test_council_error_flag.py": "commit C2 (4b3e4e4) - tests D-K",
+      "docs/PIPELINE_GRADING_AUDIT_2026-05-28.md": "commit C3 (379d1d3)",
+      "docs/CLEAN_EVAL_ENABLEMENT_PLAN_2026-05-29.md": "commit C3 (379d1d3)",
+      "docs/handoffs/BACKEND_RELIABILITY_AUDIT_FROM_BENCH_FINDINGS_2026-05-26.md": "commit C3 (379d1d3)",
+      "docs/handoffs/E2E_ANALYZE_COMPLIANCEWORKFLOW_INVESTIGATION_2026-05-29.md": "commit C3 (379d1d3)",
+      "docs/research/REPORT_analyze_production_overblock_2026-05-29.md": "commit C3 (379d1d3)",
+      "docs/dev-workflow/": "commit C4 (a845809) - 30 files",
+      "scripts/q4_analyze_overblock_measure_2026_05_29.py": "commit C5 (493b533)",
+      "scripts/migrations/relabel_scribe_demo_v2_failure_types_2026_05_29.py": "commit C5 (493b533)",
+      "scripts/rerun_council_v2_smoke_external_validate.py": "commit C5 (493b533)",
+      "tests/eval_packs/council_v2_smoke.jsonl": "commit C5 (493b533) - case-A medications string->array; consumed by scripts only, no pytest dependency",
+      ".gitignore": "commit C5 (493b533) - add out/ + test-results/",
+      "scripts/phase4_pilot/cached_uscore_condition_validator.json": "DISCARDED via git restore (timestamp-only churn, per user)",
+      "docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md": "REMOVED (stray, byte-identical to bench copy)",
+      "docs/PAPER_OUTLINE.md": "REMOVED (stray, stale strict subset of bench copy)",
+      "out/": "GITIGNORED (11 analysis run artifacts, 80K)",
+      "test-results/": "GITIGNORED (.last-run.json runner cache)"
+    }
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-WS6A-1",
+      "title": "tests/test_agent.py collection error - stale import",
+      "severity": "low",
+      "fix_location": "tests/test_agent.py:11",
+      "impact": "Excluded from collection; test-rot only (module was moved/renamed). Not WIP-related.",
+      "confidence": "CONFIRMED",
+      "evidence": "ModuleNotFoundError: No module named 'app.agents.intent_quality_agent.intent_quality_agent' (tests/test_agent.py:11)"
+    },
+    {
+      "id": "S-WS6A-2",
+      "title": "tests/test_council_evidence_extraction.py collection error - removed symbol",
+      "severity": "low",
+      "fix_location": "tests/test_council_evidence_extraction.py:12",
+      "impact": "Excluded from collection; RetrievalMatch was renamed/removed from hipaa_retrieval. Not WIP-related.",
+      "confidence": "CONFIRMED",
+      "evidence": "ImportError: cannot import name 'RetrievalMatch' from 'app.services.hipaa_retrieval' (tests/test_council_evidence_extraction.py:12)"
+    },
+    {
+      "id": "S-WS6A-3",
+      "title": "test_stages_phase_b::test_semantic_judge_votes_threaded_from_models asserts dict but judge_votes is a list",
+      "severity": "medium",
+      "fix_location": "tests/services/pipeline/test_stages_phase_b.py:352",
+      "impact": "Pre-existing red in the pipeline package the WIP touches; the test (or the judge_votes shape) drifted. Worth a look since it sits next to the WIP surface, but it fails identically on clean HEAD.",
+      "confidence": "CONFIRMED",
+      "evidence": "AttributeError: 'list' object has no attribute 'keys' (test_stages_phase_b.py:352). Reproduced on clean HEAD via git stash of the WIP: 1 failed both with and without WIP."
+    },
+    {
+      "id": "S-WS6A-4",
+      "title": "ruff nits in the committed WIP (preserved as-authored, not WIP-introduced)",
+      "severity": "low",
+      "fix_location": "app/services/pipeline/models.py:10 (F401 typing.Sequence), app/services/pipeline/stages.py:20 (I001), tests/routes/test_audit_view_surface_fixes.py:18 (I001)",
+      "impact": "Committed as-authored per the baseline-and-preserve mandate (no drive-by reformatting). All 3 are auto-fixable (ruff --fix); import blocks were not in the WIP diff so they are pre-existing/authored, not introduced.",
+      "confidence": "CONFIRMED",
+      "evidence": "ruff check --output-format=concise: models.py:10:56 F401 'typing.Sequence' imported but unused; stages.py:20:1 I001; test_audit_view_surface_fixes.py:18:1 I001. No active pre-commit hook, so commits were not blocked."
+    },
+    {
+      "id": "S-WS6A-5",
+      "title": "backend -m 'not slow' suite is RED on mvp-ready (52 failed + 2 errors, Mongo up) - pre-existing, suite is not a clean gate",
+      "severity": "medium",
+      "fix_location": "lithrim-backend test suite (integration/test_pipeline_contract, integration/test_us1_onboarding, integration/test_vapi_webhook, integration/test_eval_external_finalize, test_etlp_client, test_observability_workflow, test_intent_planner, test_guard_confirmation_reclassification, test_disposition_semantics, test_strict_audit_framework, test_compliance_council_consensus, test_final_report_contract, test_council_eval_mode_seed, test_demo_scenarios_01b_artifact_linkback, test_compliance_council_spans, routes/test_audit_item_compliance_pipeline_run_id, test_reliability_fix, test_patient_volunteered_phi)",
+      "impact": "WS-6b audit can proceed on the now-clean tree, but should NOT assume a green backend suite. 52 failures span many subsystems; none WIP-related (failure set identical clean-HEAD vs WIP). Recommend a dedicated backend test-health cycle before relying on the suite as a regression gate.",
+      "confidence": "CONFIRMED",
+      "evidence": "Full FAILED/ERROR list captured both with WIP and on clean HEAD (WIP stashed); identical set. 52 failed / 2 errors / 1422 passed (Mongo up)."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "WS-6a is done: the pending ../lithrim-backend WIP is curated and committed on mvp-ready in 5 atomic per-concern commits (2f04a40 structural-verdict severity; 4b3e4e4 pipeline-grading D-E/D-J/D-K; 379d1d3 docs; a845809 dev-workflow scaffold; 493b533 scripts+gitignore), the tree is clean, out/ and test-results/ are gitignored, the two stray bench-doc copies are removed, and the cached-validator timestamp churn was discarded per the user. The WIP is regression-free: its own tests pass (24) and the broad -m 'not slow' suite (Mongo up) has an IDENTICAL failure set on clean HEAD vs the WIP, so the 52 pre-existing failures + 2 collection errors are not caused by this cycle. CAVEAT: the backend suite is therefore NOT green on mvp-ready independent of this work (seam S-WS6A-5) - WS-6b can audit on the clean tree but must not treat the suite as a green regression gate; smaller seams S-WS6A-1..4 (two import-rot collection errors, one dict/list test drift next to the pipeline surface, three preserved ruff nits) are logged for a later cleanup. On audit, the monitor should first re-confirm git status is clean and spot-check that 4b3e4e4 contains both the D-J/D-E surface fixes and the D-K council_error provenance (the concern that straddled pipeline.py/models.py/stages.py), then renumber S-WS6A-* into the appropriate backend/bench seam registry. Post-cycle, a live e2e (HL7 structural record + the scribe council_v2_smoke pack, 2/2 verdicts correct) confirmed C1/D-E/D-J/D-K on the wired pipeline; an earlier direct-evaluate null-fields anomaly was a harness submission-shape artifact (the supported eval-run path parses fields correctly), not a defect, so no new seam.",
+
+  "post_cycle_e2e_validation": {
+    "requested_by": "user (post-cycle), per feedback_validate_via_single_e2e",
+    "method": "single live e2e on the wired pipeline (Mongo + etlp:3031 + council); services user-started",
+    "records": [
+      "HL7 ADT^A04 malformed-date via POST /v1/pipeline/evaluate (pipeline_run 26e7b709-bbfe-4383-a261-da22e14657bd)",
+      "scribe council_v2_smoke pack (2 cases) via scripts/rerun_council_v2_smoke_external_validate.py (eval_run 6a1d892df9979e28e68f11ed; pipeline_runs 0b7a5c4e clean / 77eeb049 wrong_dosage)"
+    ],
+    "scribe_smoke_result": "2/2 verdicts match expected: nka_clean=PASS (approve), wrong_dosage=BLOCK (reject). Clean case structural all 6 checks pass; wrong_dosage blocked by policy_judge + faithfulness_judge BLOCK votes.",
+    "surfaces_confirmed_live": {
+      "C1_validator_severity_to_BLOCK": "HL7 strict validator (mapping 93) emitted dob-format-valid/gender-value-valid sev=high; their messages lack 'required' (old heuristic would be medium), so the new _check_severity path drove structural BLOCK, verdict_flipped_by_stage=structural.",
+      "D-J_audit_view_rendering": "structural_checks render passed=true/false + detail (not the pre-fix all-false).",
+      "D-E_confidence_None": "policy_judge (Mistral) confidence=null in both scribe cases; risk_judge (gpt-4.1) / faithfulness_judge (Llama-4) = 1.0.",
+      "D-K_council_error": "False on clean grades; True observed under a transient rate-limit during rapid direct calls (the flag correctly marks the fallback WARN)."
+    },
+    "non_issue": "Direct POST /v1/pipeline/evaluate with artifact {content: <raw string>} read null fields for present fields (reproduced across HL7 and clinical_note) -> a harness submission-shape artifact, NOT a defect and NOT WIP-related. The supported eval-run path parses fields correctly (clean case all 6 structural checks true). No new seam.",
+    "conclusion": "WS-6a WIP confirmed working end-to-end on the live pipeline; no regression."
+  },
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-6a next (HARD GATE: backend commits - user decides inline-critique-at-close vs fresh-critic per driver section Hardness); then WS-6b consolidation audit is unblocked by the clean tree."
+}
