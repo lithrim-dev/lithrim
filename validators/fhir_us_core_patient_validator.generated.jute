@@ -1,0 +1,59 @@
+# FHIR R4 US-Core Patient conformance validator — bench-ACCEPTED, pinned artifact.
+#
+# Authored by the bench (the by-construction fhir_boundary_pack_v1 is the acceptance
+# oracle), NOT trusted on the etlp Copilot's confidence. Live-scored against the pack:
+# 6/6 structural defects BLOCKED, clean+optional-control+semantic PASS, 0 false-positives,
+# 0 compile errors => bench-ACCEPT.
+#
+# The only change from the seeded fhir-patient-validator (id 23) is c4 (birthDate):
+#   seeded:  $if resource.birthDate   -> REQUIRED: false-positives when absent (the
+#            optional-field control) AND misses a present-but-malformed value.
+#   here:    optional + format-checked using ONLY runtime-implemented builtins
+#            (substr / joinStr / splitStr + lexicographic compare). The documented
+#            `replace`/`count` builtins are NOT implemented by the live engine and ERR.
+#
+# Apply deterministically via the wired tools:
+#   - in-memory:  JuteGenValidatorTool(reference.pinned_template=<this>)  -> /mappings/test-template
+#   - persisted:  POST /mappings (title fhir-us-core-patient-validator-dspy) -> StructuralJuteTool({by:title})
+$let:
+  c1:
+    $if: $ resource.identifier
+    $then: {name: has-identifier, field: identifier, status: pass, message: Identifier present}
+    $else: {name: has-identifier, field: identifier, status: fail, message: Missing identifier}
+  c2:
+    $if: $ resource.name.0.family && resource.name.0.given
+    $then: {name: has-name, field: name, status: pass, message: Name present}
+    $else: {name: has-name, field: name, status: fail, message: Missing name with family and given}
+  c3:
+    $if: $ resource.gender = "male" || resource.gender = "female" || resource.gender = "other" || resource.gender = "unknown"
+    $then: {name: valid-gender, field: gender, status: pass, message: Valid gender}
+    $else: {name: valid-gender, field: gender, status: fail, message: Invalid or missing gender (must be male|female|other|unknown)}
+  c4:
+    $if: $ !resource.birthDate || (substr(resource.birthDate,0,1) >= "0" && substr(resource.birthDate,0,1) <= "9" && joinStr("", splitStr(resource.birthDate, "[^0-9-]")) = resource.birthDate)
+    $then: {name: valid-birthdate, field: birthDate, status: pass, message: BirthDate absent or a valid FHIR date}
+    $else: {name: valid-birthdate, field: birthDate, status: fail, message: birthDate is present but not a valid FHIR date}
+  c5:
+    $if: $ resource.telecom
+    $then: {name: has-telecom, field: telecom, status: pass, message: Telecom present}
+    $else: {name: has-telecom, field: telecom, status: fail, message: Missing telecom}
+$body:
+  $let:
+    checks: [$ c1, $ c2, $ c3, $ c4, $ c5]
+  $body:
+    $let:
+      passedChecks:
+        $reduce: $ checks
+        $as: [acc, c]
+        $start: 0
+        $body:
+          $if: $ c.status = "pass"
+          $then: $ acc + 1
+          $else: $ acc
+    $body:
+      request:
+        valid: $ passedChecks = 5
+        resourceType: Patient
+        totalChecks: 5
+        passedChecks: $ passedChecks
+        failedChecks: $ 5 - passedChecks
+        checks: $ checks
