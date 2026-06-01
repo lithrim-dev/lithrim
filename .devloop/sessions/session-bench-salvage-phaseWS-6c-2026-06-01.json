@@ -1,0 +1,142 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-6c-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-6c",
+  "driver_bundle_id": "bench-salvage-phaseWS-6c-council-port-driver",
+  "started_at": "2026-06-01T15:30:00Z",
+  "ended_at": "2026-06-01T17:48:21Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T16:10:00Z",
+    "user_approved_at": "2026-06-01T16:45:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "phi_redaction.py added as a 4th ported code file (load-bearing: compliance_council.py:29/:2516 hard-imports sanitize_prompt; not in the driver's 3-file deliverable list). Mongo-free (re/typing/settings only).",
+        "evidence": "compliance_council.py:29 'from app.services.phi_redaction import sanitize_prompt'",
+        "decided_at": "2026-06-01T16:45:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "settings subset = 16 grep-verified fields, not the driver's shorthand '5 AZURE_* + COMPLIANCE_COUNCIL_VERSION'. The HIPAA_* trio is read by phi_redaction.py; under-subsetting would AttributeError at runtime.",
+        "evidence": "grep settings.* across compliance_council.py + llm_provider.py + phi_redaction.py -> 16 distinct fields",
+        "decided_at": "2026-06-01T16:45:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision #4 -> 4a (instantiate-under-v2 to derive production_judges), hard-guarded offline. Decision #6 -> 6a (co-locate tests + extend testpaths; live smoke skip-by-default). Also added a [council] pyproject extra (openai/tenacity/pydantic-settings) — the council's runtime deps were in no extra.",
+        "evidence": "monitor: 'approve go with 4a (offline-guarded) + 6a (smoke skip-by-default)'; 4a dry-run derived [risk,policy,faithfulness] offline, exit=0",
+        "decided_at": "2026-06-01T16:45:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "HALT: the S-BS-30 production_judges flip to the v2 trio broke tests/test_taxonomy.py::test_wrong_dosage_has_production_owners (it asserted behavior_judge is a production owner — the v1 monoculture assumption). Approved to edit the one test to the v2 reality (risk_judge owns WRONG_DOSAGE), rationale recorded in the test.",
+        "evidence": "monitor: 'proceed with both (edit the one test with the rationale recorded, document the orphaning as S-BS-31 linked to S-BS-12)'",
+        "decided_at": "2026-06-01T17:20:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "HALT: under v2-only, 3 Tier-1 flags (MISSING_ALLERGY, FABRICATED_CONSENT, VALUE_MISMATCH) have no production-resident owner. Approved to document as seam S-BS-31 (linked to S-BS-12 / S-BS-16) and NOT touch the ported _TIER1_OWNERS table (PORT-not-rewrite / A2).",
+        "evidence": "monitor: 'document the orphaning as S-BS-31 linked to S-BS-12'",
+        "decided_at": "2026-06-01T17:20:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver §1 lists 'JUDGES_V2' as a port symbol, but @493b533 there is no module-level JUDGES_V2 constant — the v2 trio is built inline in ComplianceCouncil.__init__:463-497 under COMPLIANCE_COUNCIL_VERSION=='v2' (only a comment at :381 mentions the name). Ported the inline tuple. Clarification, not a missing symbol.",
+        "evidence": "compliance_council.py:381 comment 'v2 JUDGES_V2 explicitly sets True...'; the tuple is :472-497",
+        "decided_at": "2026-06-01T16:45:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "12281e1",
+      "repo": "lithrim-bench",
+      "title": "feat(council-port): v2 council Mongo-free, importable + verified vs 493b533",
+      "summary": "Settings subset (16 fields, default v2), package docs (provenance + v2 trio + per-judge seam), [council] dep extra + testpaths. The IP code files (compliance_council/safety_flags/llm_provider/phi_redaction/council_roles) re-derived from 493b533 and byte-identical to the parked mirror -> zero git delta."
+    },
+    {
+      "hash": "a6e5b86",
+      "repo": "lithrim-bench",
+      "title": "fix(taxonomy): derive production_judges from v2 config (S-BS-30) + re-snapshot @493b533",
+      "summary": "snapshot_taxonomy.py derives production_judges by instantiating the v2 council offline; re-snapshot flips [policy,risk,behavior]->[risk,policy,faithfulness], declared_but_not_running gains behavior_judge, structural_codes preserved. test_taxonomy.py WRONG_DOSAGE assertion updated to v2 reality."
+    },
+    {
+      "hash": "6bae3c0",
+      "repo": "lithrim-bench",
+      "title": "test(council-port): offline consensus oracle (16) + live Azure smoke (A5 PASS)",
+      "summary": "16-case offline oracle over _apply_consensus (verdicts captured from actual logic, source-cross-checked) covering all A3 behaviors + a v1/v2 differential; test_live_smoke.py is the ONE Azure smoke (skip-by-default), case = build_prompt's canonical FABRICATED_HISTORY example -> reject; verified live (A5 PASS). Amended after fixing a payload-shape bug found by the first live run."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — runtime/council/ imports clean on default bench deps (council pure-Python; Azure client lazy), verify offline no network",
+      "verdict": "PASS",
+      "evidence": "import-smoke in debuglithrim: all 4 modules import; tiers 8/7/4 = 19 KNOWN_TAXONOMY_CODES; extract_verdict_confidence None-tolerant; ComplianceCouncil() instantiates offline (no network at construction); 5 role prompts load via adapted _ROLE_PROMPTS_DIR. NB: council top-imports openai+tenacity (the [council] extra); 'default bench deps' = offline core + that extra, no network at import."
+    },
+    {
+      "criterion": "A2 — consensus IP byte-faithful PORT of 493b533 (diff shows only mechanical adaptation)",
+      "verdict": "PASS",
+      "evidence": "diff target-vs-493b533: compliance_council.py = 6 import lines (26-31) + _ROLE_PROMPTS_DIR (457) ONLY; safety_flags.py byte-identical (exit=0); llm_provider.py + phi_redaction.py = 1 import line each. git delta vs the parked mirror = EMPTY (the mirror was already byte-faithful; S-BS-28 mechanical not logical). Re-derive used an asserted-once string transform (the adaptation manifest)."
+    },
+    {
+      "criterion": "A3 — offline consensus suite GREEN (Tier-1 one-strike, Tier-2 2+, PHI-FP suppression, NKA, llama-veto, artifact-BLOCK, None-confidence)",
+      "verdict": "PASS",
+      "evidence": "pytest runtime/council/tests/test_consensus.py: 16 passed. Each expectation captured from actual _apply_consensus output then cross-checked vs source line. NB: NKA is prompt-resident (build_prompt + role prompts) not consensus math -> tested as prompt-content assertion, surfaced at plan-review."
+    },
+    {
+      "criterion": "A4 — v2-only: production trio = risk/policy/faithfulness; snapshot derives production_judges from v2 config (S-BS-30 closed); taxonomy_snapshot consistent (structural_codes preserved, lint green)",
+      "verdict": "PASS",
+      "evidence": "re-snapshot @493b533: production_judges=[risk,policy,faithfulness], declared_but_not_running=[behavior,source_message], structural_codes(5) preserved, tiers unchanged. lint_golden_against_taxonomy proof_case.jsonl = OK. tests/test_taxonomy.py = 3 passed."
+    },
+    {
+      "criterion": "A5 — one live Azure smoke: v2 trio verdict on one case matches offline expectation (record verdict + per-judge confidences + cost)",
+      "verdict": "PASS",
+      "evidence": "Run live on the Azure dev resource (lithrim-dev-ai; deployments gpt-4.1 / Mistral-Large-3 / Llama-4-Maverick-17B-128E-Instruct-FP8) using ../lithrim-backend/.env, with the user's explicit live-call go. v2 trio on the FABRICATED_HISTORY case (scheduling transcript + invented diabetes history): risk_judge(gpt-4.1)=reject@1.0, policy_judge(Mistral)=reject@None (None-tolerance proven on LIVE data — never synthesized), faithfulness_judge(Llama)=reject@1.0 -> CONSENSUS reject@1.0. Matches the offline expectation. 22.9s, 3 completions/case (~$0.05-0.10). The first live run surfaced + fixed a smoke payload-shape bug (see diagnostic_stats)."
+    },
+    {
+      "criterion": "A6 — no contract change (grade.py / run_eval.run / report.composite / §10 untouched; importable not yet wired into grade)",
+      "verdict": "PASS",
+      "evidence": "git diff --name-only: no harness/grade.py, run_eval.py, report.py. Council imported nowhere outside the package except scripts/seed_ontology.py (pre-existing, safety_flags only). Not wired into the grade seam (that is WS-6c-AGENTIC)."
+    },
+    {
+      "criterion": "A7 — scope held (no LangGraph/agents/persistence/KB/DSPy; ported from 493b533 not the mirror; no backend/etlp edits)",
+      "verdict": "PASS",
+      "evidence": "change set = runtime/council/{settings,__init__,tests}, scripts/snapshot_taxonomy.py, taxonomy_snapshot.json, tests/test_taxonomy.py, pyproject.toml. lithrim-backend clean @493b533 (read-only). No etlp-mapper edits. No LangGraph/agents/persistence/KB/DSPy work."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "port_fidelity": "compliance_council.py: 6 import lines + 1 _ROLE_PROMPTS_DIR path vs 493b533; safety_flags.py byte-identical; llm_provider.py + phi_redaction.py 1 import line each. git delta vs parked mirror = empty.",
+    "settings_subset": "16 fields (grep-verified read-set) from the full backend Settings; default COMPLIANCE_COUNCIL_VERSION flipped v1->v2.",
+    "oracle": "16 offline cases; all verdicts captured from actual _apply_consensus + source-cross-checked; includes a v1/v2 differential.",
+    "v1_branch_disposition": "ported verbatim (version branches at :463/:2347/:2699), default v2; v1 exercised by ONE differential test, otherwise ported-but-not-exhaustively-tested (per driver decision #2).",
+    "live_smoke": "RUN live (A5 PASS) on Azure dev resource via ../lithrim-backend/.env: v2 trio all reject (gpt-4.1@1.0, Mistral@None, Llama@1.0) -> consensus reject@1.0, matches offline expectation; 22.9s/case, ~3 completions. Diagnose-before-edit: the FIRST live run returned approve — evidence (all 3 judge rationales: 'empty transcript') proved a smoke payload-shape bug (flat transcript/artifact keys; build_prompt reads call_context.transcript + artifacts[{type,content}]), NOT a council finding. Fixed the payload + switched the case from an NKDA->allergy flip (which steers to VALUE_MISMATCH, orphaned under v2 per S-BS-31) to build_prompt's canonical FABRICATED_HISTORY example (Tier-2, no owner-gating). Re-ran -> reject. The committed smoke (6bae3c0) is the corrected one.",
+    "exec_env": "offline runs in debuglithrim pyenv 3.10.15 (openai 2.15.0, tenacity, pydantic 2.5.0, pydantic_settings 2.1.0, pytest 8.3.3, ruff 0.15.14). No bench .venv carries the council deps -> the [council] extra now declares them; the lithrim/lit pyenvs also have them.",
+    "orphaned_flags_under_v2": "3 Tier-1 flags (MISSING_ALLERGY, FABRICATED_CONSENT, VALUE_MISMATCH) have no production-resident owner under the v2 trio -> S-BS-31."
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-31",
+      "title": "3 Tier-1 flags have no production-resident owner under v2-only",
+      "severity": "medium",
+      "fix_location": "../lithrim-backend app/services/compliance_council.py _TIER1_OWNERS:232 (owner reassignment is a backend IP change) — resolve at WS-6c-DSPy/AGENTIC",
+      "impact": "Under the v2 trio (risk/policy/faithfulness), MISSING_ALLERGY / FABRICATED_CONSENT / VALUE_MISMATCH are owned only by behavior_judge/source_message_judge (both declared-but-not-running), so they NEVER single-judge one-strike — only 2+-judge corroboration escalates them. 2 of the 3 (MISSING_ALLERGY, VALUE_MISMATCH) are used in examples/proof_case.jsonl. Touches CLAUDE.md invariant #4; same snapshot<->runtime divergence class as S-BS-12 and S-BS-16. The _TIER1_OWNERS table is ported VERBATIM from 493b533 (the backend has this exact v2 property) — NOT a bench bug, do NOT rewrite (PORT-not-rewrite/A2). The admissibility lint gates D1/D8 only (not owner-residency), so it stays green. Resolution is an architectural call for the council's owner: (a) backend assigns a v2-trio judge as owner of these 3 codes, or (b) accept corroboration-only escalation under v2 and document it.",
+      "confidence": "CONFIRMED",
+      "evidence": "snapshot_taxonomy.py re-snapshot WARN: 'owners declared but not in production: [behavior_judge, source_message_judge]'; _TIER1_OWNERS @493b533:232-249 -> MISSING_ALLERGY={behavior_judge,source_message_judge}, FABRICATED_CONSENT={behavior_judge,source_message_judge}, VALUE_MISMATCH={behavior_judge}; production_judges=[risk,policy,faithfulness]."
+    }
+  ],
+
+  "seams_closed": ["S-BS-30", "S-BS-28"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "WS-6c ports the validated v2 compliance council into lithrim_bench/runtime/council/ as a Mongo-free, importable, v2-default package. Key finding: the parked mirror was already byte-faithful to 493b533 (S-BS-28 was mechanical, not logical) — the re-derived IP code carries ZERO git delta, and the A2 fidelity diff shows only import/path adaptation (safety_flags byte-identical). The git-visible work is the 16-field settings subset (default v2), package docs, the [council] dep extra, the S-BS-30 production_judges derivation + re-snapshot, and a 16-case offline consensus oracle (all verdicts captured from the actual ported logic, source-cross-checked). Two HALTs were surfaced and approved: the production_judges flip broke one taxonomy test (updated to v2 reality with rationale), and it revealed 3 orphaned Tier-1 flags under v2 -> opened S-BS-31 (the ported owner table left verbatim). A5 the ONE live Azure smoke PASSED on the dev resource (v2 trio all reject; Mistral confidence=None proven live) — the first run's spurious approve was diagnosed (via the judges' 'empty transcript' rationales) to a smoke payload-shape bug, fixed + re-run, and the committed test (6bae3c0) is the corrected one. A1-A7 all PASS. CAVEATS: (1) the HARD-GATE fresh-critic has not run; (2) S-BS-31 is an open architectural seam for a downstream cycle. Monitor: audit the A2 port-fidelity diff + spot-check the oracle expectations against the ported source, then stand up the fresh-critic.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-6c, then spawn the fresh-critic (KICKOFF_CRITIC.md) — HARD GATE (the only remaining gate; A5 live smoke is closed). S-BS-31 -> WS-6c-DSPy/AGENTIC."
+}
