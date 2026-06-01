@@ -599,6 +599,56 @@
       "next_action": "Driver authored 2026-06-01 (ready). Kick off in a fresh executor session ROOTED IN ../lithrim-backend; plan-review resolves the 5 decisions + the D0 triage manifest before 'go'."
     },
     {
+      "id": "WS-6b",
+      "phase": "WS-6b",
+      "title": "WS-6b — consolidation audit (the GATE): map the v2-council Mongo-coupling + persistence surface; produce the port plan",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P2",
+      "target": "executor",
+      "repos": [
+        "lithrim-backend",
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-6b-consolidation-audit-driver",
+      "origin": "BOTH-ABSENT reconcile 2026-06-01 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d). Sourced from SPEC_PRODUCT_SERVICE_TOPOLOGY.md WS-6 table lines 38/47 + the WS-6a handoff. Read-only audit; unblocked by WS-6a's clean ../lithrim-backend tree (2f04a40..493b533).",
+      "audit_surfaces_regrepped_2026_06_01": "v2 council Mongo-free CONFIRMED (compliance_council.py:453 class ComplianceCouncil; v2 branches :463/:2347/:2699; build_prompt:517 — zero get_database/db[/motor; stages.py _run_council_and_map:686 also Mongo-free). pipeline_runs ALREADY behind a repository interface (provenance.py:25 ProvenanceStore Protocol / :37 MongoProvenanceStore / :22 COLLECTION_NAME pipeline_runs / :46-60 get_database+insert_one / :90 find_one / :119 compliance_report). artifact_profiles direct db[] (routes/artifact_profiles.py:39/93/122/146/183; indexes main.py:127-128). eval_packs/eval_cases/eval_run scattered (eval_pack_catalog.py:17; eval_runner_tasks.py:623; eval_external_results_task.py:221 db eval_run) + S3 (eval_runner_tasks.py:208/218). Mongo entry app/database.py:3/20-21/32; config MONGODB_URL/DB_NAME config.py:16-17 (db velto); COMPLIANCE_COUNCIL_VERSION config.py:211.",
+      "deliverables": [
+        "D0 v2-council Mongo-coupling confirmation: read the v2 branches (compliance_council.py:463/2347/2699 + build_prompt:517) + the orchestrator call (stages.py:686); resolve INFERRED->CONFIRMED (council takes data in / returns verdicts, no Mongo) or surface hidden coupling; enumerate v2-vs-v1 deltas to preserve (cross-provider trio + llama-veto-approve + calibration + NKA patches + prompt deltas). Cite file:lines + tag.",
+        "D1 persistence-surface map per collection: pipeline_runs (provenance.py ProvenanceStore Protocol — already abstracted), artifact_profiles (routes/artifact_profiles.py — direct db[]), eval_packs/eval_cases/eval_run (eval.py/eval_runner_tasks.py — scattered + S3), compliance_report (provenance.py:119). For each: read sites, write sites, indexes, shape, interface-or-not.",
+        "D2 the PORT PLAN doc (lithrim-bench/docs): what moves in-process (council PORT-not-rewrite behind the frozen SPEC section-10 contract); what needs a repository interface (pipeline_runs has ProvenanceStore -> add SqliteProvenanceStore in 6d; artifact_profiles + eval_* need one introduced); phased order 6c->6d->6e; the S3 eval dependency + its desktop/VPC story; risks incl. S-BS-24 (suite not a green gate).",
+        "D3 session log + the citation-tagged audit findings (lithrim-bench/.devloop/sessions/)."
+      ],
+      "acceptance": [
+        "A1 PORT PLAN doc exists in lithrim-bench/docs; every separability/coupling claim cites a ../lithrim-backend file:line + CONFIRMED/INFERRED/HYPOTHESIS tag.",
+        "A2 v2-council Mongo-coupling resolved INFERRED->CONFIRMED (or coupling surfaced) with cited evidence from the v2 branches.",
+        "A3 persistence surface mapped per collection (pipeline_runs/artifact_profiles/eval_packs/eval_cases/eval_run/compliance_report): read+write sites, interface-or-not, swap approach.",
+        "A4 plan names the phased order (6c/6d/6e) + the v2 IP deltas to preserve + the S3 eval dependency + the repository-interface introductions needed.",
+        "A5 READ-ONLY: ../lithrim-backend git status clean (no code changed) + no lithrim_bench harness code changed (only the plan doc under docs/ + the session log)."
+      ],
+      "diagnostic_stats_reported": [
+        "count of Mongo collections on the product path + which are already behind an interface vs direct/scattered.",
+        "the enumerated v2-vs-v1 council deltas (for the 6c PORT-not-rewrite scope)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO code changes in EITHER repo — read-only audit + a plan doc (porting=6c; persistence swap=6d; ETLP sidecar=6e).",
+        "NO actual ProvenanceStore/Sqlite implementation (6d) — only map the interface + what the new impl must satisfy.",
+        "NO de-Mongo of the legacy hosted backend (Mongo retired from the PRODUCT path only).",
+        "NO etlp-mapper edits; NO lithrim_bench harness code edits.",
+        "Don't fix pre-existing backend issues found while reading — log as seams."
+      ],
+      "plan_review_decisions": [
+        "Plan doc location/name (docs/specs/PORT_PLAN_v2_council_consolidation.md vs docs/research vs append-to-topology-spec).",
+        "v2-council read depth (grep-confirmed Mongo-free vs read the full v2 branch logic before CONFIRMED).",
+        "Repository-interface depth (sketch for artifact_profiles + eval_* vs defer design to 6d).",
+        "S3 eval-path treatment for desktop(SQLite)/VPC(PG) packaging.",
+        "Citation depth (every separability claim file:line'd vs sample)."
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Read-only (no commits to ../lithrim-backend, no harness code) BUT it is the GATE (topology spec): the PORT PLAN is the design contract 6c/6d depend on, and the v2-council separability claim gates the whole port. Citation discipline (every claim file:line'd) is load-bearing; fresh-critic on the separability claims recommended before 6c; user may elect inline at close.",
+      "next_action": "Driver authored 2026-06-01 (ready; both-absent reconcile). Kick off a fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend; plan doc lands in lithrim-bench). Run /devloop-kickoff bench-salvage WS-6b."
+    },
+    {
       "id": "WS-6",
       "phase": "WS-6",
       "title": "WS-6 \u2014 compartmentalize-local (offline/licensed; the old bench-salvage targets)",

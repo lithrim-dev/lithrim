@@ -733,6 +733,22 @@
       "last_re_verified": "2026-06-01",
       "_note": "WS-6 step a (broken out 2026-06-01, user). CROSS-REPO: fresh executor session ROOTED IN ../lithrim-backend; the .devloop scaffold + session log live in lithrim-bench. Curation cycle — commit EXISTING diagnosed WIP (mvp-ready: 8 modified structural-verdict/severity files + ~12 untracked docs/scripts/tests + transient out/ + test-results/), NOT build. Atomic per-concern commits + gitignore transients + backend tests green first. Strangle-not-fix holds (baseline + preserve). 5 plan-review decisions + the D0 triage manifest. WIP re-grepped 2026-06-01.",
       "next_action": "Run /devloop-kickoff bench-salvage WS-6a; open the fresh session ROOTED IN ../lithrim-backend. Plan-review resolves the 5 decisions + the D0 triage manifest before 'go'."
+    },
+    {
+      "id": "bench-salvage-phaseWS-6b-consolidation-audit-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6b",
+      "scope": "consolidation audit (the GATE): map the v2-council Mongo-coupling + persistence surface, produce the port plan",
+      "file": "bench-salvage_phaseWS-6b_consolidation-audit_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Read-only audit (no commits to ../lithrim-backend, no harness code) but it is the GATE per the topology spec: the PORT PLAN is the design contract 6c/6d depend on. Citation discipline (every separability claim file:line'd) is load-bearing; fresh-critic on the separability claims recommended (user's call at close).",
+      "target_repos": ["lithrim-backend", "lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_note": "WS-6 step b — the consolidation GATE. READ-ONLY audit over ../lithrim-backend (at the WS-6a baseline 493b533) that produces the port plan; changes NO code in either repo. CONFIRMED via re-grep 2026-06-01: the v2 council is Mongo-free (compliance_council.py:453/463/2347/2699/517; stages.py _run_council_and_map:686) so it is cleanly portable; pipeline_runs is ALREADY behind a ProvenanceStore Protocol (provenance.py:25/37); artifact_profiles + eval_packs/eval_cases/eval_run are direct/scattered (+ S3) and need a repository interface introduced (6d). Deliverable = the PORT PLAN doc in lithrim-bench/docs + the session log. Executor session ROOTED IN lithrim-bench. Unblocked by WS-6a's clean tree.",
+      "_registration_note": "BOTH-ABSENT reconcile (no stub + no task-pack entry; same pattern as WS-5c/WS-5d). Authored TASK_PACK#WS-6b + this bundle + the driver in one /devloop-expand-driver pass 2026-06-01. Sourced from SPEC_PRODUCT_SERVICE_TOPOLOGY.md lines 38/47 + the WS-6a handoff. All ../lithrim-backend file:line citations re-grepped 2026-06-01 at 493b533 (CONFIRMED).",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-6b; open a fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend; plan doc + session log land in lithrim-bench)."
     }
   ]
 }
