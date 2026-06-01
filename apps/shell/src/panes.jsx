@@ -1,7 +1,8 @@
 /* panes.jsx — left rail, center conversation (ported verbatim; placeholder mark → real logo). */
 import { Icon } from "./icons.jsx";
 import { Mark, Wordmark } from "./brand.jsx";
-import { ConfigCard, VerdictCard, CalibrationChart } from "./cards.jsx";
+import { ConfigCard } from "./cards.jsx";
+import { renderTool } from "./genui/index.js";
 import { THREADS, STEPS } from "./data.jsx";
 
 /* ============================ LEFT RAIL ============================ */
@@ -109,7 +110,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Done. Your <strong>judge council</strong> is three models cross-checking every verdict, with a weighted vote and a 0.66 agreement floor. Here's a sample they just scored on the 50-row dry run:</p>
-              <VerdictCard />
+              {renderTool({ type: "tool-verdict_card", state: "output-available" })}
             </div>
           </div>
 
@@ -118,7 +119,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Calibration on the dry run is tight — predicted confidence tracks observed accuracy within <strong>±3%</strong>, so the council's scores are trustworthy as a stopping signal.</p>
-              <CalibrationChart />
+              {renderTool({ type: "tool-calibration_chart", state: "output-available" })}
             </div>
           </div>
 
