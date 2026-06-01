@@ -25,6 +25,17 @@ The harness works (WS-0→WS-4a: `grade → ground(suppress + structural floor) 
 
 The user starts conversationally; the system guides them through the **entire journey** (Judge, oracle, KB setup, run, review); rich/large outputs slide into pane 3 as inspectable, fullscreenable artifacts.
 
+### 2.1 The activation journey (4 phases)
+
+The shell's spine is a 4-phase activation arc — canonical brief: [`docs/design/JOURNEY_brief.md`](../design/JOURNEY_brief.md) (this is the GTM calibration-trainer journey):
+
+1. **First contact** — download + journey-mode activates + pick agent type (Scribe) + BYOK config.
+2. **The reveal (the "aha")** — a clean exchange → click **Verify** → the four pillar badges (Faithfulness · Completeness · Safety · Structural) + verdict animate in.
+3. **Calibration (the product)** — results are *intentionally miscalibrated*; the user's task is to **make the judges right** (tweak the judge council in plain English → Jute structural conditionals; re-run + compare before/after — the iterate loop).
+4. **Own it** — load your own conversations, promote findings into your own evalpack, unlock Pro.
+
+Phase 2's verify moment and Phase 3's calibration loop are the **hero screens**. §3 below maps each setup step to the config-plane / ontology primitive it writes.
+
 ## 3. The load-bearing insight: journey → primitive mapping
 
 **The conversation in the center is writing the SQLite config-plane + ontology; the artifacts in pane 3 are the WS-0→WS-4a primitives rendered rich.** The UI is the human surface over the architecture already built — not a new system.
