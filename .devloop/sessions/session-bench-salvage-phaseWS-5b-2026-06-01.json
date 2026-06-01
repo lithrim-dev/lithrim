@@ -1,0 +1,91 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-5b-2026-06-01",
+  "stream": "bench-salvage",
+  "phase": "WS-5b",
+  "driver_bundle_id": "bench-salvage-phaseWS-5b-journey-driver",
+  "started_at": "2026-06-01T13:45:00Z",
+  "ended_at": "2026-06-01T14:35:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-01T13:55:00Z",
+    "user_approved_at": "2026-06-01T14:05:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Lift theme into root.jsx (shared owner) and add optional theme/setTheme props to app.jsx (additive, internal-state fallback). app.jsx edit is outside the driver's §2 deliverable list; required to satisfy acceptance A3 'sharing ... theme' so the Shell<->Journey toggle preserves theme instead of remounting at each app's 'light' default.",
+        "evidence": "Monitor: 'Lift the theme; don't keep it per-mode ... This explicitly authorizes the app.jsx edit within WS-5b scope ... it will not count as out-of-scope intrusion at the critique close.' Code: app.jsx:62 writes document.documentElement.dataset.theme; JourneyApp (journeyapp.jsx:19/:27) did the same independently.",
+        "decided_at": "2026-06-01T14:05:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "S-BS-17 (demo-domain split) deliberately left OPEN: port the journey clinical/Scribe as-is (acme-health, Healthcare Scribe Pack); leave the WS-5 shell skeleton customer-support (acme-support). Two modes / two domains short-term.",
+        "evidence": "Plan-review decision #2 (monitor rec accepted). Driver §3 decision #2; STREAM S-BS-17 row.",
+        "decided_at": "2026-06-01T14:05:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "460b677",
+      "repo": "lithrim-bench",
+      "title": "feat(ws5b): journey data + chrome (ESM port of the activation journey)",
+      "summary": "journey/journeyData.js (named ESM exports, drop Object.assign(window,...)) + journey/chrome.jsx (LeftRailJ/TopBarJ/StatusBarJ/PhaseFoot + AgentMsg lifted from jp1 per decision #3); window.* globals -> imports."
+    },
+    {
+      "hash": "4a9ef16",
+      "repo": "lithrim-bench",
+      "title": "feat(ws5b): the four activation acts (jp1–jp4)",
+      "summary": "ESM ports of jp1 (First contact), jp2 (HERO verify reveal: ScribeExchange+WAVE, staggered `revealed`), jp3 (HERO calibration: JuteBlock + before/after `calib`), jp4 (Own it). React global hooks -> react imports; jp4 empty SDK line keeps its NBSP."
+    },
+    {
+      "hash": "00c68b9",
+      "repo": "lithrim-bench",
+      "title": "feat(ws5b): JourneyApp composition + Shell↔Journey switch",
+      "summary": "JourneyApp.jsx (phase state machine, runVerify/runCalib timers, <-/-> nav, ART_META; Center{n}/Artifact{n} via import maps; createRoot dropped) + root.jsx (Shell<->Journey switch, default journey, shared-theme owner) + main.jsx (mount RootApp + import journey.css) + app.jsx (optional theme props) + README."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — npm run build (vite build) is clean; bundle builds",
+      "verdict": "PASS",
+      "evidence": "`npm run build` -> 'vite v6.4.2 ... ✓ 42 modules transformed ... ✓ built in 322ms'; dist/index.html + index-*.css (38.89 kB) + index-*.js (211.95 kB), no errors. Re-confirmed under dev server: /src/main.jsx + /src/journey/JourneyApp.jsx serve HTTP 200 (clean JSX transform; a transform error would 500)."
+    },
+    {
+      "criterion": "A2 — journey renders all four acts + hero interactions (rail+arrow nav; Act 2 staggered 4-pillar reveal -> PASS 8.6; Act 3 0.62 -> 0.91 + per-scenario table)",
+      "verdict": "PASS",
+      "evidence": "User visual smoke at http://localhost:5180/ (dev task bye2anh2a), 2026-06-01: 'all working as expected.' Executor module-graph verification: full RootApp->JourneyApp->chrome/jp1-4/journeyData transforms HTTP 200 under Vite dev."
+    },
+    {
+      "criterion": "A3 — Shell↔Journey switch toggles <App/> <-> <JourneyApp/> with no reload, sharing window chrome + theme",
+      "verdict": "PASS",
+      "evidence": "User visual smoke 2026-06-01: 'all working as expected' against the A3 checklist (instant toggle, no reload; theme persists across the switch via the root.jsx-owned theme passed to both apps)."
+    },
+    {
+      "criterion": "A4 — diff confined to apps/shell/; no new npm deps; no Tailwind/shadcn; no network code",
+      "verdict": "PASS",
+      "evidence": "git status: modified README.md/app.jsx/main.jsx + untracked journey/ (7 files) + root.jsx, all under apps/shell/. `git diff --name-only -- apps/shell/package.json apps/shell/package-lock.json` empty -> no dep change. Plain CSS only (consumes existing styles.css/journey.css); switch is inline-styled, no CSS-file edits; no fetch/network."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "files_created": "8 (journey/journeyData.js, chrome.jsx, jp1–jp4.jsx, JourneyApp.jsx, root.jsx)",
+    "files_modified": "3 (main.jsx, app.jsx, README.md)",
+    "new_deps": "0",
+    "build": "vite build clean, 42 modules, 322ms",
+    "pixel_parity": "Reported not gated — verbatim structural port of the /tmp prototype onto the already-present journey.css; user confirmed 'all working as expected'."
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "WS-5b ported the 4-act activation journey from the no-build window.*-globals prototype into an ESM subtree at apps/shell/src/journey/ (journeyData.js, chrome.jsx with the lifted AgentMsg, jp1–jp4, JourneyApp.jsx) plus a top-level root.jsx Shell↔Journey switch (default Journey) that owns a shared theme. The central task — converting window.X references to import/export and React/ReactDOM globals to react imports, dropping the prototype's createRoot — is complete. All four acceptance gates PASS: vite build clean (A1), four acts + both hero interactions verified by user smoke at :5180 (A2), no-reload switch sharing theme (A3), diff confined to apps/shell with zero new deps and no Tailwind/network (A4). One approved-at-plan deviation: an additive theme-prop edit to app.jsx (outside the driver's §2 list) required for A3's shared theme — monitor explicitly authorized it as in-scope. S-BS-17 (shell=customer-support vs journey=clinical/Scribe) deliberately LEFT OPEN per decision #2. On audit, the monitor should first confirm: (1) the app.jsx deviation is treated as authorized, not intrusion; (2) S-BS-17 stays tracked-open; (3) zero scope leak (no BFF/Tauri/Tailwind/tests/icons/CSS-rewrite). HARD-GATE class — close via /devloop-critique (inline or fresh-critic, user's call as with WS-5).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-5b, then the HARD-GATE critique close (/devloop-critique bench-salvage WS-5b)"
+}
