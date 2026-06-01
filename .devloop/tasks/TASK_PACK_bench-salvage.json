@@ -675,6 +675,57 @@
       "scope_guardrails_not_in_scope": [
         "GraalVM native-image (later)"
       ]
+    },
+    {
+      "id": "WS-6c",
+      "phase": "WS-6c",
+      "title": "WS-6c -- PORT the v2 council Mongo-free into lithrim_bench/runtime/council/ (v2-only)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseWS-6c-council-port-driver",
+      "origin": "BOTH-ABSENT reconcile 2026-06-01 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b). Sourced from RECOMPOSITION_PLAN_ws6.md sec5/sec6/Ratification + the WS-6b ratification.",
+      "port_ip_regrepped_2026_06_01_493b533": "compliance_council.py @493b533: _worst_of_verdicts:1799, _compose_council_verdict_v2:1812 (llama-veto), _apply_consensus:1853 (TIER_1 check :2050), tables TIER_1:176/TIER_2:201/TIER_3:212/KNOWN_TAXONOMY_CODES:279, extract_verdict_confidence:413 (None for Mistral), class ComplianceCouncil:453, build_prompt:517, Mongo-free CONFIRMED. SECOND tables app/models/safety_flags.py: FailureType:533, SAFETY_FLAG_TO_FAILURE_TYPE:543, FAILURE_TYPE_SEVERITY:570, get_flag_prompt_section:621. Lockstep recompute compliance_workflow.py:2206/:2281. SALVAGE llm_provider.py: _resolve_model:38/get_sync:97/get_async:121. Parked mirror lithrim_bench/runtime/council/ is a full STALE package -- refresh from 493b533 (S-BS-28).",
+      "deliverables": [
+        "D1 runtime/council/compliance_council.py: PORT verbatim the consensus IP from 493b533 (apply_consensus + llama-veto + worst-of + tables + extract_verdict_confidence None-tolerant + build_prompt + ComplianceCouncil + JUDGES_V2), Mongo-free, v1/v2 branch ported verbatim default v2",
+        "D2 runtime/council/safety_flags.py: refresh from 493b533/app/models/safety_flags.py (FailureType + SAFETY_FLAG_TO_FAILURE_TYPE + FAILURE_TYPE_SEVERITY + get_flag_prompt_section + SafetyFlagDefinition/Category) -- the split-tables second file (S-BS-28)",
+        "D3 runtime/council/llm_provider.py + council_roles/ + settings.py: refresh the salvaged Azure factory + v2 role prompts (risk/policy/faithfulness; behavior+source_message carried as v1/declared-not-running) + config subset (5 AZURE_OPENAI_DEPLOYMENT_* + COMPLIANCE_COUNCIL_VERSION); v2-only",
+        "D4 scripts/snapshot_taxonomy.py: derive production_judges from the v2 config (risk/policy/faithfulness), drop the policy/risk/behavior hardcode at :69 (S-BS-30); re-snapshot (keep structural_codes preservation)",
+        "D5 runtime/council/tests/: offline consensus oracle (fixture per-judge -> expected verdict: Tier-1 one-strike, Tier-2 2+, PHI-FP, NKA, llama-veto, artifact-BLOCK, None-confidence) + exactly ONE cost-confirmed live Azure smoke",
+        "D6 .devloop/sessions/session-bench-salvage-phaseWS-6c-...json: session log incl. the port-fidelity diff vs 493b533 + the live-smoke verdict"
+      ],
+      "acceptance": [
+        "A1 runtime/council/ imports clean on default bench deps (pure-Python; Azure client lazy), offline no network",
+        "A2 consensus IP is a byte-faithful PORT of 493b533 (diff-vs-source in the session log; only mechanical import/path adaptation, no logic change)",
+        "A3 offline consensus test suite GREEN: Tier-1 one-strike, Tier-2 2+, PHI-FP suppression, NKA, llama-veto, artifact-BLOCK, None-confidence tolerance",
+        "A4 v2-only: production trio risk/policy/faithfulness; snapshot_taxonomy.py derives production_judges from v2 config (S-BS-30 closed); taxonomy_snapshot consistent (lint green)",
+        "A5 one live Azure smoke: v2 trio verdict on one case matches the offline/replay expectation (record verdict + per-judge confidences + cost)",
+        "A6 no contract change: grade.py / run_eval.run / report.composite / sec10 untouched; council importable not yet wired into grade",
+        "A7 scope held: no LangGraph/agents/persistence/KB/DSPy; ported from 493b533 not the mirror; no ../lithrim-backend or etlp-mapper edits"
+      ],
+      "diagnostic_stats_reported": [
+        "port-fidelity diff summary (ported lines vs 493b533) + v1-branch disposition (ported-verbatim vs pruned)",
+        "live-smoke verdict + per-judge confidences + cost"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO LangGraph recompose / agents recompose (WS-6c-AGENTIC)",
+        "NO DSPy judge rebuild (WS-6c-DSPy) -- port the imperative fan-out as-is, DOCUMENT the per-judge dict seam only",
+        "NO persistence swap / repository interface / Mongo (WS-6d); NO KB/RAG/pinecone/ONNX (WS-6d-KB)",
+        "NO harness grade-seam re-point (grade.py/run_eval.py untouched; in-process grade lands at WS-6c-AGENTIC)",
+        "NO v1-pruning surgery beyond defaulting v2; PORT-not-rewrite; port FROM 493b533 not the stale mirror (S-BS-28); both tables files; no hand-edit of taxonomy_snapshot.json; no contract change"
+      ],
+      "plan_review_decisions": [
+        "1 Port target layout: refresh the parked runtime/council/ package in place (re-derive from 493b533) vs new path (default: in place)",
+        "2 v2-only handling: strip v1 branches vs port-verbatim-default-v2 (default: verbatim + default v2, test v2 only)",
+        "3 Hybrid seam: port the judge fan-out as-is + DOCUMENT the per-judge dict boundary vs refactor an explicit seam now (default: document; explicit seam at WS-6c-DSPy)",
+        "4 S-BS-30 in this cycle: fix production_judges derivation + re-snapshot here (default: yes)",
+        "5 Live-validation scope + cost: offline oracle + exactly ONE cost-confirmed live Azure smoke (confirm cost before the call)"
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Ports validated safety-critical IP (the council consensus) into the product runtime; v2-only commits the cross-provider trio. Fresh-critic at close recommended; the diagnose-before-edit port-fidelity diff (A2) is load-bearing. User MAY elect inline.",
+      "next_action": "Driver authored 2026-06-01 (ready; both-absent reconcile). Run /devloop-kickoff bench-salvage WS-6c; fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend @ 493b533). Plan-review resolves the 5 decisions + the live-smoke cost envelope before 'go'."
     }
   ],
   "seams": [

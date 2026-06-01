@@ -758,6 +758,22 @@
       "_note": "WS-6 step b — the consolidation GATE. READ-ONLY audit over ../lithrim-backend (at the WS-6a baseline 493b533) that produces the port plan; changes NO code in either repo. CONFIRMED via re-grep 2026-06-01: the v2 council is Mongo-free (compliance_council.py:453/463/2347/2699/517; stages.py _run_council_and_map:686) so it is cleanly portable; pipeline_runs is ALREADY behind a ProvenanceStore Protocol (provenance.py:25/37); artifact_profiles + eval_packs/eval_cases/eval_run are direct/scattered (+ S3) and need a repository interface introduced (6d). Deliverable = the PORT PLAN doc in lithrim-bench/docs + the session log. Executor session ROOTED IN lithrim-bench. Unblocked by WS-6a's clean tree.",
       "_registration_note": "BOTH-ABSENT reconcile (no stub + no task-pack entry; same pattern as WS-5c/WS-5d). Authored TASK_PACK#WS-6b + this bundle + the driver in one /devloop-expand-driver pass 2026-06-01. Sourced from SPEC_PRODUCT_SERVICE_TOPOLOGY.md lines 38/47 + the WS-6a handoff. All ../lithrim-backend file:line citations re-grepped 2026-06-01 at 493b533 (CONFIRMED).",
       "next_action": "Run /devloop-kickoff bench-salvage WS-6b; open a fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend; plan doc + session log land in lithrim-bench)."
+    },
+    {
+      "id": "bench-salvage-phaseWS-6c-council-port-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c",
+      "scope": "PORT the v2 council Mongo-free into lithrim_bench/runtime/council/ (v2-only; extends the M1 v1 salvage)",
+      "file": "bench-salvage_phaseWS-6c_council-port_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Ports validated safety-critical IP (council consensus/tier/owner/NKA/llama-veto) into the product runtime; v2-only commits the cross-provider trio. Fresh-critic at close recommended; the diagnose-before-edit port-fidelity diff (A2) is load-bearing. User MAY elect inline.",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_note": "WS-6 step c, first BUILD phase. PORT-not-rewrite the v2 council Mongo-free from lithrim-backend@493b533 into lithrim_bench/runtime/council/ (refresh the stale parked package, S-BS-28). v2-only (Q1 ratified; Q2 Azure trio VERIFIED accessible). Consensus IP: _apply_consensus:1853 + _compose_council_verdict_v2:1812 (llama-veto) + _worst_of_verdicts:1799 + tables :176/:201/:212/:279 + extract_verdict_confidence:413 (None-tolerant) + build_prompt:517. SECOND tables file app/models/safety_flags.py:533/543/570/621 (split-tables). Lockstep recompute compliance_workflow.py:2206/:2281. SALVAGE infra llm_provider.py:38/:97/:121. Fix S-BS-30 (production_judges -> risk/policy/faithfulness). Offline consensus oracle + 1 cost-confirmed live Azure smoke. NOT in scope: LangGraph/agents (6c-AGENTIC), DSPy judges (6c-DSPy), persistence (6d), KB (6d-KB), grade-seam re-point. Behind run_eval.run (frozen).",
+      "_registration_note": "BOTH-ABSENT reconcile (no stub + no task-pack entry; same pattern as WS-5c/WS-5d/WS-6b). Authored TASK_PACK#WS-6c + this bundle + the driver in one /devloop-expand-driver pass 2026-06-01. Sourced from RECOMPOSITION_PLAN_ws6.md sec5/sec6/Ratification + SPEC_PRODUCT_SERVICE_TOPOLOGY.md WS-6c. ../lithrim-backend citations re-grepped 2026-06-01 at 493b533 (CONFIRMED; minor drift: extract_verdict_confidence :402-405 -> :413; safety_flags flag-defs class-based :533/:543/:570/:621).",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-6c; open a fresh executor session ROOTED IN lithrim-bench (read-only over ../lithrim-backend @ 493b533). Plan-review resolves the 5 decisions + the live-smoke cost envelope before 'go'. HARD GATE: fresh-critic at close."
     }
   ]
 }
