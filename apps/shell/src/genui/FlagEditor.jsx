@@ -12,7 +12,7 @@
    edited config is returned via onResult() into conversation/UI state; nothing is
    persisted (no PUT). Built on shadcn primitives + the @theme token bridge. */
 import { useEffect, useState } from "react";
-import { getOntology } from "../bff.js";
+import { getOntology, putOntology } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Label } from "../components/ui/label.jsx";
@@ -40,15 +40,18 @@ function ThresholdRow({ label, value, onChange }) {
 export default function FlagEditor({ agent = "ws0_default", onResult }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [error, setError] = useState(null);
+  const [raw, setRaw] = useState(null); // the full loaded ontology — merged back on persist
   const [severity, setSeverity] = useState(null);
   const [flags, setFlags] = useState([]);
   const [returned, setReturned] = useState(false);
+  const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
 
   useEffect(() => {
     let live = true;
     getOntology(agent)
       .then((ont) => {
         if (!live) return;
+        setRaw(ont);
         setSeverity(ont.severity_map || { block_at_or_above: 0.5, warn_above: 0, weights: {} });
         setFlags(
           (ont.flags || []).map((f) => ({
@@ -95,6 +98,29 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
     };
     setReturned(true);
     onResult?.(result);
+  };
+
+  // Merge the edits back into the FULL loaded ontology (so the PUT body round-trips
+  // through the BFF's ontology.from_dict validator) and persist to the working copy.
+  // Distinct from apply(): apply() returns into setup state; persist() writes a draft.
+  const edited = () => ({
+    ...raw,
+    severity_map: severity,
+    flags: (raw.flags || []).map((rf) => {
+      const e = flags.find((f) => f.flag === rf.flag);
+      return e ? { ...rf, tier: e.tier === "none" ? null : e.tier, gradeable: e.gradeable } : rf;
+    }),
+  });
+
+  const persistEdit = async () => {
+    setPersist({ state: "saving", msg: "saving…" });
+    try {
+      const res = await putOntology(edited(), agent);
+      setPersist({ state: "saved", msg: "draft saved ✓" });
+      return res;
+    } catch (e) {
+      setPersist({ state: "error", msg: String(e.message || e) });
+    }
   };
 
   return (
@@ -146,10 +172,28 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
         </section>
       </CardContent>
       <CardFooter>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          {returned ? "applied to setup ✓" : "no write — returns into setup"}
+        <span
+          className={
+            "font-[family-name:var(--font-mono)] text-[10.5px] " +
+            (persist.state === "error" ? "text-[color:var(--accent-ink)]" : "text-muted-foreground")
+          }
+        >
+          {persist.state !== "idle"
+            ? persist.msg
+            : returned
+              ? "applied to setup ✓"
+              : "returns into setup · draft-persists to a working copy"}
         </span>
-        <Button className="ml-auto" size="sm" onClick={apply}>Apply config</Button>
+        <Button
+          className="ml-auto"
+          size="sm"
+          variant="ghost"
+          onClick={persistEdit}
+          disabled={persist.state === "saving"}
+        >
+          {persist.state === "saving" ? "Saving…" : "Persist draft"}
+        </Button>
+        <Button size="sm" onClick={apply}>Apply config</Button>
       </CardFooter>
     </Card>
   );
