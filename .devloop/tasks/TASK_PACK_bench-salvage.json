@@ -328,16 +328,15 @@
       "id": "WS-5",
       "phase": "WS-5",
       "title": "WS-5 \u2014 frontend shell + one plugin UI (bring-in-data journey)",
-      "status": "blocked",
-      "blocked_by": [
-        "WS-4"
-      ],
+      "status": "done — skeleton (FE-first re-cut 2026-06-01)",
+      "blocked_by": [],
+      "close_note": "WS-5 skeleton DONE 2026-06-01 (apps/shell/, commit 842db03; close-out d3ddd47). Inline critique returned BLOCKING DRIFT (100% mock data; BFF + run_eval vertical + Tauri absent) -> resolved by amending SPEC_PRODUCT_SHELL.md sec.8 to FRONT-END-FIRST: WS-5 = skeleton; the prove-the-stack half -> new WS-5-BFF; WS-5d re-cut build->wire. Children: WS-5b (journey, ready) / WS-5c (generative-UI + Tailwind foundation) / WS-5-BFF / WS-5d / WS-5e. Opened S-BS-17 (demo-domain split). Critique: .devloop/sessions/critique-bench-salvage-phaseWS-5-2026-06-01.md.",
       "priority": "P1",
       "target": "executor",
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver (SUPERSEDED — thin stdlib driver; the real shell driver gets expanded against the spec)",
+      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver (SUPERSEDED — thin stdlib driver; the real shell skeleton was built directly + closed 2026-06-01)",
       "rescope_note": "RE-SCOPED 2026-06-01 to the PRODUCT SHELL PROGRAM (user direction). Authoritative phasing in docs/specs/SPEC_PRODUCT_SHELL.md sec.8: WS-5 = the REAL 3-pane React/Tauri/Tailwind shell skeleton + FastAPI BFF Tauri-sidecar + ONE vertical (eval-report artifact over the WS-4a vertical); WS-5b conversational journey; WS-5c generative-UI components; WS-5d artifacts pane; WS-5e Tauri packaging + VPC. Service topology: docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md (strangler-fig, Mongo-out, sequencing B).",
       "deliverables": [
         "WS-5 (this phase): the real 3-pane shell skeleton (React/Vite + Tauri v2 + Tailwind/brand + the FastAPI BFF Tauri-sidecar) with ONE vertical end-to-end (eval-report artifact over the WS-4a vertical via run_eval.run; replay default + one live run). Per SPEC_PRODUCT_SHELL.md sec.8.",
@@ -349,6 +348,79 @@
       "scope_guardrails_not_in_scope": [
         "No ../lithrim-backend edit; no code-salvage of lithrim-ui (behavior reference only); no heavy frontend framework. The BFF targets the harness (composes over live :8002/:3031); the Mongo backend is a strangled dev-dep, NOT a product component (SPEC_PRODUCT_SERVICE_TOPOLOGY.md)."
       ]
+    },
+    {
+      "id": "WS-5b",
+      "phase": "WS-5b",
+      "title": "WS-5b — conversational journey layer (4-act activation; port jp1-jp4)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseWS-5b-journey-driver",
+      "spec_ref": "docs/specs/SPEC_PRODUCT_SHELL.md sec.2.1 (the 4-phase journey) + sec.8 (amended FE-first; WS-5b row); docs/design/JOURNEY_brief.md",
+      "note": "Plain-CSS ESM port of the Claude Design journey prototype (/tmp/lithrim_design/x/lithrim-bench/project/{journeydata,journeyrail,journeyapp,jp1-jp4}.jsx) into apps/shell/src/journey/ + a Shell<->Journey mode switch. Monitor pre-verified 2026-06-01: ALL journey icons already in icons.jsx; ALL journey CSS classes present (29/30 in journey.css, .h-sub in styles.css:286); brand Mark/Wordmark + Icon already exported. Central task = window.* globals -> ESM imports. Tailwind/shadcn stay deferred to WS-5c.",
+      "deliverables": [
+        "apps/shell/src/journey/journeyData.js — ESM port of journeydata.jsx (ACTS/PILLARS/AGENT_TYPES/PACK/EXCHANGE/SCENARIOS/ALIGN/JUTE/SDK_LINES/PRO_FEATURES; drop Object.assign(window)).",
+        "apps/shell/src/journey/chrome.jsx — LeftRailJ/TopBarJ/StatusBarJ/PhaseFoot + shared AgentMsg (lifted from jp1).",
+        "apps/shell/src/journey/jp1.jsx..jp4.jsx — Center{n} + Artifact{n} per act (jp2 ScribeExchange+WAVE hero reveal; jp3 JuteBlock + before/after hero).",
+        "apps/shell/src/journey/JourneyApp.jsx — composition + phase state machine + runVerify/runCalib + resize + keyboard nav (drop the prototype ReactDOM.render).",
+        "apps/shell/src/root.jsx (new) + main.jsx — Shell<->Journey mode switch; main.jsx mounts RootApp + imports journey.css.",
+        "apps/shell/README.md — Status & next update (journey landed; WS-5c next)."
+      ],
+      "acceptance": [
+        "A1. vite build clean (npm run build) — the WS-5 build-verified bar (no tests this cycle; first test bar = WS-5-BFF).",
+        "A2. All four acts render at :5180; rail-click + keyboard left/right nav; Act 2 Verify staggered 4-pillar reveal -> PASS 8.6; Act 3 Re-run pack flips agreement 0.62->0.91 + per-scenario before/after.",
+        "A3. Shell<->Journey switch toggles <App/> <-> <JourneyApp/> with no reload, sharing chrome + theme.",
+        "A4. Diff confined to apps/shell/; no new npm deps; no Tailwind/shadcn; no network/BFF code."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO BFF / run_eval / network / live data (journey runs on journeyData.js; the bridge is WS-5-BFF).",
+        "NO Tailwind/shadcn (WS-5c, decision 2026-06-01) — plain-CSS port only.",
+        "NO Tauri (WS-5-BFF/WS-5e); NO generative-UI tool<->component protocol (WS-5c); NO test infra (manual smoke; tests at WS-5-BFF).",
+        "NO rewriting chrome CSS/styles.css; NO new icons (icons.jsx already complete); NO converging the shell skeleton customer-support mock to clinical beyond the switch (S-BS-17 = plan-review decision)."
+      ],
+      "plan_review_decisions": [
+        "Shell<->Journey switch mechanism + default mode (rec: minimal titlebar/dev toggle, default Journey).",
+        "S-BS-17 demo-domain split — port journey clinical as-is + defer shell reconcile (rec) vs converge now.",
+        "AgentMsg/shared-parts placement (rec: chrome.jsx).",
+        "journey/ file layout + naming."
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC sec.8 each shell phase is HARD-GATE-class. UI port; user may elect inline critique as for WS-5 (close-time decision).",
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block; plan-review resolves the 4 decisions before 'go'."
+    },
+    {
+      "id": "WS-5-BFF",
+      "phase": "WS-5-BFF",
+      "title": "WS-5-BFF — FastAPI BFF + React<->Python bridge + minimal Tauri + ONE real run_eval vertical",
+      "status": "queued",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "(to be expanded)",
+      "origin": "NEW 2026-06-01 — the displaced 'prove the whole stack + the bridge' half of the original WS-5, carved out by the WS-5 critique + the SPEC sec.8 FE-first re-cut. Parallelizable with WS-5b/c.",
+      "deliverables": [
+        "Local FastAPI BFF (SPEC sec.5) bundled as a Tauri sidecar + the React<->Python bridge over localhost HTTP.",
+        "Minimal Tauri shell hosting the sidecar.",
+        "ONE vertical end-to-end: the eval-report artifact in pane 3 over the WS-4a vertical (run_eval.run; replay default + one live run).",
+        "A BFF round-trip smoke test (the shell shipped zero tests — the first test bar lands here)."
+      ],
+      "acceptance": [
+        "The shell renders a REAL eval-report from run_eval.run (replay) + one live run, through the BFF — not mock data.",
+        "BFF round-trip smoke test passes; Python default install unchanged (frontend/BFF deps isolated)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "Lock the v1 BFF endpoints at plan-review (SPEC sec.10: run-eval / get-report / get-corpus / read-write-ontology). BFF targets the harness (sequencing B); the Mongo backend is a strangled dev-dep, not a product component."
+      ],
+      "hardness": "HARD-GATE",
+      "next_action": "Expand after (or in parallel with) WS-5b: /devloop-expand-driver bench-salvage WS-5-BFF."
     },
     {
       "id": "WS-6",

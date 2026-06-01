@@ -636,6 +636,21 @@
       "cost_max_acceptable_usd": 0.5,
       "_note": "Thin first UI slice: minimal shell + ONE plugin (bring-data -> run the WS-4a vertical -> view graded+grounded case + corpus-row/1 + calibration_check). Data path reuses the existing run_eval.run/evalpack.build_pack `live` flag (default replay $0); the task-pack 'must be live' acceptance = ONE case run live=True (services up + cost confirmed at plan-review). WS-4a consumed surface re-grepped on HEAD 5c1d3d1 (run:101, build_pack:81, dump_pack:109, load_pack:117, read_corpus:104, project:64, composite:29, calibration_check:159 -- all CONFIRMED). Frontend tech stack + minimal plugin contract are plan-review decisions; ../lithrim-ui is BEHAVIOR-REFERENCE-ONLY (no code-salvage).",
       "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. Plan-review required (frontend tech stack; minimal plugin contract; confirm :8002 up + the one live-call cost for the A3 live-acceptance run; replay default vs live demo). HARD GATE: fresh-critic close + user sign-off before commits land."
+    },
+    {
+      "id": "bench-salvage-phaseWS-5b-journey-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-5b",
+      "scope": "conversational journey layer (4-act activation; ESM port of jp1-jp4 into apps/shell/src/journey/)",
+      "file": "bench-salvage_phaseWS-5b_journey_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Per SPEC_PRODUCT_SHELL sec.8 each shell-program phase is HARD-GATE-class. UI port; user may elect inline critique as for WS-5 (close-time decision).",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-01",
+      "last_re_verified": "2026-06-01",
+      "_note": "Plain-CSS ESM port of the Claude Design journey prototype into apps/shell/src/journey/ + a Shell<->Journey mode switch. Builds on the WS-5 skeleton (842db03). Monitor re-verified 2026-06-01 against the prototype (/tmp/lithrim_design/x/lithrim-bench/project/{journeydata,journeyrail,journeyapp,jp1-jp4}.jsx) + the shell: ALL journey icons already in icons.jsx; ALL journey CSS classes present (29/30 journey.css + .h-sub styles.css:286); Mark/Wordmark + Icon exported; central task = window.* globals -> ESM imports. Tailwind/shadcn + BFF/vertical + Tauri all OUT of scope (WS-5c / WS-5-BFF). 4 plan-review decisions in the driver sec.3.",
+      "next_action": "Run /devloop-kickoff bench-salvage WS-5b; paste into a fresh executor session. Plan-review resolves the 4 decisions (switch mechanism + default; S-BS-17 domain split; AgentMsg placement; journey/ layout) before 'go'."
     }
   ]
 }
