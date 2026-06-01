@@ -3,6 +3,10 @@
 Run when compliance_council.py changes upstream. The snapshot is the
 contract between this repo and the backend; never hand-edit it.
 
+Council fields (tiers/owners) are re-derived from compliance_council.py.
+The bench-curated ``structural_codes`` block is NOT council-derived and is
+preserved verbatim from the existing snapshot on refresh.
+
 Usage:
     python scripts/snapshot_taxonomy.py \
         --backend-path /path/to/lithrim-backend \
@@ -26,6 +30,11 @@ def _load_council_module(backend_path: Path):
     spec = importlib.util.spec_from_file_location("_council", src)
     mod = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(backend_path))
+    # Register before exec: backend dataclasses (e.g. CouncilModel:360, KW_ONLY)
+    # resolve field types via sys.modules.get(cls.__module__); without the
+    # synthetic "_council" module registered, dataclass processing crashes with
+    # AttributeError: 'NoneType' object has no attribute '__dict__'.
+    sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -75,11 +84,27 @@ def main() -> None:
         declared_owners - set(snapshot["production_judges"])
     )
 
+    # Preserve the bench-curated structural-floor codes. These are NOT derived
+    # from compliance_council.py (the council has no structural taxonomy); they
+    # are a bench augmentation for the WS-3a structural FLOOR. Carry them over
+    # from the existing snapshot so refreshing the council fields never silently
+    # drops them.
+    if args.out.exists():
+        try:
+            prior = json.loads(args.out.read_text())
+        except (json.JSONDecodeError, OSError):
+            prior = {}
+        for key in ("structural_codes", "structural_codes_note"):
+            if key in prior:
+                snapshot[key] = prior[key]
+
     args.out.write_text(json.dumps(snapshot, indent=2) + "\n")
     print(f"wrote {args.out}")
     print(f"  tier1: {len(snapshot['tiers']['TIER_1_NEVER_EVENTS'])} codes")
     print(f"  tier2: {len(snapshot['tiers']['TIER_2_HIGH_RISK'])} codes")
     print(f"  tier3: {len(snapshot['tiers']['TIER_3_MEDIUM'])} codes")
+    if "structural_codes" in snapshot:
+        print(f"  preserved structural_codes: {len(snapshot['structural_codes'])}")
     if snapshot["declared_but_not_running"]:
         print(f"  WARN: owners declared but not in production: {snapshot['declared_but_not_running']}")
 

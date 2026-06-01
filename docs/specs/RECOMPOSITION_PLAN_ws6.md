@@ -249,4 +249,21 @@ The topology spec defines WS-6c (port council) / WS-6d (persistence swap) / WS-6
 - DSPy prior art (reference, NOT import — worktree/throwaway): `/Users/aregee/Workspace/github.com/lithrim-bench/.claude/worktrees/agent-adefc36309f77ed1b/experiments/dspy_council_smoke/council_v2.py`, `council_dspy.py`, `v2_runs.ndjson`, `smoke_result_v3_grounded.json`
 - Recompose TARGET (bench): `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/runtime/council/` (parked seed — stale, re-derive), `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/verification/` (toolbox), `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/harness/` (grade-ground loop), `/Users/aregee/Workspace/github.com/lithrim-bench/scripts/run_eval.py`
 - Frozen contract + frame: `/Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md`, `/Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md`
-- Re-snapshot before port: `/Users/aregee/Workspace/github.com/lithrim-bench/scripts/snapshot_taxonomy.py`, `/Users/aregee/Workspace/github.com/lithrim-bench/taxonomy/taxonomy_snapshot.json` (currently stale @ ba84608)
+- Re-snapshot before port: `/Users/aregee/Workspace/github.com/lithrim-bench/scripts/snapshot_taxonomy.py`, `/Users/aregee/Workspace/github.com/lithrim-bench/taxonomy/taxonomy_snapshot.json` (re-snapshotted @ `493b533`, 2026-06-01)
+
+---
+
+## Ratification (2026-06-01) — §8 open questions RESOLVED
+
+WS-6b ratified (monitor + user). The 6 open questions are locked:
+
+- **Q1 (council version) → v2-ONLY (Azure trio).** Port the cross-provider v2 (gpt-4.1 + Mistral + Llama via deployment-id); drop the v1 code path. **Makes Q2 load-bearing:** the product's target Azure AI Foundry resource MUST host all three deployments. v2-only fixes the recomposed council's production trio as `risk/policy/faithfulness_judge` (see S-BS-30).
+- **Q2 (Azure deployment-id substitution) → pre-WS-6c verification.** Verify the Mistral/Llama-via-deployment-id route against the PRODUCT's target Azure resource (not just dev) before WS-6c. Checklist item, not a blocker now.
+- **Q3 (DSPy judge rollout) → incremental** (one judge first; the §6 hybrid wraps DSPy or non-DSPy judges identically). Final call at the WS-6c-DSPy plan-review.
+- **Q4 (agents scope) → recompose the 6 KPI agents; DROP the dead `evaluation_agent`; PARK the LiveKit `simulation_agent`** (live-call/voice ingest out of WS-6).
+- **Q5 (KB/RAG) → DEFER to WS-6d-KB.** WS-6 core runs on the structural floor + suppress registry; author floor `VerificationContractDecl`s in the ontology (clinical_v1 declares none today).
+- **Q6 (§10 BFF contract freeze) → already satisfied** (ratified at WS-5-BFF, extended at WS-5d). Port behind `run_eval.run` / `report.composite` / §10.
+
+**Taxonomy re-snapshot DONE + verified.** `taxonomy_snapshot.json` re-stamped `ba84608`→`493b533`. **No council-taxonomy drift:** `TIER_1/2/3` + `tier1_owners` + `production_judges` + `declared_but_not_running` all set-identical (re-sorted only); `structural_codes` (5) preserved. Admissibility lint GREEN (`examples/proof_case.jsonl` 7/7 + 5 scribe packs). Two `snapshot_taxonomy.py` bugs fixed en route: the `sys.modules`/`exec_module` import crash + the lossy `structural_codes` drop. New seam **S-BS-30**: `production_judges` is hardcoded `policy/risk/behavior_judge` but the v2 trio is `risk/policy/faithfulness_judge` — reconcile at WS-6c (derive `production_judges` from the v2 council config, not hardcode).
+
+**Next:** `/devloop-expand-driver bench-salvage WS-6c` (council PORT, v2-only) → 6c-DSPy ∥ 6c-AGENTIC → 6d (+6d-KB) → 6e.

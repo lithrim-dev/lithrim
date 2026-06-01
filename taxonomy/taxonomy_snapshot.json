@@ -1,47 +1,70 @@
 {
   "snapshot_metadata": {
     "source": "lithrim-backend/app/services/compliance_council.py",
-    "source_commit": "ba84608",
-    "snapshot_date": "2026-05-21",
-    "snapshotted_by": "scripts/snapshot_taxonomy.py",
-    "note": "Refresh by running scripts/snapshot_taxonomy.py with --backend-path pointing at a lithrim-backend checkout."
+    "source_commit": "493b533",
+    "snapshot_date": "2026-06-01",
+    "snapshotted_by": "scripts/snapshot_taxonomy.py"
   },
   "tiers": {
     "TIER_1_NEVER_EVENTS": [
-      "MISSED_ESCALATION",
-      "WRONG_DOSAGE",
-      "MISSING_ALLERGY",
       "FABRICATED_ALLERGY",
-      "SEVERITY_ESCALATION",
-      "PHI_DISCLOSURE_PRE_VERIFICATION",
       "FABRICATED_CONSENT",
-      "VALUE_MISMATCH"
+      "MISSED_ESCALATION",
+      "MISSING_ALLERGY",
+      "PHI_DISCLOSURE_PRE_VERIFICATION",
+      "SEVERITY_ESCALATION",
+      "VALUE_MISMATCH",
+      "WRONG_DOSAGE"
     ],
     "TIER_2_HIGH_RISK": [
+      "FABRICATED_HISTORY",
       "HALLUCINATED_DETAIL",
       "MEDICATION_NOT_IN_TRANSCRIPT",
-      "FABRICATED_HISTORY",
-      "WRONG_CODE",
-      "WRONG_CATEGORY_CODE",
+      "PROTOCOL_STEP_SKIPPED",
       "UPCODING_RISK",
-      "PROTOCOL_STEP_SKIPPED"
+      "WRONG_CATEGORY_CODE",
+      "WRONG_CODE"
     ],
     "TIER_3_MEDIUM": [
       "DURATION_FABRICATION",
-      "NEGATION_REVERSAL",
       "IMPLICIT_CONFIRMATION_OF_RECORD",
-      "INCOMPLETE_DOCUMENTATION"
+      "INCOMPLETE_DOCUMENTATION",
+      "NEGATION_REVERSAL"
     ]
   },
   "tier1_owners": {
-    "WRONG_DOSAGE":                    ["behavior_judge", "source_message_judge", "risk_judge"],
-    "MISSING_ALLERGY":                 ["behavior_judge", "source_message_judge"],
-    "FABRICATED_ALLERGY":              ["risk_judge", "behavior_judge", "source_message_judge"],
-    "FABRICATED_CONSENT":              ["behavior_judge", "source_message_judge"],
-    "MISSED_ESCALATION":               ["behavior_judge", "risk_judge"],
-    "SEVERITY_ESCALATION":             ["behavior_judge", "risk_judge"],
-    "PHI_DISCLOSURE_PRE_VERIFICATION": ["policy_judge"],
-    "VALUE_MISMATCH":                  ["behavior_judge"]
+    "WRONG_DOSAGE": [
+      "behavior_judge",
+      "risk_judge",
+      "source_message_judge"
+    ],
+    "MISSING_ALLERGY": [
+      "behavior_judge",
+      "source_message_judge"
+    ],
+    "FABRICATED_ALLERGY": [
+      "behavior_judge",
+      "risk_judge",
+      "source_message_judge"
+    ],
+    "FABRICATED_CONSENT": [
+      "behavior_judge",
+      "source_message_judge"
+    ],
+    "MISSED_ESCALATION": [
+      "behavior_judge",
+      "risk_judge"
+    ],
+    "SEVERITY_ESCALATION": [
+      "behavior_judge",
+      "risk_judge"
+    ],
+    "PHI_DISCLOSURE_PRE_VERIFICATION": [
+      "policy_judge"
+    ],
+    "VALUE_MISMATCH": [
+      "behavior_judge"
+    ]
   },
   "production_judges": [
     "policy_judge",
