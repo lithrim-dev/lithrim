@@ -7,7 +7,9 @@ and runs it directly. For the WS-6c-AGENTIC grade-wire milestone only the SEMANT
 
   - structural stage -> injected skip (no etlp-mapper call)
   - artifact stage   -> ``_skipped_artifact_stage`` (no single-judge LLM call)
-  - provenance       -> ``NoOpProvenanceStore`` (no Mongo)
+  - provenance       -> injectable; defaults to ``NoOpProvenanceStore`` (hermetic).
+                        The WS-6d in-process grade path injects ``SqliteProvenanceStore``
+                        so the product path persists provenance (no Mongo).
   - retrieval        -> the M1 stub returns empty matches (no Pinecone; grounding
                         is empty, which the council tolerates -> still produces a verdict)
 
@@ -35,7 +37,7 @@ from typing import Any
 from ..runtime.council.settings import settings
 from ..runtime.pipeline.models import PipelineRequest, PipelineResult, StageResult
 from ..runtime.pipeline.orchestrator import PipelineOrchestrator
-from ..runtime.pipeline.provenance import NoOpProvenanceStore
+from ..runtime.pipeline.provenance import NoOpProvenanceStore, ProvenanceStore
 from ..runtime.pipeline.stages import _skipped_artifact_stage
 from .base import BackendClient, BackendPin, BackendVerdict, JudgeOutput
 from .lithrim_pipeline import _GATE_TO_COMPLIANCE, _build_context
@@ -55,19 +57,25 @@ class LocalPipelineBackend(BackendClient):
         org_id: str = "local",
         artifact_type_override: str | None = None,
         semantic_stage: Any = None,
+        provenance_store: ProvenanceStore | None = None,
     ):
         self.org_id = org_id
         self.artifact_type_override = artifact_type_override
         # Semantic(council)-only orchestrator: structural + artifact stages injected
-        # as skips, provenance is a no-op. Stateless, so build once and reuse.
+        # as skips. Stateless, so build once and reuse.
         # ``semantic_stage`` is injectable so the grade seam can run a deterministic
         # offline stage (A1) without an Azure call; None -> the orchestrator's
         # default run_semantic (the live v2 trio).
+        # ``provenance_store`` is injectable (WS-6d): None -> NoOp (hermetic; the
+        # default for direct/test construction); the grade runner passes a
+        # ``SqliteProvenanceStore`` so the product path persists. Either way the
+        # store is a fire-and-forget sink behind ``save`` — the returned
+        # ``PipelineResult`` is byte-identical regardless (the frozen-contract A3).
         self._orchestrator = PipelineOrchestrator(
             structural_stage=_skip_structural,
             semantic_stage=semantic_stage,
             artifact_stage=_skipped_artifact_stage,
-            provenance_store=NoOpProvenanceStore(),
+            provenance_store=provenance_store or NoOpProvenanceStore(),
         )
 
     @property

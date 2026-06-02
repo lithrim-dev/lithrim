@@ -8,8 +8,10 @@ and emits p50/p95 latency instrumentation tagged by context_kind + gate_mode.
 Design notes:
 - Stages live in ``app.services.pipeline.stages``. They are injected as callables
   so tests can patch them without monkeypatching module attributes.
-- Provenance persistence is behind a ``ProvenanceStore`` protocol. Default impl is
-  MongoDB-backed; tests supply a ``NullProvenanceStore`` (see tests/…).
+- Provenance persistence is behind a ``ProvenanceStore`` interface. The default is
+  ``NoOpProvenanceStore`` (hermetic — bare construction and unit tests persist
+  nothing); the in-process grade path opts in to ``SqliteProvenanceStore`` (WS-6d).
+  No Mongo on the product path.
 - The orchestrator stays a single stateless object at module import; FastAPI DI
   switches in later phases when stages gain real per-request collaborators (KB
   clients, tool catalog, etc.).
@@ -35,7 +37,7 @@ from .models import (
     StructuralTemplatePin,
     Verdict,
 )
-from .provenance import MongoProvenanceStore, ProvenanceStore
+from .provenance import NoOpProvenanceStore, ProvenanceStore
 from .stages import (
     run_artifact,
     run_semantic,
@@ -214,7 +216,7 @@ class PipelineOrchestrator:
         # custom semantic stage (artifact_evaluator.evaluate_artifacts) opt
         # out by passing ``artifact_stage=_skipped_artifact_stage``.
         self._artifact_stage: ArtifactStage = artifact_stage or run_artifact
-        self._provenance_store: ProvenanceStore = provenance_store or MongoProvenanceStore()
+        self._provenance_store: ProvenanceStore = provenance_store or NoOpProvenanceStore()
 
     async def evaluate(self, request: PipelineRequest) -> PipelineResult:
         t0 = time.monotonic()

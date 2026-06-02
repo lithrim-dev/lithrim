@@ -131,6 +131,7 @@ def grade_inprocess(
     *,
     org_id: str = "local",
     semantic_stage: Any = None,
+    provenance_store: Any = None,
 ) -> dict[str, Any]:
     """Run the in-process v2 council and return the parsed PipelineResult dict.
 
@@ -151,10 +152,18 @@ def grade_inprocess(
     ``LocalPipelineBackend`` is imported lazily so this module stays importable on
     default deps (the council pulls in ``openai``), mirroring ``grade_live``'s lazy
     ``httpx`` import.
+
+    ``provenance_store`` is injectable (WS-6d): ``None`` → ``NoOpProvenanceStore``
+    (hermetic — the default for direct/test calls); ``run_eval --in-process`` passes
+    a ``SqliteProvenanceStore`` so the product path persists each run. Persistence is
+    a fire-and-forget side-effect behind ``save`` — the returned dict is byte-identical
+    with the store on or off (the frozen-contract A3).
     """
     from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
 
-    backend = LocalPipelineBackend(org_id=org_id, semantic_stage=semantic_stage)
+    backend = LocalPipelineBackend(
+        org_id=org_id, semantic_stage=semantic_stage, provenance_store=provenance_store
+    )
     result = backend.evaluate_pipeline(case)
     if result is None:
         raise ValueError("case has no artifacts to grade")

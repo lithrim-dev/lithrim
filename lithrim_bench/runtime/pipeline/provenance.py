@@ -48,8 +48,8 @@ class SqliteProvenanceStore(ProvenanceStore):
 
     Fail-soft by contract: the call site is fire-and-forget — the evaluation has
     already completed — so a write failure is logged and swallowed, never raised
-    (mirrors the backend ``MongoProvenanceStore.save``). ``kb_retrievals`` persists
-    as the existing 4-field summary; no expansion (KB is WS-6d-KB).
+    (mirrors the backend provenance store's fail-soft ``save``). ``kb_retrievals``
+    persists as the existing 4-field summary; no expansion (KB is WS-6d-KB).
 
     The doc-shim import is **lazy** (inside the methods) to avoid the
     ``harness/__init__ -> grade`` import cycle, the same posture as the backend
@@ -77,8 +77,3 @@ class SqliteProvenanceStore(ProvenanceStore):
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
 
         return PIPELINE_RUNS.get(pipeline_run_id, db_path=self._db_path or DEFAULT_COLLECTIONS_DB)
-
-
-# Transitional alias — retired in the next WS-6d commit (the orchestrator default
-# moves to NoOpProvenanceStore; the "Mongo" name leaves the product path entirely).
-MongoProvenanceStore = NoOpProvenanceStore

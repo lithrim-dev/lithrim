@@ -119,10 +119,17 @@ def run(
         # through the harness. PAID: the v2 Azure trio makes real calls. Returns the
         # same PipelineResult dict shape as grade_live/replay (the frozen seam), so
         # ground/composite below are unchanged.
+        #
+        # WS-6d: the in-process grade path opts in to real SQLite provenance (no
+        # Mongo). The store is lazily imported so the default-deps replay/live paths
+        # above stay import-light; persistence is fire-and-forget behind ``save``, so
+        # the record built below is byte-identical with the store on or off (A3).
+        from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
+
         sys.stderr.write(
             "WARNING: --in-process runs the in-process v2 council (real paid Azure calls).\n"
         )
-        result = grade_inprocess(case)
+        result = grade_inprocess(case, provenance_store=SqliteProvenanceStore())
         grade_path = "in_process"
     elif live:
         sys.stderr.write("WARNING: --live makes a real paid council call.\n")
