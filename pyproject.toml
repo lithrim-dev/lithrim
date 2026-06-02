@@ -44,6 +44,20 @@ council = [
     "tenacity>=8.0",
     "pydantic-settings>=2.0",
 ]
+# WS-6c-OBS: the optional observation / KPI agents (lithrim_bench/runtime/observation/,
+# recomposed from lithrim-backend observation_workflow + app/agents). The 3 LLM KPI
+# agents (intent_quality/sentiment/safety) reach an OpenAI/Azure client through the
+# vendored council llm_provider, so a REAL KPI extraction needs the same SDK set as
+# [council]. Kept OUT of core so the default install stays the offline pydantic+pandas
+# core — the agents inject a stub LLM in tests and lazy-import openai only on a real
+# call. The audio-DSP bodies (transcription=whisper/torch, audio_analysis=numpy,
+# technical_metrics=librosa) are a DEFERRED follow-up; their deps (openai-whisper,
+# torch, librosa, numpy, soundfile) land WITH that port, not here.
+observation = [
+    "openai>=1.0",
+    "tenacity>=8.0",
+    "pydantic-settings>=2.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -54,5 +68,5 @@ where = ["."]
 include = ["lithrim_bench*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "lithrim_bench/runtime/council/tests"]
+testpaths = ["tests", "lithrim_bench/runtime/council/tests", "lithrim_bench/runtime/observation/tests"]
 addopts = "-ra"
