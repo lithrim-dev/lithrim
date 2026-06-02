@@ -870,6 +870,57 @@
       "hardness": "ROUTINE",
       "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling in the agents per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
       "next_action": "QUEUED behind WS-6c-AGENTIC. Author the driver via /devloop-expand-driver bench-salvage WS-6c-OBS when the compliance milestone is closed (or run in parallel if capacity allows -- it is independent of the compliance grade path). Parallel-safe with the shell track."
+    },
+    {
+      "id": "WS-6d",
+      "phase": "WS-6d",
+      "title": "WS-6d -- persistence swap: real SQLite provenance store behind the ProvenanceStore Protocol (retire Mongo)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseWS-6d-persistence-sqlite-driver",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-6c-AGENTIC). Authored TASK_PACK#WS-6d + the bundle + the driver in one /devloop-expand-driver pass, AFTER 2 user scope decisions (SQLite-only; grade-path-only). User chose the ship-path (WS-6d retire-Mongo -> WS-6e/WS-5e packaging) as the roadmap lead. Sourced from RECOMPOSITION_PLAN_ws6.md §2 (ProvenanceStore salvage) + §4 (Mongo-drop + eval-isolation contract #4) + §7 (WS-6d row) + SPEC_PRODUCT_SERVICE_TOPOLOGY.md (frozen-contract rule).",
+      "regrepped_2026_06_02": "The repository INTERFACE already exists: runtime/pipeline/provenance.py ProvenanceStore:6 (async save) + NoOpProvenanceStore:11 + MongoProvenanceStore=NoOpProvenanceStore:16 ('swap to a SQLite store later'); orchestrator.py:201 (store param) / :217 (default) / :334 (PipelineProvenance build) / :361 (single save call, fire-and-forget). The SQLite BACKEND already exists: harness/collections.py DocShimCollection:35 (insert idempotent-upsert :59 / get :82 / find_by_fk :91; stdlib sqlite3, zero-dep) + 4 collections :105-110 (COMPLIANCE_REPORT :110 id_field=report_id fk=case_id). PipelineProvenance models.py:176 (pipeline_run_id [fresh uuid4 per evaluate, orchestrator.py:335] / org_id / request_hash / kb_retrievals / cost_tokens / verdict / gate_decision / findings / council_error). Backend Protocol template ../lithrim-backend/app/services/pipeline/provenance.py:25 (save:28 / find_by_id:30 / find_compliance_report_by_run_id:32) -- reference-only. Eval-isolation: bench has NO ::eval::/eval_run_id/context_hash threaded today (MOOT under NoOp, test_grade_wire.py:16); pipeline_run_id uniqueness satisfies the re-runs-dont-collide invariant for free. Frozen seam: grade.py grade_inprocess / run_eval.py run:101 / report.py composite:29.",
+      "decisions_made": "2026-06-02 (monitor + user): (1) SQLite-ONLY this cycle (over the stdlib harness/collections.py doc-shim, zero new dep; PG/Aurora a later drop-in behind the same Protocol -- VPC tier). (2) GRADE-PATH ONLY (wire SqliteProvenanceStore into the orchestrator save(provenance) seam; NO OBS call_kpi persistence -- no persist site + no consumer, S-BS-36).",
+      "deliverables": [
+        "D1 runtime/pipeline/provenance.py: add SqliteProvenanceStore(ProvenanceStore) -- save() serializes PipelineProvenance (model_dump json) + idempotent-upserts via the harness doc-shim keyed on pipeline_run_id, fail-soft (fire-and-forget); extend the Protocol with find_by_id(pipeline_run_id)->Optional[dict] (NoOp returns None); RETIRE the MongoProvenanceStore=NoOpProvenanceStore alias. Stdlib sqlite3 only, no new dep.",
+        "D2 runtime/pipeline/orchestrator.py:217 + scripts/run_eval.py/harness/grade.py: repoint the default off the retired Mongo alias (flip to Sqlite default OR grade-path opt-in per plan-review #1); :201/:334/:361 unchanged; run_eval.run signature unchanged (frozen contract; additive keyword knob only).",
+        "D3 the store: find_by_id round-trips a saved provenance (the §7 'route reads through find_by_id'); preserve the eval-isolation invariant (re-runs -> distinct non-colliding rows; same pipeline_run_id -> upsert one row); kb_retrievals persists as the 4-field summary (no expansion).",
+        "D4 tests (offline, stdlib-sqlite tmp_path): round-trip save->find_by_id; idempotent upsert; eval-isolation (2 runs -> 2 rows); FROZEN-CONTRACT diff (PipelineResult/grade record identical with SqliteProvenanceStore vs Null store); default-deps clean.",
+        "D5 .devloop/sessions/session-bench-salvage-phaseWS-6d-2026-06-02.json: store impl + wiring decision + round-trip/idempotent/eval-isolation evidence + frozen-contract diff + Mongo-name-retired note + default-deps green/ruff-clean."
+      ],
+      "acceptance": [
+        "A1 real SQLite persistence: SqliteProvenanceStore.save persists PipelineProvenance via the stdlib doc-shim (no Mongo, no new dep); find_by_id(pipeline_run_id) round-trips. Offline tmp_path test.",
+        "A2 eval-isolation invariant: re-running the same case (fresh pipeline_run_id per evaluate) writes distinct non-colliding rows; same pipeline_run_id twice upserts to one row.",
+        "A3 frozen contract: run_eval.run / report.composite signatures + PipelineResult/grade-record shape UNCHANGED; the grade path returns the identical record with SqliteProvenanceStore vs a Null store (persistence is a pure side-effect). Diff test.",
+        "A4 Mongo retired from the runtime path: the MongoProvenanceStore alias gone; orchestrator default no longer references Mongo; docstrings reflect SQLite. grep MongoProvenance -> 0 hits in runtime/.",
+        "A5 default install unchanged: pytest -q green default deps (stdlib sqlite3, no new dep); import lithrim_bench unaffected; ruff clean on new code."
+      ],
+      "diagnostic_stats_reported": [
+        "row count / DB path after a grade run -- reported, not a gate",
+        "persisted vs in-memory PipelineProvenance field set (round-trip fidelity) -- reported, not a gate"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO PostgreSQL/Aurora impl (SQLite-only; PG is a later drop-in behind the same Protocol -- VPC tier). No asyncpg/psycopg, no [vpc] extra.",
+        "NO OBS call_kpi persistence (grade-path only; observation stays in-memory -- no persist site/consumer, S-BS-36).",
+        "NO KB/RAG (WS-6d-KB); kb_retrievals persists as the existing 4-field summary, no retrieval impl.",
+        "NO frozen-contract change (run_eval.run / report.composite / PipelineResult / §10 BFF untouched; persistence behind the save seam).",
+        "NO consensus/council/grade-seam edit (ported IP + grade_inprocess byte-frozen).",
+        "NO ../lithrim-backend edit (backend provenance.py is the read-only template).",
+        "NO new dependency (stdlib sqlite3 only).",
+        "S-BS-24 is NOT a green gate."
+      ],
+      "plan_review_decisions": [
+        "1 Default store: flip orchestrator default NoOp->Sqlite (persist by default) vs Null default + grade-path opt-in (tests hermetic). Lean: opt-in from the grade path + NoOp default for bare construction.",
+        "2 Eval-isolation key: pipeline_run_id (already unique per evaluate) as row key vs an explicit eval_run_id for grouping. Lean: pipeline_run_id; optional eval_run_id fk only if 'all runs for eval X' is needed.",
+        "3 Store location: in runtime/pipeline/provenance.py (doc-shim import is stdlib) vs a new runtime/services/provenance_sqlite.py. Lean: in place.",
+        "4 Collection target: existing COMPLIANCE_REPORT shim (report_id/case_id -- needs a pipeline_run_id->report_id map; provenance has no case_id) vs a sibling PIPELINE_RUNS DocShimCollection(id_field=pipeline_run_id, fk=org_id) matching the §7 pipeline_runs reads. Lean: add PIPELINE_RUNS."
+      ],
+      "hardness": "ROUTINE",
+      "hardness_reason": "A new store impl behind an EXISTING injected seam; the consensus IP + grade-record shape are frozen and untouched, and nothing downstream reads the persisted rows yet (grade path returns PipelineResult in-memory; save is fire-and-forget). The load-bearing gate is A3 (frozen-contract diff -- grade record identical with persistence on/off), mechanically verifiable. On the GTM critical path (retire Mongo -> offline/VPC product); user MAY elect a fresh-critic at close (as for WS-6c-OBS), but the contract is the internal ProvenanceStore Protocol, not the §10 public BFF -> inline critique default.",
+      "next_action": "Driver authored 2026-06-02 (both-absent reconcile; 2 scope decisions made: SQLite-only + grade-path-only). Run /devloop-kickoff bench-salvage WS-6d; fresh executor session ROOTED IN lithrim-bench (bench-only -- backend provenance.py is read-only template). Plan-review resolves the 4 decisions before 'go'."
     }
   ],
   "seams": [

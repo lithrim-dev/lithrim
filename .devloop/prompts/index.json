@@ -895,6 +895,34 @@
         }
       ],
       "next_action": "CLOSED 2026-06-02. Greenfield in-process recompose of the observation KPI-half landed (lithrim_bench/runtime/observation/) at tier A+. Audit CLEAN; inline critique + monitor deep-read NON-BLOCKING (LLM-port scoring+prompt fidelity verified from source). Opened S-BS-36 (audio bodies deferred behind [observation]) + S-BS-37 (datetime.utcnow). Next (monitor's choice): the remaining 2 DSPy judges (policy/faithfulness, same seam) || 6d persistence (+6d-KB) || shell WS-5e. S-BS-36 -> tier-B follow-up only when a KPI consumer exists. S-BS-34 (ruff exclude) still open, no gate."
+    },
+    {
+      "id": "bench-salvage-phaseWS-6d-persistence-sqlite-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6d",
+      "scope": "persistence swap -- real SQLite provenance store behind the ProvenanceStore Protocol (retire Mongo); SQLite-only + grade-path-only",
+      "file": "bench-salvage_phaseWS-6d_persistence-sqlite_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "ROUTINE",
+      "hardness_reason": "New store impl behind an existing injected seam; consensus IP + grade-record shape frozen; nothing reads the rows yet (fire-and-forget save). Load-bearing gate = A3 frozen-contract diff. GTM-critical (retire Mongo); user may elect fresh-critic at close, but the contract is the internal ProvenanceStore Protocol not the §10 BFF -> inline default.",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-02",
+      "last_re_verified": "2026-06-02",
+      "_note": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-6c-AGENTIC). Authored TASK_PACK#WS-6d + this bundle + the driver in one /devloop-expand-driver pass after 2 user scope decisions (SQLite-only; grade-path-only). User chose the ship-path (WS-6d -> WS-6e/WS-5e) as the roadmap lead. The repository interface (ProvenanceStore Protocol + injectable orchestrator seam, MongoProvenanceStore=NoOp alias 'swap to SQLite later') AND the SQLite backend (harness/collections.py stdlib doc-shim, 4 collections) ALREADY EXIST -- WS-6d wires them: implement SqliteProvenanceStore over the doc-shim, flip the default off the Mongo alias, preserve the eval-isolation invariant (pipeline_run_id unique per run), behind the frozen grade contract.",
+      "_registration_note": "Both-absent reconcile expanded via /devloop-expand-driver bench-salvage WS-6d 2026-06-02 (re-grepped the persistence touchpoints against bench runtime + harness + the backend template at authoring).",
+      "re_verification_log": [
+        {
+          "date": "2026-06-02",
+          "actor": "monitor (/devloop-expand-driver both-absent reconcile)",
+          "checked": 14,
+          "confirmed": 14,
+          "drifted": 0,
+          "missing": 0,
+          "drift_notes": "CONFIRMED (14): provenance.py ProvenanceStore:6 / NoOpProvenanceStore:11 / MongoProvenanceStore-alias:16; orchestrator.py:201/:217/:334/:361 (PipelineProvenance build + single fire-and-forget save); models.py:176 PipelineProvenance (pipeline_run_id fresh uuid4 per evaluate :335); harness/collections.py DocShimCollection:35 (insert:59/get:82/find_by_fk:91, stdlib sqlite3) + COMPLIANCE_REPORT:110; backend template provenance.py:25 Protocol (save:28/find_by_id:30/find_compliance_report_by_run_id:32); frozen seam grade_inprocess/run_eval.run:101/report.composite:29. DESIGN NOTE (not a drift): bench has NO ::eval::/eval_run_id/context_hash threaded today (MOOT under NoOp, test_grade_wire.py:16) -- pipeline_run_id uniqueness gives the re-runs-dont-collide invariant for free (plan-review #2). 0 drifted, 0 missing."
+        }
+      ],
+      "next_action": "READY 2026-06-02 (both-absent reconcile; driver authored; 14 citations re-grepped, 0 drift, 0 missing; 2 scope decisions made = SQLite-only + grade-path-only). Run /devloop-kickoff bench-salvage WS-6d; fresh executor session ROOTED IN lithrim-bench (bench-only). Plan-review resolves the 4 decisions before 'go'. Inline critique at close (user may elect fresh-critic -- GTM-critical retire-Mongo)."
     }
   ]
 }
