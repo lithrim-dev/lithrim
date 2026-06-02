@@ -13,8 +13,10 @@ follows (each checked against ``compliance_workflow.py`` @ mvp-ready):
     ported verbatim, survives.
   - Eval isolation (§4#4): seed-determinism honored via ``eval_mode`` + the
     ``run:local:case:<id>`` conversation_id (``local_pipeline.py``); the
-    ``::eval::`` context_hash upsert is MOOT in-process (``NoOpProvenanceStore`` —
-    no persistence this cycle; the real repository is WS-6d).
+    ``::eval::`` context_hash upsert is MOOT in-process — it is a
+    ``store_report``/COMPLIANCE_REPORT concern the primitive never invokes, and
+    provenance-store eval-isolation comes from ``pipeline_run_id`` uniqueness per run
+    (the real SQLite repository landed in WS-6d / SqliteProvenanceStore).
   - Two-phase disposition (§4#1): lives INSIDE the frozen ``_apply_consensus``;
     the workflow's preliminary→recompute is a defensive WRAPPER the primitive
     legitimately does not replicate (no ``_determine_disposition`` /
