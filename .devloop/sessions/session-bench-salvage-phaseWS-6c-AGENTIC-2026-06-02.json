@@ -62,13 +62,19 @@
       "hash": "2e25164",
       "repo": "lithrim-bench",
       "title": "feat(harness): wire the in-process council into the grade seam (D3)",
-      "summary": "grade_inprocess() returns PipelineResult.model_dump(json) == grade_replay/live shape (zero missing baseline keys); run_eval --in-process selector. LocalPipelineBackend imported lazily (default-deps importable). report.composite / run_eval.run signature unchanged."
+      "summary": "grade_inprocess() returns PipelineResult.model_dump(json) == grade_replay/live shape (zero missing baseline keys); run_eval --in-process selector. LocalPipelineBackend imported lazily (default-deps importable). report.composite unchanged; run_eval.run EXTENDED backward-compatibly (keyword-only in_process=False added). CORRECTION: this commit's message said 'signature otherwise unchanged' — inaccurate; the kw-only param is additive/back-compatible but the signature DID change."
     },
     {
       "hash": "cb817b1",
       "repo": "lithrim-bench",
       "title": "test(pipeline): contract-preservation vs :8002 baseline + S-BS-31 one-strike oracle (D2+D4)",
       "summary": "test_grade_wire.py (D4/A2 regression oracle replaying the captured :8002 v2 baseline through the recompose + the D2 contract-classification docstring); test_consensus.py +4 (S-BS-31 one-strike per code + non-owner-still-downgrades contrast)."
+    },
+    {
+      "hash": "9b2a9ce",
+      "repo": "lithrim-bench",
+      "title": "test(pipeline): A5 live grade_inprocess evidence — fixture + env-gated real-council test (S-BS-35b)",
+      "summary": "OPTION-B ADDENDUM (not a re-open): tests/fixtures/ws0/a5_live.drop_allergy.json (the live grade_inprocess v2-trio execution on proof_case:drop_allergy — per-judge + verdict/gate/composite + 29679 tok) + test_grade_wire.py::test_v2_trio_grade_inprocess_live (env-gated real-council grade_inprocess, no stage injection, run-green live, skips $0 default). Closes S-BS-35b. A follow-up commit corrected the A5/run_eval session-log narratives (S-BS-35 c/d)."
     }
   ],
 
@@ -91,7 +97,7 @@
     {
       "criterion": "A3 — run_eval can score a case through in-process v2; record flows ground->composite; PipelineResult shape identical",
       "verdict": "PASS",
-      "evidence": "grade_inprocess dict top-level keys == captured baseline keys (zero missing). test_grade_wire.py::test_inprocess_flows_through_ground_composite_offline -> composite reject. run_eval.py gained --in-process; report.composite / run_eval.run signature unchanged."
+      "evidence": "grade_inprocess dict top-level keys == captured baseline keys (zero missing). test_grade_wire.py::test_inprocess_flows_through_ground_composite_offline -> composite reject. run_eval.py gained --in-process; report.composite unchanged; run_eval.run extended backward-compatibly (keyword-only in_process=False added; default preserves prior behavior — NOT 'signature unchanged')."
     },
     {
       "criterion": "A4 — consensus byte-frozen vs WS-6c-DSPy tip 6bae3c0 (only _TIER1_OWNERS data + path/config)",
@@ -101,7 +107,7 @@
     {
       "criterion": "A5 — ONE cost-confirmed live Azure v2-trio call; verdict matches offline expectation; Mistral confidence=None tolerated",
       "verdict": "PASS",
-      "evidence": "1 live full-trio call (gpt-4.1/Mistral-Large-3/Llama-4-Maverick) on the drop_allergy case: verdict BLOCK / composite reject (== expected defective disposition); policy_judge (Mistral) confidence=None end-to-end (no crash, contributed to consensus); cost 30569 tokens (~$0.10-0.20, within the $0.15-0.25 envelope). CAVEAT (report-only, NOT a gate): the live judges flagged the defect via FABRICATED_ALLERGY/FABRICATED_HISTORY/HALLUCINATED_DETAIL/MEDICATION_NOT_IN_TRANSCRIPT/INCOMPLETE_DOCUMENTATION, NOT the by-construction MISSING_ALLERGY label, so the MISSING_ALLERGY one-strike was not exercised LIVE (it is proven deterministically offline by A0). This recipe!=emitted-code gap is the judge-calibration signal per RECOMPOSITION_PLAN_ws6 §8 risk 6."
+      "evidence": "PASS. Live grade_inprocess v2-trio (gpt-4.1/Mistral-Large-3/Llama-4-Maverick) on proof_case:drop_allergy via the GRADE-WIRE (grade_inprocess, NOT council.evaluate directly): verdict BLOCK / gate escalate / composite reject (== expected defective disposition); all 3 judges BLOCK; policy_judge (Mistral) confidence=None end-to-end. ON-DISK EVIDENCE (option-B addendum, commit 9b2a9ce): tests/fixtures/ws0/a5_live.drop_allergy.json (per-judge {model,decision,confidence,finding_codes,errors} + verdict/gate/composite + cost 29679 tok ~$0.09-0.20, within the $0.15-0.25 envelope) + the env-gated real-council test test_grade_wire.py::test_v2_trio_grade_inprocess_live (run-green LIVE once; skips $0 by default; closes S-BS-35b — the in-suite real-council grade_inprocess coverage the critic C6 found missing). DISAMBIGUATION (the fresh-critic conflated two distinct live things): the A5 call is grade_inprocess(proof_case:drop_allergy) [the grade-wire]; it is DISTINCT from the SEPARATE WS-6c council-level smoke test_live_smoke.py::test_v2_trio_live_smoke = council.evaluate(SMOKE_PAYLOAD, case_id='ws6c_live_smoke_fabricated_history') [a hardcoded scheduling/fabricated-history payload, NO grade-wire]. CAVEAT (report-only, NOT a gate): the live judges emit FABRICATED_ALLERGY/FABRICATED_HISTORY/HALLUCINATED_DETAIL/MEDICATION_NOT_IN_TRANSCRIPT/INCOMPLETE_DOCUMENTATION, NOT the by-construction MISSING_ALLERGY label, so the MISSING_ALLERGY one-strike is proven OFFLINE ONLY (test_consensus.py), never live — the RECOMPOSITION_PLAN_ws6 §8 risk-6 recipe!=emitted-code calibration signal. Two live calls total this cycle: the original A5 exploratory (30569 tok, uncommitted) + the option-B committed capture (29679 tok)."
     },
     {
       "criterion": "A6 — scope held (no obs/KPI, no persistence/KB, no consensus-math, no §10/report.composite; orchestrator/stages not rewritten; backend = _TIER1_OWNERS + 2 prompts only)",
@@ -138,11 +144,11 @@
     }
   ],
 
-  "seams_closed": ["S-BS-31", "S-BS-32"],
+  "seams_closed": ["S-BS-31", "S-BS-32", "S-BS-35(b)"],
 
   "verdict": "PROCEED-WITH-CAVEATS",
 
-  "report": "WS-6c-AGENTIC is the compliance grade-wire milestone: the council now scores real cases through the harness grade seam for the first time (live full v2 trio on a real proof_case -> reject, Mistral confidence=None tolerated end-to-end). S-BS-31 closed by reassigning the 3 orphaned Tier-1 owners to the v2 trio (cross-repo: backend mvp-ready 6720c70, byte-faithful re-port + re-snapshot in bench; faithfulness owns MISSING_ALLERGY+VALUE_MISMATCH, policy owns FABRICATED_CONSENT; the inert risk co-owner from driver D0-1 was dropped after an adversarial from-source verification workflow). S-BS-32's 3 RED tests are green (MISSING_ALLERGY via the owner fix; WRONG_DOSAGE+MISSED_ESCALATION were stale v1 assertions, corrected to v2). Consensus IP byte-frozen (A4: only the _TIER1_OWNERS hunk). TWO non-blocking caveats for the critic to weigh: (1) 'ruff check .' is NOT clean (865 pre-existing, zero introduced -> S-BS-34); (2) the A5 live judges emitted other codes than the by-construction MISSING_ALLERGY (recipe!=emitted-code, report-only per §8 risk 6) so the live MISSING_ALLERGY one-strike was proven offline, not live. Audit first: A4 scoped diff + the A6 scope (orchestrator/stages untouched) + that S-BS-34 is genuinely pre-existing.",
+  "report": "WS-6c-AGENTIC is the compliance grade-wire milestone: the council now scores real cases through the harness grade seam for the first time (live full v2 trio on a real proof_case -> reject, Mistral confidence=None tolerated end-to-end). S-BS-31 closed by reassigning the 3 orphaned Tier-1 owners to the v2 trio (cross-repo: backend mvp-ready 6720c70, byte-faithful re-port + re-snapshot in bench; faithfulness owns MISSING_ALLERGY+VALUE_MISMATCH, policy owns FABRICATED_CONSENT; the inert risk co-owner from driver D0-1 was dropped after an adversarial from-source verification workflow). S-BS-32's 3 RED tests are green (MISSING_ALLERGY via the owner fix; WRONG_DOSAGE+MISSED_ESCALATION were stale v1 assertions, corrected to v2). Consensus IP byte-frozen (A4: only the _TIER1_OWNERS hunk). TWO non-blocking caveats for the critic to weigh: (1) 'ruff check .' is NOT clean (865 pre-existing, zero introduced -> S-BS-34); (2) the A5 live judges emitted other codes than the by-construction MISSING_ALLERGY (recipe!=emitted-code, report-only per §8 risk 6) so the live MISSING_ALLERGY one-strike is proven offline, not live. OPTION-B ADDENDUM (commit 9b2a9ce + a session-log-correction commit): the A5 live evidence is now verifiable on-disk (tests/fixtures/ws0/a5_live.drop_allergy.json) + an env-gated real-council grade_inprocess test (closes S-BS-35b, the missing real-council coverage critic C6 flagged); the session-log A5 narrative was disambiguated from test_live_smoke.py's ws6c_live_smoke_fabricated_history (the critic conflated them) and the run_eval.run 'signature unchanged' claim corrected to 'extended backward-compatibly (in_process= added)' (S-BS-35 c/d). NOT a re-open: A0/A4/A6/A7 + consensus byte-freeze untouched. Audit first: A4 scoped diff + the A6 scope (orchestrator/stages untouched) + that S-BS-34 is genuinely pre-existing.",
 
   "next_session_hint": "HARD GATE: run the genuinely-fresh-critic in a SEPARATE session via /devloop-critique bench-salvage WS-6c-AGENTIC (deferred from WS-6c + WS-6c-DSPy precisely for this grade-wire cycle). Then monitor /devloop-audit. The user offered to patch the driver A0 + the STREAM S-BS-32 seam to match the corrected reality (re-snapshot=0/3 + 2 assertion edits)."
 }
