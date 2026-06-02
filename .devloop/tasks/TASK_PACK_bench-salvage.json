@@ -783,6 +783,93 @@
       "hardness": "HARD-GATE",
       "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing and an independent read of the judge prompts earns its keep. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
       "next_action": "Driver authored 2026-06-02 (ready; both-absent reconcile). Run /devloop-kickoff bench-salvage WS-6c-DSPy; fresh executor session ROOTED IN lithrim-bench (everything in-repo; no ../lithrim-backend read this cycle). Plan-review resolves the 6 decisions (incl. which judge first + optimizer-vs-gate + the live-smoke cost) before 'go'. Parallel-safe with WS-6c-AGENTIC (S-BS-31-gated) + the shell track."
+    },
+    {
+      "id": "WS-6c-AGENTIC",
+      "phase": "WS-6c-AGENTIC",
+      "title": "WS-6c-AGENTIC -- compliance grade-wire milestone (S-BS-31 fix + M1 spine v1->v2 + wire the in-process council into grade)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench", "lithrim-backend"],
+      "prompt_bundle": "bench-salvage-phaseWS-6c-AGENTIC-compliance-grade-wire-driver",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c/WS-6c-DSPy). Authored TASK_PACK#WS-6c-AGENTIC + the bundle + the driver in one /devloop-expand-driver pass, AFTER (a) the S-BS-31 clinical/IP decision (monitor+user: option (a) reassign-by-domain) and (b) a code-faithful RE-SCOPE: the §7 AGENTIC headline (recompose compliance_workflow -> async) is ALREADY BUILT as the parked M1 in-process spine (8f9beae: runtime/pipeline/orchestrator.py:187 + stages.py + backends/local_pipeline.py:42). So this phase is the grade-wire MILESTONE, not a greenfield recompose; the observation/KPI recompose is split to WS-6c-OBS. Sourced from RECOMPOSITION_PLAN_ws6.md §4/§5/§6/§7/§8 + the WS-6c-DSPy handoff + the S-BS-31 teeup.",
+      "regrepped_2026_06_02": "S-BS-31 fix site (backend SSOT, mvp-ready): ../lithrim-backend/app/services/compliance_council.py _TIER1_OWNERS:232 (MISSING_ALLERGY:234 {behavior,source_message}; FABRICATED_CONSENT:241 {behavior,source_message}; VALUE_MISMATCH:249 {behavior}); escalation logic :2050-2110 (single-judge one-strike requires owner-membership :2082-2102, else tier1_off_domain_single_judge downgrade); v2 trio risk/policy/faithfulness :474-495; faithfulness_judge.txt:14 already emits MISSING_ALLERGY (VALUE_MISMATCH not named, concept at :44-50); policy_judge.txt:12 names consent scope (FABRICATED_CONSENT code not). Bench mirror byte-faithful at runtime/council/compliance_council.py:232; v2 selector settings.py:50 (default v2); v2 trio built compliance_council.py:463. EXISTING in-process spine: runtime/pipeline/orchestrator.py:187 PipelineOrchestrator.evaluate->PipelineResult; stages.py:28 imports the ported council; backends/local_pipeline.py:42 LocalPipelineBackend (M1: forces v1, structural/artifact skipped, NoOpProvenanceStore, retrieval stub). Grade seam (frozen): harness/grade.py grade_replay:40/grade_live:85/:8002-POST:121; scripts/run_eval.py run:101 (live vs replay only, in-process NOT wired); harness/report.py composite:29. Replay baselines: tests/fixtures/ws0/baseline.*.json. Backend workflow reference: compliance_workflow.py 7 nodes (retrieve_context/run_safety_prescreening/run_confidence_gate/run_council:859/extract_evidence:1034/store_report:1286/handle_error:1514); two-phase disposition prelim ~:955 + recompute ~:1211; gate policy P0-3:767/FAST-PATH:782/regex:722; ::eval:: context_hash:1372; lockstep _recompute_consensus_from_council:2206/_recompute_final_verdict:2281; semaphore :58-60. DRIFT: §4 contract-2 node names check_hipaa_compliance/evaluate_artifacts DO NOT EXIST -- re-derive fatal/non-fatal from the 7 live nodes.",
+      "s_bs_31_decision": "DECIDED 2026-06-02 (monitor+user): option (a) reassign-by-domain. faithfulness_judge owns MISSING_ALLERGY + VALUE_MISMATCH; policy_judge owns FABRICATED_CONSENT; risk_judge co-owns MISSING_ALLERGY (patient-safety, mirrors FABRICATED_ALLERGY). Restores single-judge Tier-1 one-strike under v2. Principled: faithfulness_judge.txt already emits MISSING_ALLERGY (the v1->v2 behavior->faithfulness succession), consent is policy's domain. Lands in backend _TIER1_OWNERS:232 + 2 prompt emit-lines, re-ports to bench, re-snapshots taxonomy. Closes S-BS-31; S-BS-32 resolves with it.",
+      "deliverables": [
+        "D0 S-BS-31 fix (cross-repo, two commits): (1) ../lithrim-backend/app/services/compliance_council.py:232 _TIER1_OWNERS add v2-trio owners (MISSING_ALLERGY += faithfulness_judge + risk_judge; VALUE_MISMATCH += faithfulness_judge; FABRICATED_CONSENT += policy_judge) + faithfulness_judge.txt add VALUE_MISMATCH emit-line + policy_judge.txt add FABRICATED_CONSENT emit-line; (2) re-port byte-faithfully to lithrim_bench/runtime/council/compliance_council.py:232 + council_roles/; re-snapshot taxonomy_snapshot.json via snapshot_taxonomy.py (no hand-edit). Closes S-BS-31 + S-BS-32.",
+        "D1 backends/local_pipeline.py:42: drive the v2 Azure trio (stop forcing v1; settings default v2), supply AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3 + _LLAMA_4_MAVERICK; un-skip structural/artifact per plan-review #1. orchestrator.py:187/stages.py: only the changes the v2 trio + un-skipped stages need; NO consensus-math edit.",
+        "D2 verify the §4/§5 behavior contracts survive in the existing recompose (orchestrator.py/stages.py vs the backend compliance_workflow.py reference): two-phase disposition (:859 prelim / :1034 recompute), fatal/non-fatal map RE-DERIVED from the 7 live nodes (the §4 names are stale), concurrency semaphore (:58-60), ::eval:: isolation (:1372), gate safety policy (P0-3:767/FAST-PATH:782/regex:722), lockstep _recompute_* (:2206/:2281) mirrors _apply_consensus incl. None-tolerance.",
+        "D3 wire the in-process council into the grade seam: harness/grade.py add grade_inprocess (sibling to grade_replay:40/grade_live:85) returning the SAME PipelineResult shape; scripts/run_eval.py:101 add the in-process path selector. report.composite + run_eval.run signature + §10 BFF UNTOUCHED.",
+        "D4 regression oracle: diff in-process v2 verdicts vs the captured :8002 replay baselines (tests/fixtures/ws0/baseline.*.json) over the by-construction packs incl. examples/proof_case.jsonl (now exercising S-BS-31's MISSING_ALLERGY+VALUE_MISMATCH); reproduce verdict+findings+confidence; document legitimate v1->v2 deltas.",
+        "D5 .devloop/sessions/session-bench-salvage-phaseWS-6c-AGENTIC-2026-06-02.json: S-BS-31 before/after + S-BS-32 green + v2 in-process verdict on proof_case + contract diff-vs-baseline + grade-wire proof + one live Azure smoke verdict + cost."
+      ],
+      "acceptance": [
+        "A0 S-BS-31 CLOSED: after D0, a single v2 judge firing MISSING_ALLERGY/VALUE_MISMATCH/FABRICATED_CONSENT with grounded evidence one-strike rejects (no downgrade); unit test per code + the offline consensus oracle. S-BS-32's 3 packager/triage tests GREEN.",
+        "A1 v2 in-process: LocalPipelineBackend runs the v2 trio in-process (no :8002/Celery) and produces a council verdict on examples/proof_case.jsonl.",
+        "A2 contracts preserved: two-phase disposition + (re-derived) fatal/non-fatal map + concurrency semaphore + ::eval:: isolation + gate safety policy hold in the recomposed orchestrator -- demonstrated by the D4 diff-vs-replay-baseline reproducing verdict+findings+confidence (v1->v2 deltas documented).",
+        "A3 grade-wired: run_eval.run scores a case through the in-process v2 council and the record flows through ground->composite unchanged; PipelineResult shape identical to grade_live/grade_replay. First time the council scores real cases through the harness; verified end-to-end on one case.",
+        "A4 consensus unchanged: git diff over the ported consensus functions/tables vs the WS-6c-DSPy tip = zero logic delta (only _TIER1_OWNERS data + path/config changes); recorded in the session log.",
+        "A5 one live smoke: exactly ONE cost-confirmed live Azure v2-trio call; in-process verdict on one case matches the offline/replay expectation (verdict + per-judge confidences + cost); Mistral confidence=None tolerated end-to-end.",
+        "A6 scope held: no observation/KPI recompose (WS-6c-OBS); no persistence/KB; no consensus-math edit; no §10/report.composite/run_eval.run signature change; orchestrator/stages EXTENDED not rewritten; only backend edit is D0 _TIER1_OWNERS + 2 prompt files.",
+        "A7 default install: pytest -q green on default deps (dspy importorskip-skips); ruff clean."
+      ],
+      "diagnostic_stats_reported": [
+        "in-process v2 verdict distribution vs the captured :8002 replay baselines (v1->v2 delta summary) -- reported, not a gate",
+        "per-judge confidences + the live-smoke cost -- reported, not a gate",
+        "proof_case score (recipe=label) under the in-process v2 path -- reported, not a gate (calibration is report-only per §8 risk 6)"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO observation_workflow / 6-KPI-agent recompose -- that is WS-6c-OBS (greenfield; not in the compliance grade path)",
+        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables byte-identical to the WS-6c-DSPy tip; the §6 invariant). D0 edits _TIER1_OWNERS DATA, not the consensus functions",
+        "NO persistence swap / repository interface / Mongo (WS-6d); NO KB/RAG/Pinecone/ONNX (WS-6d-KB); provenance stays NoOpProvenanceStore",
+        "NO DSPy judge changes (WS-6c-DSPy track); the grade-wire is judge-impl-agnostic (the §6 hybrid wraps DSPy/imperative identically)",
+        "NO §10 BFF / report.composite / run_eval.run signature change -- wire the in-process path BEHIND the frozen seam, same PipelineResult shape",
+        "NO S-BS-33 resolution (citations_used seam-doc gap stays inert until KB lands, WS-6d-KB)",
+        "S-BS-24 is NOT a green gate (backend not-slow suite RED pre-existing); orchestrator/stages EXTEND not rewrite"
+      ],
+      "plan_review_decisions": [
+        "1 Un-skip scope (D1): drive v2 semantic-only first (structural/artifact stay skipped; fastest to 'council scores real cases') vs un-skip structural (etlp-mapper :3031) + artifact this cycle (default: semantic-only-v2 first)",
+        "2 Grade-wire mechanism (D3): run_eval.py --in-process flag returning the same record (default, smallest) vs a backend-selector abstraction over grade_live/replay/inprocess",
+        "3 Replay-baseline coverage (D4): which captured :8002 baselines are the regression set + how to treat legitimate v1->v2 deltas (document-and-accept vs re-capture v2 baselines)",
+        "4 Contract-2 re-derivation (D2): confirm the fatal/non-fatal node map read off the live 7 nodes (the §4 names are stale)",
+        "5 Live-smoke scope + cost (D5): exactly ONE cost-confirmed live Azure v2-trio call (confirm the envelope; WS-6c-DSPy was $0.0067, WS-6c trio ~$0.15-0.25); offline/replay-first",
+        "6 Persistence posture: NoOpProvenanceStore stays this cycle (real repo interface is WS-6d) while the ::eval:: isolation contract is honored in-memory"
+      ],
+      "hardness": "HARD-GATE",
+      "hardness_reason": "The cycle where the council FIRST scores real cases through the grade seam. A fidelity miss in the recompose-upgrade or the S-BS-31 fix would score real cases wrong. The genuinely-fresh-critic independence was deliberately deferred from WS-6c (inline, user-elected) and WS-6c-DSPy (inline-by-continuation) so it lands HERE -- fresh-critic is REQUIRED, NOT user-electable inline. Touches the backend council safety IP (D0 cross-repo).",
+      "next_action": "Driver authored 2026-06-02 (ready; both-absent reconcile; S-BS-31 DECIDED option (a); re-scoped to compliance grade-wire, observation/KPI split to WS-6c-OBS). Run /devloop-kickoff bench-salvage WS-6c-AGENTIC; fresh executor session ROOTED IN lithrim-bench (one cross-repo edit: the D0 backend _TIER1_OWNERS fix on mvp-ready). Plan-review resolves the 6 decisions before 'go'. Fresh-critic REQUIRED at close."
+    },
+    {
+      "id": "WS-6c-OBS",
+      "phase": "WS-6c-OBS",
+      "title": "WS-6c-OBS -- recompose observation_workflow + the 6 KPI agents in-process (split out of WS-6c-AGENTIC)",
+      "status": "queued",
+      "blocked_by": ["WS-6c-AGENTIC"],
+      "priority": "P2",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "(stub -- author via /devloop-expand-driver bench-salvage WS-6c-OBS)",
+      "origin": "SPLIT from WS-6c-AGENTIC 2026-06-02 (monitor+user). The code-faithful re-scope showed the observation/KPI side is genuinely greenfield (grep TranscriptionAgent|SentimentAgent|SafetyAgent|KPIAggregation|run_parallel_analyses across lithrim_bench/ = 0 hits) and is NOT in the compliance grade path, so it does not belong in the council-scores-real-cases milestone. Sourced from RECOMPOSITION_PLAN_ws6.md §4 (agents) + §7 (AGENTIC row's observation half) + Ratification Q4.",
+      "regrepped_2026_06_02": "Backend source to recompose-from: ../lithrim-backend/app/workflows/observation_workflow.py (StateGraph:4; ObservationState:38; run_parallel_analyses:423 asyncio.gather ~:570; 7 agents instantiated per-call: TranscriptionAgent:333/AudioAnalysisAgent:391/IntentQualityAgent:447/SentimentAgent:481/SafetyAgent:503/TechnicalMetricsAgent:537/KPIAggregationAgent:613; conversation_item.find_one:355; Mongo write ~:858). ../lithrim-backend/app/agents/ dirs: audio_analysis/intent_quality/kpi_aggregation/safety/sentiment/technical_metrics/transcription (the 6 KPI + transcription ingest), evaluation_agent (DEAD: only self-refs CONFIRMED -> DROP), simulation_agent (LiveKit, separate real-time flow CONFIRMED -> PARK). NOTE the '6 KPI agents' framing = 7 instantiated (transcription + 6 KPI); confirm the recompose set at plan-review.",
+      "deliverables": [
+        "Recompose observation_workflow (StateGraph) -> straight-line async fn(s) in lithrim_bench/runtime/ (the asyncio.gather fan-out stays; conditional edges -> if/await; error sink -> try/except).",
+        "Recompose the 6 KPI agents in-process (hoist instantiation out of the per-call re-instantiation at observation_workflow.py:333/391/447/481/503/537/613). DROP the dead evaluation_agent. PARK the LiveKit simulation_agent (out of the verification pipeline).",
+        "Preserve the ObservationState field contract (the in-memory shape the recomposed pipeline emits)."
+      ],
+      "acceptance": [
+        "The observation/KPI pipeline runs in-process (no Celery/Mongo) and produces the KPI aggregation for one case; evaluation_agent absent; simulation_agent not in the pipeline path.",
+        "Default install unchanged; ruff clean."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO compliance pipeline / council / grade-wire changes (WS-6c-AGENTIC)",
+        "NO LiveKit/voice real-time ingest (simulation_agent parked; live-call ingest out of WS-6 per Ratification Q4)",
+        "NO persistence swap (WS-6d); NO KB (WS-6d-KB)"
+      ],
+      "hardness": "ROUTINE",
+      "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling in the agents per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
+      "next_action": "QUEUED behind WS-6c-AGENTIC. Author the driver via /devloop-expand-driver bench-salvage WS-6c-OBS when the compliance milestone is closed (or run in parallel if capacity allows -- it is independent of the compliance grade path). Parallel-safe with the shell track."
     }
   ],
   "seams": [

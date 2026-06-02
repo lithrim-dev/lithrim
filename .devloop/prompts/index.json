@@ -821,6 +821,53 @@
       "new_seams": ["S-BS-32", "S-BS-33"],
       "seams_closed": ["S-BS-27"],
       "close_out_driver_fixes": "D1 (driver §3 dec1: risk_judge prohibited from FABRICATED_HISTORY per risk_judge.txt:24) + D3 (class ComplianceCouncil :459->:453) + A3-NKA (role-prompt suppression, not a consensus-oracle scenario) corrected in the driver at close."
+    },
+    {
+      "id": "bench-salvage-phaseWS-6c-AGENTIC-compliance-grade-wire-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c-AGENTIC",
+      "scope": "compliance grade-wire milestone: S-BS-31 fix + upgrade the M1 in-process spine v1->v2 trio + verify the behavior contracts + wire the in-process council into the harness grade seam (the council first scores real cases)",
+      "file": "bench-salvage_phaseWS-6c-AGENTIC_compliance-grade-wire_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "The cycle where the council FIRST scores real cases through the grade seam; a fidelity miss in the recompose-upgrade or the S-BS-31 fix would score real cases wrong. Fresh-critic is REQUIRED (not user-electable inline) -- the genuinely-fresh-critic independence was deliberately deferred from WS-6c + WS-6c-DSPy to land here. Touches the backend council safety IP (D0 cross-repo).",
+      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "created": "2026-06-02",
+      "last_re_verified": "2026-06-02",
+      "_note": "WS-6 step c-AGENTIC, RE-SCOPED to the compliance grade-wire milestone. The §7 AGENTIC headline (recompose compliance_workflow -> async) is ALREADY BUILT as the parked M1 in-process spine (8f9beae: runtime/pipeline/orchestrator.py:187 PipelineOrchestrator.evaluate->PipelineResult + stages.py + backends/local_pipeline.py:42 LocalPipelineBackend, which runs v1 semantic-only). So this phase is NOT a greenfield recompose: D0 resolves S-BS-31 (DECIDED option (a) reassign-by-domain: faithfulness owns MISSING_ALLERGY+VALUE_MISMATCH, policy owns FABRICATED_CONSENT, risk co-owns MISSING_ALLERGY; backend _TIER1_OWNERS:232 + 2 prompt emit-lines, re-port to bench, re-snapshot; closes S-BS-31+S-BS-32); D1 upgrades the spine v1->v2 trio (settings.py:50 default v2; trio :463); D2 verifies the §4/§5 behavior contracts survive (two-phase disposition :859/:1034, fatal/non-fatal RE-DERIVED from the 7 live nodes since §4's check_hipaa_compliance/evaluate_artifacts names are STALE, semaphore :58-60, ::eval:: :1372, gate policy P0-3:767/FAST-PATH:782/regex:722, lockstep _recompute_*:2206/:2281); D3 wires grade_inprocess behind the frozen seam (grade.py grade_replay:40/grade_live:85; run_eval.run:101; report.composite:29 untouched, same PipelineResult shape); D4 diffs in-process v2 verdicts vs the captured :8002 replay baselines (tests/fixtures/ws0/baseline.*.json) incl. proof_case (S-BS-31's codes). The observation_workflow + 6-KPI-agent recompose is SPLIT to WS-6c-OBS (greenfield; not in the grade path). NOT in scope: observation/KPI (WS-6c-OBS), consensus-math edit (the §6 invariant), persistence (6d), KB (6d-KB), DSPy judge changes, §10/report.composite/run_eval signature change, S-BS-33.",
+      "_registration_note": "BOTH-ABSENT reconcile (no stub + no task-pack entry; same pattern as WS-5c/WS-5d/WS-6b/WS-6c/WS-6c-DSPy) -- BUT this pass HALTED first for two user decisions before authoring: (1) the S-BS-31 clinical/IP call (option (a) reassign-by-domain) and (2) a code-faithful RE-SCOPE (compliance grade-wire milestone; split observation/KPI to WS-6c-OBS) after re-grepping showed the §7 compliance-recompose headline is already built (M1 spine). Authored TASK_PACK#WS-6c-AGENTIC + TASK_PACK#WS-6c-OBS (stub) + this bundle + the OBS stub + the driver in one /devloop-expand-driver pass 2026-06-02.",
+      "re_verification_log": [
+        {
+          "date": "2026-06-02",
+          "actor": "monitor (/devloop-expand-driver, both-absent reconcile + re-scope)",
+          "checked": 22,
+          "confirmed": 19,
+          "drifted": 2,
+          "missing": 1,
+          "drift_notes": "CONFIRMED (19): S-BS-31 fix sites backend _TIER1_OWNERS:232 (MISSING_ALLERGY:234/FABRICATED_CONSENT:241/VALUE_MISMATCH:249) + escalation :2050-2110 (owner-membership one-strike :2082) + v2 trio :463/:474-495; bench mirror :232; settings.py:50 v2-default; faithfulness_judge.txt:14 emits MISSING_ALLERGY; policy_judge.txt:12 consent scope; risk_judge.txt:26 consent=policy-domain; EXISTING spine orchestrator.py:187 + stages.py:28 + local_pipeline.py:42; grade seam grade_replay:40/grade_live:85/:8002-POST:121 + run_eval.run:101 + report.composite:29; replay baselines tests/fixtures/ws0/baseline.*.json; backend workflow 7 nodes + run_council:859/extract_evidence:1034/store_report:1286/handle_error:1514 + ::eval:::1372 + gate P0-3:767/FAST-PATH:782/regex:722 + lockstep :2206/:2281 + semaphore :58-60; observation_workflow:4/:38/:423/agents :333-:613/find_one:355; agents dirs; evaluation_agent DEAD (self-refs only); simulation_agent LiveKit-separate. DRIFTED (2): (a) the §7 AGENTIC compliance-recompose headline is STALE -- already built as the M1 spine 8f9beae, so the phase re-scoped to grade-wire + observation split to WS-6c-OBS; (b) '6 KPI agents' = 7 instantiated (transcription + 6 KPI) -- confirm the recompose set at WS-6c-OBS plan-review. MISSING (1): §4 contract-2 node names check_hipaa_compliance/evaluate_artifacts do NOT exist in compliance_workflow.py (7 nodes only) -- fatal/non-fatal map RE-DERIVED from the live nodes (D2 plan-review #4). RECOMPOSITION_PLAN §4/§7 amendment ships with this cycle's monitor artifacts."
+        }
+      ],
+      "s_bs_31_gate": "RESOLVED-PENDING-IMPL 2026-06-02 (monitor+user): option (a) reassign-by-domain. The decision is recorded; D0 implements it (cross-repo backend fix + re-port). The phase is no longer blocked on the clinical/IP call.",
+      "next_action": "READY. Run /devloop-kickoff bench-salvage WS-6c-AGENTIC; fresh executor session ROOTED IN lithrim-bench (one cross-repo edit: D0 backend _TIER1_OWNERS on mvp-ready). Plan-review resolves the 6 decisions before 'go'. Fresh-critic REQUIRED at close (/devloop-critique bench-salvage WS-6c-AGENTIC in a genuinely separate session).",
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md"
+    },
+    {
+      "id": "bench-salvage-phaseWS-6c-OBS-observation-recompose-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c-OBS",
+      "scope": "recompose observation_workflow + the 6 KPI agents in-process (split out of WS-6c-AGENTIC; greenfield; not in the compliance grade path)",
+      "file": "(not yet authored)",
+      "status": "stub",
+      "version": "v0",
+      "hardness": "ROUTINE",
+      "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-02",
+      "last_re_verified": "2026-06-02",
+      "_note": "SPLIT from WS-6c-AGENTIC 2026-06-02. Recompose ../lithrim-backend/app/workflows/observation_workflow.py (StateGraph:4; ObservationState:38; run_parallel_analyses:423; 7 agents instantiated :333/391/447/481/503/537/613) -> straight-line async in lithrim_bench/runtime/; hoist agent instantiation; DROP dead evaluation_agent; PARK LiveKit simulation_agent. Genuinely greenfield (grep of the agent classes across lithrim_bench/ = 0 hits). Independent of the compliance grade path.",
+      "_registration_note": "Stub registered alongside the WS-6c-AGENTIC re-scope. Expand via /devloop-expand-driver bench-salvage WS-6c-OBS (re-grep the observation_workflow citations against ../lithrim-backend@mvp-ready at authoring).",
+      "next_action": "QUEUED behind WS-6c-AGENTIC (independent of the grade path; can run parallel if capacity allows). Author the driver via /devloop-expand-driver bench-salvage WS-6c-OBS."
     }
   ]
 }

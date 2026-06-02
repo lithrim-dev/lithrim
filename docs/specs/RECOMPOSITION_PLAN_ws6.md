@@ -267,3 +267,21 @@ WS-6b ratified (monitor + user). The 6 open questions are locked:
 **Taxonomy re-snapshot DONE + verified.** `taxonomy_snapshot.json` re-stamped `ba84608`→`493b533`. **No council-taxonomy drift:** `TIER_1/2/3` + `tier1_owners` + `production_judges` + `declared_but_not_running` all set-identical (re-sorted only); `structural_codes` (5) preserved. Admissibility lint GREEN (`examples/proof_case.jsonl` 7/7 + 5 scribe packs). Two `snapshot_taxonomy.py` bugs fixed en route: the `sys.modules`/`exec_module` import crash + the lossy `structural_codes` drop. New seam **S-BS-30**: `production_judges` is hardcoded `policy/risk/behavior_judge` but the v2 trio is `risk/policy/faithfulness_judge` — reconcile at WS-6c (derive `production_judges` from the v2 council config, not hardcode).
 
 **Next:** `/devloop-expand-driver bench-salvage WS-6c` (council PORT, v2-only) → 6c-DSPy ∥ 6c-AGENTIC → 6d (+6d-KB) → 6e.
+
+---
+
+## Amendment (2026-06-02) — WS-6c-AGENTIC re-scope vs §4/§7 (M1-spine reality)
+
+§4 and the §7 `WS-6c-AGENTIC` row describe "recompose `compliance_workflow` → straight-line async fns" as **future** work. Re-grepping at WS-6c-AGENTIC authoring (2026-06-02) shows that is **already built** as the parked **M1 in-process spine** (`8f9beae`, "park 2026-05-29 in-process salvage (M1 spine) for WS-6"):
+
+- `lithrim_bench/runtime/pipeline/orchestrator.py:187` — `PipelineOrchestrator.evaluate() -> PipelineResult` (the straight-line async compliance recompose).
+- `lithrim_bench/runtime/pipeline/stages.py` — the recomposed stages; `:28` imports the ported `..council.compliance_council`.
+- `lithrim_bench/backends/local_pipeline.py:42` — `LocalPipelineBackend` (runs the orchestrator in-process; M1 docstring pins `COMPLIANCE_COUNCIL_VERSION=v1`, structural/artifact skipped, `NoOpProvenanceStore`, retrieval stubbed).
+
+**Consequent re-scope (monitor+user, 2026-06-02):**
+- **`WS-6c-AGENTIC` = the compliance grade-wire milestone**, NOT a greenfield recompose: D0 S-BS-31 fix (option (a) reassign-by-domain) + upgrade the M1 spine **v1→v2 trio** + verify the §4/§5 behavior contracts survive in the existing orchestrator + **wire the in-process council into the grade seam** (`grade_inprocess` behind the frozen `grade.py`/`run_eval.run`/`report.composite` seam) so the council scores real cases for the first time. Regression oracle = diff in-process v2 verdicts vs the captured `:8002` replay baselines (`tests/fixtures/ws0/baseline.*.json`).
+- **The observation/KPI half of the §7 AGENTIC row is split to a new `WS-6c-OBS` phase** (recompose `observation_workflow` + the 6 KPI agents; greenfield — grep of the agent classes across `lithrim_bench/` = 0 hits; not in the compliance grade path).
+
+**Two citation corrections to §4 (re-grepped on `lithrim-backend@mvp-ready` 2026-06-02):**
+1. **§4 contract-2 node names are STALE.** `check_hipaa_compliance` (`:746-751`) and `evaluate_artifacts` (`:1005-1009`) do **not** exist. `compliance_workflow.py` has **7 nodes**: `retrieve_context, run_safety_prescreening, run_confidence_gate, run_council` (`:859`), `extract_evidence` (`:1034`), `store_report` (`:1286`), `handle_error` (`:1514`). The fatal/non-fatal "swallow-errors" contract must be re-derived from these (best-effort: HIPAA retrieval in `retrieve_context`, artifact eval; fatal → `handle_error`).
+2. **§4 "6 KPI agents" = 7 instantiated.** `observation_workflow.py` instantiates `transcription + 6 KPI` (`:333/391/447/481/503/537/613`). `evaluation_agent` is dead (drop), `simulation_agent` is a separate LiveKit flow (park). Confirm the recompose set at WS-6c-OBS plan-review.
