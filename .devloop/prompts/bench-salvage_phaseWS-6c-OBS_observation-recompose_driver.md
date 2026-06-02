@@ -94,7 +94,7 @@ Open these in order before posting plan-review:
    - The KPI-half nodes + their agents: `process_input_item` (entry `:183`) → `TranscriptionAgent():333` + `conversation_item.find_one:355`; `analyze_audio` → `AudioAnalysisAgent():391`; `run_parallel_analyses:423` → the **4-way `asyncio.gather:570`** over `IntentQualityAgent():447` / `SentimentAgent():481` / `SafetyAgent():503` / `TechnicalMetricsAgent():537`; `aggregate_kpis:607` → `KPIAggregationAgent():613`.
    - The **compliance tail (OUT of scope, hand-off seam)**: `check_hipaa_compliance:651` calls `ComplianceWorkflow().process()` (`:686-687`); `evaluate_artifacts:960`; `save_compliance_results:753`. Do **not** re-port these (already recomposed as the orchestrator in WS-6c-AGENTIC).
    - Mongo writes (persistence, OUT of scope — WS-6d): `conversation_session.update_one:30`, `compliance_report.update_one:899`; note `call_kpi.update_one:808` is **already commented out** upstream.
-3. `../lithrim-backend/app/agents/` (the 7 recompose-target agents, read-only): `transcription_agent` (ingest, dep-light per grep) + the 6 KPI: `audio_analysis_agent` (`numpy:4`, `s3_service:87`, `call_kpi:89`), `intent_quality_agent` (`get_gemini_service:11`, `call_kpi:12`), `sentiment_agent` (`gemini:7`), `safety_agent` (`gemini:8`), `technical_metrics_agent` (`call_kpi:9`), `kpi_aggregation_agent` (`call_kpi:5`). All re-exported in `app/agents/__init__.py:1-16`. **`evaluation_agent`** = DEAD (no refs outside its own dir, CONFIRMED) → DROP. **`simulation_agent`** = LiveKit real-time (`agent.py`) → PARK.
+3. `../lithrim-backend/app/agents/` (the 7 recompose-target agents, read-only): `transcription_agent` (ingest — **CORRECTION (DRIFT-2b, 2026-06-02): NOT dep-light**; its delegate `transcription_service.py:4` imports `whisper` module-top + `torch`) + the 6 KPI: `audio_analysis_agent` (`numpy:4`, `s3_service:87`, `call_kpi:89`), `intent_quality_agent` (`get_gemini_service:11`, `call_kpi:12`), `sentiment_agent` (`gemini:7`), `safety_agent` (`gemini:8`), `technical_metrics_agent` (`call_kpi:9` + **lazy `librosa` at `agent.py:21`**), `kpi_aggregation_agent` (`call_kpi:5` — **the only truly pure agent**). All re-exported in `app/agents/__init__.py:1-16`. **`evaluation_agent`** = DEAD (no refs outside its own dir, CONFIRMED) → DROP. **`simulation_agent`** = LiveKit real-time (`agent.py`) → PARK.
 4. `../lithrim-backend/app/models/call_kpi.py` (the KPI Pydantic models — the source of the `ObservationState` field contract D3 must preserve).
 5. `lithrim_bench/runtime/` (the recompose TARGET tree: `council/`, `pipeline/`, `retrieval/`, `services/`). The recomposed observation pipeline lands here as a new sibling package; follow the `runtime/pipeline/` straight-line-async shape that the M1 spine established.
 6. `.devloop/state/STREAM_bench-salvage.md` — the WS-6c-AGENTIC row (the **D2 recompose pattern**: the orchestrator is a `pipeline/` PRIMITIVE; for OBS the KPI half is a real greenfield recompose, the compliance tail is already done) + S-BS-24 (suite not a green gate).
@@ -184,8 +184,11 @@ changes, test plan, risks, and any proposed deviations. **Resolve these 5 decisi
    (default install unchanged) holds: an optional extra (e.g. `[observation]`) +
    lazy/guarded imports for Gemini/numpy/S3 (recommended, mirrors
    `[council]`/`[verification]`), vs scoping the first recompose to the dep-light
-   agents (transcription + technical_metrics + kpi_aggregation) and gating the
-   3 Gemini-backed + audio agents behind the extra.
+   agents and gating the heavy ones behind the extra. **CORRECTION (DRIFT-2b,
+   2026-06-02): the only truly dep-light agent is `kpi_aggregation`** —
+   `transcription` pulls `whisper`/`torch` and `technical_metrics` pulls `librosa`,
+   so the "dep-light slice" is just `kpi_aggregation` + the pure orchestration. The
+   executor resolved this by electing A+ (all heavy/audio deps behind `[observation]`).
 3. **LLM-backed KPI agents.** The intent/sentiment/safety agents call **Gemini**
    (`get_gemini_service`), a different provider from the council's Azure trio.
    Recompose them as live-gated (real Gemini call behind the extra, `importorskip`
@@ -328,4 +331,6 @@ agents), not the *risk* surface. Recommendation: keep ROUTINE + inline critique,
 but treat plan-review decisions #2/#3 (dependency posture + the Gemini agents) as
 load-bearing — a sloppy dependency answer would break A2 (default install). If the
 user prefers, the dependency drift is grounds to split a first dep-light slice
-(transcription + technical_metrics + kpi_aggregation) from the LLM-backed agents.
+from the LLM-backed agents. **CORRECTION (DRIFT-2b, 2026-06-02): only `kpi_aggregation`
+is truly pure** (`transcription`→`whisper`/`torch`, `technical_metrics`→`librosa`); the
+executor instead elected A+ (text-path real, all heavy/audio bodies behind `[observation]`).

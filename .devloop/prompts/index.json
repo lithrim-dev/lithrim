@@ -866,7 +866,15 @@
       "phase": "WS-6c-OBS",
       "scope": "recompose observation_workflow + the 6 KPI agents in-process (split out of WS-6c-AGENTIC; greenfield; not in the compliance grade path)",
       "file": "bench-salvage_phaseWS-6c-OBS_observation-recompose_driver.md",
-      "status": "ready",
+      "status": "shipped",
+      "closed_at": "2026-06-02",
+      "closing_commits": "bench 2321090..3cda9df (4 code) + 5900877 session log + monitor close-out, branch bench-salvage/ws6c-dspy, not pushed",
+      "audit_verdict": "CLEAN (7/7; A2 200 passed/7 skipped + zero heavy-dep leak re-verified; A3 boundary grep+runtime; scope confined to observation/+pyproject; backend untouched 6720c70)",
+      "critique_verdict": "ROUTINE inline + monitor deep-read NON-BLOCKING; the LLM-port fidelity gap CLOSED (3 agents: identical float-constant multiset + AST string-literal parity = scoring math + prompt text preserved; only __init__ dropped per the injectable-LLM refactor). File: critique-bench-salvage-phaseWS-6c-OBS-2026-06-02.md",
+      "tier": "A+ (text-path-real; user-elected at plan-review): orchestration + ObservationState/call_kpi contract + pure KPIAggregationAgent + 3 LLM agents real (council llm_provider reuse, offline-stubbed); audio-DSP trio interface-complete + [observation]-gated, bodies deferred (S-BS-36)",
+      "seams_opened": ["S-BS-36", "S-BS-37"],
+      "seams_closed": [],
+      "driver_correction": "DRIFT-2b corrected at close (driver section 1.3 + decision #2 + Hardness): only kpi_aggregation is dep-light; transcription pulls whisper/torch, technical_metrics pulls librosa (monitor's own expand-grep miss; no harm -- A+ gated all heavy deps behind [observation]).",
       "version": "v1",
       "hardness": "ROUTINE",
       "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
@@ -886,7 +894,7 @@
           "drift_notes": "CONFIRMED (16): observation_workflow.py StateGraph:4 / ObservationState:38 / _build_workflow:101 (9-node graph :106-184) / TranscriptionAgent:333 / conversation_item.find_one:355 / AudioAnalysisAgent:391 / run_parallel_analyses:423 / IntentQualityAgent:447 / SentimentAgent:481 / SafetyAgent:503 / TechnicalMetricsAgent:537 / asyncio.gather:570 / aggregate_kpis:607 / KPIAggregationAgent:613; 7 agent dirs present + re-exported app/agents/__init__.py:1-16; evaluation_agent DEAD (no external refs) -> DROP; simulation_agent LiveKit -> PARK; greenfield 0 hits across lithrim_bench/. DRIFT 1 (boundary): observation_workflow embeds a COMPLIANCE TAIL (check_hipaa_compliance:651 / evaluate_artifacts:960 / save_compliance_results:753) and check_hipaa_compliance DELEGATES to ComplianceWorkflow().process() (:686-687) = the grade path WS-6c-AGENTIC already recomposed as runtime/pipeline/orchestrator.py -> recompose the KPI half only, treat the tail as a documented hand-off seam (plan-review #1); this also resolves the AGENTIC 'MISSING (1)' note (those node names live here, not in compliance_workflow.py). DRIFT 2 (dependency posture): the pack's 'plain async / no coupling / ROUTINE' premise is contradicted -- intent_quality:11 / sentiment:7 / safety:8 are Gemini-LLM-backed, audio_analysis pulls numpy:4 + s3_service:87, ALL 7 import app.models.call_kpi (the ObservationState source) + app.utils.agents/app.services.* -> a dependency-isolation requirement for A2 (plan-review #2/#3); recommend reconciling the hardness rationale (risk axis stays ROUTINE, engineering surface is heavier). MISSING (0)."
         }
       ],
-      "next_action": "READY 2026-06-02 (driver authored; all citations re-grepped, 2 architectural drifts surfaced as plan-review decisions, 0 missing). Run /devloop-kickoff bench-salvage WS-6c-OBS; fresh executor session ROOTED IN lithrim-bench (bench-only -- the backend observation_workflow is the read-only recompose SOURCE). Plan-review resolves the 5 decisions before 'go'. Inline critique at close per the pack (see the driver Hardness note re: reconciling the ROUTINE rationale against DRIFT 2)."
+      "next_action": "CLOSED 2026-06-02. Greenfield in-process recompose of the observation KPI-half landed (lithrim_bench/runtime/observation/) at tier A+. Audit CLEAN; inline critique + monitor deep-read NON-BLOCKING (LLM-port scoring+prompt fidelity verified from source). Opened S-BS-36 (audio bodies deferred behind [observation]) + S-BS-37 (datetime.utcnow). Next (monitor's choice): the remaining 2 DSPy judges (policy/faithfulness, same seam) || 6d persistence (+6d-KB) || shell WS-5e. S-BS-36 -> tier-B follow-up only when a KPI consumer exists. S-BS-34 (ruff exclude) still open, no gate."
     }
   ]
 }
