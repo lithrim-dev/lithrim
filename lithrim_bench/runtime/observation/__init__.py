@@ -55,10 +55,15 @@ Everything in this package imports cleanly on the default install
 See ``docs/specs/RECOMPOSITION_PLAN_ws6.md`` §4/§7 + the WS-6c-OBS driver.
 """
 
+from .agents.base import ObservationAgents
 from .models import CallKPI
+from .pipeline import ObservationPipeline, run_observation_pipeline
 from .state import ObservationState
 
 __all__ = [
     "CallKPI",
     "ObservationState",
+    "ObservationAgents",
+    "ObservationPipeline",
+    "run_observation_pipeline",
 ]
