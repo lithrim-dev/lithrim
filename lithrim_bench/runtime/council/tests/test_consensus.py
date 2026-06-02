@@ -78,6 +78,77 @@ def test_tier1_corroborated_two_judges_rejects_regardless_of_ownership(council, 
     assert [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]] == ["FABRICATED_ALLERGY"]
 
 
+# ── S-BS-31: v2 owner reassignment restores one-strike (WS-6c-AGENTIC, A0) ──
+# After the D0 _TIER1_OWNERS reassignment, the 3 codes orphaned under v2-only
+# (no production owner) get a production-trio owner that ALSO emits the code, so a
+# solo grounded fire one-strikes again. Each firing judge votes needs_review (NOT
+# reject) so the reject is driven purely by the tier-1 ownership one-strike (the
+# safety floor), not by a raw reject vote — isolating exactly the S-BS-31 fix.
+# Pre-D0 these solo fires downgraded to needs_review (tier1_off_domain_single_judge).
+
+def test_s_bs_31_missing_allergy_faithfulness_one_strike(council, judge):
+    """faithfulness_judge owns+emits MISSING_ALLERGY → solo grounded fire rejects.
+
+    _TIER1_OWNERS['MISSING_ALLERGY'] gained faithfulness_judge (D0); the role prompt
+    already emits it (faithfulness_judge.txt:14). risk/policy approve → without the
+    one-strike the worst-of would be needs_review; the ownership floor pulls reject.
+    """
+    r = council._apply_consensus([
+        judge("faithfulness_judge", "needs_review", code="MISSING_ALLERGY"),
+        judge("risk_judge", "approve"),
+        judge("policy_judge", "approve"),
+    ])
+    assert r["decision"] == "reject"
+    assert [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]] == ["MISSING_ALLERGY"]
+    assert r["artifact_verdict"] == "BLOCK"
+
+
+def test_s_bs_31_value_mismatch_faithfulness_one_strike(council, judge):
+    """faithfulness_judge owns+emits VALUE_MISMATCH → solo grounded fire rejects (D0)."""
+    r = council._apply_consensus([
+        judge("faithfulness_judge", "needs_review", code="VALUE_MISMATCH"),
+        judge("risk_judge", "approve"),
+        judge("policy_judge", "approve"),
+    ])
+    assert r["decision"] == "reject"
+    assert [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]] == ["VALUE_MISMATCH"]
+
+
+def test_s_bs_31_fabricated_consent_policy_one_strike(council, judge):
+    """policy_judge owns+emits FABRICATED_CONSENT → solo grounded fire rejects (D0).
+
+    faithfulness(Llama) votes approve here, so absent the one-strike the v2
+    llama-veto would compose to approve — the ownership floor still pulls reject.
+    """
+    r = council._apply_consensus([
+        judge("policy_judge", "needs_review", code="FABRICATED_CONSENT"),
+        judge("risk_judge", "approve"),
+        judge("faithfulness_judge", "approve"),
+    ])
+    assert r["decision"] == "reject"
+    assert [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]] == ["FABRICATED_CONSENT"]
+
+
+def test_s_bs_31_ownership_gate_still_holds_for_nonowner(council, judge):
+    """The fix is targeted, not a blanket open: a NON-owner solo fire still downgrades.
+
+    risk_judge is deliberately NOT an owner of MISSING_ALLERGY (it emits
+    FABRICATED_ALLERGY, never MISSING_ALLERGY), so a solo risk_judge MISSING_ALLERGY
+    fire still withholds the one-strike — proving D0 narrowed ownership by domain
+    rather than weakening the gate.
+    """
+    r = council._apply_consensus([
+        judge("risk_judge", "needs_review", code="MISSING_ALLERGY"),
+        judge("policy_judge", "approve"),
+        judge("faithfulness_judge", "approve"),
+    ])
+    assert r["decision"] == "needs_review"
+    assert r["evidence_summary"]["tier1_triggered"] == []
+    flagged = r["evidence_summary"]["tier2_flagged"]
+    assert [f["violation"] for f in flagged] == ["MISSING_ALLERGY"]
+    assert flagged[0]["reason"] == "tier1_off_domain_single_judge"
+
+
 # ── Tier-2 high-risk (:2170) ────────────────────────────────────────────────
 
 def test_tier2_corroborated_two_judges_rejects(council, judge):
