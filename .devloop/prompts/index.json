@@ -1,14 +1,42 @@
 {
   "version": "1",
-  "updated": "2026-06-03T00:00Z",
+  "updated": "2026-06-03T02:00Z",
   "bundles": [
+    {
+      "id": "bench-salvage-phaseWS-6c-DSPy-2-live-ab-run-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c-DSPy-2-live",
+      "scope": "close-s-bs-44-prompt-parity-then-cost-confirmed-live-prompt-vs-dspy-ab",
+      "file": "bench-salvage_phaseWS-6c-DSPy-2-live_ab-run_driver.md",
+      "status": "ready",
+      "hardness": "routine",
+      "hardness_reason": "One-line .strip() gate fix (S-BS-44) + a single live measurement run; no consensus/grade/lens/contract change (A3 re-verified). Paper-bearing + live, so the inline critique focuses on result-honesty (3 caveats, no over-claim beyond n=7) + the frozen-contract re-verify + the S-BS-44 parity proof. Escalate to fresh-critic only on a surprising divergence.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        ".devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-2-2026-06-03.json (the substrate this exercises)",
+        ".devloop/sessions/critique-bench-salvage-phaseWS-6c-DSPy-2-2026-06-03.md (S-BS-44 origin + S-BS-43 lower-bound caveat)",
+        "lithrim_bench/runtime/council/judges_dspy.py (load_role_prompt:110-118 = S-BS-44 fix site; build_trio:310)",
+        "lithrim_bench/runtime/council/ab_harness.py (run_live:201 confirm_cost gate; diff_case:80; OFFLINE_NOTE:45)",
+        "lithrim_bench/runtime/council/compliance_council.py (_load_role_prompts:527 .strip() = parity target; _apply_consensus:1866 KEEP UNCHANGED)",
+        "lithrim_bench/runtime/council/tests/test_live_smoke.py (the LITHRIM_LLM_PROVIDER=azure + AZURE_OPENAI_* env-gate)",
+        "examples/proof_case.jsonl (n=7 recipe=label A/B case set)"
+      ],
+      "_note": "The deferred live payoff of WS-6c-DSPy-2 (offline-only). (1) Close the S-BS-44 GATE — load_role_prompt must .strip() so the DSPy arm's role prompts byte-match the prompt-council's (_load_role_prompts:527); add a parity regression test. (2) Run ONE cost-confirmed live A/B (real prompt-council vs DSPy-council) on proof_case n=7; persist the captured-run diff + a REPORT. USER AUTHORIZED the live spend (~$1-3, ~42 Azure calls) 2026-06-03. Azure DIRECT (council llm_provider + dspy.LM), NOT :8002 — no service autostart; the user owns the env. Cost-confirm from a 1-2 call smoke before the full run; $3 hard ceiling; ONE run only. Frozen contract holds (consensus/grade/lens/optimizer untouched; A3 re-verify). Report carries 3 mandatory caveats: per-judge precision = LOWER BOUND (S-BS-43); captured-run-not-deterministic; n=7 small. Optimizer + co-raise-aware lens = WS-6c-DSPy-3. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits; never sweep the 3 staged paper files.",
+      "created": "2026-06-03",
+      "last_re_verified": "2026-06-03",
+      "cost_envelope_usd": 2.0,
+      "cost_max_acceptable_usd": 3.0,
+      "expected_runtime_min": 45,
+      "user_authorized_live_spend": "2026-06-03 — 'authorize live call' (~$1-3, ~42 Azure calls, ONE run)",
+      "next_action": "User kicks off in a fresh exec session per the KICKOFF block. Plan-review required (no live call before go): case set + the S-BS-44 fix/parity test + result artifact home + the cost-confirm protocol (smoke -> per-call cost -> full run, $3 ceiling)."
+    },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-2-complete-trio-and-ab-harness-driver",
       "stream": "bench-salvage",
       "phase": "WS-6c-DSPy-2",
       "scope": "complete-the-dspy-judge-trio-policy-faithfulness-plus-prompt-vs-dspy-ab-harness",
       "file": "bench-salvage_phaseWS-6c-DSPy-2_complete-trio-and-ab-harness_driver.md",
-      "status": "ready",
+      "status": "closed-NON-BLOCKING (a511012..69b3505 + close 317c233; audit CLEAN 7/7 + HARD-GATE fresh-critic NON-BLOCKING; seams renumbered S-BS-42/43 + opened S-BS-44; live A/B deferred to WS-6c-DSPy-2-live)",
       "hardness": "HARD-GATE",
       "hardness_reason": "Authors prompt wiring for two more safety-critical judges (policy + faithfulness) + the A/B that informs a possible future prompt->DSPy council swap. Lower blast radius than a consensus change (no consensus-math edit, no grade-wire), but the lens<->owner<->snapshot cross-check (A2) + trio seam-conformance (A1) + consensus-unchanged proof (A5) are load-bearing; fresh-critic recommended, user MAY elect inline (precedent WS-6c-DSPy).",
       "target_repos": [
