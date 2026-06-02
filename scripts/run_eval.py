@@ -40,7 +40,7 @@ from lithrim_bench.harness.correction import (  # noqa: E402
     build_floor_correction,
     emit,
 )
-from lithrim_bench.harness.grade import grade_live, grade_replay  # noqa: E402
+from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
 from lithrim_bench.harness.grounding import ground  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
@@ -98,7 +98,13 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
     }
 
 
-def run(agent: Agent, *, live: bool = False, out_dir: str | Path | None = None) -> dict:
+def run(
+    agent: Agent,
+    *,
+    live: bool = False,
+    in_process: bool = False,
+    out_dir: str | Path | None = None,
+) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record."""
     ontology = load_ontology(agent.ontology_abspath())
     case = load_case(agent.dataset.case_id, source=agent.source_abspath())
@@ -107,7 +113,18 @@ def run(agent: Agent, *, live: bool = False, out_dir: str | Path | None = None) 
             f"ERROR: case {agent.dataset.case_id!r} not found in {agent.dataset.source}"
         )
 
-    if live:
+    if in_process:
+        # WS-6c-AGENTIC grade-wire: score the case through the in-process v2 council
+        # (no :8002, no Celery) — the first time the council scores real cases
+        # through the harness. PAID: the v2 Azure trio makes real calls. Returns the
+        # same PipelineResult dict shape as grade_live/replay (the frozen seam), so
+        # ground/composite below are unchanged.
+        sys.stderr.write(
+            "WARNING: --in-process runs the in-process v2 council (real paid Azure calls).\n"
+        )
+        result = grade_inprocess(case)
+        grade_path = "in_process"
+    elif live:
         sys.stderr.write("WARNING: --live makes a real paid council call.\n")
         # WS-2: inject the Agent's stored council_config + ontology so the live
         # council is driven by config, not backend code. The ontology is sent as
@@ -160,11 +177,12 @@ def run(agent: Agent, *, live: bool = False, out_dir: str | Path | None = None) 
     return record
 
 
-def _print(agent: Agent, record: dict, *, live: bool) -> None:
+def _print(agent: Agent, record: dict, *, live: bool = False) -> None:
     comp = record["composite"]
     cal = record["calibration"]
     g = record["grounded"]
-    print(f"=== config-driven eval ({'live' if live else 'replay'}) — agent '{agent.name}' ===")
+    grade_path = record.get("provenance", {}).get("grade_path", "live" if live else "replay")
+    print(f"=== config-driven eval ({grade_path}) — agent '{agent.name}' ===")
     print(f"case: {record['case_id']} | ontology: {agent.eval_profile.ontology_ref}")
     print(
         f"verdict: {comp['verdict']} (stage {comp['stage_verdict']}, was {g['original_verdict']})"
@@ -197,6 +215,11 @@ def main() -> int:
         action="store_true",
         help="opt into a real, PAID :8002 call (default: replay the baseline)",
     )
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="opt into the in-process v2 council (PAID Azure trio; no :8002/Celery)",
+    )
     parser.add_argument("--out-dir", default=None)
     args = parser.parse_args()
 
@@ -207,7 +230,7 @@ def main() -> int:
         seed_config_db(db_path=db_path)
     agent = load_agent(args.agent, db_path=db_path)
 
-    record = run(agent, live=args.live, out_dir=args.out_dir)
+    record = run(agent, live=args.live, in_process=args.in_process, out_dir=args.out_dir)
     _print(agent, record, live=args.live)
     return 0
 

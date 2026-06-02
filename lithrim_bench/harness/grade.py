@@ -124,3 +124,38 @@ def grade_live(
         )
         resp.raise_for_status()
         return resp.json()
+
+
+def grade_inprocess(
+    case: dict[str, Any],
+    *,
+    org_id: str = "local",
+    semantic_stage: Any = None,
+) -> dict[str, Any]:
+    """Run the in-process v2 council and return the parsed PipelineResult dict.
+
+    This is the WS-6c-AGENTIC grade-wire: the recomposed in-process pipeline
+    (``LocalPipelineBackend`` → the v2 Azure trio, semantic-only, NoOp provenance)
+    scores a real case behind the frozen grade seam — the first time the council
+    scores real cases through the harness, with no ``:8002`` and no Celery.
+
+    The return is ``PipelineResult.model_dump(mode="json")``, byte-shape-identical
+    to what ``grade_replay`` / ``grade_live`` return (same ``verdict`` /
+    ``gate_decision`` / ``findings`` / ``semantic.{evidence,judge_votes}`` keys), so
+    every downstream stage (``ground`` / ``composite`` / ``calibration``) is agnostic
+    to which path produced it (the §6/§7 frozen-contract property).
+
+    ``semantic_stage`` is injectable for offline/deterministic runs (A1): a fake
+    stage returns a canned ``(StageResult, meta)`` so no Azure call is made. Default
+    ``None`` → the live v2 trio (the paid path, opt-in via ``run_eval --in-process``).
+    ``LocalPipelineBackend`` is imported lazily so this module stays importable on
+    default deps (the council pulls in ``openai``), mirroring ``grade_live``'s lazy
+    ``httpx`` import.
+    """
+    from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
+
+    backend = LocalPipelineBackend(org_id=org_id, semantic_stage=semantic_stage)
+    result = backend.evaluate_pipeline(case)
+    if result is None:
+        raise ValueError("case has no artifacts to grade")
+    return result.model_dump(mode="json")
