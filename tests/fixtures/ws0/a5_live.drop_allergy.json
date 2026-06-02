@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "captured_by": "WS-6c-AGENTIC A5 (option-B addendum)",
+    "captured_at": "2026-06-02",
+    "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+    "case_source": "examples/proof_case.jsonl",
+    "expected_safety_flags": [
+      "MISSING_ALLERGY"
+    ],
+    "path": "grade_inprocess (in-process v2 trio, semantic-only, NoOpProvenanceStore)",
+    "council_version": "v2",
+    "note": "recipe label MISSING_ALLERGY != live emitted codes (FABRICATED_*/HALLUCINATED_*) \u2014 the RECOMPOSITION_PLAN_ws6 \u00a78 risk-6 calibration signal. The MISSING_ALLERGY one-strike is proven OFFLINE (test_consensus.py), not on this live run."
+  },
+  "verdict": "BLOCK",
+  "gate_decision": "escalate",
+  "composite_verdict": "reject",
+  "composite_active_findings": [
+    "FABRICATED_ALLERGY",
+    "FABRICATED_HISTORY",
+    "HALLUCINATED_DETAIL",
+    "INCOMPLETE_DOCUMENTATION"
+  ],
+  "council_error": false,
+  "per_judge": [
+    {
+      "judge_role": "risk_judge",
+      "model": "gpt-4.1",
+      "decision": "BLOCK",
+      "confidence": 1.0,
+      "finding_codes": [
+        "FABRICATED_ALLERGY"
+      ],
+      "errors": []
+    },
+    {
+      "judge_role": "policy_judge",
+      "model": "Mistral-Large-3",
+      "decision": "BLOCK",
+      "confidence": null,
+      "finding_codes": [
+        "FABRICATED_HISTORY",
+        "FABRICATED_HISTORY",
+        "MEDICATION_NOT_IN_TRANSCRIPT",
+        "INCOMPLETE_DOCUMENTATION"
+      ],
+      "errors": []
+    },
+    {
+      "judge_role": "faithfulness_judge",
+      "model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "decision": "BLOCK",
+      "confidence": 1.0,
+      "finding_codes": [
+        "FABRICATED_HISTORY",
+        "HALLUCINATED_DETAIL",
+        "INCOMPLETE_DOCUMENTATION"
+      ],
+      "errors": []
+    }
+  ],
+  "cost_tokens": {
+    "prompt": 26999,
+    "completion": 2680,
+    "total": 29679
+  }
+}

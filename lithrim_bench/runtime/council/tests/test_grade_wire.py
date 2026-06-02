@@ -59,6 +59,8 @@ recompose-drift delta (the captured baseline is itself v2).
 from __future__ import annotations
 
 import json
+import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -82,6 +84,20 @@ _REPO = Path(__file__).resolve().parents[4]
 _CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 _BASELINE = _REPO / "tests" / "fixtures" / "ws0" / f"baseline.{_CASE_ID}.json"
 _CASE_SRC = _REPO / "tests" / "fixtures" / "ws0" / f"case.{_CASE_ID}.jsonl"
+
+# A5 live grade-wire (option-B addendum): the real v2 trio over grade_inprocess.
+_DROP_ALLERGY_CASE_ID = "bench_scribe_v1_drop_allergy_805205594117"
+_PROOF_CASE = _REPO / "examples" / "proof_case.jsonl"
+_A5_FIXTURE = _REPO / "tests" / "fixtures" / "ws0" / "a5_live.drop_allergy.json"
+_AZURE_READY = os.environ.get("LITHRIM_LLM_PROVIDER") == "azure" and all(
+    os.environ.get(k)
+    for k in (
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3",
+        "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK",
+    )
+)
 
 
 def _baseline() -> dict:
@@ -190,3 +206,81 @@ def test_inprocess_flows_through_ground_composite_offline():
     c = composite(ground(result, case, ontology=load_ontology()))
     assert c["verdict"] == "reject"
     assert "FABRICATED_HISTORY" in c["active_findings"]
+
+
+@pytest.mark.skipif(
+    not _AZURE_READY,
+    reason="live grade_inprocess smoke: set LITHRIM_LLM_PROVIDER=azure + AZURE_OPENAI_* (separate go)",
+)
+def test_v2_trio_grade_inprocess_live():
+    """A5: the REAL v2 trio scores proof_case:drop_allergy through grade_inprocess
+    end-to-end (NO stage injection) -> reject. This is the in-suite real-council
+    grade-wire coverage (S-BS-35b / critic C6) — every other test here injects a
+    stage. Default-skips ($0); runs only with the Azure env (one explicit go). With
+    WS6C_A5_CAPTURE=1 it writes the on-disk evidence fixture BEFORE asserting, so
+    the artifact survives even a borderline assert.
+
+    The recipe label is MISSING_ALLERGY but the live judges emit FABRICATED_ALLERGY
+    / FABRICATED_HISTORY / HALLUCINATED_DETAIL / ... (the RECOMPOSITION_PLAN_ws6
+    §8 risk-6 recipe!=emitted-code calibration signal), so the assertion is at the
+    robust VERDICT level (reject), NOT the code level. The MISSING_ALLERGY
+    one-strike is proven OFFLINE in test_consensus.py, not on this live run.
+    """
+    from lithrim_bench.runtime.council import llm_provider
+
+    llm_provider.reset_clients()  # drop any client cached by the offline tests
+    case = load_case(_DROP_ALLERGY_CASE_ID, source=str(_PROOF_CASE))
+    assert case is not None, f"{_DROP_ALLERGY_CASE_ID} not in {_PROOF_CASE}"
+
+    result = grade_inprocess(case)  # LIVE: real v2 trio, no semantic_stage injection
+    grounded = ground(result, case, ontology=load_ontology())
+    comp = composite(grounded)
+
+    votes = result["semantic"]["judge_votes"]
+    per_judge = [
+        {
+            "judge_role": v["judge_role"],
+            "model": v["model"],
+            "decision": v["vote"],
+            "confidence": v["confidence"],
+            "finding_codes": v["findings"],
+            # JudgeVote collapses per-judge errors; the aggregate is council_error below.
+            "errors": [],
+        }
+        for v in votes
+    ]
+
+    if os.environ.get("WS6C_A5_CAPTURE") == "1":
+        artifact = {
+            "_meta": {
+                "captured_by": "WS-6c-AGENTIC A5 (option-B addendum)",
+                "captured_at": date.today().isoformat(),
+                "case_id": _DROP_ALLERGY_CASE_ID,
+                "case_source": "examples/proof_case.jsonl",
+                "expected_safety_flags": case.get("expected_safety_flags"),
+                "path": "grade_inprocess (in-process v2 trio, semantic-only, NoOpProvenanceStore)",
+                "council_version": "v2",
+                "note": (
+                    "recipe label MISSING_ALLERGY != live emitted codes "
+                    "(FABRICATED_*/HALLUCINATED_*) — the RECOMPOSITION_PLAN_ws6 §8 "
+                    "risk-6 calibration signal. The MISSING_ALLERGY one-strike is "
+                    "proven OFFLINE (test_consensus.py), not on this live run."
+                ),
+            },
+            "verdict": result["verdict"],
+            "gate_decision": result["gate_decision"],
+            "composite_verdict": comp["verdict"],
+            "composite_active_findings": comp["active_findings"],
+            "council_error": result["provenance"].get("council_error"),
+            "per_judge": per_judge,
+            "cost_tokens": result["provenance"].get("cost_tokens"),
+        }
+        _A5_FIXTURE.write_text(json.dumps(artifact, indent=2) + "\n")
+
+    # Robust verdict-level assertions: the grade-wire works live; the defect rejects.
+    assert result["verdict"] == "BLOCK"
+    assert comp["verdict"] == "reject"
+    by_role = {v["judge_role"]: v for v in votes}
+    assert len(by_role) == 3, "the live v2 trio must produce 3 judge votes"
+    # Mistral (policy_judge) exposes no logprobs -> confidence None, never synthesized.
+    assert by_role["policy_judge"]["confidence"] is None
