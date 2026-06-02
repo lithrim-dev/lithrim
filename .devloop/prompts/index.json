@@ -902,7 +902,15 @@
       "phase": "WS-6d",
       "scope": "persistence swap -- real SQLite provenance store behind the ProvenanceStore Protocol (retire Mongo); SQLite-only + grade-path-only",
       "file": "bench-salvage_phaseWS-6d_persistence-sqlite_driver.md",
-      "status": "ready",
+      "status": "shipped",
+      "closed_at": "2026-06-02",
+      "closing_commits": "bench f898790..a211773 (3 code) + c6a35db session log + monitor close-out, branch bench-salvage/ws6c-dspy, not pushed; parent f7b9a2d (S-BS-38)",
+      "audit_verdict": "CLEAN -- history rewrite verified clean (git diff f7b9a2d..HEAD = 8 files + log, ZERO paper files; f7b9a2d intact; backend untouched 6720c70); A4 0 hits; A5 205/8; scope held",
+      "critique_verdict": "ROUTINE inline + risk-driven deep verification (history rewrite around the locked PAPER_OUTLINE.md) NON-BLOCKING; A3 frozen-contract gate PASSED on debuglithrim (6) + verified PRINCIPLED (NoOp-vs-NoOp control + raw-diff + side-effect guards rule out gaming). File: critique-bench-salvage-phaseWS-6d-2026-06-02.md",
+      "milestone": "the in-process grade path is now Mongo-free (first ship-path payment). SqliteProvenanceStore = the S-BS-38 blob tier (full model_dump JSON into PIPELINE_RUNS); MongoProvenanceStore alias retired; opt-in default NoOp; eval-isolation via pipeline_run_id uniqueness.",
+      "seams_opened": ["S-BS-39"],
+      "seams_closed": [],
+      "contamination_note": "the executor's first commit swept in 3 concurrently-staged paper files; resolved by soft-reset + rebuild from exact original blobs (monitor-verified: paper files re-staged intact, in no WS-6d commit). Lesson -> git-commit-pathspec-dirty-index memory.",
       "version": "v1",
       "hardness": "ROUTINE",
       "hardness_reason": "New store impl behind an existing injected seam; consensus IP + grade-record shape frozen; nothing reads the rows yet (fire-and-forget save). Load-bearing gate = A3 frozen-contract diff. GTM-critical (retire Mongo); user may elect fresh-critic at close, but the contract is the internal ProvenanceStore Protocol not the §10 BFF -> inline default.",
@@ -922,7 +930,7 @@
           "drift_notes": "CONFIRMED (14): provenance.py ProvenanceStore:6 / NoOpProvenanceStore:11 / MongoProvenanceStore-alias:16; orchestrator.py:201/:217/:334/:361 (PipelineProvenance build + single fire-and-forget save); models.py:176 PipelineProvenance (pipeline_run_id fresh uuid4 per evaluate :335); harness/collections.py DocShimCollection:35 (insert:59/get:82/find_by_fk:91, stdlib sqlite3) + COMPLIANCE_REPORT:110; backend template provenance.py:25 Protocol (save:28/find_by_id:30/find_compliance_report_by_run_id:32); frozen seam grade_inprocess/run_eval.run:101/report.composite:29. DESIGN NOTE (not a drift): bench has NO ::eval::/eval_run_id/context_hash threaded today (MOOT under NoOp, test_grade_wire.py:16) -- pipeline_run_id uniqueness gives the re-runs-dont-collide invariant for free (plan-review #2). 0 drifted, 0 missing."
         }
       ],
-      "next_action": "READY 2026-06-02 (both-absent reconcile; driver authored; 14 citations re-grepped, 0 drift, 0 missing; 2 scope decisions made = SQLite-only + grade-path-only). Run /devloop-kickoff bench-salvage WS-6d; fresh executor session ROOTED IN lithrim-bench (bench-only). Plan-review resolves the 4 decisions before 'go'. Inline critique at close (user may elect fresh-critic -- GTM-critical retire-Mongo)."
+      "next_action": "CLOSED 2026-06-02. The in-process grade path is now Mongo-free (first ship-path payment). SqliteProvenanceStore (S-BS-38 blob tier) behind the frozen save seam; A3 frozen-contract PASS on debuglithrim + verified PRINCIPLED; A4 0 hits; A5 205/8. History rewrite (paper-file decontamination) monitor-verified clean. Opened S-BS-39 (debuglithrim env reds, pre-existing). Next (ship-path): WS-5e (Tauri installer, the shippable artifact) || WS-6e (ETLP sidecar). 3 staged paper files are the user's to commit on the paper stream."
     }
   ]
 }
