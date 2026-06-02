@@ -115,3 +115,13 @@ COLLECTIONS: tuple[DocShimCollection, ...] = (
     CALL_KPI,
     COMPLIANCE_REPORT,
 )
+
+# WS-6d: the in-process pipeline's provenance sink. Mirrors the backend's
+# ``pipeline_runs`` collection (``app/services/pipeline/provenance.py``
+# COLLECTION_NAME) — one audit doc per run, keyed on ``pipeline_run_id`` with
+# ``org_id`` as the indexed fk. ``SqliteProvenanceStore`` persists through this.
+# Kept OUT of the ``COLLECTIONS`` tuple above on purpose: that tuple is the four
+# M1 conversation/report collections (its membership is pinned by
+# ``tests/test_ws1.py``); ``pipeline_runs`` is the run-keyed provenance store the
+# store looks up directly, not one of that mirrored set.
+PIPELINE_RUNS = DocShimCollection("pipeline_runs", id_field="pipeline_run_id", fk="org_id")
