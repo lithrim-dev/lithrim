@@ -930,7 +930,34 @@
           "drift_notes": "CONFIRMED (14): provenance.py ProvenanceStore:6 / NoOpProvenanceStore:11 / MongoProvenanceStore-alias:16; orchestrator.py:201/:217/:334/:361 (PipelineProvenance build + single fire-and-forget save); models.py:176 PipelineProvenance (pipeline_run_id fresh uuid4 per evaluate :335); harness/collections.py DocShimCollection:35 (insert:59/get:82/find_by_fk:91, stdlib sqlite3) + COMPLIANCE_REPORT:110; backend template provenance.py:25 Protocol (save:28/find_by_id:30/find_compliance_report_by_run_id:32); frozen seam grade_inprocess/run_eval.run:101/report.composite:29. DESIGN NOTE (not a drift): bench has NO ::eval::/eval_run_id/context_hash threaded today (MOOT under NoOp, test_grade_wire.py:16) -- pipeline_run_id uniqueness gives the re-runs-dont-collide invariant for free (plan-review #2). 0 drifted, 0 missing."
         }
       ],
-      "next_action": "CLOSED 2026-06-02. The in-process grade path is now Mongo-free (first ship-path payment). SqliteProvenanceStore (S-BS-38 blob tier) behind the frozen save seam; A3 frozen-contract PASS on debuglithrim + verified PRINCIPLED; A4 0 hits; A5 205/8. History rewrite (paper-file decontamination) monitor-verified clean. Opened S-BS-39 (debuglithrim env reds, pre-existing). Next (ship-path): WS-5e (Tauri installer, the shippable artifact) || WS-6e (ETLP sidecar). 3 staged paper files are the user's to commit on the paper stream."
+      "next_action": "CLOSED 2026-06-02. The in-process grade path is now Mongo-free (first ship-path payment). SqliteProvenanceStore (S-BS-38 blob tier) behind the frozen save seam; A3 frozen-contract PASS on debuglithrim + verified PRINCIPLED; A4 0 hits; A5 205/8. History rewrite (paper-file decontamination) monitor-verified clean. Opened S-BS-39 (debuglithrim env reds, pre-existing). Note: the ship-path's packaging phases (WS-5e/WS-6e) are DEFERRED to the last mile -- user pivoted 2026-06-02 to product feature-completion (WS-7) first. 3 staged paper files are the user's to commit on the paper stream."
+    },
+    {
+      "id": "bench-salvage-phaseWS-7a-journey-verify-live-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-7a",
+      "scope": "Journey Phase-2 Verify -> live BFF (the pitch's first live act); leverage the existing runEval/run-eval/grade chain -- zero backend/BFF/Python",
+      "file": "bench-salvage_phaseWS-7a_journey-verify-live_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE-class (SPEC §8 shell phases); user-electable inline vs fresh-critic at close; :5180 visual smoke load-bearing regardless",
+      "target_repos": ["lithrim-bench"],
+      "created": "2026-06-02",
+      "last_re_verified": "2026-06-02",
+      "_note": "WS-7 milestone = product feature-completion (the 4-act journey on REAL service calls vs journeyData mock). User pivot 2026-06-02: features against the services first, Tauri packaging deferred to last mile, efficiently leverage lithrim-backend. WS-7a = the Phase-2 Verify beachhead -- PURE UI wiring: the grade chain (bff.js runEval -> /v1/run-eval -> grade_replay/live(:8002)/inprocess) is COMPLETE; the journey is mock only because nobody pointed it at the BFF. journeyData is captured real scores -> wiring = replacing a snapshot with runEval() (default replay $0). Sub-phases: 7a (Verify) -> 7b (Align: floor+KB, folds WS-3b+WS-6d-KB, the headline+paper) -> 7c (pack+SDK bookends).",
+      "_registration_note": "BOTH-ABSENT reconcile expanded via the product-completion pivot 2026-06-02 (re-grepped the leverage chain + journey/BFF citations at authoring).",
+      "re_verification_log": [
+        {
+          "date": "2026-06-02",
+          "actor": "monitor (product-completion pivot; both-absent reconcile)",
+          "checked": 12,
+          "confirmed": 12,
+          "drifted": 0,
+          "missing": 0,
+          "drift_notes": "CONFIRMED (12): bff.js runEval:23 (POST /v1/run-eval, live=false=$0) + getOntology/getCorpus/putOntology + BASE=VITE_BFF_URL:6; apps/bff/app.py /v1/run-eval:115 (run_eval.run) + _council_view:27 (judge_votes); harness/grade.py grade_replay:40/grade_live:85(:8002 POST :119)/grade_inprocess; JourneyApp.jsx runVerify:55 (mock) + state:35-36 + props:77-78; jp2.jsx Center2:47 + Artifact2:80 (pillar-badge:108/pb-score:114) + journeyData import:5; journeyData.js PILLARS:12 + captured-real-scores:125/:133-139; artifact.jsx ReportTab:34 (composite render + empty-state:42). LEVERAGE VERIFIED: the grade chain is COMPLETE -- zero backend/BFF/Python needed (A3 gate). 0 drifted, 0 missing."
+        }
+      ],
+      "next_action": "READY 2026-06-02 (both-absent reconcile; driver authored; 12 leverage/wiring citations re-grepped, 0 drift, 0 missing; zero backend/BFF/Python -- pure leverage). Run /devloop-kickoff bench-salvage WS-7a; fresh executor session (frontend, apps/shell). Plan-review resolves the 4 decisions before 'go'. Explicit-pathspec commits (concurrent tree + staged paper files)."
     }
   ]
 }
