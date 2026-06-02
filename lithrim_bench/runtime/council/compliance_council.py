@@ -231,22 +231,35 @@ PHI_FALSE_POSITIVE_TYPES = {
 # council_roles/*.txt file.
 _TIER1_OWNERS: Dict[str, set] = {
     "WRONG_DOSAGE":                    {"behavior_judge", "source_message_judge", "risk_judge"},
-    "MISSING_ALLERGY":                 {"behavior_judge", "source_message_judge"},
+    # WS-6c-AGENTIC (S-BS-31, 2026-06-02): under v2-only the production trio is
+    # risk/policy/faithfulness_judge, so behavior_judge + source_message_judge are
+    # dormant. faithfulness_judge is the v2 successor that emits MISSING_ALLERGY
+    # (council_roles/faithfulness_judge.txt) — add it so single-judge Tier-1
+    # one-strike is restored under v2. risk_judge is deliberately NOT added: it
+    # emits FABRICATED_ALLERGY, not MISSING_ALLERGY, so it could never solo-fire
+    # this code (an inert owner would be misleading).
+    "MISSING_ALLERGY":                 {"behavior_judge", "source_message_judge", "faithfulness_judge"},
     # 2026-05-11 council calibration: FABRICATED_ALLERGY is co-owned by
     # risk_judge (patient-safety framing) and behavior_judge (fidelity
     # framing). Single-judge fire from either is enough to reject. The
     # source_message_judge is included for Lane-2 batch flows that may
     # surface fabricated allergy entries against structured source records.
     "FABRICATED_ALLERGY":              {"risk_judge", "behavior_judge", "source_message_judge"},
-    "FABRICATED_CONSENT":              {"behavior_judge", "source_message_judge"},
+    # WS-6c-AGENTIC (S-BS-31): consent / authorization is the policy judge's
+    # domain (policy_judge.txt question 5; risk_judge.txt defers consent to
+    # policy). Add policy_judge so v2 single-judge Tier-1 one-strike is restored
+    # for FABRICATED_CONSENT.
+    "FABRICATED_CONSENT":              {"behavior_judge", "source_message_judge", "policy_judge"},
     "MISSED_ESCALATION":               {"behavior_judge", "risk_judge"},
     "SEVERITY_ESCALATION":             {"behavior_judge", "risk_judge"},
     "PHI_DISCLOSURE_PRE_VERIFICATION": {"policy_judge"},
     # DP-SPRINT-01-B2-FIX: VALUE_MISMATCH is an artifact-vs-transcript fidelity
-    # check; behavior_judge is the only judge with transcript+artifact scope per
-    # council_roles/behavior_judge.txt. NOT replicating the source_message_judge
-    # entry pattern (operationally dead per DP-SPRINT-01-B2 finding).
-    "VALUE_MISMATCH":                  {"behavior_judge"},
+    # check. WS-6c-AGENTIC (S-BS-31, 2026-06-02): behavior_judge is dormant under
+    # v2-only; faithfulness_judge is the v2 successor carrying transcript+artifact
+    # fidelity scope (council_roles/faithfulness_judge.txt names VALUE_MISMATCH),
+    # so add it to restore single-judge Tier-1 one-strike. NOT replicating the
+    # source_message_judge entry pattern (operationally dead per DP-SPRINT-01-B2).
+    "VALUE_MISMATCH":                  {"behavior_judge", "faithfulness_judge"},
 }
 
 # ---------------------------------------------------------------------------

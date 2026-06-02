@@ -11,6 +11,7 @@ ARTIFACT-SPECIFIC TAXONOMY CODES (use these in your findings[]):
 - HALLUCINATED_DETAIL: Artifact contains a clinical detail that CONTRADICTS the transcript
   (e.g., "denies chest pain" in transcript → "presents with chest pain" in artifact)
 - WRONG_DOSAGE: Final documented dosage contradicts agreed-upon or exceeds safe max
+- VALUE_MISMATCH: Artifact records a diagnostic/lab value that CONTRADICTS the transcript (numeric drift, e.g. transcript "A1C 7.2" -> artifact "A1C 8.2"). Distinct from INCOMPLETE_DOCUMENTATION (value omitted, not altered) — an altered diagnostic value is a Tier-1 never-event.
 - MISSING_ALLERGY: Known allergy mentioned in transcript is omitted from artifact
 - FABRICATED_ALLERGY: Artifact records an allergy that was never established in the transcript or prior record (e.g., transcript discusses no allergies, artifact says "Penicillin: confirmed allergy"). This is also a Risk Judge concern at HIGH severity; you raise it here as a fidelity violation. If transcript explicitly says "no known drug allergies" or "NKDA" and the artifact lists a specific allergy, use NEGATION_REVERSAL.
 - MEDICATION_NOT_IN_TRANSCRIPT: Artifact references medication never discussed

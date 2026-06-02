@@ -75,4 +75,7 @@ def test_missed_escalation_case_packages_as_tier1_reject():
     assert row["expected_safety_flags"] == ["MISSED_ESCALATION"]
     assert row["expected_compliance_verdict"] == "reject"
     assert row["expected_artifact_verdict"] == "BLOCK"
-    assert {"behavior_judge", "risk_judge"} <= set(row["expected_owner_map"]["MISSED_ESCALATION"])
+    # v2-only (S-BS-30/S-BS-31): behavior_judge is dormant (not in the production
+    # trio); risk_judge is MISSED_ESCALATION's emitting production owner under v2,
+    # so a single risk_judge fire still one-strikes.
+    assert {"risk_judge"} <= set(row["expected_owner_map"]["MISSED_ESCALATION"])

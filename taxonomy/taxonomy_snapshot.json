@@ -1,8 +1,8 @@
 {
   "snapshot_metadata": {
     "source": "lithrim-backend/app/services/compliance_council.py",
-    "source_commit": "493b533",
-    "snapshot_date": "2026-06-01",
+    "source_commit": "6720c70",
+    "snapshot_date": "2026-06-02",
     "snapshotted_by": "scripts/snapshot_taxonomy.py"
   },
   "tiers": {
@@ -40,6 +40,7 @@
     ],
     "MISSING_ALLERGY": [
       "behavior_judge",
+      "faithfulness_judge",
       "source_message_judge"
     ],
     "FABRICATED_ALLERGY": [
@@ -49,6 +50,7 @@
     ],
     "FABRICATED_CONSENT": [
       "behavior_judge",
+      "policy_judge",
       "source_message_judge"
     ],
     "MISSED_ESCALATION": [
@@ -63,7 +65,8 @@
       "policy_judge"
     ],
     "VALUE_MISMATCH": [
-      "behavior_judge"
+      "behavior_judge",
+      "faithfulness_judge"
     ]
   },
   "production_judges": [
