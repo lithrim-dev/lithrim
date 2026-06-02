@@ -2,7 +2,8 @@
 
 Mirrors ``LithrimPipelineBackend`` but instead of POSTing ``/v1/pipeline/evaluate``
 it constructs the vendored ``PipelineOrchestrator`` (``lithrim_bench.runtime.pipeline``)
-and runs it directly. For M1 only the SEMANTIC (council) stage runs:
+and runs it directly. For the WS-6c-AGENTIC grade-wire milestone only the SEMANTIC
+(council) stage runs:
 
   - structural stage -> injected skip (no etlp-mapper call)
   - artifact stage   -> ``_skipped_artifact_stage`` (no single-judge LLM call)
@@ -16,7 +17,14 @@ is what the paper determinism protocol and the calibration before/after diff nee
 
 BYOK: the council's LLM provider is resolved by the vendored ``llm_provider`` from
 ``settings`` (``LITHRIM_LLM_PROVIDER`` = openai|azure, ``OPENAI_API_KEY`` / ``AZURE_*``).
-Set ``COMPLIANCE_COUNCIL_VERSION=v1`` so all three judges run on one OpenAI model.
+WS-6c-AGENTIC: the council runs the **v2 cross-provider trio** by default
+(``COMPLIANCE_COUNCIL_VERSION`` defaults to ``v2`` in ``runtime/council/settings.py``;
+the trio reaches Mistral-Large-3 + Llama-4-Maverick via the Azure deployment ids
+``AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3`` / ``_LLAMA_4_MAVERICK``, so a live run
+HARD-requires ``LITHRIM_LLM_PROVIDER=azure`` + those two deployments). Offline tests
+inject the semantic stage, so they never touch Azure. Semantic-only remains the
+milestone scope: structural + artifact stay injected-skip and the structural FLOOR
+lives in the harness ``ground()`` layer, not this stage.
 """
 
 from __future__ import annotations
@@ -24,6 +32,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from ..runtime.council.settings import settings
 from ..runtime.pipeline.models import PipelineRequest, PipelineResult, StageResult
 from ..runtime.pipeline.orchestrator import PipelineOrchestrator
 from ..runtime.pipeline.provenance import NoOpProvenanceStore
@@ -40,13 +49,23 @@ async def _skip_structural(request: PipelineRequest) -> StageResult:
 
 
 class LocalPipelineBackend(BackendClient):
-    def __init__(self, *, org_id: str = "local", artifact_type_override: str | None = None):
+    def __init__(
+        self,
+        *,
+        org_id: str = "local",
+        artifact_type_override: str | None = None,
+        semantic_stage: Any = None,
+    ):
         self.org_id = org_id
         self.artifact_type_override = artifact_type_override
         # Semantic(council)-only orchestrator: structural + artifact stages injected
         # as skips, provenance is a no-op. Stateless, so build once and reuse.
+        # ``semantic_stage`` is injectable so the grade seam can run a deterministic
+        # offline stage (A1) without an Azure call; None -> the orchestrator's
+        # default run_semantic (the live v2 trio).
         self._orchestrator = PipelineOrchestrator(
             structural_stage=_skip_structural,
+            semantic_stage=semantic_stage,
             artifact_stage=_skipped_artifact_stage,
             provenance_store=NoOpProvenanceStore(),
         )
@@ -57,8 +76,13 @@ class LocalPipelineBackend(BackendClient):
             backend="LocalPipelineBackend",
             backend_version="0.1.0",
             judge_model="local-council",
-            judge_model_version="in-process",
-            extra={"org_id": self.org_id, "mode": "semantic_only", "grounding": "empty"},
+            judge_model_version=f"in-process-{settings.COMPLIANCE_COUNCIL_VERSION}",
+            extra={
+                "org_id": self.org_id,
+                "mode": "semantic_only",
+                "grounding": "empty",
+                "council_version": settings.COMPLIANCE_COUNCIL_VERSION,
+            },
         )
 
     def _build_request(self, case: dict[str, Any]) -> PipelineRequest | None:
@@ -85,9 +109,21 @@ class LocalPipelineBackend(BackendClient):
             gate_mode=False,
         )
 
-    def evaluate(self, case: dict[str, Any]) -> BackendVerdict:
+    def evaluate_pipeline(self, case: dict[str, Any]) -> PipelineResult | None:
+        """Run the in-process orchestrator; return the raw PipelineResult (None when
+        the case has no artifacts). The grade seam (``grade_inprocess``) model_dumps
+        this to the ``/v1/pipeline/evaluate`` dict shape so ``ground``/``composite``
+        stay path-agnostic; ``evaluate`` maps it to a BackendVerdict for the
+        backends API.
+        """
         request = self._build_request(case)
         if request is None:
+            return None
+        return asyncio.run(self._orchestrator.evaluate(request))
+
+    def evaluate(self, case: dict[str, Any]) -> BackendVerdict:
+        result = self.evaluate_pipeline(case)
+        if result is None:
             return BackendVerdict(
                 compliance_verdict="approve",
                 artifact_verdict="PASS",
@@ -96,7 +132,6 @@ class LocalPipelineBackend(BackendClient):
                 structural_findings=[],
                 raw={"skipped": "no artifacts"},
             )
-        result: PipelineResult = asyncio.run(self._orchestrator.evaluate(request))
         return _map_result(result)
 
 
