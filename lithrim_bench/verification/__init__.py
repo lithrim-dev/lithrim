@@ -49,6 +49,7 @@ from .spec import (
 from .tools import (
     FakeRecordRagTool,
     InRowTool,
+    KbRagTool,
     RecordRagTool,
     StructuralJuteTool,
     VerificationTool,
@@ -69,6 +70,7 @@ __all__ = [
     "VerificationTool",
     "InRowTool",
     "StructuralJuteTool",
+    "KbRagTool",
     "RecordRagTool",
     "FakeRecordRagTool",
     "JuteGenValidatorTool",

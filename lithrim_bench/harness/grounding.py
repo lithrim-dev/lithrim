@@ -175,12 +175,120 @@ class PresenceCheck(VerificationContract):
         )
 
 
+class KbGrounding(VerificationContract):
+    """Disprove a confident-but-wrong council flag by GROUNDING its claim in the
+    knowledge base — the S-BS-7 presence-check generalized from the transcript to
+    the backend KB corpus (the paper's headline mechanism, the first Phase-3 slice).
+
+    Where :class:`PresenceCheck` clears ``"X not in transcript"`` by finding X in the
+    transcript, this clears ``"X violates policy P"`` (or ``"X is fabricated /
+    unsupported"``) by finding the KB chunk that GROUNDS X — e.g. the HIPAA section
+    the council claimed was violated actually PERMITS the disclosure, or the
+    regulation/code the artifact cited is real and on-point. The heavy retrieval
+    stays in lithrim-backend; this composes over ``GET :8002/v1/kb/{namespace}/search``
+    via the promoted :class:`~lithrim_bench.verification.KbRagTool` (httpx lazy,
+    injected ``http_client`` offline). Conservative: only suppress on a positive,
+    score-clearing, corroborated KB hit (tool ``conforms is True``); a KB miss /
+    error / below-threshold is inconclusive and NEVER clears the flag by silence.
+
+    params = {"namespace": "hipaa",                      # required (KB catalog ns)
+              "service": "http://localhost:8002",        # default :8002
+              "claim_field": "detail" | "<finding key>", # what text to retrieve on
+              "top_k": 5, "min_score": 0.0,
+              "match": "claim_in_chunk" | None,           # corroboration predicate
+              "api_key": <opt>}
+    """
+
+    contract_type = "kb_grounding"
+
+    def __init__(
+        self, decl: VerificationContractDecl, *, http_client: Any | None = None
+    ) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+        self._http_client = http_client
+
+    def _reference(self) -> dict[str, Any]:
+        p = self._params
+        ref: dict[str, Any] = {"namespace": p["namespace"]}
+        for key in ("service", "top_k", "min_score", "match", "api_key", "org_id"):
+            if p.get(key) is not None:
+                ref[key] = p[key]
+        # the SUPPRESS direction grounds the claim -> expect a clearing PRESENT hit.
+        ref["expect"] = "present"
+        return ref
+
+    def _claim_text(self, finding: dict[str, Any], case: dict[str, Any]) -> str:
+        field_name = self._params.get("claim_field") or "detail"
+        value = finding.get(field_name)
+        if value:
+            return str(value)
+        # fall back to the finding's own detail/message, then the artifact text.
+        for key in ("detail", "message", "rationale"):
+            if finding.get(key):
+                return str(finding[key])
+        return str(_artifact_content(case) or "")
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.verification import (
+            REFERENCE_CONFORMANCE,
+            Claim,
+            KbRagTool,
+            VerificationSpec,
+        )
+
+        claim_text = self._claim_text(finding, case)
+        ref = self._reference()
+        spec = VerificationSpec(
+            tool="kb_rag",
+            applies_to_flags=(self.flag_code,),
+            locus=self._params.get("locus", ""),
+            reference=ref,
+            version=self.version,
+        )
+        claim = Claim(
+            claim_type=REFERENCE_CONFORMANCE,
+            flag_code=self.flag_code,
+            subject=claim_text,
+            locus=self._params.get("locus", ""),
+            source=case,
+        )
+        result = KbRagTool(http_client=self._http_client).verify(claim, spec)
+        if result.conforms is True:
+            ids = result.evidence.get("corroborated_ids") or []
+            return Verdict(
+                disproved=True,
+                matched_token=str(ids[0]) if ids else None,
+                evidence=f"KB[{ref['namespace']}] grounds the claim: {ids}",
+                reason=(
+                    f"claim grounded in KB namespace '{ref['namespace']}' "
+                    f"(top_score={result.evidence.get('top_score')}); "
+                    f"the council flag is disproven by retrieval"
+                ),
+            )
+        return Verdict(
+            disproved=False,
+            reason=(
+                "KB returned no score-clearing, corroborated grounding for the claim "
+                f"(conforms={result.conforms}); flag stays open"
+            ),
+        )
+
+
 # contract_type -> executor factory. This is the SUPPRESS registry (per-finding
 # contracts that disprove an existing confident-but-wrong finding). The structural
 # FLOOR direction (artifact-level contracts that inject a BLOCK the council missed)
 # is a categorically different shape — it is keyed in ``_FLOOR_CONTRACT_TYPES`` and
 # run by ``_run_floor``, not here.
-_CONTRACT_EXECUTORS = {"presence_check": PresenceCheck}
+#
+# ``kb_grounding`` (WS-7b) is the KB-grounded suppress executor — the S-BS-7
+# presence-check generalized to the backend KB. It needs the injected ``http_client``
+# (it composes over live :8002), so ``_build_contract`` threads it in; ``PresenceCheck``
+# is pure-stdlib and ignores it.
+_CONTRACT_EXECUTORS = {"presence_check": PresenceCheck, "kb_grounding": KbGrounding}
+_HTTP_CONTRACT_TYPES = {"kb_grounding"}
 
 # contract_type set for the WS-3 structural floor. These resolve to the promoted
 # ``lithrim_bench.verification`` tools (imported lazily in ``_run_floor`` so this
@@ -189,10 +297,16 @@ _CONTRACT_EXECUTORS = {"presence_check": PresenceCheck}
 _FLOOR_CONTRACT_TYPES = {"structural_jute", "jute_gen"}
 
 
-def _build_contract(decl: VerificationContractDecl) -> VerificationContract:
+def _build_contract(
+    decl: VerificationContractDecl, *, http_client: Any | None = None
+) -> VerificationContract:
     factory = _CONTRACT_EXECUTORS.get(decl.contract_type)
     if factory is None:
         raise ValueError(f"no executor registered for contract_type {decl.contract_type!r}")
+    # HTTP-composing suppress executors (kb_grounding) reuse the injected client;
+    # pure-stdlib ones (presence_check) take only the declaration.
+    if decl.contract_type in _HTTP_CONTRACT_TYPES:
+        return factory(decl, http_client=http_client)
     return factory(decl)
 
 
@@ -310,7 +424,10 @@ def ground(
     ]
     if unknown:
         raise ValueError(f"no executor registered for contract_type {unknown[0].contract_type!r}")
-    contracts = {decl.flag_code: _build_contract(decl) for decl in suppress_decls}
+    contracts = {
+        decl.flag_code: _build_contract(decl, http_client=http_client)
+        for decl in suppress_decls
+    }
     semantic_evidence = {
         ev.get("violation_code"): ev for ev in (result.get("semantic") or {}).get("evidence", [])
     }

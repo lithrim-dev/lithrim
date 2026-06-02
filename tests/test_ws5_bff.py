@@ -187,3 +187,94 @@ def test_put_ontology_never_clobbers_the_committed_seed(client):
     ont["severity_map"]["warn_above"] = 0.123
     assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont).status_code == 200
     assert ONTOLOGY_SEED.read_bytes() == before  # the seed on disk did not move
+
+
+# ── WS-7b: GET /v1/kb/{namespace}/search — additive KB-grounding proxy ────────
+
+
+class _KbResp:
+    def __init__(self, payload):
+        self._p = payload
+
+    def json(self):
+        return self._p
+
+    def raise_for_status(self):
+        return None
+
+
+class _FakeKbHttp:
+    """Fake :8002 KB client injected into the BFF so the endpoint test is hermetic
+    (no live :8002). Records calls; returns a chosen results list for any KB GET."""
+
+    def __init__(self, results):
+        self._results = results
+        self.calls = []
+
+    def get(self, url, params=None, headers=None):
+        self.calls.append({"url": url, "params": params})
+        return _KbResp(
+            {
+                "namespace": url.rstrip("/").split("/")[-2],
+                "query": (params or {}).get("q"),
+                "top_k": (params or {}).get("top_k"),
+                "total_hits": len(self._results),
+                "results": self._results,
+                "duration_ms": 1,
+            }
+        )
+
+    def close(self):
+        pass
+
+
+_TPO_CHUNK = (
+    "Uses and disclosures to carry out treatment, payment, and health care "
+    "operations; consent for such disclosures is not required."
+)
+
+
+@pytest.fixture
+def kb_client(client):
+    """The BFF client with the KB http_client overridden to a fake (no live :8002)."""
+    fake = _FakeKbHttp([{"id": "hipaa:164-506", "score": 0.92, "text": _TPO_CHUNK, "metadata": {}}])
+    bff.app.dependency_overrides[bff.get_kb_http_client] = lambda: fake
+    client._fake_kb = fake  # expose for assertions
+    yield client
+
+
+def test_kb_search_endpoint_grounds_claim(kb_client):
+    """A4 — the additive KB endpoint composes over KbRagTool and returns the grounding
+    verdict + the determinism manifest, mocking :8002 (no live call)."""
+    res = kb_client.get(
+        "/v1/kb/hipaa/search",
+        params={"q": "treatment payment operations consent not required", "match": "claim_in_chunk"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["namespace"] == "hipaa"
+    assert body["conforms"] is True  # KB grounds the claim
+    assert body["disposition"] == "CONFORMS"
+    assert body["evidence"]["corroborated_ids"] == ["hipaa:164-506"]
+    assert body["manifest"]["tool"] == "kb_rag"
+    # composed over the confirmed :8002 wire, exactly once
+    assert kb_client._fake_kb.calls[0]["url"] == "http://localhost:8002/v1/kb/hipaa/search"
+
+
+def test_kb_search_endpoint_inconclusive_when_no_match():
+    """A4 — KB silence -> conforms null (never a fabricated hit). Separate fake (empty)."""
+    fake = _FakeKbHttp([])
+    bff.app.dependency_overrides[bff.get_kb_http_client] = lambda: fake
+    try:
+        body = TestClient(bff.app).get(
+            "/v1/kb/hipaa/search", params={"q": "anything", "match": "claim_in_chunk"}
+        ).json()
+        assert body["conforms"] is None
+        assert body["disposition"] == "INCONCLUSIVE"
+    finally:
+        bff.app.dependency_overrides.pop(bff.get_kb_http_client, None)
+
+
+def test_kb_search_requires_query(kb_client):
+    """A4 — q is required (422), matching the backend KB contract."""
+    assert kb_client.get("/v1/kb/hipaa/search").status_code == 422
