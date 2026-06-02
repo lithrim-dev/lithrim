@@ -865,17 +865,28 @@
       "stream": "bench-salvage",
       "phase": "WS-6c-OBS",
       "scope": "recompose observation_workflow + the 6 KPI agents in-process (split out of WS-6c-AGENTIC; greenfield; not in the compliance grade path)",
-      "file": "(not yet authored)",
-      "status": "stub",
-      "version": "v0",
+      "file": "bench-salvage_phaseWS-6c-OBS_observation-recompose_driver.md",
+      "status": "ready",
+      "version": "v1",
       "hardness": "ROUTINE",
       "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
       "target_repos": ["lithrim-bench"],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "SPLIT from WS-6c-AGENTIC 2026-06-02. Recompose ../lithrim-backend/app/workflows/observation_workflow.py (StateGraph:4; ObservationState:38; run_parallel_analyses:423; 7 agents instantiated :333/391/447/481/503/537/613) -> straight-line async in lithrim_bench/runtime/; hoist agent instantiation; DROP dead evaluation_agent; PARK LiveKit simulation_agent. Genuinely greenfield (grep of the agent classes across lithrim_bench/ = 0 hits). Independent of the compliance grade path.",
-      "_registration_note": "Stub registered alongside the WS-6c-AGENTIC re-scope. Expand via /devloop-expand-driver bench-salvage WS-6c-OBS (re-grep the observation_workflow citations against ../lithrim-backend@mvp-ready at authoring).",
-      "next_action": "QUEUED behind WS-6c-AGENTIC (independent of the grade path; can run parallel if capacity allows). Author the driver via /devloop-expand-driver bench-salvage WS-6c-OBS."
+      "_registration_note": "Stub registered alongside the WS-6c-AGENTIC re-scope. Expanded via /devloop-expand-driver bench-salvage WS-6c-OBS 2026-06-02 (re-grepped the observation_workflow citations against ../lithrim-backend@mvp-ready HEAD 6720c70 at authoring).",
+      "re_verification_log": [
+        {
+          "date": "2026-06-02",
+          "actor": "monitor (/devloop-expand-driver stub->ready)",
+          "checked": 18,
+          "confirmed": 16,
+          "drifted": 2,
+          "missing": 0,
+          "drift_notes": "CONFIRMED (16): observation_workflow.py StateGraph:4 / ObservationState:38 / _build_workflow:101 (9-node graph :106-184) / TranscriptionAgent:333 / conversation_item.find_one:355 / AudioAnalysisAgent:391 / run_parallel_analyses:423 / IntentQualityAgent:447 / SentimentAgent:481 / SafetyAgent:503 / TechnicalMetricsAgent:537 / asyncio.gather:570 / aggregate_kpis:607 / KPIAggregationAgent:613; 7 agent dirs present + re-exported app/agents/__init__.py:1-16; evaluation_agent DEAD (no external refs) -> DROP; simulation_agent LiveKit -> PARK; greenfield 0 hits across lithrim_bench/. DRIFT 1 (boundary): observation_workflow embeds a COMPLIANCE TAIL (check_hipaa_compliance:651 / evaluate_artifacts:960 / save_compliance_results:753) and check_hipaa_compliance DELEGATES to ComplianceWorkflow().process() (:686-687) = the grade path WS-6c-AGENTIC already recomposed as runtime/pipeline/orchestrator.py -> recompose the KPI half only, treat the tail as a documented hand-off seam (plan-review #1); this also resolves the AGENTIC 'MISSING (1)' note (those node names live here, not in compliance_workflow.py). DRIFT 2 (dependency posture): the pack's 'plain async / no coupling / ROUTINE' premise is contradicted -- intent_quality:11 / sentiment:7 / safety:8 are Gemini-LLM-backed, audio_analysis pulls numpy:4 + s3_service:87, ALL 7 import app.models.call_kpi (the ObservationState source) + app.utils.agents/app.services.* -> a dependency-isolation requirement for A2 (plan-review #2/#3); recommend reconciling the hardness rationale (risk axis stays ROUTINE, engineering surface is heavier). MISSING (0)."
+        }
+      ],
+      "next_action": "READY 2026-06-02 (driver authored; all citations re-grepped, 2 architectural drifts surfaced as plan-review decisions, 0 missing). Run /devloop-kickoff bench-salvage WS-6c-OBS; fresh executor session ROOTED IN lithrim-bench (bench-only -- the backend observation_workflow is the read-only recompose SOURCE). Plan-review resolves the 5 decisions before 'go'. Inline critique at close per the pack (see the driver Hardness note re: reconciling the ROUTINE rationale against DRIFT 2)."
     }
   ]
 }
