@@ -1,0 +1,127 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-6c-OBS-2026-06-02",
+  "stream": "bench-salvage",
+  "phase": "WS-6c-OBS",
+  "driver_bundle_id": "bench-salvage-phaseWS-6c-OBS-observation-recompose-driver",
+  "started_at": "2026-06-02T12:10:00Z",
+  "ended_at": "2026-06-02T13:35:33Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-02T12:40:00Z",
+    "user_approved_at": "2026-06-02T12:48:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Scope tier A+ (text-path-real) elected over the driver's literal D2/A4 (full 7-agent-body port = tier B). A+ recomposes orchestration + ObservationState/call_kpi contract + pure KPIAggregationAgent + the 3 LLM agents (real, reusing council llm_provider, offline-stubbed); the audio-DSP trio (transcription/audio_analysis/technical_metrics) is interface-complete + [observation]-gated with the real whisper/librosa bodies DEFERRED. A4 met under this reframing: the 7 agent roles are hoisted in-process classes implementing the interface, audio bodies deferred (S-BS-36).",
+        "evidence": "AskUserQuestion scope-tier answer = 'A+ text-path-real (recommended)'",
+        "decided_at": "2026-06-02T12:48:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "DRIFT-2b (new): the driver §1.3 calls transcription_agent 'dep-light per grep' and decision #2 option B groups 'transcription + technical_metrics + kpi_aggregation' as the dep-light slice. The grep only saw the agents' top-level imports; the service the transcription agent delegates to imports torch+whisper at MODULE TOP, and technical_metrics lazily pulls librosa+numpy+pydub. Only kpi_aggregation is truly pure. The driver's dep-light grouping is wrong on 2 of 3 — for the monitor's driver re-grep.",
+        "evidence": "../lithrim-backend/app/agents/transcription_agent/transcription_service.py:3-4 `from torch.futures import S` / `import whisper` (module-top); technical_metrics_agent/agent.py:21,329,403 lazy `import librosa`/`import numpy`",
+        "decided_at": "2026-06-02T12:30:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Commit order adjusted from the driver §6 suggestion (D1 first) to dependency-buildable order: contract (C1) -> agents (C2) -> orchestration (C3) -> tests (C4), so every commit leaves the tree importable. Same logical units, reordered.",
+        "evidence": "driver §6 'Suggested order'; pipeline.py imports agents+models so it cannot precede them",
+        "decided_at": "2026-06-02T12:50:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "2321090",
+      "repo": "lithrim-bench",
+      "title": "feat(observation): port call_kpi state models + ObservationState contract",
+      "summary": "D3: new runtime/observation/ pkg; call_kpi models ported field-faithful (Mongo/bson dropped, id:str|None); ObservationState KPI-half TypedDict + _KPI_FIELDS/_SEAM_FIELDS pins; seam-doc __init__."
+    },
+    {
+      "hash": "1d77ba3",
+      "repo": "lithrim-bench",
+      "title": "feat(observation): recompose the 7 agents in-process (drop evaluation, park sim)",
+      "summary": "D2+D3: 3 LLM agents (intent/sentiment/safety) real ports on the injectable/lazy _LlmBackedAgent (reuses council llm_provider/phi_redaction, lazy openai); pure KPIAggregationAgent; audio.py = 3 audio-DSP agents interface-complete + [observation]-gated (bodies deferred); base.py = 7 Protocols + hoisted ObservationAgents; evaluation dropped, simulation parked; pyproject [observation] extra + testpath."
+    },
+    {
+      "hash": "925eec6",
+      "repo": "lithrim-bench",
+      "title": "feat(observation): recompose the KPI-half StateGraph -> straight-line async",
+      "summary": "D1: ObservationPipeline recomposes process_input_item..aggregate_kpis as straight-line async (conditional edges -> if/await, handle_error sink -> try/except, 4-way asyncio.gather PRESERVED, Mongo/S3 reads dropped); STOPS at aggregate_kpis with the compliance tail as a documented hand-off seam (A3)."
+    },
+    {
+      "hash": "3cda9df",
+      "repo": "lithrim-bench",
+      "title": "test(observation): offline KPI-pipeline + state-contract + fan-out",
+      "summary": "D4: 13 offline tests (default deps, injected StubLLM, text case) mapping A1-A5: e2e pipeline, 7-agent hoist + drop/park + gather-concurrency probe, ObservationState/CallKPI field contracts, no-compliance-tail import/runtime checks, default-deps isolation + audio-gated."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — in-process KPI pipeline runs (no Celery/Mongo/LangGraph) and produces the KPI aggregation for one fixture case",
+      "verdict": "PASS",
+      "evidence": "test_pipeline_runs_text_case_end_to_end PASS; diagnostic run on TEXT_CASE -> status=completed, overall_score=99.33, CallKPI emitted with quality/sentiment/safety populated, technical gracefully None (no-audio). 4-way asyncio.gather exercised."
+    },
+    {
+      "criterion": "A2 — default install unchanged (heavy deps not pulled; ruff clean on new code)",
+      "verdict": "PASS",
+      "evidence": "`python3 -m pytest -q` => 200 passed, 7 skipped (dspy/openai-gated), 0 failed; `import lithrim_bench.runtime.observation` clean; test_default_run_pulls_no_heavy_deps asserts no openai/whisper/torch/librosa/boto3/pydantic_settings in sys.modules after a run; `ruff check lithrim_bench/runtime/observation/` = All checks passed."
+    },
+    {
+      "criterion": "A3 — boundary held (compliance tail NOT re-ported; seam is a documented comment, not code)",
+      "verdict": "PASS",
+      "evidence": "grep finds only 3 documented-seam PROSE lines (__init__.py:21 docstring + pipeline.py:27 docstring + pipeline.py:129 comment) naming ComplianceWorkflow; no import/call. test_no_compliance_tail_imported_or_called + test_importing_observation_does_not_load_compliance_modules PASS (council/orchestrator absent from sys.modules)."
+    },
+    {
+      "criterion": "A4 — agent map: 7 agents recomposed + instantiation hoisted; evaluation absent; simulation not in path; gather fan-out preserved",
+      "verdict": "PASS",
+      "evidence": "test_seven_agents_hoisted_and_reused (7 roles, Protocol-conformant, same instances reused), test_evaluation_dropped_and_simulation_parked (not importable), test_gather_fanout_runs_concurrently (peak-concurrency probe peak>=2) PASS. NOTE: 'recomposed' for the audio-DSP trio = hoisted in-process classes implementing the interface with bodies deferred (tier A+, user-approved; S-BS-36). The 4 non-audio agents (3 LLM + aggregation) are full real ports."
+    },
+    {
+      "criterion": "A5 — state contract preserved (ObservationState/call_kpi field set matches upstream)",
+      "verdict": "PASS",
+      "evidence": "test_observation_state_field_contract (ObservationState.__annotations__ == _KPI_FIELDS, 28 fields, disjoint from the 9 _SEAM_FIELDS); test_call_kpi_field_contract (CallKPI.model_fields == the pinned upstream call_kpi.CallKPI 19-field set). Both PASS."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "kpi_aggregation_on_fixture": "TEXT_CASE -> status=completed, overall_score=99.33 (quality task_completion=True/intent_match=True; sentiment user=positive conf 0.85; safety risk=0.00 pii=False; technical=None text/no-audio)",
+    "default_deps_suite": "200 passed / 7 skipped (python3 3.12.8); +13 observation tests this cycle",
+    "debuglithrim_observation_suite": "13 passed (with [council] present)",
+    "lines_added": "3667 insertions across 16 files (observation/ + pyproject.toml)",
+    "live_llm_smoke": "none run — offline-stubbed is the default; no Gemini/OpenAI cost incurred this cycle"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-36",
+      "title": "Audio-DSP agent bodies + transcript_parser deferred behind [observation] (tier A+ boundary)",
+      "severity": "low",
+      "fix_location": "lithrim_bench/runtime/observation/agents/audio.py + a full [observation] audio dep set (openai-whisper/torch/librosa/numpy/soundfile) + a ported transcript_parser",
+      "impact": "The real whisper/torch transcription, numpy audio analysis, and librosa technical-metrics bodies are NOT ported; the audio agents raise ObservationExtraRequired on real-audio paths. The text path is fully functional and has no current harness consumer; the full audio port is the tier-B follow-up.",
+      "confidence": "CONFIRMED",
+      "evidence": "audio.py raises ObservationExtraRequired; test_audio_agents_are_extra_gated PASS; backend transcription_service.py:3-4 (torch/whisper), technical_metrics_agent/agent.py:21 (librosa) are the unported sources."
+    },
+    {
+      "id": "S-BS-37",
+      "title": "Ported observation models use deprecated datetime.utcnow (py3.12 DeprecationWarning)",
+      "severity": "low",
+      "fix_location": "lithrim_bench/runtime/observation/models.py CallKPI.created_at/updated_at default_factory",
+      "impact": "8 DeprecationWarnings in the suite from datetime.utcnow (faithful to the backend call_kpi.py). Cosmetic; no behavior impact. Fix = default_factory=lambda: datetime.now(UTC) when the backend port is reconciled.",
+      "confidence": "CONFIRMED",
+      "evidence": "pytest warning: 'datetime.datetime.utcnow() is deprecated' from pydantic validation of CallKPI; models.py created_at=Field(default_factory=datetime.utcnow)"
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "WS-6c-OBS recomposed the KPI-half of the backend observation_workflow into a new greenfield in-process package lithrim_bench/runtime/observation/ (4 atomic commits 2321090..3cda9df, lithrim-bench only, not pushed). Delivered at the user-elected tier A+: the straight-line async pipeline (5 KPI-half nodes, 4-way asyncio.gather preserved, Mongo/S3/LangGraph dropped) + the call_kpi/ObservationState contract + the pure KPIAggregationAgent + the 3 LLM agents as real faithful ports (injectable/lazy LLM reusing the council llm_provider, offline-stubbed); the audio-DSP trio is interface-complete + [observation]-gated with the real whisper/librosa bodies DEFERRED (S-BS-36). All A1-A5 PASS; default-deps suite 200 passed/7 skipped, ruff clean, scope confined to observation/ + pyproject.toml, NO ../lithrim-backend edit, working tree clean. The compliance tail is a documented hand-off seam to the already-recomposed orchestrator (A3 verified by grep + import + runtime checks). CAVEATS for the monitor/critic: (1) A4 is met under the A+ reframing of 'recomposed' (audio bodies deferred, not full-ported) — verify this matches the approved scope; (2) one new citation-drift logged (DRIFT-2b: the driver's 'dep-light' agent grouping is wrong — transcription pulls torch/whisper, technical pulls librosa); (3) no live LLM smoke run (offline-stubbed default, zero cost). On audit, check first: the A4 reframing vs driver-literal, and whether S-BS-36 (full audio port) warrants a tier-B follow-up cycle.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage WS-6c-OBS next; weigh the A4 A+ reframing + decide if S-BS-36 (full audio-DSP port, tier B) is a follow-up cycle"
+}
