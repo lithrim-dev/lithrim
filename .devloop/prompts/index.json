@@ -828,7 +828,15 @@
       "phase": "WS-6c-AGENTIC",
       "scope": "compliance grade-wire milestone: S-BS-31 fix + upgrade the M1 in-process spine v1->v2 trio + verify the behavior contracts + wire the in-process council into the harness grade seam (the council first scores real cases)",
       "file": "bench-salvage_phaseWS-6c-AGENTIC_compliance-grade-wire_driver.md",
-      "status": "ready",
+      "status": "shipped",
+      "closed_at": "2026-06-02",
+      "closing_commits": "bench 903478e..5cf438b (6 commits, branch bench-salvage/ws6c-dspy, not pushed) + backend 6720c70 @ mvp-ready + monitor docs b619f2e/118af7d/close",
+      "audit_verdict": "CLEAN (addendum re-verified: A4 0-delta 118af7d..HEAD, A7 187/7, scope held 3 files)",
+      "critique_verdict": "HARD-GATE genuinely-fresh-critic (6-agent from-source workflow wf_fdb93c9c-776) NON-BLOCKING; test-integrity PRINCIPLED (negative-control non-owner oracle survived, not gamed); A0/A4/A6/A7 PASS, D0 owner-emit clean (risk dropped from MISSING_ALLERGY as inert); 2 should-fix (A5 evidence + D3 in-suite coverage) DISCHARGED by the option-B addendum; the critic's one over-reach (A5 'fabricated') monitor-corrected. File: critique-bench-salvage-phaseWS-6c-AGENTIC-2026-06-02.md",
+      "a5_live": "PASS (option B): live v2 trio on proof_case:drop_allergy -> BLOCK/reject, Mistral None tolerated, on-disk fixture tests/fixtures/ws0/a5_live.drop_allergy.json + env-gated real-council grade_inprocess test; 1 paid call ~$0.09-0.20 (29,679 tok).",
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-OBS_kickoff_2026-06-02.md",
+      "seams_closed": ["S-BS-31", "S-BS-32", "S-BS-35"],
+      "new_seams": ["S-BS-34"],
       "version": "v1",
       "hardness": "HARD-GATE",
       "hardness_reason": "The cycle where the council FIRST scores real cases through the grade seam; a fidelity miss in the recompose-upgrade or the S-BS-31 fix would score real cases wrong. Fresh-critic is REQUIRED (not user-electable inline) -- the genuinely-fresh-critic independence was deliberately deferred from WS-6c + WS-6c-DSPy to land here. Touches the backend council safety IP (D0 cross-repo).",
@@ -849,7 +857,7 @@
         }
       ],
       "s_bs_31_gate": "RESOLVED-PENDING-IMPL 2026-06-02 (monitor+user): option (a) reassign-by-domain. The decision is recorded; D0 implements it (cross-repo backend fix + re-port). The phase is no longer blocked on the clinical/IP call.",
-      "next_action": "READY. Run /devloop-kickoff bench-salvage WS-6c-AGENTIC; fresh executor session ROOTED IN lithrim-bench (one cross-repo edit: D0 backend _TIER1_OWNERS on mvp-ready). Plan-review resolves the 6 decisions before 'go'. Fresh-critic REQUIRED at close (/devloop-critique bench-salvage WS-6c-AGENTIC in a genuinely separate session).",
+      "next_action": "CLOSED 2026-06-02 (the council scores real cases through the grade seam). Genuinely-fresh-critic ran (6-agent workflow), test-integrity PRINCIPLED, A5 completed to milestone evidence standard (option B). Next: /devloop-expand-driver bench-salvage WS-6c-OBS (recompose observation_workflow + 6 KPI agents in-process; greenfield, grade-path-independent) parallel the remaining two judges + 6d/6d-KB + shell WS-5e. Carry: S-BS-34 (ruff exclude, no gate); S-BS-33 -> WS-6d-KB.",
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md"
     },
     {
