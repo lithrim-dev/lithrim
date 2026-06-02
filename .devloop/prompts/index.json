@@ -1,7 +1,38 @@
 {
   "version": "1",
-  "updated": "2026-06-02T00:00Z",
+  "updated": "2026-06-03T00:00Z",
   "bundles": [
+    {
+      "id": "bench-salvage-phaseWS-6c-DSPy-2-complete-trio-and-ab-harness-driver",
+      "stream": "bench-salvage",
+      "phase": "WS-6c-DSPy-2",
+      "scope": "complete-the-dspy-judge-trio-policy-faithfulness-plus-prompt-vs-dspy-ab-harness",
+      "file": "bench-salvage_phaseWS-6c-DSPy-2_complete-trio-and-ab-harness_driver.md",
+      "status": "ready",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Authors prompt wiring for two more safety-critical judges (policy + faithfulness) + the A/B that informs a possible future prompt->DSPy council swap. Lower blast radius than a consensus change (no consensus-math edit, no grade-wire), but the lens<->owner<->snapshot cross-check (A2) + trio seam-conformance (A1) + consensus-unchanged proof (A5) are load-bearing; fresh-critic recommended, user MAY elect inline (precedent WS-6c-DSPy).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/RECOMPOSITION_PLAN_ws6.md (§3 REBUILD-ON-DSPY, §6 hybrid + per-judge seam)",
+        "lithrim_bench/runtime/council/judges_dspy.py (the EXISTING role-generic Judge:230 / evaluate_dspy:298 / build_judge_lm:200 to EXTEND, not rebuild)",
+        "lithrim_bench/runtime/council/judge_metric.py (RISK_JUDGE_LENS:31 / score_judge:91 / make_judge_metric:144 — the lens pattern to mirror)",
+        "lithrim_bench/runtime/council/__init__.py:43-49 (the per-judge dict seam)",
+        "lithrim_bench/runtime/council/council_roles/{risk,policy,faithfulness}_judge.txt (lens sources + per-role prompts)",
+        "lithrim_bench/runtime/council/compliance_council.py (_TIER1_OWNERS:232; evaluate:2413; _load_role_prompts:523; _apply_consensus:1866 KEEP UNCHANGED)",
+        "examples/proof_case.jsonl + data/verification_packs/ + lithrim_bench/picklist.py (recipe=label A/B case set)",
+        ".devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-2026-06-02.json (prior cycle: risk_judge rebuilt, §6 hybrid proven)",
+        ".devloop/state/STREAM_bench-salvage.md (seams S-BS-7 / S-BS-12 / S-BS-31-closed / S-BS-33)"
+      ],
+      "_note": "Follow-on to WS-6c-DSPy (closed 95174c0..4e1d3cc; risk_judge only). The Judge module is ALREADY role-generic, so DSPy-2 = COMPLETE-THE-TRIO (wire policy + faithfulness through the same module: add POLICY/FAITHFULNESS lenses + per-role prompt) + the NEW prompt-vs-DSPy A/B harness (the judge-calibration substrate under the calibration-trainer USP). Consensus stays byte-frozen; NOT wired into grade (same posture as DSPy-1). Optimizer pass deferred to WS-6c-DSPy-3 (plan-review #3 default = baseline+gate, no optimizer). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: concurrent uncommitted workbench (calibration verification/* + grounding.py + SPEC_CALIBRATION_TRAINER + RUN_* + test_dosage_floor; journey apps/; 3 STAGED paper files) — deliverables live in runtime/council/ (no overlap) but executor MUST commit with explicit pathspec only (the WS-6d landmine).",
+      "created": "2026-06-03",
+      "last_re_verified": "2026-06-03",
+      "cost_envelope_usd": 2.0,
+      "cost_max_acceptable_usd": 3.0,
+      "expected_runtime_min": 90,
+      "next_action": "User kicks off in a fresh exec session per the KICKOFF block. Plan-review required: the two lens code-sets (snapshot/owner-checked) + A/B harness home + optimizer-vs-baseline scope + the ONE live A/B cost confirmation + pathspec-only commit hygiene."
+    },
     {
       "id": "paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-dispersion-measurement-driver",
       "stream": "paper-1-copilot",
