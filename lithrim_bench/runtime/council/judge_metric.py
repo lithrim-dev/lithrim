@@ -16,6 +16,26 @@ outputs (or persisted corpus rows) without the live stack. A single rebuilt judg
 covers only its role's LENS of codes, so scoring is restricted to ``lens_codes``
 (an out-of-lens raise counts as a false positive — the judge over-stepped its
 scope).
+
+WS-6c-DSPy-2: the trio's lenses (``RISK_JUDGE_LENS`` / ``POLICY_JUDGE_LENS`` /
+``FAITHFULNESS_JUDGE_LENS``, indexed by ``LENS_BY_ROLE``) are **owner-consistent** —
+every Tier-1 code in a lens is one the role owns in
+``compliance_council._TIER1_OWNERS`` (verified by the lens/owner guard test).
+Two consequences are intentional and load-bearing:
+
+  * **The per-judge precision a lens produces is a LOWER BOUND, not the judge's
+    true precision.** A role prompt may legitimately invite a judge to *corroborate*
+    a code another role owns (e.g. ``faithfulness_judge.txt`` invites
+    ``FABRICATED_ALLERGY`` "as a fidelity violation", which ``risk_judge`` owns).
+    Under the owner-consistent lens that corroborating raise scores as an
+    out-of-lens false positive, depressing the absolute number. This is fine for
+    an A/B *comparison* (the lens is applied symmetrically to both arms), but any
+    standalone precision figure must be labelled a lower bound. Fixing this (a
+    co-raise-aware lens) is a candidate refinement deferred to WS-6c-DSPy-3; do
+    NOT change the scoring here.
+  * **A lens code that is NOT in ``KNOWN_TAXONOMY_CODES`` is a hard error, not a
+    silent score (S-BS-12).** The lenses below carry only in-snapshot codes; the
+    guard test fails loudly if that ever drifts.
 """
 
 from __future__ import annotations
@@ -37,6 +57,58 @@ RISK_JUDGE_LENS = frozenset(
         "FABRICATED_ALLERGY",
     }
 )
+
+# policy_judge's code lens — the HIPAA / regulatory-compliance scope of
+# runtime/council/council_roles/policy_judge.txt. FABRICATED_CONSENT is named
+# literally (policy_judge.txt:19 "raise FABRICATED_CONSENT"). PHI_DISCLOSURE_
+# PRE_VERIFICATION is policy's SOLE Tier-1 owner (_TIER1_OWNERS) and the
+# identity-before-PHI / outbound-disclosure domain the prompt opens with
+# (policy_judge.txt:8-11,17), even though the prompt never names the code string
+# verbatim — so the live policy judge likely UNDER-raises it, a measurable recall
+# gap the A/B surfaces (a judge-prompt-authoring follow-up, NOT a lens error).
+# Both codes are Tier-1 and policy-owned, so the lens is owner-consistent.
+POLICY_JUDGE_LENS = frozenset(
+    {
+        "FABRICATED_CONSENT",
+        "PHI_DISCLOSURE_PRE_VERIFICATION",
+    }
+)
+
+# faithfulness_judge's code lens — the artifact-vs-transcript fidelity scope of
+# runtime/council/council_roles/faithfulness_judge.txt (the ARTIFACT-SPECIFIC
+# TAXONOMY CODES block + the secondary behavioral codes). OWNER-CONSISTENT: only
+# the two Tier-1 codes faithfulness owns in _TIER1_OWNERS are admitted —
+# VALUE_MISMATCH and MISSING_ALLERGY. The prompt ALSO invites WRONG_DOSAGE,
+# FABRICATED_ALLERGY, MISSED_ESCALATION, SEVERITY_ESCALATION (faithfulness_judge.txt
+# :13,:16,:26,:27), but those are risk_judge's Tier-1 codes — faithfulness raising
+# them is legitimate corroboration, not solo-ownership, so they are DELIBERATELY
+# EXCLUDED from the lens (S-BS-12). Their corroborating raises therefore score as
+# out-of-lens FPs, which is why the per-judge precision is a lower bound (see the
+# module docstring). The remaining codes are Tier-2/Tier-3 with no Tier-1 owner
+# constraint.
+FAITHFULNESS_JUDGE_LENS = frozenset(
+    {
+        "VALUE_MISMATCH",
+        "MISSING_ALLERGY",
+        "HALLUCINATED_DETAIL",
+        "FABRICATED_HISTORY",
+        "MEDICATION_NOT_IN_TRANSCRIPT",
+        "UPCODING_RISK",
+        "WRONG_CODE",
+        "PROTOCOL_STEP_SKIPPED",
+        "INCOMPLETE_DOCUMENTATION",
+        "DURATION_FABRICATION",
+        "NEGATION_REVERSAL",
+    }
+)
+
+# Role → lens, so the harness/metric can resolve a lens by judge role. Keys are
+# the V2_ROLES (judges_dspy.V2_ROLES); values mirror RISK_JUDGE_LENS exactly.
+LENS_BY_ROLE: dict[str, frozenset[str]] = {
+    "risk_judge": RISK_JUDGE_LENS,
+    "policy_judge": POLICY_JUDGE_LENS,
+    "faithfulness_judge": FAITHFULNESS_JUDGE_LENS,
+}
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:

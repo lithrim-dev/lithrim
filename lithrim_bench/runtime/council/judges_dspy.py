@@ -35,6 +35,7 @@ self-report anti-pattern this avoids.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -51,6 +52,11 @@ from .settings import settings
 
 V2_ROLES = ("risk_judge", "policy_judge", "faithfulness_judge")
 _DECISIONS = {"approve", "needs_review", "reject"}
+
+# The per-role prompt sources the live prompt-council loads (compliance_council
+# ._load_role_prompts globs the same dir → prompts[file.stem]); the DSPy Judge is
+# fed the SAME text via role_prompt= so the A/B compares like prompts.
+_ROLE_PROMPTS_DIR = Path(__file__).parent / "council_roles"
 
 # Role → the Azure deployment id, read from the salvaged ``settings`` (the same
 # source ``llm_provider._resolve_model`` reads for purposes council/mistral_judge/
@@ -99,6 +105,17 @@ def default_taxonomy_context() -> str:
         f"{sorted(TIER_2_HIGH_RISK)}\n"
         f"  Tier-3 medium (flagged for awareness): {sorted(TIER_3_MEDIUM)}"
     )
+
+
+def load_role_prompt(role: str) -> str:
+    """Read ``council_roles/<role>.txt`` — the SAME prompt text the live
+    prompt-council loads via ``_load_role_prompts`` (the file ``stem`` is the
+    role key). Raises if the role prompt is missing rather than feeding an empty
+    ``role_prompt`` to the signature."""
+    path = _ROLE_PROMPTS_DIR / f"{role}.txt"
+    if not path.exists():
+        raise FileNotFoundError(f"no council role prompt for {role!r} at {path}")
+    return path.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -288,6 +305,48 @@ class Judge:
 
     # convenience: a Judge is callable like a dspy.Module
     __call__ = forward
+
+
+def build_trio(
+    *,
+    predictors: dict[str, Callable[..., Any]] | None = None,
+    taxonomy_context: str | None = None,
+) -> list[Judge]:
+    """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
+
+    Each judge is the SAME generic ``Judge`` module bound to its
+    ``council_roles/<role>.txt`` text via ``role_prompt=`` — role specialization
+    rides the prompt, not a per-role signature (the module is already generic;
+    this is a convenience, not a seam change).
+
+    Offline/tests: pass ``predictors={role: callable}`` to inject a per-role
+    predictor (no ``dspy``/network). Live: omit ``predictors`` and each judge
+    binds its own deterministic ``dspy.LM`` via :func:`build_judge_lm` (the role's
+    Azure deployment, temperature=0, logprobs on). The returned list feeds
+    :func:`evaluate_dspy` directly.
+    """
+    judges: list[Judge] = []
+    for role in V2_ROLES:
+        role_prompt = load_role_prompt(role)
+        if predictors is not None:
+            judges.append(
+                Judge(
+                    role,
+                    predictor=predictors[role],
+                    role_prompt=role_prompt,
+                    taxonomy_context=taxonomy_context,
+                )
+            )
+        else:
+            judges.append(
+                Judge(
+                    role,
+                    lm=build_judge_lm(role),
+                    role_prompt=role_prompt,
+                    taxonomy_context=taxonomy_context,
+                )
+            )
+    return judges
 
 
 # A fan-out element is either a live Judge (run now) or a pre-built seam dict
