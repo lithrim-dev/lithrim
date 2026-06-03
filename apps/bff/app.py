@@ -62,6 +62,7 @@ from lithrim_bench.harness.audit import (  # noqa: E402
     Target,
     make_actor,
 )
+from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
     agent_from_dict,
@@ -109,6 +110,12 @@ def get_kb_http_client() -> Any | None:
     """The httpx-like client KbRagTool uses for :8002 (None -> the tool creates one
     lazily; tests inject a fake so no live call is made)."""
     return None
+
+
+def get_collections_db() -> Path:
+    """The doc-shim DB the BFF reads run-provenance blobs from (PIPELINE_RUNS).
+    Override in tests so the run-audit read is hermetic."""
+    return Path(DEFAULT_COLLECTIONS_DB)
 
 
 def get_actor() -> Actor:
@@ -385,6 +392,78 @@ def put_ontology_endpoint(
         )
     )
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
+
+
+# ── R0: the two §2B audit streams as why/when/who/what reports ────────────────
+
+
+@app.get("/v1/audit")
+def get_audit_endpoint(
+    actor: str | None = Query(None, description="Filter by actor id (the SME handle)"),
+    target_type: str | None = Query(None, description="judge | flag | ontology | agent | ..."),
+    target_id: str | None = Query(None, description="The acted-upon object id"),
+    since: str | None = Query(None, description="Inclusive ISO8601 lower bound on ts"),
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """The config-change audit stream (§2B stream 1): who/when/what/why for every
+    authoring write, oldest-first, append-only. Filters are ANDed."""
+    records = AuditLog(db_path=db_path).query(
+        actor=actor, target_type=target_type, target_id=target_id, since=since
+    )
+    return {"records": records}
+
+
+def _run_audit_report(doc: dict, run_id: str) -> dict:
+    """Project a persisted PipelineProvenance blob into the §2B run-provenance report
+    (stream 2): who (the agent) / when (the run ts) / what (the verdict) / why (each
+    judge's vote + reasoning + evidence + the final verdict). A faithful, minimal
+    projection — the richer query/diff views are UAP-3."""
+    semantic = (doc.get("stage_results") or {}).get("semantic") or {}
+    judges = [
+        {
+            "judge_role": v.get("judge_role"),
+            "vote": v.get("vote"),
+            "confidence": v.get("confidence"),  # float | null
+            "model": v.get("model"),
+            "reasoning": v.get("reason"),
+            "findings": v.get("findings") or [],
+            "evidence": semantic.get("evidence") or [],
+        }
+        for v in (semantic.get("judge_votes") or [])
+    ]
+    return {
+        "run_id": run_id,
+        "ts": doc.get("timestamp"),
+        "actor": {"type": "agent", "id": doc.get("agent_id")},
+        "verdict": doc.get("verdict"),
+        "gate_decision": doc.get("gate_decision"),
+        "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
+        "judges": judges,
+        "findings": doc.get("findings") or [],
+        "stages_executed": doc.get("stages_executed") or [],
+    }
+
+
+@app.get("/v1/runs/{run_id}/audit")
+def get_run_audit_endpoint(
+    run_id: str,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """The run-provenance audit report (§2B stream 2) for a persisted run. Reads the
+    SqliteProvenanceStore blob SYNCHRONOUSLY via the doc-shim's sync .get (no event
+    loop in the sync handler) and projects the per-judge votes/reasoning/evidence +
+    final verdict.
+
+    A $0 replay run does NOT persist a provenance blob (only --in-process does), so
+    an un-persisted run is a clean 404 — never a 500 (monitor N1). "Every replay run
+    is auditable" is UAP-3 run-history; recorded as a seam."""
+    doc = PIPELINE_RUNS.get(run_id, db_path=collections_db)
+    if doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"run {run_id!r} not persisted (replay runs are not audited until UAP-3 run-history)",
+        )
+    return _run_audit_report(doc, run_id)
 
 
 @app.get("/v1/kb/{namespace}/search")
