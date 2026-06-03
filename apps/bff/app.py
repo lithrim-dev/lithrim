@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -55,14 +55,24 @@ import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors te
 import seed_ontology  # noqa: E402  (scripts/ — import-only: snapshot lint for the PUT gate)
 
 from lithrim_bench.harness import corpus  # noqa: E402
+from lithrim_bench.harness.audit import (  # noqa: E402
+    Actor,
+    AuditLog,
+    AuditRecord,
+    Target,
+    make_actor,
+)
 from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
+    agent_from_dict,
+    agent_to_dict,
     load_agent,
+    save_agent,
     seed_config_db,
 )
 from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
-from lithrim_bench.picklist import load_case  # noqa: E402  (the agent's case, for the shell to display)
+from lithrim_bench.picklist import load_case  # noqa: E402  (the case the shell displays)
 
 DEFAULT_AGENT = "ws0_default"
 # Where PUT /v1/ontology persists edited ontologies. A non-committed working dir —
@@ -72,6 +82,7 @@ DEFAULT_ONTOLOGY_WORKDIR = REPO_ROOT / "out" / "bff" / "ontology"
 # hoisted out of the default to satisfy ruff B008 (the ruff.toml allowance only
 # whitelists Depends/Query; this avoids widening it).
 _ONTOLOGY_BODY = Body(...)
+_AGENT_BODY = Body(...)
 
 
 def get_config_db() -> Path:
@@ -100,6 +111,28 @@ def get_kb_http_client() -> Any | None:
     return None
 
 
+def get_actor() -> Actor:
+    """The dev-default 'who' for a write with no X-Actor header. An honest, NON-SME
+    handle (monitor N5) — a real SME attributes via the X-Actor header. Override in
+    tests / deployment. The §2B invariant: no config write is silently un-attributed."""
+    return Actor(type="system", id="dev-default")
+
+
+def _resolve_actor(x_actor: str | None, default: Actor) -> Actor:
+    """The X-Actor header (a real SME handle) wins; else the configured dev default."""
+    return make_actor(x_actor) if x_actor else default
+
+
+def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
+    """Prefer the working-copy DRAFT a PUT /v1/ontology wrote (R3 draft→grade), else
+    the committed seed. Returns (path, source) where source is 'draft' | 'committed'.
+    Shared by GET /v1/ontology and POST /v1/run-eval so read + grade resolve identically."""
+    wc = Path(workdir) / f"{agent.name}.json"
+    if wc.exists():
+        return wc, "draft"
+    return agent.ontology_abspath(), "committed"
+
+
 def _load_agent(name: str, db_path: Path):
     # Build the config DB from the committed agent seeds on first use, exactly as
     # scripts/run_eval.py main() does (gitignored-built; source-of-truth is JSON).
@@ -114,7 +147,9 @@ def _load_agent(name: str, db_path: Path):
 class RunEvalRequest(BaseModel):
     agent: str = DEFAULT_AGENT
     live: bool = False  # :8002 backend council (HTTP, paid)
-    in_process: bool = False  # the in-process v2 Azure council (paid Azure calls) — a fresh real run
+    in_process: bool = (
+        False  # the in-process v2 Azure council (paid Azure calls) — a fresh real run
+    )
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -136,6 +171,7 @@ def run_eval_endpoint(
     req: RunEvalRequest,
     db_path: Path = Depends(get_config_db),
     out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
 ) -> dict:
     """Drive one case end-to-end and return the eval-report payload.
 
@@ -143,16 +179,28 @@ def run_eval_endpoint(
     returns only the per-case ``calibration``; the run-level summary mirrors
     tests/test_ws4a.py). The folded summary is a degenerate N=1 DIAGNOSTIC on the
     WS-0 baseline (ece==0.5, small-N caveat) — NOT the WS-4b locked calibration gate.
+
+    R3 (draft→grade): the run reads the agent's working-copy ontology if a PUT wrote
+    one (else the committed seed), so an authored flag/threshold actually grades. The
+    chosen source is surfaced as ``ontology_source`` ('draft' | 'committed').
     """
     agent = _load_agent(req.agent, db_path)
+    ontology_path, ontology_source = _resolve_ontology_path(agent, workdir)
     try:
-        record = run_eval.run(agent, live=req.live, in_process=req.in_process, out_dir=out_dir)
+        record = run_eval.run(
+            agent,
+            live=req.live,
+            in_process=req.in_process,
+            out_dir=out_dir,
+            ontology_path=ontology_path,
+        )
     except SystemExit as exc:  # run_eval raises this when the case is missing
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])
     record["grade_path"] = record["provenance"].get("grade_path")
+    record["ontology_source"] = ontology_source  # R3: which ontology graded (audit context)
     record["council"] = _council_view(record)
     return record
 
@@ -199,7 +247,9 @@ def case_endpoint(
     return {
         "case_id": case.get("case_id"),
         "transcript": case.get("transcript"),
-        "artifact": (artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None),
+        "artifact": (
+            artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None
+        ),
         "conditions": pp.get("conditions") or [],
         "expected_safety_flags": case.get("expected_safety_flags") or [],
         "injection_recipe": case.get("injection_recipe"),
@@ -212,6 +262,50 @@ def corpus_endpoint() -> dict:
     return {"rows": list(corpus.read_corpus())}
 
 
+# ── R1: GET/PUT /v1/agent — assemble + persist an Agent to the config plane ───
+
+
+@app.get("/v1/agent")
+def get_agent_endpoint(
+    name: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """Load an assembled Agent (judges + ontology + tools + kb) from the config DB.
+    404 on unknown, mirroring _load_agent."""
+    return agent_to_dict(_load_agent(name, db_path))
+
+
+@app.put("/v1/agent")
+def put_agent_endpoint(
+    agent: dict = _AGENT_BODY,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Assemble + persist an Agent to the config plane (R1), with an actor-attributed,
+    immutable audit record (R0). Validates the body via an ``agent_from_dict`` round-trip
+    (422 on malformed, the WS-5d pattern). NEVER writes the committed seed
+    ``data/config/agents/*.json`` — only the (non-committed) config DB. The actor is the
+    X-Actor header (a real SME) or the dev default; the agent upsert + its audit row are
+    one transaction (config.save_agent, N4)."""
+    if not db_path.exists():
+        seed_config_db(db_path=db_path)
+    try:
+        ag = agent_from_dict(agent)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"malformed agent: {exc}") from exc
+    actor = _resolve_actor(x_actor, default_actor)
+    save_agent(
+        ag,
+        db_path=db_path,
+        actor=actor,
+        audit_log=AuditLog(db_path=db_path),
+        rationale=rationale,
+    )
+    return {"status": "ok", "name": ag.name, "actor": actor.model_dump()}
+
+
 @app.get("/v1/ontology")
 def ontology_endpoint(
     agent: str = DEFAULT_AGENT,
@@ -220,12 +314,10 @@ def ontology_endpoint(
 ) -> dict:
     """The agent's ontology JSON. Prefers a working copy a prior PUT wrote (so a
     PUT then GET round-trips); else the committed seed (the same 'stored ontology'
-    the live council is sent at run_eval.py:118)."""
-    wc = workdir / f"{agent}.json"
-    if wc.exists():
-        return json.loads(wc.read_text())
+    the live council is sent at run_eval.py:142). Shares ``_resolve_ontology_path``
+    with POST /v1/run-eval so read + grade resolve to the same file (R3)."""
     ag = _load_agent(agent, db_path)
-    path = ag.ontology_abspath()
+    path, _source = _resolve_ontology_path(ag, workdir)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"ontology not found: {path}")
     return json.loads(path.read_text())
@@ -258,18 +350,40 @@ def _validate_ontology(ontology: dict) -> None:
 def put_ontology_endpoint(
     ontology: dict = _ONTOLOGY_BODY,
     agent: str = DEFAULT_AGENT,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
     workdir: Path = Depends(get_ontology_workdir),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
 ) -> dict:
-    """Validate + persist an edited ontology to a non-committed working copy (WS-5d).
+    """Validate + persist an edited ontology to a non-committed working copy (WS-5d) +
+    emit an actor-attributed, immutable audit record (R0 — audit across all config
+    writes).
 
     Clobber-safe by construction: the write target is ``workdir/<agent>.json``, never
     the committed seed. Validation (``_validate_ontology``) rejects malformed or
-    snapshot-violating bodies with 422 before anything lands.
+    snapshot-violating bodies with 422 before anything lands. The audit record carries
+    the canonical before (the prior served ontology — working copy if one exists, else
+    the committed seed) → after (the new body) diff + why={rationale}.
     """
     _validate_ontology(ontology)
+    ag = _load_agent(agent, db_path)
+    before_path, _src = _resolve_ontology_path(ag, workdir)
+    before = json.loads(before_path.read_text()) if before_path.exists() else None
     workdir.mkdir(parents=True, exist_ok=True)
     path = workdir / f"{agent}.json"
     path.write_text(json.dumps(ontology, indent=2, sort_keys=True))
+    actor = _resolve_actor(x_actor, default_actor)
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=actor,
+            action="edit",
+            target=Target(type="ontology", id=agent),
+            why={"rationale": rationale},
+            before=before,
+            after=ontology,
+        )
+    )
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
 
 
