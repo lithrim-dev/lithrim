@@ -53,17 +53,40 @@ The config plane (`harness/config.py` `Agent`/`EvalProfile`, `harness/ontology.p
 
 ---
 
+## 2A. Entity model + the critique-as-verification gate (2026-06-04 refinement)
+
+An evaluation is composed of **first-class entities** that execute per evaluation. The UI assembles them; the engine runs them; a critique gate reconciles the LLM layer with the deterministic layer.
+
+### The entities
+- **LLM Judge.** A judge is **formed by ASSIGNING an ontology subset** (flags) to it — the assigned flags' `JudgeQuestion{role, ordinal, text}` **become the judge's refinement questions** (its lens + prompt). A judge does **not** carry free-text prose authored in isolation; its questions are *derived from the ontology it is assigned*. A judge may additionally **attach + EXECUTE** already-generated, persisted **smart-contract validators** as part of its evaluation — **but a judge never generates a validator** (generation is a separate authoring concern). The judge is a validator **consumer**.
+- **Smart-contract validator** (`smartContractValidator`). A deterministic, **already-generated + persisted** validator (the verification toolbox: `structural_jute`, `jute_gen`, `dosage_grounding`, presence-checks, …). Authored/generated separately — the **DSPy bench-gated JUTE generator** (`verification/jute_dspy.py`, generate→test→refine against the by-construction oracle) — and persisted. Executed (never authored) by judges or as independent grounding checks. *Judges run them; the generator makes them.*
+- **GroundingCheck.** A first-class **INDEPENDENT** entity (not necessarily attached to any judge), declared in the eval profile and **executed per evaluation alongside the LLM judges** — the current `harness/grounding.py` floor/suppress model (`dosage_grounding` floor, `kb_grounding`/`presence_check` suppress), promoted to a config-plane-authored, standalone entity.
+
+### The critique-as-verification gate (Ralph-Loop)
+The assigned **ontology rules** (tagged: tier, owner, when/when-NOT, severity) + the executed **validator outputs** together form **signals**. A **Ralph-Loop-like critique** incorporates these signals, and a judge's verdict **stands ONLY IF its reasoning, on the given input, withstands the tagged ontology + contract rules**:
+- a judge claim that **contradicts a deterministic validator result** (e.g. the dose IS grounded in the chart, but the judge raised `WRONG_DOSAGE`) is caught and corrected by the critique;
+- a judge raise that **violates a tagged ontology rule** (a code outside its assigned lens/owner, or used against its `when_NOT_to_use`) is rejected;
+- a judge whose reasoning **survives** the signals is admitted.
+
+This is the **tool-grounded floor generalized into a per-judge critique loop** — and it is precisely what makes a critique *ground* rather than merely self-critique: the `critique-pass-precision-not-floor` spike showed a transcript-only self-critique cannot flip a transcript-only blind spot; **feeding it the ontology + validator signals is what closes that gap.** The deterministic layer can correct the LLM layer (the by-construction-true + record-grounded floor principle), now per-judge and critique-mediated.
+
+### Invariant boundary
+All of this lives **above the frozen consensus seam** (`compliance_council._apply_consensus` stays byte-frozen). Validators/grounding remain **deterministic** (no LLM in the floor). The critique can **down-rank or correct** a judge's reasoning but cannot relabel a by-construction case. Compose: judges (`runtime/council`), validators (`verification/`), grounding (`harness/grounding.py`), the critique (the DSPy spike) all exist — **the NET-NEW is the orchestration**: ontology-assignment → refinement questions, the signals bus, and the withstands-gate.
+
+---
+
 ## 3. The three stages — EXISTS vs NET-NEW
 
 ### Stage 1 — Judge creation (the largest gap)
 
-Author a judge = a **role** + its **key questions** + a **model binding** + a **lens** (the codes it owns), then **optimize** it against the by-construction corpus.
+Author a judge = a **role** + an **assigned ontology subset** (whose flags' `JudgeQuestion`s become its **refinement questions** — §2A) + a **model binding** + (optional) **attached persisted validators it executes** (never generates), then **optimize** it against the by-construction corpus. Authoring is **assignment + binding**, not free-text prose.
 
-- **EXISTS:** the runtime — `judges_dspy.py` (`Judge`/`build_trio`, model binding via `build_judge_lm`), `judge_metric.py` (`LENS_BY_ROLE`, `make_judge_metric` + the co-raise-aware lens), `judge_optimize.py` (`compile_judge`/`run_optimize` — the BootstrapFewShot loop, WS-6c-DSPy-3b), and the ontology's `JudgeQuestion{role, ordinal, text}` data model. `SPEC_CALIBRATION_TRAINER.md` is the optimize-step product surface.
+- **EXISTS:** the runtime — `judges_dspy.py` (`Judge`/`build_trio`, model binding via `build_judge_lm`), `judge_metric.py` (`LENS_BY_ROLE`, `make_judge_metric` + the co-raise-aware lens), `judge_optimize.py` (`compile_judge`/`run_optimize` — the BootstrapFewShot loop, WS-6c-DSPy-3b), the ontology's `JudgeQuestion{role, ordinal, text}` + `questions_for(role)`, the persisted validators (`verification/`), and the critique spike. `SPEC_CALIBRATION_TRAINER.md` is the optimize-step product surface.
 - **NET-NEW:**
-  1. **A `JudgeEditor` gen-UI widget** (the judge analogue of `FlagEditor`): role name, key questions, model deployment, lens code-set (owner-consistent, snapshot-checked).
-  2. **The prompt↔ontology bridge.** Today runtime judges read `council_roles/<role>.txt`; the ontology carries `questions` keyed by role but they are **not** the runtime prompt source. Stage 1 must make UI-authored role-questions flow to BOTH the ontology AND the judge prompt (render the prompt from the questions, or treat the questions as the prompt). This is the one genuinely new architectural decision (see Open Questions).
-  3. **BFF judge surface** — `GET /v1/judges` (list role + model + lens + questions), `PUT /v1/judges/{role}` (author; validate owner↔emit + snapshot), `POST /v1/judges/{role}/optimize` (cost-gated `run_optimize` — the calibration trainer; reuses the WS-6c-DSPy-3b smoke→cost-go→one-run protocol). **Gate:** S-BS-49 (the exact-accept gate harvests only silent demos) must be addressed before "optimize" is trusted to *improve* a judge — the UI surfaces the measured held-out Δ honestly, win-or-not.
+  1. **A `JudgeEditor` gen-UI widget**: role + **the ontology assignment** (pick the flags/lens this judge owns → its refinement questions auto-derive from `questions_for(role)`) + model deployment + **attached validators** (pick from the persisted set; execute-only). Owner-consistent + snapshot-checked.
+  2. **The prompt↔ontology bridge — DECIDED (OQ-1, user 2026-06-04): ontology-as-source via ASSIGNMENT** (§2A). The assigned ontology's `JudgeQuestion`s ARE the judge's refinement questions; the runtime prompt is *rendered from* the assignment — `council_roles/<role>.txt` becomes a render target / retires; UI-authored questions write to the ontology (`questions`), the judge reads them. One source of truth. (Touches safety-critical prose, cf. S-BS-11 — render carefully + keep the byte-parity guard.)
+  3. **The signals + critique-gate wiring (§2A)** — a judge's reasoning is checked against its assigned ontology rules + its attached validators' outputs via the Ralph-Loop critique; the verdict stands only if it withstands. (Composes the critique spike + `harness/grounding`; the orchestration is new.)
+  4. **BFF judge surface** — `GET /v1/judges` (list role + model + assigned lens + questions + attached validators), `PUT /v1/judges/{role}` (assign + bind; validate owner↔emit + snapshot), `POST /v1/judges/{role}/optimize` (cost-gated `run_optimize` — the calibration trainer; reuses the WS-6c-DSPy-3b smoke→cost-go→one-run protocol). **Gate:** S-BS-49 (the exact-accept gate harvests only silent demos) must be addressed before "optimize" is trusted to *improve* a judge — the UI surfaces the measured held-out Δ honestly, win-or-not.
 
 ### Stage 2 — Flag creation (closest to done)
 
@@ -85,6 +108,7 @@ Run the authored `Agent` through the engine and return the graded result + groun
   2. **Eval-pack / batch run** — `POST /v1/eval-pack/run` over a corpus (today only single-case `/v1/run-eval`), folding `report.calibration_check`.
   3. **Run history** — `GET /v1/runs` from the `SqliteProvenanceStore` (the blob tier exists; expose it) → the "did my edit move the number?" loop that Stage 1's optimize closes.
   4. **GATE before any floor/KB ships from a committed ontology:** S-BS-13 (floor-apply replay) + S-BS-16 (floor inject-param validation) + S-BS-41 (`run_eval` threads no `http_client` → `kb_grounding` hits live `:8002` under `--replay`). The UI must not let a floor/KB contract ship past these.
+  5. **Execute the §2A entity model per evaluation** — a run fans out the LLM judges AND the standalone **GroundingChecks**, then reconciles the LLM verdict with the deterministic signals via the **withstands-gate** (the Ralph-Loop critique): judge-attached validators run as that judge's signals; independent GroundingChecks run alongside (the `harness/grounding` floor/suppress model, made first-class + config-authored). Building blocks exist (`runtime/council` + `verification/` + `harness/grounding` + the critique spike); the **orchestration is the NET-NEW**.
 
 ---
 
@@ -157,8 +181,9 @@ The `tool-<name>` → component contract (WS-5c). Add `JudgeEditor` + `RunPanel`
 ## 7. Proposed phasing (build sequence — reframed WS-7)
 - **WS-7a** ✅ (the journey Verify beachhead — now the frozen demo's live act).
 - **UAP-1 / R1+R3** — the config-plane write-path (`/v1/agent`) + the draft→grade loop. Smallest change that makes authored config actually run.
-- **UAP-2 / R2** — `JudgeEditor` + `/v1/judges` + the prompt↔ontology bridge (the headline gap).
+- **UAP-2 / R2** — `JudgeEditor` + `/v1/judges` via **ontology-assignment** (OQ-1 decided: a judge's refinement questions derive from its assigned flags) + attached-validator selection. The headline gap.
 - **UAP-3 / R4+R6** — `RunPanel` + processing/eval-pack/history surface.
+- **UAP-3b / §2A** — the **signals + withstands-gate** orchestration: run independent GroundingChecks alongside the judges + the Ralph-Loop critique reconciling LLM reasoning with the ontology+validator signals (locus per OQ-4). The new entity-model orchestration — the moat made operational.
 - **UAP-4 / R5** — the optimize/calibration loop in the UI (after S-BS-49). Realizes `SPEC_CALIBRATION_TRAINER.md`.
 Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke as the load-bearing gate, and pathspec-only commits (the shared-branch discipline).
 
@@ -185,7 +210,8 @@ Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke a
 - Config plane `harness/config.py` · ontology `harness/ontology.py` · DSPy `runtime/council/{judges_dspy,judge_optimize,judge_metric}.py` · grounding `harness/grounding.py` + `verification/tools.py` (floor + KB, `dc1cb7c`).
 - Open seams that gate stages: **S-BS-49** (optimize, R5) · **S-BS-13/16/41** (floor/KB ship, Stage 3) · **S-BS-26b** (draft→grade, R3) · **S-BS-12** (bidirectional lint, R7) · **S-BS-50/51** (journey-BFF hardcode + §10 surface).
 
-## 12. Open questions
-1. **The prompt↔ontology bridge (§3.1.2):** does an authored judge's prompt = *rendered from* `JudgeQuestion`s (ontology is the source of truth, the `.txt` files retire), or are the questions metadata and the `.txt` stays the prompt? Recommend the former (ontology-as-source) — it makes judges first-class config-plane objects — but it touches safety-critical prose (cf. S-BS-11) and is the one non-trivial decision.
-2. **Judge persistence:** judges as their own config-plane collection (`/v1/judges`) vs. folded into `EvalProfile.judges` + the ontology `questions`? Recommend a thin `/v1/judges` view that *writes through* to the ontology (questions) + a judge-config row (model/lens), so there is one source of truth.
-3. **Does "optimize" ship the demos** or only measure? Per S-BS-48, bind-back-by-default is its own decision; the UI should measure + let the user *choose* to adopt, never auto-ship a negative-Δ judge.
+## 12. Open questions (+ resolutions)
+1. ~~The prompt↔ontology bridge~~ — **RESOLVED (user 2026-06-04; §2A + §3.1.2): ontology-as-source via ASSIGNMENT.** A judge's refinement questions are *formed by assigning ontology flags to it*; the runtime prompt renders from the assignment; `council_roles/*.txt` becomes a render target / retires. Judges **execute** persisted validators, never generate them.
+2. **Judge persistence — converging:** the assignment model implies a thin `/v1/judges` that **writes through** to the ontology (`questions`) + a small judge-config row (model + assigned-lens + attached-validator refs). Confirm: a judge = (assignment + model + validator-refs), with the ontology owning the questions? (Recommended — one source of truth.)
+3. **Does "optimize" ship the demos** or only measure? Per S-BS-48, bind-back-by-default is its own decision; the UI measures + lets the user *choose* to adopt, never auto-ships a negative-Δ judge.
+4. **The withstands-gate's locus (§2A) — needs your call.** Is the Ralph-Loop critique applied **per-judge** (gate each judge's reasoning *before* consensus) or **post-consensus** (verdict-level, as `harness/grounding` does today), or both? Your wording ("the judge's reasoning withstands") reads **per-judge**; today's grounding is post-consensus. Both compose — but the locus sets where the new orchestration sits relative to the **frozen** `_apply_consensus` (a per-judge gate is a new pre-consensus stage; a verdict-level gate is the existing post-consensus grounding generalized).
