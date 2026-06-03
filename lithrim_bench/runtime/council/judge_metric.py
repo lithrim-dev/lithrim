@@ -30,9 +30,12 @@ Two consequences are intentional and load-bearing:
     Under the owner-consistent lens that corroborating raise scores as an
     out-of-lens false positive, depressing the absolute number. This is fine for
     an A/B *comparison* (the lens is applied symmetrically to both arms), but any
-    standalone precision figure must be labelled a lower bound. Fixing this (a
-    co-raise-aware lens) is a candidate refinement deferred to WS-6c-DSPy-3; do
-    NOT change the scoring here.
+    standalone precision figure must be labelled a lower bound. The co-raise-aware
+    lens (S-BS-43, WS-6c-DSPy-3a) lifts this lower bound: pass
+    ``co_raise_aware=True`` to ``score_judge`` / ``make_judge_metric`` and a
+    corroborating raise of another owner's *expected* code scores NEUTRAL instead
+    of as an FP. It is OPT-IN — the default stays owner-consistent so the A/B
+    symmetry and the existing lens tests are unchanged.
   * **A lens code that is NOT in ``KNOWN_TAXONOMY_CODES`` is a hard error, not a
     silent score (S-BS-12).** The lenses below carry only in-snapshot codes; the
     guard test fails loudly if that ever drifts.
@@ -133,21 +136,43 @@ def raised_codes(judge_output: Any) -> set[str]:
     return out
 
 
-def _score_one(expected: set[str], raised: set[str], lens: set[str] | None) -> dict[str, Any]:
+def _score_one(
+    expected: set[str],
+    raised: set[str],
+    lens: set[str] | None,
+    *,
+    co_raise_aware: bool = False,
+) -> dict[str, Any]:
     """Per-case confusion counts for one judge, restricted to its lens.
 
     in-lens ground truth = expected ∩ lens; a judge should raise exactly those.
     A false positive is anything raised that is NOT an in-lens positive — this
     folds in clean-negative over-firing AND out-of-lens raises (scope overreach).
+
+    Co-raise-aware lens (S-BS-43, ``co_raise_aware=True``): a raise of a code that
+    is in the case's ``expected_safety_flags`` but OUTSIDE this judge's lens (i.e.
+    owned by another judge — the lenses are owner-consistent) is a legitimate
+    corroboration and scores NEUTRAL, not as a false positive. Only a raise of a
+    NOT-expected code (a true over-fire, including clean-negative over-firing) or
+    an out-of-taxonomy code remains a false positive. ``tp`` / ``fn`` are
+    unchanged — the lens still bounds the judge's own recall scope. Default
+    ``False`` preserves the owner-consistent lower-bound semantics (and the
+    A/B-symmetry argument); the optimizer / standalone-precision path opts in.
     """
     truth = (expected & lens) if lens is not None else expected
     tp = raised & truth
-    fp = raised - truth
     fn = truth - raised
+    if co_raise_aware and lens is not None:
+        neutral = raised & (expected - lens)
+        fp = raised - truth - neutral
+    else:
+        neutral = set()
+        fp = raised - truth
     return {
         "tp": sorted(tp),
         "fp": sorted(fp),
         "fn": sorted(fn),
+        "neutral": sorted(neutral),
         "exact": not fp and not fn,
     }
 
@@ -165,6 +190,7 @@ def score_judge(
     cases: Iterable[Any],
     *,
     lens_codes: Iterable[str] | None = None,
+    co_raise_aware: bool = False,
 ) -> dict[str, Any]:
     """Score a judge against a by-construction pack (recipe = label).
 
@@ -174,21 +200,27 @@ def score_judge(
     0 false negatives across the pack (every in-lens label caught, nothing
     over-fired) — the judge analogue of jute's 0 FP / 0 ERR. ``graded`` is the
     fraction of per-case correctness, the gradient an optimizer would climb.
+
+    ``co_raise_aware`` (S-BS-43): when True, a corroborating raise of another
+    owner's *expected* code scores neutral instead of as an out-of-lens FP, so
+    the reported precision is no longer the lower bound. ``neutral`` totals the
+    corroborating raises. Default False keeps the lower-bound semantics.
     """
     lens = set(lens_codes) if lens_codes is not None else None
     rows: list[dict[str, Any]] = []
-    fp_total = fn_total = tp_total = 0
+    fp_total = fn_total = tp_total = neutral_total = 0
     graded_sum = 0.0
     n = 0
     for case in cases:
         n += 1
         expected = expected_codes(case)
         raised = raised_codes(run_judge(case))
-        one = _score_one(expected, raised, lens)
+        one = _score_one(expected, raised, lens, co_raise_aware=co_raise_aware)
         tp, fp, fn = len(one["tp"]), len(one["fp"]), len(one["fn"])
         tp_total += tp
         fp_total += fp
         fn_total += fn
+        neutral_total += len(one["neutral"])
         graded_sum += 1.0 if one["exact"] else _f_partial(tp, fp, fn)
         rows.append(
             {
@@ -208,12 +240,15 @@ def score_judge(
         "tp": tp_total,
         "fp": fp_total,
         "fn": fn_total,
+        "neutral": neutral_total,
         "n": n,
         "rows": rows,
     }
 
 
-def make_judge_metric(*, lens_codes: Iterable[str] | None = None):
+def make_judge_metric(
+    *, lens_codes: Iterable[str] | None = None, co_raise_aware: bool = False
+):
     """Build a DSPy-style ``metric(example, pred, trace=None) -> float|bool`` that
     scores ONE judge output against ONE case's recipe label.
 
@@ -221,11 +256,17 @@ def make_judge_metric(*, lens_codes: Iterable[str] | None = None):
     bool — only a per-case-perfect judgement becomes a few-shot demo. Otherwise it
     returns the graded [0,1] score so the optimizer has a gradient. Mirrors
     ``jute_dspy.make_bench_metric``.
+
+    ``co_raise_aware`` (S-BS-43): when True a corroborating raise of another
+    owner's expected code is neutral, so it neither breaks the bootstrap gate nor
+    depresses the graded gradient. Default False preserves the prior behavior.
     """
     lens = set(lens_codes) if lens_codes is not None else None
 
     def metric(example: Any, pred: Any, trace: Any = None) -> Any:
-        one = _score_one(expected_codes(example), raised_codes(pred), lens)
+        one = _score_one(
+            expected_codes(example), raised_codes(pred), lens, co_raise_aware=co_raise_aware
+        )
         if trace is not None:
             return bool(one["exact"])
         if one["exact"]:

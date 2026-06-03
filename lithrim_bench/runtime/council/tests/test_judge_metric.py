@@ -9,6 +9,7 @@ for judge-prompt authoring, mirroring ``jute_dspy``'s bench-accept gate.
 from __future__ import annotations
 
 from lithrim_bench.runtime.council.judge_metric import (
+    FAITHFULNESS_JUDGE_LENS,
     RISK_JUDGE_LENS,
     make_judge_metric,
     raised_codes,
@@ -84,6 +85,82 @@ def test_dspy_metric_hard_accept_under_trace_else_graded():
     assert metric(wd, hit, trace=object()) is True  # bootstrap gate: only perfect becomes a demo
     assert metric(wd, hit) == 1.0
     assert metric(wd, miss) == 0.0
+
+
+# ── S-BS-43: the co-raise-aware lens ─────────────────────────────────────────
+# A cross-owner multi-defect case (the judge_calib_v1 fixture): WRONG_DOSAGE is
+# risk's Tier-1 code, MISSING_ALLERGY is faithfulness's. A faithfulness judge
+# that catches its own MISSING_ALLERGY AND corroborates the expected (risk-owned)
+# WRONG_DOSAGE is doing the right thing — under the co-raise-aware lens that
+# corroboration is neutral, not an FP.
+_CO_RAISE_CASES = [
+    {"case_id": "multi_dosage_allergy", "expected_safety_flags": ["MISSING_ALLERGY", "WRONG_DOSAGE"]},
+    {"case_id": "clean_negative", "expected_safety_flags": []},
+]
+
+
+def _faithfulness_corroborates(case):
+    """Raises its own in-lens MISSING_ALLERGY plus a corroborating WRONG_DOSAGE
+    (risk-owned, but expected in the multi-defect case)."""
+    flags = set(case.get("expected_safety_flags") or [])
+    findings = []
+    if "MISSING_ALLERGY" in flags:
+        findings.append(_finding("MISSING_ALLERGY"))
+    if "WRONG_DOSAGE" in flags:  # corroboration of risk's expected code
+        findings.append(_finding("WRONG_DOSAGE"))
+    return {"findings": findings}
+
+
+def test_co_raise_of_expected_code_is_fp_by_default():
+    """Default (owner-consistent) lens: the corroborating WRONG_DOSAGE raise is an
+    out-of-lens FP — the documented lower bound."""
+    s = score_judge(_faithfulness_corroborates, _CO_RAISE_CASES, lens_codes=FAITHFULNESS_JUDGE_LENS)
+    assert s["accepted"] is False
+    assert s["fp"] == 1 and s["fn"] == 0  # the WRONG_DOSAGE corroboration is the only "error"
+    assert s["tp"] == 1  # MISSING_ALLERGY caught
+
+
+def test_co_raise_of_expected_code_is_neutral_when_aware():
+    """co_raise_aware: the corroboration of the expected, risk-owned WRONG_DOSAGE
+    is neutral — not an FP — so the faithfulness judge is accepted."""
+    s = score_judge(
+        _faithfulness_corroborates,
+        _CO_RAISE_CASES,
+        lens_codes=FAITHFULNESS_JUDGE_LENS,
+        co_raise_aware=True,
+    )
+    assert s["accepted"] is True
+    assert s["fp"] == 0 and s["fn"] == 0
+    assert s["tp"] == 1 and s["neutral"] == 1  # WRONG_DOSAGE corroboration scored neutral
+
+
+def test_co_raise_aware_still_flags_genuine_overfire():
+    """A raise of a NOT-expected code is still an FP under co_raise_aware — the
+    neutral carve-out is only for codes in the case's expected set."""
+
+    def overfire(case):
+        flags = set(case.get("expected_safety_flags") or [])
+        findings = [_finding("MISSING_ALLERGY")] if "MISSING_ALLERGY" in flags else []
+        findings.append(_finding("HALLUCINATED_DETAIL"))  # not expected in either case
+        return {"findings": findings}
+
+    s = score_judge(
+        overfire, _CO_RAISE_CASES, lens_codes=FAITHFULNESS_JUDGE_LENS, co_raise_aware=True
+    )
+    assert s["accepted"] is False
+    assert s["fp"] == 2  # HALLUCINATED_DETAIL over-fired on both cases (not expected)
+
+
+def test_co_raise_aware_metric_hard_accept():
+    """make_judge_metric(co_raise_aware=True): the multi-defect case with a
+    corroborating raise passes the bootstrap gate (was rejected by default)."""
+    case = _CO_RAISE_CASES[0]
+    pred = {"findings": [_finding("MISSING_ALLERGY"), _finding("WRONG_DOSAGE")]}
+    default_metric = make_judge_metric(lens_codes=FAITHFULNESS_JUDGE_LENS)
+    aware_metric = make_judge_metric(lens_codes=FAITHFULNESS_JUDGE_LENS, co_raise_aware=True)
+    assert default_metric(case, pred, trace=object()) is False  # corroboration breaks the gate
+    assert aware_metric(case, pred, trace=object()) is True  # neutral → gate passes
+    assert aware_metric(case, pred) == 1.0
 
 
 def test_raised_codes_reads_findings():
