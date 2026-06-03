@@ -61,6 +61,8 @@ def client(tmp_path):
     bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
     # PUT writes go to a tmp working dir, never the committed seed (clobber-safety).
     bff.app.dependency_overrides[bff.get_ontology_workdir] = lambda: tmp_path / "ont"
+    # UAP-1: the run-provenance read resolves against a tmp doc-shim DB (hermetic).
+    bff.app.dependency_overrides[bff.get_collections_db] = lambda: tmp_path / "coll.sqlite"
     try:
         yield TestClient(bff.app)
     finally:
@@ -157,7 +159,9 @@ def test_put_ontology_rejects_malformed(client):
     res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json={"not": "an ontology"})
     assert res.status_code == 422
     # GET still serves the committed seed (no working copy was written)
-    assert client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()["domain"] == "clinical"
+    assert (
+        client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()["domain"] == "clinical"
+    )
 
 
 def test_put_ontology_rejects_snapshot_violation(client):
@@ -248,7 +252,10 @@ def test_kb_search_endpoint_grounds_claim(kb_client):
     verdict + the determinism manifest, mocking :8002 (no live call)."""
     res = kb_client.get(
         "/v1/kb/hipaa/search",
-        params={"q": "treatment payment operations consent not required", "match": "claim_in_chunk"},
+        params={
+            "q": "treatment payment operations consent not required",
+            "match": "claim_in_chunk",
+        },
     )
     assert res.status_code == 200
     body = res.json()
@@ -266,9 +273,11 @@ def test_kb_search_endpoint_inconclusive_when_no_match():
     fake = _FakeKbHttp([])
     bff.app.dependency_overrides[bff.get_kb_http_client] = lambda: fake
     try:
-        body = TestClient(bff.app).get(
-            "/v1/kb/hipaa/search", params={"q": "anything", "match": "claim_in_chunk"}
-        ).json()
+        body = (
+            TestClient(bff.app)
+            .get("/v1/kb/hipaa/search", params={"q": "anything", "match": "claim_in_chunk"})
+            .json()
+        )
         assert body["conforms"] is None
         assert body["disposition"] == "INCONCLUSIVE"
     finally:
@@ -278,3 +287,159 @@ def test_kb_search_endpoint_inconclusive_when_no_match():
 def test_kb_search_requires_query(kb_client):
     """A4 — q is required (422), matching the backend KB contract."""
     assert kb_client.get("/v1/kb/hipaa/search").status_code == 422
+
+
+# ── UAP-1 R1: GET/PUT /v1/agent — assemble + persist to the config plane ──────
+
+
+def test_agent_get_put_round_trips(client):
+    """A1 — PUT then GET round-trips an assembled Agent through the config DB."""
+    got = client.get("/v1/agent", params={"name": "ws5_bff_test"}).json()
+    assert got["name"] == "ws5_bff_test"
+    got["eval_profile"]["tools"] = ["presence_check", "kb_grounding"]
+    res = client.put(
+        "/v1/agent", params={"rationale": "add kb tool"}, headers={"X-Actor": "sme@acme"}, json=got
+    )
+    assert res.status_code == 200
+    assert res.json()["actor"] == {"type": "user", "id": "sme@acme"}
+    after = client.get("/v1/agent", params={"name": "ws5_bff_test"}).json()
+    assert after["eval_profile"]["tools"] == ["presence_check", "kb_grounding"]
+
+
+def test_agent_put_rejects_malformed(client):
+    """A1 — a malformed agent body is rejected (422)."""
+    assert client.put("/v1/agent", json={"name": "x"}).status_code == 422
+
+
+def test_unknown_agent_get_is_404(client):
+    assert client.get("/v1/agent", params={"name": "nope"}).status_code == 404
+
+
+# ── UAP-1 R3: the draft→grade loop (the A2 headline) ─────────────────────────
+
+
+def test_draft_ontology_grades_not_the_committed_seed(client):
+    """A2 — a verdict-relevant PUT /v1/ontology draft, then POST /v1/run-eval, grades
+    against the DRAFT (working copy), not the committed seed; clinical_v1.json is
+    byte-unchanged. 'Edit the flag → see it grade.'"""
+    seed_before = ONTOLOGY_SEED.read_bytes()
+    # baseline: the committed seed blocks (reject)
+    base = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
+    assert base["composite"]["verdict"] == "reject"
+    assert base["ontology_source"] == "committed"
+
+    # draft: raise the block threshold above the active weight → BLOCK no longer fires
+    draft = _seed_body()
+    draft["severity_map"]["block_at_or_above"] = 99.0
+    assert (
+        client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=draft).status_code == 200
+    )
+
+    drafted = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
+    assert drafted["ontology_source"] == "draft"
+    assert drafted["composite"]["stage_verdict"] != "BLOCK"  # the draft graded
+    assert drafted["composite"]["verdict"] != "reject"
+    assert ONTOLOGY_SEED.read_bytes() == seed_before  # the committed seed never moved
+
+
+# ── UAP-1 R0: the audit streams ──────────────────────────────────────────────
+
+
+def test_config_writes_emit_appended_audit_records(client):
+    """A3 — every config write emits an immutable, actor-attributed record; a second
+    write APPENDS (no overwrite); GET /v1/audit lists them."""
+    assert client.get("/v1/audit").json()["records"] == []
+
+    ag = client.get("/v1/agent", params={"name": "ws5_bff_test"}).json()
+    client.put(
+        "/v1/agent", params={"rationale": "first edit"}, headers={"X-Actor": "sme@one"}, json=ag
+    )
+    ont = _seed_body()
+    ont["severity_map"]["warn_above"] = 0.111
+    client.put(
+        "/v1/ontology",
+        params={"agent": "ws5_bff_test", "rationale": "tweak"},
+        headers={"X-Actor": "sme@two"},
+        json=ont,
+    )
+
+    records = client.get("/v1/audit").json()["records"]
+    assert len(records) == 2  # both writes recorded
+    assert {r["target"]["type"] for r in records} == {"agent", "ontology"}
+    assert records[0]["actor"] == {"type": "user", "id": "sme@one"}
+    assert records[0]["why"]["rationale"] == "first edit"
+
+    # a SECOND agent write appends a third row (append-only, never overwrite)
+    client.put(
+        "/v1/agent", params={"rationale": "second edit"}, headers={"X-Actor": "sme@one"}, json=ag
+    )
+    assert len(client.get("/v1/audit").json()["records"]) == 3
+    assert len(client.get("/v1/audit", params={"target_type": "agent"}).json()["records"]) == 2
+
+
+def test_product_write_with_no_actor_is_attributed_not_silent(client):
+    """A3 — a write with no X-Actor is attributed to the honest dev-default (never
+    silently un-attributed); the §2B 'no un-attributed write' invariant holds."""
+    ag = client.get("/v1/agent", params={"name": "ws5_bff_test"}).json()
+    client.put("/v1/agent", json=ag)  # no X-Actor
+    rec = client.get("/v1/audit").json()["records"][-1]
+    assert rec["actor"] == {"type": "system", "id": "dev-default"}
+
+
+def _seed_provenance_blob(coll_db, run_id="run-abc"):
+    from lithrim_bench.harness.collections import PIPELINE_RUNS
+
+    blob = {
+        "pipeline_run_id": run_id,
+        "org_id": "local",
+        "timestamp": "2026-06-04T00:00:00+00:00",
+        "stages_executed": ["semantic"],
+        "verdict": "reject",
+        "gate_decision": "block",
+        "verdict_flipped_by_stage": "none",
+        "findings": [{"type": "semantic", "code": "FABRICATED_HISTORY", "detail": "x"}],
+        "stage_results": {
+            "semantic": {
+                "status": "completed",
+                "evidence": [{"span": "line 4"}],
+                "judge_votes": [
+                    {
+                        "judge_role": "risk_judge",
+                        "vote": "BLOCK",
+                        "confidence": 0.99,
+                        "model": "gpt-4.1",
+                        "reason": "dose wrong",
+                        "findings": [{"taxonomy_code": "WRONG_DOSAGE"}],
+                    },
+                ],
+            }
+        },
+        "agent_id": "ws0_default",
+    }
+    PIPELINE_RUNS.insert(blob, db_path=coll_db)
+    return run_id
+
+
+def test_run_provenance_report_projects_the_blob(client, tmp_path):
+    """A4 — GET /v1/runs/{id}/audit assembles a why/when/who/what report from a
+    persisted SqliteProvenanceStore blob (per-judge votes + reasoning + verdict)."""
+    run_id = _seed_provenance_blob(tmp_path / "coll.sqlite")
+    rep = client.get(f"/v1/runs/{run_id}/audit")
+    assert rep.status_code == 200
+    body = rep.json()
+    assert body["verdict"] == "reject"
+    assert body["actor"] == {"type": "agent", "id": "ws0_default"}
+    judges = body["judges"]
+    assert judges[0]["judge_role"] == "risk_judge"
+    assert judges[0]["vote"] == "BLOCK"
+    assert judges[0]["reasoning"] == "dose wrong"
+    assert judges[0]["evidence"] == [{"span": "line 4"}]
+    assert judges[0]["findings"] == [{"taxonomy_code": "WRONG_DOSAGE"}]
+
+
+def test_run_provenance_unpersisted_run_is_404_not_500(client):
+    """A4 / N1 — a $0 replay run persists no blob, so an un-persisted run id is a
+    clean 404 (never a 500)."""
+    res = client.get("/v1/runs/never-ran/audit")
+    assert res.status_code == 404
+    assert "replay" in res.text
