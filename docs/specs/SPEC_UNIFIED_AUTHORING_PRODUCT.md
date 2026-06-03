@@ -1,7 +1,7 @@
 # SPEC: Unified Authoring + Processing Product
 > The complete product is the UI-driven **author → process** loop over the config plane: **create judges → create flags → run processing**, all from the UI. The 4-act journey is a **frozen** pitch/onboarding demo *inside* this product. **Compose, don't rebuild** — the engine, the config plane, the BFF, the shell, and the gen-UI widgets already exist; this spec wires them into one operational product. Every action — authoring and processing — is captured in a **why/when/who/what audit trail** (§2B): in a regulated domain, the audit *is* the product.
 
-**Status:** DRAFT · **Authored:** 2026-06-04 · **Owner:** monitor (bench-salvage)
+**Status:** **LOCKED 2026-06-04 (user)** · **Authored:** 2026-06-04 · **Owner:** monitor (bench-salvage)
 **Reframe of record:** memory `unified-authoring-product-frozen-journey`; `STREAM_bench-salvage.md` First-move banner (2026-06-04). Supersedes the *journey-on-real-service-calls* framing of WS-7 for everything except the now-closed **WS-7a** beachhead.
 **Sits above:** `SPEC_PRODUCT_SHELL.md` (the shell UI) + `SPEC_CALIBRATION_TRAINER.md` (the judge-tuning surface = Stage 1's optimize step) + `SPEC_PRODUCT_SERVICE_TOPOLOGY.md` (the strangler-fig service plane).
 
@@ -255,8 +255,9 @@ Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke a
 - Config plane `harness/config.py` · ontology `harness/ontology.py` · DSPy `runtime/council/{judges_dspy,judge_optimize,judge_metric}.py` · grounding `harness/grounding.py` + `verification/tools.py` (floor + KB, `dc1cb7c`).
 - Open seams that gate stages: **S-BS-49** (optimize, R5) · **S-BS-13/16/41** (floor/KB ship, Stage 3) · **S-BS-26b** (draft→grade, R3) · **S-BS-12** (bidirectional lint, R7) · **S-BS-50/51** (journey-BFF hardcode + §10 surface).
 
-## 12. Open questions (+ resolutions)
-1. ~~The prompt↔ontology bridge~~ — **RESOLVED (user 2026-06-04; §2A + §3.1.2): ontology-as-source via ASSIGNMENT.** A judge's refinement questions are *formed by assigning ontology flags to it*; the runtime prompt renders from the assignment; `council_roles/*.txt` becomes a render target / retires. Judges **execute** persisted validators, never generate them.
-2. **Judge persistence — converging:** the assignment model implies a thin `/v1/judges` that **writes through** to the ontology (`questions`) + a small judge-config row (model + assigned-lens + attached-validator refs). Confirm: a judge = (assignment + model + validator-refs), with the ontology owning the questions? (Recommended — one source of truth.)
-3. **Does "optimize" ship the demos** or only measure? Per S-BS-48, bind-back-by-default is its own decision; the UI measures + lets the user *choose* to adopt, never auto-ships a negative-Δ judge.
-4. **The withstands-gate's locus (§2A) — needs your call.** Is the Ralph-Loop critique applied **per-judge** (gate each judge's reasoning *before* consensus) or **post-consensus** (verdict-level, as `harness/grounding` does today), or both? Your wording ("the judge's reasoning withstands") reads **per-judge**; today's grounding is post-consensus. Both compose — but the locus sets where the new orchestration sits relative to the **frozen** `_apply_consensus` (a per-judge gate is a new pre-consensus stage; a verdict-level gate is the existing post-consensus grounding generalized).
+## 12. Decisions (resolved at lock — 2026-06-04)
+1. **Prompt↔ontology bridge → ontology-as-source via ASSIGNMENT.** A judge's refinement questions are *formed by assigning ontology flags to it*; the runtime prompt renders from the assignment; `council_roles/*.txt` becomes a render target / retires. Judges **execute** persisted validators, never generate them.
+2. **Judge = (assignment + model + validator-refs); the ontology owns the questions.** A thin `/v1/judges` **writes through** to the ontology (`questions`) + a small judge-config row (model + assigned-lens + attached-validator refs). One source of truth.
+3. **Optimize MEASURES; the user chooses adoption.** Per S-BS-48, never auto-ship a negative-Δ judge — the UI surfaces the held-out Δ honestly and the user adopts explicitly.
+4. **Withstands-gate locus = BOTH.** The per-judge Ralph-Loop critique is the new **primary** gate over the LLM judges (a pre-consensus stage); the existing post-consensus `harness/grounding` serves the **independent** GroundingChecks. Both sit ABOVE the frozen `_apply_consensus`; the precise pre-consensus wiring is detailed at UAP-3b design.
+5. **Confirmed scoping:** "assign ontology" = a **flag subset** per judge; the audit "who" = a single attributable **SME handle** for now (full multi-tenant auth deferred, §8).

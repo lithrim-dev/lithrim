@@ -48,3 +48,4 @@ If a case cannot meet (1)–(4), it does **not** ship. Do not append to `example
 - `docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md` — the spec this engine implements. Defects D1–D7 are the acceptance criteria.
 - `docs/ARCHITECTURE.md` — engine diagram + module responsibilities.
 - `docs/LITHRIM_BENCH_PRODUCT_SPEC.md` — the developer-product framing (API surface, pricing, onboarding flow).
+- `docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md` — **LOCKED 2026-06-04.** THE product: the UI-driven author→process loop (create judges → create flags → run processing) over the config plane, with a first-class why/when/who/what audit trail. The 4-act journey is a frozen demo inside it. Entity model: judges = assigned ontologies + execute-not-generate validators; the Ralph-Loop withstands-gate; independent GroundingChecks. Build sequence = UAP-1..4.
