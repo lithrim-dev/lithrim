@@ -19,6 +19,7 @@ pytest.importorskip("tenacity")
 
 from lithrim_bench.runtime.council.ab_harness import (  # noqa: E402
     OFFLINE_NOTE,
+    _context_payload,
     run_live,
     run_offline_structural,
 )
@@ -174,3 +175,25 @@ def test_calibration_is_none_aware(result):
 def test_run_live_refuses_without_cost_confirmation():
     with pytest.raises(RuntimeError, match="confirm_cost"):
         run_live(CASES)
+
+
+def test_context_payload_nests_transcript_under_call_context():
+    """The live-only payload-shape guard (the bug the cost-confirm smoke caught):
+    the prompt-council reads the transcript ONLY from call_context.transcript
+    (_prepare_full_analysis_payload, compliance_council:1159-1161). A top-level
+    transcript is silently dropped → empty transcript + artifact → the COMPLETE
+    FABRICATION RULE false-rejects every case. Artifacts stay top-level (:552).
+    This offline guard means the control arm can't silently re-break without a
+    paid live call surfacing it."""
+    case = {
+        "transcript": "Patient: reschedule to Tuesday.",
+        "artifacts": [{"type": "clinical_note", "content": "Type 2 diabetes E11.9"}],
+    }
+    payload = _context_payload(case)
+
+    assert payload["call_context"]["transcript"] == "Patient: reschedule to Tuesday."
+    assert "transcript" not in payload, "transcript must NOT be top-level (it'd be dropped)"
+    assert payload["artifacts"] == case["artifacts"], "artifacts stay top-level"
+
+    # missing transcript degrades to "" (not None / KeyError), still nested
+    assert _context_payload({})["call_context"]["transcript"] == ""

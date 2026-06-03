@@ -188,8 +188,19 @@ def run_offline_structural(
 
 
 def _context_payload(case: Mapping[str, Any]) -> dict[str, Any]:
-    """Build the prompt-council ``evaluate`` context from a bench case row."""
-    return {"transcript": case.get("transcript", ""), "artifacts": case.get("artifacts") or []}
+    """Build the prompt-council ``evaluate`` context from a bench case row.
+
+    The transcript MUST be nested under ``call_context`` — that is the only place
+    ``_prepare_full_analysis_payload`` reads it (``compliance_council.py:1159-1161``;
+    the documented ``SMOKE_PAYLOAD`` shape, ``test_live_smoke.py:54-62``). A
+    top-level ``transcript`` is silently dropped, leaving the prompt arm with an
+    empty transcript + a populated artifact, which the COMPLETE FABRICATION RULE
+    (``compliance_council.py:567-575``) then false-rejects on every case. Artifacts
+    are read top-level (``:552``), so they stay top-level here."""
+    return {
+        "call_context": {"transcript": case.get("transcript", "")},
+        "artifacts": case.get("artifacts") or [],
+    }
 
 
 def _artifact_text(case: Mapping[str, Any]) -> str:
