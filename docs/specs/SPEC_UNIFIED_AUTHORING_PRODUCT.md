@@ -1,5 +1,5 @@
 # SPEC: Unified Authoring + Processing Product
-> The complete product is the UI-driven **author → process** loop over the config plane: **create judges → create flags → run processing**, all from the UI. The 4-act journey is a **frozen** pitch/onboarding demo *inside* this product. **Compose, don't rebuild** — the engine, the config plane, the BFF, the shell, and the gen-UI widgets already exist; this spec wires them into one operational product.
+> The complete product is the UI-driven **author → process** loop over the config plane: **create judges → create flags → run processing**, all from the UI. The 4-act journey is a **frozen** pitch/onboarding demo *inside* this product. **Compose, don't rebuild** — the engine, the config plane, the BFF, the shell, and the gen-UI widgets already exist; this spec wires them into one operational product. Every action — authoring and processing — is captured in a **why/when/who/what audit trail** (§2B): in a regulated domain, the audit *is* the product.
 
 **Status:** DRAFT · **Authored:** 2026-06-04 · **Owner:** monitor (bench-salvage)
 **Reframe of record:** memory `unified-authoring-product-frozen-journey`; `STREAM_bench-salvage.md` First-move banner (2026-06-04). Supersedes the *journey-on-real-service-calls* framing of WS-7 for everything except the now-closed **WS-7a** beachhead.
@@ -75,6 +75,47 @@ All of this lives **above the frozen consensus seam** (`compliance_council._appl
 
 ---
 
+## 2B. Auditability — every action is attributed, timestamped, justified (why · when · who · what)
+
+**Non-negotiable product capability.** The system must produce **auditable reports** that answer, for any verdict or any change: **why / when / who / what was acted upon**. In a clinical/regulated domain this *is* the compliance artifact; it is also the **Execution-Integrity** proof and the **RLVR / data-lake** substrate (every correction is a verifiable record). Audit is woven through every entity (§2A) and stage (§3) — never bolted on, never optional.
+
+### The universal record
+Every action — authoring OR processing — emits an immutable `AuditRecord`:
+```jsonc
+AuditRecord {
+  "ts":     "<UTC ISO8601>",                              // WHEN
+  "actor":  { "type":"user|judge|validator|grounding_check|critique|agent|system",
+              "id":"<sme-handle | risk_judge | dosage_grounding | ...>" },  // WHO
+  "action": "author|edit|assign|run|raise|suppress|flip|withstand|reject|...",
+  "target": { "type":"judge|flag|ontology|agent|case|verdict|finding|validator",
+              "id":"<...>" },                              // WHAT (the object acted upon)
+  "why":    { /* typed by action — always concrete, never prose-only */ },  // WHY
+  "before": { /* authoring edits: the prior state */ },
+  "after":  { /* authoring edits: the new state (the diff) */ },
+  "run_id": "<...>", "case_id": "<...>"                    // processing context
+}
+```
+`why` is **typed by the action**, so the justification is always grounded:
+- **judge raise** → `{ taxonomy_code, decision, reasoning, evidence_spans[], confidence|null }` (the per-judge seam — already emitted).
+- **validator execution** → `{ contract_type, conforms, deterministic_result, grounded_fact }`.
+- **grounding flip** → `{ from_verdict, to_verdict, grounded_in, the evidence that flipped it }` (the correction/RLVR record, `corpus.py`).
+- **critique withstand/reject** → `{ signals_weighed:[ontology_rules, validator_outputs], decision, what_failed }` (the §2A withstands-gate ruling).
+- **user authoring edit** → `{ rationale, before→after }` (the SME's change reason).
+
+### Two streams → one report
+1. **Authoring audit (config plane).** Every assign/edit/PUT on a judge/flag/ontology/agent → an append-only record: who (the SME), when, the before→after diff, why. **NET-NEW:** the config plane overwrites today (`save_agent` upserts on `name`); it gains an **append-only audit log** + an **actor identity** on every write (the minimal "who" — full multi-tenant auth stays out, but an *attributable handle* is required).
+2. **Processing audit / run provenance.** Every eval run = the full chain: each judge's vote+reasoning+evidence, each validator's execution+result, each grounding flip+grounded-fact, the critique's withstands-decisions, the final verdict+why. **EXISTS:** this IS the `SqliteProvenanceStore` blob (WS-6d, the immutable source-of-truth tier; memory `persistence-blob-projection-architecture`) + the correction records (`corpus.py`). **NET-NEW:** surface it as a queryable + human-readable **auditable report**.
+
+The **auditable report** is the projection (the blob+projection architecture's rebuildable query tier) assembling these records:
+- *"Why was case X blocked?"* → risk_judge raised `WRONG_DOSAGE` [reasoning + span] @ T; `dosage_grounding` confirmed [grounded fact]; critique: withstood; verdict **BLOCK**.
+- *"Who changed `FABRICATED_CONSENT`, when, why?"* → SME `@handle` @ T: severity HIGH→MEDIUM; rationale "…".
+- *"Why did the floor flip case Y PASS→BLOCK?"* → the dose was grounded in neither transcript nor chart [the grounded fact].
+
+### Invariant
+Audit records are **immutable + append-only**, blob-backed (RLVR/lake-bound); a report is **reconstructable from the blobs** (the projection is rebuildable, never the source of truth). **No action — authoring or processing — escapes a record**; an un-attributed write is a bug, not a silent default. *(As this grows it may spin into its own `SPEC_AUDIT_PROVENANCE.md`; for now it is a first-class section here.)*
+
+---
+
 ## 3. The three stages — EXISTS vs NET-NEW
 
 ### Stage 1 — Judge creation (the largest gap)
@@ -143,6 +184,7 @@ Persist via `save_agent(agent)` (idempotent upsert on `name`), load via `load_ag
 | `GET /v1/judges` · `PUT /v1/judges/{role}` · `POST /v1/judges/{role}/optimize` | **NET-NEW** | 1 |
 | `GET /v1/agent` · `PUT /v1/agent` (save/load the assembled `Agent`) | **NET-NEW** | all |
 | `POST /v1/eval-pack/run` · `GET /v1/runs` (history from `SqliteProvenanceStore`) | **NET-NEW** | 3 |
+| `GET /v1/runs/{id}/audit` · `GET /v1/audit?actor=&target=&since=` · actor-attributed + audit-logged config writes | **NET-NEW** | all (§2B) |
 
 All new write routes follow the WS-5d `PUT /v1/ontology` precedent: validate (round-trip + snapshot/owner lint) → **422** on violation, write a **clobber-safe working copy** (never the committed seed), prefer the working copy on read.
 
@@ -154,6 +196,7 @@ The `tool-<name>` → component contract (WS-5c). Add `JudgeEditor` + `RunPanel`
 ## 5. Requirements
 
 ### P0 — Must have (the loop closes)
+- **R0 — audit (non-negotiable, cross-cutting):** every authoring + processing action emits an immutable `AuditRecord` (why/when/who/what, §2B); the config plane gains an append-only audit log + actor attribution; `GET /v1/runs/{id}/audit` + `GET /v1/audit` surface the reports. Built incrementally across UAP-1..4, but the **record shape + actor model land in UAP-1** — nothing is authored un-attributed from day one.
 - **R1** `PUT/GET /v1/agent` — assemble + persist an `Agent` (judges + ontology + tools + kb) to the config plane from the UI.
 - **R2** `JudgeEditor` + `GET/PUT /v1/judges/{role}` — author a judge (role, questions, model, lens) with owner↔emit + snapshot validation; resolve the prompt↔ontology bridge (§3.1.2).
 - **R3** Stage-2 draft→grade loop (S-BS-26b) — a run reads the agent's working-copy ontology, so an authored flag/judge actually grades.
@@ -175,6 +218,7 @@ The `tool-<name>` → component contract (WS-5c). Add `JudgeEditor` + `RunPanel`
 - **Snapshot = the taxonomy contract.** Every *gradeable* flag is in `taxonomy/taxonomy_snapshot.json` with a tier + a production-resident owner (invariants #1/#4). The gradeable/reference partition (S-BS-10) and owner↔emit (S-BS-31 — an owner must actually emit the code, S-BS-42) are author-time gates, surfaced as **422**, never soft-passed.
 - **Frozen consensus seam.** Authoring lives strictly ABOVE the per-judge seam; `compliance_council._apply_consensus` stays byte-frozen (the whole DSPy track's A1).
 - **No services autostarted; cost-gated live runs; offline/$0 default** (replay).
+- **Every action is recorded; audit records are immutable + append-only** (blob-backed, RLVR/lake-bound). No authoring or processing action escapes an attributed, timestamped, justified record (§2B); an un-attributed write is a bug, not a silent default.
 
 ---
 
@@ -193,7 +237,7 @@ Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke a
 - **Journey rework** (frozen; demo-only — improvements ride the product, not standalone).
 - **Tauri / VPC packaging** (the genuine last mile — WS-5e; deferred per the 2026-06-02 ship decision). But honor the indirection now (**S-BS-50**: route fetches through `bff.js`'s `VITE_BFF_URL`, don't hardcode `:8787`).
 - **New `../lithrim-backend` endpoints** — compose over the existing `:8002`/`:3031` via the BFF + the in-process council (strangler-fig).
-- **Multi-tenant / auth** beyond the existing BFF scheme.
+- **Full multi-tenant auth / SSO** beyond the existing BFF scheme. *But a minimal **actor attribution** — an SME handle on every write (the audit "who", §2B) — is IN scope; auditability requires it.*
 
 ## 9. Test plan
 - Per-stage Vitest+RTL (the WS-5c/5d `bff.js`-mock + the WS-7a `JourneyApp.test.jsx` pattern): authoring a judge/flag → the right `PUT` body; a run → the real composite renders; 422 on an invalid (snapshot/owner) author.
@@ -204,6 +248,7 @@ Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke a
 - An SME stands up a **new domain ontology + judge trio + one processing run** entirely in the UI, zero file edits. (the "who calibrates?" gap closed)
 - Author→grade latency: a flag/judge edit is reflected in a replay grade in one click ($0).
 - Zero invariant escapes: no gradeable flag ships without snapshot+owner (422 enforced), no judge owns a code it doesn't emit.
+- **Full auditability:** any verdict or config change is reconstructable as a why/when/who/what report from the immutable records — zero un-attributed actions.
 
 ## 11. Dependencies + cross-refs
 - `SPEC_PRODUCT_SHELL.md` §2/§8/§10 (shell + the locked v1 BFF surface — §10 must be **extended/ratified** to admit the new routes; cf. **S-BS-51** where the journey grew it unratified) · `SPEC_CALIBRATION_TRAINER.md` (Stage-1 optimize) · `SPEC_PRODUCT_SERVICE_TOPOLOGY.md` (service plane).
