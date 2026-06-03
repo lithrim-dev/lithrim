@@ -11,6 +11,10 @@ React/Tauri shell (SPEC_PRODUCT_SHELL §5). It imports ``lithrim_bench.harness``
                                               if a PUT wrote one, else committed seed)
     PUT  /v1/ontology     {agent?} <body>  -> validate + persist an edited ontology to a
                                               non-committed working copy (WS-5d)
+    GET  /v1/kb/{ns}/search {q, ...}       -> KB-grounding check (WS-7b): composes over
+                                              the harness KbRagTool, which fronts the
+                                              backend KB at :8002/v1/kb/{ns}/search; returns
+                                              the grounding verdict + the retrieved matches
 
 Replay (``live=false``) is the default + the $0 path. ``live=true`` opts into
 exactly one real, paid ``:8002`` council call (run_eval warns on stderr).
@@ -32,10 +36,12 @@ Run:  uvicorn app:app --app-dir apps/bff --port 8787   (needs the [bff] extra)
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
-from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -81,6 +87,17 @@ def get_out_dir() -> Path | None:
 def get_ontology_workdir() -> Path:
     """Where PUT /v1/ontology persists working copies (never the committed seed). Override in tests."""
     return DEFAULT_ONTOLOGY_WORKDIR
+
+
+def get_kb_service() -> str:
+    """The backend KB base URL the KbRagTool composes over (:8002). Override in tests."""
+    return os.environ.get("LITHRIM_KB_SERVICE", "http://localhost:8002")
+
+
+def get_kb_http_client() -> Any | None:
+    """The httpx-like client KbRagTool uses for :8002 (None -> the tool creates one
+    lazily; tests inject a fake so no live call is made)."""
+    return None
 
 
 def _load_agent(name: str, db_path: Path):
@@ -254,3 +271,58 @@ def put_ontology_endpoint(
     path = workdir / f"{agent}.json"
     path.write_text(json.dumps(ontology, indent=2, sort_keys=True))
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
+
+
+@app.get("/v1/kb/{namespace}/search")
+def kb_search_endpoint(
+    namespace: str,
+    q: str = Query(..., min_length=1, description="The claim text to ground against the KB"),
+    top_k: int = Query(5, ge=1, le=20),
+    min_score: float = Query(0.0),
+    match: str | None = Query(None, description="Corroboration predicate (e.g. 'claim_in_chunk')"),
+    service: str = Depends(get_kb_service),
+    http_client: Any | None = Depends(get_kb_http_client),
+) -> dict:
+    """KB-grounding check (WS-7b, the first Phase-3 slice) — compose over the harness
+    ``KbRagTool``, which fronts the backend KB at ``GET :8002/v1/kb/{namespace}/search``.
+
+    Additive + thin: it builds a ``Claim`` from ``q`` and returns the tool's tri-state
+    grounding verdict (``conforms``: True=KB grounds the claim, None=inconclusive) plus
+    the retrieved matches and the determinism manifest. The heavy retrieval stays in
+    lithrim-backend (no vector store here). ``http_client`` is injectable so tests mock
+    :8002; in production it is ``None`` and the tool creates an ``httpx.Client`` lazily
+    (the ``[bff]`` extra carries httpx). A KB / transport error degrades to
+    ``conforms=None`` with the error surfaced in ``manifest`` — never a fabricated hit.
+    """
+    from lithrim_bench.verification import (
+        REFERENCE_CONFORMANCE,
+        Claim,
+        KbRagTool,
+        VerificationSpec,
+    )
+
+    reference: dict[str, Any] = {"namespace": namespace, "service": service, "top_k": top_k}
+    if min_score:
+        reference["min_score"] = min_score
+    if match:
+        reference["match"] = match
+    try:
+        spec = VerificationSpec(
+            tool="kb_rag",
+            applies_to_flags=(),
+            locus="",
+            reference=reference,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"bad kb spec: {exc}") from exc
+
+    claim = Claim(claim_type=REFERENCE_CONFORMANCE, flag_code=None, subject=q)
+    result = KbRagTool(http_client=http_client).verify(claim, spec)
+    return {
+        "namespace": namespace,
+        "query": q,
+        "conforms": result.conforms,
+        "disposition": result.disposition,
+        "evidence": result.evidence,
+        "manifest": result.manifest,
+    }

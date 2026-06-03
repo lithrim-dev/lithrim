@@ -31,6 +31,7 @@ from typing import Any
 
 from .spec import (
     TOOL_DOSAGE_GROUNDING,
+    TOOL_KB_RAG,
     Claim,
     VerificationResult,
     VerificationSpec,
@@ -386,6 +387,172 @@ class StructuralJuteTool(VerificationTool):
 
         walk(applied)
         return found
+
+
+# --------------------------------------------------------------------------- #
+# KbRagTool — claim grounding via the live backend KB (:8002 /v1/kb/search)
+# --------------------------------------------------------------------------- #
+class KbRagTool(VerificationTool):
+    """Ground a council claim against the backend knowledge base — the S-BS-7
+    presence-check generalized from the transcript to the KB corpus.
+
+    The heavy retrieval (Pinecone hybrid dense+SPLADE over ``hipaa-compliancev2``)
+    STAYS in lithrim-backend, already served at ``GET :8002/v1/kb/{namespace}/search``.
+    This tool is bench-side wiring only: a lazy ``httpx`` GET to that endpoint plus a
+    deterministic verdict over the returned matches. No vector store, no ONNX, no
+    Pinecone client is pulled into the bench (that is the deferred S-BS-5).
+
+    The wire contract (live-confirmed 2026-06-02, ``lithrim-backend/app/routes/kb.py``)::
+
+        GET :8002/v1/kb/{namespace}/search?q=<query>&top_k=<n>
+        -> {"namespace", "query", "top_k", "total_hits",
+            "results": [{"id", "score", "text", "metadata"}], "duration_ms"}
+
+    Auth: API-key callers pass ``X-API-Key`` + a ``kb:read:<namespace>`` scope; the
+    header is read from ``reference.api_key`` or env (``LITHRIM_KB_API_KEY`` /
+    ``LITHRIM_API_KEY``) and omitted when neither is set (open/dev backends).
+
+    Tri-state (the false-negative guardrail in :mod:`spec`):
+      * conforms=True  — a match clears ``min_score`` AND (when a ``match`` predicate
+        is pinned) the claim text is corroborated by the matched chunk. The flag may
+        be cleared: the KB GROUNDS the claim the council called a violation.
+      * conforms=False — only when the SME pins ``expect="absent"`` (a disprove-by-
+        retrieval contract) and the KB DOES return a clearing hit. Default contracts
+        never return False (KB silence is not proof of a violation).
+      * conforms=None  — no hit / below threshold / predicate unmet / endpoint error.
+        Inconclusive: never clears a flag by silence (CLAUDE.md core invariant).
+
+    reference = {"namespace": "hipaa",                       # required (catalog ns)
+                 "service": "http://localhost:8002",         # default :8002
+                 "query_field": "detail" | "<claim attr>",   # what to retrieve on
+                 "top_k": 5, "min_score": 0.0,
+                 "match": "claim_in_chunk" | None,            # corroboration predicate
+                 "expect": "present" | "absent",             # default "present"
+                 "api_key": <opt>}
+    """
+
+    name = TOOL_KB_RAG
+
+    _DEFAULT_SERVICE = "http://localhost:8002"
+
+    def __init__(self, *, http_client: Any | None = None, timeout: float = 30.0) -> None:
+        self._client = http_client
+        self._timeout = timeout
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        namespace = ref["namespace"]
+        base = str(ref.get("service") or self._DEFAULT_SERVICE).rstrip("/")
+        query = self._query(claim, ref)
+        top_k = int(ref.get("top_k", 5))
+        min_score = float(ref.get("min_score", 0.0))
+        expect = str(ref.get("expect", "present"))
+        match = ref.get("match")
+
+        manifest = {
+            "tool": self.name,
+            "deterministic": False,  # composes over a live retrieval index
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "service": base,
+            "namespace": namespace,
+            "top_k": top_k,
+            "min_score": min_score,
+            "expect": expect,
+            "match": match,
+        }
+
+        try:
+            results = self._search(base, namespace, query, top_k, ref)
+        except Exception as exc:  # noqa: BLE001 - network/transport/HTTP -> inconclusive, never clears
+            manifest["error"] = f"{type(exc).__name__}: {exc}"
+            return VerificationResult(
+                conforms=None,
+                evidence={"query": query, "error": manifest["error"], "grounding": "kb_rag_v0"},
+                manifest=manifest,
+            )
+
+        scored = [r for r in results if float(r.get("score", 0.0)) >= min_score]
+        corroborated = [r for r in scored if self._corroborates(match, query, r)]
+        top_score = max((float(r.get("score", 0.0)) for r in results), default=0.0)
+        grounded = bool(corroborated)
+
+        evidence = {
+            "query": query,
+            "retrieved": len(results),
+            "scored": len(scored),
+            "corroborated_ids": [r.get("id") for r in corroborated],
+            "top_score": top_score,
+            "grounding": "kb_rag_v0",
+        }
+        # expect="present" (default): a corroborated hit GROUNDS the claim -> clear (True);
+        # nothing grounding -> inconclusive (None), never a silent confirm.
+        # expect="absent": a corroborated hit DISPROVES an absence claim -> VIOLATION (False);
+        # nothing found -> inconclusive (None).
+        if expect == "absent":
+            conforms: bool | None = False if grounded else None
+        else:
+            conforms = True if grounded else None
+        return VerificationResult(conforms=conforms, evidence=evidence, manifest=manifest)
+
+    # --- query extraction --- #
+    @staticmethod
+    def _query(claim: Claim, ref: dict) -> str:
+        """The retrieval query: an explicit ``reference.query``, else the claim attr
+        named by ``query_field`` (``subject`` by default), else the claim subject."""
+        if ref.get("query"):
+            return str(ref["query"])
+        field_name = ref.get("query_field") or "subject"
+        value = getattr(claim, field_name, None)
+        if value is None and isinstance(claim.subject, dict):
+            value = claim.subject.get(field_name)
+        return str(value if value is not None else claim.subject)
+
+    # --- corroboration predicate --- #
+    @staticmethod
+    def _corroborates(match: Any, query: str, result: dict) -> bool:
+        """Does this match support the claim? ``None`` => retrieval-presence only (any
+        scored hit corroborates). ``claim_in_chunk`` => the claim's content tokens
+        overlap the matched chunk text (a cheap lexical grounding floor; semantic
+        judge-calls-tool grounding is the deferred graduation)."""
+        if not match:
+            return True
+        text = _norm(result.get("text") or "")
+        if match == "claim_in_chunk":
+            q = {t for t in _norm(query).split() if len(t) >= 4}
+            return bool(q) and bool(q & set(text.split()))
+        raise ValueError(f"unknown kb_rag match predicate {match!r}")
+
+    # --- HTTP plumbing (GET :8002/v1/kb/{namespace}/search) --- #
+    def _search(self, base: str, namespace: str, query: str, top_k: int, ref: dict) -> list[dict]:
+        client, owns = self._acquire()
+        try:
+            url = f"{base}/v1/kb/{namespace}/search"
+            params = {"q": query, "top_k": top_k}
+            if ref.get("org_id"):
+                params["org_id"] = ref["org_id"]
+            headers = self._headers(ref)
+            resp = client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            payload = resp.json()
+            return list(payload.get("results") or []) if isinstance(payload, dict) else []
+        finally:
+            if owns:
+                client.close()
+
+    @staticmethod
+    def _headers(ref: dict) -> dict:
+        key = ref.get("api_key") or os.environ.get("LITHRIM_KB_API_KEY") or os.environ.get(
+            "LITHRIM_API_KEY"
+        )
+        return {"X-API-Key": key} if key else {}
+
+    def _acquire(self) -> tuple[Any, bool]:
+        if self._client is not None:
+            return self._client, False
+        import httpx
+
+        return httpx.Client(timeout=self._timeout), True
 
 
 # --------------------------------------------------------------------------- #
