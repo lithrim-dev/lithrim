@@ -1,0 +1,50 @@
+{
+  "E \u00b7 20\u219240 (doubling)": {
+    "1 \u00b7 lenient prompt": {
+      "verdict": "BLOCK",
+      "wrong_dosage_caught": true,
+      "findings": [
+        "WRONG_DOSAGE",
+        "INCOMPLETE_DOCUMENTATION"
+      ]
+    },
+    "2 \u00b7 tightened prompt": {
+      "verdict": "WARN",
+      "wrong_dosage_caught": false,
+      "findings": [
+        null
+      ]
+    },
+    "3 \u00b7 dosage_grounding floor ($0)": {
+      "verdict": "BLOCK",
+      "conforms": false,
+      "ungrounded": [
+        "40MG"
+      ]
+    }
+  },
+  "W \u00b7 20\u219230 (within range, unstated)": {
+    "1 \u00b7 lenient prompt": {
+      "verdict": "BLOCK",
+      "wrong_dosage_caught": true,
+      "findings": [
+        "WRONG_DOSAGE",
+        "INCOMPLETE_DOCUMENTATION"
+      ]
+    },
+    "2 \u00b7 tightened prompt": {
+      "verdict": "WARN",
+      "wrong_dosage_caught": false,
+      "findings": [
+        null
+      ]
+    },
+    "3 \u00b7 dosage_grounding floor ($0)": {
+      "verdict": "BLOCK",
+      "conforms": false,
+      "ungrounded": [
+        "30MG"
+      ]
+    }
+  }
+}
