@@ -1,0 +1,169 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-1-2026-06-04",
+  "stream": "bench-salvage",
+  "phase": "UAP-1",
+  "driver_bundle_id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
+  "started_at": "2026-06-04T02:30:00Z",
+  "ended_at": "2026-06-04T03:15:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-04T02:45:00Z",
+    "user_approved_at": "2026-06-04T02:55:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "run_eval committed-seed reads are at :109 + :142, not the stub's :118 (driver §1 already corrected this; two stale ':118' doc-comments at apps/bff/app.py + PipelineProvenance docstring left untouched as out-of-scope).",
+        "evidence": "scripts/run_eval.py:109 load_ontology + :142 ontology_payload read_text",
+        "decided_at": "2026-06-04T02:45:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "6 plan-review decisions resolved: (1) X-Actor header + honest dev-default; (2) ontology_path into run_eval.run + shared _resolve_ontology_path; (3) INSERT-only config_audit in the same config DB; (4) sync PIPELINE_RUNS.get; (5) gen-UI parts tool-agent_editor + tool-audit_log; (6) ratify §10 in-cycle.",
+        "evidence": "AskUserQuestion answers 2026-06-04 + 'proceed-as-recommended' on decisions 2 & 4",
+        "decided_at": "2026-06-04T02:55:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Monitor 5 notes folded in pre-go: N1 (runs/{id}/audit clean-404 for un-persisted replay + A4/A8 on a persisted run, defer per-replay auditing to UAP-3), N2 (before/after canonical, why={rationale} not duplicated; OQ to spec author), N3 (KNOWN_TOOLS + registry test in one commit), N4 (save_agent agent-row + audit-row in one transaction), N5 (dev-default actor = {system, dev-default}, not a fake SME).",
+        "evidence": "monitor review message 2026-06-04; implemented in audit.py/config.py/app.py/registry.test.jsx",
+        "decided_at": "2026-06-04T02:55:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "6bdf975",
+      "repo": "lithrim-bench",
+      "title": "feat(harness): AuditRecord + append-only config-change audit log (UAP-1 R0)",
+      "summary": "audit.py (AuditRecord §2B shape + INSERT-only AuditLog, no update/delete) + config.save_agent actor/audit_log/rationale, one-transaction emit (N4), honest seed default (N5)."
+    },
+    {
+      "hash": "7a7b64d",
+      "repo": "lithrim-bench",
+      "title": "feat(harness): run_eval reads a working-copy ontology (UAP-1 R3 / S-BS-26b)",
+      "summary": "run_eval.run(ontology_path=None) threads one ontology_src through both committed-seed reads (:109 + :142); None = byte-identical."
+    },
+    {
+      "hash": "a33728a",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): GET/PUT /v1/agent + actor-attributed audit on config writes (UAP-1 R1+R0)",
+      "summary": "GET/PUT /v1/agent (422 on malformed, config-DB-only), X-Actor + dev-default actor, audit on PUT /v1/ontology, R3 _resolve_ontology_path + ontology_source on /v1/run-eval."
+    },
+    {
+      "hash": "d5722ea",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): GET /v1/audit + /v1/runs/{id}/audit — why/when/who/what reports (UAP-1 R0)",
+      "summary": "GET /v1/audit (config-change stream) + GET /v1/runs/{id}/audit (sync PIPELINE_RUNS.get projection; clean 404 for un-persisted/replay runs, N1)."
+    },
+    {
+      "hash": "5e5d559",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): Agent editor + minimal audit view, routed through bff.js (UAP-1 R1 UI; S-BS-50)",
+      "summary": "tool-agent_editor + tool-audit_log gen-UI parts + KNOWN_TOOLS/registry-test (N3) + bff.js getAgent/putAgent/getAudit/getRunAudit (all via BASE, no :8787)."
+    },
+    {
+      "hash": "0e0ba22",
+      "repo": "lithrim-bench",
+      "title": "test(uap-1): /v1/agent round-trip + draft→grade + audit records + run-provenance report",
+      "summary": "tests/test_audit.py (12) + tests/test_ws5_bff.py (+8 → 21) + AgentEditor.test.jsx (2)."
+    },
+    {
+      "hash": "a7edd25",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): ratify the UAP-1 BFF routes in §10 (close S-BS-51 pattern)",
+      "summary": "SPEC_PRODUCT_SHELL §10 admits /v1/agent + /v1/audit + /v1/runs/{id}/audit + ratifies the prior WS-7a additions (S-BS-51)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 (R1 round-trip) — PUT then GET /v1/agent round-trips; malformed → 422",
+      "verdict": "PASS",
+      "evidence": "tests/test_ws5_bff.py::test_agent_get_put_round_trips + ::test_agent_put_rejects_malformed (422) + ::test_unknown_agent_get_is_404; 21/21 on debuglithrim."
+    },
+    {
+      "criterion": "A2 (R3 draft→grade — the headline) — a verdict-relevant PUT /v1/ontology draft grades, seed byte-unchanged",
+      "verdict": "PASS",
+      "evidence": "tests/test_ws5_bff.py::test_draft_ontology_grades_not_the_committed_seed — block_at_or_above raised → ontology_source='draft', verdict reject→needs_review, ONTOLOGY_SEED byte-unchanged. Also test_audit.py run-override tests + manual TestClient smoke."
+    },
+    {
+      "criterion": "A3 (R0 shape + actor + append-only) — every config write emits an immutable actor-attributed record; second write appends; no UPDATE/DELETE path",
+      "verdict": "PASS",
+      "evidence": "tests/test_audit.py (no update/delete attrs; INSERT-only schema; append-on-2nd-write) + tests/test_ws5_bff.py::test_config_writes_emit_appended_audit_records (2→3 rows) + ::test_product_write_with_no_actor_is_attributed_not_silent (dev-default)."
+    },
+    {
+      "criterion": "A4 (R0 run provenance) — GET /v1/runs/{id}/audit assembles the report from the SqliteProvenanceStore blob, read synchronously",
+      "verdict": "PASS",
+      "evidence": "tests/test_ws5_bff.py::test_run_provenance_report_projects_the_blob (per-judge vote/reasoning/evidence/findings + verdict + agent actor) + ::test_run_provenance_unpersisted_run_is_404_not_500 (N1)."
+    },
+    {
+      "criterion": "A5 (back-compat / frozen) — run_eval.run() no-override byte-identical; compliance_council 0-delta; seeds byte-unchanged",
+      "verdict": "PASS",
+      "evidence": "git diff f641b05 HEAD -- compliance_council.py = 0 lines; -- data/ontology/clinical_v1.json data/config/agents/ = 0 lines; test_audit.py::test_run_no_override_grades_the_committed_seed."
+    },
+    {
+      "criterion": "A6 (routing — S-BS-50) — every new shell fetch via bff.js BASE; no new hardcoded :8787 outside the frozen journey",
+      "verdict": "PASS",
+      "evidence": "git diff grep: the only ':8787' hits in apps/shell/src are COMMENTS asserting 'no hardcoded :8787'; bff.js calls route through BASE; AgentEditor.test.jsx mocks bff.js."
+    },
+    {
+      "criterion": "A7 (tests + lint + build) — Python suite + BFF + test_audit + Vitest green; ruff clean; vite build clean",
+      "verdict": "PASS",
+      "evidence": "debuglithrim pytest tests/ = 242 passed; default python3 test_audit/ws0/ws1 = 29 passed; Vitest 37 passed (8 files); ruff check + format --check on the 6 Python deliverables clean; repo-wide ruff 1298→1297 (net -1, zero added); vite build clean."
+    },
+    {
+      "criterion": "A8 (HARD-GATE — :5180 visual smoke, user-run, no-autostart) — Agent editor assembles+persists, draft→grade round-trips in-browser, audit view renders who/when/what/why",
+      "verdict": "SKIP",
+      "evidence": "OWED — user-attested, no-autostart. Requires the user to start the BFF (:8787) + the shell (:5180) and eyeball the tool-agent_editor + tool-audit_log + the draft→grade leg. A4/A8 run→audit leg needs a PERSISTED run (in_process=true, cost-confirmed) since replay persists no blob (N1)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "audit_records_per_config_write": "1 (one append-only row per PUT /v1/agent and per PUT /v1/ontology)",
+    "draft_to_grade_lever": "severity_map.block_at_or_above raised above active weight → composite reject/BLOCK → needs_review/WARN (replay path, $0)",
+    "run_provenance_fields_surfaced": "per-judge {judge_role, vote, confidence, model, reasoning, findings, evidence} + verdict + gate_decision + verdict_flipped_by_stage + agent actor + stages_executed",
+    "new_bff_routes": "GET /v1/agent, PUT /v1/agent, GET /v1/audit, GET /v1/runs/{id}/audit (+ ontology_source on /v1/run-eval + audit on PUT /v1/ontology)",
+    "commits": "7 atomic, pathspec-only; scope diff = 15 files, all §2 deliverables; foreign .claude/ + KICKOFF + REPORT untracked, uncommitted"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-52",
+      "title": "Replay runs are not auditable via GET /v1/runs/{id}/audit (no provenance blob persisted)",
+      "severity": "medium",
+      "fix_location": "scripts/run_eval.py grade_replay/grade_live paths + apps/bff/app.py /v1/run-eval; UAP-3 run-history",
+      "impact": "The $0 replay default persists no PIPELINE_RUNS blob, so the §2B run-provenance report is only available for --in-process runs. /v1/runs/{id}/audit returns a clean 404 for replay runs. 'Every run is auditable' is deferred to UAP-3 (run-history + a replay-provenance sink).",
+      "confidence": "CONFIRMED",
+      "evidence": "run_eval.py:146 else→grade_replay (no provenance_store); only the in_process branch (:132) constructs SqliteProvenanceStore. tests/test_ws5_bff.py::test_run_provenance_unpersisted_run_is_404_not_500."
+    },
+    {
+      "id": "S-BS-53",
+      "title": "OQ to spec author: §2B AuditRecord why={rationale, before→after} vs canonical top-level before/after",
+      "severity": "low",
+      "fix_location": "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §2B",
+      "impact": "§2B lists before/after as top-level fields AND describes the user-edit why as {rationale, before→after} — an ambiguity. UAP-1 resolved it (top-level before/after canonical; why={rationale}, N2). The spec text should be reconciled so the next implementer doesn't double-store the diff.",
+      "confidence": "CONFIRMED",
+      "evidence": "SPEC_UNIFIED_AUTHORING_PRODUCT.md §2B 'before/after' fields + the 'user authoring edit → {rationale, before→after}' why-typing line."
+    },
+    {
+      "id": "S-BS-54",
+      "title": "GET /v1/ontology + PUT /v1/ontology now load the agent (404 on unknown) before resolving the working copy",
+      "severity": "low",
+      "fix_location": "apps/bff/app.py ontology_endpoint + put_ontology_endpoint",
+      "impact": "Sharing _resolve_ontology_path made GET/PUT /v1/ontology load the agent first, so an unknown agent 404s even if a stray working copy exists (previously GET served a stray working copy without an agent row). Strictly more correct + consistent; no test exercised the old edge. Noted for the audit.",
+      "confidence": "CONFIRMED",
+      "evidence": "apps/bff/app.py ontology_endpoint: _load_agent(agent, db_path) → _resolve_ontology_path(ag, workdir); put_ontology_endpoint similarly loads ag for the before-state."
+    }
+  ],
+
+  "seams_closed": ["S-BS-26b", "S-BS-50", "S-BS-51"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "UAP-1 landed the first build of the LOCKED unified-authoring product: R1 (GET/PUT /v1/agent config-plane write-path), R3 (the draft→grade loop — a PUT-ed working-copy ontology now grades, S-BS-26b closed), and R0 (the immutable append-only AuditRecord/actor foundation, wired onto every config write + a faithful run-provenance projection). 7 atomic pathspec-only commits (6bdf975..a7edd25); scope held (15 files, all §2 deliverables; foreign .claude/ + KICKOFF + REPORT untouched). A1-A7 PASS (debuglithrim 242, default python3 29, Vitest 37, ruff clean, vite build clean; compliance_council 0-delta; seeds byte-unchanged). All 5 monitor notes folded in (N1 clean-404, N2 canonical diff, N3 registry test, N4 one-transaction emit, N5 honest actor). The verdict is PROCEED-WITH-CAVEATS only because A8 (the load-bearing :5180 visual smoke) is OWED — user-run, no-autostart — and the run→audit leg of A8 needs a cost-confirmed in_process run (replay persists no blob, S-BS-52). HARD-GATE: a fresh-critic is the default per the driver §Hardness. Monitor should run /devloop-audit first, then trigger /devloop-critique bench-salvage UAP-1 (fresh) and request the A8 smoke.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage UAP-1, then a FRESH /devloop-critique (HARD-GATE) + request the user A8 :5180 smoke (incl. a cost-confirmed in_process run for the run→audit leg)."
+}
