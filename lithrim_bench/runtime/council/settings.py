@@ -57,7 +57,13 @@ class Settings(BaseSettings):
     HIPAA_REQUIRE_ELIGIBLE_LLM_PROVIDER: bool = False
     HIPAA_ELIGIBLE_LLM_PROVIDERS: list[str] = []
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    # extra="ignore": the .env on the read path is the shared lithrim-backend env,
+    # which carries many backend-only vars (persona-bot / elevenlabs / recording /
+    # etlp-mapper / eval / playground …) this 16-field SUBSET deliberately doesn't
+    # declare. Tolerate them — undeclared backend vars must not crash the council
+    # (pydantic-settings defaults extra="forbid", which made the in-process council
+    # die the moment the backend .env grew).
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 
 settings = Settings()
