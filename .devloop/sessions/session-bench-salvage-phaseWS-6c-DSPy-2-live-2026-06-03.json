@@ -1,0 +1,114 @@
+{
+  "session_id": "session-bench-salvage-phaseWS-6c-DSPy-2-live-2026-06-03",
+  "stream": "bench-salvage",
+  "phase": "WS-6c-DSPy-2-live",
+  "driver_bundle_id": "bench-salvage-phaseWS-6c-DSPy-2-live-ab-run-driver",
+  "started_at": "2026-06-03T05:00:00+05:30",
+  "ended_at": "2026-06-03T06:30:00+05:30",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+  "branch": "bench-salvage/ws6c-dspy (off c0a5463)",
+
+  "plan_review": {
+    "posted_at": "2026-06-03T05:10:00+05:30",
+    "user_approved_at": "2026-06-03T05:25:00+05:30",
+    "decisions_resolved": {
+      "1_case_set": "proof_case.jsonl n=7 only (3 clean negatives + WRONG_DOSAGE/MISSING_ALLERGY/FABRICATED_HISTORY/VALUE_MISMATCH). No verification-pack add-ons.",
+      "2_s_bs_44_fix": "load_role_prompt returns read_text(...).strip() matching _load_role_prompts:527; byte-equality regression test (build_trio role_prompt == _load_role_prompts()[role] for all V2_ROLES) lands + passes BEFORE the live run. CLOSES S-BS-44.",
+      "3_artifact_home": "RULED by user: relocate to docs/research/ (NOT git add -f the gitignored out/). Committed: docs/research/ab_result_dspy2_live_2026-06-03.json (raw blob, provenance per S-BS-38 ethos) + docs/research/REPORT_dspy2_live_ab_2026-06-03.md. Throwaway loader stays uncommitted in out/.",
+      "4_cost_confirm": "Smoke (1 case both arms = 6 calls) BEFORE the full run, doubling as D-1 fix-validation; $3 hard ceiling; ONE run; Azure env is the user's (sourced from ../lithrim-backend/.env per user approval; council keys only, not the whole .env); COMPLIANCE_COUNCIL_VERSION=v2 + LITHRIM_LLM_PROVIDER=azure; no autostart/provision."
+    },
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-1 (load-bearing, surfaced at plan-review): ab_harness._context_payload fed the prompt-council a TOP-LEVEL transcript, but _prepare_full_analysis_payload reads transcript ONLY from call_context.transcript (compliance_council.py:1159-1161; the documented SMOKE_PAYLOAD shape, test_live_smoke.py:54-62). The top-level transcript is silently dropped -> empty transcript + populated artifact -> the COMPLETE FABRICATION RULE (:567-575) false-rejects every case -> the control arm broken, the paid A/B invalid. User verified the diagnosis independently (diagnose-before-edit, since it gates a paid run) and APPROVED folding the one-line fix into the cycle as a harness-only correctness gate (no consensus/grade/lens touch). Conditions: (a) add a cheap offline regression test asserting the nesting; (b) the cost-confirm smoke must double as fix-validation (a clean-negative must NOT systematically fabricate-reject) before the full run.",
+        "evidence": "ab_harness.py:190-192 (old top-level) vs compliance_council.py:1159-1161 (call_context-only read); test_live_smoke.py:54-62 (documented shape). Offline proof the fix took: build_prompt(_context_payload(case)) contains transcript-only token 'Antony' (True) where the OLD top-level shape does not (False).",
+        "decided_at": "2026-06-03T05:25:00+05:30"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Smoke halt-and-confirm: the 1-case smoke showed BOTH arms reject the clean-negative (the user's stated halt condition). Halted + reported. Diagnosis: the D-1 fix DID take (proven offline, $0) — the reject is the DOCUMENTED transcript-only blind spot (the FHIR artifact carries PMH/record content the short transcript never speaks; transcript-only judges flag it FABRICATED_HISTORY; the bug-free DSPy arm does it too, confirming it is NOT the payload bug). User granted a FRESH GO to proceed with the full n=7 run, with the blind spot carried as a 4th REPORT caveat.",
+        "evidence": "ab_smoke.json: prompt+dspy both reject clean_negative_aaecd73c3bcf; dspy arm (reads transcript directly, never had the bug) also raised FABRICATED_HISTORY. Offline build_prompt proof of the fix. Prior precedent: critique-pass-precision-not-floor memory (FABRICATED_HISTORY-on-legit-PMH false-block).",
+        "decided_at": "2026-06-03T05:50:00+05:30"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver cites close-diff baseline 317c233, but HEAD at session start is c0a5463 (the driver-doc commit itself: only .devloop/prompts/*). Used c0a5463 as the close-diff baseline so the diff is exactly the cycle's files; 317c233..HEAD would also surface the driver doc. No code symbol moved — all §1 anchors re-grepped clean (load_role_prompt:110-118 no-strip pre-fix, _load_role_prompts:527 strip, run_live:201/216-219 confirm_cost, build_trio:310, _apply_consensus:1866).",
+        "evidence": "git rev-parse HEAD = c0a5463; git show c0a5463 --stat = .devloop/prompts only.",
+        "decided_at": "2026-06-03T05:05:00+05:30"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "4d67c937343ac0711ba2036b8700ac4ee63bde66",
+      "repo": "lithrim-bench",
+      "title": "fix(council-dspy): load_role_prompt strips -> trio prompts byte-match the prompt-council (close S-BS-44)",
+      "summary": "judges_dspy.py — load_role_prompt returns read_text(...).strip() (matches _load_role_prompts:527 byte-for-byte); docstring corrected. tests/test_trio_dspy.py — byte-equality regression guard for all V2_ROLES (injected predictors, no live LM). CLOSES S-BS-44."
+    },
+    {
+      "hash": "68dcdb7a3a3c491c71e1345892e7a5c3d4e97166",
+      "repo": "lithrim-bench",
+      "title": "fix(council-dspy): A/B prompt arm nests transcript under call_context (D-1, pre-live correctness gate)",
+      "summary": "ab_harness.py — _context_payload nests transcript under call_context (the only place _prepare_full_analysis_payload reads it); without it the prompt arm saw an empty transcript and false-rejected every case. tests/test_ab_harness.py — offline nesting guard. Harness-only; no consensus/grade/lens touch."
+    },
+    {
+      "hash": "612e140f1855a6cb88d650d3410dc338470d3614",
+      "repo": "lithrim-bench",
+      "title": "feat(council-dspy): live prompt-vs-DSPy A/B on proof_case (n=7, cost-confirmed) + REPORT",
+      "summary": "docs/research/ab_result_dspy2_live_2026-06-03.json (captured live diff record) + docs/research/REPORT_dspy2_live_ab_2026-06-03.md (headline numbers + 4 caveats)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — S-BS-44 CLOSED: load_role_prompt .strip()s; regression test asserts build_trio role prompts == _load_role_prompts()[role] byte-for-byte for all V2_ROLES; docstring now true",
+      "verdict": "PASS",
+      "evidence": "judges_dspy.py:118 returns read_text(...).strip(); docstring updated. test_build_trio_role_prompts_byte_match_the_prompt_council passes for risk/policy/faithfulness (26 offline tests green on debuglithrim)."
+    },
+    {
+      "criterion": "A2 — ONE live A/B ran (real prompt-council vs DSPy-council, trio, proof_case n=7); diff record persisted as a committed captured-run artifact; live cost within $3 and reported",
+      "verdict": "PASS",
+      "evidence": "ab_harness.run_live(confirm_cost=True) over n=7; 42 Azure calls, 390.9s; verdict_agreement_pct=85.71. Persisted: docs/research/ab_result_dspy2_live_2026-06-03.json (committed). Cost: 48 total calls (6 smoke + 42 run), estimated ~$0.75-1.5, within the $3 ceiling."
+    },
+    {
+      "criterion": "A3 — frozen contract STILL holds: compliance_council.py byte-identical; no grade-wire; consensus unchanged",
+      "verdict": "PASS",
+      "evidence": "git diff c0a5463 -- compliance_council.py = 0 lines. No grade.py/run_eval.py/report.py/lens/_TIER1_OWNERS/taxonomy change. ab_harness imports neither grade nor run_eval; _apply_consensus called UNCHANGED."
+    },
+    {
+      "criterion": "A4 — result reported HONESTLY: REPORT carries all 3 mandatory caveats + makes no claim beyond n=7",
+      "verdict": "PASS",
+      "evidence": "REPORT_dspy2_live_ab_2026-06-03.md carries (1) per-judge precision = LOWER BOUND (S-BS-43), (2) captured-run-not-deterministic, (3) n=7 small, PLUS a 4th load-bearing caveat (transcript-only blind spot dominates the set). No 'DSPy beats/matches' claim; divergences narrated as as-of-this-run."
+    },
+    {
+      "criterion": "A5 — default install unchanged + scope held: import lithrim_bench openai/dspy-free; ruff clean on changed files; close-diff = ONLY DSPy-2-live files; every commit pathspec'd",
+      "verdict": "PASS",
+      "evidence": "import lithrim_bench (system python3): openai/dspy both absent. ruff clean on the 4 code/test files. git diff c0a5463 HEAD --stat = exactly the 4 council files + (group 2) the 2 docs/research files. The 3 staged paper files NOT swept; every commit used explicit pathspec."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "verdict_agreement": "85.71% (6/7). 1 divergence: clean_negative_aef8bc9c0cca prompt=reject vs dspy=needs_review.",
+    "calibration": "mean signed conf delta (dspy-prompt, paired floats): risk_judge -0.0042 (n=7), faithfulness_judge 0.0 (n=6), policy_judge n/a (Mistral, 0 paired, None uncoerced). The DSPy rewrite did not shift confidence where observable.",
+    "per_role_score_LOWER_BOUND": "prompt arm: risk prec=0.143/rec=1.0, policy prec=0.0/rec=1.0 (fp=22), faithfulness prec=0.10/rec=0.667 (fn=1). dspy arm: risk 0.143/1.0, policy 1.0(vacuous)/1.0 (fp=0), faithfulness 0.167/1.0 (fn=0). fp columns dominated by out-of-lens FABRICATED_HISTORY/INCOMPLETE_DOCUMENTATION blind-spot raises — NOT judge error.",
+    "load_bearing_divergence": "policy_judge (Mistral): prompt arm raises out-of-lens codes on all 7 (fp=22); DSPy arm raises NOTHING on all 7 (fp=0). Same model/deployment/.strip()-identical role prompt — the gap is the elicitation path (build_prompt vs DSPy signature). Worth a DSPy-3 look; not explained by the blind spot.",
+    "faithfulness_recall_edge": "DSPy faithfulness caught MISSING_ALLERGY on drop_allergy (in-lens, fn=0); prompt faithfulness missed it (raised FABRICATED_HISTORY instead, fn=1). Labeled WRONG_DOSAGE/FABRICATED_ALLERGY/VALUE_MISMATCH caught by both arms.",
+    "transcript_only_blind_spot": "All 3 clean-negatives false-reject (both arms); every judge floods with FABRICATED_HISTORY/INCOMPLETE_DOCUMENTATION because the FHIR artifacts carry PMH/record content absent from the short transcripts. PROVEN to be real behavior (not the D-1 payload bug): the bug-free DSPy arm exhibits it too; the fix was independently proven via offline build_prompt token check. This is the documented gap only patient-record grounding flips.",
+    "s_bs_42_phi": "PHI_DISCLOSURE_PRE_VERIFICATION absent from all proof_case rows -> the predicted policy recall gap could NOT be measured this run. S-BS-42 stays open; needs a case carrying the code.",
+    "cost": "48 Azure chat completions (6-call smoke + 42-call run). Prompts ~30.8k chars ~7.7k input tokens/call; short findings-JSON outputs. Estimated ~$0.75-1.5 at Azure list prices (size-based estimate; the council does not surface metered usage to the harness). Within the $3 ceiling. ONE run.",
+    "consensus_unchanged_diff": "compliance_council.py NOT in c0a5463..HEAD (0 lines). A3 zero delta.",
+    "test_count": "26 council tests green on debuglithrim for the two changed test files (trio + ab_harness); full council dir 72 passed + 2 live-skips."
+  },
+
+  "seams_opened": [],
+  "seams_closed": ["S-BS-44"],
+  "seams_referenced_inert": ["S-BS-42", "S-BS-43"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "WS-6c-DSPy-2-live closed the S-BS-44 prompt-parity gate (load_role_prompt .strip()s -> build_trio role prompts byte-match _load_role_prompts, regression-guarded) and ran ONE cost-confirmed live prompt-vs-DSPy A/B over proof_case n=7. The cost-confirm gate earned its keep: at plan-review it surfaced a CONFIRMED payload-shape bug (D-1) — _context_payload fed the prompt arm a top-level transcript the council reads only from call_context.transcript, which would have broken the control arm and wasted the spend. The user verified the diagnosis independently and approved the one-line harness fix (offline-tested both ways: the fix delivers the transcript; the old shape does not). The smoke then hit the user's halt condition (both arms reject a clean-negative); I halted, proved offline ($0) that the fix took, and diagnosed the reject as the DOCUMENTED transcript-only blind spot (the bug-free DSPy arm exhibits it too) rather than the payload bug; the user granted a fresh go. Full run: 42 Azure calls, 390.9s, 85.71% verdict agreement (6/7), near-identical confidence between arms (risk Delta -0.004, faithfulness 0.0), estimated ~$0.75-1.5 (within the $3 ceiling, ONE run). The real A/B signal: the Mistral policy_judge is verbose in the prompt arm (fp=22) but silent in the DSPy arm (fp=0) despite identical model/deployment/role-prompt — an elicitation-path divergence worth chasing in DSPy-3; and the DSPy faithfulness judge out-recalled the prompt arm on the labeled MISSING_ALLERGY. Absolute per-judge precision is a LOWER BOUND (S-BS-43) further saturated by the blind spot, so it is NOT read as judge precision. A3 frozen contract holds (compliance_council.py byte-identical, 0 delta vs c0a5463); scope clean (4 council files + 2 docs/research files; the 3 staged paper files NOT swept; every commit pathspec'd). PROCESS NOTE: this latent payload bug vindicates the DSPy-2 offline-only ruling + the 'test-correct but UNVALIDATED against real behavior' caveat — the live path had a real bug that only surfaced on real wiring, which is exactly why offline numbers were never reported as an A/B result and the spend was gated. The S-BS-44 close + the live A/B numbers are the deferred calibration-USP payoff of the DSPy-2 substrate.",
+
+  "next_session_hint": "monitor: routine inline critique (driver Hardness = ROUTINE; load-bearing focus = A3 re-verify + result-honesty/4 caveats + S-BS-44 parity proof). The Mistral policy_judge prompt-vs-DSPy verbosity gap (fp=22 vs fp=0, identical model/prompt) is the surprising-but-not-paper-changing divergence — escalate to fresh-critic only if it would change a paper claim (it does not yet; it is a DSPy-3 elicitation-path question). WS-6c-DSPy-3 = the optimizer pass (BootstrapFewShot climbing make_judge_metric) + the co-raise-aware lens (S-BS-43) + investigate the policy-judge elicitation divergence. S-BS-42 (policy PHI prompt-naming) still unmeasured — needs a PHI_DISCLOSURE_PRE_VERIFICATION-carrying case. The transcript-only blind spot remains the grounding-track motivation (only patient-record grounding flips the clean-negative false-blocks)."
+}
