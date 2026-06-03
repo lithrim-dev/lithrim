@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-04T12:00Z",
+  "updated": "2026-06-04T13:30Z",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -8,7 +8,8 @@
       "phase": "UAP-1",
       "scope": "config-plane-write-path-/v1/agent-plus-draft-to-grade-plus-audit-record-actor-foundation",
       "file": "bench-salvage_phaseUAP-1_config-plane-write-path_driver.md",
-      "status": "stub",
+      "status": "ready",
+      "version": "v1",
       "hardness": "HARD-GATE-class (SPEC_PRODUCT_SHELL section8 shell phase; the :5180 visual smoke is load-bearing; user-electable inline vs fresh-critic at close)",
       "target_repos": ["lithrim-bench"],
       "related_docs": [
@@ -16,13 +17,14 @@
         "lithrim_bench/harness/config.py (Agent/EvalProfile/save_agent/load_agent -- the config-plane write-target)",
         "lithrim_bench/harness/ontology.py (Ontology/from_dict -- the working-copy ontology the run must read)",
         "apps/bff/app.py (the BFF surface to extend: GET/PUT /v1/agent + the audit routes; follow the WS-5d PUT /v1/ontology validate->422 + clobber-safe working-copy pattern)",
-        "scripts/run_eval.py (agent.ontology_abspath ~:118 -- the draft->grade S-BS-26b fix site: read the working copy, not the committed seed)",
+        "scripts/run_eval.py (agent.ontology_abspath read TWICE at :109 [grounding ontology] + :142 [live-inject payload] -- the draft->grade S-BS-26b fix site: both must read the working copy, not the committed seed)",
         "the SqliteProvenanceStore (WS-6d, runtime persistence) -- the run-provenance audit source to surface"
       ],
       "_note": "UAP-1 = the no-regret FIRST build of the LOCKED unified authoring+processing product (reframed WS-7). Deliver R1 (PUT/GET /v1/agent -- assemble + persist an Agent to the config plane from the UI), R3 (close the draft->grade loop S-BS-26b -- a run reads the agent's working-copy ontology, not the committed seed), and R0 (the AuditRecord shape + actor attribution + the append-only config-change audit log -- nothing authored un-attributed from day one). Sidesteps every open dependency (no judge-creation/optimize yet; OQ-1..5 all resolved at lock). Frontend + BFF + config-plane; compose over the existing run_eval/grade chain + the SqliteProvenanceStore. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy; the tree carries local .claude/ + a stray KICKOFF file -- never bare-commit). S-BS-50: route fetches through bff.js VITE_BFF_URL, do NOT hardcode :8787.",
       "created": "2026-06-04",
-      "last_re_verified": null,
-      "next_action": "run /devloop-expand-driver bench-salvage UAP-1 -- expand this stub: re-grep the config.py/ontology.py/app.py/run_eval.py citations, fill the deliverables (R0/R1/R3) + acceptance + the AuditRecord/actor design + the plan-review checkpoints + the commit structure."
+      "last_re_verified": "2026-06-04",
+      "expanded": "2026-06-04 (driver authored from the LOCKED SPEC + this stub per user election; 9 citations re-grepped -- 8 CONFIRMED, 1 DRIFTED [run_eval ontology read ~:118 -> :109+:142], 0 MISSING; a UAP-1 entry was backfilled into TASK_PACK_bench-salvage.json since the pack predated the 2026-06-04 reframe).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-1 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 6 decisions (actor wire / R3 resolve / audit storage / sync provenance read / UI shape / §10 ratification) before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy)."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",

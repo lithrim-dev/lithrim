@@ -971,6 +971,71 @@
       "hardness": "HARD-GATE-class (per SPEC §8 shell phases); user-electable inline vs fresh-critic at close",
       "hardness_reason": "Low risk surface (UI wiring over a proven grade chain, no backend), so inline is defensible; but the FIRST live journey act (the pitch becoming real) + frontend visual fidelity is where the WS-5c/5d fresh-critic earned its keep. The :5180 visual-parity smoke is the load-bearing gate regardless of the inline/fresh-critic choice.",
       "next_action": "Driver authored 2026-06-02 (both-absent reconcile; WS-7 milestone = journey-live; this = the Phase-2 beachhead, zero backend/BFF/Python -- pure leverage). Run /devloop-kickoff bench-salvage WS-7a; fresh executor session ROOTED IN lithrim-bench (frontend, apps/shell). Plan-review resolves the 4 decisions before 'go'. Use explicit-pathspec commits (concurrent tree)."
+    },
+    {
+      "id": "UAP-1",
+      "phase": "UAP-1",
+      "title": "UAP-1 -- config-plane write-path (/v1/agent) + draft->grade loop (S-BS-26b) + the AuditRecord/actor foundation (R0/R1/R3); the no-regret FIRST build of the LOCKED unified authoring+processing product",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
+      "milestone": "UAP-1..4 = the LOCKED unified authoring+processing product (docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md, reframed WS-7; the 4-act journey FROZEN as a demo inside it). UAP-1 (R1+R3+R0, this) -> UAP-2 (JudgeEditor + /v1/judges via ontology-assignment, R2) -> UAP-3 (RunPanel + processing/eval-pack/history, R4/R6) -> UAP-3b (signals + withstands-gate, section 2A) -> UAP-4 (optimize/calibration in-UI, R5; gated S-BS-49).",
+      "origin": "Backfilled 2026-06-04 into the task pack from the LOCKED SPEC + the index.json stub (user election: author the driver from the SPEC now). The pack predated the 2026-06-04 reframe -- its newest prior entry was WS-7a under the SUPERSEDED journey-on-real-calls framing, and its seam list ends at S-BS-8 while the live registry (STREAM_bench-salvage.md) runs to S-BS-51. UAP-1 = the smallest change that makes authored config actually run, sidestepping every open dependency (no judge-creation/optimize yet; OQ-1..5 resolved at lock).",
+      "regrepped_2026_06_04": "9 citations, 8 CONFIRMED / 1 DRIFTED / 0 MISSING. config.py: EvalProfile:46 Agent:65 ontology_abspath:70 agent_from_dict:83 agent_to_dict:106 save_agent:128 (UPSERT ON CONFLICT(name) -- R0 needs an append-only log beside it) load_agent:148 seed_config_db:161. ontology.py: Ontology:96 from_dict:136 questions_for:132. run_eval.py: run:101, committed-seed read TWICE at :109 (load_ontology) + :142 (live-inject read_text) -- BOTH are the S-BS-26b fix site (DRIFT vs stub ~:118). apps/bff/app.py: health:129 run-eval:134 case:186 corpus:209 GET-ontology:215 _validate_ontology:234 (422 @246/251) PUT-ontology:257 (clobber-safe workdir via get_ontology_workdir:87) kb:276 -- /v1/agent + audit routes ABSENT = net-new. provenance.py: SqliteProvenanceStore:38 async save:62 async find_by_id:76 (but PIPELINE_RUNS.get is SYNC -- the sync BFF reads the blob directly). corpus.py: project:64 rollout_ref:54 (the grounding-flip why-records, read-only). bff.js: BASE=VITE_BFF_URL??'' :6 (route through it; S-BS-50) vs the journey hardcode JourneyApp.jsx:18. registry.js: KNOWN_TOOLS:20 renderTool:63. tests/test_ws5_bff.py: importorskip-fastapi:19 TestClient:20 dependency_overrides:60-63 ([bff] extra).",
+      "deliverables": [
+        "R0a lithrim_bench/harness/audit.py (NEW): the AuditRecord model (Pydantic v2; section 2B shape -- ts/actor{type,id}/action/target{type,id}/why(typed)/before/after/run_id/case_id) + an append-only AuditLog over a SQLite config_audit table (INSERT-only, immutable; stdlib sqlite3, same posture as config.py) with record() + query(actor,target,since).",
+        "R0b lithrim_bench/harness/config.py: save_agent gains actor + optional audit_log; emits an AuditRecord {action edit/author, target agent, why{rationale,before,after}} on every write. Back-compat: low-level default actor {system,seed} + no-op-if-unset log; the BFF product path MUST pass a real SME actor.",
+        "R3 scripts/run_eval.py: run() gains ontology_path Path|None = None (None -> agent.ontology_abspath() committed seed = byte-identical back-compat; set -> the working-copy draft). Thread one resolved ontology_src through BOTH reads :109 + :142.",
+        "R1+R0 apps/bff/app.py: GET /v1/agent (load_agent->agent_to_dict; 404) + PUT /v1/agent (agent_from_dict round-trip -> 422 on malformed -> save_agent WITH the request actor -> audit record); add the actor-attributed audit record to PUT /v1/ontology; /v1/run-eval resolves the working-copy ontology (factor _resolve_ontology_path, reuse the GET /v1/ontology prefer-working-copy logic) and passes ontology_path to run_eval.run (R3).",
+        "R0 apps/bff/app.py: GET /v1/audit?actor=&target_type=&target_id=&since= (AuditLog.query -- the config-change stream) + GET /v1/runs/{id}/audit (assemble a why/when/who/what report from PIPELINE_RUNS.get(run_id) SYNC -- per-judge votes/reasoning/evidence + verdict+why; minimal faithful projection, richer views = UAP-3).",
+        "R1-UI apps/shell/src/...: a thin Agent editor (assemble judges+ontology_ref+tools+kb -> PUT /v1/agent; load -> GET /v1/agent) + a minimal audit view (GET /v1/audit + GET /v1/runs/{id}/audit), ALL fetches through bff.js (add calls there; S-BS-50, no hardcoded :8787). tool-agent_editor gen-UI part vs plain pane = plan-review.",
+        "Tests: tests/test_ws5_bff.py (extend, TestClient+dependency_overrides) + tests/test_audit.py (NEW) + a Vitest+RTL bff.js-mock test -- cover A1-A6.",
+        "docs(spec): ratify the new UAP-1 routes in SPEC_PRODUCT_SHELL section 10 (close the S-BS-51 pattern) if plan-review elects ratify-in-cycle.",
+        ".devloop/sessions/session-bench-salvage-phaseUAP-1-2026-06-04.json (wiring + the A5 frozen-seam/byte-unchanged proof + test counts + the A8 :5180 smoke attestation)."
+      ],
+      "acceptance": [
+        "A1 R1 round-trip: PUT /v1/agent then GET /v1/agent round-trips an assembled Agent through the config DB; malformed -> 422. (test_ws5_bff.py)",
+        "A2 R3 draft->grade (the headline): a PUT /v1/ontology working-copy draft with a verdict-relevant change, then POST /v1/run-eval for that agent, grades against the DRAFT (working copy) not the committed seed; data/ontology/clinical_v1.json byte-unchanged. (TestClient)",
+        "A3 R0 shape+actor+append-only: every config write (PUT /v1/agent, PUT /v1/ontology) emits an immutable AuditRecord (actor/action/target/typed why{rationale,before,after}); GET /v1/audit lists them; a second write APPENDS (no overwrite); NO UPDATE/DELETE path; a BFF product write with no actor is rejected (or attributed per the decision), never silently un-attributed. (test_audit.py + BFF)",
+        "A4 R0 run provenance: GET /v1/runs/{id}/audit assembles a why/when/who/what report from the SqliteProvenanceStore blob (per-judge votes+reasoning+evidence + verdict+why), read synchronously. (BFF)",
+        "A5 back-compat/frozen: run_eval.run() with no ontology_path byte-identical to before; git diff = 0 lines in compliance_council.py; committed data/ontology/clinical_v1.json + data/config/agents/*.json byte-unchanged. (git diff + suite)",
+        "A6 routing (S-BS-50): every new shell fetch goes through bff.js (VITE_BFF_URL); grep finds NO new hardcoded :8787 outside the frozen journey. (grep + Vitest)",
+        "A7 tests+lint+build: Python suite + BFF TestClient ([bff] extra) + test_audit.py + Vitest green; ruff check + format clean; vite build clean. (record commands+counts)",
+        "A8 HARD-GATE :5180 visual smoke (user-run, no-autostart): the Agent editor persists an agent, the draft->grade round-trip works end-to-end in the browser, the audit view renders who/when/what/why for a config change + a run. Load-bearing (SPEC section 7); user-attested."
+      ],
+      "diagnostic_stats_reported": [
+        "audit-record count per write / per run -- reported, not a gate",
+        "draft->grade one-click replay latency -- reported, not a gate",
+        "the provenance-blob field count surfaced in the run report -- reported, not a gate"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO JudgeEditor / GET-PUT-optimize /v1/judges / ontology-assignment / prompt<->ontology bridge -- that is UAP-2 (R2). Do not touch council_roles/*.txt or judges_dspy/judge_metric/judge_optimize.",
+        "NO RunPanel UI / POST /v1/eval-pack/run / GET /v1/runs history-list / batch -- UAP-3 (R4/R6). A single-run GET /v1/runs/{id}/audit is in scope for R0; the history list + RunPanel are not.",
+        "NO section 2A withstands-gate / signals bus / GroundingCheck orchestration -- UAP-3b.",
+        "NO optimize / calibration-in-UI -- UAP-4 (R5; gated S-BS-49).",
+        "NO shipping a floor/KB contract from a committed ontology -- gated S-BS-13/16/41 (UAP-3). UAP-1 draft->grade rides the EXISTING clinical_v1 grounding.",
+        "NO journey rework (frozen, demo-only); do not edit apps/shell/src/journey/* except to not regress it.",
+        "NO Tauri/VPC packaging (WS-5e) -- but honor the bff.js VITE_BFF_URL indirection (S-BS-50); do not hardcode :8787.",
+        "NO new ../lithrim-backend endpoints (compose over :8002/:3031 + the in-process council). Bench-only; zero backend edits.",
+        "NO full multi-tenant auth/SSO -- only the minimal SME-handle actor (section 8).",
+        "FROZEN consensus seam: compliance_council._apply_consensus byte-frozen (A5).",
+        "Committed seeds data/ontology/clinical_v1.json + data/config/agents/*.json stay byte-unchanged (writes -> clobber-safe working copies / the non-committed config DB).",
+        "Drive-by formatting / dependency bumps / while-I-was-here edits."
+      ],
+      "plan_review_decisions": [
+        "1 Actor wire mechanism (R0 who): X-Actor header vs request field vs configured dev default. Recommend an explicit actor field on writes, BFF-side default to a configured dev handle; low-level save_agent defaults to {system,seed}.",
+        "2 R3 working-copy resolution: pass ontology_path into run_eval.run (recommend, keeps seed read back-compat) vs mutate agent.eval_profile.ontology_path; factor a shared _resolve_ontology_path helper with GET /v1/ontology.",
+        "3 Audit storage locus: a new append-only config_audit table in the SAME config DB (recommend, stdlib posture) vs a separate DB vs collections.py doc-shim. INSERT-only (immutability).",
+        "4 R0 run-provenance read: sync PIPELINE_RUNS.get(run_id) (recommend) vs asyncio.run(store.find_by_id) in the sync handler; faithful projection only (rich/diff views -> UAP-3).",
+        "5 UAP-1 UI shape: tool-agent_editor gen-UI part vs a plain pane; how much audit-view now (minimal) vs defer.",
+        "6 section 10 / S-BS-51 ratification: ratify the new routes (/v1/agent, /v1/audit, /v1/runs/{id}/audit) in SPEC_PRODUCT_SHELL section 10 (or the SPEC section 4 BFF table) AS PART OF this cycle -- close the S-BS-51 pattern, do not repeat it."
+      ],
+      "hardness": "HARD-GATE-class (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8 shell phases); the :5180 visual smoke (A8) is load-bearing; fresh-critic the default, inline only on explicit user election.",
+      "hardness_reason": "FIRST build of the LOCKED product + it lands the AuditRecord/actor foundation that every downstream UAP phase depends on, and it touches the config-plane write-path + the frozen-seam-adjacent run path. The audit immutability + the A5 byte-frozen invariants + the draft->grade verdict-correctness are exactly where a from-source fresh-critic earns its keep.",
+      "next_action": "Driver authored 2026-06-04 from the LOCKED SPEC + the index.json stub (9 citations re-grepped). Run /devloop-kickoff bench-salvage UAP-1; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy; never bare-commit)."
     }
   ],
   "seams": [
