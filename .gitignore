@@ -22,3 +22,6 @@ out/
 
 # Live-stack credentials — do not commit
 .live_env
+
+# Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
+.devstack/
