@@ -108,14 +108,17 @@ def default_taxonomy_context() -> str:
 
 
 def load_role_prompt(role: str) -> str:
-    """Read ``council_roles/<role>.txt`` — the SAME prompt text the live
-    prompt-council loads via ``_load_role_prompts`` (the file ``stem`` is the
-    role key). Raises if the role prompt is missing rather than feeding an empty
-    ``role_prompt`` to the signature."""
+    """Read ``council_roles/<role>.txt`` and return it ``.strip()``ed — the
+    byte-identical prompt text the live prompt-council loads via
+    ``_load_role_prompts`` (which also ``.strip()``s, ``compliance_council.py:527``;
+    the file ``stem`` is the role key). The strip closes S-BS-44: without it the
+    DSPy arm fed a trailing-newline-divergent prompt, breaking the A/B's
+    like-for-like premise. Raises if the role prompt is missing rather than
+    feeding an empty ``role_prompt`` to the signature."""
     path = _ROLE_PROMPTS_DIR / f"{role}.txt"
     if not path.exists():
         raise FileNotFoundError(f"no council role prompt for {role!r} at {path}")
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8").strip()
 
 
 # --------------------------------------------------------------------------- #

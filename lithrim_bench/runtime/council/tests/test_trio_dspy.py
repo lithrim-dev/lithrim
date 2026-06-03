@@ -39,6 +39,7 @@ from lithrim_bench.runtime.council.compliance_council import (  # noqa: E402
     _TIER1_OWNERS,
     KNOWN_TAXONOMY_CODES,
     TIER_1_NEVER_EVENTS,
+    ComplianceCouncil,
 )
 from lithrim_bench.runtime.council.judge_metric import (  # noqa: E402
     FAITHFULNESS_JUDGE_LENS,
@@ -51,6 +52,7 @@ from lithrim_bench.runtime.council.judges_dspy import (  # noqa: E402
     V2_ROLES,
     build_trio,
     evaluate_dspy,
+    load_role_prompt,
 )
 
 
@@ -329,3 +331,28 @@ def test_faithfulness_lens_excludes_the_unowned_tier1_codes():
     invites but does NOT own are deliberately absent from the lens."""
     unowned = {"WRONG_DOSAGE", "FABRICATED_ALLERGY", "MISSED_ESCALATION", "SEVERITY_ESCALATION"}
     assert not (unowned & FAITHFULNESS_JUDGE_LENS)
+
+
+# ── S-BS-44 GATE: the two A/B arms get byte-identical role prompts ───────────
+
+
+def test_build_trio_role_prompts_byte_match_the_prompt_council():
+    """S-BS-44: the DSPy arm (build_trio) and the prompt-council arm
+    (_load_role_prompts) must load the SAME role-prompt text byte-for-byte, or the
+    live A/B is not the like-for-like comparison it claims to be. The fix is the
+    matching ``.strip()`` in load_role_prompt (judges_dspy) ↔ _load_role_prompts
+    (compliance_council:527). Built with injected predictors so no live LM / network.
+    """
+    prompt_council = ComplianceCouncil._load_role_prompts()
+    trio = build_trio(predictors={role: (lambda **_: None) for role in V2_ROLES})
+    by_role = {j.role: j.role_prompt for j in trio}
+
+    assert set(by_role) == set(V2_ROLES)
+    for role in V2_ROLES:
+        assert by_role[role] == prompt_council[role], (
+            f"{role}: build_trio role_prompt diverges from the prompt-council's "
+            f"_load_role_prompts (S-BS-44 regression — check the .strip() parity)"
+        )
+        # belt-and-suspenders: the helper itself matches, and is whitespace-stripped
+        assert load_role_prompt(role) == prompt_council[role]
+        assert by_role[role] == by_role[role].strip()
