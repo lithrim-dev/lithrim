@@ -199,7 +199,11 @@ def evaluate_program(
         )
 
     def run_judge(case: dict[str, Any]) -> Any:
-        return program.forward(
+        # call the program (not .forward) so a dspy.Module resolves its LM via the
+        # ambient dspy.context the live caller sets — a compiled program is a
+        # deepcopy whose per-predictor LM binding is dropped, so it relies on the
+        # context, not set_lm. Offline fakes are plain callables (__call__).
+        return program(
             transcript=case.get("transcript", ""),
             artifact=_artifact_text(case),
             role_key_questions=role_prompt,
@@ -239,6 +243,9 @@ def compile_judge(
         max_bootstrapped_demos=max_bootstrapped_demos,
         max_labeled_demos=max_labeled_demos,
     )
+    if lm is not None:
+        with dspy.context(lm=lm):
+            return teleprompter.compile(program, trainset=trainset)
     return teleprompter.compile(program, trainset=trainset)
 
 
@@ -303,6 +310,8 @@ def run_optimize(
             "explicit cost check"
         )
 
+    import dspy
+
     from .judges_dspy import build_judge_lm, default_taxonomy_context, load_role_prompt
 
     lens = LENS_BY_ROLE[role]
@@ -317,30 +326,33 @@ def run_optimize(
     role_prompt = load_role_prompt(role)
     taxonomy_context = default_taxonomy_context()
 
-    baseline_program = build_judge_program(lm=lm)
-    baseline = evaluate_program(
-        baseline_program,
-        heldout_rows,
-        role=role,
-        role_prompt=role_prompt,
-        taxonomy_context=taxonomy_context,
-    )
+    # one ambient LM for the whole live section: the baseline program, the
+    # BootstrapFewShot compile, and the compiled program (a deepcopy whose
+    # per-predictor LM binding is dropped) all resolve their LM from this context.
+    with dspy.context(lm=lm):
+        baseline_program = build_judge_program()
+        baseline = evaluate_program(
+            baseline_program,
+            heldout_rows,
+            role=role,
+            role_prompt=role_prompt,
+            taxonomy_context=taxonomy_context,
+        )
 
-    trainset = build_examples(train_rows, role=role)
-    compiled = compile_judge(
-        role,
-        trainset,
-        lm=lm,
-        max_bootstrapped_demos=max_bootstrapped_demos,
-        max_labeled_demos=max_labeled_demos,
-    )
-    optimized = evaluate_program(
-        compiled,
-        heldout_rows,
-        role=role,
-        role_prompt=role_prompt,
-        taxonomy_context=taxonomy_context,
-    )
+        trainset = build_examples(train_rows, role=role)
+        compiled = compile_judge(
+            role,
+            trainset,
+            max_bootstrapped_demos=max_bootstrapped_demos,
+            max_labeled_demos=max_labeled_demos,
+        )
+        optimized = evaluate_program(
+            compiled,
+            heldout_rows,
+            role=role,
+            role_prompt=role_prompt,
+            taxonomy_context=taxonomy_context,
+        )
 
     demos = _serialize_demos(compiled)
     result = {

@@ -83,6 +83,10 @@ class _FakeProgram:
         findings = [{"taxonomy_code": c, "evidence_spans": [{"quote": "q"}]} for c in codes]
         return SimpleNamespace(findings=findings)
 
+    # evaluate_program calls program(...) (so a dspy.Module resolves its ambient LM);
+    # a fake stands in as a plain callable.
+    __call__ = forward
+
 
 def test_evaluate_program_measures_compiled_better_than_baseline():
     pos = {
