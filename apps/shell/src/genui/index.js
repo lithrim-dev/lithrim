@@ -6,6 +6,8 @@ import "./ContractBuilder.jsx";
 import "./KbPicker.jsx";
 import "./VerdictCard.jsx";
 import "./CalibrationChart.jsx";
+import "./AgentEditor.jsx";
+import "./AuditView.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -14,3 +16,5 @@ export { default as ContractBuilder } from "./ContractBuilder.jsx";
 export { default as KbPicker } from "./KbPicker.jsx";
 export { default as VerdictCard } from "./VerdictCard.jsx";
 export { default as CalibrationChart } from "./CalibrationChart.jsx";
+export { default as AgentEditor } from "./AgentEditor.jsx";
+export { default as AuditView } from "./AuditView.jsx";

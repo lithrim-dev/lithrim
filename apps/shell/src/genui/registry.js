@@ -23,6 +23,8 @@ export const KNOWN_TOOLS = [
   "tool-kb_picker",
   "tool-verdict_card",
   "tool-calibration_chart",
+  "tool-agent_editor",
+  "tool-audit_log",
 ];
 
 const TOOL_REGISTRY = {};

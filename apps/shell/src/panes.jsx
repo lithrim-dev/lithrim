@@ -158,6 +158,16 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <p>Assemble the <strong>agent</strong> — its judge roster, ontology, and tools write straight to the config plane. Every change is attributed and logged; the audit trail below answers who/when/what/why for each edit and each run.</p>
+              {renderTool({ type: "tool-agent_editor", state: "output-available" }, { onResult: captureSetup("agent") })}
+              {renderTool({ type: "tool-audit_log", state: "output-available" })}
+            </div>
+          </div>
+
+          <div className="msg">
+            <div className="av ai"><Mark size={17} /></div>
+            <div className="content">
+              <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Everything checks out. Running all 2,400 will take about <strong>6 minutes</strong>; I'll stream verdicts into the report as they land.</p>
               <div className="msg-actions">
                 <button className="btn btn-primary" disabled={runStatus === "loading"}

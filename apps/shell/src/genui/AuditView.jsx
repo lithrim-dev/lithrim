@@ -1,0 +1,117 @@
+/* AuditView.jsx — generative-UI datapoint component (tool-audit_log, UAP-1 R0).
+
+   The audit-is-the-product surface, minimal: render the config-change stream
+   (GET /v1/audit — who/when/what/why for every authoring write) and, on demand, a
+   single run's provenance report (GET /v1/runs/{id}/audit — per-judge votes +
+   reasoning + verdict). Faithful, not rich — the query/diff views grow in UAP-3.
+
+   All fetches route through bff.js (S-BS-50). */
+import { useEffect, useState } from "react";
+import { getAudit, getRunAudit } from "../bff.js";
+import { Button } from "../components/ui/button.jsx";
+import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card.jsx";
+import { Input } from "../components/ui/input.jsx";
+import { Separator } from "../components/ui/separator.jsx";
+import { Icon } from "../icons.jsx";
+import { registerTool } from "./registry.js";
+
+function AuditRow({ rec }) {
+  return (
+    <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-[family-name:var(--font-mono)] text-[11.5px] font-medium text-foreground">
+          {rec.action} · {rec.target?.type}:{rec.target?.id}
+        </span>
+        <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">{rec.ts}</span>
+      </div>
+      <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+        by <span className="text-foreground">{rec.actor?.id}</span>
+        {rec.why?.rationale ? <> · “{rec.why.rationale}”</> : null}
+      </div>
+    </div>
+  );
+}
+
+export default function AuditView({ runId: runIdProp = "" }) {
+  const [status, setStatus] = useState("loading");
+  const [error, setError] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [runId, setRunId] = useState(runIdProp);
+  const [run, setRun] = useState(null);
+  const [runErr, setRunErr] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    getAudit()
+      .then((r) => { if (live) { setRecords(r.records || []); setStatus("ready"); } })
+      .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
+    return () => { live = false; };
+  }, []);
+
+  const loadRun = async () => {
+    setRunErr(null); setRun(null);
+    try {
+      setRun(await getRunAudit(runId));
+    } catch (e) {
+      setRunErr(String(e.message || e));
+    }
+  };
+
+  return (
+    <Card className="my-3">
+      <CardHeader>
+        <span className="text-primary"><Icon name="note" size={15} /></span>
+        <CardTitle>Audit trail</CardTitle>
+        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+          why · when · who · what
+        </span>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <section className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-semibold text-foreground">Config changes</span>
+          {status === "loading" && <span className="text-xs text-muted-foreground">Loading audit…</span>}
+          {status === "error" && (
+            <span className="text-xs text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">{error}</span>
+          )}
+          {status === "ready" && records.length === 0 && (
+            <span className="text-xs text-muted-foreground">No config changes recorded yet.</span>
+          )}
+          {status === "ready" && records.length > 0 && (
+            <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
+              {records.map((r, i) => <AuditRow key={i} rec={r} />)}
+            </div>
+          )}
+        </section>
+
+        <Separator />
+
+        <section className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-semibold text-foreground">Run provenance</span>
+          <div className="flex items-center gap-2">
+            <Input value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="pipeline_run_id"
+              aria-label="run id" />
+            <Button size="sm" variant="ghost" onClick={loadRun} disabled={!runId}>Load run</Button>
+          </div>
+          {runErr && (
+            <span className="text-[10.5px] text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">{runErr}</span>
+          )}
+          {run && (
+            <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2 text-[11px]">
+              <div className="font-[family-name:var(--font-mono)] font-medium text-foreground">
+                verdict: {run.verdict} · by agent:{run.actor?.id}
+              </div>
+              {(run.judges || []).map((j, i) => (
+                <div key={i} className="mt-1 text-[10.5px] text-muted-foreground">
+                  <span className="text-foreground">{j.judge_role}</span> {j.vote}
+                  {j.reasoning ? <> — {j.reasoning}</> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
+registerTool("tool-audit_log", AuditView);

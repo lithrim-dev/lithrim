@@ -1,5 +1,6 @@
-/* registry.test.jsx — A2: the tool-<name> registry renders each of the 5 §5b
-   components from a typed tool-part, and an unknown tool degrades gracefully. */
+/* registry.test.jsx — A2: the tool-<name> registry renders each of the 7 config
+   components from a typed tool-part, and an unknown tool degrades gracefully.
+   (5 §5b widgets + the UAP-1 agent_editor + audit_log.) */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { renderTool, KNOWN_TOOLS } from "./index.js";
@@ -21,11 +22,13 @@ const EXPECTED = {
   "tool-kb_picker": /Knowledge base/i,
   "tool-verdict_card": /Sample verdict/i,
   "tool-calibration_chart": /^Calibration$/, // anchored: the title, not the legend's "perfect calibration"
+  "tool-agent_editor": /Loading agent|Agent ·/i, // UAP-1 R1 — config-plane write surface
+  "tool-audit_log": /Audit trail/i, // UAP-1 R0 — the why/when/who/what view
 };
 
 describe("renderTool registry", () => {
-  it("knows all 5 §5b tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(5);
+  it("knows all 7 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(7);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

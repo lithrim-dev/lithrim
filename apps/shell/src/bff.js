@@ -5,10 +5,11 @@
 
 const BASE = import.meta.env.VITE_BFF_URL ?? "";
 
-async function call(path, { method = "GET", body } = {}) {
+async function call(path, { method = "GET", body, headers } = {}) {
+  const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...(headers || {}) };
   const res = await fetch(BASE + path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(merged).length ? merged : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -32,3 +33,34 @@ export const getOntology = (agent = "ws0_default") =>
    snapshot lint) and rejects a malformed/snapshot-violating write with 422. */
 export const putOntology = (ontology, agent = "ws0_default") =>
   call(`/v1/ontology?agent=${encodeURIComponent(agent)}`, { method: "PUT", body: ontology });
+
+/* ── UAP-1: the config-plane write-path + the audit streams (all via BASE; S-BS-50,
+   no hardcoded :8787) ─────────────────────────────────────────────────────────── */
+
+/* GET/PUT /v1/agent — load + persist an assembled Agent (judges + ontology + tools +
+   kb) to the config plane (R1). actor is the §2B "who": passed as the X-Actor header
+   so a real SME attributes the write (else the BFF dev-default). */
+export const getAgent = (name = "ws0_default") =>
+  call(`/v1/agent?name=${encodeURIComponent(name)}`);
+
+export const putAgent = (agent, { actor, rationale = "" } = {}) =>
+  call(`/v1/agent?rationale=${encodeURIComponent(rationale)}`, {
+    method: "PUT",
+    body: agent,
+    headers: actor ? { "X-Actor": actor } : undefined,
+  });
+
+/* GET /v1/audit — the config-change audit stream (§2B stream 1): who/when/what/why. */
+export const getAudit = ({ actor, target_type, target_id, since } = {}) => {
+  const q = new URLSearchParams();
+  if (actor) q.set("actor", actor);
+  if (target_type) q.set("target_type", target_type);
+  if (target_id) q.set("target_id", target_id);
+  if (since) q.set("since", since);
+  const qs = q.toString();
+  return call(`/v1/audit${qs ? `?${qs}` : ""}`);
+};
+
+/* GET /v1/runs/{id}/audit — the run-provenance report (§2B stream 2). */
+export const getRunAudit = (runId) =>
+  call(`/v1/runs/${encodeURIComponent(runId)}/audit`);
