@@ -104,9 +104,18 @@ def run(
     live: bool = False,
     in_process: bool = False,
     out_dir: str | Path | None = None,
+    ontology_path: str | Path | None = None,
 ) -> dict:
-    """Drive one case end-to-end from an Agent eval-profile. Returns the record."""
-    ontology = load_ontology(agent.ontology_abspath())
+    """Drive one case end-to-end from an Agent eval-profile. Returns the record.
+
+    ``ontology_path`` (UAP-1 R3 / S-BS-26b): ``None`` → the agent's committed seed
+    (``agent.ontology_abspath()``, byte-identical to before — A5 back-compat); set →
+    that path (a PUT-ed working-copy draft), so an authored flag/threshold actually
+    grades ("edit the flag → see it grade"). One resolved ``ontology_src`` feeds BOTH
+    committed-seed reads below — the grounding load and the live-inject payload — so
+    they can never diverge."""
+    ontology_src = Path(ontology_path) if ontology_path is not None else agent.ontology_abspath()
+    ontology = load_ontology(ontology_src)
     case = load_case(agent.dataset.case_id, source=agent.source_abspath())
     if case is None:
         raise SystemExit(
@@ -139,7 +148,7 @@ def run(
         # is the S-BS-6 disposition from the eval-profile. Both are additive —
         # absent => exactly the WS-0/WS-1 body.
         council_config = agent.eval_profile.council_config or None
-        ontology_payload = json.loads(agent.ontology_abspath().read_text())
+        ontology_payload = json.loads(ontology_src.read_text())
         result = grade_live(case, council_config=council_config, ontology=ontology_payload)
         grade_path = "live"
     else:
