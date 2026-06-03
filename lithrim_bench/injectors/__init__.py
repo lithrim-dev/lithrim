@@ -1,4 +1,5 @@
 from .base import DefectInjector, InjectionRecipe, InjectionResult
+from .fabricated_consent import FabricatedConsentInjector
 from .fabricated_history import FabricatedHistoryInjector
 from .hallucinated_detail import HallucinatedDetailInjector
 from .hl7_invalid_field_format import Hl7InvalidFieldFormatInjector
@@ -21,6 +22,10 @@ SCRIBE_INJECTORS: list[type[DefectInjector]] = [
     HallucinatedDetailInjector,
 ]
 
+# FabricatedConsentInjector is exported but intentionally NOT in
+# SCHEDULING_INJECTORS: adding it would change what the existing scheduling_v1
+# pack generates. The judge-calibration builder (scripts/generate_judge_calib.py)
+# references it directly.
 SCHEDULING_INJECTORS: list[type[DefectInjector]] = [
     PhiDisclosurePreVerificationInjector,
 ]
@@ -50,6 +55,7 @@ __all__ = [
     "ALL_INJECTORS",
     "CODING_INJECTORS",
     "DefectInjector",
+    "FabricatedConsentInjector",
     "FabricatedHistoryInjector",
     "HL7_ADT_INJECTORS",
     "HallucinatedDetailInjector",
