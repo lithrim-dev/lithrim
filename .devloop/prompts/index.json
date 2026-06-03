@@ -1053,7 +1053,7 @@
       "phase": "WS-7a",
       "scope": "Journey Phase-2 Verify -> live BFF (the pitch's first live act); leverage the existing runEval/run-eval/grade chain -- zero backend/BFF/Python",
       "file": "bench-salvage_phaseWS-7a_journey-verify-live_driver.md",
-      "status": "ready",
+      "status": "closed-WITH-CAVEATS 2026-06-04 (verify-and-close, NOT a driver-bounded build: the deliverable landed in the parallel-session journey rework 26e479f; monitor audited + added the missing D4 test 0b1d2d0 + inline critique). A1/A2/A4 met + tested; A5 build+test green (shell 33/33, vite build clean); the :5180 visual smoke is the one OWED gate (user-run). A3 leverage-gate DEVIATED: the journey extended the BFF (/v1/case + a council view on /v1/run-eval + in_process) -- the driver's 'zero backend/BFF/Python' assumption did NOT hold. Opened S-BS-50 (journey hardcodes BFF_URL, bypasses bff.js VITE_BFF_URL indirection) + S-BS-51 (the §10-locked v1 BFF surface grew unratified). Critique critique-bench-salvage-phaseWS-7a-2026-06-04.md.",
       "version": "v1",
       "hardness": "HARD-GATE-class (SPEC §8 shell phases); user-electable inline vs fresh-critic at close; :5180 visual smoke load-bearing regardless",
       "target_repos": ["lithrim-bench"],
@@ -1072,7 +1072,7 @@
           "drift_notes": "CONFIRMED (12): bff.js runEval:23 (POST /v1/run-eval, live=false=$0) + getOntology/getCorpus/putOntology + BASE=VITE_BFF_URL:6; apps/bff/app.py /v1/run-eval:115 (run_eval.run) + _council_view:27 (judge_votes); harness/grade.py grade_replay:40/grade_live:85(:8002 POST :119)/grade_inprocess; JourneyApp.jsx runVerify:55 (mock) + state:35-36 + props:77-78; jp2.jsx Center2:47 + Artifact2:80 (pillar-badge:108/pb-score:114) + journeyData import:5; journeyData.js PILLARS:12 + captured-real-scores:125/:133-139; artifact.jsx ReportTab:34 (composite render + empty-state:42). LEVERAGE VERIFIED: the grade chain is COMPLETE -- zero backend/BFF/Python needed (A3 gate). 0 drifted, 0 missing."
         }
       ],
-      "next_action": "READY 2026-06-02 (both-absent reconcile; driver authored; 12 leverage/wiring citations re-grepped, 0 drift, 0 missing; zero backend/BFF/Python -- pure leverage). Run /devloop-kickoff bench-salvage WS-7a; fresh executor session (frontend, apps/shell). Plan-review resolves the 4 decisions before 'go'. Explicit-pathspec commits (concurrent tree + staged paper files)."
+      "next_action": "CLOSED-WITH-CAVEATS 2026-06-04 via verify-and-close (the build had already landed in the parallel journey rework, not a driver-bounded executor). REMAINING = the :5180 visual-parity smoke (user-run, no-autostart) -- the close is conditional on it. Then WS-7b (Align: floor + KB into Act 3 -- now that the dosage floor + KbRagTool are merged at dc1cb7c) is the next product act. S-BS-50/51 fold into WS-5e packaging / a journey-bff.js cleanup. NOTE: the driver's 'zero backend/BFF/Python' leverage assumption was falsified -- the verify act needed a modest BFF extension (the case fetch + votes view)."
     }
   ]
 }
