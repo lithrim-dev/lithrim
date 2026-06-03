@@ -30,7 +30,15 @@ TOOL_STRUCTURAL_JUTE = "structural_jute"
 TOOL_RECORD_RAG = "record_rag"
 TOOL_KB_RAG = "kb_rag"
 TOOL_JUTE_GEN = "jute_gen"
-_KNOWN_TOOLS = {TOOL_IN_ROW, TOOL_STRUCTURAL_JUTE, TOOL_RECORD_RAG, TOOL_KB_RAG, TOOL_JUTE_GEN}
+TOOL_DOSAGE_GROUNDING = "dosage_grounding"
+_KNOWN_TOOLS = {
+    TOOL_IN_ROW,
+    TOOL_STRUCTURAL_JUTE,
+    TOOL_RECORD_RAG,
+    TOOL_KB_RAG,
+    TOOL_JUTE_GEN,
+    TOOL_DOSAGE_GROUNDING,
+}
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
 _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
@@ -44,6 +52,10 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # jute_gen: generate-from-sample structural validator via :3031 Copilot. Template
     # comes from reference.pinned_template OR reference.generate{...} (validated at runtime).
     TOOL_JUTE_GEN: {"service", "artifact_kind"},
+    # dosage_grounding: deterministic, offline. The pinned dose-extraction regex is the
+    # SME-pinnable reference; transcript_path / record_path (the grounding sources) are
+    # optional and default to "transcript" / absent.
+    TOOL_DOSAGE_GROUNDING: {"dose_regex"},
 }
 
 

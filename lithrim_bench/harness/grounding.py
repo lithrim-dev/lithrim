@@ -185,8 +185,9 @@ _CONTRACT_EXECUTORS = {"presence_check": PresenceCheck}
 # contract_type set for the WS-3 structural floor. These resolve to the promoted
 # ``lithrim_bench.verification`` tools (imported lazily in ``_run_floor`` so this
 # module's own import stays stdlib-only — no httpx/dspy pulled). KB / vector floor
-# executors land in WS-3b.
-_FLOOR_CONTRACT_TYPES = {"structural_jute", "jute_gen"}
+# executors land in WS-3b. ``dosage_grounding`` is the offline deterministic floor:
+# pure-stdlib, no http_client, grounds documented doses against transcript+chart.
+_FLOOR_CONTRACT_TYPES = {"structural_jute", "jute_gen", "dosage_grounding"}
 
 
 def _build_contract(decl: VerificationContractDecl) -> VerificationContract:
@@ -227,6 +228,7 @@ def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_cli
     from lithrim_bench.verification import (
         STRUCTURAL_CONFORMANCE,
         Claim,
+        DosageGroundingTool,
         JuteGenValidatorTool,
         StructuralJuteTool,
         VerificationSpec,
@@ -234,7 +236,14 @@ def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_cli
 
     params = decl.params
     locus = params.get("locus", "")
-    if decl.contract_type == "jute_gen":
+    if decl.contract_type == "dosage_grounding":
+        tool = DosageGroundingTool()
+        reference = {"dose_regex": params["dose_regex"]}
+        if params.get("transcript_path"):
+            reference["transcript_path"] = params["transcript_path"]
+        if params.get("record_path"):
+            reference["record_path"] = params["record_path"]
+    elif decl.contract_type == "jute_gen":
         tool = JuteGenValidatorTool(http_client=http_client)
         reference = {
             "service": params["service"],

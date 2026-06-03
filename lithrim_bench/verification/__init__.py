@@ -37,6 +37,7 @@ from .spec import (
     RECORD_PRESENCE,
     REFERENCE_CONFORMANCE,
     STRUCTURAL_CONFORMANCE,
+    TOOL_DOSAGE_GROUNDING,
     TOOL_IN_ROW,
     TOOL_JUTE_GEN,
     TOOL_KB_RAG,
@@ -47,6 +48,7 @@ from .spec import (
     VerificationSpec,
 )
 from .tools import (
+    DosageGroundingTool,
     FakeRecordRagTool,
     InRowTool,
     RecordRagTool,
@@ -66,9 +68,11 @@ __all__ = [
     "TOOL_RECORD_RAG",
     "TOOL_KB_RAG",
     "TOOL_JUTE_GEN",
+    "TOOL_DOSAGE_GROUNDING",
     "VerificationTool",
     "InRowTool",
     "StructuralJuteTool",
+    "DosageGroundingTool",
     "RecordRagTool",
     "FakeRecordRagTool",
     "JuteGenValidatorTool",
