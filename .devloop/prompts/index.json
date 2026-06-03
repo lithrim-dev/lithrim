@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-04T13:30Z",
+  "updated": "2026-06-04T14:30Z",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -8,7 +8,7 @@
       "phase": "UAP-1",
       "scope": "config-plane-write-path-/v1/agent-plus-draft-to-grade-plus-audit-record-actor-foundation",
       "file": "bench-salvage_phaseUAP-1_config-plane-write-path_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE-class (SPEC_PRODUCT_SHELL section8 shell phase; the :5180 visual smoke is load-bearing; user-electable inline vs fresh-critic at close)",
       "target_repos": ["lithrim-bench"],
@@ -24,7 +24,7 @@
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04",
       "expanded": "2026-06-04 (driver authored from the LOCKED SPEC + this stub per user election; 9 citations re-grepped -- 8 CONFIRMED, 1 DRIFTED [run_eval ontology read ~:118 -> :109+:142], 0 MISSING; a UAP-1 entry was backfilled into TASK_PACK_bench-salvage.json since the pack predated the 2026-06-04 reframe).",
-      "next_action": "run /devloop-kickoff bench-salvage UAP-1 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 6 decisions (actor wire / R3 resolve / audit storage / sync provenance read / UI shape / §10 ratification) before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy)."
+      "next_action": "SHIPPED + CLOSED 2026-06-04 (`6bdf975..a7edd25` + log `c2e01ae`; PROCEED-WITH-CAVEATS, A8 :5180 smoke OWED). Monitor audit CLEAN + HARD-GATE fresh-critic (agent a62e561dc12854912) NON-BLOCKING. R0/R1/R3 landed; closed S-BS-26(b) + S-BS-51; S-BS-50 stays OPEN (monitor-corrected over-claim); opened S-BS-52..57. Next phase = UAP-2: run /devloop-expand-driver bench-salvage UAP-2 (JudgeEditor + /v1/judges via ontology-assignment; the prompt<->ontology bridge is the load-bearing decision)."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
