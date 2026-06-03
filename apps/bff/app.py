@@ -56,6 +56,7 @@ from lithrim_bench.harness.config import (  # noqa: E402
 )
 from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
+from lithrim_bench.picklist import load_case  # noqa: E402  (the agent's case, for the shell to display)
 
 DEFAULT_AGENT = "ws0_default"
 # Where PUT /v1/ontology persists edited ontologies. A non-committed working dir —
@@ -95,7 +96,8 @@ def _load_agent(name: str, db_path: Path):
 
 class RunEvalRequest(BaseModel):
     agent: str = DEFAULT_AGENT
-    live: bool = False
+    live: bool = False  # :8002 backend council (HTTP, paid)
+    in_process: bool = False  # the in-process v2 Azure council (paid Azure calls) — a fresh real run
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -127,7 +129,7 @@ def run_eval_endpoint(
     """
     agent = _load_agent(req.agent, db_path)
     try:
-        record = run_eval.run(agent, live=req.live, out_dir=out_dir)
+        record = run_eval.run(agent, live=req.live, in_process=req.in_process, out_dir=out_dir)
     except SystemExit as exc:  # run_eval raises this when the case is missing
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -162,6 +164,29 @@ def _council_view(record: dict) -> dict:
     ]
     prov_council = (result.get("provenance") or {}).get("council_config") or {}
     return {"votes": votes, "configured": list(prov_council.get("judges") or [])}
+
+
+@app.get("/v1/case")
+def case_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """The agent's case content — so the shell DISPLAYS the same case the council GRADES
+    (no mockup mismatch). The transcript + the first artifact + the patient record."""
+    ag = _load_agent(agent, db_path)
+    case = load_case(ag.dataset.case_id, source=ag.source_abspath())
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"case {ag.dataset.case_id!r} not found")
+    artifacts = case.get("artifacts") or []
+    pp = case.get("patient_profile") or {}
+    return {
+        "case_id": case.get("case_id"),
+        "transcript": case.get("transcript"),
+        "artifact": (artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None),
+        "conditions": pp.get("conditions") or [],
+        "expected_safety_flags": case.get("expected_safety_flags") or [],
+        "injection_recipe": case.get("injection_recipe"),
+    }
 
 
 @app.get("/v1/corpus")

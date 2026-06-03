@@ -93,10 +93,10 @@ export function Artifact1() {
       <div className="art-sec">
         <div className="art-h2">What's inside</div>
         <div className="tiles">
-          <div className="tile"><div className="tk">Scenarios</div><div className="tv">{PACK.scenarios}</div><div className="td">real clinical encounters</div></div>
+          <div className="tile"><div className="tk">Scenarios</div><div className="tv">{PACK.scenarios}</div><div className="td">real encounters · labels by construction</div></div>
           <div className="tile"><div className="tk">Pillars</div><div className="tv">4</div><div className="td">judged per note</div></div>
           <div className="tile"><div className="tk">Taxonomy</div><div className="tv">{PACK.taxonomy}</div><div className="td">failure codes</div></div>
-          <div className="tile"><div className="tk">Judges</div><div className="tv">{PACK.judges}</div><div className="td">one per pillar</div></div>
+          <div className="tile"><div className="tk">Judges</div><div className="tv">{PACK.judges}</div><div className="td">cross-provider v2 trio</div></div>
         </div>
       </div>
 
