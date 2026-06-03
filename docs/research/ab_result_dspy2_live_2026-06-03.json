@@ -1,0 +1,1079 @@
+{
+  "mode": "live",
+  "n": 7,
+  "verdict_agreement_pct": 85.71,
+  "per_case": [
+    {
+      "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [],
+          "dspy_codes": [
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 0.999639,
+          "conf_delta": -0.0004
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "codes_agree": true,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [
+            "WRONG_DOSAGE"
+          ],
+          "dspy_codes": [
+            "WRONG_DOSAGE"
+          ],
+          "codes_agree": true,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "WRONG_DOSAGE"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "dspy_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION",
+            "WRONG_DOSAGE"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [
+            "FABRICATED_ALLERGY"
+          ],
+          "dspy_codes": [
+            "FABRICATED_ALLERGY"
+          ],
+          "codes_agree": true,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_ALLERGY",
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [
+            "FABRICATED_ALLERGY",
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "codes_agree": true,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [
+            "FABRICATED_ALLERGY"
+          ],
+          "dspy_codes": [
+            "FABRICATED_ALLERGY"
+          ],
+          "codes_agree": true,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION",
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [
+            "FABRICATED_ALLERGY",
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "MISSING_ALLERGY"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [],
+          "dspy_codes": [
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 0.971026,
+          "conf_delta": -0.029
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "MEDICATION_NOT_IN_TRANSCRIPT",
+            "WRONG_CODE"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "dspy_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "needs_review",
+      "verdict_agree": false,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY"
+          ],
+          "dspy_codes": [
+            "MEDICATION_NOT_IN_TRANSCRIPT"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 0.999971,
+          "conf_delta": -0.0
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": null,
+          "conf_delta": null
+        }
+      }
+    },
+    {
+      "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+      "prompt_verdict": "reject",
+      "dspy_verdict": "reject",
+      "verdict_agree": true,
+      "per_role": {
+        "risk_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION"
+          ],
+          "dspy_codes": [
+            "VALUE_MISMATCH"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 0.999993,
+          "conf_delta": -0.0
+        },
+        "policy_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "VALUE_MISMATCH"
+          ],
+          "dspy_codes": [],
+          "codes_agree": false,
+          "prompt_conf": null,
+          "dspy_conf": null,
+          "conf_delta": null
+        },
+        "faithfulness_judge": {
+          "prompt_codes": [
+            "FABRICATED_HISTORY",
+            "HALLUCINATED_DETAIL",
+            "INCOMPLETE_DOCUMENTATION",
+            "VALUE_MISMATCH"
+          ],
+          "dspy_codes": [
+            "FABRICATED_HISTORY",
+            "INCOMPLETE_DOCUMENTATION",
+            "VALUE_MISMATCH"
+          ],
+          "codes_agree": false,
+          "prompt_conf": 1.0,
+          "dspy_conf": 1.0,
+          "conf_delta": 0.0
+        }
+      }
+    }
+  ],
+  "per_role_score": {
+    "prompt": {
+      "risk_judge": {
+        "accepted": false,
+        "graded": 0.42857142857142855,
+        "precision": 0.1429,
+        "recall": 1.0,
+        "tp": 1,
+        "fp": 6,
+        "fn": 0,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [
+              "WRONG_DOSAGE"
+            ],
+            "tp": [
+              "WRONG_DOSAGE"
+            ],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [
+              "FABRICATED_ALLERGY"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [
+              "FABRICATED_ALLERGY"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          }
+        ]
+      },
+      "policy_judge": {
+        "accepted": false,
+        "graded": 0.0,
+        "precision": 0.0,
+        "recall": 1.0,
+        "tp": 0,
+        "fp": 22,
+        "fn": 0,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "WRONG_DOSAGE"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "WRONG_DOSAGE"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT",
+              "WRONG_CODE"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT",
+              "WRONG_CODE"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "VALUE_MISMATCH"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "VALUE_MISMATCH"
+            ],
+            "fn": [],
+            "exact": false
+          }
+        ]
+      },
+      "faithfulness_judge": {
+        "accepted": false,
+        "graded": 0.1285714285714286,
+        "precision": 0.1,
+        "recall": 0.6667,
+        "tp": 2,
+        "fp": 18,
+        "fn": 1,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [
+              "MISSING_ALLERGY"
+            ],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [
+              "FABRICATED_HISTORY"
+            ],
+            "fp": [
+              "INCOMPLETE_DOCUMENTATION",
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION",
+              "VALUE_MISMATCH"
+            ],
+            "tp": [
+              "VALUE_MISMATCH"
+            ],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          }
+        ]
+      }
+    },
+    "dspy": {
+      "risk_judge": {
+        "accepted": false,
+        "graded": 0.14285714285714285,
+        "precision": 0.1429,
+        "recall": 1.0,
+        "tp": 1,
+        "fp": 6,
+        "fn": 0,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [],
+            "fp": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [
+              "WRONG_DOSAGE"
+            ],
+            "tp": [
+              "WRONG_DOSAGE"
+            ],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [
+              "FABRICATED_ALLERGY"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [
+              "FABRICATED_ALLERGY"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [],
+            "fp": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "tp": [],
+            "fp": [
+              "MEDICATION_NOT_IN_TRANSCRIPT"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [
+              "VALUE_MISMATCH"
+            ],
+            "tp": [],
+            "fp": [
+              "VALUE_MISMATCH"
+            ],
+            "fn": [],
+            "exact": false
+          }
+        ]
+      },
+      "policy_judge": {
+        "accepted": true,
+        "graded": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          }
+        ]
+      },
+      "faithfulness_judge": {
+        "accepted": false,
+        "graded": 0.36666666666666664,
+        "precision": 0.1667,
+        "recall": 1.0,
+        "tp": 3,
+        "fp": 15,
+        "fn": 0,
+        "n": 7,
+        "rows": [
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aaecd73c3bcf",
+            "expected": [],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_dosage_drift_84ee8f1e7442",
+            "expected": [
+              "WRONG_DOSAGE"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION",
+              "WRONG_DOSAGE"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "HALLUCINATED_DETAIL",
+              "INCOMPLETE_DOCUMENTATION",
+              "WRONG_DOSAGE"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_362c35374e19",
+            "expected": [],
+            "raised": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [],
+            "fp": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_drop_allergy_805205594117",
+            "expected": [
+              "MISSING_ALLERGY"
+            ],
+            "raised": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "MISSING_ALLERGY"
+            ],
+            "tp": [
+              "MISSING_ALLERGY"
+            ],
+            "fp": [
+              "FABRICATED_ALLERGY",
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
+            "expected": [
+              "FABRICATED_HISTORY"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "tp": [
+              "FABRICATED_HISTORY"
+            ],
+            "fp": [
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          },
+          {
+            "case_id": "bench_scribe_v1_clean_negative_aef8bc9c0cca",
+            "expected": [],
+            "raised": [],
+            "tp": [],
+            "fp": [],
+            "fn": [],
+            "exact": true
+          },
+          {
+            "case_id": "bench_scribe_v1_lab_value_drift_df30603189c0",
+            "expected": [
+              "VALUE_MISMATCH"
+            ],
+            "raised": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION",
+              "VALUE_MISMATCH"
+            ],
+            "tp": [
+              "VALUE_MISMATCH"
+            ],
+            "fp": [
+              "FABRICATED_HISTORY",
+              "INCOMPLETE_DOCUMENTATION"
+            ],
+            "fn": [],
+            "exact": false
+          }
+        ]
+      }
+    }
+  },
+  "calibration": {
+    "risk_judge": {
+      "n_paired": 7,
+      "mean_delta": -0.0042
+    },
+    "policy_judge": {
+      "n_paired": 0,
+      "mean_delta": null
+    },
+    "faithfulness_judge": {
+      "n_paired": 6,
+      "mean_delta": 0.0
+    }
+  },
+  "_meta": {
+    "n_cases": 7,
+    "azure_calls": 42,
+    "wall_seconds": 390.9
+  }
+}
