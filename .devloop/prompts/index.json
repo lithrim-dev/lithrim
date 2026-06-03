@@ -8,7 +8,7 @@
       "phase": "WS-6c-DSPy-3b",
       "scope": "close-the-dspy-judge-loop-bootstrapfewshot-optimizer-plus-held-out-measurement",
       "file": "bench-salvage_phaseWS-6c-DSPy-3b_judge-optimizer_driver.md",
-      "status": "ready",
+      "status": "closed-NON-BLOCKING (781abc4..820cf88; monitor 7-item audit CLEAN re-verified + HARD-GATE spawned fresh-critic (agent a576212aa4bdcd0d1) CLEAN + 1 OPEN-QUESTION; bench-only, ~$0.26 one run). DSPy judge loop CLOSED + MEASURED for risk_judge: held-out Δ NEGATIVE and honest (precision 0.71->0.44, graded 0.80->0.70) — a valid loop-closure (gate NOT loosened). A1 frozen 0-delta x3 (compliance_council + judges_dspy + judge_metric). My 2 plan-adjustments landed (max_labeled_demos=0 + validate-in-forward). Opened S-BS-48 (bind-back-by-default deferred; do NOT ship these demos) + S-BS-49 (exact-accept gate harvests only silent demos -> positive-exemplar bootstrapping / MIPROv2). OQ-1: JudgeProgram built via build_judge_program() factory (A3 lazy-import, non-blocking).",
       "hardness": "HARD-GATE",
       "hardness_reason": "Closes the DSPy judge loop: compiles a safety-critical judge via BootstrapFewShot on the WS-6c-DSPy-3a calibration corpus and MEASURES compiled-vs-baseline on the held-out split. Lives strictly ABOVE the frozen consensus seam (A1 = compliance_council.py 0-delta), so blast radius is bounded, but the loop-closure measurement is calibration/paper-bearing and it changes how a judge is BUILT. Fresh-critic recommended (focus: A1 frozen-seam re-verify + result-honesty, no tuning-to-win); user MAY elect inline-by-continuation per the DSPy-track precedent.",
       "target_repos": ["lithrim-bench"],
@@ -28,7 +28,7 @@
       "cost_envelope_usd": 1.5,
       "cost_max_acceptable_usd": 3.0,
       "expected_runtime_min": 90,
-      "next_action": "User kicks off in a fresh exec session per the KICKOFF block. Plan-review required (no code before go; SECOND explicit cost-go required after the --smoke per-call cost, before the full paid run): D1 the dspy.Module wrapping (JudgeProgram additive, seam frozen) + D2 judge-set scope/cost (risk-only default vs trio 2nd-go) + D3 BootstrapFewShot config + D4 held-out negatives + D5 artifact provenance. $3 hard ceiling, ONE full run."
+      "next_action": "CLOSED 2026-06-03. Downstream: triage S-BS-49 (the exact-accept gate harvested only silent demos -> a positive-exemplar / coverage-aware demo-selection metric, or MIPROv2, or more positives/code) BEFORE any S-BS-48 bind-back-by-default — and given the negative risk_judge Δ, do NOT ship the current compiled demos. The DSPy track's other open thread: trio optimization (policy + faithfulness) once a positive-exemplar gate exists; S-BS-42 (PHI recall) + S-BS-45 (policy elicitation) are now data-enabled. Not on the ship-path (parallel to WS-7 product-completion)."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3a-judge-calibration-corpus-driver",
