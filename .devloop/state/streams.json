@@ -1,7 +1,7 @@
 {
   "version": "1",
   "repo": "lithrim-bench",
-  "updated": "2026-05-30T12:00+05:30",
+  "updated": "2026-06-04T12:00+05:30",
   "streams": [
     {
       "id": "brs-arc",
@@ -52,14 +52,14 @@
       ],
       "state_doc": "STREAM_bench-salvage.md",
       "task_pack": "tasks/TASK_PACK_bench-salvage.json",
-      "current_phase": "WS-0 (one case end-to-end over live APIs; grading seam PROVEN LIVE 2026-05-30) || WS-1 sqlite-config-plane || WS-2 generalize-:8002 || WS-3 tool-grounding-midloop || WS-4 evalpack+calibration-gate || WS-5 shell || WS-6 compartmentalize-local",
-      "previous_phase": "COUNCIL-EVIDENCE-GATE (halted/re-scoped)",
-      "previous_phase_closed_at": "2026-05-30",
+      "current_phase": "SPEC LOCKED 2026-06-04 (docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md) -> UAP-1 (config-plane write-path /v1/agent + draft->grade loop + the audit-record/actor foundation; R0/R1/R3) || UAP-2 JudgeEditor + /v1/judges via ontology-assignment || UAP-3 RunPanel/processing + eval-pack + run-history || UAP-3b signals + withstands-gate || UAP-4 optimize/calibration in-UI (gated S-BS-49)",
+      "previous_phase": "WS-7a journey-verify-live (verify-and-close) + the 2026-06-04 unified-product reframe + SPEC LOCK",
+      "previous_phase_closed_at": "2026-06-04",
       "launch_tag": "internal",
       "created": "2026-05-30",
-      "updated": "2026-05-30",
-      "north_star": "Domain-agnostic, tool-grounded eval/calibration harness composed over live :8002/:3031 + pinecone, SQLite=config plane, ontology=domain. Walking-skeleton: WS-0 one case end-to-end, then thicken. Grounding flips verdicts (logged) \u2192 fine-tuning-ready records (RLVR/data-lake north star). In-process M1 demoted to WS-6.",
-      "cycle_state_note": "2026-05-30 PIVOT to walking-skeleton (compose-over-live, not bottom-up vendoring). COUNCIL-EVIDENCE-GATE halted (R3(d) falsified; FP is judge-calibration \u2192 S-BS-7). WS-0 grading seam proven live (POST :8002/v1/pipeline/evaluate, inline, sync ~40s, X-API-Key, org_id-in-body, eval_mode; baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Live backend=v2 \u2192 over-fires (S-BS-2 confirmed live; extra grounding targets). NEXT: /devloop-expand-driver bench-salvage WS-0, then build persist+harness-side-grounding OFFLINE against the baseline (zero paid calls). Seams: S-BS-1 resolved, S-BS-3 moot, S-BS-4 decided doc-shim, S-BS-6 (live=v2) decide in WS-0/1, S-BS-7 WS-0 worked example, S-BS-8 null-code findings new."
+      "updated": "2026-06-04",
+      "north_star": "THE PRODUCT (reframe 2026-06-04, SPEC LOCKED): a UI-driven author->process product -- create judges (ASSIGNED ontologies -> refinement questions; execute-not-generate persisted validators) -> create flags -> run processing -- over the WS-1 SQLite config plane, with a first-class why/when/who/what AUDIT trail. The 4-act journey is a FROZEN demo inside it. The tool-grounded floor + the Ralph-Loop withstands-gate = the moat; corrections -> RLVR/data-lake. Build = UAP-1..4 (reframed WS-7). Compose-not-build: engine + config-plane + BFF + shell + gen-UI already exist.",
+      "cycle_state_note": "2026-06-04: STRATEGIC REFRAME (user, STANDING) -- FREEZE the journey, UNIFY the DSPy-judge/calibration + shell/product tracks into ONE program, SPEC-LOCK the unified authoring+processing product (docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md; memory unified-authoring-product-frozen-journey; CLAUDE.md doc-org). Entity model LOCKED: judges = assigned ontologies + execute-not-generate validators; GroundingChecks = independent entities; the Ralph-Loop withstands-gate (locus = BOTH); a first-class AuditRecord (why/when/who/what) across authoring + processing. THIS SESSION also closed WS-6c-DSPy-3b (DSPy judge loop measured, negative-delta honest; a94f8b2), landed the parallel calibration vertical (a6424da..4b46ad4: dosage_grounding floor + SPEC_CALIBRATION_TRAINER + semantic-moat journey rework + research + dev tooling), merged ws7b-kb (KB-grounding, dc1cb7c, additive union, 79 verification tests green), and verify-and-closed WS-7a (journey Phase-2 Verify->live BFF; 0b1d2d0 D4 test + 8d72cff close; :5180 smoke OWED, deprioritized since the journey is frozen). NEXT: /devloop-expand-driver bench-salvage UAP-1 (a stub is registered in prompts/index.json). All on bench-salvage/ws6c-dspy, NOTHING PUSHED; tree clean except local .claude/ + a stray KICKOFF file. UAP-phase gates: S-BS-26b (draft->grade, UAP-1), S-BS-13/16/41 (floor/KB ship, UAP-3), S-BS-49 (optimize, UAP-4), S-BS-12 (bidirectional lint), S-BS-50/51 (journey-BFF hardcode + the SPEC_PRODUCT_SHELL section10 surface needs ratification). Earlier walking-skeleton history (WS-0..WS-6) lives in STREAM_bench-salvage.md."
     }
   ]
 }
