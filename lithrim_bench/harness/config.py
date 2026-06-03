@@ -125,20 +125,54 @@ def agent_to_dict(agent: Agent) -> dict[str, Any]:
     }
 
 
-def save_agent(agent: Agent, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> str:
-    """Upsert an agent into the config DB (idempotent on name). Returns the db path."""
+def save_agent(
+    agent: Agent,
+    *,
+    db_path: str | Path = DEFAULT_CONFIG_DB,
+    actor: Any = None,
+    audit_log: Any = None,
+    rationale: str = "",
+) -> str:
+    """Upsert an agent into the config DB (idempotent on name). Returns the db path.
+
+    When ``audit_log`` is passed (the BFF product write path, R0), the agent upsert
+    and an immutable :class:`~lithrim_bench.harness.audit.AuditRecord` are written on
+    ONE connection in ONE transaction (monitor N4) — no config write escapes a record
+    by construction. ``actor`` is the §2B "who" (``None`` → the {system, seed} default,
+    keeping ``seed_config_db`` + existing tests un-attributed-but-honest, not a fake
+    SME). The record carries the canonical ``before``→``after`` diff (the prior
+    ``agent_to_dict`` if the row existed) + ``why={rationale}`` (N2: the diff is NOT
+    duplicated into ``why``). Absent ``audit_log`` the behavior is byte-identical to
+    before (A5 back-compat)."""
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(agent_to_dict(agent), sort_keys=True)
+    after = agent_to_dict(agent)
+    payload = json.dumps(after, sort_keys=True)
     created_at = datetime.now(timezone.utc).isoformat()
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(_SCHEMA)
+        before: dict[str, Any] | None = None
+        if audit_log is not None:
+            row = conn.execute("SELECT json FROM agents WHERE name = ?", (agent.name,)).fetchone()
+            before = json.loads(row[0]) if row is not None else None
         conn.execute(
             "INSERT INTO agents (name, json, created_at) VALUES (?, ?, ?) "
             "ON CONFLICT(name) DO UPDATE SET json=excluded.json, created_at=excluded.created_at",
             (agent.name, payload, created_at),
         )
+        if audit_log is not None:
+            from lithrim_bench.harness.audit import AuditRecord, Target, make_actor
+
+            rec = AuditRecord(
+                actor=make_actor(actor) if not hasattr(actor, "type") else actor,
+                action="edit" if before is not None else "author",
+                target=Target(type="agent", id=agent.name),
+                why={"rationale": rationale},
+                before=before,
+                after=after,
+            )
+            audit_log.record(rec, conn=conn)
         conn.commit()
     finally:
         conn.close()
