@@ -29,6 +29,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from lithrim_bench.harness.audit import (
+    AuditRecord,
+    Target,
+    make_actor,
+    upsert_with_audit,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_DB = REPO_ROOT / "out" / "config" / "bench_config.sqlite"
 DEFAULT_AGENT_SEED_DIR = REPO_ROOT / "data" / "config" / "agents"
@@ -145,37 +152,33 @@ def save_agent(
     duplicated into ``why``). Absent ``audit_log`` the behavior is byte-identical to
     before (A5 back-compat)."""
     db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
     after = agent_to_dict(agent)
     payload = json.dumps(after, sort_keys=True)
     created_at = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
-        before: dict[str, Any] | None = None
-        if audit_log is not None:
-            row = conn.execute("SELECT json FROM agents WHERE name = ?", (agent.name,)).fetchone()
-            before = json.loads(row[0]) if row is not None else None
-        conn.execute(
-            "INSERT INTO agents (name, json, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(name) DO UPDATE SET json=excluded.json, created_at=excluded.created_at",
-            (agent.name, payload, created_at),
-        )
-        if audit_log is not None:
-            from lithrim_bench.harness.audit import AuditRecord, Target, make_actor
 
-            rec = AuditRecord(
-                actor=make_actor(actor) if not hasattr(actor, "type") else actor,
-                action="edit" if before is not None else "author",
-                target=Target(type="agent", id=agent.name),
-                why={"rationale": rationale},
-                before=before,
-                after=after,
-            )
-            audit_log.record(rec, conn=conn)
-        conn.commit()
-    finally:
-        conn.close()
+    def _record(before: dict[str, Any] | None) -> AuditRecord:
+        return AuditRecord(
+            actor=make_actor(actor) if not hasattr(actor, "type") else actor,
+            action="edit" if before is not None else "author",
+            target=Target(type="agent", id=agent.name),
+            why={"rationale": rationale},
+            before=before,
+            after=after,
+        )
+
+    upsert_with_audit(
+        db_path,
+        schema_sql=_SCHEMA,
+        select_before_sql="SELECT json FROM agents WHERE name = ?",
+        select_before_params=(agent.name,),
+        upsert_sql=(
+            "INSERT INTO agents (name, json, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET json=excluded.json, created_at=excluded.created_at"
+        ),
+        upsert_params=(agent.name, payload, created_at),
+        record_factory=_record if audit_log is not None else None,
+        audit_log=audit_log,
+    )
     return str(db_path)
 
 

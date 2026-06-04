@@ -2,15 +2,28 @@
 
 A small FastAPI backend-for-frontend that fronts the Python harness for the
 React/Tauri shell (SPEC_PRODUCT_SHELL §5). It imports ``lithrim_bench.harness``
-+ ``scripts/run_eval`` and exposes the locked v1 surface:
++ ``scripts/run_eval`` and exposes the v1 surface (SPEC §10 ratified):
 
     POST /v1/run-eval     {agent?, live?}  -> run_eval.run() record + folded
                                               calibration_check([record]) + council view
+    GET  /v1/case         {agent?}         -> the case the shell displays (== graded)
     GET  /v1/corpus                        -> corpus.read_corpus() rows
     GET  /v1/ontology     {agent?}         -> the agent's ontology JSON (working copy
                                               if a PUT wrote one, else committed seed)
     PUT  /v1/ontology     {agent?} <body>  -> validate + persist an edited ontology to a
                                               non-committed working copy (WS-5d)
+    GET/PUT /v1/agent     {name?} <body>   -> assemble + persist an Agent to the config
+                                              plane (UAP-1 R1; attributed + audit-logged)
+    GET  /v1/judges       {agent?}         -> list each v2 role + bound model + assigned
+                                              lens + derived questions + validator refs
+    GET  /v1/judges/{role} {agent?, assigned_flags?}
+                                           -> that judge's config + the rendered
+                                              role_key_questions ($0 prompt preview); the
+                                              assigned_flags query drives a live before/after
+    PUT  /v1/judges/{role} <body>          -> assign a flag lens + model + validator refs;
+                                              owner↔emit + snapshot 422; attributed audit
+                                              (UAP-2 R2; the prompt↔ontology bridge target)
+    GET  /v1/audit · /v1/runs/{id}/audit   -> the §2B why/when/who/what reports (UAP-1 R0)
     GET  /v1/kb/{ns}/search {q, ...}       -> KB-grounding check (WS-7b): composes over
                                               the harness KbRagTool, which fronts the
                                               backend KB at :8002/v1/kb/{ns}/search; returns
@@ -71,9 +84,25 @@ from lithrim_bench.harness.config import (  # noqa: E402
     save_agent,
     seed_config_db,
 )
+from lithrim_bench.harness.judges import (  # noqa: E402
+    JudgeConfig,
+    list_judges,
+    load_judge,
+    save_judge,
+)
 from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
+from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
 from lithrim_bench.picklist import load_case  # noqa: E402  (the case the shell displays)
+from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE  # noqa: E402  (pure; no openai)
+from lithrim_bench.verification.spec import (  # noqa: E402  (pure constants: no [verification] heavy deps)
+    TOOL_DOSAGE_GROUNDING,
+    TOOL_IN_ROW,
+    TOOL_JUTE_GEN,
+    TOOL_KB_RAG,
+    TOOL_RECORD_RAG,
+    TOOL_STRUCTURAL_JUTE,
+)
 
 DEFAULT_AGENT = "ws0_default"
 # Where PUT /v1/ontology persists edited ontologies. A non-committed working dir —
@@ -84,6 +113,19 @@ DEFAULT_ONTOLOGY_WORKDIR = REPO_ROOT / "out" / "bff" / "ontology"
 # whitelists Depends/Query; this avoids widening it).
 _ONTOLOGY_BODY = Body(...)
 _AGENT_BODY = Body(...)
+_JUDGE_BODY = Body(...)
+
+# The persisted smart-contract validators a judge may REFERENCE + execute (never
+# generate) — the verification toolbox names (verification/spec.py). Ref-only this
+# cycle: per-evaluation execution is the §2A withstands-gate (UAP-3b).
+_KNOWN_VALIDATORS = (
+    TOOL_DOSAGE_GROUNDING,
+    TOOL_STRUCTURAL_JUTE,
+    TOOL_KB_RAG,
+    TOOL_JUTE_GEN,
+    TOOL_IN_ROW,
+    TOOL_RECORD_RAG,
+)
 
 
 def get_config_db() -> Path:
@@ -311,6 +353,187 @@ def put_agent_endpoint(
         rationale=rationale,
     )
     return {"status": "ok", "name": ag.name, "actor": actor.model_dump()}
+
+
+# ── UAP-2 R2: GET/PUT /v1/judges — author a judge via ontology-assignment ──────
+
+
+def _judge_summary(role: str, jc, ontology) -> dict:
+    """Project one judge: role + bound model + the assigned lens + the assignable
+    flags (LENS_BY_ROLE — the owned+emitted code set, per-flag tier/when_to_use from
+    the ontology) + the derived refinement questions (ontology ``questions_for``) +
+    the attached validator refs. An unauthored role serves a derived default (empty
+    assignment → the seed ``.txt`` base on render; A4 parity)."""
+    lens = sorted(LENS_BY_ROLE[role])
+    assigned = list(jc.assigned_flags) if jc else []
+    available = []
+    for code in lens:
+        fd = ontology.flag(code)
+        available.append(
+            {
+                "flag": code,
+                "tier": (fd.tier if fd else None),
+                "when_to_use": (fd.when_to_use if fd else ""),
+                "gradeable": (fd.gradeable if fd else False),
+                "assigned": code in assigned,
+            }
+        )
+    questions = [
+        {"ordinal": q.ordinal, "text": q.text}
+        for q in sorted(ontology.questions_for(role), key=lambda q: q.ordinal)
+    ]
+    return {
+        "role": role,
+        "model": (jc.model if jc else ""),
+        "assigned_flags": assigned,
+        "validator_refs": (list(jc.validator_refs) if jc else []),
+        "available_flags": available,
+        "available_validators": list(_KNOWN_VALIDATORS),
+        "questions": questions,
+        "authored": jc is not None,
+    }
+
+
+def _validate_judge_assignment(
+    role: str, assigned_flags: list[str], validator_refs: list[str]
+) -> None:
+    """The PUT gate (422 on violation):
+    - ``role`` is a known v2 judge role (LENS_BY_ROLE / _TIER1_OWNERS authority);
+    - **owner↔emit** (CLAUDE.md invariant #4, S-BS-31/42): every assigned flag is in
+      the role's ``LENS_BY_ROLE`` — the owned-AND-emitted code set, owner-consistent
+      vs ``_TIER1_OWNERS`` by the council guard test
+      (``test_every_tier1_lens_code_is_owner_resident``). The ontology's
+      ``owner_roles`` are NOT the authority — they are stale v1 roles
+      (behavior/source_message, no faithfulness_judge) never re-snapshotted to the
+      v2 trio (CITATION-DRIFT, logged at close; the seed fix is a deferred seam);
+    - **snapshot** (defense + S-BS-12): every assigned flag is in the taxonomy
+      snapshot;
+    - ``validator_refs`` ⊆ the persisted toolbox (execute-only; never authored here).
+    """
+    if role not in LENS_BY_ROLE:
+        raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
+    lens = LENS_BY_ROLE[role]
+    off_lens = sorted(c for c in assigned_flags if c not in lens)
+    if off_lens:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"owner↔emit: {role} may only be assigned codes it owns+emits "
+                f"{sorted(lens)}; offenders: {off_lens}"
+            ),
+        )
+    off_snapshot = sorted(c for c in assigned_flags if c not in seed_ontology.load_snapshot_codes())
+    if off_snapshot:
+        raise HTTPException(
+            status_code=422,
+            detail=f"assigned flags outside taxonomy snapshot (re-snapshot, do not hand-edit): {off_snapshot}",
+        )
+    bad_refs = sorted(r for r in validator_refs if r not in _KNOWN_VALIDATORS)
+    if bad_refs:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown validator refs (execute-only, choose from {list(_KNOWN_VALIDATORS)}): {bad_refs}",
+        )
+
+
+@app.get("/v1/judges")
+def list_judges_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
+) -> dict:
+    """List the v2 judge trio: each role + bound model + assigned lens + derived
+    questions + validator refs. Questions/flag-metadata resolve against the agent's
+    ontology (the working-copy draft if a PUT wrote one, else the committed seed),
+    so authored flags are reflected. Does NOT render prompts (no [council] pull) —
+    the rendered preview is the per-role GET."""
+    saved = list_judges(db_path=db_path)
+    ag = _load_agent(agent, db_path)
+    ont_path, _src = _resolve_ontology_path(ag, workdir)
+    ontology = load_ontology(ont_path)
+    judges = [_judge_summary(role, saved.get(role), ontology) for role in sorted(LENS_BY_ROLE)]
+    return {
+        "judges": judges,
+        "roles": sorted(LENS_BY_ROLE),
+        "validators": list(_KNOWN_VALIDATORS),
+    }
+
+
+@app.get("/v1/judges/{role}")
+def get_judge_endpoint(
+    role: str,
+    agent: str = DEFAULT_AGENT,
+    assigned_flags: str | None = Query(
+        None,
+        description="CSV flags for a live $0 prompt preview; omit to render the saved/default assignment",
+    ),
+    db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
+) -> dict:
+    """One judge's full config + the **rendered ``role_key_questions``** the bridge
+    will send ($0, no model). ``base_prompt`` is the unassigned render (== the seed
+    ``.txt``, A4 parity); ``rendered_prompt`` is the render for the *effective*
+    assignment — the ``assigned_flags`` query (the live before/after preview) if
+    given, else the saved/default assignment. This is the demonstrable
+    assignment→prompt link (A8), exact because it calls the same
+    ``render_role_questions`` the council uses."""
+    if role not in LENS_BY_ROLE:
+        raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
+    saved = load_judge(role, db_path=db_path)
+    ag = _load_agent(agent, db_path)
+    ont_path, _src = _resolve_ontology_path(ag, workdir)
+    ontology = load_ontology(ont_path)
+    summary = _judge_summary(role, saved, ontology)
+    if assigned_flags is not None:
+        effective = [c.strip() for c in assigned_flags.split(",") if c.strip()]
+    else:
+        effective = summary["assigned_flags"]
+    # lazy: render lives in judges_dspy (module-top pulls [council]); the list route
+    # stays council-free, only the rendered preview requires the extra.
+    from lithrim_bench.runtime.council.judges_dspy import render_role_questions
+
+    summary["preview_flags"] = effective
+    summary["base_prompt"] = render_role_questions(ontology, role)
+    summary["rendered_prompt"] = render_role_questions(ontology, role, assigned_flags=effective)
+    return summary
+
+
+@app.put("/v1/judges/{role}")
+def put_judge_endpoint(
+    role: str,
+    judge: dict = _JUDGE_BODY,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Author a judge = assign a flag lens + bind a model + attach validator refs
+    (R2). Validates owner↔emit + snapshot + validator-refs → **422** on violation
+    (``_validate_judge_assignment``); persists to the config-plane ``judges`` store
+    with an actor-attributed, immutable audit record (``target.type='judge'``, R0)
+    in one transaction (N4). NEVER generates a validator (execute-only) and NEVER
+    writes the committed seed. Body = ``{model, assigned_flags[], validator_refs[]}``;
+    the role is the path."""
+    assigned = list(judge.get("assigned_flags") or [])
+    validator_refs = list(judge.get("validator_refs") or [])
+    model = judge.get("model", "") or ""
+    _validate_judge_assignment(role, assigned, validator_refs)
+    actor = _resolve_actor(x_actor, default_actor)
+    jc = JudgeConfig(
+        role=role,
+        model=model,
+        assigned_flags=tuple(assigned),
+        validator_refs=tuple(validator_refs),
+    )
+    save_judge(
+        jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
+    )
+    return {
+        "status": "ok",
+        "role": role,
+        "actor": actor.model_dump(),
+        "assigned_flags": assigned,
+    }
 
 
 @app.get("/v1/ontology")
