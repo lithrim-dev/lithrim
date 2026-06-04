@@ -1,9 +1,10 @@
 /* panes.jsx — left rail, center conversation (ported verbatim; placeholder mark → real logo). */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { Mark, Wordmark } from "./brand.jsx";
 import { ConfigCard } from "./cards.jsx";
 import { renderTool } from "./genui/index.js";
+import { CostModal } from "./components/CostModal.jsx";
 import { THREADS, STEPS } from "./data.jsx";
 
 // S-BS-19: the scripted host emits INPUT tool-parts; each widget's onResult threads
@@ -76,11 +77,73 @@ export function LeftRail({ width, active, setActive }) {
 }
 
 /* ============================ CENTER ============================ */
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus }) {
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default" }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   const captureSetup = (key) => (result) => setSetup((s) => ({ ...s, [key]: result }));
   const captured = Object.keys(setup);
+
+  // UAP-5b / R11: the live conversational loop. The composer streams POST /v1/chat
+  // (SSE); each event appends to `chat` — assistant text + tool-result gen-UI parts
+  // (rendered via the EXISTING renderTool registry, no new cards). The agent drives
+  // audited config writes + $0 replay runs; it can NEVER fire a paid run.
+  const [chat, setChat] = useState([]); // [{role:'user'|'assistant', text?, parts?}]
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
+  const taRef = useRef(null);
+
+  const send = async () => {
+    const message = input.trim();
+    if (!message || sending) return;
+    setInput("");
+    setSending(true);
+    setChat((c) => [...c, { role: "user", text: message }, { role: "assistant", text: "", parts: [] }]);
+    const patchLast = (fn) =>
+      setChat((c) => {
+        const next = c.slice();
+        next[next.length - 1] = fn(next[next.length - 1]);
+        return next;
+      });
+    try {
+      const { chatStream } = await import("./bff.js");
+      await chatStream(
+        { message, agent },
+        {
+          onEvent: (ev) => {
+            if (ev.event === "assistant_delta") patchLast((m) => ({ ...m, text: (m.text || "") + ev.text }));
+            else if (ev.event === "tool_result" && ev.part)
+              patchLast((m) => ({ ...m, parts: [...(m.parts || []), ev.part] }));
+            else if (ev.event === "error")
+              patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${ev.detail}` }));
+          },
+        },
+      );
+    } catch (err) {
+      patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${String(err.message || err)}` }));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onComposerKey = (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by
+  // the in-DOM CostModal (never window.confirm). On confirm, hit the EXISTING
+  // confirm-gated endpoint via the app's run handler.
+  const confirmPaidRun = async () => {
+    setPaid((p) => ({ ...p, busy: true }));
+    try {
+      await onRunEval?.(true); // the existing live/paid path (TopBar's "Run live")
+    } finally {
+      setPaid({ open: false, busy: false });
+    }
+  };
 
   return (
     <main className="center">
@@ -191,20 +254,74 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             </div>
           </div>
 
+          {/* UAP-5b / R11: the LIVE conversational loop. Streamed assistant turns +
+              tool-result gen-UI parts (rendered via the existing registry). */}
+          {chat.map((m, i) =>
+            m.role === "user" ? (
+              <div className="msg user" key={i}>
+                <div className="av user">JR</div>
+                <div className="content">
+                  <div className="name">Jordan</div>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{m.text}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="msg" key={i}>
+                <div className="av ai"><Mark size={17} /></div>
+                <div className="content">
+                  <div className="name">Lithrim <span className="t">setup assistant</span></div>
+                  {m.text && <p style={{ whiteSpace: "pre-wrap" }}>{m.text}</p>}
+                  {(m.parts || []).map((part, j) => (
+                    <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>
+                  ))}
+                  {!m.text && !(m.parts || []).length && sending && i === chat.length - 1 && (
+                    <p style={{ color: "var(--muted)" }}>Thinking…</p>
+                  )}
+                </div>
+              </div>
+            ),
+          )}
+
         </div>
       </div>
+
+      <CostModal
+        open={paid.open}
+        busy={paid.busy}
+        title="Run a live, PAID evaluation?"
+        body="This fires one real, in-process council run (paid Azure calls). The assistant cannot do this — only you can authorize the spend."
+        confirmLabel="Run live (paid)"
+        onConfirm={confirmPaidRun}
+        onCancel={() => setPaid({ open: false, busy: false })}
+      />
 
       <div className="composer">
         <div className="composer-inner">
           <div className="composer-box">
-            <textarea rows="1" placeholder="Ask Lithrim, or describe a change to the eval…" defaultValue="" />
+            <textarea
+              ref={taRef}
+              rows="1"
+              placeholder="Ask Lithrim, or describe a change to the eval…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onComposerKey}
+              disabled={sending}
+            />
             <div className="composer-bar">
               <div className="left">
                 <button className="icon-btn"><Icon name="attach" size={16} /></button>
                 <button className="icon-btn"><Icon name="layers" size={16} /></button>
+                <button className="icon-btn" title="Run a live, paid evaluation (you authorize the spend)"
+                  onClick={() => setPaid({ open: true, busy: false })}>
+                  <Icon name="bolt" size={16} />
+                </button>
               </div>
               <span className="kbd" style={{ marginLeft: 4 }}>⌘↵ to send</span>
-              <div className="send"><button className="send-btn"><Icon name="send" size={16} /></button></div>
+              <div className="send">
+                <button className="send-btn" data-testid="chat-send" disabled={sending || !input.trim()} onClick={send}>
+                  <Icon name="send" size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

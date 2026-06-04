@@ -111,3 +111,44 @@ export const optimizeJudge = (role, { confirm = false, limit } = {}) =>
     method: "POST",
     body: { confirm, ...(limit != null ? { limit } : {}) },
   });
+
+/* ── UAP-5b / R11: the conversational shell's agent loop (SSE) ──────────────────
+   POST /v1/chat streams the multi-turn loop. EventSource is GET-only (this needs a
+   POST body), so we read the fetch ReadableStream and parse `data: <json>\n\n`
+   frames. onEvent is called per event: {event, ...} where event is one of
+   assistant_delta | tool_call | tool_result | error | done. Returns a Promise that
+   resolves when the stream ends; pass an AbortSignal to cancel. BYO-Claude — the
+   loop's tools are author/read/REPLAY only (no paid run is reachable from chat). */
+export async function chatStream({ message, agent = "ws0_default", actor } = {}, { onEvent, signal } = {}) {
+  const res = await fetch(BASE + "/v1/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(actor ? { "X-Actor": actor } : {}) },
+    body: JSON.stringify({ message, agent }),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`POST /v1/chat → ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // SSE frames are delimited by a blank line.
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const line = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      try {
+        onEvent?.(JSON.parse(line.slice(5).trim()));
+      } catch {
+        /* ignore a partial/garbled frame */
+      }
+    }
+  }
+}
