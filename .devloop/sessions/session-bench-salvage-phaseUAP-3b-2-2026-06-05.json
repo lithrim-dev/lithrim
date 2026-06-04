@@ -1,0 +1,144 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-3b-2-2026-06-05",
+  "stream": "bench-salvage",
+  "phase": "UAP-3b-2",
+  "driver_bundle_id": "bench-salvage-phaseUAP-3b-2-groundingcheck-entity-llm-critique-driver",
+  "started_at": "2026-06-05T00:00:00Z",
+  "ended_at": "2026-06-05T00:45:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-04T23:30:00Z",
+    "user_approved_at": "2026-06-05T00:02:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-A SPLIT confirmed: the LLM Ralph-Loop critique pass -> UAP-3b-3 (the gate's value over the proven deterministic floor is uncertain + a new paid pass; withstands.py has no critique= param yet). Stub driver written.",
+        "evidence": "monitor go message: 'D-A SPLIT'; .devloop/prompts/bench-salvage_phaseUAP-3b-3_llm-ralph-loop-critique_driver.md",
+        "decided_at": "2026-06-05T00:02:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-C = (b) post-save patch in run_eval (find_by_id -> embed -> re-insert). Monitor independently verified collections.py:72-78 is ON CONFLICT DO UPDATE re-stamping created_at + re-setting fk from the doc, so the re-insert of the SAME doc preserves the fk; created_at re-stamp disclosed as S-BS-68-adjacent (NOT fixed here).",
+        "evidence": "monitor go: 'D-C is the right call'; collections.py:63-65 (id/fk from doc), :67/73-74 (created_at re-stamp)",
+        "decided_at": "2026-06-05T00:02:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-D = light (EvalProfile.grounding_checks view + per-entity audit; CRUD UI deferred). D-E = full cycle D1+D2+D3+D4+D5 with the LLM critique split; D3 named the release valve if scope tightened (it did not).",
+        "evidence": "monitor go (approved the plan); D3 landed fully.",
+        "decided_at": "2026-06-05T00:02:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "BFF surface addition beyond the driver's file list: a 1-line `withstands` projection in apps/bff/app.py _run_audit_report (required for A2's /v1/runs/{id}/audit leg). Flagged at plan-review; folded into D2 + the SPEC_PRODUCT_SHELL §10 note (D5).",
+        "evidence": "plan-review 'Deviations' section; apps/bff/app.py _run_audit_report; SPEC_PRODUCT_SHELL.md §10 UAP-3b-2 bullet",
+        "decided_at": "2026-06-05T00:02:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D-B sharpened by the monitor: the in-lens withstand-run is a NO-OP for the moat (it validates D2 + S-BS-73 only); the live moat attestation needs decision=corrected. Did BOTH: Run A (guaranteed withstand, gate SAFE) + Run B (pursued a real correction via the MED FP). Labeled each honestly; did NOT present the no-op withstand as 'the moat attested'.",
+        "evidence": "monitor go message ('do the guaranteed withstand-run AND pursue a real correction'); session log A1 below labels Run A=withstand/safe, Run B=halt-to-surface.",
+        "decided_at": "2026-06-05T00:02:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Drive path = 'Restart BFF, drive via /v1/run-eval' (user-chosen). No MANUAL restart was needed: the running BFF (uvicorn --reload with --reload-dir over apps/bff + lithrim_bench + scripts) auto-reloaded my committed code; verified functionally (the new `withstands` key was present on an existing run's /v1/runs/{id}/audit before any paid call).",
+        "evidence": "ps: uvicorn app:app --reload --reload-dir .../apps/bff --reload-dir .../lithrim_bench --reload-dir .../scripts; GET /v1/runs/{id}/audit returned 'withstands': [] on a pre-commit run.",
+        "decided_at": "2026-06-05T00:31:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Live attestation authorized via AskUserQuestion ('Yes — run the attestation', <=4 runs, <=~$0.80). Ran 2 paid in_process runs (~$0.20-0.40). Run B halt-to-surface (no correction converged) per the pre-authorization; did NOT spend the remaining budget on speculative runs (the DSPy judges are deterministic + the authored trio does not reproduce the prompt-council MED FP).",
+        "evidence": "AskUserQuestion answers 2026-06-05; /tmp/runA.json (087a59f8), /tmp/runB.json (2275720c).",
+        "decided_at": "2026-06-05T00:33:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "662a1c0",
+      "repo": "lithrim-bench",
+      "title": "feat(grounding): GroundingChecks as first-class config-authored entities (UAP-3b A6)",
+      "summary": "harness/grounding_check.py (projects ground()'s partitions into per-entity grounding_check AuditRecords; action run/suppress/floor_block) + the additive EvalProfile.grounding_checks field (serialized only when declared; committed seeds byte-identical)."
+    },
+    {
+      "hash": "74215bf",
+      "repo": "lithrim-bench",
+      "title": "feat(run-eval): embed the withstands ruling in the run-blob (S-BS-72) + wire the post-consensus GroundingCheck audit",
+      "summary": "run_eval._embed_withstands_in_blob (post-save patch: find_by_id -> withstands_decisions -> re-insert; above the frozen seam; result dict byte-identical) + the audit_grounding_checks emission + the BFF _run_audit_report 'withstands' projection."
+    },
+    {
+      "hash": "af584cc",
+      "repo": "lithrim-bench",
+      "title": "test(uap-3b-2): S-BS-72 provenance ruling + GroundingCheck entity + ground() additive-identical + frozen 0-delta",
+      "summary": "test_uap3b2_grounding_check.py ($0) + test_uap3b2_provenance.py (frozen 0-delta + A5 guard + the dspy/openai-gated S-BS-72 integration on the real grade_inprocess path + the [bff] projection test)."
+    },
+    {
+      "hash": "f3f0932",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): S-BS-72 closed + the GroundingCheck-entity surface + the LLM-critique split (UAP-3b-3 stub)",
+      "summary": "SPEC_PRODUCT_SHELL §10 UAP-3b-2 bullet (the `withstands` audit field) + a surface-only §2A impl-status note + the UAP-3b-3 stub driver."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — the LIVE attestation (GRADED): PASS-prize / PASS-honest / HALT-TO-SURFACE",
+      "verdict": "PASS",
+      "evidence": "PASS-honest (Run A) + HALT-TO-SURFACE (Run B), labeled honestly, NOT manufactured. RUN A (paid in_process, uap5a_flip_demo, risk_judge=[WRONG_DOSAGE], run 087a59f8): D2/S-BS-72 attested LIVE on the REAL paid v2 trio — GET /v1/runs/{id}/audit (stream-2) carries the per-judge withstands ruling [3x {role, signals_weighed:{ontology_rules,validator_outputs}, decision, what_failed}]; ALL 3 judges decision=withstand, what_failed=[], verdict BLOCK => S-BS-73 HOLDS (the on-by-default gate ADMITS the legitimate WRONG_DOSAGE finding; it does NOT break a true finding). RUN B (paid in_process, ws0_default, risk_judge=[MEDICATION_NOT_IN_TRANSCRIPT], run 2275720c): HALT-TO-SURFACE — the authored DSPy trio raised only in-lens findings (faithfulness: FABRICATED_HISTORY+INCOMPLETE_DOCUMENTATION, all withstand) and did NOT over-fire MEDICATION_NOT_IN_TRANSCRIPT (risk PASS), so the gate corrected nothing live. The documented MED FP is a PROMPT-council artifact (the captured WS-0 baseline); the better-calibrated authored DSPy trio (the gate's path) does not reproduce it, and the out-of-lens flip cannot be authored (effective_lens=base+assignments). The visceral composite-flip prize is therefore NOT achieved live (the UAP-5a non-convergence lesson recurs); the offline A2 (UAP-3b moat exhibit + the S-BS-72 integration test on the REAL grade_inprocess path) stands as the mechanism proof. PASS-honest tier achieved (D2 live + S-BS-73); prize tier halt-to-surfaced -> S-BS-70 stays live-corrected-attestation-PENDING + new S-BS-74."
+    },
+    {
+      "criterion": "A2 — S-BS-72: a graded in_process run's SqliteProvenanceStore blob carries the per-judge withstands ruling {signals_weighed, decision, what_failed} (find_by_id / /v1/runs/{id}/audit)",
+      "verdict": "PASS",
+      "evidence": "Offline ($0, debuglithrim): tests/test_uap3b2_provenance.py::test_S_BS_72_provenance_blob_carries_withstands_ruling — real grade_inprocess (injected predictors, no Azure) + injected SqliteProvenanceStore; the post-save embed patches the blob; find_by_id reads {role, signals_weighed:{ontology_rules,validator_outputs}, decision:'corrected', what_failed} back; pipeline_run_id (id) preserved. LIVE (Run A, 087a59f8): /v1/runs/{id}/audit 'withstands' = the 3-judge ruling on a real paid trio. Above the frozen seam (no _apply_consensus / no PipelineProvenance-model edit); returned dict byte-identical."
+    },
+    {
+      "criterion": "A3 — A6: GroundingChecks declared as independent config-authored entities, run + audited at the post-consensus locus; ground()/composite() additively identical for clinical_v1",
+      "verdict": "PASS",
+      "evidence": "tests/test_uap3b2_grounding_check.py ($0 default deps): a declared GroundingCheck whose presence_check disproved MEDICATION_NOT_IN_TRANSCRIPT (the WS-0 S-BS-7 fixture) is audited as actor.type=grounding_check, action=suppress, the §2B why {contract, conforms:False, deterministic_result:'disproved', grounded_fact}; undeclared profile emits nothing (every committed agent); only declared checks audited; ground()/composite() suppress/floor partitions + verdict byte-unchanged across the audit call (read-only projection; floor_blocks==[] for the floor-less clinical_v1); EvalProfile.grounding_checks round-trips (undeclared serializes with no key). 8 passed."
+    },
+    {
+      "criterion": "A4 — frozen seam 0-delta (_apply_consensus + judges_dspy + judge_metric + committed seeds + council_roles)",
+      "verdict": "PASS",
+      "evidence": "git diff acc4973 HEAD -- <frozen set> | wc -l == 0 (re-run post-commit). The D2 provenance work is a post-save blob patch ABOVE the frozen seam; D3 is an additive config field + a read-only audit projection. test-pinned by tests/test_uap3b2_provenance.py::test_frozen_seam_zero_delta."
+    },
+    {
+      "criterion": "A5 — by-construction guard + green bar",
+      "verdict": "PASS",
+      "evidence": "Guard re-pinned: test_gate_cannot_relabel_true_case (a true in-lens WRONG_DOSAGE withstands, verdict stays reject) + the inherited test_uap3b_withstands guards. Green: default 270 passed/10 skipped (import-clean: no dspy/openai/httpx/fastapi leaked), debuglithrim 282 passed/0 failed (incl. the S-BS-72 integration), Vitest 45/45, ruff clean on all 6 changed files. Pathspec-only (4 commits 662a1c0..f3f0932; the 3 foreign untracked files NOT swept). Live runs cost-confirmed (2 paid in_process, ~$0.20-0.40, <=~$0.80 envelope)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "live_in_process_runs": "2 (Run A withstand-safe + Run B halt-to-surface)",
+    "live_cost_estimate_usd": "~0.20-0.40 (2 runs at ~0.10-0.20; under the ~0.80 ceiling)",
+    "run_A": "uap5a_flip_demo, risk_judge=[WRONG_DOSAGE], rid 087a59f8 -> verdict BLOCK; withstands ruling 3x decision=withstand (gate SAFE, D2 live, S-BS-73 holds)",
+    "run_B": "ws0_default, risk_judge=[MEDICATION_NOT_IN_TRANSCRIPT], rid 2275720c -> verdict BLOCK; faithfulness raised FABRICATED_HISTORY+INCOMPLETE_DOCUMENTATION (in-lens, withstand), risk PASS (no MED over-fire) -> no live correction (halt-to-surface)",
+    "live_corrections_observed": "0 (no decision=corrected on the real authored trio within the envelope; NOT manufactured)",
+    "suite_counts": "default 270p/10s; debuglithrim 282p/0f; Vitest 45/45",
+    "frozen_seam_delta_lines": "0"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-74",
+      "title": "The authored DSPy trio does not reproduce the prompt-council MEDICATION_NOT_IN_TRANSCRIPT FP -> no live validator-disprove correction on existing cases",
+      "severity": "medium",
+      "fix_location": "a dedicated demo cycle that constructs a case the AUTHORED trio genuinely over-fires (a presence-checkable FP, or the out-of-lens DSPy-3b mode) -> the live decision=corrected attestation",
+      "impact": "The live moat CORRECTION (decision=corrected on the real trio) is unattained: the documented MED FP is a prompt-council artifact, but the gate runs on the better-calibrated authored DSPy trio, which raised only in-lens true findings on uap5a_flip_demo + ws0_default. The out-of-lens flip cannot be authored (effective_lens=base+assignments). So the visceral 'watch a real LLM get corrected -> verdict change' is still owed; the mechanism is proven offline + D2 renders the ruling live, but a real live correction needs a case engineered for the authored trio to over-fire (or the genuine DSPy-3b over-fire mode).",
+      "confidence": "CONFIRMED",
+      "evidence": "Run B (rid 2275720c): risk_judge PASS (no MED raise despite risk_judge=[MEDICATION_NOT_IN_TRANSCRIPT]); faithfulness BLOCK with FABRICATED_HISTORY+INCOMPLETE_DOCUMENTATION (both in-lens -> withstand); withstands ruling all decision=withstand, what_failed=[]."
+    }
+  ],
+
+  "seams_closed": ["S-BS-72"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "UAP-3b-2 completed the moat's operational + audit layers and live-attested the SAFE half; the visceral live CORRECTION remains owed (halt-to-surfaced honestly, not manufactured). LANDED (CLEAN, 4 atomic pathspec-only commits 662a1c0..f3f0932, NOT pushed): D2/S-BS-72 — the per-judge withstands ruling is now embedded in the run-PROVENANCE blob via a post-save patch in run_eval (find_by_id -> embed -> re-insert, ABOVE the frozen seam, returned dict byte-identical) + surfaced by GET /v1/runs/{id}/audit (a 1-line BFF projection); D3/A6 — GroundingChecks are first-class config-authored entities (EvalProfile.grounding_checks + per-entity grounding_check AuditRecords, action run/suppress/floor_block) projecting ground()'s partitions WITHOUT changing them (additively-identical for clinical_v1). A4 frozen 0-delta (test-pinned); A5 guard re-pinned; green (default 270p/10s import-clean, debuglithrim 282p incl. the S-BS-72 integration, Vitest 45/45). LIVE attestation (2 paid in_process runs, ~$0.20-0.40, BFF auto-reloaded the new code via uvicorn --reload, verified): Run A attested D2/S-BS-72 LIVE on the real paid trio + S-BS-73 (the gate ADMITS a legitimate finding, verdict unchanged); Run B HALT-TO-SURFACE — the authored DSPy trio did not over-fire a presence-checkable/out-of-lens code, so no live decision=corrected (NOT manufactured; the offline A2 stands as the mechanism proof). Monitor should: re-verify A4=0 + the scope diff (8a159c0..HEAD = 9 files, no foreign sweep), run the HARD-GATE fresh-critic (D2 patches the blob ADJACENT to the frozen seam; D3 changes the eval-profile surface + the post-consensus path; the live attestation is a labels-true-by-construction claim on the REAL trio), and decide S-BS-74's disposition (a dedicated live-correction demo cycle vs accept the offline-mechanism+live-safe proof). CLOSED S-BS-72; S-BS-70 stays live-corrected-attestation-PENDING; S-BS-73 validated SAFE-direction live (corrected-direction live still via S-BS-74); S-BS-68 carried (created_at re-stamp, disclosed, not fixed). The LLM critique is split to UAP-3b-3 (stub written).",
+
+  "next_session_hint": "monitor should run /devloop-critique bench-salvage UAP-3b-2 (HARD GATE — fresh-critic) then /devloop-audit; decide S-BS-74 (live-correction demo cycle) vs accept offline-mechanism + live-safe."
+}
