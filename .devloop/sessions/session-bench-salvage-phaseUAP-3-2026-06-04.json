@@ -1,0 +1,187 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-3-2026-06-04",
+  "stream": "bench-salvage",
+  "phase": "UAP-3",
+  "driver_bundle_id": "bench-salvage-phaseUAP-3-processing-run-history-driver",
+  "started_at": "2026-06-04T11:30:00Z",
+  "ended_at": "2026-06-04T12:15:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-04T11:45:00Z",
+    "user_approved_at": "2026-06-04T11:52:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 1 = seam (i): inject a build_trio-backed authored semantic_stage via the existing semantic_stage= param; no orchestrator/stages edit, grade.py signature unchanged (assembled in run_eval instead of grade.py per driver A-2 literal).",
+        "evidence": "AskUserQuestion: 'Seam (i): semantic_stage (Recommended)'",
+        "decided_at": "2026-06-04T11:52:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 2 = persist replay+live provenance now (the replay baseline carries a full PipelineProvenance under result['provenance']); closes S-BS-52 rather than deferring. Idempotent on the baseline's fixed pipeline_run_id (one row per baseline) — by design.",
+        "evidence": "AskUserQuestion: 'Persist replay now (Recommended)'",
+        "decided_at": "2026-06-04T11:52:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 3 = $0 offline acceptance (injected predictors + replay); the real paid in_process flip is batched into the owed A8 :5180 smoke, NOT run this cycle.",
+        "evidence": "AskUserQuestion: '$0 offline acceptance; live flip batched into owed A8 smoke (Recommended)'",
+        "decided_at": "2026-06-04T11:52:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Decision 4 = keep R6-batch (POST /v1/eval-pack/run) in this cycle (thin wrapper over evalpack.build_pack).",
+        "evidence": "AskUserQuestion: 'Keep C in this cycle (Recommended)'",
+        "decided_at": "2026-06-04T11:52:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Live :8002 per-judge assignment-injection NARROWED OUT (WS-2-backend-gated, HARD-GATE-paused); S-BS-63 closes for the in_process path only. Driver A-1 said '(and live)'.",
+        "evidence": "Plan-review Risks section; user 'go' acknowledged the narrowing.",
+        "decided_at": "2026-06-04T11:52:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Three coupled EXISTING test files updated alongside their behavior changes: tests/test_ws5_bff.py (404-copy change), apps/shell/src/genui/registry.test.jsx (KNOWN_TOOLS 8->9), apps/shell/src/bff.test.jsx (runEval body gains in_process). Not new scope — the assertions track the source edits.",
+        "evidence": "git diff 82f822a..HEAD --stat",
+        "decided_at": "2026-06-04T12:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Three in-scope materializations of named deliverables (named per user refinement #3 so the close-critic does not read them as intrusion): NEW lithrim_bench/runtime/council/authored_stage.py (the seam-(i) stage builder), NEW DocShimCollection.list_all (backs GET /v1/runs), genui/index.js barrel import of RunPanel.",
+        "evidence": "Driver A-1 (the assignments seam), B-4 (GET /v1/runs), D-7 (register tool-run_panel).",
+        "decided_at": "2026-06-04T11:52:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "5959e28",
+      "repo": "lithrim-bench",
+      "title": "feat(harness): thread authored judge assignments into the in-process grade (S-BS-63)",
+      "summary": "authored_stage.build_authored_semantic_stage builds the authored DSPy trio above the frozen _apply_consensus and maps via run_semantic(council_evaluate=); run_eval.run gains assignments=; main()+BFF assemble {role: assigned_flags} from their config DB."
+    },
+    {
+      "hash": "812fade",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): surface pipeline_run_id + GET /v1/runs run-history (S-BS-56)",
+      "summary": "/v1/run-eval returns pipeline_run_id; new GET /v1/runs lists persisted runs newest-first via new DocShimCollection.list_all; each run_id round-trips to /v1/runs/{id}/audit."
+    },
+    {
+      "hash": "ddf32db",
+      "repo": "lithrim-bench",
+      "title": "feat(harness): persist replay + live provenance for auditability (S-BS-52)",
+      "summary": "run_eval persists result['provenance'] (a full PipelineProvenance) for replay+live to PIPELINE_RUNS (agent_id backfilled); run_eval.run gains collections_db= so the BFF threads its get_collections_db; stale 404 copy + coupled test corrected."
+    },
+    {
+      "hash": "20ca6b9",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): POST /v1/eval-pack/run batch processing (R6)",
+      "summary": "Batch a pack via evalpack.build_pack (replay $0 default, live paid); build_pack gains collections_db + surfaces each outcome's pipeline_run_id, so batch runs persist + show in run-history. Replay/live only (no in_process param)."
+    },
+    {
+      "hash": "b678be3",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): RunPanel gen-UI (tool-run_panel) + run-history (R4)",
+      "summary": "New RunPanel (KNOWN_TOOLS->9) triggers a graded run, shows composite verdict + realized council votes + run-history; replay $0 default, live/in_process paid behind a confirm; bff.js gains getRuns()/runEvalPack()+in_process; mounted in CenterPane; 2 coupled test assertions updated."
+    },
+    {
+      "hash": "2a49411",
+      "repo": "lithrim-bench",
+      "title": "test(uap-3): authored→flip + run-history + eval-pack + RunPanel",
+      "summary": "test_uap3_grade.py (A1 flip + preview<->live parity, $0 offline); test_uap3_bff.py (pipeline_run_id, /v1/runs, audit round-trip, replay-idempotency, eval-pack, assignment-threading); RunPanel.test.jsx (history+run+cost-gate)."
+    },
+    {
+      "hash": "8088d88",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): ratify /v1/runs + /v1/eval-pack/run in SHELL §10 (S-BS-51)",
+      "summary": "Ratify the UAP-3 BFF surface growth through §10: GET /v1/runs, POST /v1/eval-pack/run, pipeline_run_id on /v1/run-eval, all-three-paths provenance persistence, the authored in_process wiring + the WS-2 live gate."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — Authored->flip (S-BS-63 closed): assign a flag to a judge -> in_process grade reflects the authored lens (verdict/finding change vs default-config grade).",
+      "verdict": "PASS",
+      "evidence": "tests/test_uap3_grade.py 2 passed (debuglithrim). Unassigned trio -> every judge approves, composite != reject; assign WRONG_DOSAGE to risk_judge -> risk BLOCKs (others don't) -> composite 'reject'. Preview<->live parity: the judge's role_key_questions == render_role_questions(ont, role, assigned_flags=[...]) (the $0 GET /v1/judges/{role}?assigned_flags= preview). Wiring also proven via the BFF (test_uap3_bff.py::test_authored_assignment_threads_into_the_grade)."
+    },
+    {
+      "criterion": "A2 — Frozen seam: 0 lines over the full frozen DSPy set (refinement #1) + the committed seeds.",
+      "verdict": "PASS",
+      "evidence": "git diff 82f822a..HEAD -- {compliance_council.py, judges_dspy.py, judge_metric.py, data/ontology/clinical_v1.json, council_roles/, data/config/agents/} = 0 lines each. authored_stage only CALLS _apply_consensus; reuses run_semantic for the mapping (no orchestrator/stages edit)."
+    },
+    {
+      "criterion": "A3 — Run ids + history (S-BS-56): /v1/run-eval carries pipeline_run_id; GET /v1/runs lists newest-first; a listed run_id round-trips to /v1/runs/{id}/audit.",
+      "verdict": "PASS",
+      "evidence": "test_uap3_bff.py: surfaces pipeline_run_id == baseline id; /v1/runs lists the persisted replay run (verdict BLOCK, agent backfilled); run_id -> /v1/runs/{id}/audit 200 with verdict."
+    },
+    {
+      "criterion": "A4 — Replay-provenance (S-BS-52): a replay run is persisted + auditable.",
+      "verdict": "PASS",
+      "evidence": "test_uap3_bff.py: a $0 replay run is listed in /v1/runs and audits cleanly; idempotent on the baseline's fixed pipeline_run_id (one row per baseline). All three paths (replay+live+in_process) persist now."
+    },
+    {
+      "criterion": "A5 — Eval-pack batch (R6): POST /v1/eval-pack/run runs a pack via build_pack and returns the frozen pack + run ids.",
+      "verdict": "PASS",
+      "evidence": "test_uap3_bff.py: schema evalpack/1, run_ids surfaced, outcome verdict 'reject', batch run addressable in /v1/runs; unknown agent -> 404. Scope = replay/live (build_pack has no in_process param; S-BS-65)."
+    },
+    {
+      "criterion": "A6 — RunPanel: tool-run_panel renders in CenterPane, triggers a run (replay $0 default; live/in_process cost-gated), shows verdict + votes + history. Vitest green. The :5180 visual smoke is OWED.",
+      "verdict": "PASS",
+      "evidence": "Vitest 44 passed (RunPanel.test.jsx 3: history load, $0 replay no-confirm, paid-mode confirm-gate cancel+confirm). vite build clean. The :5180 A8-class visual smoke is OWED at close (user-run, no-autostart)."
+    },
+    {
+      "criterion": "A7 — Green bar: ruff-clean; default + debuglithrim + council + BFF + Vitest; default-deps import-clean; pathspec-only commits.",
+      "verdict": "PASS",
+      "evidence": "ruff clean on all changed Python; default suite 284 passed/13 skipped/0 failed; debuglithrim council+BFF+uap3 133 passed/3 skipped; Vitest 44 passed; import-clean (dspy/openai/fastapi/httpx/tenacity NONE leaked from lithrim_bench+run_eval). 7 pathspec-only commits; foreign untracked (.claude/, KICKOFF_CRITIC_..., REPORT_fhir_agentbench...) never swept."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "authored_flip_offline": "unassigned trio -> composite != reject (every judge approve); assign WRONG_DOSAGE->risk_judge -> risk BLOCK (Tier-1 floor) -> composite 'reject'. The other two roles unchanged (the move is the AUTHORING, not the case).",
+    "run_history_replay_rows": "1 row per baseline (deterministic replay reuses the fixed pipeline_run_id a57bd49d... -> idempotent upsert; re-running replay does NOT grow history). By design.",
+    "live_inprocess_cost_spent": "$0 (all acceptance offline/replay per Decision 3; the real paid in_process flip is batched into the owed A8 :5180 smoke).",
+    "cycle_diff": "17 files, +899/-23 (82f822a..HEAD): the 14 §2 deliverable files + 3 coupled existing test files."
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-64",
+      "title": "Live :8002 per-judge assignment-injection deferred (S-BS-63 closes in_process only)",
+      "severity": "medium",
+      "fix_location": "WS-2 backend (PipelineRequest council injection) + grade_live/run_eval live branch",
+      "impact": "An authored judge re-votes with its authored lens ONLY on the in_process path; the live :8002 path ignores assignments (the council_config/ontology already inject, but per-judge assignment-injection needs the HARD-GATE-paused WS-2 backend work). Gates the live authored-flip.",
+      "confidence": "CONFIRMED",
+      "evidence": "scripts/run_eval.py: the live branch builds council_config + ontology_payload only; no assignments threaded. WS-2 backend D1/D2/D4 HARD-GATE-paused (STREAM_bench-salvage.md WS-2 row)."
+    },
+    {
+      "id": "S-BS-65",
+      "title": "Eval-pack batch is replay/live only (build_pack has no in_process param)",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/evalpack.py build_pack + apps/bff EvalPackRunRequest",
+      "impact": "POST /v1/eval-pack/run cannot batch the in_process authored trio; a batched authored-flip-at-scale is a follow-on. Single-case in_process is reachable via /v1/run-eval.",
+      "confidence": "CONFIRMED",
+      "evidence": "evalpack.build_pack(pack_id, agents, *, live, out_dir, collections_db) — no in_process; the BFF endpoint forwards live only."
+    },
+    {
+      "id": "S-BS-66",
+      "title": "Authored in_process votes carry empty model + reason in the realized view",
+      "severity": "low",
+      "fix_location": "lithrim_bench/runtime/pipeline/stages.py (_run_council_and_map injected-evaluator branch) + judges_dspy.Judge.forward seam",
+      "impact": "On the authored DSPy (council_evaluate) path, _model_lookup={} so JudgeVote.model='', and the DSPy seam dict has no summary/rationale so JudgeVote.reason=''. The realized council view (JudgeTab + /v1/runs/{id}/audit) loses the model id + reasoning for authored in_process runs (votes + findings + confidence are intact). Default prompt-council path is unaffected.",
+      "confidence": "CONFIRMED",
+      "evidence": "stages.py:747 '_model_lookup = {}' on the council_evaluate branch; _judge_votes_from_models reads m.get('summary') or m.get('rationale') (absent in the DSPy forward seam)."
+    }
+  ],
+
+  "seams_closed": ["S-BS-63", "S-BS-56", "S-BS-52"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "UAP-3 closes the authoring loop: an authored judge (PUT /v1/judges) now re-votes with its authored lens through the in-process grade (S-BS-63), proven $0/offline (the verdict flips non-reject->reject when WRONG_DOSAGE is assigned to risk_judge, and the OTHER roles don't move — the change is the authoring, not the case) with preview<->live parity test-anchored on the SAME render_role_questions the $0 JudgeEditor preview returns. The seam is (i): a new authored_stage.py builds the build_trio(ontology=, assignments=) trio ABOVE the frozen _apply_consensus and reuses run_semantic(council_evaluate=) for the mapping, so the frozen DSPy set (compliance_council/judges_dspy/judge_metric) + seeds = 0 diff lines (A2, full-set per refinement #1). Run-history is real: /v1/run-eval surfaces pipeline_run_id (S-BS-56), GET /v1/runs lists newest-first, and replay+live+in_process ALL persist provenance now (S-BS-52) so the $0 replay default is auditable + round-trips to /v1/runs/{id}/audit. POST /v1/eval-pack/run batches a pack (R6, replay/live). The RunPanel gen-UI (tool-run_panel) triggers runs, shows the verdict + realized votes + history, and cost-gates paid modes. Green bar: ruff clean, default 284p/13s, debuglithrim council+BFF+uap3 133p/3s, Vitest 44p, import-clean, 7 pathspec-only commits (foreign files never swept). CAVEATS: (1) the load-bearing A8 :5180 visual smoke is OWED (user-run, no-autostart) — the real PAID in_process authored-flip is batched there, not run this cycle (Decision 3); (2) S-BS-63 closes for in_process only — live :8002 per-judge injection is WS-2-backend-gated (S-BS-64). Monitor should check first: re-run the A2 git diff (full set, 0), reproduce the suites, and confirm S-BS-66 (empty model/reason on authored in_process votes) before any audit-fidelity claim on that path. HARD GATE — a fresh-critic session is required (/devloop-critique bench-salvage UAP-3).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage UAP-3, then spawn the HARD-GATE fresh-critic (/devloop-critique bench-salvage UAP-3); request the batched UAP-1/2/3 :5180 A8 smoke (incl. the paid in_process authored-flip) and flip A8->PASS on attestation."
+}
