@@ -116,6 +116,43 @@ def build_examples(rows: Iterable[dict[str, Any]], *, role: str) -> list[Any]:
 
 
 # --------------------------------------------------------------------------- #
+# coverage-aware demo selection (S-BS-49) — pure, additive, no dspy/openai
+# --------------------------------------------------------------------------- #
+def _example_raises_in_lens(example: Any, lens: Iterable[str]) -> bool:
+    """Whether an example is an in-lens POSITIVE (a defect this judge must catch) —
+    i.e. carries ≥1 ``expected_safety_flag`` inside the role's lens. A clean negative
+    (no expected flags) or an out-of-lens-only row is NOT a positive exemplar."""
+    flags = set(_get(example, "expected_safety_flags", None) or [])
+    return bool(flags & set(lens))
+
+
+def order_positive_first(trainset: list[Any], *, lens: Iterable[str]) -> list[Any]:
+    """Reorder a trainset so in-lens POSITIVES come first, preserving relative order
+    within each group (S-BS-49 coverage-aware demo selection).
+
+    ``BootstrapFewShot`` iterates the trainset in order, keeping only cases the teacher
+    nails exactly (the hard-accept gate) until ``max_bootstrapped_demos`` is reached. On
+    the small mixed ``judge_calib_v1`` corpus the first-accepted cases happen to be the
+    SILENT clean ones, so positives never get a slot → 0 positive exemplars → over-fire
+    (the WS-6c-DSPy-3b negative Δ). Surfacing positives first gives every nailable
+    positive first crack at a demo slot WITHOUT touching the accept-gate
+    (``judge_metric`` is FROZEN) and WITHOUT extra teacher calls (a single compile pass).
+    Guarantee: if the teacher can perfectly judge ≥1 in-lens positive, the compiled
+    demos carry ≥1 positive exemplar. It cannot manufacture a win — a teacher that nails
+    no positive still yields none, honestly."""
+    lens = set(lens)
+    positives = [ex for ex in trainset if _example_raises_in_lens(ex, lens)]
+    rest = [ex for ex in trainset if not _example_raises_in_lens(ex, lens)]
+    return positives + rest
+
+
+def _demo_raises(demo: Any) -> bool:
+    """A compiled demo is a non-silent (raising) exemplar iff it carries ≥1 finding —
+    the property S-BS-49 says the harvested demos all LACKED (all silent)."""
+    return bool(_get(demo, "findings", None))
+
+
+# --------------------------------------------------------------------------- #
 # JudgeProgram — the compilable, production-faithful view of a judge
 # --------------------------------------------------------------------------- #
 def build_judge_program(*, lm: Any = None, predictor: Any = None) -> Any:
@@ -223,6 +260,7 @@ def compile_judge(
     predictor: Any = None,
     max_bootstrapped_demos: int = 4,
     max_labeled_demos: int = 0,
+    coverage_aware: bool = False,
 ) -> Any:
     """Compile a ``JudgeProgram`` with ``BootstrapFewShot`` on ``trainset``.
 
@@ -233,9 +271,16 @@ def compile_judge(
     label (``expected_safety_flags``), NOT gold ``JudgeSignature`` outputs
     (``decision``/``findings``/``reason``), so labeled demos are degenerate in dspy
     3.2.1 — only bootstrapped demos (real traced signature I/O kept iff the gate
-    passes) are valid few-shot exemplars here."""
+    passes) are valid few-shot exemplars here.
+
+    ``coverage_aware=True`` (S-BS-49) reorders the trainset so in-lens positives come
+    first (``order_positive_first``) — a single-pass, accept-gate-preserving change
+    that gives nailable positives first crack at the demo slots. It cannot loosen the
+    gate or manufacture a win."""
     import dspy
 
+    if coverage_aware:
+        trainset = order_positive_first(trainset, lens=LENS_BY_ROLE[role])
     program = build_judge_program(lm=lm, predictor=predictor)
     metric = make_judge_metric(lens_codes=LENS_BY_ROLE[role], co_raise_aware=True)
     teleprompter = dspy.teleprompt.BootstrapFewShot(
@@ -294,6 +339,7 @@ def run_optimize(
     limit: int | None = None,
     max_bootstrapped_demos: int = 4,
     max_labeled_demos: int = 0,
+    coverage_aware: bool = False,
 ) -> dict[str, Any]:
     """The PAID entrypoint: optimize ``role`` on the calibration split, measure the
     held-out Δ on the test split, persist the compiled demos + both score dicts.
@@ -345,6 +391,7 @@ def run_optimize(
             trainset,
             max_bootstrapped_demos=max_bootstrapped_demos,
             max_labeled_demos=max_labeled_demos,
+            coverage_aware=coverage_aware,
         )
         optimized = evaluate_program(
             compiled,
@@ -355,6 +402,7 @@ def run_optimize(
         )
 
     demos = _serialize_demos(compiled)
+    n_positive_demos = sum(1 for d in demos if d.get("findings"))
     result = {
         "role": role,
         "n_train": len(train_rows),
@@ -363,7 +411,9 @@ def run_optimize(
             "max_bootstrapped_demos": max_bootstrapped_demos,
             "max_labeled_demos": max_labeled_demos,
             "co_raise_aware": True,
+            "coverage_aware": coverage_aware,
             "n_demos_bootstrapped": len(demos),
+            "n_positive_demos": n_positive_demos,
         },
         "baseline": baseline,
         "optimized": optimized,
