@@ -113,7 +113,22 @@
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04 (EXPANDED — all §1 citations re-grepped against HEAD 8bd8ac9: run_eval.py:169/205/237/269-299 [the S-BS-72 pointer + the withstands loop], grade.py:129-170 [the provenance seam], provenance.py:62/76, config.py EvalProfile, withstands.py:78-86 [no critique= param yet], grounding.py registries — all CONFIRMED)",
       "expanded": "2026-06-04 (monitor expanded the UAP-3b-close stub into a full driver from the LOCKED SPEC §2A/§2B + the UAP-3b close + the S-BS-70/72/73 seams; LED with the LIVE attestation [the S-BS-70 finale] + S-BS-72 [provenance blob] + the A6 GroundingCheck entities, and SPLIT the LLM Ralph-Loop critique → UAP-3b-3 [monitor lean per critique-pass-precision-not-floor]; carries the UAP-5a live-flip non-convergence lesson [halt-to-surface, the effective_lens in-lens subtlety]; pack backfilled per memory devloop-task-pack-stale-uap-from-spec).",
-      "next_action": "run /devloop-kickoff bench-salvage UAP-3b-2 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 5 decisions (D-A LLM-critique IN-or-SPLIT [monitor lean: SPLIT -> UAP-3b-3] / D-B the LIVE-attestation construction + halt-to-surface [the hard one; do NOT manufacture a flip] / D-C the S-BS-72 approach [orchestrator-seam vs post-save-patch] / D-D GroundingCheck surface [light] / D-E SPLIT) before 'go'. Pathspec-only commits."
+      "next_action": "CLOSED 2026-06-05 PROCEED-WITH-CAVEATS (build 662a1c0..24318a7 parent 8a159c0; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic acd1046fff8c76e9a NON-BLOCKING 0/2/3). The moat's operational + audit layers landed: S-BS-72 CLOSED (the withstands ruling embeds in the run-provenance blob via a post-save patch above the frozen seam, byte-identical, attested live) + A6 GroundingChecks first-class (additive EvalProfile.grounding_checks, ground() additively-identical) + the gate's SAFE direction VALIDATED LIVE (Run A). A4 frozen 0-delta; 282/270 green. The live CORRECTION halt-to-surfaced honestly (Run B: the authored DSPy trio doesn't over-fire) -> S-BS-74; S-BS-70 stays live-corrected-PENDING. Opened S-BS-74 + S-BS-75. LLM critique split -> UAP-3b-3 (stub registered). NEXT-CYCLE FORK: UAP-4 (calibration/optimize, candidate lean) | a small S-BS-74 live-correction demo | UAP-3b-3 (LLM critique, uncertain) | UAP-5a-assist."
+    },
+    {
+      "id": "bench-salvage-phaseUAP-3b-3-llm-ralph-loop-critique-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-3b-3",
+      "scope": "llm-ralph-loop-critique-pass-over-the-deterministic-signals",
+      "file": "bench-salvage_phaseUAP-3b-3_llm-ralph-loop-critique_driver.md",
+      "status": "stub",
+      "version": "v0-stub",
+      "hardness": "HARD-GATE (the LLM critique is an additional signal adjacent to the deterministic floor — cost-gated gpt-4.1; the gate's critique= hook + the by-construction guard [the critique can down-rank/correct but never relabel]; fresh-critic required)",
+      "target_repos": ["lithrim-bench"],
+      "_note": "UAP-3b-3 = the SPLIT-OUT LLM Ralph-Loop critique (UAP-3b D-A, deferred-not-dropped; stub written by the UAP-3b-2 executor at close). UAP-3b/3b-2 shipped the DETERMINISTIC moat (signals + the gate + the audit + the live-SAFE attestation). This adds the critique= hook to apply_withstands_gate (withstands.py:78, currently no critique= param; the gate is shaped to admit it per the docstring :27-29) + a cost-gated gpt-4.1 pass that produces a REASONED withstands-ruling over the SAME deterministic signals (richer why-it-withstands/why-corrected prose), NEVER a relabel, always above the frozen seam, bounded by the same A5 by-construction guard. LOWEST-VALUE/UNCERTAIN per critique-pass-precision-not-floor (self-critique alone doesn't close the gap; the deterministic signals do) — the open research question is whether a SIGNAL-FED critique adds value over the deterministic correction. Expand via /devloop-expand-driver bench-salvage UAP-3b-3. FROZEN holds. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
+      "created": "2026-06-05",
+      "last_re_verified": "2026-06-05 (stub authored at UAP-3b-2 close; citations to be re-grepped at expand-driver time)",
+      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-3b-3 to expand into a full driver. The LLM Ralph-Loop critique (the UAP-3b D-A split). LOWEST priority of the open cycles (uncertain value per critique-pass-precision-not-floor); UAP-4 (the calibration trainer) or the S-BS-74 live-correction demo are higher-value."
     },
     {
       "id": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
