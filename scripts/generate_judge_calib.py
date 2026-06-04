@@ -85,6 +85,30 @@ CLEAN_TARGETS: list[tuple[str, int]] = [
 # + MISSING_ALLERGY (faithfulness) on one scribe encounter.
 MULTI_TARGET = ("scribe_v1", [WrongDosageInjector, MissingAllergyInjector], 2)
 
+# ── UAP-4 / S-BS-49 corpus widening (ADDITIVE; new positives only) ────────────
+# The WS-6c-DSPy-3b optimizer regressed because the bootstrap harvested only SILENT
+# demos (no positive exemplars) on the small mixed corpus. The lead lever (driver
+# D3/D-H) is MORE positives-per-code so the teacher has more chances to nail ≥1
+# positive perfectly. These EXTRA positives extend the per-code walk BEYOND the
+# original POSITIVE_TARGETS counts — the originals (and every existing row) are
+# produced by the UNCHANGED loop above, so they stay byte-identical (the additive
+# superset, verified by tests/test_uap4_corpus_superset.py).
+#
+# CONDITION (frozen held-out, driver "go" #2): every widening row is PINNED to the
+# `calibration` (trainset) split, so the `test` held-out split stays exactly the v1
+# set — both optimize arms are measured on the IDENTICAL test set (a lift can't be a
+# test-set artifact). VALUE_MISMATCH is NOT widened — its cohort coverage is 1
+# (S-BS-46), so it stays under-sampled and LOGGED, never padded/relabeled.
+WIDEN_SPLIT = "calibration"
+WIDEN_TARGETS: list[tuple[str, str, type[DefectInjector], int]] = [
+    ("risk", "scribe_v1", WrongDosageInjector, 6),
+    ("risk", "triage_v1", MissedEscalationInjector, 6),
+    ("policy", "scheduling_v1", FabricatedConsentInjector, 6),
+    ("policy", "scheduling_v1", PhiDisclosurePreVerificationInjector, 6),
+    ("faithfulness", "scribe_v1", FabricatedHistoryInjector, 6),
+    ("faithfulness", "scribe_v1", MissingAllergyInjector, 6),
+]
+
 
 def _walk_specs(cohort: SyntheaCohort, requires_med: bool) -> Iterator[EncounterSpec]:
     for pid in cohort.patient_ids():
@@ -248,6 +272,41 @@ def main() -> None:
             coverage["(multi)"] += 1
     if produced < count:
         shortfalls.append(f"multi {pack_name}: {produced}/{count}")
+
+    # ── UAP-4 / S-BS-49 widening: EXTRA positives, pinned to the calibration split ─
+    # Re-walk per code; _add skips the originals (dedup) so this only APPENDS new
+    # case_ids. Each new row's split is overridden to `calibration` so the held-out
+    # `test` split is frozen to the v1 set (driver "go" #2).
+    for lens, pack_name, inj_cls, extra in WIDEN_TARGETS:
+        pack = PACKS[pack_name]
+        inj = inj_cls()
+        produced = 0
+        for spec in _walk_specs(cohort, pack.requires_active_medication):
+            if produced >= extra:
+                break
+            if not inj.applies(spec):
+                continue
+            transcript = pack.transcript_fn(spec)
+            artifacts = _artifacts_for(pack, spec)
+            try:
+                result = inj.inject(spec, transcript, artifacts)
+            except ValueError:
+                continue
+            row = _package(
+                spec=spec,
+                pack=pack,
+                transcript=result.transcript,
+                artifacts=result.artifacts,
+                recipes=[result.recipe],
+                taxonomy=taxonomy,
+                extra_pinned={"lens": lens, "injectors": [inj_cls.__name__]},
+            )
+            row["split"] = WIDEN_SPLIT  # frozen held-out: widening positives → trainset only
+            if _add(row):
+                produced += 1
+                coverage[result.recipe.safety_flag] += 1
+        if produced < extra:
+            shortfalls.append(f"widen {inj_cls.__name__}: +{produced}/+{extra}")
 
     rows = [rows_by_id[k] for k in sorted(rows_by_id)]
     write_jsonl(rows, args.out)
