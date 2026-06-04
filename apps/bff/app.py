@@ -724,6 +724,9 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         "gate_decision": doc.get("gate_decision"),
         "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
         "judges": judges,
+        # UAP-3b-2 / S-BS-72: the per-judge withstands ruling (§2B critique stream),
+        # embedded into the run-blob by run_eval post-save. Empty on non-gated runs.
+        "withstands": doc.get("withstands_decisions") or [],
         "findings": doc.get("findings") or [],
         "stages_executed": doc.get("stages_executed") or [],
     }

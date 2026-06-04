@@ -46,6 +46,7 @@ from lithrim_bench.harness.correction import (  # noqa: E402
 )
 from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
 from lithrim_bench.harness.grounding import ground  # noqa: E402
+from lithrim_bench.harness.grounding_check import audit_grounding_checks  # noqa: E402
 from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
@@ -121,6 +122,50 @@ def _persist_run_provenance(
         PIPELINE_RUNS.insert(doc, db_path=collections_db)
     else:
         PIPELINE_RUNS.insert(doc)
+
+
+def _embed_withstands_in_blob(
+    run_id: str | None,
+    withstands_sink: list[Any],
+    *,
+    in_process: bool,
+    collections_db: str | Path | None = None,
+) -> None:
+    """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
+    blob (stream-2, ``GET /v1/runs/{id}/audit``) — not just the ``AuditLog``/config_audit
+    stream-1 emitted above.
+
+    The in_process orchestrator already saved the ``PipelineProvenance`` blob
+    fire-and-forget (``grade.py`` → ``SqliteProvenanceStore.save``), and ``run_eval`` has
+    no pre-save handle (``grade.py:162-170``). So we patch it POST-save:
+    ``get(run_id)`` → embed ``withstands_decisions`` → re-``insert`` (idempotent upsert on
+    ``pipeline_run_id``). This lives entirely ABOVE the frozen consensus — no
+    ``_apply_consensus`` edit, no ``PipelineProvenance``-model edit — and the returned
+    ``result`` dict is untouched (the byte-identical A3 contract).
+
+    The re-insert reads the FULL stored doc back, so the row id (``pipeline_run_id``) and
+    fk (``org_id``) are preserved by construction (``collections.py:63-65``). NOTE: the
+    upsert re-stamps ``created_at`` (``collections.py:67/73-74``) — S-BS-68-adjacent and
+    benign here (a 2nd write to the SAME row, same ``run`` call, ms apart → newest-first
+    ordering unchanged; the provenance's own timestamp in the payload is preserved). The
+    S-BS-68 first-write-wins fix is a separate, blob-tier-scoped pass — not this cycle.
+
+    Only the authored in_process path runs the gate, so ``withstands_sink`` is empty
+    elsewhere; the guard makes that explicit + a no-op when there is nothing to embed.
+    """
+    if not (in_process and run_id and withstands_sink):
+        return
+    if collections_db is not None:
+        blob = PIPELINE_RUNS.get(run_id, db_path=collections_db)
+    else:
+        blob = PIPELINE_RUNS.get(run_id)
+    if blob is None:
+        return
+    blob["withstands_decisions"] = [{"role": d.role, **d.to_audit_why()} for d in withstands_sink]
+    if collections_db is not None:
+        PIPELINE_RUNS.insert(blob, db_path=collections_db)
+    else:
+        PIPELINE_RUNS.insert(blob)
 
 
 def run(
@@ -268,9 +313,9 @@ def run(
     # contribution). A "withstand" admits the judge unchanged (action withstand); a
     # "corrected" decision flipped it (action flip). The AuditRecord lands in the
     # immutable config_audit substrate (the universal §2B record carries run_id /
-    # case_id / actor.type=critique); embedding the same ruling in the run-PROVENANCE
-    # blob is deferred to UAP-3b-2 (it needs an orchestrator seam, above the frozen
-    # consensus — out of bounds this cycle).
+    # case_id / actor.type=critique). UAP-3b-2 / S-BS-72: the same ruling is ALSO
+    # embedded into the run-PROVENANCE blob below (``_embed_withstands_in_blob``), so
+    # ``GET /v1/runs/{id}/audit`` (stream-2) carries it, not just ``/v1/audit`` (stream-1).
     run_id = (result.get("provenance") or {}).get("pipeline_run_id")
     case_id = case.get("case_id") or agent.dataset.case_id
     audit_log = AuditLog()
@@ -298,6 +343,21 @@ def run(
             )
             emit(wrec)
             corrections.append(wrec)
+
+    _embed_withstands_in_blob(
+        run_id, withstands_sink, in_process=in_process, collections_db=collections_db
+    )
+
+    # UAP-3b-2 (the deferred UAP-3b A6): the post-consensus GroundingChecks declared in
+    # the eval-profile run as first-class INDEPENDENT entities (§2A / §13 locus=BOTH),
+    # each execution audited under actor.type=grounding_check (action run/suppress/
+    # floor_block — distinct from the gate's withstand/flip). This is a projection over
+    # ``grounded`` — it does NOT re-run or alter ``ground()`` (the verdict + partitions
+    # are byte-identical); an undeclared profile (every committed agent) emits nothing.
+    for gc_rec in audit_grounding_checks(
+        agent.eval_profile.grounding_checks, grounded, run_id=run_id, case_id=case_id
+    ):
+        audit_log.record(gc_rec)
 
     out_dir = out_dir or (REPO_ROOT / "out" / "ws0")
     record = build_record(
