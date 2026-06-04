@@ -58,6 +58,12 @@ class EvalProfile:
     tools: tuple[str, ...]
     kb_bindings: dict[str, Any]
     severity_map_ref: str
+    # UAP-3b-2 (the deferred UAP-3b A6): the flag codes promoted to first-class
+    # INDEPENDENT GroundingCheck entities (§2A) — an additive view over the ontology's
+    # ``verification_contracts``, run + audited at the post-consensus locus. Default ()
+    # → every existing committed agent is byte-unchanged (the post-consensus path is a
+    # no-op without a declaration). See ``harness/grounding_check.py``.
+    grounding_checks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -100,6 +106,7 @@ def agent_from_dict(data: dict[str, Any]) -> Agent:
             tools=tuple(ep.get("tools") or ()),
             kb_bindings=ep.get("kb_bindings") or {},
             severity_map_ref=ep.get("severity_map_ref", ""),
+            grounding_checks=tuple(ep.get("grounding_checks") or ()),
         ),
         dataset=Dataset(
             case_id=ds["case_id"],
@@ -112,17 +119,23 @@ def agent_from_dict(data: dict[str, Any]) -> Agent:
 
 def agent_to_dict(agent: Agent) -> dict[str, Any]:
     ep = agent.eval_profile
+    eval_profile: dict[str, Any] = {
+        "judges": list(ep.judges),
+        "council_config": ep.council_config,
+        "ontology_ref": ep.ontology_ref,
+        "ontology_path": ep.ontology_path,
+        "tools": list(ep.tools),
+        "kb_bindings": ep.kb_bindings,
+        "severity_map_ref": ep.severity_map_ref,
+    }
+    # Additive + back-compat: only serialize ``grounding_checks`` when declared, so an
+    # agent that does not use the UAP-3b-2 surface round-trips byte-identically (and the
+    # committed seeds + their audit before/after diffs are unchanged).
+    if ep.grounding_checks:
+        eval_profile["grounding_checks"] = list(ep.grounding_checks)
     return {
         "name": agent.name,
-        "eval_profile": {
-            "judges": list(ep.judges),
-            "council_config": ep.council_config,
-            "ontology_ref": ep.ontology_ref,
-            "ontology_path": ep.ontology_path,
-            "tools": list(ep.tools),
-            "kb_bindings": ep.kb_bindings,
-            "severity_map_ref": ep.severity_map_ref,
-        },
+        "eval_profile": eval_profile,
         "dataset": {
             "case_id": agent.dataset.case_id,
             "source": agent.dataset.source,
