@@ -8,6 +8,9 @@ React/Tauri shell (SPEC_PRODUCT_SHELL §5). It imports ``lithrim_bench.harness``
                                               calibration_check([record]) + council view
     GET  /v1/case         {agent?}         -> the case the shell displays (== graded)
     GET  /v1/corpus                        -> corpus.read_corpus() rows
+    POST /v1/eval-pack/run {pack_id, agents[], live?}
+                                           -> batch a pack via build_pack; frozen pack
+                                              + run ids (UAP-3 R6, replay $0 default)
     GET  /v1/ontology     {agent?}         -> the agent's ontology JSON (working copy
                                               if a PUT wrote one, else committed seed)
     PUT  /v1/ontology     {agent?} <body>  -> validate + persist an edited ontology to a
@@ -69,7 +72,7 @@ for _p in (str(REPO_ROOT), str(_SCRIPTS)):
 import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors tests/test_ws4a.py)
 import seed_ontology  # noqa: E402  (scripts/ — import-only: snapshot lint for the PUT gate)
 
-from lithrim_bench.harness import corpus  # noqa: E402
+from lithrim_bench.harness import corpus, evalpack  # noqa: E402
 from lithrim_bench.harness.audit import (  # noqa: E402
     Actor,
     AuditLog,
@@ -334,6 +337,44 @@ def case_endpoint(
 def corpus_endpoint() -> dict:
     """The correction-corpus rows (corpus-row/1). Empty list when none written yet."""
     return {"rows": list(corpus.read_corpus())}
+
+
+class EvalPackRunRequest(BaseModel):
+    pack_id: str
+    agents: list[str] = [DEFAULT_AGENT]
+    live: bool = False  # :8002 backend council (HTTP, paid) — replay ($0) by default
+
+
+@app.post("/v1/eval-pack/run")
+def eval_pack_run_endpoint(
+    req: EvalPackRunRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """Batch a pack of agents through the canonical grade and freeze a thin eval-pack
+    (R6 — the "did it move the number?" loop). Runs each agent via
+    ``evalpack.build_pack`` over ``run_eval.run``; replay (``live=false``) is the $0
+    default, ``live=true`` opts into one paid ``:8002`` call per agent. Each run's
+    provenance persists to the run-history DB, so the returned outcomes' run ids
+    round-trip to ``GET /v1/runs`` + ``GET /v1/runs/{id}/audit``.
+
+    Batch scope this cycle = replay/live (the ``build_pack`` primitive has no
+    in_process param); a batched in_process path is a follow-on.
+    """
+    agents = [_load_agent(name, db_path) for name in req.agents]
+    try:
+        pack = evalpack.build_pack(
+            req.pack_id,
+            agents,
+            live=req.live,
+            out_dir=out_dir,
+            collections_db=collections_db,
+        )
+    except SystemExit as exc:  # a missing case bubbles up as SystemExit from run_eval
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    run_ids = [o.get("pipeline_run_id") for o in pack["outcomes"]]
+    return {"pack": pack, "run_ids": run_ids}
 
 
 # ── R1: GET/PUT /v1/agent — assemble + persist an Agent to the config plane ───

@@ -54,8 +54,12 @@ def _outcome(record: dict[str, Any]) -> dict[str, Any]:
     cid = record["case_id"]
     comp = record["composite"]
     grounded = record["grounded"]
+    # UAP-3 R6: the addressable run id (round-trips to /v1/runs/{id}/audit). Lives on
+    # the graded PipelineResult provenance; None when the path carries none.
+    run_id = ((record.get("result") or {}).get("provenance") or {}).get("pipeline_run_id")
     return {
         "case_id": cid,
+        "pipeline_run_id": run_id,
         "verdict": comp["verdict"],
         "stage_verdict": comp["stage_verdict"],
         "original_verdict": grounded["original_verdict"],
@@ -84,18 +88,22 @@ def build_pack(
     *,
     live: bool = False,
     out_dir: str | Path | None = None,
+    collections_db: str | Path | None = None,
 ) -> dict[str, Any]:
     """Run each agent through ``run_eval.run`` and freeze a thin eval-pack.
 
     ``live`` is forwarded to ``run`` (default replay, $0). ``out_dir`` is where the
-    per-case persist artifacts land (pass a tmp dir in tests). The returned pack is
-    JSON-round-trippable (no absolute paths, no raw baseline blob).
+    per-case persist artifacts land (pass a tmp dir in tests). ``collections_db`` is
+    forwarded so each run's provenance persists to the caller's run-history DB (UAP-3
+    R6 — the batch run ids show up in ``GET /v1/runs``). The returned pack is
+    JSON-round-trippable (no absolute paths, no raw baseline blob); each outcome
+    carries its ``pipeline_run_id`` (the batch → run-history link).
     """
     run = _run_core()
     cases: list[dict[str, Any]] = []
     outcomes: list[dict[str, Any]] = []
     for agent in agents:
-        record = run(agent, live=live, out_dir=out_dir)
+        record = run(agent, live=live, out_dir=out_dir, collections_db=collections_db)
         cases.append(_case_entry(record))
         outcomes.append(_outcome(record))
     return {
