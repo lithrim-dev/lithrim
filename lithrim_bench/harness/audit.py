@@ -80,7 +80,7 @@ class AuditRecord(BaseModel):
 
     ts: str = Field(default_factory=now_iso)
     actor: Actor
-    action: str  # author | edit | assign | run | raise | suppress | flip | ...
+    action: str  # author | edit | assign | run | raise | suppress | flip | withstand | ...
     target: Target
     why: dict[str, Any] = Field(default_factory=dict)
     before: dict[str, Any] | None = None

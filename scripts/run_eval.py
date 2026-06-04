@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from lithrim_bench.harness.audit import Actor, AuditLog, AuditRecord, Target  # noqa: E402
 from lithrim_bench.harness.collections import PIPELINE_RUNS  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
@@ -40,6 +41,7 @@ from lithrim_bench.harness.config import (  # noqa: E402
 from lithrim_bench.harness.correction import (  # noqa: E402
     build_correction,
     build_floor_correction,
+    build_withstands_correction,
     emit,
 )
 from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
@@ -161,6 +163,11 @@ def run(
             f"ERROR: case {agent.dataset.case_id!r} not found in {agent.dataset.source}"
         )
 
+    # UAP-3b: the authored stage's withstands-gate appends its per-judge decisions
+    # here; empty on the replay/live paths (the gate runs only on the authored
+    # in_process trio).
+    withstands_sink: list[Any] = []
+
     if in_process:
         # WS-6c-AGENTIC grade-wire: score the case through the in-process v2 council
         # (no :8002, no Celery) — the first time the council scores real cases
@@ -188,8 +195,14 @@ def run(
                 build_authored_semantic_stage,
             )
 
+            # UAP-3b: the authored trio grades THROUGH the pre-consensus withstands-gate
+            # (apply_gate default True); the gate's per-judge decisions land in
+            # ``withstands_sink`` so they can be audited + emit RLVR correction records
+            # after grade (below). No assignments => no authored stage => no gate.
             semantic_stage = build_authored_semantic_stage(
-                ontology=ontology, assignments=assignments
+                ontology=ontology,
+                assignments=assignments,
+                decisions_sink=withstands_sink,
             )
         result = grade_inprocess(
             case,
@@ -249,6 +262,42 @@ def run(
         )
         emit(rec)
         corrections.append(rec)
+
+    # UAP-3b: audit each pre-consensus withstands-decision (§2B critique ruling) and
+    # emit an RLVR correction record for every CORRECTION (the gate flipped a judge's
+    # contribution). A "withstand" admits the judge unchanged (action withstand); a
+    # "corrected" decision flipped it (action flip). The AuditRecord lands in the
+    # immutable config_audit substrate (the universal §2B record carries run_id /
+    # case_id / actor.type=critique); embedding the same ruling in the run-PROVENANCE
+    # blob is deferred to UAP-3b-2 (it needs an orchestrator seam, above the frozen
+    # consensus — out of bounds this cycle).
+    run_id = (result.get("provenance") or {}).get("pipeline_run_id")
+    case_id = case.get("case_id") or agent.dataset.case_id
+    audit_log = AuditLog()
+    for d in withstands_sink:
+        audit_log.record(
+            AuditRecord(
+                actor=Actor(type="critique", id="withstands_gate"),
+                action="withstand" if d.decision == "withstand" else "flip",
+                target=Target(type="verdict", id=str(case_id)),
+                why=d.to_audit_why(),
+                run_id=run_id,
+                case_id=case_id,
+            )
+        )
+        if d.decision == "corrected":
+            wrec = build_withstands_correction(
+                role=d.role,
+                what_failed=d.what_failed,
+                decision_before=d.decision_before,
+                decision_after=d.decision_after,
+                result=result,
+                composite_before=d.decision_before,
+                composite_after=comp["verdict"],
+                ontology=ontology,
+            )
+            emit(wrec)
+            corrections.append(wrec)
 
     out_dir = out_dir or (REPO_ROOT / "out" / "ws0")
     record = build_record(

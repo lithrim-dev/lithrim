@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SCHEMA_VERSION = "ws0-correction/1"
 FLOOR_SCHEMA_VERSION = "ws3-floor-correction/1"
+WITHSTANDS_SCHEMA_VERSION = "uap3b-withstands-correction/1"
 
 DEFAULT_CORRECTIONS_PATH = REPO_ROOT / "out" / "ws0" / "corrections.ndjson"
 
@@ -150,6 +151,62 @@ def build_floor_correction(
         "composite_after": composite_after,
         "ontology_version": ontology.ontology_version,
         "contract_version": decl.version,
+    }
+
+
+def build_withstands_correction(
+    *,
+    role: str,
+    what_failed: list[dict[str, Any]],
+    decision_before: str | None,
+    decision_after: str | None,
+    result: dict[str, Any],
+    composite_before: str | None,
+    composite_after: str | None,
+    ontology: Ontology | None = None,
+) -> dict[str, Any]:
+    """Assemble one correction record for a per-judge withstands-gate correction (UAP-3b).
+
+    The third correction direction (after :func:`build_correction`'s suppress and
+    :func:`build_floor_correction`'s inverse floor): the PRE-consensus withstands-gate
+    corrected one judge's verdict — it either suppressed a validator-disproved finding
+    or rejected an out-of-lens finding no owning judge corroborated. The record pairs
+    (the corrected judge's rollout) with (the deterministic signal that corrected it,
+    ``what_failed``), the RLVR shape for the per-judge critique floor.
+
+    ``what_failed`` is the gate's per-finding ruling list (``{code, mode, reason}``).
+    ``role`` is the corrected judge. The rollout keeps that judge's vote (the wrong
+    raise being corrected). ``owner_roles`` is recorded per corrected code from the
+    ontology, mirroring the other correction builders.
+    """
+    ontology = ontology or load_ontology()
+    corrected_codes = [w.get("code") for w in (what_failed or []) if w.get("code")]
+    votes = (result.get("semantic") or {}).get("judge_votes") or []
+    rollout = [
+        {
+            "judge_role": v.get("judge_role"),
+            "reason": v.get("reason"),
+            "output": {"vote": v.get("vote"), "findings": v.get("findings")},
+            "confidence": v.get("confidence"),
+            "model": v.get("model"),
+        }
+        for v in votes
+        if v.get("judge_role") == role
+    ]
+
+    return {
+        "schema_version": WITHSTANDS_SCHEMA_VERSION,
+        "direction": "withstands_correct",
+        "role": role,
+        "rollout": rollout,
+        "what_failed": list(what_failed or []),
+        "decision_before": decision_before,
+        "decision_after": decision_after,
+        "corrected_labels": corrected_codes,
+        "owner_roles": {c: list(ontology.owners_of(c)) for c in corrected_codes},
+        "composite_before": composite_before,
+        "composite_after": composite_after,
+        "ontology_version": ontology.ontology_version,
     }
 
 
