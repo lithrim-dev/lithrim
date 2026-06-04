@@ -1,0 +1,79 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-3b-2026-06-04",
+  "stream": "bench-salvage",
+  "phase": "UAP-3b",
+  "driver_bundle_id": "bench-salvage-phaseUAP-3b-withstands-gate-driver",
+  "started_at": "2026-06-04T21:30:00Z",
+  "ended_at": "2026-06-04T22:40:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-04T21:45:00Z",
+    "user_approved_at": "2026-06-04T22:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-C moat exhibit reframed from the driver's primary 'MED-FP validator-disprove' to an ONTOLOGY-RULE out-of-lens rejection — because composite() re-scores from grounded.active and never reads consensus['decision'], so the existing POST-consensus ground() already runs the same suppress contracts; only the ontology-rule mode (no contract) yields a composite flip uniquely attributable to the gate.",
+        "evidence": "report.py:29-34 composite() uses severity_map.rescore(grounded.active); grounding._CONTRACT_EXECUTORS is the shared suppress registry. Monitor independently verified the claim against HEAD acc4973.",
+        "decided_at": "2026-06-04T22:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D4 audit uses AuditLog.record (the processing-event primitive: AuditRecord carries run_id/case_id/actor.type=critique) over the driver's literal 'upsert_with_audit' (the config-write primitive — wrong fit for a non-upsert processing event). Monitor accepted.",
+        "evidence": "audit.py:111 AuditLog.record; audit.py:77-89 AuditRecord with run_id/case_id/actor.",
+        "decided_at": "2026-06-04T22:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-E SPLIT (pre-authorized): this cycle = D1+D2+D4+D5+D6 (moat CORE); D3 (GroundingCheck first-class entity = the UAP-3b A6 acceptance) + the LLM Ralph-Loop critique pass + the LIVE moat attestation split to UAP-3b-2 (stub driver written). A6 => SKIP(split) this cycle.",
+        "evidence": ".devloop/prompts/bench-salvage_phaseUAP-3b-2_groundingcheck-entity-llm-critique_driver.md",
+        "decided_at": "2026-06-04T22:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D4 provenance-BLOB embedding of the withstands ruling deferred to UAP-3b-2 — it needs an orchestrator seam ABOVE the frozen consensus (LocalPipelineBackend builds+saves provenance internally; run_eval never sees the object pre-save). The certain audit (AuditLog.record + build_withstands_correction NDJSON) landed; the run-blob half is split, not dropped (lock-in #3).",
+        "evidence": "grade.py:162-167 LocalPipelineBackend(...).evaluate_pipeline saves internally; run_eval has no pre-save provenance handle.",
+        "decided_at": "2026-06-04T22:25:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {"hash": "8cb388b", "repo": "lithrim-bench", "title": "feat(signals): per-judge signals bus — ontology rules + validator/grounding outputs (UAP-3b D1)", "summary": "NEW runtime/council/signals.py: build_judge_signals assembles ontology-rule signals (lens/owner from LENS_BY_ROLE per S-BS-59 + tier/severity/when from the ontology) + validator-output signals (REUSE grounding._build_contract). Pure, no LLM, import-clean."},
+    {"hash": "d9a5bb0", "repo": "lithrim-bench", "title": "feat(withstands): pre-consensus per-judge withstands-gate, above the frozen seam (UAP-3b D2)", "summary": "NEW runtime/council/withstands.py apply_withstands_gate (suppress validator-disproved + reject out-of-lens-uncorroborated, down-rank emptied verdicts) + wire into authored_stage._evaluator between the trio results and the FROZEN _apply_consensus (byte-0-delta; decisions_sink threads decisions out; apply_gate toggle for the no-gate baseline)."},
+    {"hash": "a9dc899", "repo": "lithrim-bench", "title": "feat(audit): withstands-decision audit + correction records; add `withstand` action (UAP-3b D4)", "summary": "build_withstands_correction (uap3b-withstands-correction/1 RLVR record) in correction.py; `withstand` added to the AuditRecord action enum; run_eval emits an AuditRecord (action withstand/flip, the §2B {signals_weighed,decision,what_failed} ruling, run/case ids) + a correction per corrected decision."},
+    {"hash": "5da98b8", "repo": "lithrim-bench", "title": "test(uap-3b): the moat exhibit (grounding corrects a wrong judge -> flip) + withstand-admit + frozen 0-delta + by-construction guard", "summary": "NEW tests/test_uap3b_withstands.py: 7 pure (default deps) + 2 dspy/openai-gated; the A2 double-assertion (gate OFF reject / gate ON approve on the SAME clean-negative case), A2' consensus-coherence, A4 audit, A5 by-construction guard, A3 frozen 0-delta."},
+    {"hash": "f18399e", "repo": "lithrim-bench", "title": "docs(spec): note the withstands-gate landed + the `withstand` action + the UAP-3b-2 split (UAP-3b D6)", "summary": "SPEC_PRODUCT_SHELL §10 'UAP-3b — NO BFF surface change' note (moat runs in-process; reuses existing routes; S-BS-70 disposition) + the UAP-3b-2 stub driver (D3/A6 + LLM critique + live attestation deferred-not-dropped)."}
+  ],
+
+  "acceptance": [
+    {"criterion": "A1 — pre-consensus gate wired: the withstands-gate runs in authored_stage._evaluator between the trio results and _apply_consensus; corrected results feed consensus; decisions thread into the envelope/sink", "verdict": "PASS", "evidence": "authored_stage.py: apply_withstands_gate runs between `results = [...]` and `council._apply_consensus(results)`; corrected results passed to consensus; decisions_sink populated. test_MOAT_EXHIBIT asserts sink carries the corrected decision; debuglithrim 9 passed."},
+    {"criterion": "A2 — THE MOAT EXHIBIT: a confidently-wrong judge finding corrected by a deterministic signal pre-consensus -> the composite verdict CHANGES, offline/$0, gate-attributable", "verdict": "PASS", "evidence": "test_MOAT_EXHIBIT_gate_flips_composite_and_ground_alone_does_not: SAME clean-negative case (bench_scribe_v1_clean_negative, expected approve) + SAME risk_judge PHI-FP predictor; gate OFF verdict=reject (active=[PHI_DISCLOSURE_PRE_VERIFICATION]) -> gate ON verdict=approve (active=[]). ground() alone cannot correct it (no contract for PHI). debuglithrim green."},
+    {"criterion": "A3 — frozen seam 0-delta: compliance_council.py + judges_dspy.py + judge_metric.py + committed seeds == 0 lines", "verdict": "PASS", "evidence": "git diff acc4973 HEAD -- <frozen set incl. council_roles/, clinical_v1.json, ws0_default.json> | wc -l == 0; pinned by test_frozen_seam_zero_delta."},
+    {"criterion": "A4 — withstands audit: each WithstandsDecision recorded as {signals_weighed:[ontology_rules,validator_outputs], decision, what_failed} in an AuditRecord (action withstand/flip); a correction also emits a correction record", "verdict": "PASS", "evidence": "run_eval emits AuditLog.record(AuditRecord(action=withstand|flip, actor=critique, why=ruling, run_id, case_id)) + build_withstands_correction per corrected decision; test_withstands_decision_audited queries it back (action=flip, why keys = {signals_weighed,decision,what_failed}). CAVEAT: the run-PROVENANCE-BLOB embedding is split to UAP-3b-2 (needs an orchestrator seam above the frozen consensus); the AuditLog (config_audit, queryable via GET /v1/audit) is the interim home."},
+    {"criterion": "A5 — by-construction guard + green bar: the gate NEVER suppresses a genuinely-correct finding; ruff/import-clean/suites green; pathspec-only", "verdict": "PASS", "evidence": "test_by_construction_guard_in_lens_true_finding_withstands + _corroborated_owner_not_dropped green (in-lens true + owner-corroborated finding kept). ruff clean on 7 changed py; default-deps import-clean (no dspy/openai/httpx/fastapi leak); default 262p/9s; debuglithrim council+uap3b+bff 138p/3-live-skip; Vitest 45/45; pathspec-only (foreign .claude/, KICKOFF_CRITIC_, REPORT_fhir_ untracked, not swept)."},
+    {"criterion": "A6 — GroundingChecks first-class config-authored entities at the post-consensus locus", "verdict": "SKIP", "evidence": "SPLIT to UAP-3b-2 per the pre-authorized D-E split (the moat CORE = D1+D2+D4+D5 was a full HARD-GATE cycle). Recorded in .devloop/prompts/bench-salvage_phaseUAP-3b-2_*; deferred-not-dropped."}
+  ],
+
+  "diagnostic_stats": {
+    "moat_exhibit_verdict_delta": "gate OFF reject (active=[PHI_DISCLOSURE_PRE_VERIFICATION]) -> gate ON approve (active=[])",
+    "per_judge_signals_weighed_for_the_exhibit": "risk_judge: 6 ontology-rule (1 raised PHI + 5 risk-lens owned-not-raised) + 0 validator-output; what_failed mode=ontology_rule_out_of_lens; decision reject->approve",
+    "consensus_coherence_delta": "2-judge MED-FP: _apply_consensus(raw).decision=reject -> _apply_consensus(corrected).decision=approve (the gate disproved both pre-consensus; the frozen seam itself flips)",
+    "tests": "tests/test_uap3b_withstands.py = 7 pure (default deps) + 2 dspy/openai-gated; debuglithrim 9 passed; $0 (injected predictors, no Azure call)",
+    "llm_critique_cost": "N/A — deterministic-only this cycle (D-A); no paid LLM call"
+  },
+
+  "seams_opened": [
+    {"id": "S-BS-72", "title": "withstands ruling not yet embedded in the run-PROVENANCE blob (only AuditLog/config_audit + the corrections NDJSON)", "severity": "low", "fix_location": "orchestrator provenance build (LocalPipelineBackend) — above the frozen consensus", "impact": "GET /v1/runs/{id}/audit (stream-2 run-blob) does not yet show the per-judge withstands ruling; it surfaces via GET /v1/audit (stream-1) instead. The processing event lives in config_audit (a slight stream mix) until the blob embedding lands.", "confidence": "CONFIRMED", "evidence": "grade.py:162-167 LocalPipelineBackend builds+saves provenance internally; run_eval has no pre-save handle, so embedding needs an orchestrator seam. Deferred to UAP-3b-2 per lock-in #3 (frozen-adjacent — out of bounds this cycle)."},
+    {"id": "S-BS-73", "title": "the gate is now ACTIVE by default on the authored in_process path (apply_gate=True) — it will correct out-of-lens raises on REAL trio runs", "severity": "low", "fix_location": "authored_stage.build_authored_semantic_stage (apply_gate)", "impact": "Intended (it is the moat). But it changes live authored-path verdicts vs pre-UAP-3b; only offline-tested this cycle. A real-trio run where a base judge legitimately corroborates an out-of-lens code is protected by the co-raise guard, but a SOLO out-of-lens corroboration would now be rejected. Validate on the UAP-3b-2 live attestation before treating the authored live path as a verdict source.", "confidence": "CONFIRMED", "evidence": "run_eval.py: build_authored_semantic_stage(..., decisions_sink=withstands_sink) with apply_gate default True; offline tests only this cycle (live env-gated)."}
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "THE MOAT landed: the per-judge, pre-consensus withstands-gate (signals bus + apply_withstands_gate, wired into authored_stage ABOVE the byte-0-delta _apply_consensus) reconciles each authored judge's verdict against its deterministic signals and corrects a signal-contradicted finding. A2 is the load-bearing win: on a genuine clean-negative case, a confidently-wrong out-of-lens FP that the post-consensus ground() CANNOT correct (no contract) is rejected pre-consensus by the ontology-rule signal -> the composite flips reject->approve, proven gate-attributable by the double-assertion (gate OFF reject / gate ON approve, only the flag differs). This is the genuine 'a deterministic signal corrects a wrong judge -> the verdict changes' that S-BS-70 said the visceral demo needs; the mechanism is now proven OFFLINE/$0. CAVEATS: (1) the LIVE attestation + the GroundingCheck first-class entity (the UAP-3b A6) + the LLM Ralph-Loop critique pass are SPLIT to UAP-3b-2 (pre-authorized D-E; stub driver written) -> A6 is SKIP this cycle; (2) the withstands ruling embeds in the AuditLog/config_audit stream + the corrections NDJSON but NOT yet the run-provenance blob (needs an orchestrator seam above the frozen consensus -> S-BS-72/UAP-3b-2). Monitor: audit A2 first (it is the moat + the HARD-GATE crux) — re-run the exhibit gate-OFF-vs-ON, and re-verify A3 frozen 0-delta (wc -l over the frozen set). HARD GATE -> spawn a fresh-critic via /devloop-critique bench-salvage UAP-3b.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage UAP-3b, then spawn the HARD-GATE fresh-critic (/devloop-critique bench-salvage UAP-3b)"
+}
