@@ -1,6 +1,8 @@
 # HANDOFF — `bench-salvage` → UAP-2 kickoff (2026-06-04)
 
 > **Written by the monitor at UAP-1 close.** Load-bearing context for the next monitor session. UAP-1 (the first build of the LOCKED unified-authoring product) is closed PROCEED-WITH-CAVEATS; UAP-2 is the headline judge-creation gap.
+>
+> **⏩ UPDATE (session 2 close, 2026-06-04) — read this first:** the UAP-2 driver is now **AUTHORED + READY** (`43d162c`, `.devloop/prompts/bench-salvage_phaseUAP-2_judge-authoring_driver.md`) — the judge-layer citations below were re-grepped and the pack entry backfilled, so the first move is **`/devloop-kickoff bench-salvage UAP-2`** (NOT `/devloop-expand-driver`). Two things landed/baked-in since this handoff was first written: **(a) S-BS-58 FIXED** — UAP-1's A8 `:5180` smoke found that `load_ontology @lru_cache(path)` silently dropped iterative draft edits in the long-running BFF (the core "edit → see it grade" loop); fixed `78929e2` (mtime-keyed) + BFF watch-mode `c2d4495`. The UAP-2 bridge loads draft ontologies, so this fix is load-bearing for it. **(b) DEMONSTRABILITY is first-class** — the JudgeEditor must render the assignment→prompt→questions link **instant + `$0`** (the core "aha", no Azure), with the live verdict-change as the paid finale (user 2026-06-04; memory `judge-creation-must-be-demonstrable`; baked into the driver's A8 + JudgeEditor deliverable).
 
 ---
 
