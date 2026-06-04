@@ -20,9 +20,18 @@ async function call(path, { method = "GET", body, headers } = {}) {
 }
 
 /* POST /v1/run-eval — drive one case end-to-end. replay (live=false) is the $0
-   default; live=true opts into exactly one real, paid :8002 council call. */
-export const runEval = ({ agent = "ws0_default", live = false } = {}) =>
-  call("/v1/run-eval", { method: "POST", body: { agent, live } });
+   default; live=true opts into one real, paid :8002 call; in_process=true opts into
+   the in-process v2 Azure council (paid) — the path an authored judge re-votes on. */
+export const runEval = ({ agent = "ws0_default", live = false, in_process = false } = {}) =>
+  call("/v1/run-eval", { method: "POST", body: { agent, live, in_process } });
+
+/* GET /v1/runs — the run-history list (newest-first). Each row's run_id round-trips
+   to getRunAudit(run_id). (UAP-3 R6/S-BS-56; all via BASE, no hardcoded :8787.) */
+export const getRuns = (limit = 50) => call(`/v1/runs?limit=${encodeURIComponent(limit)}`);
+
+/* POST /v1/eval-pack/run — batch a pack of agents (R6). replay ($0) by default. */
+export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false }) =>
+  call("/v1/eval-pack/run", { method: "POST", body: { pack_id, agents, live } });
 
 export const getCorpus = () => call("/v1/corpus");
 export const getOntology = (agent = "ws0_default") =>

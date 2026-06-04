@@ -37,7 +37,7 @@ describe("bff.js → ReportTab binding (S-BS-18)", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       "/v1/run-eval",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ agent: "ws0_default", live: false }) }),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ agent: "ws0_default", live: false, in_process: false }) }),
     );
     expect(result.composite.verdict).toBe("reject");
     expect(result.composite.active_findings).toContain("FABRICATED_HISTORY");

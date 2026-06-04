@@ -169,6 +169,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Everything checks out. Running all 2,400 will take about <strong>6 minutes</strong>; I'll stream verdicts into the report as they land.</p>
+              {renderTool({ type: "tool-run_panel", state: "output-available" })}
               <div className="msg-actions">
                 <button className="btn btn-primary" disabled={runStatus === "loading"}
                   onClick={() => onRunEval(false)}>

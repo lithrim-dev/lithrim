@@ -9,6 +9,7 @@ import "./CalibrationChart.jsx";
 import "./AgentEditor.jsx";
 import "./AuditView.jsx";
 import "./JudgeEditor.jsx";
+import "./RunPanel.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -20,3 +21,4 @@ export { default as CalibrationChart } from "./CalibrationChart.jsx";
 export { default as AgentEditor } from "./AgentEditor.jsx";
 export { default as AuditView } from "./AuditView.jsx";
 export { default as JudgeEditor } from "./JudgeEditor.jsx";
+export { default as RunPanel } from "./RunPanel.jsx";
