@@ -81,7 +81,7 @@
       "phase": "UAP-5a",
       "scope": "in-UI-authoring-loop-mount-JudgeEditor-S-BS-62-plus-legible-authored-audit-S-BS-66-plus-by-construction-live-flip-case",
       "file": "bench-salvage_phaseUAP-5a_authoring-loop_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (D2 edits the orchestrator mapping ADJACENT to the frozen consensus seam -- A3 byte-0-delta load-bearing; D3 constructs a calibration-sensitive by-construction case that must flip on the REAL paid trio -- a labels-true-by-construction claim per CLAUDE.md; release-critical demonstrability loop; live in_process runs cost-gated; fresh-critic required)",
       "target_repos": ["lithrim-bench"],
@@ -96,7 +96,7 @@
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04 (JudgeEditor registered-not-mounted, stages.py S-BS-66 sites, the injector framework, bff.js judge fetches, SPEC §13 anchors -- all CONFIRMED)",
       "expanded": "2026-06-04 (driver authored from the LOCKED SPEC §2A/§2B/§4/§13 + the UAP-3 close + the A8-smoke findings S-BS-62/66; the R10-split + construct-live-flip-case scope decided by the user; citations re-grepped; a UAP-5a entry repointed + a UAP-5a-assist stub split off; pack backfilled per memory devloop-task-pack-stale-uap-from-spec).",
-      "next_action": "run /devloop-kickoff bench-salvage UAP-5a -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 4 load-bearing decisions (D2 fix mechanism + A3 0-delta / D3 flip-case flag+injector + base-misses-assigned-catches / D3 cost posture / D1 CenterPane-only-vs-also-CmdK) before 'go'. Pathspec-only commits."
+      "next_action": "CLOSED 2026-06-04 PROCEED-WITH-CAVEATS (build d7be919..2faf8d3 + log e2c48a6; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic aafd47567039a9a19 NON-BLOCKING 0/4/3). S-BS-62 (JudgeEditor mounted in CenterPane) + S-BS-66 (legible authored audit, stages.py mapping, frozen seam 0-delta) CLOSED; A1/A2/A3/A5 PASS; A4 live-flip FAIL (base trio already BLOCKs the base-owned subtle WRONG_DOSAGE → S-BS-70; offline flip PASSES, demo lint-GREEN) + S-BS-71 (authored model dup role). OWED: the A8 :5180 smoke (user-run → flips UAP-5a A8 PASS). NEXT-CYCLE FORK: UAP-3b withstands-gate/moat (monitor lean — the visceral live-flip lives here per S-BS-70) | UAP-5a-assist (R10, now unblocked) | a small S-BS-70 demo cycle."
     },
     {
       "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
