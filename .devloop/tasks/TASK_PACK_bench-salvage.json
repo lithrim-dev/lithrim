@@ -1036,6 +1036,63 @@
       "hardness": "HARD-GATE-class (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8 shell phases); the :5180 visual smoke (A8) is load-bearing; fresh-critic the default, inline only on explicit user election.",
       "hardness_reason": "FIRST build of the LOCKED product + it lands the AuditRecord/actor foundation that every downstream UAP phase depends on, and it touches the config-plane write-path + the frozen-seam-adjacent run path. The audit immutability + the A5 byte-frozen invariants + the draft->grade verdict-correctness are exactly where a from-source fresh-critic earns its keep.",
       "next_action": "Driver authored 2026-06-04 from the LOCKED SPEC + the index.json stub (9 citations re-grepped). Run /devloop-kickoff bench-salvage UAP-1; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy; never bare-commit)."
+    },
+    {
+      "id": "UAP-2",
+      "phase": "UAP-2",
+      "title": "UAP-2 -- judge authoring via ontology-assignment (JudgeEditor + /v1/judges + the prompt<->ontology bridge); R2, the headline judge-creation gap",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-2-judge-authoring-driver",
+      "milestone": "UAP-1..4 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) DONE (6bdf975..a7edd25). UAP-2 (R2, this) -> UAP-3 (RunPanel + processing/eval-pack/run-history, R4/R6) -> UAP-3b (signals + withstands-gate, section 2A -- the moat) -> UAP-4 (optimize/calibration in-UI, R5; gated S-BS-49). UAP-2's prompt<->ontology bridge is also the static->live close for JUDGES: an authored lens re-runs on the in-process council (no WS-2 :8002 backend needed).",
+      "origin": "Authored 2026-06-04 from the LOCKED SPEC section 3.1/section 12 + re-grepped judge-layer citations (the pack predated the reframe; UAP-2 backfilled, memory devloop-task-pack-stale-uap-from-spec). User chose 'Build UAP-2 (judge authoring)' as the next move toward a usable product (2026-06-04).",
+      "regrepped_2026_06_04": "judges_dspy.py: load_role_prompt:110 -> JudgeSignature.role_key_questions:208 (THE bridge point); build_trio:313; build_judge_lm:220; frozen per-judge seam dict :301-305. ontology.py: JudgeQuestion{role,ordinal,text}:55; questions_for(role):132; owners_of:125; gradeable_flags:107. judge_metric.py: LENS_BY_ROLE:110 + RISK/POLICY/FAITHFULNESS_JUDGE_LENS:54/73/92. apps/bff/app.py: REUSE _resolve_actor:128 + AuditLog:60 + put_agent_endpoint:286 + _validate_ontology->422:333 + gradeable_flags_outside_snapshot:346. registry.js KNOWN_TOOLS:20 (7 tools, add tool-judge_editor). council_roles/: behavior/faithfulness/policy/risk/source_message_judge.txt (the render-seed).",
+      "deliverables": [
+        "BRIDGE judges_dspy.py (+ maybe judge_assignment.py): render_role_questions(ontology, role) composes questions_for(role) + assigned-flag when_to_use into role_key_questions; build_trio/build_judge_lm gain an optional ontology/questions path (absent -> load_role_prompt fallback = A5 back-compat); keep .strip() parity (S-BS-44). council_roles/*.txt becomes the render-seed, NOT the live source.",
+        "BFF apps/bff/app.py: GET /v1/judges + GET/PUT /v1/judges/{role}. PUT validates owner<->emit (assigned flag's owner_roles includes role AND role emits it; S-BS-31/42) + in-snapshot + owner-consistent-lens -> 422; persists with the request actor (_resolve_actor + AuditLog) to a clobber-safe working copy; write-through (questions -> ontology working copy; model+lens+validator-refs -> a small judge-config). NO optimize route (UAP-4).",
+        "SHELL apps/shell/src/genui/JudgeEditor.jsx (NEW) + registry.js + index.js: tool-judge_editor -- role + ontology assignment (flags -> derived questions) + model + attached validators (execute-only); 422 surfaced inline; all fetches via bff.js (S-BS-50). Update KNOWN_TOOLS + the registry test SAME commit (N3). DEMONSTRABLE-by-construction (LOAD-BEARING -- 'judge creation must be demonstrable for people', user 2026-06-04): as flags are assigned, render LIVE + $0 (no model call) the derived refinement questions + a judge-prompt preview (the exact rendered role_key_questions) with a before/after when a flag is added/removed; the live verdict-change (paid in-process) is the cost-gated finale, not the only proof.",
+        "TESTS tests/test_ws5_bff.py (+ /v1/judges round-trip + 422 + audit) + council tests (render_role_questions contains the assigned questions; A4 default-trio parity vs .txt) + JudgeEditor.test.jsx (correct PUT body via bff.js).",
+        "DOCS SPEC_PRODUCT_SHELL section 10 ratify /v1/judges (S-BS-51) + .devloop/sessions/session-bench-salvage-phaseUAP-2-2026-06-04.json (A5 frozen proof + counts + A8 smoke attestation)."
+      ],
+      "acceptance": [
+        "A1 R2 round-trip: PUT /v1/judges/{role} assigns flags + binds model -> GET reflects it; owner<->emit/snapshot/lens violation -> 422. (test_ws5_bff.py)",
+        "A2 headline -- authored lens reaches the judge: an assignment's questions render into JudgeSignature.role_key_questions so the in-process judge would re-vote with the authored lens (closes static->live for judges). Offline structural test; live re-vote cost-gated, NOT required this cycle.",
+        "A3 R0 audit reuse: every /v1/judges write emits an immutable actor-attributed AuditRecord (target: judge); GET /v1/audit lists it.",
+        "A4 bridge parity (S-BS-11/44): the default trio assignment renders role_key_questions semantically equivalent to council_roles/*.txt (no silent safety-prose drift); .strip() parity holds.",
+        "A5 frozen/back-compat: git diff = 0 lines in compliance_council.py + the per-judge seam dict; build_trio() with no assignment byte-identical; committed seeds + council_roles/*.txt byte-unchanged.",
+        "A6 routing (S-BS-50 + N3): new shell fetches via bff.js; KNOWN_TOOLS + registry test updated same commit; no new hardcoded :8787.",
+        "A7 tests+lint+build: Python + BFF ([bff]/debuglithrim) + council + Vitest green; ruff clean on changed files; vite build clean.",
+        "A8 HARD-GATE :5180 smoke + THE DEMO (user-run): open a judge -> assign flags -> its refinement questions + judge-prompt preview update LIVE + $0 (the core aha, no Azure) -> persist (attributed audit row) -> [cost-confirmed finale] run in-process -> the judge votes with the authored lens. The instant assignment->prompt link is the load-bearing demo signal (must work with zero creds in any room); the live verdict-change is the paid payoff. This is the thing being demoed to people."
+      ],
+      "diagnostic_stats_reported": [
+        "per-judge assigned-flag count + derived-question count -- reported, not a gate",
+        "the rendered-prompt diff vs council_roles/*.txt for the default trio -- reported, not a gate"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO optimize/calibration-in-UI (UAP-4, gated S-BS-49) -- no run_optimize/compile_judge wiring, no POST /v1/judges/{role}/optimize.",
+        "NO section 2A withstands-gate / signals / GroundingCheck orchestration (UAP-3b).",
+        "NO RunPanel / eval-pack / run-history (UAP-3).",
+        "NO validator GENERATION (judges execute, never generate; the DSPy JUTE generator is a separate authoring concern).",
+        "NO WS-2 :8002 backend ontology-injection -- the bridge targets the in-process council (judges_dspy), not :8002. Bench-only; zero ../lithrim-backend edits.",
+        "FROZEN: compliance_council._apply_consensus + the per-judge seam dict shape (judges_dspy.py:301-305) (A5).",
+        "Committed seeds (clinical_v1.json + agents/*.json + council_roles/*.txt) byte-unchanged -- writes go to working copies / the config plane (the .txt may become a render-seed but is not edited this cycle).",
+        "NO journey rework; honor bff.js VITE_BFF_URL (S-BS-50).",
+        "Drive-by formatting / dep bumps."
+      ],
+      "plan_review_decisions": [
+        "1 The bridge render (OQ-1, load-bearing): role_key_questions rendered PURELY from the ontology (council_roles/*.txt retires) vs ontology-questions layered over the .txt seed. Recommend: render from questions_for(role) + assigned-flag when_to_use, .txt as the committed SEED, guarded by an A4 parity test (default trio unchanged; authoring adds/edits questions).",
+        "2 Judge-config locus (section 12.2): questions -> the ontology; model + assigned-lens + validator-refs -> a small config-plane judge-config (recommend) vs Agent.eval_profile vs the ontology.",
+        "3 owner<->emit strictness: a judge may be assigned only flags it owns AND emits (S-BS-31/42, invariant #4). Recommend 422 (hard gate), surfaced inline.",
+        "4 Validator attachment scope: judges REFERENCE + EXECUTE persisted validators (verification/), never generate; ref+execute wiring only. Confirm the validator registry source.",
+        "5 Optimize is OUT: confirm POST /v1/judges/{role}/optimize is UAP-4 (S-BS-49), not this cycle.",
+        "6 section 10 ratification in-cycle (close S-BS-51, as UAP-1 did)."
+      ],
+      "hardness": "HARD-GATE (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8); fresh-critic the default at close.",
+      "hardness_reason": "The prompt<->ontology bridge touches safety-critical judge prose (S-BS-11) + the owner<->emit invariant #4, and the :5180 smoke (A8) is load-bearing. The bridge is where authored config first changes what the LLM judges actually do -- exactly where a from-source fresh-critic earns its keep.",
+      "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-2_judge-authoring_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-2; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions before 'go'. Pathspec-only commits (shared branch)."
     }
   ],
   "seams": [

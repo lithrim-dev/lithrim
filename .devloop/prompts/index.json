@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-04T14:30Z",
+  "updated": "2026-06-04T15:30Z",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -25,6 +25,30 @@
       "last_re_verified": "2026-06-04",
       "expanded": "2026-06-04 (driver authored from the LOCKED SPEC + this stub per user election; 9 citations re-grepped -- 8 CONFIRMED, 1 DRIFTED [run_eval ontology read ~:118 -> :109+:142], 0 MISSING; a UAP-1 entry was backfilled into TASK_PACK_bench-salvage.json since the pack predated the 2026-06-04 reframe).",
       "next_action": "SHIPPED + CLOSED 2026-06-04 (`6bdf975..a7edd25` + log `c2e01ae`; PROCEED-WITH-CAVEATS, A8 :5180 smoke OWED). Monitor audit CLEAN + HARD-GATE fresh-critic (agent a62e561dc12854912) NON-BLOCKING. R0/R1/R3 landed; closed S-BS-26(b) + S-BS-51; S-BS-50 stays OPEN (monitor-corrected over-claim); opened S-BS-52..57. Next phase = UAP-2: run /devloop-expand-driver bench-salvage UAP-2 (JudgeEditor + /v1/judges via ontology-assignment; the prompt<->ontology bridge is the load-bearing decision)."
+    },
+    {
+      "id": "bench-salvage-phaseUAP-2-judge-authoring-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-2",
+      "scope": "judge-authoring-via-ontology-assignment-JudgeEditor-plus-/v1/judges-plus-prompt-ontology-bridge",
+      "file": "bench-salvage_phaseUAP-2_judge-authoring_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (the prompt<->ontology bridge touches safety-critical judge prose [S-BS-11] + the owner<->emit invariant #4; the :5180 smoke A8 is load-bearing; fresh-critic the default)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md (LOCKED -- §2A entity model, §3.1 Stage-1 judge creation, §4 /v1/judges contract, §5 R2, §12 OQ-1 ontology-as-source-via-assignment)",
+        "lithrim_bench/runtime/council/judges_dspy.py (the BRIDGE site: JudgeSignature.role_key_questions:208 <- load_role_prompt:110; build_trio:313; build_judge_lm:220; the frozen per-judge seam dict :301-305)",
+        "lithrim_bench/harness/ontology.py (JudgeQuestion{role,ordinal,text}:55; questions_for(role):132 -- the question source the bridge renders; owners_of:125; gradeable_flags:107)",
+        "lithrim_bench/runtime/council/judge_metric.py (LENS_BY_ROLE:110 + RISK/POLICY/FAITHFULNESS_JUDGE_LENS -- the owner-consistent lens the assignment must respect)",
+        "apps/bff/app.py (REUSE the UAP-1 write pattern: _resolve_actor:128, AuditLog:60, put_agent_endpoint:286, _validate_ontology->422:333)",
+        "apps/shell/src/genui/{FlagEditor.jsx,registry.js} (KNOWN_TOOLS:20 -- add tool-judge_editor + the registry test, N3)"
+      ],
+      "_note": "UAP-2 = R2, the headline judge-creation gap. Author a judge = role + ASSIGNED ontology subset (-> the assigned flags' JudgeQuestions become its refinement questions) + model binding + (optional) attached execute-only validators. The load-bearing piece = the prompt<->ontology bridge (OQ-1): render JudgeSignature.role_key_questions from ontology.questions_for(role) instead of the raw council_roles/*.txt, so the IN-PROCESS council reads authored questions -> an authored judge re-runs with its authored lens (the static->live close for judges; needs NO WS-2 :8002 backend). OPTIMIZE IS OUT (UAP-4, gated S-BS-49). owner<->emit + in-snapshot + owner-consistent-lens are author-time 422 gates (S-BS-31/42, invariant #4). Reuse UAP-1's actor+AuditLog+422 + clobber-safe-working-copy; honor bff.js indirection (S-BS-50); ratify §10 in-cycle (S-BS-51). Frozen: compliance_council._apply_consensus + the per-judge seam dict + committed seeds + council_roles/*.txt (the .txt becomes a render-seed, not edited). Pathspec-only commits (shared branch bench-salvage/ws6c-dspy).",
+      "created": "2026-06-04",
+      "last_re_verified": "2026-06-04",
+      "expanded": "2026-06-04 (driver authored directly from the LOCKED SPEC §3.1/§12 + re-grepped judge-layer/bridge/BFF/registry citations, per the established UAP pattern; a UAP-2 entry backfilled into TASK_PACK_bench-salvage.json -- the pack predated the reframe, memory devloop-task-pack-stale-uap-from-spec).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-2 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 6 decisions (bridge render / judge-config locus / owner<->emit strictness / validator-attach scope / optimize-out / §10 ratify) before 'go'. Pathspec-only commits."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
