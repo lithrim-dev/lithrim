@@ -1312,6 +1312,23 @@
       "next_action": "Driver v3 RIGHT-SIZED 2026-06-05 (bench-salvage_phaseUAP-4_optimize-calibration-loop_driver.md, status ready; a live :5180 reassessment the user requested found the v2 full-round-trip was over-engineering ahead of an unfireable path -> ship optimize->honest-Δ + attempt D3, SPLIT the round-trip -> UAP-4-opt). Run /devloop-kickoff bench-salvage UAP-4; fresh executor session ROOTED IN lithrim-bench. RESOLVED (build to them): R1 honest-Δ win-or-loss / R2 RIGHT-SIZED (do NOT build the round-trip backend) / R3 the live :5180 attestation is BLOCKING in-cycle USER-RUN / R4 embed in JudgeEditor / D3 IN (lead: corpus-widening). Plan-review resolves D-B/D-C/D-G/D-H/D-E before 'go'. Do NOT manufacture an optimize win; do NOT build the round-trip backend. Pathspec-only commits (shared branch)."
     },
     {
+      "id": "UAP-4-opt",
+      "phase": "UAP-4-opt",
+      "title": "UAP-4-opt -- the optimize bind->re-run round-trip (SPLIT from UAP-4 R2 right-size): JudgeConfig.compiled_demos + a positive-Δ-gated bind endpoint + the authored_stage demo-load + bind->re-run->verdict-CHANGE in the existing Run card (the visceral S-BS-70 finale). GATED ON A POSITIVE held-out Δ -- today the Δ is a loss (S-BS-49).",
+      "status": "stub",
+      "blocked_by": [
+        "UAP-4",
+        "a positive held-out Δ from /optimize (S-BS-49/S-BS-48)"
+      ],
+      "priority": "P2",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseUAP-4-opt-bind-rerun-roundtrip-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-4 shipped the demonstrable-live optimize->honest-Δ loop; UAP-4-opt is the deferred bind/re-run backend, cheap to add once optimize WINS (the Run surface already renders the verdict). Completes S-BS-70's visceral live finale. RE-OPENS the FROZEN authored_stage/judges_dspy set deliberately -- HARD-GATE, fresh-critic."
+    },
+    {
       "id": "UAP-5a",
       "phase": "UAP-5a",
       "title": "UAP-5a -- the in-UI authoring loop: mount the JudgeEditor (S-BS-62) + legible authored audit (S-BS-66) + a by-construction live-flip demo case; the release-critical author->grade->audit loop, deterministic + LLM-free (R10 author-assist SPLIT OUT -> UAP-5a-assist)",
