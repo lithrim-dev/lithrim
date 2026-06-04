@@ -1,7 +1,7 @@
 # SPEC: Unified Authoring + Processing Product
 > The complete product is the UI-driven **author → process** loop over the config plane: **create judges → create flags → run processing**, all from the UI. The 4-act journey is a **frozen** pitch/onboarding demo *inside* this product. **Compose, don't rebuild** — the engine, the config plane, the BFF, the shell, and the gen-UI widgets already exist; this spec wires them into one operational product. Every action — authoring and processing — is captured in a **why/when/who/what audit trail** (§2B): in a regulated domain, the audit *is* the product.
 
-**Status:** **LOCKED 2026-06-04 (user)** · **Authored:** 2026-06-04 · **Owner:** monitor (bench-salvage)
+**Status:** **LOCKED 2026-06-04 (user)** · **Authored:** 2026-06-04 · **Owner:** monitor (bench-salvage) · **§13 conversational-driver surface ADDED 2026-06-04 (additive, surface-only — does not alter the lock)**
 **Reframe of record:** memory `unified-authoring-product-frozen-journey`; `STREAM_bench-salvage.md` First-move banner (2026-06-04). Supersedes the *journey-on-real-service-calls* framing of WS-7 for everything except the now-closed **WS-7a** beachhead.
 **Sits above:** `SPEC_PRODUCT_SHELL.md` (the shell UI) + `SPEC_CALIBRATION_TRAINER.md` (the judge-tuning surface = Stage 1's optimize step) + `SPEC_PRODUCT_SERVICE_TOPOLOGY.md` (the strangler-fig service plane).
 
@@ -211,6 +211,10 @@ The `tool-<name>` → component contract (WS-5c). Add `JudgeEditor` + `RunPanel`
 - **R8** Corpus authoring (`POST /v1/corpus`) — import/author by-construction cases from the UI (today CLI `generate_*`).
 - **R9** Diff/version view of an ontology or judge across runs.
 
+### P3 — Conversational surface (ADDITIVE 2026-06-04 — surface-only; does NOT alter R0–R9, §2A, §2B, or §4)
+- **R10 — authoring-assist (describe→draft):** a structured-generation provider (a vendored `LLMClient` à la `../zyng/zyng/authoring.py` — a forced-tool `emit() -> dict` + a local-`claude`-CLI / API / offline-stub factory) behind `POST /v1/author/{kind}`: an NL description → a schema-valid `Agent`/judge/flag/contract **draft**, rendered as the *existing* §4 gen-UI `tool-*` card; the normal audited `PUT` path persists it. Single-shot (not a conversation); $0 on the local CLI; reuses zyng wholesale. Serves the "judge creation must be demonstrable" bar.
+- **R11 — conversational shell (the agent loop):** the **Claude Agent SDK** hosted in the BFF; the §4 BFF ops exposed as in-process SDK-MCP tools (= the "tools registry"); `ClaudeSDKClient` driving a multi-turn author→process→review loop, streamed (SSE) to a shell chat pane; tool-results adapted to the §4 gen-UI message-parts the registry already renders. Every tool-call is a config write → already audited (R0): **the conversation IS the audit log.**
+
 ---
 
 ## 6. Invariants preserved (CLAUDE.md — non-negotiable)
@@ -229,6 +233,8 @@ The `tool-<name>` → component contract (WS-5c). Add `JudgeEditor` + `RunPanel`
 - **UAP-3 / R4+R6** — `RunPanel` + processing/eval-pack/history surface.
 - **UAP-3b / §2A** — the **signals + withstands-gate** orchestration: run independent GroundingChecks alongside the judges + the Ralph-Loop critique reconciling LLM reasoning with the ontology+validator signals (locus per OQ-4). The new entity-model orchestration — the moat made operational.
 - **UAP-4 / R5** — the optimize/calibration loop in the UI (after S-BS-49). Realizes `SPEC_CALIBRATION_TRAINER.md`.
+- **UAP-5a / R10** — authoring-assist (describe→draft), reusing the zyng `LLMClient` pattern (§13). Rides on the UAP-2 judge/flag endpoints; **sequenced after UAP-3b** (moat before polish) but independent enough to pull forward after UAP-2 for a $0 demonstrability win.
+- **UAP-5b / R11** — the conversational shell (Claude Agent SDK over the tool registry, §13). The capstone — **after UAP-3b/UAP-4**, when the tool surface (author + run + withstands signals) is complete enough for a multi-turn loop to earn its keep.
 Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke as the load-bearing gate, and pathspec-only commits (the shared-branch discipline).
 
 ---
@@ -261,3 +267,23 @@ Each is a HARD-GATE-class shell phase (SPEC §8) with the `:5180` visual smoke a
 3. **Optimize MEASURES; the user chooses adoption.** Per S-BS-48, never auto-ship a negative-Δ judge — the UI surfaces the held-out Δ honestly and the user adopts explicitly.
 4. **Withstands-gate locus = BOTH.** The per-judge Ralph-Loop critique is the new **primary** gate over the LLM judges (a pre-consensus stage); the existing post-consensus `harness/grounding` serves the **independent** GroundingChecks. Both sit ABOVE the frozen `_apply_consensus`; the precise pre-consensus wiring is detailed at UAP-3b design.
 5. **Confirmed scoping:** "assign ontology" = a **flag subset** per judge; the audit "who" = a single attributable **SME handle** for now (full multi-tenant auth deferred, §8).
+
+---
+
+## 13. Conversational-driver surface — ADDITIVE AMENDMENT (2026-06-04)
+
+> **Additive + surface-only.** This section adds a *delivery surface* (how an SME drives the product) plus a **gated, post-moat** phase pair (UAP-5a/5b). It does **not** modify the locked content — the entity model (§2A), the withstands-gate, auditability (§2B), the data contracts (§4), or R0–R5. The lock holds; this is appended, not re-opened.
+
+**Why it fits without disruption.** The product is already a *tools surface* (§4 BFF ops) + an *output surface* (§4 gen-UI registry — the Vercel AI-SDK `tool-<name>` message-parts shape, explicitly built so "a live chat host can layer on later"). The conversational layer is the **driver** that connects an utterance → those tools → those cards. It is a layer OVER what UAP-1..4 build, not a step that reorders them — and it grows in value as each UAP phase adds tools. Hence the founder's gate: *"once the tools registry is up."*
+
+**Two tiers (→ R10/R11 → UAP-5a/5b):**
+- **Tier 1 / R10 / UAP-5a — authoring-assist.** Reuse the proven `../zyng/zyng/authoring.py` provider pattern (the `LLMClient` Protocol + `ClaudeCliClient` local-CLI provider + the dev-CLI/prod-API/offline-stub `_BRAINS` factory). One forced-tool `emit()` per authoring kind → a schema-valid draft → the existing gen-UI card → the normal audited `PUT`. Single-shot, $0 on the local CLI, reuses zyng wholesale.
+- **Tier 2 / R11 / UAP-5b — conversational shell.** The **Claude Agent SDK** in the BFF; §4 BFF ops wrapped as in-process SDK-MCP tools (the "tools registry"); `ClaudeSDKClient` → a multi-turn author→process→review loop → SSE → a shell chat pane; tool-results adapted to the §4 registry parts. The capstone — after the moat.
+
+**Sequencing rule:** the conversational surface sits **after the withstands-gate (UAP-3b), not before it** — the moat is the differentiator; chat is adoption polish over an already-complete, click-driven product. UAP-5a *may* pull forward after UAP-2 for a cheap demonstrability win, but neither phase precedes UAP-3b by default, and neither disturbs the in-flight UAP-2 cycle (UAP-2 stays deterministic + LLM-free).
+
+**OQ-6 (OPEN — the one decision this surface needs).** *Where does the agent loop run?* **(B)** Python Agent SDK in the BFF — in-process, offline, BYO-Claude on desktop, reuses the Python harness/council; cost = a parts-adapter + an SSE endpoint + a new `[agent]` extra → **monitor lean, on-thesis**; vs **(A)** a TS Vercel-AI-SDK / assistant-ui host in the shell — native parts, no adapter; cost = a second JS runtime + pushes toward API keys, and the local-CLI provider doesn't fit cleanly. Resolve at UAP-5b design.
+
+**Licensing guardrail (non-negotiable — from the zyng `ClaudeCliClient` docstring).** A personal Claude Pro/Max subscription via the local CLI is **local/desktop/BYO-Claude only — it cannot license a multi-tenant backend.** Desktop bring-your-own-Claude is legit and on-thesis (no-hosted-surface, no trial-expiry); any hosted/multi-tenant path uses per-tenant API keys or the customer's Bedrock/Vertex/VPC. Consistent with §8 (actor attribution in; full multi-tenant auth out).
+
+**Cross-refs.** Reuse target `../zyng/zyng/authoring.py` (memory `zyng-claude-cli-provider`) · the demonstrability bar (memory `judge-creation-must-be-demonstrable`) · §4 registry contract + §10 BFF-surface ratification — the new routes (`POST /v1/author/{kind}` + the SSE chat endpoint) must be **ratified into `SPEC_PRODUCT_SHELL.md` §10**, not grown unratified (the S-BS-51 pattern).

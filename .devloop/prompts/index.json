@@ -51,6 +51,50 @@
       "next_action": "run /devloop-kickoff bench-salvage UAP-2 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 6 decisions (bridge render / judge-config locus / owner<->emit strictness / validator-attach scope / optimize-out / §10 ratify) before 'go'. Pathspec-only commits."
     },
     {
+      "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-5a",
+      "scope": "authoring-assist-describe-to-draft-via-vendored-LLMClient-POST-v1-author",
+      "file": "bench-salvage_phaseUAP-5a_authoring-assist_driver.md",
+      "status": "stub",
+      "version": "v1",
+      "hardness": "HARD-GATE-class (shell phase; an LLM drafts safety-critical judges/flags -- but the draft is single-shot + the audited PUT path + the owner<->emit/snapshot 422 gates remain authoritative; :5180 smoke load-bearing)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §13 (ADDITIVE conversational-driver surface) + R10 (authoring-assist) + §7 UAP-5a phasing",
+        "../zyng/zyng/authoring.py (the REUSE target: LLMClient Protocol:143; ClaudeCliClient:500 local-`claude`-CLI provider; _BRAINS/make_client/auto_client:637 dev-CLI/prod-API factory; StubLLMClient:397 offline; _emit_validated:305 forced-tool+retry)",
+        "apps/bff/app.py (PUT /v1/agent:286 + PUT /v1/ontology:357 + _validate_ontology->422:333 + the actor/AuditLog audited-write pattern -- the persist+audit path a draft flows into)",
+        "apps/shell/src/genui/registry.js (the tool-* cards that render a draft: tool-agent_editor/tool-flag_editor/tool-contract_builder; the AI-SDK message-parts shape)",
+        "memory judge-creation-must-be-demonstrable (the instant + $0 bar) + zyng-claude-cli-provider (the pattern + licensing boundary)"
+      ],
+      "_note": "UAP-5a = R10, Tier-1 of the conversational surface (SPEC §13). NL description -> a forced-tool `emit() -> dict` (vendored LLMClient a la zyng) -> a schema-valid Agent/judge/flag/contract DRAFT -> the EXISTING gen-UI tool-* card -> the normal audited PUT. SINGLE-SHOT, not a conversation (that is UAP-5b). Reuses zyng wholesale; $0 on the local `claude` CLI; serves the demonstrability bar. Rides on the UAP-2 judge/flag endpoints. Frozen: compliance_council._apply_consensus + the audited PUT path + the 422 author-gates stay authoritative (the LLM drafts, it never relabels or bypasses a gate). Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant. New route POST /v1/author/{kind} must be ratified into SPEC_PRODUCT_SHELL §10 (S-BS-51 pattern). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
+      "created": "2026-06-04",
+      "last_re_verified": "2026-06-04",
+      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-5a (re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC §13/R10). Do NOT start before UAP-2 closes; sequenced AFTER the moat (UAP-3b) by default, pull-forward after UAP-2 optional for a $0 demonstrability win."
+    },
+    {
+      "id": "bench-salvage-phaseUAP-5b-conversational-shell-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-5b",
+      "scope": "conversational-shell-claude-agent-sdk-over-BFF-ops-as-MCP-tools-plus-shell-chat-pane",
+      "file": "bench-salvage_phaseUAP-5b_conversational-shell_driver.md",
+      "status": "stub",
+      "version": "v1",
+      "hardness": "HARD-GATE (the capstone; introduces an agent LOOP + a new [agent] extra + SSE streaming + a parts-adapter; the OQ-6 loop-locus decision is load-bearing; :5180 smoke + fresh-critic the default)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §13 (ADDITIVE) + R11 (conversational shell) + §7 UAP-5b phasing + OQ-6 (loop locus, OPEN)",
+        "Claude Agent SDK (`claude-agent-sdk`: ClaudeSDKClient multi-turn loop; @tool + create_sdk_mcp_server for in-process tools; the dev-CLI/prod-API provider split mirrors zyng _BRAINS)",
+        "apps/bff/app.py (the §4 ops to wrap as in-process SDK-MCP tools = the 'tools registry': run-eval:176 + agent/ontology/audit/corpus/kb; run-eval is sync `def` -> add an async SSE endpoint alongside)",
+        "apps/shell/src/genui/registry.js (renderTool:65 + the tool-<name> AI-SDK parts the loop's tool-results adapt to; the comment names assistant-ui/useChat as the layer-on host)",
+        "../zyng/mcp_server/server.py + the zyng `mcp` extra (the MCP-tool-registration prior art) + memory zyng-claude-cli-provider"
+      ],
+      "_note": "UAP-5b = R11, Tier-2 of the conversational surface (SPEC §13) -- the CAPSTONE. The Claude Agent SDK hosted IN the BFF; the §4 BFF ops wrapped as in-process SDK-MCP tools (the 'tools registry' the founder gated on); ClaudeSDKClient drives a multi-turn author->process->review loop, streamed (SSE) to a shell chat pane; tool-results adapted to the §4 gen-UI registry parts the shell already renders. Every tool-call is an audited config write (R0): the conversation IS the audit log. PLAN-REVIEW MUST RESOLVE OQ-6 (loop locus): (B) Python-Agent-SDK-in-BFF [monitor lean -- in-process/offline/BYO-Claude/reuses the Python harness; cost = parts-adapter + SSE + [agent] extra] vs (A) TS-AI-SDK/assistant-ui-in-shell [native parts, no adapter; cost = a JS runtime + pushes to API keys, local-CLI doesn't fit]. Licensing guardrail: BYO-Claude/desktop only, hosted => per-tenant keys/Bedrock/Vertex/VPC. New SSE chat route -> ratify SPEC_PRODUCT_SHELL §10. Frozen: _apply_consensus + the UAP entity model/withstands-gate/audit (this is a DRIVER over them, not a change to them). DIRTY SHARED BRANCH: pathspec-only commits.",
+      "created": "2026-06-04",
+      "last_re_verified": "2026-06-04",
+      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-5b AFTER UAP-3b lands (needs the FULL tool surface incl. run + withstands signals for a multi-turn loop to earn its keep). Plan-review must resolve OQ-6 (loop locus) before any build; resolve the [agent] extra + SSE protocol + the parts-adapter shape."
+    },
+    {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
       "stream": "bench-salvage",
       "phase": "WS-6c-DSPy-3b",
