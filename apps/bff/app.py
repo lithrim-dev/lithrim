@@ -94,6 +94,9 @@ from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # no
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
 from lithrim_bench.picklist import load_case  # noqa: E402  (the case the shell displays)
+from lithrim_bench.runtime.council.judge_assignment import (  # noqa: E402  (council-light; no openai)
+    render_role_questions,
+)
 from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE  # noqa: E402  (pure; no openai)
 from lithrim_bench.verification.spec import (  # noqa: E402  (pure constants: no [verification] heavy deps)
     TOOL_DOSAGE_GROUNDING,
@@ -488,10 +491,6 @@ def get_judge_endpoint(
         effective = [c.strip() for c in assigned_flags.split(",") if c.strip()]
     else:
         effective = summary["assigned_flags"]
-    # lazy: render lives in judges_dspy (module-top pulls [council]); the list route
-    # stays council-free, only the rendered preview requires the extra.
-    from lithrim_bench.runtime.council.judges_dspy import render_role_questions
-
     summary["preview_flags"] = effective
     summary["base_prompt"] = render_role_questions(ontology, role)
     summary["rendered_prompt"] = render_role_questions(ontology, role, assigned_flags=effective)
