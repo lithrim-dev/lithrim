@@ -1368,7 +1368,7 @@
       "id": "UAP-5b",
       "phase": "UAP-5b",
       "title": "UAP-5b -- the conversational shell (R11, the CAPSTONE): the agent-loop SPINE + a 2-3 tool CORE (Python Agent SDK in the BFF, BYO-Claude, paid tools confirm-gated). Talk -> an author->process step -> an audited config write -> the EXISTING gen-UI card renders. The full Domain->Review-from-scratch journey is the TARGET -> UAP-5c fast-follow.",
-      "status": "ready",
+      "status": "done",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
