@@ -101,6 +101,29 @@ class DocShimCollection:
             conn.close()
         return [json.loads(r[0]) for r in rows]
 
+    def list_all(
+        self,
+        *,
+        db_path: str | Path = DEFAULT_COLLECTIONS_DB,
+        limit: int | None = None,
+        newest_first: bool = True,
+    ) -> list[dict]:
+        """All documents in the collection, ``created_at``-ordered (newest-first by
+        default). Returns ``[]`` when the table is empty / absent. Backs the UAP-3
+        ``GET /v1/runs`` run-history list off ``PIPELINE_RUNS`` without leaking the
+        doc-shim's SQL into the BFF."""
+        order = "DESC" if newest_first else "ASC"
+        sql = f"SELECT json FROM {self.name} ORDER BY created_at {order}, id {order}"
+        if limit is not None:
+            sql += f" LIMIT {int(limit)}"
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(self._schema())
+            rows = conn.execute(sql).fetchall()
+        finally:
+            conn.close()
+        return [json.loads(r[0]) for r in rows]
+
 
 CONVERSATION_ITEM = DocShimCollection("conversation_item", id_field="item_id", fk="session_id")
 CONVERSATION_SESSION = DocShimCollection(

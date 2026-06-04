@@ -23,6 +23,8 @@ React/Tauri shell (SPEC_PRODUCT_SHELL §5). It imports ``lithrim_bench.harness``
     PUT  /v1/judges/{role} <body>          -> assign a flag lens + model + validator refs;
                                               owner↔emit + snapshot 422; attributed audit
                                               (UAP-2 R2; the prompt↔ontology bridge target)
+    GET  /v1/runs                          -> run-history: persisted runs newest-first,
+                                              each addressable by run_id (UAP-3 R6/S-BS-56)
     GET  /v1/audit · /v1/runs/{id}/audit   -> the §2B why/when/who/what reports (UAP-1 R0)
     GET  /v1/kb/{ns}/search {q, ...}       -> KB-grounding check (WS-7b): composes over
                                               the harness KbRagTool, which fronts the
@@ -263,7 +265,16 @@ def run_eval_endpoint(
     record["grade_path"] = record["provenance"].get("grade_path")
     record["ontology_source"] = ontology_source  # R3: which ontology graded (audit context)
     record["council"] = _council_view(record)
+    # S-BS-56: surface the run's pipeline_run_id so the caller can address the run
+    # (run-history + the run→audit leg). It lives on the graded PipelineResult's
+    # provenance (replay carries the baseline's id; in_process/live carry a fresh id).
+    record["pipeline_run_id"] = _pipeline_run_id(record)
     return record
+
+
+def _pipeline_run_id(record: dict) -> str | None:
+    """The graded run's pipeline_run_id (None if the result carries none)."""
+    return ((record.get("result") or {}).get("provenance") or {}).get("pipeline_run_id")
 
 
 def _council_view(record: dict) -> dict:
@@ -673,6 +684,32 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         "findings": doc.get("findings") or [],
         "stages_executed": doc.get("stages_executed") or [],
     }
+
+
+def _run_summary(doc: dict) -> dict:
+    """Newest-first run-history row: the addressable id + the headline verdict +
+    who/when, projected from a persisted PipelineProvenance blob (S-BS-56)."""
+    return {
+        "run_id": doc.get("pipeline_run_id"),
+        "verdict": doc.get("verdict"),
+        "gate_decision": doc.get("gate_decision"),
+        "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
+        "agent": doc.get("agent_id"),
+        "ts": doc.get("timestamp"),
+    }
+
+
+@app.get("/v1/runs")
+def list_runs_endpoint(
+    limit: int = Query(50, ge=1, le=500),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """The run-history list (R6 read half / S-BS-56): persisted runs newest-first,
+    each addressable via its ``run_id`` (round-trips to ``GET /v1/runs/{id}/audit``).
+    Replay + in_process + live all persist a provenance blob (S-BS-52), so the $0
+    replay default appears here too. Empty list before any run is persisted."""
+    docs = PIPELINE_RUNS.list_all(db_path=collections_db, limit=limit)
+    return {"runs": [_run_summary(d) for d in docs]}
 
 
 @app.get("/v1/runs/{run_id}/audit")
