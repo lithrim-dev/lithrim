@@ -1150,6 +1150,61 @@
       "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-3_processing-run-history_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 4 decisions before 'go'. Pathspec-only commits (shared branch)."
     },
     {
+      "id": "UAP-3b",
+      "phase": "UAP-3b",
+      "title": "UAP-3b -- the signals bus + the per-judge withstands-gate (THE MOAT, section 2A); pre-consensus, above the frozen seam",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-3b-withstands-gate-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) + UAP-3 (R4/R6) + UAP-5a (in-UI authoring loop) DONE. UAP-3b (section 2A, this) = THE MOAT: the signals + per-judge withstands-gate orchestration -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5b (R11 conversational shell). UAP-3b is what S-BS-70 (UAP-5a's failed live-flip) points at -- a genuine 'watch the verdict change' needs a DETERMINISTIC signal correcting a confidently-wrong LLM judge, which is exactly this gate.",
+      "origin": "Authored 2026-06-04 from the LOCKED SPEC section 2A (Ralph-Loop withstands-gate, lines 63-74) + section 2B + section 13 (locus=BOTH, line 268) + the UAP-5a close + the S-BS-70 finding (no prior stub; pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose 'UAP-3b' at the post-UAP-5a fork (2026-06-04).",
+      "regrepped_2026_06_04": "authored_stage.py:83 results=[j.forward(...)] -> :87 council._apply_consensus(results) -> :88 return {consensus,models:results,evidence_summary} (pre-consensus insertion point, gate BETWEEN :83 and :87); grounding.py ground:398/_run_floor:322(dosage:353)/_FLOOR_CONTRACT_TYPES:298/_CONTRACT_EXECUTORS:290/GroundedResult:53(:79/:84)/PresenceCheck:118/KbGrounding:178; report.py:29 composite + run_eval.py:224-225 (post-consensus independent locus); ontology.py FlagDefinition:42-48/VerificationContractDecl:62/SeverityMap:71-87/owners_of:125/questions_for:132; judges_dspy.py:286-292 (FROZEN seam dict); judges.py:19 (validator refs persisted, executing=UAP-3b); audit.py AuditRecord:77/action:83(add withstand)/upsert_with_audit:179; correction.py:32/91/156; grade.py grade_inprocess:129-165(semantic_stage=); config.py EvalProfile:53-59. The Ralph-Loop critique code is NOT in lithrim_bench/ (spike-only) = NET-NEW per SPEC line 74.",
+      "deliverables": [
+        "D1 SIGNALS BUS runtime/council/signals.py (NEW): assemble per-judge typed Signals = assigned ontology rules (tier/owner/when_to_use/when_NOT_to_use/severity via ontology.owners_of/questions_for/FlagDefinition/SeverityMap) + executed validator/grounding outputs (REUSE grounding.py executors, do NOT reimplement). Pure/deterministic, no LLM.",
+        "D2 WITHSTANDS-GATE runtime/council/withstands.py (NEW) + wire into authored_stage.py: apply_withstands_gate(results, *, ontology, signals_by_role) -> (corrected_results, decisions); deterministically SUPPRESS a finding a signal disproves (S-BS-7 per-judge) + DOWN-RANK a verdict a required rule triggers (floor generalized); emit WithstandsDecision{role,signals_weighed,decision,what_failed}. Insert in authored_stage._evaluator BETWEEN :83 and :87; corrected results -> _apply_consensus UNCHANGED (A3).",
+        "D3 GROUNDINGCHECKS first-class config-authored entities: light surface over the grounding.py contracts + the post-consensus ground()/composite() locus (run_eval.py:224-225); distinguish judge-attached (D1/D2) vs independent. ground() additively identical for the floor-less clinical ontology. (May split per D-E.)",
+        "D4 WITHSTANDS AUDIT audit.py + correction.py + the provenance blob: add 'withstand' to the action enum (audit.py:83); record each WithstandsDecision as an AuditRecord (upsert_with_audit) + into the processing-provenance chain (SqliteProvenanceStore blob, section 2B :107); a flip/suppress also emits a build_correction/build_floor_correction record.",
+        "D5 TESTS tests/test_uap3b_withstands.py (NEW): (a) THE MOAT EXHIBIT -- a confidently-wrong judge finding corrected by a deterministic signal pre-consensus -> composite verdict CHANGES (offline/$0 via injected predictors); (b) a judge that withstands is admitted unchanged; (c) frozen seam 0-delta; (d) the decision is audited; (e) the by-construction guard -- a true finding is NEVER suppressed.",
+        "D6 DOCS SPEC_PRODUCT_SHELL section 10 (only if a BFF surface changes -- it should NOT) + note the withstands-gate landed + the withstand action + the S-BS-70 disposition + .devloop/sessions/session-bench-salvage-phaseUAP-3b-<date>.json."
+      ],
+      "acceptance": [
+        "A1 pre-consensus gate wired: the withstands-gate runs in authored_stage._evaluator between the trio results and _apply_consensus; corrected results feed consensus; decisions thread into the envelope.",
+        "A2 THE MOAT EXHIBIT: a by-construction case where a confidently-wrong judge finding is corrected by a deterministic signal pre-consensus -> the composite verdict CHANGES (offline/$0). The genuine grounding-flip S-BS-70 says the moat is needed for.",
+        "A3 frozen seam 0-delta: git diff over _apply_consensus + judges_dspy + judge_metric + committed seeds == 0 lines.",
+        "A4 withstands audit: each decision recorded as {signals_weighed:[ontology_rules,validator_outputs],decision,what_failed} in the provenance blob + an AuditRecord (action withstand/flip); a correction also emits a correction record.",
+        "A5 by-construction guard + green bar: the gate NEVER suppresses a genuinely-correct finding (test-pinned); ruff-clean changed files; default+debuglithrim+council+BFF+Vitest re-run; default-deps import-clean; pathspec-only.",
+        "A6 GroundingChecks first-class: the floor/suppress contracts surfaced as independent config-authored entities at the post-consensus locus; ground() additively identical for the floor-less clinical ontology."
+      ],
+      "diagnostic_stats_reported": [
+        "the verdict/finding delta the moat exhibit produces -- illustrative, not a gate",
+        "per-judge signal counts (ontology rules + validator outputs weighed) for the exhibit -- reported, not a gate",
+        "any LLM-critique cost IF D-A includes it -- reported; the gate is cost-confirmed not a number"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "The LLM Ralph-Loop critique PASS (an actual gpt-4.1 critique producing a reasoned withstands-ruling) -- IF D-A defers it -> UAP-3b-2. The deterministic gate is the required core.",
+        "NO optimize/calibration-in-UI (UAP-4, S-BS-49).",
+        "NO conversational shell / chat / SSE (UAP-5b).",
+        "NO live :8002 per-judge signal injection (S-BS-64, WS-2 backend-gated); the gate runs in-process this cycle.",
+        "NO full config-plane GroundingCheck CRUD UI (D3 is light surface + audit).",
+        "NO owner_roles re-snapshot (S-BS-59).",
+        "FROZEN: compliance_council._apply_consensus + the per-judge seam dict (judges_dspy) + judge_metric + committed seeds; the grounding.py executors are REUSED not rewritten; new demo cases/agents additive.",
+        "Drive-by formatting / dep bumps."
+      ],
+      "plan_review_decisions": [
+        "D-A deterministic-only vs the LLM Ralph-Loop critique pass (monitor lean: deterministic core THIS cycle per critique-pass-precision-not-floor; split the LLM critique to UAP-3b-2; the gate interface admits it later without a reshape).",
+        "D-B pre-consensus wiring locus: confirm the gate inserts in authored_stage._evaluator between :83 and :87, above the frozen _apply_consensus (A3); in-process authored path only this cycle.",
+        "D-C the moat-exhibit case (the hard one, S-BS-70's ask): which by-construction case shows a wrong-judge correction that flips the composite (e.g. generalize the S-BS-7 MED-FP -- PresenceCheck disproves a confident MEDICATION_NOT_IN_TRANSCRIPT pre-consensus -> verdict changes); the correction must be a TRUE ground, never a relabel.",
+        "D-D GroundingCheck entity surface: light (view over the ontology contracts + audit) vs a new EvalProfile.grounding_checks field + CRUD (monitor lean: light).",
+        "D-E SPLIT: is D1+D2+D4+D5 a full cycle? Propose splitting D3 and/or the LLM critique to UAP-3b-2 (flag, don't drop). The moat CORE = the per-judge deterministic withstands-gate + the moat exhibit."
+      ],
+      "hardness": "HARD-GATE (THE MOAT, section 2A); fresh-critic required at close.",
+      "hardness_reason": "The product's core differentiator. D2 inserts a correction stage PRE-consensus ADJACENT to the frozen _apply_consensus (A3 byte-0-delta load-bearing); the gate can correct an LLM verdict so the labels-true-by-construction guard (must NOT relabel a true case, A5) is a CLAUDE.md core-invariant claim; the moat exhibit (A2) is a by-construction flip. Any LLM-critique run (D-A) is cost-gated.",
+      "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-3b_withstands-gate_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3b; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 5 decisions (D-A + D-C are the hard ones; propose the D-E split if scope warrants) before 'go'. Pathspec-only commits (shared branch)."
+    },
+    {
       "id": "UAP-5a",
       "phase": "UAP-5a",
       "title": "UAP-5a -- the in-UI authoring loop: mount the JudgeEditor (S-BS-62) + legible authored audit (S-BS-66) + a by-construction live-flip demo case; the release-critical author->grade->audit loop, deterministic + LLM-free (R10 author-assist SPLIT OUT -> UAP-5a-assist)",
