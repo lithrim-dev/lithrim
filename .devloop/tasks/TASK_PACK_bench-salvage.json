@@ -1257,6 +1257,57 @@
       "next_action": "Driver expanded 2026-06-04 (bench-salvage_phaseUAP-3b-2_groundingcheck-entity-llm-critique_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3b-2; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 5 decisions (D-B the live attestation + D-A the LLM-critique split are the calls; do NOT manufacture a live flip) before 'go'. Pathspec-only commits (shared branch)."
     },
     {
+      "id": "UAP-4",
+      "phase": "UAP-4",
+      "title": "UAP-4 -- the calibration-trainer OPTIMIZE loop in the UI (R5): the honest held-out Δ + the S-BS-49 fix attempt",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-4-optimize-calibration-loop-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1+UAP-2+UAP-3+UAP-5a+UAP-3b+UAP-3b-2 (the MOAT, proven+operational+live-safe) DONE. UAP-4 (R5, this) = the third leg of author->process->OPTIMIZE: surface the EXISTING DSPy judge-optimizer in the UI with an HONEST held-out Δ (the calibration trainer, 'a trainer not a demo') + attempt the S-BS-49 fix so 'optimize' actually improves. -> UAP-5b (R11 conversational shell, the capstone). Realizes SPEC_CALIBRATION_TRAINER.md.",
+      "origin": "Monitor authored 2026-06-05 from the LOCKED SPEC R5 (:206) + SPEC_CALIBRATION_TRAINER + the existing judge_optimize engine (WS-6c-DSPy-3b) + the negative-Δ honest finding (pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose UAP-4 at the post-UAP-3b-2 fork. LED with the honest-Δ UI [the guaranteed deliverable]; the S-BS-49 fix is GRADED + may split -> UAP-4-opt.",
+      "regrepped_2026_06_05": "judge_optimize.py:288 run_optimize(role,*,corpus_path,confirm_cost,out_dir,limit,max_bootstrapped_demos=4,max_labeled_demos=0) -> {role,n_train,n_heldout,baseline,optimized,delta} (refuses without confirm_cost; splits calibration->trainset/test->heldout by role_relevant/LENS_BY_ROLE) + _serialize_demos; compile_judge:218 (BootstrapFewShot); evaluate_program:175; build_judge_program:121 (the lazy compilable view, separate from the frozen Judge). app.py:424 (UAP-2 judge block) GET/PUT /v1/judges:505/528/563 + the cost-confirm pattern POST /v1/run-eval:226. registry.js:27 tool-calibration_chart + :30 tool-judge_editor; JudgeEditor.jsx:32. examples/judge_calib_v1.jsonl (47, splits 17/30). The /optimize route is NET-NEW. S-BS-48 (bind-back-don't-ship-negative) + S-BS-49 (exact-accept gate harvests only silent demos) in STREAM.",
+      "deliverables": [
+        "D1 BFF apps/bff/app.py: POST /v1/judges/{role}/optimize (cost-gated, in the :424 judge block) over run_optimize(confirm_cost=True) -> {role,n_train,n_heldout,baseline,optimized,delta,demos}; bind-back (persist the compiled demos onto the judge) is a SEPARATE, POSITIVE-Δ-GATED action (S-BS-48 -- never persist a worse judge). §10 ratify the route (D-C).",
+        "D2 SHELL apps/shell/src/genui/: a tool-optimize_panel (or extend JudgeEditor): trigger optimize (an IN-DOM cost-confirm modal, S-BS-69, NOT window.confirm()) -> render the HONEST held-out Δ (precision/recall/graded before->after) WIN-OR-LOSS via tool-calibration_chart; the 'did my edit move the number?' loop. A negative/zero Δ renders as a LOSS, not hidden; bind-back OFFERED only on a positive Δ. registry.js KNOWN_TOOLS + panes.jsx CenterPane mount.",
+        "D3 S-BS-49 (the optimizer-quality core; GRADED, may split) lithrim_bench/runtime/council/judge_optimize.py (additive): coverage-aware demo selection -- admit >=1 positive exemplar (not only the already-perfect silent cases) / a higher-recall teacher / MIPROv2 (heavier, flag cost) / more positives-per-code (an additive lint-GREEN corpus append). Measure the held-out Δ (cost-gated). GRADED: lifts the Δ -> ship + enable bind-back; else HALT-TO-SURFACE (the honest-Δ UI ships; S-BS-49 stays open with the measured result). NEVER loosen the accept-gate to manufacture a win. FROZEN: do NOT touch judge_metric.py (make_judge_metric/LENS_BY_ROLE) -- additive in judge_optimize.py.",
+        "D4 TESTS tests/test_uap4_*.py: (a) /optimize returns the Δ shape (offline/$0, mocked run_optimize); (b) bind-back GATED on a positive Δ (a negative-Δ result does NOT persist demos -- S-BS-48); (c) coverage-aware demo selection picks a positive exemplar when one exists (offline, on the corpus); (d) frozen seam 0-delta. apps/shell/src/genui/*.test.jsx: the optimize panel renders the honest Δ (win AND loss paths). The live optimize run (D3) is a recorded run, NOT an automated test.",
+        "D5 DOCS docs/specs/SPEC_PRODUCT_SHELL.md §10 ratify POST /v1/judges/{role}/optimize (S-BS-51 lesson) + note the S-BS-49 disposition (fixed/halt-to-surfaced + the measured Δ) + S-BS-48 (bind-back-on-positive-only) + .devloop/sessions/session-bench-salvage-phaseUAP-4-2026-06-05.json."
+      ],
+      "acceptance": [
+        "A1 the optimize loop in the UI: POST /v1/judges/{role}/optimize runs run_optimize (cost-gated) + the shell renders the held-out Δ; the 'did my edit move the number?' loop is reachable in-UI (:5180 smoke OWED, A8-class).",
+        "A2 HONEST Δ (load-bearing): the UI surfaces the MEASURED held-out Δ truthfully -- a negative/zero Δ renders as a LOSS, NOT hidden; bind-back OFFERED only on a positive Δ (S-BS-48). The gate is NEVER loosened to manufacture a win (a manufactured win = FAIL).",
+        "A3 S-BS-49 (GRADED, name the outcome honestly): the coverage-aware demo selection is attempted + measured (cost-gated); PASS-improved = the held-out Δ lifts -> ship + bind-back; PASS-honest/HALT-TO-SURFACE = no lift -> the honest-Δ UI ships, S-BS-49 stays open with the measured result. (Or D3 split -> UAP-4-opt per D-E.)",
+        "A4 frozen seam 0-delta: git diff over _apply_consensus + judges_dspy + judge_metric + committed seeds == 0 lines (the optimizer work is in judge_optimize.py, non-frozen).",
+        "A5 green bar: ruff-clean changed files; default + debuglithrim + council + BFF + Vitest re-run; default-deps import-clean; pathspec-only; any paid run cost-confirmed."
+      ],
+      "diagnostic_stats_reported": [
+        "the actual held-out Δ (precision/recall/graded before->after) -- illustrative; the loop-closure is a MEASURED Δ (win-or-not), NOT a positive number",
+        "the optimize cost actually spent -- reported; the gate is cost-confirmed not a number"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "The floor/KB ship (Stage 3, gated S-BS-13/16/41) -- separate; clinical_v1 stays floor-less.",
+        "The conversational shell / chat / SSE (R11) -> UAP-5b.",
+        "The broader calibration-trainer multi-lever (SPEC_CALIBRATION_TRAINER M2 add-a-floor / M4 NL->contract) -- UAP-4 is the JUDGE-optimize lever (R5).",
+        "The withstands-gate live-correction demo (S-BS-74) + UAP-3b-3 (the LLM critique) -- separate.",
+        "MIPROv2 only if D3's coverage-aware BootstrapFewShot is insufficient AND plan-review accepts the cost; else a follow-on. Live :8002/WS-2 -- the optimizer runs in-process.",
+        "FROZEN: _apply_consensus + the per-judge seam dict (judges_dspy) + judge_metric.py (make_judge_metric/LENS_BY_ROLE; the S-BS-49 demo-selection is additive in judge_optimize.py) + committed seeds. Corpus widening = an additive lint-GREEN append, never editing existing rows.",
+        "Drive-by formatting / dep bumps."
+      ],
+      "plan_review_decisions": [
+        "D-A S-BS-49 fix in-cycle (D3) vs ship honest-Δ-first (D3 -> UAP-4-opt). Monitor lean: attempt D3 (the meaningful part + cheap to measure); the honest-Δ UI (D1/D2) is GUARANTEED; halt-to-surface if no lift (the loop ships, showing the loss -- 'a trainer not a demo').",
+        "D-B cost posture: run_optimize is PAID (baseline + 2 held-out evals + the bootstrap compile; ~$0.26/run per DSPy-3b). Name the envelope (the D3 measurement + any re-measurement; cost-confirm each, in-DOM modal S-BS-69); the offline/$0 default = a mocked-run_optimize test path.",
+        "D-C §10 ratify POST /v1/judges/{role}/optimize (don't grow the BFF surface unratified -- the S-BS-51 lesson).",
+        "D-D bind-back gating + persistence: where the compiled demos persist on a positive Δ (the JudgeConfig / a new field); confirm bind-back is POSITIVE-Δ-GATED (S-BS-48 -- never ship the negative-Δ demos).",
+        "D-E SPLIT: is D1+D2+D3+D4 a full cycle? If the S-BS-49 research (D3) is too uncertain/large, split -> UAP-4-opt + ship UAP-4 = the honest-Δ UI (D1/D2). The honest-Δ surface is irreducible."
+      ],
+      "hardness": "HARD-GATE (R5, the calibration trainer); fresh-critic required at close.",
+      "hardness_reason": "'optimize' is a PAID, labels-true-by-construction claim on a real judge -- the held-out Δ must be HONEST (a manufactured win = FAIL; the gate is never loosened -- the run_optimize contract + the WS-6c-DSPy-3b negative-Δ precedent); bind-back persists an optimized judge ONLY on a positive Δ (S-BS-48 -- never ship a worse judge); the BFF surface grows §10; the S-BS-49 fix touches the optimizer adjacent to the frozen judge_metric/seam (A4 byte-0-delta load-bearing). Live optimize runs are cost-gated.",
+      "next_action": "Driver authored 2026-06-05 (bench-salvage_phaseUAP-4_optimize-calibration-loop_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-4; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 5 decisions (D-A S-BS-49-in-cycle-vs-split + D-E SPLIT are the calls; do NOT manufacture an optimize win) before 'go'. Pathspec-only commits (shared branch)."
+    },
+    {
       "id": "UAP-5a",
       "phase": "UAP-5a",
       "title": "UAP-5a -- the in-UI authoring loop: mount the JudgeEditor (S-BS-62) + legible authored audit (S-BS-66) + a by-construction live-flip demo case; the release-critical author->grade->audit loop, deterministic + LLM-free (R10 author-assist SPLIT OUT -> UAP-5a-assist)",

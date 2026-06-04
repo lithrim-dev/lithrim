@@ -131,6 +131,30 @@
       "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-3b-3 to expand into a full driver. The LLM Ralph-Loop critique (the UAP-3b D-A split). LOWEST priority of the open cycles (uncertain value per critique-pass-precision-not-floor); UAP-4 (the calibration trainer) or the S-BS-74 live-correction demo are higher-value."
     },
     {
+      "id": "bench-salvage-phaseUAP-4-optimize-calibration-loop-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-4",
+      "scope": "the-calibration-trainer-optimize-loop-in-the-ui-R5-honest-held-out-delta-plus-the-S-BS-49-fix-attempt",
+      "file": "bench-salvage_phaseUAP-4_optimize-calibration-loop_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (optimize is a PAID labels-true-by-construction claim — the held-out Δ must be HONEST, never manufactured [the run_optimize contract + the WS-6c-DSPy-3b negative-Δ precedent]; bind-back persists an optimized judge ONLY on a positive Δ [S-BS-48]; the BFF surface grows §10; the S-BS-49 fix is adjacent to the frozen judge_metric/seam [A4 0-delta]; live runs cost-gated; fresh-critic required)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md R5 :206 (POST /v1/judges/{role}/optimize, honest held-out Δ, gated S-BS-49) + :123-130 (the judge-author/optimize surface) + :235 (UAP-4 realizes SPEC_CALIBRATION_TRAINER) + §10 ratify :184/:260",
+        "docs/specs/SPEC_CALIBRATION_TRAINER.md (the trainer thesis §1; the lever→re-run→diff loop §4; §4.1 the prompt lever is NON-MONOTONIC; M2 the MVP §6; §9 offline/local/BYOK)",
+        "lithrim_bench/runtime/council/judge_optimize.py:288 run_optimize(role,*,corpus_path,confirm_cost,out_dir,limit,max_bootstrapped_demos=4,max_labeled_demos=0) -> {role,n_train,n_heldout,baseline,optimized,delta} + _serialize_demos; compile_judge:218 (BootstrapFewShot); evaluate_program:175; build_judge_program:121 (the lazy compilable view, separate from the frozen Judge). THE ENGINE — reuse; the S-BS-49 fix is additive here.",
+        "apps/bff/app.py:424 (the UAP-2 judge block) GET /v1/judges:505 / GET /v1/judges/{role}:528 / PUT /v1/judges/{role}:563 / _judge_summary:427 / _validate_judge_assignment:463; the cost-confirm/in_process pattern at POST /v1/run-eval:226. POST /v1/judges/{role}/optimize is NET-NEW.",
+        "apps/shell/src/genui/registry.js:27 tool-calibration_chart (the EXISTING Δ-display widget) + :30 tool-judge_editor + :31 tool-run_panel; JudgeEditor.jsx:32; RunPanel cost-confirm (S-BS-69 in-DOM modal). examples/judge_calib_v1.jsonl (47 cases, splits calibration 17 / test 30; lint scripts/lint_golden_against_taxonomy.py).",
+        "the optimizer prior: .devloop/sessions/critique-bench-salvage-phaseWS-6c-DSPy-3b-2026-06-03.md + docs/research/REPORT_dspy3b_optimizer_2026-06-03.md (the NEGATIVE-Δ honest finding + S-BS-49 root cause); memory calibration-trainer-is-the-product + critique-pass-precision-not-floor + browser-mcp-confirm-blocks-renderer (S-BS-69)"
+      ],
+      "_note": "UAP-4 = R5, the calibration-trainer OPTIMIZE loop in the UI: surface the EXISTING DSPy judge-optimizer (judge_optimize.run_optimize) with an HONEST held-out Δ + attempt the S-BS-49 fix so 'optimize' actually improves. D1 the BFF POST /v1/judges/{role}/optimize (cost-gated over run_optimize; bind-back POSITIVE-Δ-GATED per S-BS-48). D2 the shell optimize surface (a tool-optimize_panel / extend JudgeEditor; in-DOM cost-confirm S-BS-69; render the honest Δ win-OR-LOSS via tool-calibration_chart; the 'did my edit move the number?' loop). D3 the S-BS-49 fix (coverage-aware demo selection — admit >=1 positive exemplar; additive in judge_optimize.py, NOT judge_metric.py; GRADED: lifts the Δ -> ship + bind-back, else HALT-TO-SURFACE the honest-Δ UI still ships; NEVER loosen the gate to manufacture a win). D4 tests + D5 docs (§10 ratify). THE HONESTY: the WS-6c-DSPy-3b held-out Δ was NEGATIVE (S-BS-49 silent-demo harvest) + the prompt lever is non-monotonic -> a manufactured optimize win = FAIL (the UAP-3b-2 live-attestation posture). FROZEN: _apply_consensus + the seam dict + judge_metric.py + seeds; corpus widening = an additive lint-GREEN append. SPLIT pre-authorized (D-E): D3 may split -> UAP-4-opt; the honest-Δ UI (D1/D2) is the irreducible core. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
+      "created": "2026-06-05",
+      "last_re_verified": "2026-06-05 (run_optimize:288, the BFF judge surface app.py:424/505/528/563, registry.js:27/30, JudgeEditor.jsx:32, the corpus splits, S-BS-48/49 — all CONFIRMED; the /optimize route is NET-NEW)",
+      "expanded": "2026-06-05 (driver authored from the LOCKED SPEC §R5 + SPEC_CALIBRATION_TRAINER + the existing judge_optimize engine + the WS-6c-DSPy-3b negative-Δ finding; no prior stub — a UAP-4 entry backfilled into TASK_PACK_bench-salvage.json per the established UAP pattern, memory devloop-task-pack-stale-uap-from-spec; LED with the honest-Δ UI [the guaranteed deliverable] + the S-BS-49 fix attempt [GRADED, may split]; citations re-grepped).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-4 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 5 decisions (D-A S-BS-49-in-cycle-vs-honest-Δ-first [monitor lean: attempt D3, the honest-Δ UI is guaranteed, halt-to-surface if no lift] / D-B cost posture / D-C §10 ratify / D-D bind-back positive-Δ-gated + persistence / D-E SPLIT) before 'go'. Do NOT manufacture an optimize win. Pathspec-only commits."
+    },
+    {
       "id": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
       "stream": "bench-salvage",
       "phase": "UAP-5a",
