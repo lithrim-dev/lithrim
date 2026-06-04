@@ -11,11 +11,12 @@
 #   scripts/dev/devstack.sh probe                   # Azure council deployment health (tiny PAID calls)
 #
 # Services:
-#   • BFF  — uvicorn app:app  (apps/bff)  on :8787, under the `debuglithrim` pyenv.
+#   • BFF  — uvicorn app:app  (apps/bff)  on :8787, under the `debuglithrim` pyenv,
+#            in WATCH mode (--reload, scoped to apps/bff + lithrim_bench + scripts).
 #            CWD = repo root so the vendored council reads its Azure config from
 #            the repo-root `.env` (env_file=".env"; the council settings tolerate
 #            the backend's extra vars via extra="ignore").
-#   • UI   — vite dev server (apps/shell) on :5180.
+#   • UI   — vite dev server (apps/shell) on :5180 — HMR/watch by default.
 #
 # Processes are nohup-detached (survive this shell closing). Logs + pidfiles live
 # in .devstack/ (gitignored). Idempotent: start no-ops if already healthy.
@@ -56,8 +57,12 @@ start_bff() {
     err "  → the '$PYENV_VER' pyenv with the [bff] extra is required (pip install -e '.[bff]' in that env)."; return 1
   fi
   [ -f "$REPO_ROOT/.env" ] || info "no $REPO_ROOT/.env — the council's Azure config lives there; live grades will fail without it (replay still works)"
-  info "starting BFF (uvicorn · $PYENV_VER) on :$BFF_PORT …"
+  info "starting BFF (uvicorn · $PYENV_VER · watch/--reload) on :$BFF_PORT …"
+  # watch mode: --reload + --reload-dir scoped to the BFF and the Python it imports
+  # (run_eval/harness/runtime) so the reloader ignores node_modules/out/.git/.devstack —
+  # watching the repo root storms the reloader. The UI side (vite) is HMR by default.
   ( cd "$REPO_ROOT" && exec nohup "$UVICORN_BIN" app:app --app-dir "$REPO_ROOT/apps/bff" --port "$BFF_PORT" \
+      --reload --reload-dir "$REPO_ROOT/apps/bff" --reload-dir "$REPO_ROOT/lithrim_bench" --reload-dir "$REPO_ROOT/scripts" \
       >"$RUN_DIR/bff.log" 2>&1 ) &
   echo $! >"$RUN_DIR/bff.pid"
   if wait_for bff_healthy 30; then

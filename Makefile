@@ -4,7 +4,7 @@ DEV := scripts/dev/devstack.sh
 
 .PHONY: up down restart status health probe logs-bff logs-ui bff ui help
 help:      ; @$(DEV) help
-up:        ; @$(DEV) start all      ## start BFF (:8787) + UI (:5180)
+up:        ; @$(DEV) start all      ## start BFF (:8787, watch) + UI (:5180, HMR)
 down:      ; @$(DEV) stop all       ## stop both
 restart:   ; @$(DEV) restart all    ## stop + start both
 status:    ; @$(DEV) status         ## ports + health
