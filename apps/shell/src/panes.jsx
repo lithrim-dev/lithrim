@@ -168,6 +168,15 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus 
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <p>Now author a <strong>judge</strong>. Assign an ontology flag lens to a role — the prompt preview updates live and <code className="inl">$0</code> (no model call), showing the exact <code className="inl">role_key_questions</code> the bridge will send. The live verdict-change is the paid finale, in a run.</p>
+              {renderTool({ type: "tool-judge_editor", state: "output-available", output: { role: "risk_judge", agent: "ws0_default" } }, { onResult: captureSetup("judge") })}
+            </div>
+          </div>
+
+          <div className="msg">
+            <div className="av ai"><Mark size={17} /></div>
+            <div className="content">
+              <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Everything checks out. Running all 2,400 will take about <strong>6 minutes</strong>; I'll stream verdicts into the report as they land.</p>
               {renderTool({ type: "tool-run_panel", state: "output-available" })}
               <div className="msg-actions">

@@ -34,4 +34,15 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Bind KB/i }));
     await waitFor(() => expect(screen.getByText("kb")).toBeInTheDocument());
   });
+
+  // UAP-5a D1 (S-BS-62): the JudgeEditor must render IN the conversation — before
+  // this phase tool-judge_editor was registered but mounted nowhere, so a user could
+  // not author a judge in the shell (the assignment had to go through curl).
+  it("mounts the JudgeEditor with the $0 prompt preview (S-BS-62)", async () => {
+    render(<CenterPane {...props} />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    // the live $0 prompt-preview surface (the assignment→prompt bridge, no model call)
+    expect(screen.getByText(/the exact role_key_questions/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save judge/i })).toBeInTheDocument();
+  });
 });
