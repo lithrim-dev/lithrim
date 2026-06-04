@@ -32,7 +32,7 @@
       "phase": "UAP-2",
       "scope": "judge-authoring-via-ontology-assignment-JudgeEditor-plus-/v1/judges-plus-prompt-ontology-bridge",
       "file": "bench-salvage_phaseUAP-2_judge-authoring_driver.md",
-      "status": "ready",
+      "status": "closed-NON-BLOCKING (86fa1d3..3e89ad5; monitor 7-item audit CLEAN re-verified + HARD-GATE genuinely-fresh-critic (agent a8c77571d1a911d6d) NON-BLOCKING [0 BLOCKING / 3 NB / 2 OQ]; bench-only, $0 offline; PROCEED-WITH-CAVEATS, A8 :5180 smoke OWED). Judge authoring via ontology-assignment shipped: the LAYERED prompt<->ontology bridge (judge_assignment.py; A4 byte-parity all 3 roles vs the LIVE council loader, S-BS-11 prose preserved + faithfulness keeps its 164-line base), GET/PUT /v1/judges + harness/judges.py (shared upsert_with_audit txn, target=judge audit), owner<->emit 422 on LENS_BY_ROLE NOT the stale ontology owner_roles (CITATION-DRIFT -> S-BS-59) + no inert-owner, the JudgeEditor gen-UI $0 assignment->prompt preview (demonstrability). Council-light judge_assignment.py extraction (BFF preview needs no [council]; import-isolation verified). A5 frozen 0-delta (compliance_council + clinical_v1 + data/config/agents + council_roles + the per-judge seam dict). Suites monitor-re-ran: 277/12 default / 94/3 council / 30 BFF / 40 Vitest. §10 ratified.",
       "version": "v1",
       "hardness": "HARD-GATE (the prompt<->ontology bridge touches safety-critical judge prose [S-BS-11] + the owner<->emit invariant #4; the :5180 smoke A8 is load-bearing; fresh-critic the default)",
       "target_repos": ["lithrim-bench"],
@@ -48,7 +48,7 @@
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04",
       "expanded": "2026-06-04 (driver authored directly from the LOCKED SPEC §3.1/§12 + re-grepped judge-layer/bridge/BFF/registry citations, per the established UAP pattern; a UAP-2 entry backfilled into TASK_PACK_bench-salvage.json -- the pack predated the reframe, memory devloop-task-pack-stale-uap-from-spec).",
-      "next_action": "run /devloop-kickoff bench-salvage UAP-2 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 6 decisions (bridge render / judge-config locus / owner<->emit strictness / validator-attach scope / optimize-out / §10 ratify) before 'go'. Pathspec-only commits."
+      "next_action": "CLOSED 2026-06-04 (PROCEED-WITH-CAVEATS). Next = UAP-3 (RunPanel/processing + eval-pack + run-history, R4/R6) -- run /devloop-expand-driver bench-salvage UAP-3. UAP-5a authoring-assist (zyng LLMClient) MAY pull forward after UAP-2 for a $0 demonstrability win. OWED: the batched UAP-1 + UAP-2 :5180 A8 visual smoke (user-run, no-autostart). Closed S-BS-57; opened S-BS-59 (re-snapshot stale ontology owner_roles, deferred -- seed frozen) + S-BS-60 (question-text write-back deferred, §12.2 approved cut) + S-BS-61 (informational, no action)."
     },
     {
       "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
