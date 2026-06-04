@@ -24,11 +24,12 @@ const EXPECTED = {
   "tool-calibration_chart": /^Calibration$/, // anchored: the title, not the legend's "perfect calibration"
   "tool-agent_editor": /Loading agent|Agent ·/i, // UAP-1 R1 — config-plane write surface
   "tool-audit_log": /Audit trail/i, // UAP-1 R0 — the why/when/who/what view
+  "tool-judge_editor": /Loading judge|Judge ·/i, // UAP-2 R2 — ontology-assignment authoring
 };
 
 describe("renderTool registry", () => {
-  it("knows all 7 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(7);
+  it("knows all 8 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(8);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

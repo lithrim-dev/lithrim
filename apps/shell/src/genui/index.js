@@ -8,6 +8,7 @@ import "./VerdictCard.jsx";
 import "./CalibrationChart.jsx";
 import "./AgentEditor.jsx";
 import "./AuditView.jsx";
+import "./JudgeEditor.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -18,3 +19,4 @@ export { default as VerdictCard } from "./VerdictCard.jsx";
 export { default as CalibrationChart } from "./CalibrationChart.jsx";
 export { default as AgentEditor } from "./AgentEditor.jsx";
 export { default as AuditView } from "./AuditView.jsx";
+export { default as JudgeEditor } from "./JudgeEditor.jsx";

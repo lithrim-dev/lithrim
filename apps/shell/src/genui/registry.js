@@ -16,7 +16,8 @@
    via createElement rather than JSX. */
 import { createElement as h } from "react";
 
-// The 5 §5b config primitives. Authoritative key list (drives the A2 registry test).
+// The config tool primitives: 5 §5b widgets + agent_editor/audit_log (UAP-1) +
+// judge_editor (UAP-2). Authoritative key list (drives the A2 registry test).
 export const KNOWN_TOOLS = [
   "tool-flag_editor",
   "tool-contract_builder",
@@ -25,6 +26,7 @@ export const KNOWN_TOOLS = [
   "tool-calibration_chart",
   "tool-agent_editor",
   "tool-audit_log",
+  "tool-judge_editor",
 ];
 
 const TOOL_REGISTRY = {};

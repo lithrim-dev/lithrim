@@ -64,3 +64,27 @@ export const getAudit = ({ actor, target_type, target_id, since } = {}) => {
 /* GET /v1/runs/{id}/audit — the run-provenance report (§2B stream 2). */
 export const getRunAudit = (runId) =>
   call(`/v1/runs/${encodeURIComponent(runId)}/audit`);
+
+/* ── UAP-2: judge authoring via ontology-assignment (R2; all via BASE, S-BS-50) ── */
+
+/* GET /v1/judges — the v2 trio: each role + model + assigned lens + questions + refs. */
+export const getJudges = (agent = "ws0_default") =>
+  call(`/v1/judges?agent=${encodeURIComponent(agent)}`);
+
+/* GET /v1/judges/{role} — one judge's config + the rendered role_key_questions
+   ($0 prompt preview). Pass assignedFlags (array) for a live before/after preview of
+   a hypothetical assignment — the exact prompt the bridge would send, no model call. */
+export const getJudge = (role, { agent = "ws0_default", assignedFlags } = {}) => {
+  const q = new URLSearchParams({ agent });
+  if (assignedFlags !== undefined) q.set("assigned_flags", (assignedFlags || []).join(","));
+  return call(`/v1/judges/${encodeURIComponent(role)}?${q.toString()}`);
+};
+
+/* PUT /v1/judges/{role} — assign a flag lens + bind a model + attach validator refs.
+   422 on owner↔emit / snapshot / unknown-validator violation. actor rides X-Actor. */
+export const putJudge = (role, judge, { actor, rationale = "" } = {}) =>
+  call(`/v1/judges/${encodeURIComponent(role)}?rationale=${encodeURIComponent(rationale)}`, {
+    method: "PUT",
+    body: judge,
+    headers: actor ? { "X-Actor": actor } : undefined,
+  });
