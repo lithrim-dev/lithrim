@@ -34,7 +34,7 @@ self-report anti-pattern this avoids.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +121,64 @@ def load_role_prompt(role: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def render_role_questions(
+    ontology: Any, role: str, *, assigned_flags: Sequence[str] | None = None
+) -> str:
+    """Render a judge's ``role_key_questions`` from its ontology assignment (UAP-2).
+
+    The prompt↔ontology bridge (SPEC_UNIFIED_AUTHORING_PRODUCT §3.1.2 NET-NEW.2 /
+    §12.1, OQ-1 DECIDED: ontology-as-source via ASSIGNMENT). The committed
+    ``council_roles/<role>.txt`` is the SEED BASE — its safety-critical prose
+    (codes-you-may-not-raise, the HL7-NKA exception, evidence requirements, the
+    allergy-fabrication Tier-1 framing) is retained verbatim, NEVER silently dropped
+    (S-BS-11). When the judge carries an authored assignment (an SME picked its flag
+    lens via ``PUT /v1/judges/{role}``), an AUTHORED REFINEMENT section is appended,
+    composed from the assigned flags' ``when_to_use`` lens (+ tier) and the role's
+    ``questions_for(role)`` (ordinal-ordered). The in-process judge then re-votes
+    with the authored lens — the static→live close for judges, needing no ``:8002``.
+
+    ``assigned_flags=None`` (no authored assignment / back-compat) returns the seed
+    base verbatim — the A4 parity contract: ``render_role_questions(ont, role)`` is
+    byte-equal to ``load_role_prompt(role)``. Full retirement of the ``.txt``
+    (rendering the entire prompt from the ontology) is DEFERRED: the ontology does
+    not yet carry the full safety prose (faithfulness_judge has zero seeded
+    questions; the codes-you-may-not-raise / HL7 exceptions are not in the
+    ``JudgeQuestion`` model), so pushing it now would drop S-BS-11 prose. The
+    ``.txt`` is the migration seed; authoring ADDS the ontology-driven refinement.
+
+    ``ontology`` is duck-typed (``.flag(code)`` → a flag with ``.tier``/
+    ``.when_to_use``; ``.questions_for(role)`` → ordinal-bearing questions) so the
+    council package stays decoupled from ``harness.ontology``.
+    """
+    base = load_role_prompt(role)
+    if not assigned_flags:
+        return base
+    lens_lines: list[str] = []
+    for code in assigned_flags:
+        fd = ontology.flag(code)
+        if fd is None:
+            lens_lines.append(f"- {code}")
+            continue
+        tier = f" [{fd.tier}]" if fd.tier else ""
+        when = (fd.when_to_use or "").strip()
+        lens_lines.append(f"- {code}{tier}: {when}" if when else f"- {code}{tier}")
+    refinement = [
+        "",
+        "=== AUTHORED REFINEMENT (ontology assignment) ===",
+        "You have been assigned the following ontology flags as your lens. Raise ONLY",
+        "these codes, each grounded in a specific evidence span:",
+        *lens_lines,
+    ]
+    questions = sorted(ontology.questions_for(role), key=lambda q: q.ordinal)
+    if questions:
+        refinement += [
+            "",
+            "Refinement questions for this role:",
+            *[f"{q.ordinal}. {q.text}" for q in questions],
+        ]
+    return base + "\n" + "\n".join(refinement)
+
+
 # --------------------------------------------------------------------------- #
 # small accessors (work over pydantic models, dicts, or plain namespaces — the
 # injected offline predictor returns dicts; the live dspy.Predict returns models)
@@ -155,10 +213,7 @@ def _validate_findings(raw_findings: Any) -> list[dict[str, Any]]:
         code = (_get(f, "taxonomy_code", "") or "").strip()
         if not code or code not in KNOWN_TAXONOMY_CODES:
             continue
-        spans = [
-            _span_to_dict(s)
-            for s in (_get(f, "evidence_spans", []) or [])
-        ]
+        spans = [_span_to_dict(s) for s in (_get(f, "evidence_spans", []) or [])]
         spans = [s for s in spans if s["quote"].strip() or s["turn_ids"]]
         if not spans:
             continue
@@ -204,7 +259,9 @@ def _build_signature():
         """
 
         transcript: str = dspy.InputField(desc="the provider/patient conversation (ground truth)")
-        artifact: str = dspy.InputField(desc="the agent-produced clinical note / artifact under audit")
+        artifact: str = dspy.InputField(
+            desc="the agent-produced clinical note / artifact under audit"
+        )
         role_key_questions: str = dspy.InputField(desc="this judge's role prompt and key questions")
         taxonomy_context: str = dspy.InputField(desc="the valid taxonomy codes + tiers")
 
@@ -314,13 +371,24 @@ def build_trio(
     *,
     predictors: dict[str, Callable[..., Any]] | None = None,
     taxonomy_context: str | None = None,
+    ontology: Any = None,
+    assignments: dict[str, Sequence[str]] | None = None,
 ) -> list[Judge]:
     """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
 
-    Each judge is the SAME generic ``Judge`` module bound to its
-    ``council_roles/<role>.txt`` text via ``role_prompt=`` — role specialization
-    rides the prompt, not a per-role signature (the module is already generic;
-    this is a convenience, not a seam change).
+    Each judge is the SAME generic ``Judge`` module bound to its role prompt via
+    ``role_prompt=`` — role specialization rides the prompt, not a per-role
+    signature (the module is already generic; this is a convenience, not a seam
+    change).
+
+    Prompt source (UAP-2 bridge): when ``ontology`` is passed, each judge's
+    ``role_prompt`` is rendered from the ontology assignment via
+    :func:`render_role_questions` (the seed ``.txt`` base + any authored refinement
+    from ``assignments[role]``, a list of assigned flag codes). When ``ontology`` is
+    omitted (the default / back-compat path) each judge binds its
+    ``council_roles/<role>.txt`` text verbatim via :func:`load_role_prompt` — so
+    ``build_trio()`` with no args is byte-identical to before (A5; the A4 parity
+    guard proves the rendered default equals the ``.txt``).
 
     Offline/tests: pass ``predictors={role: callable}`` to inject a per-role
     predictor (no ``dspy``/network). Live: omit ``predictors`` and each judge
@@ -330,7 +398,11 @@ def build_trio(
     """
     judges: list[Judge] = []
     for role in V2_ROLES:
-        role_prompt = load_role_prompt(role)
+        if ontology is not None:
+            assigned = assignments.get(role) if assignments else None
+            role_prompt = render_role_questions(ontology, role, assigned_flags=assigned)
+        else:
+            role_prompt = load_role_prompt(role)
         if predictors is not None:
             judges.append(
                 Judge(
@@ -377,5 +449,7 @@ def evaluate_dspy(
     council = council or ComplianceCouncil()
     results: list[dict[str, Any]] = []
     for j in judges:
-        results.append(j if isinstance(j, dict) else j.forward(transcript=transcript, artifact=artifact))
+        results.append(
+            j if isinstance(j, dict) else j.forward(transcript=transcript, artifact=artifact)
+        )
     return council._apply_consensus(results, gate_mode=gate_mode)
