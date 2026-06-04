@@ -58,6 +58,19 @@ observation = [
     "tenacity>=8.0",
     "pydantic-settings>=2.0",
 ]
+# UAP-5b / R11: the conversational shell's agent loop (apps/bff/agent/). The Claude
+# Agent SDK hosts a multi-turn author->process loop in the BFF, with the BFF ops
+# wrapped as in-process SDK-MCP tools and BYO-Claude (local `claude` CLI / desktop
+# auth — no API key; the licensing guardrail). Kept OUT of core so the default
+# install stays the offline pydantic+pandas core; the loop module lazy-imports
+# claude_agent_sdk only when the SSE chat route is hit (the isolation test asserts
+# no leak into default deps). Pin CAPPED <0.3 — the SDK is pre-1.0, so a minor bump
+# can change the tool/stream surface captured in the UAP-5b D0 spike (0.2.90).
+# NOTE: the SDK transitively bumps pydantic-settings (2.1->2.14); proven
+# non-regressing against the [council]/[bff] suites at UAP-5b D0.
+agent = [
+    "claude-agent-sdk>=0.2.90,<0.3",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
