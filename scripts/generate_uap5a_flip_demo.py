@@ -1,23 +1,31 @@
 """UAP-5a A4: the by-construction live-flip demo case.
 
-Produces ONE injected case whose defect is a SUBTLE WRONG_DOSAGE drift — a
-calibration near-miss the base risk_judge under-fires on but an AUTHORED
-WRONG_DOSAGE lens (assigned to risk_judge) sharpens to catch. WRONG_DOSAGE is a
-Tier-1 never-event owned by risk_judge, so a single owning judge with grounded
-evidence rejects (one-strike) — giving a crisp non-reject -> reject flip when the
-lens is authored.
+Produces ONE injected case whose defect is a SUBTLE WRONG_DOSAGE drift (factor=1.5).
 
-Why subtle (factor=1.5, not the 10x reference): every Tier-1 injector flag is
-already owned by a v2-trio judge, so there is no FREE ownership near-miss (the base
-trio catches a blatant defect). The flip has to ride a CALIBRATION gap — the base
-lens misses a borderline drift the refined lens is told to scrutinize. The case is a
-legit by-construction WRONG_DOSAGE case (truth: the defect IS present, expected
-verdict reject); the base trio's miss is a false negative the authoring corrects.
+DESIGN HYPOTHESIS (the construction premise): the base risk_judge would UNDER-FIRE a
+borderline drift while an AUTHORED WRONG_DOSAGE lens (assigned to risk_judge) sharpens
+to catch it — giving a crisp non-reject -> reject flip, WRONG_DOSAGE being a Tier-1
+never-event owned by risk_judge (single owning judge + grounded evidence rejects,
+one-strike).
+
+⚠️ REFUTED LIVE (UAP-5a, 2026-06-04 -> S-BS-70): on the real trio the base risk_judge
+CAUGHT the 1.5x drift (unassigned verdict = BLOCK), so the live composite did NOT
+flip — WRONG_DOSAGE is base-owned and even a subtle drift stays detectable, so there
+is no cheap calibration near-miss. The case REMAINS a valid by-construction
+WRONG_DOSAGE defect (truth: the defect IS present, expected verdict reject); the
+OFFLINE flip test (injected marker-predictors) still proves the authoring plumbing is
+consequential at $0. A genuine LIVE flip needs a defect the base trio MISSES (a
+non-v2-base-owned code or a subtle SEMANTIC near-miss) — see S-BS-70.
+
+Why subtle (factor=1.5, not the 10x reference): every Tier-1 injector flag is already
+owned by a v2-trio judge, so there is no FREE ownership near-miss; the construction
+BET on a CALIBRATION gap that the live run showed does not exist for this flag.
 
 The label is true by construction (``package_case`` enforces D1/D3). Deterministic:
 same cohort seed + factor -> byte-identical case. The OFFLINE flip test
 (``tests/test_uap5a_flip_demo``) proves the authoring is consequential at $0; the
-LIVE in_process flip on the real trio is the cost-gated attestation (A4 first half).
+LIVE in_process flip on the real trio WAS the cost-gated attestation — it did NOT
+reproduce (the base trio already BLOCKs this defect; S-BS-70).
 
 Usage:
     python scripts/generate_uap5a_flip_demo.py [--out examples/uap5a_flip_demo.jsonl]
