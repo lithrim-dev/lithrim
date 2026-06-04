@@ -35,14 +35,26 @@ vi.mock("../bff.js", () => ({
     });
   }),
   putJudge: vi.fn().mockResolvedValue({ status: "ok", role: "risk_judge", actor: { type: "user", id: "sme@acme" } }),
+  optimizeJudge: vi.fn(),
 }));
 
 import JudgeEditor from "./JudgeEditor.jsx";
-import { getJudge, putJudge } from "../bff.js";
+import { getJudge, putJudge, optimizeJudge } from "../bff.js";
+
+const deltaResult = (delta, { baseline, optimized } = {}) => ({
+  role: "risk_judge",
+  n_train: 24,
+  n_heldout: 10,
+  compile_config: { n_demos_bootstrapped: 4, n_positive_demos: delta.graded > 0 ? 2 : 0, coverage_aware: true },
+  baseline: baseline || { graded: 0.8, precision: 0.71, recall: 0.71 },
+  optimized: optimized || { graded: 0.8 + delta.graded, precision: 0.71 + (delta.precision || 0), recall: 0.71 + (delta.recall || 0) },
+  delta,
+});
 
 beforeEach(() => {
   getJudge.mockClear();
   putJudge.mockClear();
+  optimizeJudge.mockReset();
 });
 
 describe("JudgeEditor (tool-judge_editor)", () => {
@@ -83,5 +95,52 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
     expect(await screen.findByText(/owner↔emit/)).toBeInTheDocument();
+  });
+
+  it("optimize: cost modal gates the PAID run, then renders a WIN Δ", async () => {
+    optimizeJudge.mockResolvedValueOnce(
+      deltaResult({ graded: 0.1, precision: 0.15, recall: 0.05 }),
+    );
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+
+    // the in-DOM cost modal (S-BS-69) gates the paid call — nothing fires until confirm
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    expect(await screen.findByText(/Paid optimize run/i)).toBeInTheDocument();
+    expect(optimizeJudge).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("optimize-confirm"));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true }));
+
+    const delta = await screen.findByTestId("optimize-delta");
+    expect(delta).toHaveAttribute("data-outcome", "win");
+    expect(screen.getByText(/optimize improved this judge/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("optimize-loss-note")).toBeNull();
+  });
+
+  it("optimize: a ≤0 Δ renders EXPLICITLY as a loss, never hidden (R1)", async () => {
+    optimizeJudge.mockResolvedValueOnce(
+      deltaResult({ graded: -0.1, precision: -0.27, recall: -0.14 }),
+    );
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+
+    const delta = await screen.findByTestId("optimize-delta");
+    expect(delta).toHaveAttribute("data-outcome", "loss");
+    // the honest loss note is shown; no manufactured-win copy
+    const note = screen.getByTestId("optimize-loss-note");
+    expect(note).toHaveTextContent(/did not improve this judge/i);
+    expect(screen.queryByText(/optimize improved this judge/i)).toBeNull();
+  });
+
+  it("optimize: cancelling the cost modal fires no paid call", async () => {
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Cancel$/i }));
+    expect(optimizeJudge).not.toHaveBeenCalled();
   });
 });

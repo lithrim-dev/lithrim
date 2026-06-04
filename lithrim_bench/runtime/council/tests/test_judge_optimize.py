@@ -16,10 +16,13 @@ import pytest
 
 from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE
 from lithrim_bench.runtime.council.judge_optimize import (
+    _demo_raises,
     _example_fields,
+    _example_raises_in_lens,
     bind_compiled_demos,
     evaluate_program,
     load_corpus,
+    order_positive_first,
     role_relevant,
     run_optimize,
 )
@@ -44,19 +47,24 @@ def test_example_fields_projects_row_to_signature_inputs():
     assert fields["expected_safety_flags"] == ["WRONG_DOSAGE"]
 
 
-def test_load_corpus_and_lens_filter_match_3a_split():
+def test_load_corpus_and_lens_filter_match_widened_split():
+    # UAP-4/S-BS-49: the corpus widened 47→83 (+36 positives, all pinned to the
+    # calibration/trainset split). The `test` held-out split is FROZEN at the v1 30
+    # cases (driver "go" #2) so both optimize arms measure on the IDENTICAL test set.
     rows = load_corpus(CORPUS)
     cal = load_corpus(CORPUS, split="calibration")
     test = load_corpus(CORPUS, split="test")
-    assert len(rows) == 47
-    assert len(cal) == 17
-    assert len(test) == 30
+    assert len(rows) == 83
+    assert len(cal) == 53
+    assert len(test) == 30  # FROZEN — widening never touches the held-out split
 
     lens = LENS_BY_ROLE["risk_judge"]
     train = [r for r in cal if role_relevant(r, lens)]
     heldout = [r for r in test if role_relevant(r, lens)]
-    # the D4 lens-filter: in-lens label OR clean negative; other-lens-only dropped
-    assert len(train) == 12
+    # the D4 lens-filter: in-lens label OR clean negative; other-lens-only dropped.
+    # train grew (12→24) with the widened positives; heldout is UNCHANGED (10) — the
+    # proof the held-out measurement can't be a test-set artifact.
+    assert len(train) == 24
     assert len(heldout) == 10
 
 
@@ -66,6 +74,51 @@ def test_role_relevant_drops_other_lens_only_keeps_clean():
     assert role_relevant({"expected_safety_flags": []}, lens) is True  # clean negative
     # FABRICATED_CONSENT is policy's; not in risk lens, not clean -> dropped
     assert role_relevant({"expected_safety_flags": ["FABRICATED_CONSENT"]}, lens) is False
+
+
+# --------------------------------------------------------------------------- #
+# coverage-aware demo selection ($0, pure) — S-BS-49 (judge_metric FROZEN)
+# --------------------------------------------------------------------------- #
+def test_example_raises_in_lens_distinguishes_positive_from_clean_and_other_lens():
+    lens = LENS_BY_ROLE["risk_judge"]
+    assert _example_raises_in_lens({"expected_safety_flags": ["WRONG_DOSAGE"]}, lens) is True
+    assert _example_raises_in_lens({"expected_safety_flags": []}, lens) is False  # clean
+    # policy's code is out of risk's lens -> not a risk positive exemplar
+    assert _example_raises_in_lens({"expected_safety_flags": ["FABRICATED_CONSENT"]}, lens) is False
+
+
+def test_order_positive_first_surfaces_positives_preserving_order():
+    lens = LENS_BY_ROLE["risk_judge"]
+    clean_a = {"case_id": "ca", "expected_safety_flags": []}
+    clean_b = {"case_id": "cb", "expected_safety_flags": []}
+    pos_1 = {"case_id": "p1", "expected_safety_flags": ["WRONG_DOSAGE"]}
+    pos_2 = {"case_id": "p2", "expected_safety_flags": ["MISSED_ESCALATION"]}
+    # positives interspersed AFTER cleans — the S-BS-49 pathology (silent cases fill
+    # the demo slots first). order_positive_first puts every in-lens positive first.
+    ordered = order_positive_first([clean_a, pos_1, clean_b, pos_2], lens=lens)
+    assert [r["case_id"] for r in ordered] == ["p1", "p2", "ca", "cb"]
+    # relative order WITHIN each group is preserved (deterministic, stable)
+    assert [r["case_id"] for r in order_positive_first([pos_2, pos_1], lens=lens)] == ["p2", "p1"]
+
+
+def test_order_positive_first_on_the_corpus_has_positives_to_surface():
+    # the widened calibration split actually carries in-lens positives for the
+    # default optimize role, so coverage-aware selection has something to surface.
+    lens = LENS_BY_ROLE["risk_judge"]
+    cal = [r for r in load_corpus(CORPUS, split="calibration") if role_relevant(r, lens)]
+    ordered = order_positive_first(cal, lens=lens)
+    n_pos = sum(1 for r in cal if _example_raises_in_lens(r, lens))
+    assert n_pos >= 1
+    # the first n_pos rows are exactly the in-lens positives
+    assert all(_example_raises_in_lens(r, lens) for r in ordered[:n_pos])
+    assert not any(_example_raises_in_lens(r, lens) for r in ordered[n_pos:])
+
+
+def test_demo_raises_detects_non_silent_exemplar():
+    assert _demo_raises({"findings": [{"taxonomy_code": "WRONG_DOSAGE"}]}) is True
+    assert _demo_raises({"findings": []}) is False
+    assert _demo_raises(SimpleNamespace(findings=[{"taxonomy_code": "X"}])) is True
+    assert _demo_raises(SimpleNamespace(findings=[])) is False
 
 
 # --------------------------------------------------------------------------- #
