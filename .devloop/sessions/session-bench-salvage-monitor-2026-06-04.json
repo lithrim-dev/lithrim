@@ -1,0 +1,97 @@
+{
+  "session_id": "session-bench-salvage-monitor-2026-06-04",
+  "stream": "bench-salvage",
+  "phase": "monitor — UAP-5 incorporation + UAP-3 driver authoring (planning session, no executor cycle)",
+  "driver_bundle_id": "bench-salvage-phaseUAP-3-processing-run-history-driver (authored this session)",
+  "started_at": "2026-06-04",
+  "ended_at": "2026-06-04",
+  "executor": "claude-code (MONITOR role — planning/authoring, not an executor build)",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-04",
+    "user_approved_at": "2026-06-04",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Conversational-driver surface INCORPORATED into the UAP arc as UAP-5a/5b (user: 'incorporate, not stop everything or split'). Additive SPEC §13 + R10/R11 — surface-only, does NOT alter the locked entity model/withstands-gate/audit/§4/R0-R5. Sequenced AFTER the moat (UAP-3b); does not disturb UAP-2.",
+        "evidence": "SPEC_UNIFIED_AUTHORING_PRODUCT.md §13 (additive amendment) + §5 R10/R11 + §7 UAP-5a/5b; commit 111ac3c",
+        "decided_at": "2026-06-04"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "S-BS-62 (UAP-2 JudgeEditor not UI-mounted; inert chat/⌘K) recorded as the FIRST UAP-5a line-item (the in-UI authoring-surface mount), not an orphan fix (user: 'this also forms a lineitem in our UAP-5 series'). The spawned fix-task stays the tactical entry.",
+        "evidence": "STREAM_bench-salvage.md S-BS-62 row + index.json UAP-5a _note; commit 5021ee5",
+        "decided_at": "2026-06-04"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "UAP-3 driver AUTHORED from the LOCKED SPEC §5 R4/R6 + the UAP-3 handoff (no prior stub to /devloop-expand), and the TASK_PACK UAP-3 entry BACKFILLED — a sanctioned exception to expand-driver's 'does not edit the pack' rule, per memory devloop-task-pack-stale-uap-from-spec (same pattern as UAP-1/UAP-2).",
+        "evidence": "bench-salvage_phaseUAP-3_processing-run-history_driver.md + index.json UAP-3 bundle (ready) + TASK_PACK UAP-3 task; commit 5021ee5",
+        "decided_at": "2026-06-04"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "0 drift — all 9 UAP-3 citation groups re-grepped via an Explore sweep CONFIRMED. Key: build_trio(judges_dspy.py:298-304) ALREADY accepts assignments=; grade_inprocess(grade.py:129-170) builds the council default-config via LocalPipelineBackend->stages.py:708-730 and never reads assignments = the S-BS-63 gap.",
+        "evidence": "Explore citation report 2026-06-04 (9 CONFIRMED / 0 DRIFTED / 0 MISSING)",
+        "decided_at": "2026-06-04"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "111ac3c",
+      "repo": "lithrim-bench",
+      "title": "docs(bench-salvage): incorporate conversational-driver surface into the UAP arc (UAP-5a/5b)",
+      "summary": "Additive SPEC §13 + R10/R11 + UAP-5a/5b phasing (surface-only); arc UAP-1..4 -> UAP-1..5; streams.json phase pipeline + cycle_state_note; two kickable index stubs (UAP-5a/5b). 4 files, pathspec."
+    },
+    {
+      "hash": "5021ee5",
+      "repo": "lithrim-bench",
+      "title": "docs(bench-salvage): author UAP-3 driver (processing + run-history + authored→flip wiring) + record S-BS-62 as a UAP-5 line-item",
+      "summary": "UAP-3 driver (R4+R6, S-BS-63 the load-bearing deliverable) authored from the LOCKED SPEC + handoff; bundle UAP-3 stub->ready; TASK_PACK UAP-3 backfilled; S-BS-62 tagged the first UAP-5a line-item. 4 files (driver new), pathspec."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "N/A — monitor planning session (no executor build). Soft checks below.",
+      "verdict": "SKIP",
+      "evidence": "No code under test; planning artifacts only."
+    },
+    {
+      "criterion": "All edited JSON valid (index.json, streams.json, TASK_PACK)",
+      "verdict": "PASS",
+      "evidence": "python3 -c json.load on all three = OK after each edit"
+    },
+    {
+      "criterion": "Scope held — only intended files committed; foreign untracked untouched",
+      "verdict": "PASS",
+      "evidence": "git show --stat 111ac3c (4 files) + 5021ee5 (4 files); .claude/ + KICKOFF_CRITIC + REPORT_fhir_agentbench never staged (pathspec-only)"
+    },
+    {
+      "criterion": "SPEC lock integrity — §13 additive, no edit to the locked entity model/withstands-gate/audit/§4/R0-R5",
+      "verdict": "PASS",
+      "evidence": "SPEC §13 preamble 'the lock holds; appended, not re-opened'; status line flags the additive amendment"
+    }
+  ],
+
+  "diagnostic_stats": {
+    "uap3_citations_regrepped": "9 groups — 9 CONFIRMED / 0 DRIFTED / 0 MISSING",
+    "index_bundle_states": "UAP-1 shipped · UAP-2 closed-NON-BLOCKING · UAP-3 ready · UAP-5a stub · UAP-5b stub",
+    "memories_written": "zyng-claude-cli-provider (reference), insurance-extraction-pmf-signal (project; Pibit-named)",
+    "explorations": "zyng ClaudeCliClient/LLMClient provider mapping; Pibit.ai PMF signal (insurance loss-run extraction QA) — both for the conversational layer + domain-agnostic thesis",
+    "commits_this_session": "2 (111ac3c, 5021ee5) — bench-salvage/ws6c-dspy, NOT pushed"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "Monitor planning session (no executor build). Two durable outcomes landed + committed (pathspec, not pushed): (1) the zyng-proven Claude-provider work was INCORPORATED into the UAP arc as UAP-5a (authoring-assist / describe→card, reuse zyng LLMClient, R10) + UAP-5b (conversational shell, Claude Agent SDK over the BFF-ops-as-MCP-tools + gen-UI registry, R11) — additive SPEC §13, surface-only, sequenced AFTER the moat (UAP-3b), the lock untouched (111ac3c). (2) The UAP-3 driver was authored from the LOCKED SPEC §5 R4/R6 + the UAP-3 handoff (no prior stub), citation-verified (9/9 CONFIRMED), registered ready, pack backfilled, with S-BS-63 (thread authored judge assignments into grade_inprocess via build_trio(assignments=)) as the load-bearing deliverable; S-BS-62 tagged the first UAP-5a line-item (5021ee5). Side-context captured to memory: the zyng provider pattern + licensing boundary, and a Pibit.ai PMF signal (insurance extraction-QA validates the domain-agnostic thesis). On audit, the resuming monitor should confirm 111ac3c sits under the UAP-2 close (it does) and that the UAP-3 driver §3 4 plan-review decisions are intact before kickoff.",
+
+  "next_session_hint": "Resuming monitor: /devloop-resume bench-salvage, then /devloop-kickoff bench-salvage UAP-3 (driver READY, 5021ee5) → paste into a fresh executor session. Also OWED: the batched UAP-1+UAP-2 :5180 A8 visual smoke (user-run; flips both A8→PASS). S-BS-62 JudgeEditor-mount fix-task queued as the first UAP-5a line-item."
+}
