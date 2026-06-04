@@ -45,6 +45,9 @@ def build_authored_semantic_stage(
     predictors: dict[str, Callable[..., Any]] | None = None,
     council: Any = None,
     gate_mode: bool = False,
+    apply_gate: bool = True,
+    decisions_sink: list[Any] | None = None,
+    http_client: Any | None = None,
 ):
     """Return an async semantic stage that grades via the authored DSPy trio.
 
@@ -63,10 +66,22 @@ def build_authored_semantic_stage(
     ``predictors`` (role → callable) is forwarded to :func:`build_trio` for $0
     offline determinism; omit it for the live v2 Azure trio (the paid in-process
     path).
+
+    UAP-3b (THE MOAT): when ``apply_gate`` is True (default), the per-judge
+    **withstands-gate** (:func:`apply_withstands_gate`) runs BETWEEN the trio results
+    and the frozen ``_apply_consensus`` — it reconciles each judge's verdict against
+    its deterministic signals (assigned ontology rules + validator/grounding outputs)
+    and corrects a signal-contradicted finding PRE-consensus. The CORRECTED seam dicts
+    feed ``_apply_consensus`` UNCHANGED (byte-0-delta). ``decisions_sink`` (if given)
+    receives the :class:`WithstandsDecision`s so the caller (``run_eval``) can audit +
+    emit RLVR correction records. ``apply_gate=False`` reproduces the pre-UAP-3b
+    behaviour (the no-gate baseline the moat exhibit contrasts against). ``http_client``
+    is injectable for the validator-output signals' executors (offline tests).
     """
     from ..pipeline.stages import run_semantic
     from .compliance_council import ComplianceCouncil
     from .judges_dspy import build_trio
+    from .withstands import apply_withstands_gate
 
     trio = build_trio(ontology=ontology, assignments=assignments, predictors=predictors)
     council = council or ComplianceCouncil()
@@ -81,6 +96,27 @@ def build_authored_semantic_stage(
             (a.get("content") or "") for a in (payload.get("artifacts") or []) if isinstance(a, dict)
         )
         results = [j.forward(transcript=transcript, artifact=artifact) for j in trio]
+
+        # THE MOAT — the per-judge, pre-consensus withstands-gate (UAP-3b D2). It
+        # corrects a signal-contradicted finding ABOVE the frozen seam; the CORRECTED
+        # results are what consensus sees. The case the contracts/lens reason over is
+        # reassembled from the payload (transcript + artifact) the same way ``ground``
+        # reads ``case``.
+        if apply_gate:
+            case_view = {
+                "transcript": transcript,
+                "artifacts": payload.get("artifacts") or [],
+            }
+            results, decisions = apply_withstands_gate(
+                results,
+                ontology=ontology,
+                case=case_view,
+                assignments=assignments,
+                http_client=http_client,
+            )
+            if decisions_sink is not None:
+                decisions_sink.extend(decisions)
+
         # The frozen consensus IP — only called. The envelope mirrors
         # ComplianceCouncil.evaluate()'s return so run_semantic's _run_council_and_map
         # maps it exactly as it maps the prompt-council.
