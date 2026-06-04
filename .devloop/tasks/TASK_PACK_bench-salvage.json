@@ -1363,6 +1363,62 @@
       "origin": "SPLIT OUT of UAP-5a 2026-06-04 (user) so the deterministic authoring-loop core ships LLM-free first; this is the fast-follow.",
       "hardness": "HARD-GATE-class (an LLM drafts safety-critical judges/flags -- but single-shot + the audited PUT + the owner<->emit/snapshot 422 gates stay authoritative; the LLM drafts, never relabels or bypasses a gate).",
       "next_action": "STUB (fast-follow) -- run /devloop-expand-driver bench-salvage UAP-5a-assist AFTER the UAP-5a authoring-loop core lands (it rides on the mounted JudgeEditor + the audited PUT path). Re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC section 13/R10. New route POST /v1/author/{kind} -> ratify SPEC_PRODUCT_SHELL section 10. Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant."
+    },
+    {
+      "id": "UAP-5b",
+      "phase": "UAP-5b",
+      "title": "UAP-5b -- the conversational shell (R11, the CAPSTONE): the agent-loop SPINE + a 2-3 tool CORE (Python Agent SDK in the BFF, BYO-Claude, paid tools confirm-gated). Talk -> an author->process step -> an audited config write -> the EXISTING gen-UI card renders. The full Domain->Review-from-scratch journey is the TARGET -> UAP-5c fast-follow.",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-5b-conversational-shell-driver",
+      "milestone": "R11 Tier-2 of the conversational surface (SPEC section 13) -- the capstone, after UAP-3b/UAP-4 (the full tool surface the loop drives now exists). The conversation IS the audit log (R0).",
+      "origin": "Monitor expanded 2026-06-05 from the LOCKED SPEC section13/R11 + the index stub + 3 decisions RESOLVED with the user (OQ-6 = Python-Agent-SDK-in-BFF / SCOPE = spine + 2-3 core tools, full journey -> UAP-5c / PROVIDER = BYO local-CLI, paid confirm-gated). Right-sized per the UAP-4 anti-over-engineering lesson.",
+      "regrepped_2026_06_05": "apps/bff/app.py:230 app=FastAPI + the confirm/in_process paid-gate :217/:226/:640 + run_eval_endpoint:245 + optimize_judge_endpoint:620; registry.js:3-7 the {type:'tool-<name>',state:'output-available',output} parts shape + renderTool; panes.jsx:79 CenterPane + the 'Ask Lithrim' input (DECORATIVE, unwired); bff.js; ../zyng/zyng/authoring.py:149 LLMClient/:424 StubLLMClient (R10 single-shot precedent + offline double, NOT the R11 loop); SPEC_PRODUCT_SHELL section10:140-148. NET-NEW + UNVERIFIED: claude_agent_sdk NOT installed + no [agent] extra -> D0 gating spike.",
+      "deliverables": [
+        "D0 (GATING, do FIRST) add claude-agent-sdk under a new [agent] extra (import-isolated like [council]/[bff]) + PROVE a trivial ClaudeSDKClient + ONE @tool in-process SDK-MCP tool runs on the LOCAL-CLI/BYO-Claude auth (no API key); capture the SDK tool/stream API. GRADED: works -> proceed; can't -> HALT-AND-SURFACE (OQ-6=B + the licensing guardrail depend on it).",
+        "D1 the [agent] extra + a provider module: ClaudeAgentOptions for BYO-Claude + a StubLLMClient-style offline double for tests; import-isolated (no claude_agent_sdk leak into default deps).",
+        "D2 the BFF SSE chat route + the agent loop: a NET-NEW SSE route (e.g. POST /v1/chat StreamingResponse) hosting ClaudeSDKClient over the tool registry; streams assistant text + tool-call + tool-result events. Slot into app.py:230 ALONGSIDE the existing routes; never modify the wrapped ops. section10 ratify (D7).",
+        "D3 the CORE SDK-MCP tools (2-3; D-A): wrap a subset of the existing BFF ops as in-process @tool's -- candidate author_judge (PUT /v1/judges/{role}, audited, owner<->emit/snapshot gates intact) + run_eval (POST /v1/run-eval; replay $0; live/in_process REQUIRE confirm -> the in-DOM cost gate) (+ optionally author_flag/put_ontology). Each tool = a thin wrapper -> an audited config write (R0).",
+        "D4 the parts-adapter: adapt each tool-result -> {type:'tool-<name>',state:'output-available',output} (D-D: author_judge->tool-judge_editor, run_eval->tool-run_panel/verdict) so the shell renders the EXISTING cards inline. No new card types.",
+        "D5 wire the shell chat pane: panes.jsx 'Ask Lithrim' input -> a bff.js SSE client -> CenterPane renders the streamed assistant text + the tool-parts (renderTool); paid tool-calls surface the in-DOM cost modal (S-BS-69) before firing.",
+        "D6 tests: offline/$0 -- the loop drives a tool via the STUB provider (no real Claude/Azure) + asserts an audited write + a valid {type,state,output} the registry resolves; the SSE shape; a paid tool REFUSES without confirm (A-SAFE); import-isolation. Vitest: the chat pane renders streamed text + a tool-part. The A-LIVE slice is a cost-gated user-run, NOT an automated test.",
+        "D7 docs: SPEC_PRODUCT_SHELL section10 ratify the SSE chat route; note OQ-6 resolved (B) + the D0 BYO-Claude result; REGISTER the UAP-5c fast-follow stub (the full Domain->Review-from-scratch journey over the complete tool set); session log."
+      ],
+      "acceptance": [
+        "A1 the loop works end-to-end: talk -> SSE -> assistant text + a tool-call -> the EXISTING gen-UI card renders inline in CenterPane (:5180 smoke is A-LIVE).",
+        "A2 the conversation IS the audit log (R0): each config-writing tool-call -> an actor-attributed AuditRecord; a tool-call -> GET /v1/audit shows it. No un-audited writes.",
+        "A3 the core tools drive real ops: author_judge does the audited PUT (a gate-violating assignment 422s, surfaced NOT bypassed); run_eval runs (replay $0; live/in_process refuse without confirm).",
+        "A4 the parts-adapter reuses the existing cards (renderTool resolves {type,state,output}); no new card types.",
+        "A5 BYO-Claude + import-isolated: the loop runs on the local-CLI/BYO-Claude auth (no API key); claude_agent_sdk behind the [agent] extra, no leak into default-deps (isolation test).",
+        "A6 frozen 0-delta: git diff over _apply_consensus + the seam dict + judge_metric + the existing BFF ops + the committed seeds == 0 lines (the loop wraps + streams; it does not modify them).",
+        "A7 green bar: ruff + default/debuglithrim/BFF/Vitest re-run; default-deps import-clean; pathspec-only.",
+        "A-SAFE (load-bearing agent-safety): the agent CANNOT (i) fire a paid run without the in-DOM confirm, (ii) relabel a case/bypass an author-gate, or (iii) write un-audited config -- each negative-tested.",
+        "A-LIVE (BLOCKING, USER-RUN): the live :5180 conversational slice -- with the BFF up + BYO-Claude, talk -> the agent authors a judge (audited, rendered as the card) + runs an eval (verdict card), end-to-end, cost-gated; built fully driveable (in-DOM modal, Chrome-MCP-driveable). The full from-scratch journey is the UAP-5c target."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "The FULL Domain->Judge->Flag->Run->Review-from-scratch journey -> UAP-5c (the fast-follow; this cycle = spine + core tools).",
+        "R10 single-shot describe->card (the zyng emit() pattern) -> UAP-5a-assist (a different tier).",
+        "API-key / hosted / multi-tenant provider -- BYO-Claude/desktop only (the licensing guardrail).",
+        "The FROZEN 4-act journey -- this drives the PRODUCT shell (CenterPane), NOT the demo journey acts.",
+        "New gen-UI card types -- reuse the existing registry (the adapter maps to them).",
+        "FROZEN: _apply_consensus + the per-judge seam dict + judge_metric + the UAP entity model/withstands-gate/audit + the committed seeds + the existing BFF ops (this cycle is a DRIVER OVER them -- wrap + stream, never modify). The agent never relabels, bypasses a gate, or fires a paid run without confirm.",
+        "Drive-by formatting / dep bumps beyond the [agent] extra."
+      ],
+      "plan_review_decisions": [
+        "RESOLVED 2026-06-05 (user, AskUserQuestion -- build to these): OQ-6 = (B) Python Agent SDK in the BFF / SCOPE = the loop spine + a 2-3 tool core (full Domain->Review-from-scratch journey -> UAP-5c) / PROVIDER = BYO local-CLI, paid tools STAY confirm-gated (the agent proposes, the human confirms; never silently spends/relabels/bypasses).",
+        "D-A the core tool set (which 2-3): candidate author_judge + run_eval (+ optionally author_flag/put_ontology) -- the set that best shows talk->audited-write->card->run.",
+        "D-B the SSE protocol shape (route + event schema: assistant-text deltas, tool-call, tool-result, done).",
+        "D-C the SDK version + the BYO-Claude auth (the D0 result) -- pin claude-agent-sdk; confirm the in-process MCP-tool API + the local-CLI auth. GATES the build.",
+        "D-D the parts-adapter mapping (tool -> tool-<name> card) + the output shape each card expects.",
+        "D-E the A-LIVE cost envelope (the loop's BYO-Claude calls + any confirm-gated paid tool the attestation exercises). Halt-and-ask before any paid run.",
+        "D-F SPLIT -- the full journey stays UAP-5c by default; if even the spine balloons, flag it."
+      ],
+      "hardness": "HARD-GATE; fresh-critic required at close.",
+      "hardness_reason": "a NET-NEW agent loop + a NET-NEW dependency (claude-agent-sdk, the [agent] extra) + a NET-NEW SSE surface (section10) + the BYO-Claude licensing guardrail (BYO/desktop only, never multi-tenant) + the A-SAFE agent-safety boundary (the agent must NOT silently spend/relabel/bypass an author-gate -- it drives real audited config writes + can invoke PAID tools). The loop is a DRIVER OVER the frozen entity model/withstands-gate/audit (A6 0-delta load-bearing). Live runs are BYO-Claude + cost-gated.",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-5b; fresh executor ROOTED IN lithrim-bench. DO D0 FIRST (the gating SDK+BYO-Claude spike). Plan-review resolves D-A/D-B/D-C/D-D/D-E/D-F; the three top-level decisions are RESOLVED. The agent NEVER silently spends/relabels/bypasses (A-SAFE). Pathspec-only commits."
     }
   ],
   "seams": [
