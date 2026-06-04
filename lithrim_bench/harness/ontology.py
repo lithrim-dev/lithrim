@@ -179,8 +179,20 @@ def from_dict(data: dict[str, Any]) -> Ontology:
     )
 
 
-@lru_cache(maxsize=8)
 def load_ontology(path: str | Path = DEFAULT_ONTOLOGY_PATH) -> Ontology:
-    """Load + cache an ontology from its committed JSON seed."""
-    data = json.loads(Path(path).read_text())
-    return from_dict(data)
+    """Load + cache an ontology, keyed on ``(path, mtime)``.
+
+    The cache key includes the file's mtime, NOT just the path: R3 (draft→grade,
+    S-BS-26b) loads the **mutable** working-copy draft through here, not only the
+    immutable committed seed. Keying on path alone (the original ``@lru_cache``) meant
+    an edit to the same draft path was silently ignored within a long-running process
+    (e.g. the BFF) — the re-grade reused the stale ontology, breaking iterative
+    "edit the flag → see it grade" (S-BS-58). An unchanged file still hits cache.
+    """
+    p = Path(path)
+    return _load_ontology_cached(str(p), p.stat().st_mtime_ns)
+
+
+@lru_cache(maxsize=8)
+def _load_ontology_cached(path: str, _mtime_ns: int) -> Ontology:
+    return from_dict(json.loads(Path(path).read_text()))

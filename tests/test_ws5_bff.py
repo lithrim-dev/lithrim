@@ -342,6 +342,34 @@ def test_draft_ontology_grades_not_the_committed_seed(client):
     assert ONTOLOGY_SEED.read_bytes() == seed_before  # the committed seed never moved
 
 
+def test_draft_re_edit_regrades_not_the_stale_cache(client, tmp_path):
+    """S-BS-58 — editing the SAME draft and re-running reflects the new edit, not a
+    cached stale ontology. The @lru_cache(path) bug made a long-running BFF reuse the
+    first-loaded ontology on the 2nd+ edit of a draft (path unchanged), so iterative
+    'edit → see it grade' silently no-op'd. A2 covered committed→draft; this covers
+    draft→edit-same-draft (one path)."""
+    import os
+
+    # first draft: raise the threshold above the active weight → the case no longer blocks
+    d1 = _seed_body()
+    d1["severity_map"]["block_at_or_above"] = 99.0
+    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=d1).status_code == 200
+    r1 = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
+    assert r1["ontology_source"] == "draft"
+    assert r1["composite"]["verdict"] != "reject"  # the high-threshold draft graded
+
+    # re-edit the SAME draft back down so it blocks again; force a later mtime so the
+    # cache bust is deterministic regardless of filesystem mtime resolution
+    d2 = _seed_body()
+    d2["severity_map"]["block_at_or_above"] = 0.5
+    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=d2).status_code == 200
+    wc = tmp_path / "ont" / "ws5_bff_test.json"
+    st = wc.stat()
+    os.utime(wc, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+    r2 = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
+    assert r2["composite"]["verdict"] == "reject"  # the re-edit took effect, not stale-cached
+
+
 # ── UAP-1 R0: the audit streams ──────────────────────────────────────────────
 
 

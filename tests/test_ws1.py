@@ -226,3 +226,30 @@ def test_expected_verdict_shape_contract():
     assert expected_block({"expected_compliance_verdict": "reject"}) is True
     assert expected_block({"expected_compliance_verdict": ["needs_review", "reject"]}) is True
     assert expected_block({"expected_compliance_verdict": ["approve"]}) is False
+
+
+# ── S-BS-58 ontology cache busts on a draft edit ──────────────────────────────
+
+
+def test_load_ontology_busts_cache_when_the_draft_changes(tmp_path):
+    """S-BS-58 — load_ontology is keyed on (path, mtime), so editing a draft and
+    reloading the SAME path reflects the edit. The original @lru_cache(path) cached by
+    path alone, so a long-running process (the BFF) silently reused the stale ontology
+    on the 2nd+ edit of a draft — breaking iterative 'edit the flag → see it grade'.
+    The A2 test only covered committed→draft (distinct paths); this covers
+    draft→edit-same-draft (one path)."""
+    import os
+
+    base = json.loads(ONTOLOGY_SEED.read_text())
+    draft = tmp_path / "draft.json"
+
+    base["severity_map"]["block_at_or_above"] = 0.5
+    draft.write_text(json.dumps(base))
+    assert load_ontology(draft).severity_map.block_at_or_above == 0.5
+
+    base["severity_map"]["block_at_or_above"] = 99.0
+    draft.write_text(json.dumps(base))
+    st = draft.stat()  # force a later mtime so the bust is deterministic on any FS
+    os.utime(draft, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+
+    assert load_ontology(draft).severity_map.block_at_or_above == 99.0
