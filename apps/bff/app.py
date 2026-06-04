@@ -61,6 +61,7 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -225,6 +226,14 @@ class OptimizeRequest(BaseModel):
     # so the cost-confirm is explicit — the shell surfaces an in-DOM modal (S-BS-69).
     confirm: bool = False
     limit: int | None = None  # cap each split for a cheaper smoke (per-call cost check)
+
+
+class ChatRequest(BaseModel):
+    # UAP-5b / R11: one user utterance for the conversational shell's agent loop. NO
+    # paid knob — the loop's tools are author/read/REPLAY only (the agent can never
+    # spend; a paid run is the human's in-DOM cost-confirm calling the existing gate).
+    message: str
+    agent: str = DEFAULT_AGENT
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -897,3 +906,93 @@ def kb_search_endpoint(
         "evidence": result.evidence,
         "manifest": result.manifest,
     }
+
+
+def _build_tool_context(
+    req_agent: str,
+    db_path: Path,
+    out_dir: Path | None,
+    workdir: Path,
+    collections_db: Path,
+    actor: Actor,
+    x_actor: str | None,
+):
+    """Bind the EXISTING endpoint functions (deps resolved) into a ToolContext for the
+    agent loop (UAP-5b D3). The closures call the FROZEN ops directly — every gate
+    (owner↔emit / snapshot) + the audited write path stay intact. apps/bff/agent never
+    imports app.py; app.py injects the ops here → no circular import.
+
+    A-SAFE: ``run_eval_replay`` hardcodes ``live=in_process=False`` — there is NO
+    branch, here or in the tool, that yields a paid run. The agent proposes a paid run
+    in prose; only the human's in-DOM cost-confirm hits the existing confirm-gated path.
+    """
+    from agent import ToolContext  # lazy: keep [agent] off app import (no SDK pulled here)
+
+    def _author_judge(role: str, assigned_flags: list[str], rationale: str) -> dict:
+        body = {"assigned_flags": assigned_flags, "validator_refs": [], "model": ""}
+        return put_judge_endpoint(
+            role,
+            judge=body,
+            rationale=rationale,
+            db_path=db_path,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+
+    def _get_judge(role: str) -> dict:
+        return get_judge_endpoint(role, agent=req_agent, db_path=db_path, workdir=workdir)
+
+    def _run_eval_replay(agent: str) -> dict:
+        return run_eval_endpoint(
+            RunEvalRequest(agent=agent, live=False, in_process=False),
+            db_path=db_path,
+            out_dir=out_dir,
+            workdir=workdir,
+            collections_db=collections_db,
+        )
+
+    return ToolContext(
+        author_judge=_author_judge,
+        get_judge=_get_judge,
+        run_eval_replay=_run_eval_replay,
+        default_agent=req_agent,
+    )
+
+
+@app.post("/v1/chat")
+async def chat_endpoint(
+    req: ChatRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> StreamingResponse:
+    """The conversational-shell agent loop (UAP-5b / R11): host ClaudeSDKClient over
+    the in-process SDK-MCP tools (the CORE author/read/REPLAY spine) and STREAM the
+    multi-turn loop to the shell chat pane as SSE. BYO-Claude (local ``claude`` CLI /
+    desktop auth — no API key; proven in D0). Every tool-call that writes config goes
+    through the existing audited path → **the conversation IS the audit log** (R0).
+
+    The SDK is loaded LAZILY by the loop (A5 — not at app import). Event frames are
+    ``data: <json>\\n\\n`` (assistant_delta / tool_call / tool_result-as-gen-UI-part /
+    error / done). A-SAFE: no tool can fire a paid run; the loop's ``run_eval`` is
+    replay-only ($0), and the loop's own Claude calls are the human's BYO subscription.
+    """
+    from agent import run_chat, sse_format  # lazy: SDK loads here, on a real chat only
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ctx = _build_tool_context(
+        req.agent, db_path, out_dir, workdir, collections_db, actor, x_actor
+    )
+
+    async def _events():
+        async for event in run_chat(req.message, ctx):
+            yield sse_format(event)
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
