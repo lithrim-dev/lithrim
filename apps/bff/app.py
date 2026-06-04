@@ -226,6 +226,7 @@ def run_eval_endpoint(
     db_path: Path = Depends(get_config_db),
     out_dir: Path | None = Depends(get_out_dir),
     workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
 ) -> dict:
     """Drive one case end-to-end and return the eval-report payload.
 
@@ -256,6 +257,7 @@ def run_eval_endpoint(
             out_dir=out_dir,
             ontology_path=ontology_path,
             assignments=assignments or None,
+            collections_db=collections_db,
         )
     except SystemExit as exc:  # run_eval raises this when the case is missing
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -722,14 +724,14 @@ def get_run_audit_endpoint(
     loop in the sync handler) and projects the per-judge votes/reasoning/evidence +
     final verdict.
 
-    A $0 replay run does NOT persist a provenance blob (only --in-process does), so
-    an un-persisted run is a clean 404 — never a 500 (monitor N1). "Every replay run
-    is auditable" is UAP-3 run-history; recorded as a seam."""
+    UAP-3 (S-BS-52): replay + live + in_process all persist a provenance blob now, so
+    any run that actually ran is auditable. An unknown / never-run id is still a clean
+    404 — never a 500 (monitor N1)."""
     doc = PIPELINE_RUNS.get(run_id, db_path=collections_db)
     if doc is None:
         raise HTTPException(
             status_code=404,
-            detail=f"run {run_id!r} not persisted (replay runs are not audited until UAP-3 run-history)",
+            detail=f"run {run_id!r} not found (no persisted provenance blob for this run id)",
         )
     return _run_audit_report(doc, run_id)
 

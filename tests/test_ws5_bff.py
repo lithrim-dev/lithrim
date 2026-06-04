@@ -466,11 +466,11 @@ def test_run_provenance_report_projects_the_blob(client, tmp_path):
 
 
 def test_run_provenance_unpersisted_run_is_404_not_500(client):
-    """A4 / N1 — a $0 replay run persists no blob, so an un-persisted run id is a
-    clean 404 (never a 500)."""
+    """A4 / N1 — an unknown / never-run id has no provenance blob, so it is a clean
+    404 (never a 500). (UAP-3 S-BS-52: replay runs DO persist now; this id never ran.)"""
     res = client.get("/v1/runs/never-ran/audit")
     assert res.status_code == 404
-    assert "replay" in res.text
+    assert "not found" in res.text
 
 
 # ── UAP-2 R2: /v1/judges — author a judge via ontology-assignment ─────────────

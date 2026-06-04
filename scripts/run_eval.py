@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from lithrim_bench.harness.collections import PIPELINE_RUNS  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
     Agent,
@@ -100,6 +101,26 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
     }
 
 
+def _persist_run_provenance(
+    result: dict, agent: Agent, *, collections_db: str | Path | None = None
+) -> None:
+    """Persist a replay/live run's PipelineProvenance blob to ``PIPELINE_RUNS`` so the
+    run is auditable + listed in run-history (S-BS-52). ``agent_id`` is backfilled from
+    the eval-profile (the captured baseline carries no agent_id). No-op when the result
+    carries no ``pipeline_run_id``. Idempotent on ``pipeline_run_id`` (the doc-shim
+    upserts): deterministic replay reuses the baseline's fixed id, so re-running replay
+    upserts ONE row per baseline rather than one-per-invocation — by design, not a bug."""
+    prov = (result or {}).get("provenance") or {}
+    if not prov.get("pipeline_run_id"):
+        return
+    doc = dict(prov)
+    doc.setdefault("agent_id", agent.name)
+    if collections_db is not None:
+        PIPELINE_RUNS.insert(doc, db_path=collections_db)
+    else:
+        PIPELINE_RUNS.insert(doc)
+
+
 def run(
     agent: Agent,
     *,
@@ -108,6 +129,7 @@ def run(
     out_dir: str | Path | None = None,
     ontology_path: str | Path | None = None,
     assignments: dict[str, Any] | None = None,
+    collections_db: str | Path | None = None,
 ) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record.
 
@@ -125,7 +147,12 @@ def run(
     authored lens — the authoring becomes consequential. ``None``/absent → the default
     in-process council (back-compat). Ignored on the replay path (no live council) and
     on the live ``:8002`` path (per-judge assignment-injection is WS-2-backend-gated,
-    HARD-GATE-paused; S-BS-63 closes for in_process only this cycle)."""
+    HARD-GATE-paused; S-BS-63 closes for in_process only this cycle).
+
+    ``collections_db`` (UAP-3 R6 / S-BS-52): the doc-shim DB run-provenance persists
+    to. ``None`` → ``DEFAULT_COLLECTIONS_DB`` (back-compat). The BFF threads its
+    ``get_collections_db`` here so the persisted run lands in the SAME DB
+    ``GET /v1/runs`` + ``GET /v1/runs/{id}/audit`` read from."""
     ontology_src = Path(ontology_path) if ontology_path is not None else agent.ontology_abspath()
     ontology = load_ontology(ontology_src)
     case = load_case(agent.dataset.case_id, source=agent.source_abspath())
@@ -165,7 +192,9 @@ def run(
                 ontology=ontology, assignments=assignments
             )
         result = grade_inprocess(
-            case, semantic_stage=semantic_stage, provenance_store=SqliteProvenanceStore()
+            case,
+            semantic_stage=semantic_stage,
+            provenance_store=SqliteProvenanceStore(db_path=collections_db),
         )
         grade_path = "in_process"
     elif live:
@@ -182,6 +211,15 @@ def run(
     else:
         result = grade_replay(case, agent.baseline_abspath())
         grade_path = "replay"
+
+    # S-BS-52: replay + live runs persist their provenance blob too, so every run is
+    # auditable + appears in run-history — not just in_process. The captured baseline
+    # (replay) / the :8002 response (live) each carry a full PipelineProvenance under
+    # ``result["provenance"]`` (pipeline_run_id/verdict/stage_results/...), the exact
+    # doc shape ``/v1/runs/{id}/audit`` reads. in_process already persisted via the
+    # orchestrator's SqliteProvenanceStore save seam, so skip it here (no double write).
+    if grade_path != "in_process":
+        _persist_run_provenance(result, agent, collections_db=collections_db)
 
     grounded = ground(result, case, ontology=ontology)
     comp = composite(grounded)
