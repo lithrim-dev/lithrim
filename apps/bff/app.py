@@ -238,6 +238,14 @@ def run_eval_endpoint(
     """
     agent = _load_agent(req.agent, db_path)
     ontology_path, ontology_source = _resolve_ontology_path(agent, workdir)
+    # S-BS-63: thread the persisted judge authoring through to the in-process grade so
+    # an authored judge re-votes with its authored lens (the static→live close). Read
+    # from the SAME config DB the BFF resolves agents from (tests override get_config_db).
+    assignments = {
+        role: jc.assigned_flags
+        for role, jc in list_judges(db_path=db_path).items()
+        if jc.assigned_flags
+    }
     try:
         record = run_eval.run(
             agent,
@@ -245,6 +253,7 @@ def run_eval_endpoint(
             in_process=req.in_process,
             out_dir=out_dir,
             ontology_path=ontology_path,
+            assignments=assignments or None,
         )
     except SystemExit as exc:  # run_eval raises this when the case is missing
         raise HTTPException(status_code=400, detail=str(exc)) from exc

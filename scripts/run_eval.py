@@ -24,6 +24,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -42,6 +43,7 @@ from lithrim_bench.harness.correction import (  # noqa: E402
 )
 from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
 from lithrim_bench.harness.grounding import ground  # noqa: E402
+from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
 from lithrim_bench.harness.report import calibration, composite  # noqa: E402
@@ -105,6 +107,7 @@ def run(
     in_process: bool = False,
     out_dir: str | Path | None = None,
     ontology_path: str | Path | None = None,
+    assignments: dict[str, Any] | None = None,
 ) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record.
 
@@ -113,7 +116,16 @@ def run(
     that path (a PUT-ed working-copy draft), so an authored flag/threshold actually
     grades ("edit the flag → see it grade"). One resolved ``ontology_src`` feeds BOTH
     committed-seed reads below — the grounding load and the live-inject payload — so
-    they can never diverge."""
+    they can never diverge.
+
+    ``assignments`` (UAP-3 R4 / S-BS-63): role → assigned flag codes, the persisted
+    judge authoring (``harness.judges.load_judge``). When set on the ``in_process``
+    path the in-process council is built as the AUTHORED DSPy trio
+    (``build_authored_semantic_stage``), so an authored judge re-votes with its
+    authored lens — the authoring becomes consequential. ``None``/absent → the default
+    in-process council (back-compat). Ignored on the replay path (no live council) and
+    on the live ``:8002`` path (per-judge assignment-injection is WS-2-backend-gated,
+    HARD-GATE-paused; S-BS-63 closes for in_process only this cycle)."""
     ontology_src = Path(ontology_path) if ontology_path is not None else agent.ontology_abspath()
     ontology = load_ontology(ontology_src)
     case = load_case(agent.dataset.case_id, source=agent.source_abspath())
@@ -138,7 +150,23 @@ def run(
         sys.stderr.write(
             "WARNING: --in-process runs the in-process v2 council (real paid Azure calls).\n"
         )
-        result = grade_inprocess(case, provenance_store=SqliteProvenanceStore())
+        # UAP-3 / S-BS-63: when the agent's judges carry authored assignments, build
+        # the in-process council as the AUTHORED DSPy trio so the council votes with
+        # the authored lens (the static→live close). Lazy import (heavy deps) — the
+        # default-deps replay/live paths above never reach it. No assignments → the
+        # default in-process council (back-compat).
+        semantic_stage = None
+        if assignments:
+            from lithrim_bench.runtime.council.authored_stage import (
+                build_authored_semantic_stage,
+            )
+
+            semantic_stage = build_authored_semantic_stage(
+                ontology=ontology, assignments=assignments
+            )
+        result = grade_inprocess(
+            case, semantic_stage=semantic_stage, provenance_store=SqliteProvenanceStore()
+        )
         grade_path = "in_process"
     elif live:
         sys.stderr.write("WARNING: --live makes a real paid council call.\n")
@@ -246,7 +274,20 @@ def main() -> int:
         seed_config_db(db_path=db_path)
     agent = load_agent(args.agent, db_path=db_path)
 
-    record = run(agent, live=args.live, in_process=args.in_process, out_dir=args.out_dir)
+    # S-BS-63: thread any persisted judge authoring (role → assigned flag codes) into
+    # the in-process grade so an authored judge re-votes with its authored lens. Empty
+    # before any PUT /v1/judges → the default council (back-compat).
+    assignments = {
+        role: jc.assigned_flags for role, jc in list_judges(db_path=db_path).items() if jc.assigned_flags
+    }
+
+    record = run(
+        agent,
+        live=args.live,
+        in_process=args.in_process,
+        out_dir=args.out_dir,
+        assignments=assignments or None,
+    )
     _print(agent, record, live=args.live)
     return 0
 
