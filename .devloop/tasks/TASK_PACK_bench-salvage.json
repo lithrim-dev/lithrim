@@ -1260,7 +1260,7 @@
       "id": "UAP-4",
       "phase": "UAP-4",
       "title": "UAP-4 -- the calibration-trainer OPTIMIZE loop delivered LIVE FROM THE UI (R5): the optimize->honest-Δ loop embedded in JudgeEditor + the S-BS-49 win-attempt (lead lever corpus-widening); the bind/re-run round-trip SPLIT -> UAP-4-opt (right-sized after a live :5180 reassessment)",
-      "status": "ready",
+      "status": "done",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
