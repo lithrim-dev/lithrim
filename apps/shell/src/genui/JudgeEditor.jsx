@@ -17,9 +17,10 @@
    inline. All fetches route through bff.js (S-BS-50 — no hardcoded :8787). Built on
    shadcn primitives + the @theme token bridge. */
 import { useEffect, useState } from "react";
-import { getJudge, putJudge } from "../bff.js";
+import { getJudge, optimizeJudge, putJudge } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog.jsx";
 import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
 import { Separator } from "../components/ui/separator.jsx";
@@ -28,6 +29,62 @@ import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
 const lineCount = (s) => (s ? s.split("\n").length : 0);
+const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
+
+/* The HONEST held-out Δ render (D-G, inline — NOT the calibration_chart reliability
+   diagram). Shows baseline→optimized precision/recall/graded on the FIXED test split.
+   A win renders the lift; a ≤0 Δ renders EXPLICITLY as a loss (R1 — never hidden,
+   never spun; the accept-gate is never loosened to manufacture a win). */
+function OptimizeDelta({ result }) {
+  const { baseline = {}, optimized = {}, delta = {}, n_train, n_heldout, compile_config = {} } = result;
+  const improved = (delta.graded ?? 0) > 0;
+  const rows = [
+    { k: "graded", label: "Graded (hard-accept)" },
+    { k: "precision", label: "Precision" },
+    { k: "recall", label: "Recall" },
+  ];
+  const sign = (d) => (d > 0 ? `+${fmt(d)}` : fmt(d));
+  return (
+    <div
+      data-testid="optimize-delta"
+      data-outcome={improved ? "win" : "loss"}
+      className="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-border bg-secondary px-3 py-2.5"
+    >
+      <div className="flex items-baseline justify-between">
+        <span className="text-[12px] font-medium text-foreground">Held-out Δ (fixed test split)</span>
+        <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
+          n_train {n_train ?? "—"} · n_heldout {n_heldout ?? "—"} · {compile_config.n_demos_bootstrapped ?? 0} demos
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {rows.map(({ k, label }) => (
+          <div key={k} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-[11.5px]">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="font-[family-name:var(--font-mono)] text-foreground">{fmt(baseline[k])}</span>
+            <span className="text-muted-foreground">→ {fmt(optimized[k])}</span>
+            <span
+              className="font-[family-name:var(--font-mono)] tabular-nums"
+              style={{ color: (delta[k] ?? 0) > 0 ? "var(--teal)" : (delta[k] ?? 0) < 0 ? "var(--accent-ink)" : "var(--muted)" }}
+            >
+              {sign(delta[k] ?? 0)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {improved ? (
+        <span className="text-[11px]" style={{ color: "var(--teal)" }}>
+          ✓ optimize improved this judge (+{fmt(delta.graded)} held-out graded). Binding the compiled demos
+          back into the production judge is the next step (UAP-4-opt).
+        </span>
+      ) : (
+        <span data-testid="optimize-loss-note" className="text-[11px]" style={{ color: "var(--accent-ink)" }}>
+          optimize did not improve this judge — the held-out score did not rise (Δ graded {sign(delta.graded ?? 0)}).
+          A trainer, not a demo: the accept-gate is never loosened to manufacture a win.
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default", onResult }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
@@ -40,6 +97,8 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [rationale, setRationale] = useState("");
   const [preview, setPreview] = useState({ base: "", rendered: "" });
   const [save, setSave] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
+  const [costOpen, setCostOpen] = useState(false); // the in-DOM cost-confirm modal (S-BS-69)
+  const [opt, setOpt] = useState({ state: "idle", result: null, error: null }); // idle|running|done|error
 
   useEffect(() => {
     let live = true;
@@ -106,6 +165,20 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     } catch (e) {
       // owner↔emit / snapshot / validator 422 surfaced inline
       setSave({ state: "error", msg: String(e.message || e) });
+    }
+  };
+
+  // The PAID optimize, gated behind the in-DOM cost modal (S-BS-69 — never
+  // window.confirm, which freezes the renderer to CDP). Renders the HONEST held-out
+  // Δ (win-or-loss) below; a loss is shown as a loss (R1).
+  const runOptimize = async () => {
+    setCostOpen(false);
+    setOpt({ state: "running", result: null, error: null });
+    try {
+      const result = await optimizeJudge(role, { confirm: true });
+      setOpt({ state: "done", result, error: null });
+    } catch (e) {
+      setOpt({ state: "error", result: null, error: String(e.message || e) });
     }
   };
 
@@ -199,6 +272,43 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         </section>
 
         <Separator />
+
+        <section className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between">
+            <Label>Optimize (calibration trainer)</Label>
+            <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+              POST /v1/judges/{role}/optimize · PAID
+            </span>
+          </div>
+          <p className="text-[10.5px] text-muted-foreground">
+            Compile few-shot demos from the by-construction calibration split, then measure the
+            honest held-out Δ on the fixed test split. Did the edit move the number? — win or loss,
+            shown straight.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCostOpen(true)}
+              disabled={opt.state === "running"}
+            >
+              {opt.state === "running" ? "Optimizing…" : "Optimize"}
+            </Button>
+            {opt.state === "running" && (
+              <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+                running the trainset bootstrap + 2 held-out evals…
+              </span>
+            )}
+          </div>
+          {opt.state === "error" && (
+            <div className="font-[family-name:var(--font-mono)] text-[11px] text-[color:var(--accent-ink)]">
+              Optimize failed: {opt.error}
+            </div>
+          )}
+          {opt.state === "done" && opt.result && <OptimizeDelta result={opt.result} />}
+        </section>
+
+        <Separator />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="je-actor">Your handle (audit who)</Label>
@@ -225,6 +335,29 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           {save.state === "saving" ? "Saving…" : "Save judge"}
         </Button>
       </CardFooter>
+
+      {/* In-DOM cost-confirm modal (S-BS-69 — driveable by automation, unlike
+          window.confirm which freezes the renderer to CDP). */}
+      <Dialog open={costOpen} onOpenChange={setCostOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Paid optimize run</DialogTitle>
+            <DialogDescription>
+              Optimizing {role} makes real Azure calls — a bootstrap compile over the trainset plus
+              two held-out evals × the judge (~$0.26). The held-out Δ is reported honestly, win or
+              loss. Continue?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setCostOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={runOptimize} data-testid="optimize-confirm">
+              Run optimize (paid)
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
