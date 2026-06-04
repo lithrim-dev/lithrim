@@ -76,10 +76,33 @@
       "next_action": "run /devloop-kickoff bench-salvage UAP-3 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 4 load-bearing decisions (S-BS-63 injection seam [semantic_stage-inject preferred vs orchestrator-reads] / S-BS-52 replay-provenance persist-vs-scoped-defer / cost posture for any live-in_process acceptance run / R6-batch in-cycle-vs-split) before 'go'. Pathspec-only commits."
     },
     {
-      "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
+      "id": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
       "stream": "bench-salvage",
       "phase": "UAP-5a",
-      "scope": "authoring-assist-describe-to-draft-via-vendored-LLMClient-POST-v1-author",
+      "scope": "in-UI-authoring-loop-mount-JudgeEditor-S-BS-62-plus-legible-authored-audit-S-BS-66-plus-by-construction-live-flip-case",
+      "file": "bench-salvage_phaseUAP-5a_authoring-loop_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (D2 edits the orchestrator mapping ADJACENT to the frozen consensus seam -- A3 byte-0-delta load-bearing; D3 constructs a calibration-sensitive by-construction case that must flip on the REAL paid trio -- a labels-true-by-construction claim per CLAUDE.md; release-critical demonstrability loop; live in_process runs cost-gated; fresh-critic required)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §2A (entity model) + §2B (audit-is-the-product) + §4 (gen-UI registry + BFF) + §13:280/:236 (R10 surface context -- R10 is OUT, split to UAP-5a-assist)",
+        "apps/shell/src/genui/JudgeEditor.jsx + registry.js:30 (tool-judge_editor REGISTERED but NOT mounted = S-BS-62) + panes.jsx:162-163/:172 (the agent_editor/run_panel mount pattern) + bff.js:79-89 (getJudges/getJudge/putJudge)",
+        "lithrim_bench/runtime/pipeline/stages.py:564-600 (_judge_votes_from_models -- reason:599/model:600) + :739/745/747/837-839 (the injected-branch _model_lookup={} = the S-BS-66 fix site; A3: stages.py mapping only, NOT _apply_consensus/seam-dict/seeds)",
+        "lithrim_bench/injectors/ (missed_escalation/upcoding_risk/fabricated_consent/phi_disclosure -- the by-construction injector framework for D3; NO wrong_dosage injector exists) + tests/test_uap3_grade.py (the flip-via-injected-predictors $0 pattern) + data/config/agents/ws0_default.json (FROZEN seed; D3 adds a NEW demo agent additively)",
+        "memory judge-creation-must-be-demonstrable + unified-authoring-product-frozen-journey + browser-mcp-confirm-blocks-renderer (drive PAID ops via the API, not the confirm-gated UI) + git-commit-pathspec-dirty-index"
+      ],
+      "_note": "UAP-5a (RE-CUT 2026-06-04, user) = the in-UI authoring loop, DETERMINISTIC + LLM-FREE: (D1) mount tool-judge_editor in panes.jsx CenterPane -> the $0 assignment->prompt->questions preview reachable in-UI (closes S-BS-62); (D2) fix S-BS-66 -- on the injected (council_evaluate/authored) branch populate _model_lookup from the trio seam dicts + carry role/decision/findings(/reason) so the authored in_process per-judge audit is LEGIBLE (A3 frozen-seam 0-delta -- stages.py mapping only, NEVER _apply_consensus/seam-dict/seeds); (D3) a BY-CONSTRUCTION live-flip demo case + NEW agent (additive) that the REAL in_process trio approves unassigned + flips to reject when a flag is authored to its owner judge (base lens misses, assigned lens catches) -- verified on the real trio (cost-gated) + reproduced offline/$0 via injected predictors. R10 author-assist (the LLM describe->card) SPLIT OUT -> UAP-5a-assist (the LLM-free release-critical loop ships first). OUT: withstands-gate/signals (UAP-3b, the moat), full chat/agent-loop/SSE (UAP-5b), optimize (UAP-4). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
+      "created": "2026-06-04",
+      "last_re_verified": "2026-06-04 (JudgeEditor registered-not-mounted, stages.py S-BS-66 sites, the injector framework, bff.js judge fetches, SPEC §13 anchors -- all CONFIRMED)",
+      "expanded": "2026-06-04 (driver authored from the LOCKED SPEC §2A/§2B/§4/§13 + the UAP-3 close + the A8-smoke findings S-BS-62/66; the R10-split + construct-live-flip-case scope decided by the user; citations re-grepped; a UAP-5a entry repointed + a UAP-5a-assist stub split off; pack backfilled per memory devloop-task-pack-stale-uap-from-spec).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-5a -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 4 load-bearing decisions (D2 fix mechanism + A3 0-delta / D3 flip-case flag+injector + base-misses-assigned-catches / D3 cost posture / D1 CenterPane-only-vs-also-CmdK) before 'go'. Pathspec-only commits."
+    },
+    {
+      "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-5a-assist",
+      "scope": "authoring-assist-describe-to-draft-via-vendored-LLMClient-POST-v1-author (SPLIT OUT of UAP-5a 2026-06-04 — the LLM-in-the-loop fast-follow after the deterministic UAP-5a authoring-loop core)",
       "file": "bench-salvage_phaseUAP-5a_authoring-assist_driver.md",
       "status": "stub",
       "version": "v1",
@@ -92,10 +115,10 @@
         "apps/shell/src/genui/registry.js (the tool-* cards that render a draft: tool-agent_editor/tool-flag_editor/tool-contract_builder; the AI-SDK message-parts shape)",
         "memory judge-creation-must-be-demonstrable (the instant + $0 bar) + zyng-claude-cli-provider (the pattern + licensing boundary)"
       ],
-      "_note": "UAP-5a = R10, Tier-1 of the conversational surface (SPEC §13). NL description -> a forced-tool `emit() -> dict` (vendored LLMClient a la zyng) -> a schema-valid Agent/judge/flag/contract DRAFT -> the EXISTING gen-UI tool-* card -> the normal audited PUT. SINGLE-SHOT, not a conversation (that is UAP-5b). Reuses zyng wholesale; $0 on the local `claude` CLI; serves the demonstrability bar. Rides on the UAP-2 judge/flag endpoints. Frozen: compliance_council._apply_consensus + the audited PUT path + the 422 author-gates stay authoritative (the LLM drafts, it never relabels or bypasses a gate). Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant. New route POST /v1/author/{kind} must be ratified into SPEC_PRODUCT_SHELL §10 (S-BS-51 pattern). LINE-ITEM (user 2026-06-04): S-BS-62 (the UAP-2 JudgeEditor not UI-mounted + the inert chat/⌘K command bar) is the FIRST concrete UAP-5a rung -- mount the authoring widgets into the shell conversation surface (the substrate the describe->card assist then drives); the spawned S-BS-62 fix-task is the tactical entry. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
+      "_note": "UAP-5a-assist = R10, Tier-1 of the conversational surface (SPEC §13) — SPLIT OUT of UAP-5a (user, 2026-06-04) so the deterministic authoring-loop core (mount + S-BS-66 + live-flip) ships LLM-free first; this is the fast-follow. NL description -> a forced-tool `emit() -> dict` (vendored LLMClient a la zyng) -> a schema-valid Agent/judge/flag/contract DRAFT -> the EXISTING gen-UI tool-* card -> the normal audited PUT. SINGLE-SHOT, not a conversation (that is UAP-5b). Reuses zyng wholesale; $0 on the local `claude` CLI; serves the demonstrability bar. Rides on the UAP-2 judge/flag endpoints. Frozen: compliance_council._apply_consensus + the audited PUT path + the 422 author-gates stay authoritative (the LLM drafts, it never relabels or bypasses a gate). Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant. New route POST /v1/author/{kind} must be ratified into SPEC_PRODUCT_SHELL §10 (S-BS-51 pattern). LINE-ITEM (user 2026-06-04): S-BS-62 (the UAP-2 JudgeEditor not UI-mounted + the inert chat/⌘K command bar) is the FIRST concrete UAP-5a rung -- mount the authoring widgets into the shell conversation surface (the substrate the describe->card assist then drives); the spawned S-BS-62 fix-task is the tactical entry. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04",
-      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-5a (re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC §13/R10). Do NOT start before UAP-2 closes; sequenced AFTER the moat (UAP-3b) by default, pull-forward after UAP-2 optional for a $0 demonstrability win."
+      "next_action": "STUB (fast-follow) -- run /devloop-expand-driver bench-salvage UAP-5a-assist AFTER the UAP-5a authoring-loop core lands (it rides on the mounted JudgeEditor + the audited PUT path). Re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC §13/R10. New route POST /v1/author/{kind} -> ratify SPEC_PRODUCT_SHELL §10."
     },
     {
       "id": "bench-salvage-phaseUAP-5b-conversational-shell-driver",

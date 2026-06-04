@@ -1148,6 +1148,42 @@
       "hardness": "HARD-GATE (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8); fresh-critic the default at close.",
       "hardness_reason": "Closes the load-bearing authored->flip wiring (S-BS-63) through the grade path adjacent to the frozen consensus seam (A2 byte-0-delta is load-bearing), grows the v1 BFF surface (section 10 ratify), and adds run-provenance persistence -- the calibration/audit-bearing core of the product. Live/in_process acceptance runs are cost-gated.",
       "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-3_processing-run-history_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 4 decisions before 'go'. Pathspec-only commits (shared branch)."
+    },
+    {
+      "id": "UAP-5a",
+      "phase": "UAP-5a",
+      "title": "UAP-5a -- the in-UI authoring loop: mount the JudgeEditor (S-BS-62) + legible authored audit (S-BS-66) + a by-construction live-flip demo case; the release-critical author->grade->audit loop, deterministic + LLM-free (R10 author-assist SPLIT OUT -> UAP-5a-assist)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) + UAP-3 (R4/R6) DONE. UAP-5a (this; RE-CUT 2026-06-04 = the deterministic in-UI authoring loop, pulled forward per user) -> UAP-5a-assist (R10 LLM describe->card) -> UAP-3b (signals + withstands-gate, the moat, section 2A) -> UAP-4 (optimize, R5; gated S-BS-49) -> UAP-5b (R11 conversational shell, the capstone).",
+      "origin": "Authored 2026-06-04 from the LOCKED SPEC section 2A/2B/4/13 + the UAP-3 close + the A8-smoke findings S-BS-62/66; the R10-split + construct-live-flip-case scope decided by the user; pack backfilled per memory devloop-task-pack-stale-uap-from-spec.",
+      "regrepped_2026_06_04": "JudgeEditor.jsx + registry.js:30 (tool-judge_editor REGISTERED, NOT mounted = S-BS-62); panes.jsx:162-163/:172 (mount pattern); bff.js:79-89 (getJudges/getJudge/putJudge); stages.py:564-600 _judge_votes_from_models + :739/745/747/837-839 (injected-branch _model_lookup={} = the S-BS-66 fix site); lithrim_bench/injectors/ (NO wrong_dosage injector); tests/test_uap3_grade.py (flip-via-injected-predictors $0 pattern).",
+      "deliverables": ["D1 (S-BS-62) apps/shell/src/panes.jsx: mount tool-judge_editor in CenterPane (mirror agent_editor/run_panel) -> the $0 assignment->prompt->questions preview reachable in-UI.", "D2 (S-BS-66, A3-0-delta) stages.py injected branch: populate _model_lookup from the trio seam dicts + carry role/decision/findings(/reason) so the authored in_process per-judge audit (council.votes + /v1/runs/{id}/audit) is legible. NEVER touch _apply_consensus/seam-dict/seeds.", "D3 (A4 the visceral finale) lithrim_bench/injectors/ + a NEW demo case + NEW agent (additive): a by-construction case the REAL in_process trio approves unassigned + flips to reject when a flag is authored to its owner (base lens misses, assigned lens catches); verified on the real trio (cost-gated) + reproduced offline/$0 via injected predictors.", "D4 tests: Vitest (JudgeEditor mounts in CenterPane + the $0 preview) + tests/test_uap5a_*.py (S-BS-66 non-empty projection regression; the flip offline; A3 frozen-set wc -l=0).", "D5 docs: note S-BS-62/66 closed + the demo agent/case (no SHELL section 10 surface change expected -- reuses /v1/judges + /v1/run-eval)."],
+      "acceptance": ["A1 JudgeEditor mounted (S-BS-62): renders in CenterPane + the $0 preview works in-UI (no model call); Vitest green; the :5180 smoke is the A8-class gate (user-run).", "A2 legible authored audit (S-BS-66): a live in_process authored run's votes carry NON-EMPTY role/decision/model/findings (Mistral None confidence still tolerated).", "A3 frozen seam: git diff over compliance_council + judges_dspy + judge_metric + committed seeds = 0 lines.", "A4 live flip: the demo case grades non-reject unassigned + reject when the flag is authored, on the REAL in_process trio (cost-confirmed) AND reproduced offline/$0 via injected predictors.", "A5 green bar: ruff + default + debuglithrim + council + BFF + Vitest; default-deps import-clean; pathspec-only commits."],
+      "scope_guardrails_not_in_scope": ["R10 author-assist / any LLM-in-the-loop / the zyng provider -> UAP-5a-assist (the split-out fast-follow). UAP-5a is deterministic + LLM-free.", "R11 conversational shell / full chat / agent loop / SSE -> UAP-5b (a CmdK entry point to the JudgeEditor is the most that may be in scope).", "withstands-gate / signals / GroundingCheck orchestration -> UAP-3b (the moat).", "optimize/calibration-in-UI -> UAP-4 (S-BS-49). Re-snapshot owner_roles -> S-BS-59.", "FROZEN: _apply_consensus + the per-judge seam dict + committed seeds (clinical_v1, ws0_default agent, council_roles); D3 adds a NEW agent additively, never mutates the seed."],
+      "plan_review_decisions": ["1 D2 fix mechanism: how role/decision/model/findings/reason flow on the injected branch (populate _model_lookup + read off the seam dict; reason synthesized-from-findings vs empty); confirm A3-0-delta.", "2 D3 flip-case: which flag + injector; how base-misses-but-assigned-catches is ensured (the by-construction near-miss); the additive demo agent/case files.", "3 D3 cost posture: the in_process verification-run envelope (cost-confirm each paid run; offline/$0 is the structural default).", "4 D1 scope: CenterPane mount only vs also a CmdK entry (full chat = UAP-5b)."],
+      "hardness": "HARD-GATE; fresh-critic the default at close (/devloop-critique bench-salvage UAP-5a).",
+      "hardness_reason": "D2 edits the orchestrator mapping ADJACENT to the frozen consensus seam (A3 byte-0-delta load-bearing); D3 constructs a calibration-sensitive by-construction case that must flip on the REAL paid trio (a labels-true-by-construction claim per CLAUDE.md); release-critical demonstrability loop; live in_process runs cost-gated.",
+      "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-5a_authoring-loop_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-5a; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 4 decisions before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy; never bare-commit)."
+    },
+    {
+      "id": "UAP-5a-assist",
+      "phase": "UAP-5a-assist",
+      "title": "UAP-5a-assist -- authoring-assist (R10): NL describe -> a forced-tool emit() schema-valid draft (vendored LLMClient a la zyng) -> the EXISTING gen-UI card -> the audited PUT. SPLIT OUT of UAP-5a 2026-06-04; the LLM-in-the-loop fast-follow after the deterministic authoring-loop core.",
+      "status": "stub",
+      "blocked_by": ["UAP-5a"],
+      "priority": "P1",
+      "target": "monitor (expand) then executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
+      "milestone": "R10 Tier-1 of the conversational surface (SPEC section 13); rides on the mounted JudgeEditor (UAP-5a) + the audited PUT path; before UAP-5b (R11 the capstone).",
+      "origin": "SPLIT OUT of UAP-5a 2026-06-04 (user) so the deterministic authoring-loop core ships LLM-free first; this is the fast-follow.",
+      "hardness": "HARD-GATE-class (an LLM drafts safety-critical judges/flags -- but single-shot + the audited PUT + the owner<->emit/snapshot 422 gates stay authoritative; the LLM drafts, never relabels or bypasses a gate).",
+      "next_action": "STUB (fast-follow) -- run /devloop-expand-driver bench-salvage UAP-5a-assist AFTER the UAP-5a authoring-loop core lands (it rides on the mounted JudgeEditor + the audited PUT path). Re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC section 13/R10. New route POST /v1/author/{kind} -> ratify SPEC_PRODUCT_SHELL section 10. Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant."
     }
   ],
   "seams": [
