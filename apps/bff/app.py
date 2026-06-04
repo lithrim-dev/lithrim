@@ -103,6 +103,9 @@ from lithrim_bench.runtime.council.judge_assignment import (  # noqa: E402  (cou
     render_role_questions,
 )
 from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE  # noqa: E402  (pure; no openai)
+from lithrim_bench.runtime.council.judge_optimize import (  # noqa: E402  (import-safe: no dspy/openai at import; lazily pulled inside run_optimize)
+    run_optimize,
+)
 from lithrim_bench.verification.spec import (  # noqa: E402  (pure constants: no [verification] heavy deps)
     TOOL_DOSAGE_GROUNDING,
     TOOL_IN_ROW,
@@ -144,6 +147,13 @@ def get_config_db() -> Path:
 def get_out_dir() -> Path | None:
     """Where run_eval persists its blob/sqlite (None -> run_eval default). Override in tests."""
     return None
+
+
+def get_calib_corpus_path() -> Path:
+    """The by-construction judge-calibration corpus the optimize trainer reads (the
+    recipe=label trainset/held-out, lint-gated). Override in tests so the offline
+    optimize-route test never reads the committed corpus."""
+    return REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
 
 
 def get_ontology_workdir() -> Path:
@@ -207,6 +217,14 @@ class RunEvalRequest(BaseModel):
     in_process: bool = (
         False  # the in-process v2 Azure council (paid Azure calls) — a fresh real run
     )
+
+
+class OptimizeRequest(BaseModel):
+    # PAID: a bootstrap compile over the trainset + two held-out evals × the judge
+    # (mirrors run_optimize's confirm_cost gate). The route refuses (422) without it,
+    # so the cost-confirm is explicit — the shell surfaces an in-DOM modal (S-BS-69).
+    confirm: bool = False
+    limit: int | None = None  # cap each split for a cheaper smoke (per-call cost check)
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -596,6 +614,52 @@ def put_judge_endpoint(
         "actor": actor.model_dump(),
         "assigned_flags": assigned,
     }
+
+
+@app.post("/v1/judges/{role}/optimize")
+def optimize_judge_endpoint(
+    role: str,
+    req: OptimizeRequest,
+    corpus_path: Path = Depends(get_calib_corpus_path),
+    out_dir: Path | None = Depends(get_out_dir),
+) -> dict:
+    """The calibration trainer (R5, UAP-4): optimize ``role`` against the bench-accept
+    metric on the by-construction calibration split, then measure the **honest held-out
+    Δ** (precision/recall before→after) on the FIXED test split. Returns
+    ``{role, n_train, n_heldout, baseline, optimized, delta, compile_config}`` — a
+    measured Δ, **including ≤0**, is the loop-closure; the accept-gate is NEVER loosened
+    to manufacture a win (the ``run_optimize`` contract + the WS-6c-DSPy-3b precedent).
+
+    PAID: ``run_optimize`` makes real Azure calls. The route REFUSES (422) without
+    ``confirm=true`` so the cost-confirm is explicit; the shell gates it behind an
+    in-DOM modal (S-BS-69). Coverage-aware demo selection is ON (S-BS-49) — the
+    compile admits ≥1 positive exemplar when the teacher can produce one. No
+    bind/persist of the compiled demos this cycle (the round-trip is UAP-4-opt)."""
+    if role not in LENS_BY_ROLE:
+        raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
+    if not req.confirm:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "optimize makes PAID Azure calls (a bootstrap compile over the trainset "
+                "+ two held-out evals × the judge). Resend with confirm=true only after "
+                "an explicit cost check."
+            ),
+        )
+    resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
+    try:
+        return run_optimize(
+            role,
+            corpus_path=corpus_path,
+            confirm_cost=True,
+            out_dir=resolved_out,
+            limit=req.limit,
+            coverage_aware=True,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # the live Azure/dspy path can fail — surface, don't 500-silently
+        raise HTTPException(status_code=502, detail=f"optimize run failed: {exc}") from exc
 
 
 @app.get("/v1/ontology")

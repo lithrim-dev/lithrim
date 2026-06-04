@@ -97,3 +97,17 @@ export const putJudge = (role, judge, { actor, rationale = "" } = {}) =>
     body: judge,
     headers: actor ? { "X-Actor": actor } : undefined,
   });
+
+/* ── UAP-4: the calibration trainer — optimize a judge, see the honest held-out Δ ── */
+
+/* POST /v1/judges/{role}/optimize — PAID. Optimize the judge against the bench-accept
+   metric on the by-construction calibration split + measure the held-out Δ
+   (precision/recall before→after, WIN-OR-LOSS). The route refuses (422) without
+   confirm=true, so the shell gates it behind an in-DOM cost modal (S-BS-69; never
+   window.confirm). A measured Δ — including ≤0 — is the loop-closure; the gate is
+   never loosened. Returns {role, n_train, n_heldout, baseline, optimized, delta, …}. */
+export const optimizeJudge = (role, { confirm = false, limit } = {}) =>
+  call(`/v1/judges/${encodeURIComponent(role)}/optimize`, {
+    method: "POST",
+    body: { confirm, ...(limit != null ? { limit } : {}) },
+  });
