@@ -561,6 +561,20 @@ def _inject_turn_timestamps_for_spans(
             break  # first-match-wins, like chunk_id pattern
 
 
+def _synth_reason(decision: str, finding_codes: List[str]) -> str:
+    """Synthesize a legible one-line justification when the per-judge seam carries
+    no prose. The DSPy judge seam (``judges_dspy.Judge.forward``, FROZEN) emits
+    ``{model, decision, confidence, findings, errors}`` — it has no ``summary`` /
+    ``rationale``, so the authored in-process path would otherwise render an empty
+    ``reason`` (S-BS-66). We reconstruct one from the data the seam DOES carry — the
+    decision + the grounded finding codes — so ``/v1/runs/{id}/audit`` + the council
+    view read legibly. A clean approve (no findings) keeps ``reason`` empty: there is
+    nothing to justify."""
+    if finding_codes:
+        return f"{decision or 'flagged'} — {', '.join(finding_codes)}"
+    return ""
+
+
 def _judge_votes_from_models(
     models: List[Dict[str, Any]],
     model_lookup: Optional[Dict[str, str]] = None,
@@ -572,8 +586,9 @@ def _judge_votes_from_models(
 
     ``model_lookup`` maps role name -> LLM model string (e.g.
     ``{"policy_judge": "gpt-4.1"}``). Built from ``council.models``
-    in the caller closure. Absent when the council is DI-injected
-    in tests; JudgeVote.model stays "" in that case.
+    in the caller closure. On the DI-injected (authored DSPy) path it is
+    absent ({}); JudgeVote.model then falls back to the seam's own ``model``
+    field (the role name) so the audit is never blank (S-BS-66).
     """
     if not model_lookup:
         model_lookup = {}
@@ -596,8 +611,12 @@ def _judge_votes_from_models(
             # coercing to 0.0, which would read as "0% confident". See
             # PIPELINE_GRADING_AUDIT_2026-05-28 §3.
             confidence=float(raw_conf) if isinstance(raw_conf, (int, float)) else None,
-            reason=m.get("summary") or m.get("rationale") or "",
-            model=model_lookup.get(role, ""),
+            reason=m.get("summary") or m.get("rationale") or _synth_reason(decision, finding_codes),
+            # On the injected/authored path model_lookup is {}; the seam dict's own
+            # ``model`` field carries the role name, so the audit shows WHICH judge
+            # rather than blank (S-BS-66). The prompt-council path keeps its real
+            # deployment string via the lookup.
+            model=model_lookup.get(role) or m.get("model") or "",
             findings=finding_codes,
         ))
     return votes
@@ -838,6 +857,16 @@ def _run_council_and_map(
             council_result.get("models") or [],
             model_lookup=_model_lookup,
         )
+
+        # S-BS-66: on the injected (authored DSPy) path the roster is built before
+        # the trio is known, so it lands as the placeholder ["injected"]. Now that
+        # the result is in, project the REAL role names off the per-judge seam (each
+        # seam dict's ``model`` field is its role) so the council view's "configured"
+        # roster reads legibly instead of "injected".
+        if council_config.get("judges") == ["injected"]:
+            roster = [m.get("model") for m in (council_result.get("models") or []) if m.get("model")]
+            if roster:
+                council_config["judges"] = roster
 
         prompt_tokens = 0
         completion_tokens = 0
