@@ -1202,7 +1202,59 @@
       ],
       "hardness": "HARD-GATE (THE MOAT, section 2A); fresh-critic required at close.",
       "hardness_reason": "The product's core differentiator. D2 inserts a correction stage PRE-consensus ADJACENT to the frozen _apply_consensus (A3 byte-0-delta load-bearing); the gate can correct an LLM verdict so the labels-true-by-construction guard (must NOT relabel a true case, A5) is a CLAUDE.md core-invariant claim; the moat exhibit (A2) is a by-construction flip. Any LLM-critique run (D-A) is cost-gated.",
-      "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-3b_withstands-gate_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3b; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 5 decisions (D-A + D-C are the hard ones; propose the D-E split if scope warrants) before 'go'. Pathspec-only commits (shared branch)."
+      "next_action": "CLOSED 2026-06-04 PROCEED-WITH-CAVEATS (8cb388b..9eadf39; THE MOAT landed offline/$0; fresh-critic ae312d9a358e1ca69 NON-BLOCKING 0/5/3). A6 SKIP + LLM-critique + LIVE attestation split -> UAP-3b-2. Opened S-BS-72/73."
+    },
+    {
+      "id": "UAP-3b-2",
+      "phase": "UAP-3b-2",
+      "title": "UAP-3b-2 -- complete the moat: the LIVE attestation (S-BS-70 finale) + the withstands provenance blob (S-BS-72) + GroundingChecks as first-class entities (the deferred UAP-3b A6)",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-3b-2-groundingcheck-entity-llm-critique-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1+UAP-2+UAP-3+UAP-5a+UAP-3b (THE MOAT, offline/$0) DONE. UAP-3b-2 (this) = complete the moat: the LIVE paid attestation (S-BS-70 visceral demo + S-BS-73 validation) + the withstands ruling in the run-provenance blob (S-BS-72) + GroundingChecks as first-class config-authored entities (the deferred UAP-3b A6). The LLM Ralph-Loop critique splits -> UAP-3b-3. -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5b (R11 conversational shell).",
+      "origin": "Monitor expanded the UAP-3b-close stub into a full driver 2026-06-04 from the LOCKED SPEC section 2A/2B + the UAP-3b close + the S-BS-70/72/73 seams (pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose 'lets do 3b 2' at the post-UAP-3b fork. LED with the LIVE attestation + S-BS-72 + A6; SPLIT the LLM critique -> UAP-3b-3 (monitor lean per critique-pass-precision-not-floor).",
+      "regrepped_2026_06_04": "run_eval.py:169 withstands_sink <- :202-205 build_authored_semantic_stage(apply_gate=True default, decisions_sink=withstands_sink) -> :207-211 grade_inprocess(provenance_store=SqliteProvenanceStore); :237-238 ground()/composite() (post-consensus GroundingCheck locus); :274-299 the withstands audit loop (AuditLog.record action withstand/flip + build_withstands_correction); :269-273 LITERALLY says the run-PROVENANCE-blob embedding is deferred to UAP-3b-2 (orchestrator seam above the frozen consensus). grade.py:129-170 grade_inprocess (LocalPipelineBackend.evaluate_pipeline :166 builds+saves the blob internally; no pre-save handle = the S-BS-72 seam). provenance.py SqliteProvenanceStore.save:62/find_by_id:76 (the blob target; created_at re-stamp risk on a re-insert = S-BS-68). withstands.py:78-86 apply_withstands_gate (NO critique= param yet; effective_lens:121 = base + assigned, so assigning a flag puts it IN-lens -> can't force the out-of-lens flip by authoring). config.py EvalProfile:53-59 + agent_from_dict:90-111 (the grounding_checks surface). grounding.py _CONTRACT_EXECUTORS:290/_FLOOR_CONTRACT_TYPES:298/ground:398. FROZEN holds.",
+      "deliverables": [
+        "D1 LIVE ATTESTATION (lead) -- a cost-gated real-trio in_process run demonstrating the gate LIVE (apply_gate=True default): the BEST outcome = a real out-of-lens over-fire the gate rejects -> the composite flips, captured (drive the PAID run via the BFF API per S-BS-69, not the window.confirm()-gated UI). Construct->verify, cost-confirmed each run, HALT-TO-SURFACE (the real trio is the lever; you cannot force the out-of-lens flip by authoring -- effective_lens includes assigned flags). Do NOT manufacture a flip.",
+        "D2 S-BS-72 -- embed each WithstandsDecision ({signals_weighed,decision,what_failed}) in the SqliteProvenanceStore run-blob so /v1/runs/{id}/audit (stream-2) shows it, not just /v1/audit (stream-1). ABOVE the frozen _apply_consensus (LocalPipelineBackend + the provenance build are NON-frozen). D-C decides: orchestrator-seam (thread the sink into the provenance build) vs post-save-patch in run_eval (find_by_id->embed->re-save; mind created_at, S-BS-68).",
+        "D3 A6 GROUNDINGCHECKS first-class entities -- an additive EvalProfile.grounding_checks view over the ontology verification_contracts (config.py + agent_from/to_dict), run at the post-consensus ground()/composite() locus (run_eval.py:237-238), distinguished from judge-attached validators; each audited as its own entity (AuditRecord actor.type grounding_check). ground()/composite() ADDITIVELY IDENTICAL for clinical_v1 (verdict + partitions byte-unchanged). Light surface + audit (CRUD UI OUT).",
+        "D4 TESTS tests/test_uap3b2_*.py: (a) S-BS-72 -- a graded in_process run's provenance blob carries the ruling (offline/$0, injected predictors + injected store); (b) A6 -- a GroundingCheck entity runs at the post-consensus locus + is audited; ground() additive-identical for clinical_v1; (c) frozen seam 0-delta; (d) the gate STILL cannot relabel a true case (A5 re-pinned). The LIVE attestation is a recorded run, NOT an automated test.",
+        "D5 DOCS note S-BS-72 closed + the GroundingCheck-entity surface + the S-BS-73 disposition (live-validated or carried) + the LLM-critique split -> UAP-3b-3 (write the stub). SPEC_PRODUCT_SHELL section 10 only if the BFF eval-profile surface changes. + .devloop/sessions/session-bench-salvage-phaseUAP-3b-2-2026-06-04.json."
+      ],
+      "acceptance": [
+        "A1 the LIVE attestation (GRADED, name the outcome honestly): PASS-prize = a real-trio run where the gate rejects a genuine out-of-lens over-fire -> the composite flips live (the S-BS-70 visceral demo); PASS-honest = a real-trio run where the gate corrects a real finding + the ruling renders live + S-BS-73 holds (the gate does NOT break a legitimate finding); HALT-TO-SURFACE = no convergence in the envelope -> surface it (the offline A2 stands). A MANUFACTURED flip is a FAIL.",
+        "A2 S-BS-72: a graded in_process run's SqliteProvenanceStore blob (find_by_id / /v1/runs/{id}/audit) carries the per-judge withstands ruling {signals_weighed,decision,what_failed}. Offline/$0.",
+        "A3 A6 GroundingChecks first-class: declared as independent config-authored entities, run at the post-consensus locus, each audited; ground()/composite() additively identical for clinical_v1 (verdict + suppress/floor partitions byte-unchanged, test-pinned).",
+        "A4 frozen seam 0-delta: git diff over _apply_consensus + judges_dspy + judge_metric + committed seeds == 0 lines (D2's provenance work is above the frozen seam).",
+        "A5 by-construction guard + green bar: the gate STILL cannot relabel a true case (re-pinned); ruff-clean changed files; default+debuglithrim+council+BFF+Vitest re-run; default-deps import-clean; pathspec-only; any paid run cost-confirmed."
+      ],
+      "diagnostic_stats_reported": [
+        "the live verdict/finding/ruling the attestation produces -- illustrative, not a gate",
+        "live in_process cost actually spent -- reported; the gate is cost-confirmed not a number"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "The LLM Ralph-Loop critique pass (the critique= hook + a gpt-4.1 reasoned ruling) -> UAP-3b-3 (if D-A splits -- monitor lean). The deterministic gate is the floor; the LLM critique is enrichment.",
+        "NO optimize/calibration-in-UI (UAP-4, S-BS-49).",
+        "NO conversational shell / chat / SSE (UAP-5b).",
+        "NO live :8002 per-judge signal injection (S-BS-64, paused); the attestation is in_process.",
+        "NO full config-plane GroundingCheck CRUD UI (D3 is light surface + audit).",
+        "The withstands-gate LOGIC (withstands.py apply_withstands_gate) is REUSED not rewritten; only the LLM critique would add the critique= param (split out).",
+        "NO owner_roles re-snapshot (S-BS-59). FROZEN: _apply_consensus + the per-judge seam dict + judge_metric + committed seeds; new demo cases/agents additive.",
+        "Drive-by formatting / dep bumps."
+      ],
+      "plan_review_decisions": [
+        "D-A LLM Ralph-Loop critique IN or SPLIT (monitor lean: SPLIT -> UAP-3b-3; the deterministic moat is proven, the LLM critique's value is uncertain per critique-pass-precision-not-floor + adds cost).",
+        "D-B the LIVE-attestation construction + cost + halt-to-surface (the hard one): how to get the REAL trio to exhibit a gate-correctable finding (a real out-of-lens over-fire = the gate-attributable prize but cannot be forced by authoring; a validator-disprovable finding = a consensus-coherence demo, the composite flips via ground() too). Name the case + envelope + the halt-to-surface fallback. Do NOT manufacture a flip.",
+        "D-C the S-BS-72 approach: orchestrator-seam (thread the sink into the provenance build) vs post-save-patch in run_eval (find_by_id->embed->re-save). Confirm A4 (no _apply_consensus edit; returned dict byte-identical) + the created_at handling (S-BS-68) if you patch.",
+        "D-D the GroundingCheck entity surface (D3): light (EvalProfile.grounding_checks view + audit) vs a full config-plane CRUD (monitor lean: light, defer CRUD).",
+        "D-E SPLIT confirm: is D1+D2+D3+D4 a full cycle (LLM critique -> UAP-3b-3)? If even this is too big, keep D1 (live attestation) + D2 (S-BS-72) as the core + split D3 (flag, don't drop)."
+      ],
+      "hardness": "HARD-GATE (the moat finale); fresh-critic required at close.",
+      "hardness_reason": "The LIVE paid attestation is a labels-true-by-construction claim on the REAL trio (a manufactured flip = a FAIL; the by-construction invariant + the UAP-5a non-convergence lesson); D2 embeds into the provenance blob ADJACENT to the frozen consensus (A4 byte-0-delta load-bearing); D3 changes the eval-profile surface + the post-consensus grading path. Live in_process runs are cost-gated.",
+      "next_action": "Driver expanded 2026-06-04 (bench-salvage_phaseUAP-3b-2_groundingcheck-entity-llm-critique_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3b-2; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 5 decisions (D-B the live attestation + D-A the LLM-critique split are the calls; do NOT manufacture a live flip) before 'go'. Pathspec-only commits (shared branch)."
     },
     {
       "id": "UAP-5a",

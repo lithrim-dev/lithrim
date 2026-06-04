@@ -105,14 +105,15 @@
       "phase": "UAP-3b-2",
       "scope": "groundingcheck-first-class-entities-plus-llm-ralph-loop-critique-plus-live-moat-attestation-plus-provenance-blob",
       "file": "bench-salvage_phaseUAP-3b-2_groundingcheck-entity-llm-critique_driver.md",
-      "status": "stub",
-      "version": "v0-stub",
+      "status": "ready",
+      "version": "v1",
       "hardness": "HARD-GATE (completes THE MOAT: the LIVE paid attestation of the verdict-flip [labels-true-by-construction + cost-gated], the LLM Ralph-Loop critique [adjacent to the deterministic floor], GroundingCheck first-class entities, + the run-provenance-blob embedding [orchestrator-adjacent, S-BS-72]; fresh-critic required)",
       "target_repos": ["lithrim-bench"],
       "_note": "UAP-3b-2 = the pre-authorized UAP-3b D-E/D-A SPLIT (deferred-not-dropped; stub written by the UAP-3b executor at close). Carries: (A6) D3 GroundingChecks as first-class config-authored entities (EvalProfile.grounding_checks view over the ontology verification_contracts, run at the post-consensus ground()/composite() locus, distinguished from judge-attached validators; light surface + audit); (D-A) the LLM Ralph-Loop critique PASS (the gate's critique= hook, the richer withstands-ruling, cost-gated; UAP-3b shipped deterministic-only); the LIVE paid moat attestation (the visceral 'watch the verdict change' on the real trio -> discharges S-BS-70 + validates S-BS-73 on-by-default); (S-BS-72) embed the withstands ruling in the SqliteProvenanceStore run-blob (needs an orchestrator seam ABOVE the frozen consensus). Expand via /devloop-expand-driver bench-salvage UAP-3b-2 (re-grep against the UAP-3b modules signals.py/withstands.py/authored_stage.py + grounding.py + grade.py provenance). FROZEN holds: _apply_consensus + the per-judge seam dict + seeds. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
       "created": "2026-06-04",
-      "last_re_verified": "2026-06-04 (stub authored at UAP-3b close; citations to be re-grepped at expand-driver time)",
-      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-3b-2 to expand into a full driver. Completes the moat: GroundingCheck entities (UAP-3b A6) + the LLM Ralph-Loop critique (D-A) + the LIVE paid attestation (S-BS-70 visceral demo + S-BS-73 validation) + the provenance-blob embedding (S-BS-72). Monitor lean for the next cycle."
+      "last_re_verified": "2026-06-04 (EXPANDED — all §1 citations re-grepped against HEAD 8bd8ac9: run_eval.py:169/205/237/269-299 [the S-BS-72 pointer + the withstands loop], grade.py:129-170 [the provenance seam], provenance.py:62/76, config.py EvalProfile, withstands.py:78-86 [no critique= param yet], grounding.py registries — all CONFIRMED)",
+      "expanded": "2026-06-04 (monitor expanded the UAP-3b-close stub into a full driver from the LOCKED SPEC §2A/§2B + the UAP-3b close + the S-BS-70/72/73 seams; LED with the LIVE attestation [the S-BS-70 finale] + S-BS-72 [provenance blob] + the A6 GroundingCheck entities, and SPLIT the LLM Ralph-Loop critique → UAP-3b-3 [monitor lean per critique-pass-precision-not-floor]; carries the UAP-5a live-flip non-convergence lesson [halt-to-surface, the effective_lens in-lens subtlety]; pack backfilled per memory devloop-task-pack-stale-uap-from-spec).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-3b-2 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 5 decisions (D-A LLM-critique IN-or-SPLIT [monitor lean: SPLIT -> UAP-3b-3] / D-B the LIVE-attestation construction + halt-to-surface [the hard one; do NOT manufacture a flip] / D-C the S-BS-72 approach [orchestrator-seam vs post-save-patch] / D-D GroundingCheck surface [light] / D-E SPLIT) before 'go'. Pathspec-only commits."
     },
     {
       "id": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
