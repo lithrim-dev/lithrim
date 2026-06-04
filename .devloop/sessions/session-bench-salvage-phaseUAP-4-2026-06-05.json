@@ -1,0 +1,133 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-4-2026-06-05",
+  "stream": "bench-salvage",
+  "phase": "UAP-4",
+  "driver_bundle_id": "bench-salvage-phaseUAP-4-optimize-calibration-loop-driver",
+  "started_at": "2026-06-05T02:30:00Z",
+  "ended_at": "2026-06-05T03:15:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-05T02:45:00Z",
+    "user_approved_at": "2026-06-05T02:52:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-H corpus widening = regenerate v1 in place + a COMMITTED programmatic superset-verify (not an eyeball); D-B = ≤3 paid runs (~$0.80), HALT before each; D-C inline §10 ratify; D-G inline Δ render; D-E keep D3 in.",
+        "evidence": "AskUserQuestion: 'Regenerate v1 in place + diff-verify' + '≤3 runs (~$0.80), halt before each'",
+        "decided_at": "2026-06-05T02:52:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "go-condition #1: superset-verify made a DURABLE committed test vs a frozen pre-widen fixture (git-show-HEAD degenerates once the widening commit lands).",
+        "evidence": "user 'go' #1; tests/test_uap4_corpus_superset.py + tests/fixtures/uap4/judge_calib_v1_pre_widen.jsonl",
+        "decided_at": "2026-06-05T03:02:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "go-condition #2: held-out pinned — every widening positive is forced to the calibration/trainset split, so the `test` held-out split is frozen at the v1 30 cases (both optimize arms measure on the IDENTICAL set; a lift can't be a test-set artifact).",
+        "evidence": "user 'go' #2; generate_judge_calib.WIDEN_SPLIT='calibration'; test split 30→30 unchanged",
+        "decided_at": "2026-06-05T02:58:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver cited SPEC_PRODUCT_SHELL §10 ratify line at :184/:260; the live §10 BFF-surface entry that says 'POST /v1/judges/{role}/optimize is NOT in this surface' is at line 146. Edited from the live read per the user's note.",
+        "evidence": "docs/specs/SPEC_PRODUCT_SHELL.md:146",
+        "decided_at": "2026-06-05T03:08:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "d494ba905216bb22f9b8b5c02433f3fcdc719df0",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): POST /v1/judges/{role}/optimize over run_optimize, cost-gated (UAP-4 R5)",
+      "summary": "The calibration-trainer route: cost-gated (422 without confirm), coverage_aware=True, honest Δ passthrough; optimizeJudge client in bff.js. No bind/persist (→ UAP-4-opt)."
+    },
+    {
+      "hash": "a98d72628365f8285d87d5bea3c09aa5f8912563",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): optimize embedded in JudgeEditor — the live honest-Δ loop (UAP-4)",
+      "summary": "Optimize button → in-DOM cost modal (S-BS-69, Radix Dialog, never window.confirm) → inline OptimizeDelta render; a ≤0 Δ renders EXPLICITLY as a loss (R1). NET-NEW, not calibration_chart."
+    },
+    {
+      "hash": "90b23f33ee1d18a730c15e773c08cc591ce6351a",
+      "repo": "lithrim-bench",
+      "title": "feat(optimize): coverage-aware demo selection in judge_optimize (S-BS-49)",
+      "summary": "order_positive_first reorders the trainset so in-lens positives get first crack at demo slots; single-pass, accept-gate-PRESERVING (judge_metric FROZEN), cannot manufacture a win. Opt-in; default False keeps the DSPy-3b baseline."
+    },
+    {
+      "hash": "c8d16a887c4328f350b63f56c11a8a25ef6552bf",
+      "repo": "lithrim-bench",
+      "title": "feat(examples): widen judge_calib_v1 positives 6→12/code, pinned to calibration (S-BS-49/D-H)",
+      "summary": "Additive widening 47→83 (+36 positives), all pinned to the calibration split (held-out frozen). Existing rows byte-identical. VALUE_MISMATCH stays ×1 (cohort-capped S-BS-46, logged). Lint GREEN; byte-deterministic."
+    },
+    {
+      "hash": "a529917dd0d792465930531360d2733c5fbc74a3",
+      "repo": "lithrim-bench",
+      "title": "test(uap-4): /optimize route + honest-Δ render (win+loss) + coverage selection + corpus superset",
+      "summary": "Route 422/404/shape/wiring ($0 mocked run_optimize); coverage-selection units + widened counts; the durable superset-verify vs a frozen pre-widen fixture + a determinism regen; Vitest win+loss+cancel."
+    },
+    {
+      "hash": "3f62a3c0334c1343056239c66bf0c63f41e0dc50",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): §10 ratify /optimize; register the UAP-4-opt bind→re-run split (UAP-4)",
+      "summary": "SPEC_PRODUCT_SHELL §10:146 ratifies the optimize route; registers the UAP-4-opt stub (bind/re-run, gated on a positive Δ) in index.json + TASK_PACK + a stub driver. Surgical text-insert (no drive-by reformat)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — the live optimize→honest-Δ loop in JudgeEditor (cost-gated, in-DOM modal → Δ render; one continuous surface)",
+      "verdict": "PASS",
+      "evidence": "JudgeEditor.jsx: Optimize button + Radix Dialog cost modal + inline OptimizeDelta below the $0 preview. Vitest 'cost modal gates the PAID run, then renders a WIN Δ' + 'cancel fires no paid call' green. Live in-browser confirmation is A-LIVE (user-run)."
+    },
+    {
+      "criterion": "A2 — HONEST Δ (a ≤0 Δ renders as a LOSS, not hidden; gate never loosened; net-new render, not calibration_chart)",
+      "verdict": "PASS",
+      "evidence": "Vitest 'a ≤0 Δ renders EXPLICITLY as a loss' asserts data-outcome='loss' + optimize-loss-note present + NO 'improved' copy. The route/engine never loosen the accept-gate (coverage_aware = trainset reorder only; judge_metric 0-delta)."
+    },
+    {
+      "criterion": "A3 — S-BS-49 win-attempt (GRADED honestly: improved → ship the win / no lift → honest-loss loop ships, S-BS-49 stays open)",
+      "verdict": "SKIP",
+      "evidence": "BUILT + offline-verified (coverage-aware selection + corpus-widening 6→12/code, positives-per-code increased, selection logic test-proven). The ACTUAL held-out Δ lift requires a PAID Azure run (run_optimize) — HALT-AND-ASK (cost-conscious; not run this session). The graded win/loss outcome is PENDING the user-run paid measurement (= A-LIVE). Gate NEVER loosened."
+    },
+    {
+      "criterion": "A4 — frozen seam 0-delta (_apply_consensus + judges_dspy + judge_metric + authored_stage + committed seeds)",
+      "verdict": "PASS",
+      "evidence": "git diff e9f3b82..HEAD over all frozen files + data/config/agents + data/ontology/clinical_v1.json + council_roles == 0 lines each (re-run at acceptance). The round-trip backend that would touch authored_stage/judges.py is NOT built (→ UAP-4-opt)."
+    },
+    {
+      "criterion": "A5 — green bar (ruff-clean changed files; default + debuglithrim + council + BFF + Vitest; import-clean; widened-corpus lint GREEN; pathspec-only)",
+      "verdict": "PASS",
+      "evidence": "ruff clean (6 changed py). import-clean: dspy/openai/fastapi NOT in core import. debuglithrim full tests/ + council 390p/3s(live-gated). default env 280p/10s(heavy-dep-gated). Vitest 48 passed (45+3). vite build clean. lint_golden 83 scored OK exit 0. 6 atomic pathspec-only commits; foreign untracked (.claude/, KICKOFF_CRITIC_, REPORT_fhir_) NOT swept."
+    },
+    {
+      "criterion": "A-LIVE — the :5180 end-to-end attestation (BLOCKING in-cycle close gate, USER-RUN per R3)",
+      "verdict": "SKIP",
+      "evidence": "BUILT FULLY DRIVEABLE (in-DOM cost modal so Chrome-MCP/automation can drive it, S-BS-69; never window.confirm). BFF :8787 + shell :5180 confirmed up (no autostart). NOT run by the executor — a paid Azure optimize run, HALT-AND-ASK. Owed to the user to fire + record the real Δ + which path (win vs honest-loss)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "corpus_positives_per_code_before": "WRONG_DOSAGE 8, MISSING_ALLERGY 8, FABRICATED_CONSENT 6, PHI 6, FABRICATED_HISTORY 6, MISSED_ESCALATION 6, VALUE_MISMATCH 1 (47 rows; cal 17 / test 30)",
+    "corpus_positives_per_code_after": "WRONG_DOSAGE 14, MISSING_ALLERGY 14, FABRICATED_CONSENT 12, PHI 12, FABRICATED_HISTORY 12, MISSED_ESCALATION 12, VALUE_MISMATCH 1 (83 rows; cal 53 / test 30 FROZEN)",
+    "risk_judge_trainset_before_after": "role-relevant calibration: 12 → 24 (heldout FROZEN 10 → 10)",
+    "held_out_delta_measured": "PENDING — requires the paid live optimize run (A-LIVE / A3); WS-6c-DSPy-3b prior was a LOSS (precision 0.71→0.44), so the honest-loss loop is the likely shipped experience absent a lift",
+    "which_path_fired": "PENDING the user-run paid attestation (win if coverage-aware+widening lift; else the honest-loss loop)",
+    "optimize_cost_spent": "$0 this session (no paid run executed by the executor; envelope authorized ≤3 runs / ~$0.80, HALT-AND-ASK each)",
+    "shortfalls_logged": "VALUE_MISMATCH not widened — cohort coverage 1 (S-BS-46); logged, never padded/relabeled"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "UAP-4 ships the demonstrable-live optimize→honest-Δ loop embedded in JudgeEditor: an Optimize button → an in-DOM cost modal (S-BS-69, never window.confirm) → a net-new inline Δ render that shows baseline→optimized precision/recall/graded win-or-loss, with a ≤0 Δ rendered EXPLICITLY as a loss (R1). The BFF POST /v1/judges/{role}/optimize route is cost-gated (422 without confirm) over run_optimize with coverage_aware=True. The S-BS-49 lead lever landed offline: coverage-aware demo selection (order_positive_first — trainset reorder only, judge_metric FROZEN, accept-gate never loosened) + corpus-widening 47→83 (positives 6→12/code) with EVERY new positive pinned to the calibration split so the held-out test split is FROZEN at 30 (both optimize arms measure on the identical set — condition #2). A DURABLE committed superset-verify (vs a frozen pre-widen fixture) + a determinism regen guard protect the by-construction invariant under the line-order shift (condition #1). A4 frozen-set 0-delta CONFIRMED; A5 green (debuglithrim 390/3, default 280/10, Vitest 48, lint GREEN, import-clean). TWO items are owed as USER-RUN paid gates (HALT-AND-ASK, R3): A3's actual held-out Δ lift measurement and the A-LIVE :5180 attestation — both need a paid Azure optimize run, which the executor did not fire. The round-trip bind/re-run backend is SPLIT → UAP-4-opt (stub registered; gated on a positive Δ). Monitor should check A4 (re-run the git diff) + the corpus superset test first, then decide whether to authorize the paid A3/A-LIVE run.",
+
+  "next_session_hint": "monitor: run /devloop-audit bench-salvage UAP-4; then this is a HARD GATE — spawn a fresh-critic via /devloop-critique bench-salvage UAP-4 (verify the gate was never loosened, the corpus superset/labels-true-by-construction, the frozen 0-delta). The PAID A3/A-LIVE optimize run is the user's to authorize/fire (cost-gated, in-DOM modal driveable)."
+}
