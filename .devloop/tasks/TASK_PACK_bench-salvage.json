@@ -1419,6 +1419,21 @@
       "hardness": "HARD-GATE; fresh-critic required at close.",
       "hardness_reason": "a NET-NEW agent loop + a NET-NEW dependency (claude-agent-sdk, the [agent] extra) + a NET-NEW SSE surface (section10) + the BYO-Claude licensing guardrail (BYO/desktop only, never multi-tenant) + the A-SAFE agent-safety boundary (the agent must NOT silently spend/relabel/bypass an author-gate -- it drives real audited config writes + can invoke PAID tools). The loop is a DRIVER OVER the frozen entity model/withstands-gate/audit (A6 0-delta load-bearing). Live runs are BYO-Claude + cost-gated.",
       "next_action": "run /devloop-kickoff bench-salvage UAP-5b; fresh executor ROOTED IN lithrim-bench. DO D0 FIRST (the gating SDK+BYO-Claude spike). Plan-review resolves D-A/D-B/D-C/D-D/D-E/D-F; the three top-level decisions are RESOLVED. The agent NEVER silently spends/relabels/bypasses (A-SAFE). Pathspec-only commits."
+    },
+    {
+      "id": "UAP-5c",
+      "phase": "UAP-5c",
+      "title": "UAP-5c -- the FULL Domain->Judge->Flag->Run->Review-from-scratch conversational journey over the complete tool set (the UAP-5b D-F split; the A-LIVE 'complete the whole journey by talking' TARGET).",
+      "status": "stub",
+      "blocked_by": ["UAP-5b"],
+      "priority": "P2",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-5c-full-journey-from-scratch-driver",
+      "milestone": "Grows the UAP-5b loop SPINE (POST /v1/chat SSE + the 3-tool CORE author_judge/get_judge/run_eval-replay + the parts-adapter + the in-DOM CostModal) to the full multi-turn journey from a blank agent: wrap the remaining EXISTING audited ops as in-process SDK-MCP tools (author_flag/put_ontology, assemble-agent, eval-pack batch, run-history/audit reads), each adapted to the existing gen-UI cards.",
+      "origin": "Stub authored 2026-06-05 by the UAP-5b executor at close (the pre-authorized D-F SPLIT, deferred-not-dropped). A-SAFE invariants HOLD: the agent proposes a paid run, only the human's in-DOM CostModal confirms; no relabel, no author-gate bypass, every write audited. Each added tool grows the journey cheaply (the spine is proven).",
+      "hardness": "HARD-GATE; fresh-critic required at close.",
+      "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-5c. Re-grep apps/bff/agent/{tools,adapter,loop}.py + apps/bff/app.py POST /v1/chat + the wrapped endpoints + apps/shell/src/genui/registry.js KNOWN_TOOLS + panes.jsx the chat pane. FROZEN: the wrapped ops + _apply_consensus + the entity model/withstands-gate/audit. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits."
     }
   ],
   "seams": [
