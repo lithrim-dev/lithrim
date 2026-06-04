@@ -1093,6 +1093,61 @@
       "hardness": "HARD-GATE (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8); fresh-critic the default at close.",
       "hardness_reason": "The prompt<->ontology bridge touches safety-critical judge prose (S-BS-11) + the owner<->emit invariant #4, and the :5180 smoke (A8) is load-bearing. The bridge is where authored config first changes what the LLM judges actually do -- exactly where a from-source fresh-critic earns its keep.",
       "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-2_judge-authoring_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-2; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 6 decisions before 'go'. Pathspec-only commits (shared branch)."
+    },
+    {
+      "id": "UAP-3",
+      "phase": "UAP-3",
+      "title": "UAP-3 -- processing surface + run-history + the authored->flip wiring (RunPanel + eval-pack + GET /v1/runs); R4+R6 / S-BS-63",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P0",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-3-processing-run-history-driver",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) DONE. UAP-3 (R4+R6, this) -> UAP-3b (signals + withstands-gate, section 2A -- the moat) -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5a/5b (conversational-driver surface, SPEC section 13; after the moat). UAP-3 closes the A8-smoke-found S-BS-63 (authoring a judge does NOT yet change the live verdict) -- the loop that makes authoring feel real.",
+      "origin": "Authored 2026-06-04 from the LOCKED SPEC section 5 R4/R6 + the UAP-3 handoff (no prior stub; pack backfilled, memory devloop-task-pack-stale-uap-from-spec). Folds in the A8-smoke seams S-BS-63 (authored->grade wiring) + S-BS-52/56 (run-history/ids). User chose 'move with UAP-3' (2026-06-04).",
+      "regrepped_2026_06_04": "build_trio(*, ontology=, assignments=) judges_dspy.py:298-304 (ALREADY accepts assignments dict[role,flags]); grade_inprocess grade.py:129-170 builds council via LocalPipelineBackend->orchestrator->ComplianceCouncil() DEFAULT @ runtime/pipeline/stages.py:708-730 (NEVER reads assignments = S-BS-63); run_eval.run:101-156 (dispatch in_process:125-142/live:143-153/replay:155); load_judge:119-128 (JudgeConfig.assigned_flags); BFF run_eval_endpoint:222 + _council_view:256 (no pipeline_run_id=S-BS-56; no GET /v1/runs; /v1/runs/{id}/audit:669 404s on replay); provenance.SqliteProvenanceStore:38 save:62/find_by_id:76 (replay+live don't persist=S-BS-52); evalpack.build_pack:81; registry.js KNOWN_TOOLS:21-30 (8, no run_panel); panes.jsx CenterPane:79-204.",
+      "deliverables": [
+        "WIRING (S-BS-63, load-bearing) scripts/run_eval.py + harness/grade.py + apps/bff/app.py: for the agent's trio load_judge(role)->assignments dict -> thread into the in_process/live council build via build_trio(ontology=, assignments=) (seam: inject a semantic_stage built from build_trio [preferred] vs orchestrator-reads-assignments). Replay unchanged. FROZEN: _apply_consensus + per-judge seam (A2 byte-0-delta).",
+        "RUN-HISTORY apps/bff/app.py: surface pipeline_run_id in /v1/run-eval (S-BS-56) + GET /v1/runs (list persisted runs newest-first); thread SqliteProvenanceStore into the replay path so replay runs are auditable (S-BS-52) OR a written scoped-defer.",
+        "BATCH apps/bff/app.py: POST /v1/eval-pack/run over evalpack.build_pack (R6; replay default, live/in_process cost-gated). May split to a follow-on if the cycle overflows (flag, don't drop).",
+        "RUNPANEL apps/shell/src/genui/RunPanel.jsx (NEW) + registry.js (KNOWN_TOOLS->9, tool-run_panel) + panes.jsx mount + bff.js getRuns: trigger a run (replay $0 default; live/in_process cost-gated confirm), show verdict + _council_view votes + run-history.",
+        "TESTS tests/test_uap3_*.py (authored->flip; frozen-seam 0-delta; /v1/runs + pipeline_run_id + audit round-trip; replay-provenance; eval-pack) + RunPanel.test.jsx.",
+        "DOCS SPEC_PRODUCT_SHELL section 10 ratify GET /v1/runs + POST /v1/eval-pack/run + the pipeline_run_id field (S-BS-51) + .devloop/sessions/session-bench-salvage-phaseUAP-3-2026-06-04.json."
+      ],
+      "acceptance": [
+        "A1 authored->flip (S-BS-63): assign a flag via PUT /v1/judges -> in_process grade -> the council votes reflect the authored lens (verdict/finding delta vs default-config). Python test + $0 JudgeEditor preview parity.",
+        "A2 frozen seam: git diff = 0 lines in compliance_council.py (_apply_consensus) + the per-judge seam dict.",
+        "A3 run ids+history (S-BS-56): /v1/run-eval surfaces pipeline_run_id; GET /v1/runs lists newest-first; a run_id round-trips to /v1/runs/{id}/audit (no 404 for a persisted run).",
+        "A4 replay-provenance (S-BS-52): a replay run is persisted+auditable OR a written scoped deferral (S-BS-52 stays open with a reason).",
+        "A5 eval-pack (R6): POST /v1/eval-pack/run runs a pack via build_pack -> frozen pack + run ids (or split-to-follow-on, flagged).",
+        "A6 RunPanel: tool-run_panel renders in CenterPane, triggers a run (replay $0 default; live/in_process cost-gated), shows verdict+votes+history; Vitest green; :5180 smoke OWED (A8-class).",
+        "A7 green bar: ruff-clean changed files; default + debuglithrim + council + BFF + Vitest green; default-deps import-clean; pathspec-only commits."
+      ],
+      "diagnostic_stats_reported": [
+        "the verdict/finding delta the authored lens produces -- illustrative, not a gate",
+        "run-history length + pipeline_run_id count after the test runs -- reported, not a gate",
+        "any live/in_process cost spent -- reported; the gate is cost-confirmed not a number"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "NO withstands-gate / signals / GroundingCheck orchestration (UAP-3b, the moat).",
+        "NO optimize/calibration-in-UI (UAP-4, S-BS-49).",
+        "NO shipping a floor/KB from a committed ontology (S-BS-13/16/41 stay gates; clinical_v1 floor-less).",
+        "NO authoring-assist describe->card (UAP-5a) -- no LLM-draft path.",
+        "NO JudgeEditor shell mount (S-BS-62, spawned fix-task / UAP-5a line-item) unless a one-line freebie (then flag, don't silently fold).",
+        "NO owner_roles re-snapshot (S-BS-59).",
+        "FROZEN: compliance_council._apply_consensus + the per-judge seam dict + committed seeds (clinical_v1.json, agents/*.json, council_roles/*.txt).",
+        "Drive-by formatting / dep bumps."
+      ],
+      "plan_review_decisions": [
+        "1 S-BS-63 injection seam: inject a semantic_stage built from build_trio(assignments=) via grade_inprocess(semantic_stage=) [preferred, no orchestrator edit] vs extend the orchestrator to read persisted assignments.",
+        "2 S-BS-52 replay-provenance: persist a replay blob now (thread SqliteProvenanceStore into grade_replay) vs scoped-defer-with-reason (run-history in_process+live-only this phase).",
+        "3 Cost posture: $0 replay is default; any live/in_process acceptance run is cost-confirmed (~$0.10-0.20/in_process case, WS-6c-AGENTIC envelope); name it before 'go'.",
+        "4 Scope: is R6-batch (POST /v1/eval-pack/run) in this cycle or split to a follow-on? (UAP-3 is large -- A/B are the P0 core.)"
+      ],
+      "hardness": "HARD-GATE (per SPEC section 7 / SPEC_PRODUCT_SHELL section 8); fresh-critic the default at close.",
+      "hardness_reason": "Closes the load-bearing authored->flip wiring (S-BS-63) through the grade path adjacent to the frozen consensus seam (A2 byte-0-delta is load-bearing), grows the v1 BFF surface (section 10 ratify), and adds run-provenance persistence -- the calibration/audit-bearing core of the product. Live/in_process acceptance runs are cost-gated.",
+      "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-3_processing-run-history_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-3; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 4 decisions before 'go'. Pathspec-only commits (shared branch)."
     }
   ],
   "seams": [

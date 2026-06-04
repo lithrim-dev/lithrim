@@ -51,6 +51,31 @@
       "next_action": "CLOSED 2026-06-04 (PROCEED-WITH-CAVEATS). Next = UAP-3 (RunPanel/processing + eval-pack + run-history, R4/R6) -- run /devloop-expand-driver bench-salvage UAP-3. UAP-5a authoring-assist (zyng LLMClient) MAY pull forward after UAP-2 for a $0 demonstrability win. OWED: the batched UAP-1 + UAP-2 :5180 A8 visual smoke (user-run, no-autostart). Closed S-BS-57; opened S-BS-59 (re-snapshot stale ontology owner_roles, deferred -- seed frozen) + S-BS-60 (question-text write-back deferred, §12.2 approved cut) + S-BS-61 (informational, no action)."
     },
     {
+      "id": "bench-salvage-phaseUAP-3-processing-run-history-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-3",
+      "scope": "processing-surface-plus-run-history-plus-the-authored-to-flip-wiring-R4-R6-S-BS-63",
+      "file": "bench-salvage_phaseUAP-3_processing-run-history_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (closes the authored->flip wiring S-BS-63 through the grade path adjacent to the frozen consensus seam [A2 byte-0-delta load-bearing]; grows the v1 BFF surface [§10 ratify]; adds run-provenance persistence S-BS-52/56; live/in_process acceptance runs cost-gated; :5180 smoke load-bearing; fresh-critic the default)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §5 R4 (RunPanel + processing) + R6 (POST /v1/eval-pack/run + GET /v1/runs) + §3.3 Stage-3 + §4 BFF/registry + §13 surface context",
+        "scripts/run_eval.py:101-156 (run() + the 3-way grade dispatch in_process:125-142/live:143-153/replay:155 -- the S-BS-63 thread-point)",
+        "lithrim_bench/harness/grade.py:129-170 (grade_inprocess builds council via LocalPipelineBackend->orchestrator->ComplianceCouncil() DEFAULT config @ runtime/pipeline/stages.py:708-730 -- never reads assignments = S-BS-63)",
+        "lithrim_bench/runtime/council/judges_dspy.py:298-304 (build_trio(*, ontology=, assignments=) ALREADY accepts assignments dict[role,flags] -- the plumbing exists) + lithrim_bench/harness/judges.py:119-128 (load_judge(role)->JudgeConfig w/ assigned_flags)",
+        "apps/bff/app.py (run_eval_endpoint:222 + _council_view:256 + response 252-257 NO pipeline_run_id=S-BS-56; /v1/runs/{id}/audit:669-688 404s on replay; NO GET /v1/runs)",
+        "lithrim_bench/runtime/pipeline/provenance.py:38-79 (SqliteProvenanceStore.save:62/find_by_id:76; replay+live DON'T persist=S-BS-52) + lithrim_bench/harness/evalpack.py:81-119 (build_pack/dump_pack/load_pack, R6 batch)",
+        "apps/shell/src/genui/registry.js:21-30 (KNOWN_TOOLS=8, no tool-run_panel) + apps/shell/src/panes.jsx:79-204 (CenterPane mount, renderTool:146-150) + apps/shell/src/bff.js (runEval exists; add getRuns)"
+      ],
+      "_note": "UAP-3 = R4+R6, the processing/run-history phase + the A8-smoke-found authored->flip wiring. P0 CORE: (A) S-BS-63 -- thread the agent's persisted per-judge assignments (load_judge->assignments dict) into the in_process/live council build via build_trio(assignments=), so authoring a judge actually changes the live verdict (today grade_inprocess builds ComplianceCouncil() default-config, never reading assignments); (B) run ids + history -- surface pipeline_run_id (S-BS-56) + GET /v1/runs + replay-provenance (S-BS-52). Then (C) R6 POST /v1/eval-pack/run batch; (D) the RunPanel gen-UI (tool-run_panel, KNOWN_TOOLS->9, mounted in panes.jsx). FROZEN: compliance_council._apply_consensus + the per-judge seam dict + committed seeds (this is council-CONSTRUCTION/injection above the frozen seam; A2 byte-0-delta). OUT: withstands-gate/signals (UAP-3b, the moat), optimize (UAP-4/S-BS-49), floor/KB ship (S-BS-13/16/41 stay gates), authoring-assist (UAP-5a), JudgeEditor mount (S-BS-62). §10 ratify the new routes (S-BS-51). Large phase -- plan-review may split R6-batch to a follow-on (flag, don't drop). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
+      "created": "2026-06-04",
+      "last_re_verified": "2026-06-04",
+      "expanded": "2026-06-04 (driver authored directly from the LOCKED SPEC §5 R4/R6 + the UAP-3 handoff -- no prior stub; 9 citation groups re-grepped via an Explore sweep, all CONFIRMED [0 DRIFTED / 0 MISSING]; a UAP-3 entry backfilled into TASK_PACK_bench-salvage.json per the established UAP pattern, memory devloop-task-pack-stale-uap-from-spec).",
+      "next_action": "run /devloop-kickoff bench-salvage UAP-3 -- print the executor kickoff; paste into a fresh Claude Code session ROOTED IN lithrim-bench. Plan-review must resolve the 4 load-bearing decisions (S-BS-63 injection seam [semantic_stage-inject preferred vs orchestrator-reads] / S-BS-52 replay-provenance persist-vs-scoped-defer / cost posture for any live-in_process acceptance run / R6-batch in-cycle-vs-split) before 'go'. Pathspec-only commits."
+    },
+    {
       "id": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
       "stream": "bench-salvage",
       "phase": "UAP-5a",
@@ -67,7 +92,7 @@
         "apps/shell/src/genui/registry.js (the tool-* cards that render a draft: tool-agent_editor/tool-flag_editor/tool-contract_builder; the AI-SDK message-parts shape)",
         "memory judge-creation-must-be-demonstrable (the instant + $0 bar) + zyng-claude-cli-provider (the pattern + licensing boundary)"
       ],
-      "_note": "UAP-5a = R10, Tier-1 of the conversational surface (SPEC §13). NL description -> a forced-tool `emit() -> dict` (vendored LLMClient a la zyng) -> a schema-valid Agent/judge/flag/contract DRAFT -> the EXISTING gen-UI tool-* card -> the normal audited PUT. SINGLE-SHOT, not a conversation (that is UAP-5b). Reuses zyng wholesale; $0 on the local `claude` CLI; serves the demonstrability bar. Rides on the UAP-2 judge/flag endpoints. Frozen: compliance_council._apply_consensus + the audited PUT path + the 422 author-gates stay authoritative (the LLM drafts, it never relabels or bypasses a gate). Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant. New route POST /v1/author/{kind} must be ratified into SPEC_PRODUCT_SHELL §10 (S-BS-51 pattern). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
+      "_note": "UAP-5a = R10, Tier-1 of the conversational surface (SPEC §13). NL description -> a forced-tool `emit() -> dict` (vendored LLMClient a la zyng) -> a schema-valid Agent/judge/flag/contract DRAFT -> the EXISTING gen-UI tool-* card -> the normal audited PUT. SINGLE-SHOT, not a conversation (that is UAP-5b). Reuses zyng wholesale; $0 on the local `claude` CLI; serves the demonstrability bar. Rides on the UAP-2 judge/flag endpoints. Frozen: compliance_council._apply_consensus + the audited PUT path + the 422 author-gates stay authoritative (the LLM drafts, it never relabels or bypasses a gate). Licensing guardrail: the local-CLI provider is BYO-Claude/desktop-only, never multi-tenant. New route POST /v1/author/{kind} must be ratified into SPEC_PRODUCT_SHELL §10 (S-BS-51 pattern). LINE-ITEM (user 2026-06-04): S-BS-62 (the UAP-2 JudgeEditor not UI-mounted + the inert chat/⌘K command bar) is the FIRST concrete UAP-5a rung -- mount the authoring widgets into the shell conversation surface (the substrate the describe->card assist then drives); the spawned S-BS-62 fix-task is the tactical entry. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04",
       "next_action": "STUB -- run /devloop-expand-driver bench-salvage UAP-5a (re-grep ../zyng/zyng/authoring.py + the BFF write/audit path + the registry tool-parts; author from SPEC §13/R10). Do NOT start before UAP-2 closes; sequenced AFTER the moat (UAP-3b) by default, pull-forward after UAP-2 optional for a $0 demonstrability win."
