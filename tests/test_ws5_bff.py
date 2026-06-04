@@ -471,3 +471,115 @@ def test_run_provenance_unpersisted_run_is_404_not_500(client):
     res = client.get("/v1/runs/never-ran/audit")
     assert res.status_code == 404
     assert "replay" in res.text
+
+
+# ── UAP-2 R2: /v1/judges — author a judge via ontology-assignment ─────────────
+
+_AGENT = "ws5_bff_test"
+
+
+def test_judges_list_returns_the_v2_trio(client):
+    """A1 — GET /v1/judges lists each v2 role + its assignable lens + derived
+    questions + the validator toolbox; unauthored roles are honest defaults."""
+    body = client.get("/v1/judges", params={"agent": _AGENT}).json()
+    roles = {j["role"] for j in body["judges"]}
+    assert roles == {"risk_judge", "policy_judge", "faithfulness_judge"}
+    assert "dosage_grounding" in body["validators"]
+    risk = next(j for j in body["judges"] if j["role"] == "risk_judge")
+    assert risk["authored"] is False and risk["assigned_flags"] == []
+    assert "WRONG_DOSAGE" in {f["flag"] for f in risk["available_flags"]}
+
+
+def test_judge_default_render_equals_base_prompt(client):
+    """A4 — an unauthored judge renders role_key_questions byte-equal to its seed
+    .txt base (no silent drift of safety-critical prose)."""
+    j = client.get("/v1/judges/risk_judge", params={"agent": _AGENT}).json()
+    assert j["rendered_prompt"] == j["base_prompt"]
+    assert j["base_prompt"]  # non-empty
+
+
+def test_judge_preview_diverges_with_an_assignment(client):
+    """A8 — the demonstrable assignment→prompt link: assigning a flag renders the
+    AUTHORED REFINEMENT into the exact prompt the bridge will send ($0, no model)."""
+    j = client.get(
+        "/v1/judges/risk_judge",
+        params={"agent": _AGENT, "assigned_flags": "WRONG_DOSAGE,FABRICATED_ALLERGY"},
+    ).json()
+    assert j["rendered_prompt"] != j["base_prompt"]
+    assert "AUTHORED REFINEMENT" in j["rendered_prompt"]
+    assert "WRONG_DOSAGE" in j["rendered_prompt"]
+    assert j["preview_flags"] == ["WRONG_DOSAGE", "FABRICATED_ALLERGY"]
+
+
+def test_judge_put_round_trips_and_audits(client):
+    """A1 + A3 — PUT assigns a lens + binds a model → GET reflects it + the saved
+    assignment now renders into the prompt; the write emits an actor-attributed,
+    immutable audit record (target.type='judge')."""
+    res = client.put(
+        "/v1/judges/risk_judge",
+        params={"rationale": "assign dosage lens"},
+        headers={"X-Actor": "sme@acme"},
+        json={
+            "model": "AZURE_OPENAI_DEPLOYMENT_COUNCIL",
+            "assigned_flags": ["WRONG_DOSAGE"],
+            "validator_refs": ["dosage_grounding"],
+        },
+    )
+    assert res.status_code == 200, res.text
+
+    j = client.get("/v1/judges/risk_judge", params={"agent": _AGENT}).json()
+    assert j["authored"] is True
+    assert j["assigned_flags"] == ["WRONG_DOSAGE"]
+    assert j["model"] == "AZURE_OPENAI_DEPLOYMENT_COUNCIL"
+    assert j["validator_refs"] == ["dosage_grounding"]
+    assert "WRONG_DOSAGE" in j["rendered_prompt"]  # the saved assignment renders
+
+    recs = client.get("/v1/audit", params={"target_type": "judge"}).json()["records"]
+    assert len(recs) == 1
+    assert recs[0]["actor"] == {"type": "user", "id": "sme@acme"}
+    assert recs[0]["target"] == {"type": "judge", "id": "risk_judge"}
+    assert recs[0]["why"]["rationale"] == "assign dosage lens"
+    assert recs[0]["after"]["assigned_flags"] == ["WRONG_DOSAGE"]
+
+
+def test_judge_put_422_on_owner_emit_violation(client):
+    """A1 — owner↔emit (invariant #4): policy_judge cannot be assigned WRONG_DOSAGE
+    (it neither owns nor emits it). 422, not a soft pass."""
+    res = client.put("/v1/judges/policy_judge", json={"assigned_flags": ["WRONG_DOSAGE"]})
+    assert res.status_code == 422
+    assert "owner↔emit" in res.json()["detail"]
+
+
+def test_judge_put_422_on_unknown_validator(client):
+    """A1 — validators are execute-only references from the persisted toolbox; an
+    unknown ref is rejected (a judge never authors/invents a validator)."""
+    res = client.put(
+        "/v1/judges/risk_judge",
+        json={"assigned_flags": ["WRONG_DOSAGE"], "validator_refs": ["totally_made_up"]},
+    )
+    assert res.status_code == 422
+    assert "validator" in res.json()["detail"]
+
+
+def test_judge_unknown_role_is_404(client):
+    """A retired/unknown role (e.g. the dormant behavior_judge) is a clean 404."""
+    assert client.get("/v1/judges/behavior_judge", params={"agent": _AGENT}).status_code == 404
+    assert client.put("/v1/judges/behavior_judge", json={"assigned_flags": []}).status_code == 404
+
+
+def test_gate_authority_is_lens_not_stale_ontology_owner_roles(client):
+    """The CITATION-DRIFT guard (Finding 1): the owner↔emit gate uses LENS_BY_ROLE
+    (the v2 owned+emitted authority, owner-consistent vs _TIER1_OWNERS), NOT the
+    ontology's owner_roles — which are stale v1 roles (behavior/source_message, NO
+    faithfulness_judge). So faithfulness_judge CAN be assigned MISSING_ALLERGY /
+    VALUE_MISMATCH (its v2 Tier-1 codes) even though the committed ontology's
+    owner_roles for those codes never list it. Gating on the stale owner_roles would
+    have wrongly 422'd this correct assignment."""
+    res = client.put(
+        "/v1/judges/faithfulness_judge",
+        headers={"X-Actor": "sme@acme"},
+        json={"assigned_flags": ["MISSING_ALLERGY", "VALUE_MISMATCH"]},
+    )
+    assert res.status_code == 200, res.text
+    j = client.get("/v1/judges/faithfulness_judge", params={"agent": _AGENT}).json()
+    assert set(j["assigned_flags"]) == {"MISSING_ALLERGY", "VALUE_MISMATCH"}
