@@ -246,7 +246,7 @@
       "phase": "UAP-5c",
       "scope": "the-full-Domain-to-Judge-to-Flag-to-Run-to-Review-from-scratch-conversational-journey-over-the-complete-tool-set",
       "file": "bench-salvage_phaseUAP-5c_full-journey-from-scratch_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (grows the UAP-5b spine to the complete multi-turn journey -- more SDK-MCP tools [author_flag/put_ontology, assemble agent, eval-pack batch, run-history/audit reads], longer multi-step orchestration, A-LIVE from a blank agent; fresh-critic required)",
       "target_repos": ["lithrim-bench"],
