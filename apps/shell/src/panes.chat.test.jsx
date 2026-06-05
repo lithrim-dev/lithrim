@@ -67,6 +67,34 @@ describe("CenterPane — the R11 conversational loop", () => {
     expect(await screen.findByText("REJECT")).toBeInTheDocument();
   });
 
+  it("streams the journey tool-parts and renders them inline via the existing registry (no new cards)", async () => {
+    // UAP-5c: re-script the loop to stream the NEW journey cards as tool_result parts.
+    // The chat pane renders them through the SAME type-agnostic renderTool path as the
+    // verdict card above; per-type card rendering for all 9 tools is covered by
+    // genui/registry.test.jsx. Here we assert the chat pane STREAMS a new journey part
+    // and renders it inline — witnessed unambiguously by the audit_log card carrying the
+    // streamed runId (the scripted-default audit_log has no run id, so it's chat-unique).
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "assistant_delta", text: "Reading the domain, editing a flag, reviewing runs." });
+      onEvent({ event: "tool_result", part: { type: "tool-agent_editor", state: "output-available", output: { agent: "ws0_default" } } });
+      onEvent({ event: "tool_result", part: { type: "tool-flag_editor", state: "output-available", output: { agent: "ws0_default" } } });
+      onEvent({ event: "tool_result", part: { type: "tool-audit_log", state: "output-available", output: { runId: "run-1" } } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "subscription-equivalent estimate" });
+    });
+    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "Walk the whole journey from scratch" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the chat streamed its narration, and the review_runs → audit_log part rendered the
+    // EXISTING card inline carrying its streamed run id — none of the parts hit the fallback
+    expect(await screen.findByText(/Reading the domain, editing a flag/)).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("run-1")).toBeInTheDocument();
+    expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+
   it("opening the in-DOM cost modal exposes the human-only paid confirm (the agent cannot)", async () => {
     const onRunEval = vi.fn().mockResolvedValue();
     render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={onRunEval} runStatus="idle" />);
