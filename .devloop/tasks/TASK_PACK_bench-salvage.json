@@ -1470,6 +1470,45 @@
         "Drive-by formatting / dep bumps (the [agent] extra already exists)."
       ],
       "next_action": "READY -- run /devloop-kickoff bench-salvage UAP-5c, paste into a fresh executor. Plan-review resolves D-A (final tool set) / D-B (adapter mapping) / D-C (the S-BS-82 fix + the generalized Query/Header-explicit rule) / D-D (the S-BS-81 allowlist-bounds test) / D-E (NB-2 model-bind) / D-F (assemble_agent + eval-pack SPLIT) / D-G (A-LIVE cost). FROZEN: the wrapped ops + _apply_consensus + the entity model/withstands-gate/audit. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits. HARD-GATE: fresh-critic at close."
+    },
+    {
+      "phase": "UAP-5c-2",
+      "title": "UAP-5c-2 -- complete the tool set (the UAP-5c D-F split): run_eval_pack [the eval-pack BATCH, replay/$0, live hardcoded False] + assemble_agent [the Domain-assembly WRITE, EDIT-ONE-FACET].",
+      "status": "ready",
+      "blocked_by": ["UAP-5c"],
+      "priority": "P2",
+      "target": "executor",
+      "repos": ["lithrim-bench"],
+      "prompt_bundle": "bench-salvage-phaseUAP-5c-2-complete-tool-set-driver",
+      "milestone": "Finishes the conversational tool set: the eval-pack batch (run_eval_pack) + an edit-one-facet Agent write (assemble_agent), re-proving A-SAFE as the surface widens to the FIRST agent-reachable paid-capable wrapper + the FIRST agent-reachable Agent WRITE.",
+      "origin": "Authored 2026-06-05 by the monitor at UAP-5c close (the pre-authorized D-F split). Right-sized per live-reassess: assemble_agent is EDIT-ONE-FACET (a full Agent dict per config.py agent_to_dict is too much for a conversational tool); run_eval_pack hardcodes live=False (the A-SAFE crux).",
+      "hardness": "HARD-GATE; fresh-critic required at close.",
+      "regrepped_2026_06_05": "put_agent_endpoint:421 (PUT /v1/agent; _AGENT_BODY:127, rationale=Query:423, db_path/actor=Depends, x_actor=Header:426; audited save_agent+AuditLog; 422 via agent_from_dict) + eval_pack_run_endpoint:376 (POST /v1/eval-pack/run; EvalPackRunRequest{pack_id, agents[], live:372}; evalpack.build_pack:85; outcomes carry pipeline_run_id:59-62) + get_agent_endpoint:410 (UAP-5c _get_agent) + _build_tool_context:911-959 + config.py agent_to_dict:120-135/agent_from_dict:96 + tests/test_uap5c_journey.py:159-191 (allowlist-bounds + no-paid-knob iterate _TOOL_SPECS -> auto-extend) + registry.js:23-33 KNOWN_TOOLS (agent_editor/audit_log/run_panel all exist). 0 DRIFTED, 0 MISSING.",
+      "deliverables": [
+        "D1 run_eval_pack (the batch Run leg; do FIRST): tools.py RUN_EVAL_PACK_SCHEMA={pack_id:str, agents:list} [NO live/confirm/in_process] + run_eval_pack_handler; _build_tool_context._run_eval_pack -> eval_pack_run_endpoint(EvalPackRunRequest(pack_id, agents, live=False), Depends params explicit) -- live=False HARDCODED (the A-SAFE crux, mirror _run_eval_replay); append the spec tuple to _TOOL_SPECS.",
+        "D2 assemble_agent (EDIT-ONE-FACET Domain write; D-A picks the facet): ASSEMBLE_AGENT_SCHEMA for ONE facet [monitor candidate = roster add/remove-judge, or ontology_ref bind] + assemble_agent_handler; _build_tool_context._assemble_agent -> get_agent-load the current dict -> apply the single-facet delta -> put_agent_endpoint(agent=merged, rationale, db_path, default_actor, x_actor) [audited; 422 surfaced]. NEVER accept a full agent dict from the model. Pass every Query/Header explicitly (the S-BS-82 rule).",
+        "D3 parts-adapter + loop: adapter.py assemble_agent->tool-agent_editor, run_eval_pack->tool-audit_log/run_panel (pure-read Review; NO new card types); loop.py _SYSTEM_PROMPT names the 2 new tools + that run_eval_pack is replay/$0; the allowed list auto-extends from _TOOL_SPECS; max_turns stays 12.",
+        "D4 the A-SAFE re-proof + journey tests (offline/$0 via the stub): the allowlist-bounds + no-paid-knob tests now cover 8 tools; THE live=True negative test -- inject live=True/confirm into run_eval_pack args, assert the bound op receives live=False; assemble_agent audited write (GET /v1/audit target_type=agent) + a malformed/unknown facet 422-surfaces (no card, nothing audited); the batch round-trips (run_ids -> review_runs/GET /v1/runs). Vitest: the new parts render via the existing registry.",
+        "D5 docs + A-LIVE: SPEC_PRODUCT_SHELL §10 + SPEC_UNIFIED_AUTHORING_PRODUCT §13 note the 8-tool surface; session log. A-LIVE (BLOCKING, USER-RUN): the batch + agent-edit on :5180 ($0); recommend the OWED UAP-5c A-LIVE be attested FIRST (live catches what offline misses)."
+      ],
+      "acceptance": [
+        "A1 the journey extends end-to-end: talk -> run_eval_pack batch (the Review card renders the outcomes) + (if in scope) assemble_agent roster edit (the agent_editor card renders). :5180 = A-LIVE.",
+        "A2 the conversation IS the audit log: assemble_agent's write -> an actor-attributed AuditRecord (target_type=agent) at GET /v1/audit.",
+        "A3 the new tools drive real ops: run_eval_pack batches real runs (round-trip to GET /v1/runs); assemble_agent does the audited PUT /v1/agent (malformed -> 422 surfaced, not bypassed).",
+        "A-SAFE (load-bearing, re-proven): run_eval_pack CANNOT fire a paid run -- no paid knob in the schema + the wrapper hardcodes live=False (inject live=True -> dropped, negative-tested); the allowlist stays EXACTLY the mcp__lithrim__* set [now 8] with no built-in; assemble_agent cannot write un-audited or bypass the 422.",
+        "A4 the parts-adapter reuses existing cards (no new types).",
+        "A6 frozen 0-delta: git diff over _apply_consensus + the seam dict + judge_metric + the EXISTING BFF ops + the seeds == 0 lines (the new closures live in _build_tool_context; put_agent_endpoint/eval_pack_run_endpoint byte-identical).",
+        "A5/A7 BYO-Claude + import-isolated (re-verified); green bar (default + debuglithrim + Vitest + ruff); pathspec-only.",
+        "A-LIVE (BLOCKING, USER-RUN): the batch + agent-edit slice on :5180 ($0); built fully driveable; the monitor schedules at close (recommend the UAP-5c A-LIVE attested first)."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "A full-dict assemble_agent -- EDIT-ONE-FACET only (the agent supplies a delta, never a whole Agent dict).",
+        "A LIVE/paid batch through the tool -- run_eval_pack is replay/$0; a live batch is the human's existing confirm-gated path.",
+        "New gen-UI card types -- reuse the existing KNOWN_TOOLS registry.",
+        "API-key / hosted / multi-tenant provider -- BYO-Claude/desktop only.",
+        "FROZEN: _apply_consensus + the per-judge seam dict + judge_metric + the entity model/withstands-gate/audit + the committed seeds + the EXISTING BFF ops (incl. put_agent_endpoint / eval_pack_run_endpoint -- wrap+stream, never modify; A6 0-delta). Drive-by formatting / dep bumps."
+      ],
+      "next_action": "READY -- run /devloop-kickoff bench-salvage UAP-5c-2. Plan-review resolves D-A (assemble_agent facet or defer) / D-B (batch adapter card) / D-C (live=False hardcode + the Query/Header-explicit binding rule) / D-D (the A-SAFE test extensions, incl. live=True-dropped) / D-E (A-LIVE cost + the UAP-5c-A-LIVE-first sequencing). HARD-GATE: fresh-critic at close."
     }
   ],
   "seams": [

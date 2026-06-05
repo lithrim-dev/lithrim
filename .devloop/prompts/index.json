@@ -257,6 +257,21 @@
       "next_action": "READY -- run /devloop-kickoff bench-salvage UAP-5c, paste into a fresh executor. Grows the proven UAP-5b loop spine to the full Domain->Judge->Flag->Run->Review journey over the journey-completing tools (CORE author_flag/review_runs/get_agent), closes S-BS-82 + S-BS-81, A-LIVE from a blank agent. Plan-review resolves D-A..D-G (final tool set / adapter mapping / S-BS-82 fix / S-BS-81 test / NB-2 model-bind / assemble+eval-pack SPLIT / A-LIVE cost). HARD-GATE: fresh-critic at close."
     },
     {
+      "id": "bench-salvage-phaseUAP-5c-2-complete-tool-set-driver",
+      "stream": "bench-salvage",
+      "phase": "UAP-5c-2",
+      "scope": "complete-the-tool-set-the-eval-pack-batch-plus-edit-one-facet-assemble-agent",
+      "file": "bench-salvage_phaseUAP-5c-2_complete-tool-set_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (re-introduces the FIRST agent-reachable paid-capable wrapper [run_eval_pack over the live knob] + the FIRST agent-reachable Agent WRITE [assemble_agent] -> A-SAFE re-proven safe-by-explicit-bound as the surface widens; fresh-critic required)",
+      "target_repos": ["lithrim-bench"],
+      "_note": "UAP-5c-2 = the pre-authorized UAP-5c D-F SPLIT. UAP-5c shipped the full journey on a 6-tool surface; this adds run_eval_pack (the eval-pack BATCH, replay/$0, the wrapper hardcodes live=False -- the A-SAFE crux) + assemble_agent (the Domain-assembly WRITE, EDIT-ONE-FACET: a full Agent dict [config.py agent_to_dict] is too much for a conversational tool, so load via get_agent -> modify ONE facet [roster add/remove-judge or ontology bind] -> put_agent; the agent supplies a DELTA, never the full dict -- mirrors author_flag's edit-only discipline). A-SAFE re-proof = run_eval_pack live=False hardcoded + a live=True-dropped negative test + the 8-tool allowlist-bounds; assemble_agent audited + 422-surfaces. Right-sized: if edit-one-facet balloons, run_eval_pack alone is a complete cycle (D-F). SEQUENCING: UAP-5c's A-LIVE is OWED -- recommend attesting it FIRST (live catches what offline misses; S-BS-82 was live-only). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
+      "created": "2026-06-05",
+      "last_re_verified": "2026-06-05 (expand-driver: re-grepped put_agent_endpoint:421 + eval_pack_run_endpoint:376 [EvalPackRunRequest.live:372] + get_agent_endpoint:410 + _build_tool_context:911-959 + config.py agent_to_dict:120-135 + tests/test_uap5c_journey.py:159-191 [allowlist-bounds iterate _TOOL_SPECS] + registry.js:23-33 KNOWN_TOOLS; 0 DRIFTED, 0 MISSING)",
+      "next_action": "READY -- run /devloop-kickoff bench-salvage UAP-5c-2. Plan-review resolves D-A (assemble_agent facet or defer) / D-B (batch adapter card) / D-C (live=False hardcode + the Query/Header-explicit binding rule) / D-D (the A-SAFE test extensions, incl. live=True-dropped) / D-E (A-LIVE cost + the UAP-5c-A-LIVE-first sequencing). HARD-GATE: fresh-critic at close."
+    },
+    {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
       "stream": "bench-salvage",
       "phase": "WS-6c-DSPy-3b",
