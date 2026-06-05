@@ -27,7 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from .adapter import judge_part, verdict_part
+from .adapter import agent_part, audit_part, flag_part, judge_part, verdict_part
 
 # Plain-dict input schemas (SDK-free; the A-SAFE test asserts the paid keys are
 # ABSENT from RUN_EVAL_SCHEMA — the agent literally cannot request a paid run).
@@ -38,8 +38,18 @@ AUTHOR_JUDGE_SCHEMA: dict[str, Any] = {
 }
 GET_JUDGE_SCHEMA: dict[str, Any] = {"role": str}
 RUN_EVAL_SCHEMA: dict[str, Any] = {"agent": str}
-# The paid knobs the agent must NEVER reach. Asserted absent from RUN_EVAL_SCHEMA by
-# the A-SAFE test — a regression that adds one here fails the build.
+# UAP-5c — the journey-completing tools (each SDK-free, paid-knob-free; the S-BS-81
+# A-SAFE test asserts NO schema below carries a PAID_KEY):
+GET_AGENT_SCHEMA: dict[str, Any] = {"name": str}
+AUTHOR_FLAG_SCHEMA: dict[str, Any] = {
+    "flag_code": str,
+    "tier": str,
+    "gradeable": bool,
+    "rationale": str,
+}
+REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int}
+# The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
+# the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
 
 
@@ -53,12 +63,19 @@ class ToolContext:
       a gate violation; the handler turns that into an output-error tool result)
     - ``get_judge(role) -> dict``
     - ``run_eval_replay(agent) -> dict``  (live=in_process=False, ALWAYS — the A-SAFE crux)
+    - ``get_agent(name) -> dict``  (UAP-5c Domain read, $0)
+    - ``author_flag(flag_code, tier, gradeable, rationale) -> dict``  (UAP-5c Flag; an
+      audited ontology edit of an EXISTING flag; raises on 404/422 — the handler surfaces it)
+    - ``review_runs(limit) -> dict``  (UAP-5c Review, $0 — run history + latest provenance)
     - ``default_agent``: the agent the tools default to.
     """
 
     author_judge: Callable[..., dict]
     get_judge: Callable[..., dict]
     run_eval_replay: Callable[..., dict]
+    get_agent: Callable[..., dict]
+    author_flag: Callable[..., dict]
+    review_runs: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -125,6 +142,69 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
     )
 
 
+async def get_agent_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # The Domain leg ($0 read): establish the agent/domain before authoring.
+    name = str(args.get("name") or ctx.default_agent)
+    try:
+        res = ctx.get_agent(name=name)
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(f"Could not read agent {name!r}: {detail}.")
+    ctx.emit(agent_part(name))
+    profile = res.get("eval_profile") or {}
+    return _text(
+        f"Domain/agent {name!r}: judges={list(profile.get('judges') or [])}, "
+        f"ontology_ref={profile.get('ontology_ref') or '(none)'}, "
+        f"tools={list(profile.get('tools') or [])}."
+    )
+
+
+async def author_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # The Flag leg (audited WRITE): edit an EXISTING flag's tier/gradeable. Never creates
+    # a flag or invents owner_roles; an out-of-snapshot gradeable edit 422s and is surfaced.
+    flag_code = str(args.get("flag_code") or "")
+    tier = args.get("tier")
+    gradeable = args.get("gradeable")
+    rationale = str(args.get("rationale") or "edited via the conversational shell")
+    try:
+        res = ctx.author_flag(
+            flag_code=flag_code, tier=tier, gradeable=gradeable, rationale=rationale
+        )
+    except Exception as exc:  # HTTPException (404 unknown flag / 422 snapshot) or anything
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not edit flag {flag_code!r}: {detail}. The ontology was NOT changed "
+            f"(the snapshot/structural gate held). Edit an existing flag's tier/gradeable; "
+            f"do not invent a flag or re-grade one outside the taxonomy snapshot."
+        )
+    ctx.emit(flag_part(ctx.default_agent))
+    return _text(
+        f"Edited flag {flag_code!r} (tier={res.get('tier')}, gradeable={res.get('gradeable')}) "
+        f"for agent {ctx.default_agent!r}. The ontology working copy is audited."
+    )
+
+
+async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # The Review leg ($0 read): run history + the latest run's provenance + the config
+    # audit trail (rendered by AuditView). No paid surface.
+    limit = args.get("limit")
+    try:
+        res = ctx.review_runs(limit=int(limit) if limit else 5)
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(f"Could not read run history: {detail}.")
+    runs = res.get("runs") or []
+    latest = res.get("latest_run_id") or ""
+    ctx.emit(audit_part(latest))
+    latest_audit = res.get("latest_audit") or {}
+    verdict = latest_audit.get("verdict") or (runs[0].get("verdict") if runs else "—")
+    return _text(
+        f"{len(runs)} run(s) on record. Latest {latest[:8] or '—'}: verdict={verdict}. "
+        f"The config-change audit trail (your flag + judge edits) and this run's "
+        f"provenance are shown."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -150,6 +230,28 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "tool can never fire a paid (live/in-process) run; a paid run is the human's "
         "explicit cost-confirmed action.",
         RUN_EVAL_SCHEMA,
+    ),
+    (
+        get_agent_handler,
+        "get_agent",
+        "Read an assembled agent/domain ($0, no write): its judges, ontology, tools. Use "
+        "FIRST to establish the domain before authoring flags or judges.",
+        GET_AGENT_SCHEMA,
+    ),
+    (
+        author_flag_handler,
+        "author_flag",
+        "EDIT AN EXISTING flag's tier/gradeable in the agent's ontology (audited config "
+        "write). It does NOT create a flag or invent owners; an out-of-snapshot gradeable "
+        "edit is rejected (422) — surface the error, do not retry blindly.",
+        AUTHOR_FLAG_SCHEMA,
+    ),
+    (
+        review_runs_handler,
+        "review_runs",
+        "Review the run history, the latest run's provenance, and the config-change audit "
+        "trail ($0, no write). Use to show what was authored and what a run decided.",
+        REVIEW_RUNS_SCHEMA,
     ),
 ]
 

@@ -958,10 +958,55 @@ def _build_tool_context(
             collections_db=collections_db,
         )
 
+    # ── UAP-5c: the journey-completing closures (Domain / Flag / Review). Each wraps a
+    # FROZEN op and (per the S-BS-82 rule) passes every Query/Header param explicitly.
+    def _get_agent(name: str) -> dict:
+        return get_agent_endpoint(name=name, db_path=db_path)
+
+    def _author_flag(flag_code: str, tier=None, gradeable=None, rationale: str = "") -> dict:
+        # Edit an EXISTING flag's tier/gradeable in the current ontology, then PUT the
+        # merged ontology through the FROZEN audited op (clobber-safe working copy). We
+        # never fabricate owner_roles or invent a flag — that stays the human's act.
+        ag = _load_agent(req_agent, db_path)
+        ont_path, _src = _resolve_ontology_path(ag, workdir)
+        ontology = json.loads(ont_path.read_text())
+        match = next((f for f in (ontology.get("flags") or []) if f.get("flag") == flag_code), None)
+        if match is None:
+            raise HTTPException(status_code=404, detail=f"unknown flag {flag_code!r} (edit an existing flag)")
+        if tier is not None:
+            match["tier"] = tier
+        if gradeable is not None:
+            match["gradeable"] = bool(gradeable)
+        put = put_ontology_endpoint(
+            ontology=ontology,
+            agent=req_agent,
+            rationale=rationale,
+            db_path=db_path,
+            workdir=workdir,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+        return {"flag": flag_code, "tier": match["tier"], "gradeable": match["gradeable"], **put}
+
+    def _review_runs(limit: int = 5) -> dict:
+        listing = list_runs_endpoint(limit=limit, collections_db=collections_db)
+        runs = listing.get("runs") or []
+        latest_id = runs[0].get("run_id") if runs else None
+        latest_audit = None
+        if latest_id:
+            try:
+                latest_audit = get_run_audit_endpoint(latest_id, collections_db=collections_db)
+            except HTTPException:
+                latest_audit = None
+        return {"runs": runs, "latest_run_id": latest_id, "latest_audit": latest_audit}
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
         run_eval_replay=_run_eval_replay,
+        get_agent=_get_agent,
+        author_flag=_author_flag,
+        review_runs=_review_runs,
         default_agent=req_agent,
     )
 

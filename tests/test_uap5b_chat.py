@@ -250,7 +250,16 @@ def test_agent_package_does_not_pull_the_sdk_at_import():
     assert "OK" in out.stdout
 
 
-def test_core_tool_set_is_the_three_spine_tools():
-    """The CORE set (D-A): author_judge + get_judge + run_eval — the right-sized spine."""
+def test_tool_set_is_the_uap5c_journey_set():
+    """The grown set (UAP-5c D-A): the UAP-5b spine (author_judge/get_judge/run_eval) +
+    the journey-completing tools (get_agent/author_flag/review_runs). The exact-bound +
+    no-paid-knob assertions live in tests/test_uap5c_journey.py (S-BS-81)."""
     names = {name for _, name, *_ in agent_tools._TOOL_SPECS}
-    assert names == {"author_judge", "get_judge", "run_eval"}
+    assert names == {
+        "author_judge",
+        "get_judge",
+        "run_eval",
+        "get_agent",
+        "author_flag",
+        "review_runs",
+    }
