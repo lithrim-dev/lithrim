@@ -7,11 +7,18 @@ that shape so the conversation renders the EXISTING cards inline — NO new card
 types (the UAP-5b reuse guardrail). The ``output`` follows the S-BS-19 flat-spread
 convention (the card destructures fields directly from ``part.output``).
 
-Mapping (D-D, resolved at plan-review):
+Mapping (D-B/D-D, resolved at plan-review):
     author_judge -> tool-judge_editor   ({role, agent}; the card self-fetches the
                                           rendered prompt/questions via GET /v1/judges)
     get_judge    -> tool-judge_editor   ({role, agent}; a $0 preview mount)
     run_eval     -> tool-verdict_card   (flat {verdict, confidence, agreement, id, ...})
+
+UAP-5c (the journey-completing tools — every target card pre-exists in KNOWN_TOOLS):
+    get_agent    -> tool-agent_editor   ({agent}; the card self-fetches GET /v1/agent — Domain)
+    author_flag  -> tool-flag_editor    ({agent}; the card self-fetches GET /v1/ontology — Flag)
+    review_runs  -> tool-audit_log      ({runId}; AuditView shows the config-change audit stream +
+                                          the latest run's provenance — Review; pure-read, no paid
+                                          surface, so the Review leg adds no window.confirm gate)
 """
 
 from __future__ import annotations
@@ -26,6 +33,25 @@ def _part(tool_name: str, output: dict[str, Any]) -> dict[str, Any]:
 def judge_part(role: str, agent: str) -> dict[str, Any]:
     """author_judge / get_judge -> the JudgeEditor card (it self-fetches via GET /v1/judges)."""
     return _part("judge_editor", {"role": role, "agent": agent})
+
+
+def agent_part(name: str) -> dict[str, Any]:
+    """get_agent (and UAP-5c-2 assemble_agent) -> the AgentEditor card (self-fetches
+    GET /v1/agent for ``name``). The Domain leg."""
+    return _part("agent_editor", {"agent": name})
+
+
+def flag_part(agent: str) -> dict[str, Any]:
+    """author_flag -> the FlagEditor card (self-fetches GET /v1/ontology for ``agent``).
+    The Flag leg."""
+    return _part("flag_editor", {"agent": agent})
+
+
+def audit_part(run_id: str = "") -> dict[str, Any]:
+    """review_runs -> the AuditView card. AuditView defaults to the config-change audit
+    stream (GET /v1/audit — every authored judge/flag write) and, given ``runId``, loads
+    that run's provenance (GET /v1/runs/{id}/audit). The Review leg — pure-read."""
+    return _part("audit_log", {"runId": run_id})
 
 
 def verdict_part(record: dict[str, Any]) -> dict[str, Any]:

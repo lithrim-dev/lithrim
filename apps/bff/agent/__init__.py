@@ -7,7 +7,7 @@ does not leak into the offline core (A5, mirroring [council]/[bff]). The handler
 logic + the parts-adapter are SDK-free and unit-testable without the SDK.
 """
 
-from .adapter import judge_part, verdict_part
+from .adapter import agent_part, audit_part, flag_part, judge_part, verdict_part
 from .loop import COST_LABEL, run_chat, sse_format
 from .tools import (
     PAID_KEYS,
@@ -21,7 +21,10 @@ __all__ = [
     "PAID_KEYS",
     "RUN_EVAL_SCHEMA",
     "ToolContext",
+    "agent_part",
+    "audit_part",
     "build_sdk_tools",
+    "flag_part",
     "judge_part",
     "run_chat",
     "sse_format",
