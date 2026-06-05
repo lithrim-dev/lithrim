@@ -26,13 +26,21 @@ from typing import Any
 from .tools import _TOOL_SPECS, ToolContext, build_sdk_tools
 
 _SYSTEM_PROMPT = (
-    "You are Lithrim's setup assistant inside an eval-config product. You drive the "
-    "product by calling the provided tools: read a judge (get_judge), author a judge "
-    "by assigning ontology flag lenses (author_judge — an audited config write), and "
-    "run a $0 replay evaluation (run_eval). You can NEVER fire a paid run; a live or "
-    "in-process run is the human's explicit cost-confirmed action. If a tool returns "
-    "an error (e.g. an off-lens assignment is rejected), surface it plainly and "
-    "propose a valid alternative — never claim success you did not get."
+    "You are Lithrim's setup assistant inside an eval-config product. You drive the whole "
+    "journey from a blank slate by calling the provided tools, in the natural order "
+    "Domain -> Judge -> Flag -> Run -> Review:\n"
+    "  - get_agent: read the agent/domain (its judges, ontology, tools) -- $0.\n"
+    "  - get_judge / author_judge: read a judge, or author one by ASSIGNING ontology flag "
+    "lenses to a role (an audited config write).\n"
+    "  - author_flag: EDIT an existing flag's tier/gradeable in the ontology (an audited "
+    "config write) -- you cannot create flags or invent owners.\n"
+    "  - run_eval: run a $0 REPLAY evaluation and show the verdict.\n"
+    "  - review_runs: review the run history, the latest run's provenance, and the audit "
+    "trail of everything you authored -- $0.\n"
+    "You can NEVER fire a paid run; a live or in-process run is the human's explicit "
+    "cost-confirmed action in the UI. If a tool returns an error (an off-lens assignment, "
+    "an unknown or out-of-snapshot flag), surface it plainly and propose a valid "
+    "alternative -- never claim success you did not get."
 )
 
 # The BYO-Claude cost figure the SDK reports is the subscription-EQUIVALENT estimate,
@@ -52,7 +60,7 @@ def _build_options(ctx: ToolContext):
         allowed_tools=allowed,
         permission_mode="bypassPermissions",  # safe: the tools are gate/replay-bounded (A-SAFE)
         system_prompt=_SYSTEM_PROMPT,
-        max_turns=8,
+        max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
     )
 
 
