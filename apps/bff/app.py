@@ -940,7 +940,14 @@ def _build_tool_context(
         )
 
     def _get_judge(role: str) -> dict:
-        return get_judge_endpoint(role, agent=req_agent, db_path=db_path, workdir=workdir)
+        # S-BS-82: pass assigned_flags=None EXPLICITLY. Calling an endpoint as a plain
+        # function bypasses the FastAPI router, so an omitted Query(...)/Header(...)
+        # param keeps its FieldInfo sentinel — Query(None) is `not None`, so the live
+        # `assigned_flags.split(",")` crashed. Binding rule (applies to EVERY closure
+        # here): pass all Query/Header params explicitly when calling an op directly.
+        return get_judge_endpoint(
+            role, agent=req_agent, assigned_flags=None, db_path=db_path, workdir=workdir
+        )
 
     def _run_eval_replay(agent: str) -> dict:
         return run_eval_endpoint(

@@ -42,6 +42,7 @@ from agent.tools import (  # noqa: E402
     PAID_KEYS,
     RUN_EVAL_SCHEMA,
     author_judge_handler,
+    get_judge_handler,
     run_eval_handler,
 )
 
@@ -164,6 +165,20 @@ def test_off_lens_assignment_is_surfaced_not_bypassed(env):
     assert ctx.parts == []  # no card emitted on a rejected write
     records = client.get("/v1/audit", params={"target_type": "judge"}).json()["records"]
     assert records == []  # nothing persisted -> nothing audited (no silent bypass)
+
+
+def test_get_judge_tool_returns_a_summary_not_a_fieldinfo_crash(env):
+    """S-BS-82 regression: the bound _get_judge closure must pass assigned_flags=None
+    explicitly. The UAP-5b offline suite never exercised ctx.get_judge, so the live
+    `FieldInfo.split` crash slipped past 8/8 green. Drive BOTH the handler (which catches
+    + surfaces) and the raw bound closure (which must NOT raise) — pre-fix, the raw call
+    raised AttributeError('Query' object has no attribute 'split')."""
+    ctx, _client = env
+    res = asyncio.run(get_judge_handler(ctx, {"role": "risk_judge"}))
+    assert not res.get("is_error"), res  # the handler surfaced a real summary, not an error
+    assert "assigned_flags=" in res["content"][0]["text"]
+    summary = ctx.get_judge(role="risk_judge")  # the raw closure: a dict, never a crash
+    assert isinstance(summary, dict) and "assigned_flags" in summary
 
 
 def test_loop_event_shapes_with_a_stub_source(env):
