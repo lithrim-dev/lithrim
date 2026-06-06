@@ -232,7 +232,7 @@ Props must be small and presentational; data comes from the real `$0` reads (e.g
 
 | Phase | Scope | Closes / depends |
 |---|---|---|
-| **Phase 0 — Memory** | Make `/v1/chat` memory-coherent: thread conversation history into `ChatRequest` (or a server session) and replay it to the loop; preserve BYO-Claude + the A-SAFE allowlist + the audited-write path. | **S-BS-87** (hard prerequisite) |
+| **Phase 0 — Memory** ✅ **LANDED 2026-06-06** | Make `/v1/chat` memory-coherent: thread conversation history into `ChatRequest` (or a server session) and replay it to the loop; preserve BYO-Claude + the A-SAFE allowlist + the audited-write path. *Shipped: client-replayed `history:[{role,content}]` (OQ-1), folded into a transcript **preamble** on the same `query(str)` call → provably no tool re-execution / no re-spend (A4 by construction). `ChatTurn` `extra="forbid"` (text-only). A-SAFE re-proven (8-tool allowlist unchanged; replay makes zero new audited writes). A-LIVE ≥6-turn coherence = user-run, monitor-scheduled at close.* | **S-BS-87** (hard prerequisite) — **CLOSED** |
 | **Phase 1 — Teaching brain** | `curriculum_v1.json` + `capabilities_v1.json`; teach-mode system prompt; `mode` field on `ChatRequest`; the grounded-capability guardrail. | depends on Phase 0 |
 | **Phase 2 — Teaching gen-UI** | Register the 6 net-new component types (§4) + their renderers; loop emits them. | depends on Phase 1 |
 | **Phase 3 — Guided case + aha + context** | Wire the clinical spine, the real grounded-correction reveal (`tool-reveal` from a live `$0` replay), and contextualization (§5). | depends on Phases 1–2; uses S-BS-7 grounding |
