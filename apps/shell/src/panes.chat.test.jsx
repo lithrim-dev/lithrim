@@ -54,8 +54,9 @@ describe("CenterPane — the R11 conversational loop", () => {
     fireEvent.click(screen.getByTestId("chat-send"));
 
     await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
+    // ONB-0: the first send carries an empty history (no prior turns yet).
     expect(chatStream).toHaveBeenCalledWith(
-      { message: "Author a risk judge and run it", agent: "ws0_default" },
+      { message: "Author a risk judge and run it", agent: "ws0_default", history: [] },
       expect.objectContaining({ onEvent: expect.any(Function) }),
     );
 
@@ -93,6 +94,29 @@ describe("CenterPane — the R11 conversational loop", () => {
     expect(await screen.findByText(/Reading the domain, editing a flag/)).toBeInTheDocument();
     expect(await screen.findByDisplayValue("run-1")).toBeInTheDocument();
     expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+
+  it("ONB-0: a 2nd send replays the prior turn as history (memory threads to the loop)", async () => {
+    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+
+    // turn 1 — the default scripted stream yields assistant text "Authoring the risk judge…"
+    fireEvent.change(ta, { target: { value: "my domain is radiology" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
+    await screen.findByText(/Authoring the risk judge/);
+
+    // turn 2 — history must carry turn 1: the user msg + the streamed assistant text
+    fireEvent.change(ta, { target: { value: "what did we just do?" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(2));
+
+    const secondArgs = chatStream.mock.calls[1][0];
+    expect(secondArgs.message).toBe("what did we just do?");
+    expect(secondArgs.history).toEqual([
+      { role: "user", content: "my domain is radiology" },
+      { role: "assistant", content: "Authoring the risk judge, then running a replay." },
+    ]);
   });
 
   it("opening the in-DOM cost modal exposes the human-only paid confirm (the agent cannot)", async () => {

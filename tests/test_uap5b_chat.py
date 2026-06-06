@@ -195,7 +195,7 @@ def test_loop_event_shapes_with_a_stub_source(env):
         "output": {"role": "risk_judge", "agent": AGENT},
     }
 
-    async def _stub(_message, c):
+    async def _stub(_message, c, _history=None):
         yield sdk.AssistantMessage(
             content=[
                 sdk.TextBlock(text="Authoring the risk judge."),
