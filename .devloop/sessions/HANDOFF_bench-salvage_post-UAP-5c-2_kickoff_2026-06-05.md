@@ -22,7 +22,7 @@ There is **no UAP-5c-3** — the conversational authoring product surface is com
 2. **S-BS-74 live-correction demo** — engineer a case the authored trio over-fires → the gate corrects LIVE → the visceral S-BS-70 flip (for a pitch; polish on a proven mechanism).
 3. **UAP-5a-assist** (R10 LLM author-assist, describe→draft) | **UAP-3b-3** (the LLM Ralph-Loop critique split).
 
-**Plus an OWED user-run (not a cycle):** the **UAP-5c-2 A-LIVE `:5180`** — the first paid-capable wrapper, so the live attestation must confirm the agent stays replay-only (the way the UAP-5c A-LIVE confirmed A-SAFE held). `$0`, built driveable. (The older **UAP-5a A8** smoke is also still owed.)
+**A-LIVE ATTESTED (2026-06-05, monitor, Chrome MCP, `$0`):** the **UAP-5c-2 A-LIVE `:5180`** ran live — `run_eval_pack` batched and the agent confirmed it REPLAY-ONLY ("can never fire a paid batch" — the first paid-capable wrapper stays replay-only in practice) + `assemble_agent` did the audited roster round-trip (BFF-verified: 2 `target_type=agent` records, remove `policy_judge`→add back) + the `LENS_BY_ROLE` guard refused a fabricated judge (0 audit records, no bypass). A1–A4 + A-SAFE PASS live. **Still OWED:** the older **UAP-5a A8** `:5180` smoke.
 
 ## Open seams for `bench-salvage` (active)
 
