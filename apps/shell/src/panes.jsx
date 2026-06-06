@@ -96,6 +96,10 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const send = async () => {
     const message = input.trim();
     if (!message || sending) return;
+    // ONB-0 (S-BS-87): snapshot the PRIOR turns as history BEFORE the optimistic append
+    // (so the just-added empty assistant placeholder is naturally excluded). Text-only —
+    // map `text`->`content`, drop `parts`; the loop replays this as context.
+    const history = chat.map((m) => ({ role: m.role, content: m.text || "" }));
     setInput("");
     setSending(true);
     setChat((c) => [...c, { role: "user", text: message }, { role: "assistant", text: "", parts: [] }]);
@@ -108,7 +112,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     try {
       const { chatStream } = await import("./bff.js");
       await chatStream(
-        { message, agent },
+        { message, agent, history },
         {
           onEvent: (ev) => {
             if (ev.event === "assistant_delta") patchLast((m) => ({ ...m, text: (m.text || "") + ev.text }));

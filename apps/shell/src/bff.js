@@ -119,11 +119,16 @@ export const optimizeJudge = (role, { confirm = false, limit } = {}) =>
    assistant_delta | tool_call | tool_result | error | done. Returns a Promise that
    resolves when the stream ends; pass an AbortSignal to cancel. BYO-Claude — the
    loop's tools are author/read/REPLAY only (no paid run is reachable from chat). */
-export async function chatStream({ message, agent = "ws0_default", actor } = {}, { onEvent, signal } = {}) {
+export async function chatStream(
+  { message, agent = "ws0_default", actor, history = [] } = {},
+  { onEvent, signal } = {},
+) {
+  // ONB-0 (S-BS-87): `history` is the prior conversation turns ([{role, content}]),
+  // replayed by the loop as context only — text-only, no paid knob (A-SAFE).
   const res = await fetch(BASE + "/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(actor ? { "X-Actor": actor } : {}) },
-    body: JSON.stringify({ message, agent }),
+    body: JSON.stringify({ message, agent, history }),
     signal,
   });
   if (!res.ok || !res.body) {
