@@ -251,10 +251,10 @@ def test_agent_package_does_not_pull_the_sdk_at_import():
 
 
 def test_tool_set_is_the_uap5c_journey_set():
-    """The grown set (UAP-5c D-A): the UAP-5b spine (author_judge/get_judge/run_eval) +
-    the journey-completing tools (get_agent/author_flag/review_runs) + the UAP-5c-2 batch
-    Run (run_eval_pack). The exact-bound + no-paid-knob assertions live in
-    tests/test_uap5c_journey.py (S-BS-81)."""
+    """The complete UAP-5c-2 set (8 tools): the UAP-5b spine (author_judge/get_judge/
+    run_eval) + the UAP-5c journey tools (get_agent/author_flag/review_runs) + the UAP-5c-2
+    split (run_eval_pack batch + assemble_agent edit-one-facet). The exact-bound +
+    no-paid-knob assertions live in tests/test_uap5c_journey.py (S-BS-81)."""
     names = {name for _, name, *_ in agent_tools._TOOL_SPECS}
     assert names == {
         "author_judge",
@@ -264,4 +264,5 @@ def test_tool_set_is_the_uap5c_journey_set():
         "author_flag",
         "review_runs",
         "run_eval_pack",
+        "assemble_agent",
     }

@@ -1013,6 +1013,39 @@ def _build_tool_context(
             collections_db=collections_db,
         )
 
+    # ── UAP-5c-2: the Domain-assembly WRITE closure (EDIT-ONE-FACET: the judges roster).
+    def _assemble_agent(
+        name: str, add_judge=None, remove_judge=None, rationale: str = ""
+    ) -> dict:
+        # EDIT-ONE-FACET (the judges roster): load the current Agent dict via the FROZEN GET
+        # op, add/remove ONE KNOWN v2 judge (LENS_BY_ROLE is the role authority — refuse an
+        # unknown role, never fabricate a judge), then PUT the merged dict through the FROZEN
+        # audited op (422 on malformed). We never trust a full agent dict from the model. Per
+        # the S-BS-82 rule, pass every Query/Header param to put_agent_endpoint explicitly.
+        current = get_agent_endpoint(name=name, db_path=db_path)  # 404 on unknown agent
+        judges = list(current["eval_profile"].get("judges") or [])
+        if not add_judge and not remove_judge:
+            raise HTTPException(status_code=400, detail="specify add_judge or remove_judge")
+        if add_judge:
+            if add_judge not in LENS_BY_ROLE:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"unknown judge role {add_judge!r} (known: {sorted(LENS_BY_ROLE)})",
+                )
+            if add_judge not in judges:
+                judges.append(add_judge)
+        if remove_judge and remove_judge in judges:
+            judges.remove(remove_judge)
+        current["eval_profile"]["judges"] = judges
+        put = put_agent_endpoint(
+            agent=current,
+            rationale=rationale,
+            db_path=db_path,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+        return {"name": name, "judges": judges, **put}
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
@@ -1021,6 +1054,7 @@ def _build_tool_context(
         author_flag=_author_flag,
         review_runs=_review_runs,
         run_eval_pack=_run_eval_pack,
+        assemble_agent=_assemble_agent,
         default_agent=req_agent,
     )
 

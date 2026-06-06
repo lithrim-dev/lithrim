@@ -52,6 +52,15 @@ REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int}
 # carries NO live/confirm/in_process knob; the bound _run_eval_pack hardcodes live=False,
 # so the agent has no path to a paid batch (the A-SAFE re-proof, S-BS-81 generalized).
 RUN_EVAL_PACK_SCHEMA: dict[str, Any] = {"pack_id": str, "agents": list}
+# UAP-5c-2 — the first agent-reachable Agent WRITE, scoped to EDIT-ONE-FACET (the judges
+# roster): add or remove ONE known v2 judge. The agent supplies a DELTA, never a full Agent
+# dict (which it cannot build conversationally). Mirrors author_flag's edit-only discipline.
+ASSEMBLE_AGENT_SCHEMA: dict[str, Any] = {
+    "name": str,
+    "add_judge": str,
+    "remove_judge": str,
+    "rationale": str,
+}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -73,6 +82,9 @@ class ToolContext:
     - ``review_runs(limit) -> dict``  (UAP-5c Review, $0 — run history + latest provenance)
     - ``run_eval_pack(pack_id, agents) -> dict``  (UAP-5c-2 batch Run; ALWAYS live=False —
       the wrapper over the paid-capable eval-pack op hardcodes the $0 path, the A-SAFE crux)
+    - ``assemble_agent(name, add_judge, remove_judge, rationale) -> dict``  (UAP-5c-2 Domain
+      WRITE, EDIT-ONE-FACET: load→edit the judges roster→put; audited; raises on an unknown
+      role/agent — the handler surfaces it, never a full-dict from the model)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -83,6 +95,7 @@ class ToolContext:
     author_flag: Callable[..., dict]
     review_runs: Callable[..., dict]
     run_eval_pack: Callable[..., dict]
+    assemble_agent: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -235,6 +248,32 @@ async def run_eval_pack_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[
     )
 
 
+async def assemble_agent_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # The Domain WRITE (audited), EDIT-ONE-FACET: add/remove ONE known v2 judge in the
+    # agent's roster. Never accepts a full agent dict; an unknown role/agent (or no delta)
+    # raises (404/422/400) and is surfaced, never bypassed (mirrors author_flag's discipline).
+    name = str(args.get("name") or ctx.default_agent)
+    add_judge = args.get("add_judge")
+    remove_judge = args.get("remove_judge")
+    rationale = str(args.get("rationale") or "assembled via the conversational shell")
+    try:
+        res = ctx.assemble_agent(
+            name=name, add_judge=add_judge, remove_judge=remove_judge, rationale=rationale
+        )
+    except Exception as exc:  # HTTPException (404 unknown role/agent, 422 malformed, 400 no-op)
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not edit agent {name!r}: {detail}. The agent was NOT changed (the "
+            f"validation gate held). Add or remove a KNOWN judge role; do not invent a "
+            f"judge or supply a whole agent."
+        )
+    ctx.emit(agent_part(name))
+    return _text(
+        f"Edited agent {name!r}: judges={res.get('judges')} (added {add_judge or '—'}, "
+        f"removed {remove_judge or '—'}). The Agent write is audited."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -290,6 +329,14 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "history. REPLAY ONLY — like run_eval it can never fire a paid (live) batch; one "
         "paid :8002 call per agent is the human's explicit cost-confirmed action.",
         RUN_EVAL_PACK_SCHEMA,
+    ),
+    (
+        assemble_agent_handler,
+        "assemble_agent",
+        "Edit an agent's JUDGES ROSTER (audited config write): add_judge or remove_judge "
+        "ONE known judge role. It does NOT build an agent from scratch or accept a full "
+        "agent dict; an unknown role is rejected — surface the error, do not retry blindly.",
+        ASSEMBLE_AGENT_SCHEMA,
     ),
 ]
 
