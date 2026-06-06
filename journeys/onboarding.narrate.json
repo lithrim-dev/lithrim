@@ -1,0 +1,36 @@
+{
+  "source": "/Users/aregee/Workspace/github.com/lithrim-bench/out/onboarding_silent.mp4",
+  "title": "Onboarding — teach me from zero",
+  "theme": "dawn",
+  "voice": "narrator",
+  "aspect": "16:9",
+  "pronunciation": "none",
+  "captions": true,
+  "beats": [
+    {
+      "id": "intro",
+      "offset_s": 3.8,
+      "text": "This is Lithrim. Watch what happens when someone who has never heard of AI evaluation simply sits down and talks to it."
+    },
+    {
+      "id": "ask",
+      "offset_s": 11.95,
+      "text": "They ask in plain English — I don't know anything about evals, or healthcare; just teach me. No setup, no jargon, no dashboard to configure first."
+    },
+    {
+      "id": "teaching",
+      "offset_s": 35.03,
+      "text": "Lithrim answers by doing. It reaches into a real agent — a clinical scribe that drafts visit notes — and shows you the panel actually grading it: a few focused reviewers called judges, each one watching for a single, specific kind of mistake, which Lithrim calls a flag."
+    },
+    {
+      "id": "verdict",
+      "offset_s": 51.5,
+      "text": "Then it runs a real evaluation and returns a verdict: reject. But here is the idea the whole system is built on. An AI judge can be confidently, fluently wrong — so when it is, a deterministic check, grounded in the source the judge never read, quietly overrules it. That is what turns a plausible opinion into a verdict you can trust."
+    },
+    {
+      "id": "close",
+      "offset_s": 70.0,
+      "text": "From I know nothing, to understanding evals, judges, flags, and grounding — in a single conversation. That is the onboarding."
+    }
+  ]
+}
