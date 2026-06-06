@@ -57,12 +57,12 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS = REPO_ROOT / "scripts"
@@ -228,12 +228,26 @@ class OptimizeRequest(BaseModel):
     limit: int | None = None  # cap each split for a cheaper smoke (per-call cost check)
 
 
+class ChatTurn(BaseModel):
+    # ONB-0 (S-BS-87): one prior conversation turn, client-replayed for memory. TEXT-ONLY
+    # by construction — only {role, content}; `extra="forbid"` REJECTS any smuggled paid
+    # knob (confirm/live/in_process) or tool arg, so history can never widen the A-SAFE
+    # surface. Replayed as context (a transcript preamble), never re-executed (loop._fold_history).
+    model_config = ConfigDict(extra="forbid")
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class ChatRequest(BaseModel):
     # UAP-5b / R11: one user utterance for the conversational shell's agent loop. NO
     # paid knob — the loop's tools are author/read/REPLAY only (the agent can never
     # spend; a paid run is the human's in-DOM cost-confirm calling the existing gate).
+    # ONB-0 (S-BS-87): `history` is the client-replayed prior turns (text-only ChatTurn;
+    # default empty -> back-compatible). It carries NO paid field and NO tool arg — it is
+    # folded into a context preamble, never re-run. (The Phase-1 `mode` field is NOT here.)
     message: str
     agent: str = DEFAULT_AGENT
+    history: list[ChatTurn] = []
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -1087,8 +1101,11 @@ async def chat_endpoint(
         req.agent, db_path, out_dir, workdir, collections_db, actor, x_actor
     )
 
+    # ONB-0: text-only prior turns, replayed as context (folded into the loop's query preamble)
+    history = [t.model_dump() for t in req.history]
+
     async def _events():
-        async for event in run_chat(req.message, ctx):
+        async for event in run_chat(req.message, ctx, history=history):
             yield sse_format(event)
 
     return StreamingResponse(
