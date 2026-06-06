@@ -19,6 +19,14 @@ UAP-5c (the journey-completing tools — every target card pre-exists in KNOWN_T
     review_runs  -> tool-audit_log      ({runId}; AuditView shows the config-change audit stream +
                                           the latest run's provenance — Review; pure-read, no paid
                                           surface, so the Review leg adds no window.confirm gate)
+
+UAP-5c-2 (the split tools — REUSE the same two cards, no new types [D-B]):
+    run_eval_pack  -> tool-audit_log    (audit_part with the batch's newest run id; pure-read like
+                                          review_runs — keeps the chat surface free of RunPanel's
+                                          window.confirm paid gate, S-BS-80; the batch's runs
+                                          round-trip to GET /v1/runs)
+    assemble_agent -> tool-agent_editor (agent_part; the Domain-roster edit renders the same card
+                                          as get_agent — it self-fetches the updated GET /v1/agent)
 """
 
 from __future__ import annotations
@@ -48,9 +56,10 @@ def flag_part(agent: str) -> dict[str, Any]:
 
 
 def audit_part(run_id: str = "") -> dict[str, Any]:
-    """review_runs -> the AuditView card. AuditView defaults to the config-change audit
-    stream (GET /v1/audit — every authored judge/flag write) and, given ``runId``, loads
-    that run's provenance (GET /v1/runs/{id}/audit). The Review leg — pure-read."""
+    """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
+    card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
+    authored judge/flag write) and, given ``runId``, loads that run's provenance
+    (GET /v1/runs/{id}/audit). The Review/batch leg — pure-read."""
     return _part("audit_log", {"runId": run_id})
 
 
