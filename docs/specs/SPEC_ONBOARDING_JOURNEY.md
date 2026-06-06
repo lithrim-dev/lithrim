@@ -219,6 +219,12 @@ Props must be small and presentational; data comes from the real `$0` reads (e.g
 - Optional second beat: the S-BS-86 teaching moment — show that *changing a setting*
   (severity weights) silently turned a BLOCK into needs_review, and the audit + calibration
   caught it. Teaches "why labels-true-by-construction + an audit trail matter."
+- **Implementation note (Probe A, 2026-06-06):** the aha must be *shown*, not just
+  *described*. The teach-mode run-tool result MUST surface the grounded **suppression
+  payload** (the confident-wrong finding + the `med-presence-check/v1` override reason —
+  Probe B confirmed it is present in the `$0` replay) so the agent / `tool-reveal` can
+  render the override vividly. In Probe A the agent could only *describe* the mechanism
+  because the tool result it received omitted the per-judge votes + the suppression detail.
 
 ---
 

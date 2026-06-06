@@ -32,3 +32,39 @@ polish: cross-turn memory (S-BS-87), agent-id grounding (S-BS-88), the new-eval 
 (S-BS-89), model-binding for *paid* runs (agent-flagged; replay is `$0`), and conversational
 flag *creation* (S-BS-83, `author_flag` edit-only). The 4-act *pitch demo* remains separate —
 only Act 2 ("Verify") is live-wired.
+
+---
+
+## Onboarding de-risk probes — 2026-06-06 (`$0`)
+
+Two cheap live probes to retire the biggest unknowns of the ONB workstream
+(`SPEC_ONBOARDING_JOURNEY.md`) **before** building.
+
+### Probe B — aha reliability → PASS
+Two `$0` replays of `ws0_default` were byte-identical (~5ms each): pre-grounding **BLOCK**
+→ composite **reject**, `MEDICATION_NOT_IN_TRANSCRIPT` suppressed by `med-presence-check/v1`
+("zidovudine … present verbatim in the transcript"). **The aha is deterministic + free via
+a curated replay** → resolves spec OQ-4; the council-non-determinism risk is sidestepped.
+
+### Probe A — teaching quality → STRONG PASS (+2 refinements)
+Primed the existing **operator** chat agent as a teacher for a total novice in ONE rich
+message (no code). Result: a **frontier-grade guided arc** — defined every term
+(Agent/SUT, Eval, Flag, Judge, Grounding) in plain English, grounded in the REAL config +
+a real `$0` replay (BLOCK), plain-English flag glosses, step-by-step structure, and a
+correct "the insight" explanation (confident AI judge vs deterministic check → the check
+overrides → trustworthy verdict). It stayed **honest unprompted**: flagged that it cannot
+invent a flag (S-BS-83) and that the replay summary lacked per-judge votes so it described
+the override *mechanism* rather than fabricating numbers (the A4 honesty bound, emergent).
+
+**→ De-risks the core bet: the teach-mode PROMPT + curriculum is the main lever, and it
+works.** Two refinements surfaced (neither invalidates the spec):
+1. **The aha was *explained*, not *shown*.** The chat run-tool result didn't expose the
+   suppression detail to the agent, so it couldn't vividly show "judge said NO-MED, but
+   it's there → overridden." Phase 3 must surface the grounded suppression payload to the
+   teach agent / `tool-reveal` (Probe B confirms the data is in the replay).
+2. **It rendered operator cards** (Agent *editor* with "Save agent", Judge editor) + long
+   text walls — confirming the Phase-2 teaching-gen-UI gap is real and matters for a novice.
+
+**Net:** Phase 1 (teaching brain) is de-risked as low-risk/high-payoff. The real remaining
+work is exactly the spec's phases: Phase 0 (memory, for multi-turn), Phase 2 (teaching
+gen-UI, so it's not text walls), Phase 3 (surface the suppression for a *shown* aha).
