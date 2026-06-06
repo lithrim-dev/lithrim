@@ -68,13 +68,45 @@ def _build_options(ctx: ToolContext):
     )
 
 
-async def _real_source(message: str, ctx: ToolContext) -> AsyncIterator[Any]:
-    """The default source: the real ClaudeSDKClient on BYO-Claude (no API key)."""
+def _fold_history(message: str, history: list[dict] | None) -> str:
+    """ONB-0 (S-BS-87): fold prior turns into a transcript PREAMBLE on the current query.
+
+    The no-re-execution guarantee is BY CONSTRUCTION: the result is a plain ``str`` carrying
+    no ``tool_use`` blocks and no assistant-role messages, so nothing in the replayed history
+    can re-invoke a prior tool-call or re-spend — it is read by the model as context only.
+    (The preamble's "do not re-run" line is belt-and-suspenders; the str-typing IS the proof.)
+    We replay TEXT content only — the agent recovers config STATE from the live read tools
+    (get_agent/get_judge) every turn, so history supplies only the conversational thread
+    (the stated domain, what was taught, what was changed). Empty-content turns are dropped.
+    The current ask is foregrounded LAST so the model answers this turn, not a stale one."""
+    if not history:
+        return message
+    lines = [
+        "Conversation so far (context only — do NOT re-run any tool you already called; "
+        "re-read live config with the read tools if you need current state):",
+    ]
+    for turn in history:
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        speaker = "User" if turn.get("role") == "user" else "Assistant"
+        lines.append(f"[{speaker}] {content}")
+    lines.append("")
+    lines.append(f"Now answer this current message:\n[User] {message}")
+    return "\n".join(lines)
+
+
+async def _real_source(
+    message: str, ctx: ToolContext, history: list[dict] | None = None
+) -> AsyncIterator[Any]:
+    """The default source: the real ClaudeSDKClient on BYO-Claude (no API key). Prior turns
+    are folded into the query string (``_fold_history``) — the SAME ``query(str)`` call shape
+    as before, so replay provably cannot re-execute a tool (A4)."""
     from claude_agent_sdk import ClaudeSDKClient
 
     opts = _build_options(ctx)
     async with ClaudeSDKClient(options=opts) as client:
-        await client.query(message)
+        await client.query(_fold_history(message, history))
         async for msg in client.receive_response():
             yield msg
 
@@ -83,10 +115,13 @@ async def run_chat(
     message: str,
     ctx: ToolContext,
     *,
-    source: Callable[[str, ToolContext], AsyncIterator[Any]] | None = None,
+    history: list[dict] | None = None,
+    source: Callable[[str, ToolContext, list[dict] | None], AsyncIterator[Any]] | None = None,
 ) -> AsyncIterator[dict]:
-    """Drive the loop and yield SSE event dicts. ``source`` defaults to the real SDK;
-    tests pass a stub async generator factory ``(message, ctx) -> AsyncIterator[msg]``."""
+    """Drive the loop and yield SSE event dicts. ``history`` is the client-replayed prior
+    turns (text-only; default ``None`` -> no preamble -> back-compatible). ``source`` defaults
+    to the real SDK; tests pass a stub async generator factory
+    ``(message, ctx, history) -> AsyncIterator[msg]``."""
     from claude_agent_sdk import (
         AssistantMessage,
         ResultMessage,
@@ -97,7 +132,7 @@ async def run_chat(
     src = source or _real_source
     cost_usd: float | None = None
     try:
-        async for msg in src(message, ctx):
+        async for msg in src(message, ctx, history):
             if isinstance(msg, AssistantMessage):
                 for block in msg.content:
                     if isinstance(block, TextBlock):
