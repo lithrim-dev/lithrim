@@ -7,9 +7,10 @@
 > explanations, contextualizes the user's own background, and stays strictly grounded in
 > Lithrim's real capabilities (no feature hallucination).
 
-> **Status:** DRAFT 2026-06-06. New workstream that **extends** the LOCKED
-> `SPEC_UNIFIED_AUTHORING_PRODUCT.md` (does not modify its §2A/§2B/§4 invariants). The
-> frozen 4-act journey becomes the *storyboard* for this live, adaptive teaching layer.
+> **Status:** **LOCKED 2026-06-06** (OQ-1..6 resolved, §11). New workstream that
+> **extends** the LOCKED `SPEC_UNIFIED_AUTHORING_PRODUCT.md` (does not modify its
+> §2A/§2B/§4 invariants). The frozen 4-act journey becomes the *storyboard* for this live,
+> adaptive teaching layer. Do not weaken the resolved decisions without explicit owner say-so.
 >
 > **Decisions resolved (do not re-litigate):** (1) spec-first; (2) teaching vehicle =
 > the built clinical-scribe case as the concrete *spine*, **with** active
@@ -300,26 +301,27 @@ record (carries `run_id`).
 
 ---
 
-## 11. Open questions (for the spec author / first plan-review)
+## 11. Resolved decisions (LOCKED 2026-06-06)
 
-- **OQ-1 — Memory locus.** Client-replayed `history` array (simplest; fits the stateless
-  BFF) vs a server-side `session_id` with persisted transcript (enables resume + analytics
-  but adds state). Recommend client-replayed `history` for Phase 0; revisit if resume is
-  needed.
-- **OQ-2 — Teach vs operate switch.** A `mode` flag on `ChatRequest`, a separate
-  `/v1/teach` endpoint, or a routing layer? Recommend the `mode` flag (one loop, two
-  prompts) to keep the A-SAFE surface single.
-- **OQ-3 — Curriculum authority.** Is the curriculum/capability sheet authored data
-  (versioned JSON, recommended) or derived from the ontology? Keep it separate authored
-  data — teaching scope ≠ grading scope.
-- **OQ-4 — Reveal robustness.** The live council is non-deterministic; how many `$0`
-  replay attempts before falling back to the captured exemplar for the aha? (A4 honesty
-  bound governs.)
-- **OQ-5 — Contextualization ceiling.** How far do we analogize to an unsupported domain
-  before it risks implying support? Needs an explicit guardrail line in the capability
-  sheet.
-- **OQ-6 — Entry point.** Does onboarding auto-trigger on first run, or behind a "New /
-  Learn" entry (ties to S-BS-89)?
+- **OQ-1 — Memory locus → RESOLVED:** client-replayed `history` array on `ChatRequest`
+  for Phase 0 (simplest, fits the stateless BFF). Revisit a server-side `session_id` only
+  if resume/analytics demand it.
+- **OQ-2 — Teach vs operate switch → RESOLVED:** a `mode: "teach"|"operate"` flag on
+  `ChatRequest` (one loop, two prompts) — keeps the A-SAFE surface single; no separate
+  endpoint.
+- **OQ-3 — Curriculum authority → RESOLVED:** separate authored, versioned data
+  (`data/onboarding/*.json`), NOT derived from the ontology. Teaching scope ≠ grading scope.
+- **OQ-4 — Reveal robustness → RESOLVED:** deliver the aha via a **curated `$0` replay**
+  (deterministic + free → reliable every time); a fresh *live* run is the optional,
+  non-deterministic "run it yourself" path (operator mode). The A4 honesty bound governs
+  the fallback. **Validated by Probe B (2026-06-06):** two `$0` replays were byte-identical
+  — pre-grounding `BLOCK` → composite `reject`, `MEDICATION_NOT_IN_TRANSCRIPT` suppressed by
+  `med-presence-check/v1`, in ~5ms, `$0`.
+- **OQ-5 — Contextualization ceiling → RESOLVED:** analogy only, bounded by the capability
+  sheet's do-not-claim list; the agent must never imply end-to-end support for an
+  unsupported domain.
+- **OQ-6 — Entry point → RESOLVED:** reachable via an explicit "Learn" entry (Phase 4,
+  ties S-BS-89); auto-trigger-on-first-run is a Phase-4 polish toggle, always skippable.
 
 ---
 
