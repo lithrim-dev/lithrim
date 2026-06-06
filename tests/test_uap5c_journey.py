@@ -160,8 +160,11 @@ def test_author_flag_unknown_flag_is_surfaced_not_bypassed(env):
 
 def test_allowlist_is_bounded_to_mcp_lithrim_tools_no_builtins():
     """S-BS-81 (structural, SDK-free): the loop's allowlist derives PURELY from
-    _TOOL_SPECS — exactly the mcp__lithrim__* set, no built-in tool, no wildcard. This
-    is what keeps permission_mode='bypassPermissions' safe as the tool surface grows."""
+    _TOOL_SPECS — exactly the mcp__lithrim__* set, no built-in tool, no wildcard.
+
+    NECESSARY, NOT SUFFICIENT (S-BS-90): the allowlist VALUE does not bound the loop under
+    bypassPermissions — enforcement is the PreToolUse deny gate. See test_asafe_tool_gate +
+    the S-BS-90 live attestation (docs/research/RUN_asafe1_live_2026-06-06.json)."""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
     allowed = [f"mcp__lithrim__{n}" for n in names]
     assert allowed, "the tool set must be non-empty"
@@ -181,7 +184,10 @@ def test_no_tool_schema_carries_a_paid_knob():
 def test_build_options_carries_exactly_the_bounded_allowlist_under_bypass(env):
     """S-BS-81 ([agent]-gated): the ACTUAL ClaudeAgentOptions the loop builds carry
     exactly the derived mcp__lithrim__* allowlist with bypassPermissions — binding the
-    structural claim to the real loop config."""
+    structural claim to the real loop config.
+
+    NECESSARY, NOT SUFFICIENT (S-BS-90): bypassPermissions makes the allowlist non-binding;
+    the real bound is the PreToolUse deny gate (test_asafe_tool_gate + the live attestation)."""
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent import loop
 
