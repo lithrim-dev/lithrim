@@ -42,12 +42,14 @@ import app as bff  # noqa: E402
 from agent import tools as agent_tools  # noqa: E402
 from agent.tools import (  # noqa: E402
     PAID_KEYS,
+    assemble_agent_handler,
     author_flag_handler,
     author_judge_handler,
     get_agent_handler,
     get_judge_handler,
     review_runs_handler,
     run_eval_handler,
+    run_eval_pack_handler,
 )
 
 AGENT = "uap5c_test"
@@ -189,3 +191,105 @@ def test_build_options_carries_exactly_the_bounded_allowlist_under_bypass(env):
     assert list(opts.allowed_tools) == expected
     assert opts.permission_mode == "bypassPermissions"
     assert set(opts.allowed_tools).isdisjoint(BUILTIN_TOOLS)
+
+
+# ── UAP-5c-2: the two split tools re-prove A-SAFE as the surface widens to 8 ──────────
+
+
+def test_uap5c2_split_tools_grow_the_set_to_eight_with_no_paid_knob():
+    """A-SAFE (UAP-5c-2, structural): the eval-pack batch + the agent-roster write complete
+    the 8-tool set, and NEITHER run_eval_pack nor assemble_agent exposes a paid knob — the
+    S-BS-81 no-paid-knob guarantee generalized across the widened surface."""
+    names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
+    assert len(names) == 8, names
+    assert "run_eval_pack" in names and "assemble_agent" in names
+    by_name = {name: schema for _h, name, _d, schema in agent_tools._TOOL_SPECS}
+    for tool in ("run_eval_pack", "assemble_agent"):
+        assert [k for k in PAID_KEYS if k in by_name[tool]] == [], tool
+
+
+def test_run_eval_pack_drops_an_injected_live_knob(env, monkeypatch):
+    """A-SAFE (THE load-bearing negative): run_eval_pack is the FIRST tool over a
+    paid-capable op. Even with live=True/confirm injected into the tool args, the bound op
+    receives live=False — the wrapper hardcodes the $0 path; no paid batch is reachable."""
+    ctx, _client = env
+    captured = {}
+
+    def _spy(req, *, db_path=None, out_dir=None, collections_db=None):
+        captured["live"] = req.live
+        captured["pack_id"] = req.pack_id
+        return {"pack": {"outcomes": []}, "run_ids": []}
+
+    monkeypatch.setattr(bff, "eval_pack_run_endpoint", _spy)
+    asyncio.run(
+        run_eval_pack_handler(
+            ctx, {"pack_id": "p", "agents": [AGENT], "live": True, "confirm": True, "in_process": True}
+        )
+    )
+    assert captured["live"] is False  # the injected paid knob was DROPPED at the bound op
+
+
+def test_run_eval_pack_handler_never_forwards_a_paid_knob(env):
+    """A-SAFE: even if a paid key is injected into the tool args, the handler drops it —
+    ctx.run_eval_pack is called with pack_id + agents ONLY (mirrors the run_eval guard)."""
+    ctx, _client = env
+    seen = {}
+
+    def _spy(*, pack_id, agents, **kw):
+        seen["pack_id"] = pack_id
+        seen["agents"] = agents
+        seen["extra"] = kw
+        return {"pack": {"outcomes": []}, "run_ids": []}
+
+    ctx.run_eval_pack = _spy
+    asyncio.run(
+        run_eval_pack_handler(
+            ctx, {"pack_id": "p", "agents": [AGENT], "in_process": True, "live": True, "confirm": True}
+        )
+    )
+    assert seen == {"pack_id": "p", "agents": [AGENT], "extra": {}}
+
+
+def test_run_eval_pack_batches_real_runs_that_round_trip_to_review_runs(env):
+    """A3: a $0 replay batch runs real evals whose run ids round-trip to the run history
+    (GET /v1/runs via review_runs), and the tool emits the pure-read audit_log card with the
+    batch's newest run id threaded for provenance (D-B — no window.confirm paid surface)."""
+    ctx, _client = env
+    res = asyncio.run(run_eval_pack_handler(ctx, {"pack_id": "chat-pack", "agents": [AGENT]}))
+    assert not res.get("is_error"), res
+    part = ctx.parts[-1]
+    assert part["type"] == "tool-audit_log"
+    run_id = part["output"]["runId"]
+    assert run_id  # a real batch run id threaded to the card
+    listing = ctx.review_runs(limit=10)
+    listed = {r.get("run_id") for r in (listing.get("runs") or [])}
+    assert run_id in listed  # the batch round-trips to the run history
+
+
+def test_assemble_agent_roster_edit_is_an_audited_agent_write(env):
+    """A2/A3: assemble_agent edits ONE facet (the judges roster) and the write is audited —
+    a target_type=agent AuditRecord attributed to the SME, and the roster actually changed."""
+    ctx, client = env
+    res = asyncio.run(
+        assemble_agent_handler(
+            ctx, {"name": AGENT, "remove_judge": "faithfulness_judge", "rationale": "drop for the test"}
+        )
+    )
+    assert not res.get("is_error"), res
+    assert ctx.parts[-1]["type"] == "tool-agent_editor"
+    recs = client.get("/v1/audit", params={"target_type": "agent"}).json()["records"]
+    assert any(r["actor"]["id"] == "test-sme" and r["target"]["type"] == "agent" for r in recs)
+    ag = client.get("/v1/agent", params={"name": AGENT}).json()
+    assert "faithfulness_judge" not in ag["eval_profile"]["judges"]  # the one-facet delta applied
+
+
+def test_assemble_agent_unknown_judge_is_surfaced_not_bypassed(env):
+    """A-SAFE: adding an unknown judge role is rejected; the tool surfaces it, emits NO card,
+    and nothing is persisted (no silent un-audited write, no fabricated judge)."""
+    ctx, client = env
+    res = asyncio.run(assemble_agent_handler(ctx, {"name": AGENT, "add_judge": "nope_judge"}))
+    assert res.get("is_error") is True
+    assert "known judge" in res["content"][0]["text"].lower()
+    assert ctx.parts == []  # no card on a rejected write
+    recs = client.get("/v1/audit", params={"target_type": "agent"}).json()["records"]
+    assert recs == []  # nothing persisted -> nothing audited
