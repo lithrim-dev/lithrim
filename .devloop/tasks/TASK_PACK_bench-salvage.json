@@ -1474,7 +1474,8 @@
     {
       "phase": "UAP-5c-2",
       "title": "UAP-5c-2 -- complete the tool set (the UAP-5c D-F split): run_eval_pack [the eval-pack BATCH, replay/$0, live hardcoded False] + assemble_agent [the Domain-assembly WRITE, EDIT-ONE-FACET].",
-      "status": "ready",
+      "status": "done",
+      "closed": "2026-06-05 PROCEED-WITH-CAVEATS (3578905..1ff7ea8, parent b2a8c92; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic af82bf4b57ab6c3af NON-BLOCKING [0/2/1]). Both split tools shipped → the complete 8-tool surface; run_eval_pack hardcodes live=False (critic-verified NON-VACUOUS); assemble_agent edit-one-facet + audited; A-SAFE re-proven safe-by-explicit-bound; A6 byte-frozen. Opened S-BS-84 (low, roster-remove no revalidation) + NB-1. OWED: the UAP-5c-2 A-LIVE :5180 user-run.",
       "blocked_by": ["UAP-5c"],
       "priority": "P2",
       "target": "executor",

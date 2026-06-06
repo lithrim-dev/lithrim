@@ -262,7 +262,7 @@
       "phase": "UAP-5c-2",
       "scope": "complete-the-tool-set-the-eval-pack-batch-plus-edit-one-facet-assemble-agent",
       "file": "bench-salvage_phaseUAP-5c-2_complete-tool-set_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (re-introduces the FIRST agent-reachable paid-capable wrapper [run_eval_pack over the live knob] + the FIRST agent-reachable Agent WRITE [assemble_agent] -> A-SAFE re-proven safe-by-explicit-bound as the surface widens; fresh-critic required)",
       "target_repos": ["lithrim-bench"],
