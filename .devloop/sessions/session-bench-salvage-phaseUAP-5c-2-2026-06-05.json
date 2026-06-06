@@ -1,0 +1,140 @@
+{
+  "session_id": "session-bench-salvage-phaseUAP-5c-2-2026-06-05",
+  "stream": "bench-salvage",
+  "phase": "UAP-5c-2",
+  "driver_bundle_id": "bench-salvage-phaseUAP-5c-2-complete-tool-set-driver",
+  "started_at": "2026-06-06T07:30:00Z",
+  "ended_at": "2026-06-06T08:05:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-06T07:40:00Z",
+    "user_approved_at": "2026-06-06T07:45:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-A: ship BOTH split tools (assemble_agent roster-edit + run_eval_pack), not the run_eval_pack-alone D-F fallback — edit-one-facet stayed thin (mirrors author_flag), did not balloon.",
+        "evidence": "plan-review D-A; throwaway smoke confirmed the closures work before commit (roster remove -> judges=[risk,policy]; bogus role -> is_error no card; batch -> verdicts=[reject]).",
+        "decided_at": "2026-06-06T07:45:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-E sequencing note: the driver recommended attesting the OWED UAP-5c A-LIVE first; it was ALREADY attested at HEAD b2a8c92 ('UAP-5c A-LIVE attested live') + handoff pt.3 — so this build does NOT compound on an un-attested surface. The recommendation was moot, surfaced at plan-review.",
+        "evidence": "git log HEAD = b2a8c92 docs(bench-salvage): UAP-5c A-LIVE attested live; HANDOFF pt.3 (ts 2026-06-05T15:53:35).",
+        "decided_at": "2026-06-06T07:45:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Convention: docs(spec) and the session log are SEPARATE commits (5 + 6), matching the prior UAP-5c log convention (which listed its docs commit e7a4a77 but committed the log separately at 9227b87) — so the docs commit's real hash lands in this log.",
+        "evidence": "prior session-bench-salvage-phaseUAP-5c-2026-06-05.json commits array ends at e7a4a77 (docs), with the log itself committed at 9227b87.",
+        "decided_at": "2026-06-06T07:45:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "3578905",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): UAP-5c-2 run_eval_pack tool — the eval-pack batch (replay/$0; live hardcoded False)",
+      "summary": "First wrapper over a paid-capable op: RUN_EVAL_PACK_SCHEMA has no paid knob; _run_eval_pack hardcodes EvalPackRunRequest(..., live=False), passes every Depends explicitly (S-BS-82 rule). Tool set 6->7."
+    },
+    {
+      "hash": "debf05f",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): UAP-5c-2 assemble_agent tool — edit-one-facet audited Agent write (load→modify→put)",
+      "summary": "First agent-reachable Agent WRITE, scoped to the judges roster: load via frozen GET /v1/agent, add/remove ONE known v2 judge (LENS_BY_ROLE-guarded, unknown role 404s), PUT through frozen audited put_agent (target_type=agent). Never a full dict from the model. Tool set 7->8."
+    },
+    {
+      "hash": "ed4d6e4",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): parts-adapter + loop prompt for the 2 new tools (existing cards; allowlist auto-extends)",
+      "summary": "D-B: run_eval_pack->tool-audit_log (pure-read, newest run; avoids RunPanel's window.confirm S-BS-80), assemble_agent->tool-agent_editor. loop._SYSTEM_PROMPT names both new tools; allowed auto-extends; max_turns stays 12."
+    },
+    {
+      "hash": "6fdecfb",
+      "repo": "lithrim-bench",
+      "title": "test(uap-5c-2): A-SAFE re-proof — live=True dropped + 8-tool no-paid-knob + audited agent write + batch round-trip",
+      "summary": "6 tests: the load-bearing live=True-dropped negative (monkeypatch the bound op, assert req.live is False), the handler-drop mirror, 8-tool no-paid-knob, batch round-trip to review_runs, assemble audited target_type=agent write + one-facet delta, assemble unknown-judge surfaced (no card, nothing audited)."
+    },
+    {
+      "hash": "dcc80e9",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): note the complete 8-tool surface (§10/§13) — UAP-5c-2 run_eval_pack + assemble_agent",
+      "summary": "Ratify the two split tools into the as-locked contract (S-BS-51 ratify-don't-grow): SPEC_PRODUCT_SHELL §10 + SPEC_UNIFIED_AUTHORING_PRODUCT §13."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — the journey extends end-to-end: talk -> run_eval_pack batch (Review card) + assemble_agent roster edit (agent_editor card)",
+      "verdict": "PASS",
+      "evidence": "OFFLINE-proven: test_run_eval_pack_batches_real_runs_that_round_trip_to_review_runs (emits tool-audit_log) + test_assemble_agent_roster_edit_is_an_audited_agent_write (emits tool-agent_editor). The live :5180 slice is A-LIVE (user-run, OWED — see A-LIVE)."
+    },
+    {
+      "criterion": "A2 — the conversation IS the audit log: assemble_agent's write -> target_type=agent AuditRecord at GET /v1/audit",
+      "verdict": "PASS",
+      "evidence": "test_assemble_agent_roster_edit_is_an_audited_agent_write: GET /v1/audit?target_type=agent shows an actor='test-sme', target.type='agent' record; the faithfulness_judge delta applied (removed from eval_profile.judges)."
+    },
+    {
+      "criterion": "A3 — the new tools drive real ops: run_eval_pack batches real runs (round-trip to GET /v1/runs); assemble_agent does the audited PUT /v1/agent (malformed/unknown -> surfaced, not bypassed)",
+      "verdict": "PASS",
+      "evidence": "round-trip test: the batch's run_id appears in ctx.review_runs(limit=10). assemble: audited write test + test_assemble_agent_unknown_judge_is_surfaced_not_bypassed (is_error, no card, GET /v1/audit?target_type=agent == [])."
+    },
+    {
+      "criterion": "A-SAFE (load-bearing, RE-PROVEN) — run_eval_pack cannot fire a paid run (no paid knob + live=False hardcoded; inject live=True -> dropped); allowlist exactly mcp__lithrim__* (now 8), no built-in; assemble_agent cannot write un-audited or bypass the gate",
+      "verdict": "PASS",
+      "evidence": "test_run_eval_pack_drops_an_injected_live_knob (monkeypatch bff.eval_pack_run_endpoint; inject live/confirm/in_process into handler args -> captured req.live is False) + handler-drop mirror + test_uap5c2_split_tools_grow_the_set_to_eight_with_no_paid_knob + the [agent]-gated test_build_options... asserts the exact 8-tool allowlist, bypassPermissions, isdisjoint(BUILTIN_TOOLS) (debuglithrim, NOT skipped) + assemble unknown-judge surfaced."
+    },
+    {
+      "criterion": "A4 — parts-adapter reuses existing cards (no new types)",
+      "verdict": "PASS",
+      "evidence": "run_eval_pack->tool-audit_log (audit_part), assemble_agent->tool-agent_editor (agent_part); registry.js KNOWN_TOOLS byte-unchanged; Vitest 51p covers both cards rendering via the registry (panes.chat.test.jsx:80-82)."
+    },
+    {
+      "criterion": "A6 — frozen 0-delta: _apply_consensus + seam dict + judge_metric + EXISTING BFF ops + seeds == 0; put_agent_endpoint/eval_pack_run_endpoint byte-identical; new closures in _build_tool_context",
+      "verdict": "PASS",
+      "evidence": "git diff b2a8c92 HEAD --stat over compliance_council/judges_dspy/judge_metric/clinical_v1/ws0_default == empty; both app.py hunks are @@ ...def _build_tool_context (lines ~1000-1053); the wrapped endpoints (eval_pack_run_endpoint ~376, put_agent_endpoint ~420) untouched."
+    },
+    {
+      "criterion": "A5/A7 — BYO-Claude + import-isolated; green bar (default + debuglithrim + Vitest + ruff); pathspec-only",
+      "verdict": "PASS",
+      "evidence": "import app -> claude_agent_sdk in sys.modules == False (default python). Green: default 299p/12s, debuglithrim 149p/3s, Vitest 51p/11f, ruff clean on all changed files. 5 commits = exactly 6 in-scope files (git diff b2a8c92 HEAD --stat); .claude/, KICKOFF_CRITIC_*, REPORT_fhir_* left untracked (not swept)."
+    },
+    {
+      "criterion": "A-LIVE (BLOCKING, USER-RUN) — the batch + agent-edit slice on :5180 ($0)",
+      "verdict": "SKIP",
+      "evidence": "OWED — built fully driveable (pure-read run_eval_pack->audit_log card avoids RunPanel's window.confirm; assemble_agent is an audited $0 roster edit). No service autostarted (no-autostart rule). The monitor schedules the user-run :5180 attestation at close; it must re-verify the agent stays replay-only live (the first paid-capable wrapper). The UAP-5c A-LIVE was already attested first (b2a8c92), so no compounding on an un-attested surface."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "assemble_agent_facet_shipped": "roster edit (add/remove ONE known v2 judge; LENS_BY_ROLE-guarded; not deferred, not the run_eval_pack-alone D-F fallback)",
+    "both_tools_shipped": "yes — run_eval_pack + assemble_agent (the D-F split did NOT trigger; edit-one-facet stayed thin)",
+    "batch_size_offline": "1 agent (the round-trip test); a live multi-agent batch is the human's confirm-gated path",
+    "uap5c_alive_attested_first": "YES — attested at b2a8c92 before this build; the D-E 'attest-first' recommendation was already satisfied",
+    "green_bar": "default 299p/12s · debuglithrim 149p/3s · Vitest 51p/11f · ruff clean",
+    "tool_surface": "6 -> 8 (the complete tool set)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-84",
+      "title": "assemble_agent roster edit has no write-time owner↔emit / non-empty revalidation (remove can orphan a gradeable flag's owner or empty the roster)",
+      "severity": "low",
+      "fix_location": "apps/bff/app.py _assemble_agent (+ a future author-time or grade-time owner-revalidation surface)",
+      "impact": "Removing a judge whose lens owns a gradeable flag leaves that flag unowned; per CLAUDE.md invariant #4 the council would exclude it at grade time (a NARROWER council, not a wrong verdict) — and the roster can be emptied. By-design for edit-one-facet (the add path IS guarded by LENS_BY_ROLE, never fabricates a judge); surfaced so the monitor/spec-author can decide whether a roster edit should warn on orphaning, analogous to S-BS-83's owner-authoring boundary.",
+      "confidence": "CONFIRMED",
+      "evidence": "apps/bff/app.py _assemble_agent: the add path checks `add_judge not in LENS_BY_ROLE` (404), but the remove path is an unconditional `judges.remove(remove_judge)` with no owner↔emit re-check and no non-empty guard; put_agent_endpoint's agent_from_dict round-trip accepts an empty judges tuple (structurally valid)."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "UAP-5c-2 completes the conversational tool set to 8 — the pre-authorized D-F split landed in full (NOT the run_eval_pack-alone fallback). run_eval_pack is the first agent-reachable wrapper over a PAID-CAPABLE op and assemble_agent is the first agent-reachable Agent WRITE, so A-SAFE was the gate-decider again and is re-proven safe-by-explicit-bound: run_eval_pack's schema carries no paid knob and the bound closure hardcodes live=False (injecting live=True is dropped — the load-bearing negative test monkeypatches the bound op and asserts req.live is False); the allowlist/no-paid-knob tests now cover all 8 tools; assemble_agent is edit-one-facet (the judges roster, LENS_BY_ROLE-guarded so it never fabricates a judge) and its write is audited (target_type=agent), with an unknown role surfaced, not bypassed. A6 holds to the byte (council/seam/seeds 0-delta; put_agent_endpoint + eval_pack_run_endpoint byte-identical; all new code inside _build_tool_context). Green bar: default 299p/12s, debuglithrim 149p/3s (the [agent]-gated allowlist test passes against the real 8-tool ClaudeAgentOptions), Vitest 51p, ruff clean; BYO-Claude import-isolation re-verified; 5 pathspec-only commits (3578905,debf05f,ed4d6e4,6fdecfb,dcc80e9), foreign untracked files not swept. CAVEATS: (1) the A-LIVE :5180 slice is OWED (user-run, built driveable, no autostart) — the monitor schedules it and must re-verify the agent stays replay-only live, the same way the UAP-5c A-LIVE confirmed A-SAFE held; the UAP-5c A-LIVE was already attested (b2a8c92), so this is not compounding on an un-attested surface. (2) HARD-GATE: a fresh-critic is required (run /devloop-critique bench-salvage UAP-5c-2) — re-prove the live=False hardcode + the audited write + A6 from source. (3) S-BS-84 opened (low, by-design): the roster edit has no write-time owner↔emit/non-empty revalidation. Monitor should run the 7-item audit + spawn the fresh-critic first.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage UAP-5c-2, then spawn the HARD-GATE fresh-critic (/devloop-critique bench-salvage UAP-5c-2), then schedule the user-run A-LIVE :5180 batch + roster-edit attestation."
+}
