@@ -1878,5 +1878,34 @@
   "seam": "S-BS-86",
   "correction_note": "Supersedes the initial read that the MED suppression tipped BLOCK->WARN; the suppression is correct but irrelevant to the rescore (nothing draft-side reaches 0.5).",
   "remediation": "restore the draft severity_map to committed values (HIGH>=0.5) WITH a rationale; consider requiring a non-empty why on blocking-weight edits + a lint warning when no severity weight reaches block_at_or_above."
+ },
+ "remediation_live_confirmation": {
+  "applied": "PUT /v1/ontology restored severity_map.weights to committed clinical_v1 (HIGH=1.0, MEDIUM=0.5); audited actor=monitor@s-bs-86-fix with a non-empty rationale (dogfoods S-BS-86 facet b).",
+  "before_fix": {
+   "run": "8a41ef3e",
+   "weights_HIGH": 0.45,
+   "score": 0.45,
+   "verdict": "needs_review",
+   "matches_expected_block": false
+  },
+  "after_fix": {
+   "run": "83ec5086-a737-4312-8757-a4464d56b486",
+   "grade_path": "live",
+   "weights_HIGH": 1.0,
+   "score": 1.0,
+   "verdict": "reject",
+   "stage": "BLOCK",
+   "council_split": "risk PASS / policy BLOCK / faithfulness BLOCK (same as before)",
+   "calibration_check": {
+    "verdict_match_rate": 1.0,
+    "ece": 0.5,
+    "status": "PASS",
+    "n_cases": 1,
+    "n_matched": 1,
+    "n_with_confidence": 2,
+    "caveat": "small N: only 2 non-null confidence(s) pooled across 1 case(s); ece is indicative only (advisory, not a gate)"
+   }
+  },
+  "conclusion": "SAME case + SAME council split; only the severity weights differ. Restored weights -> reject/BLOCK/1.0, matching expected_block. Confirms S-BS-86: the under-rejection was 100% the draft weight calibration. Facet (a) remediated; facet (b) (empty-why weight edits) remains open."
  }
 }
