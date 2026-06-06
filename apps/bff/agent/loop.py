@@ -52,17 +52,55 @@ _SYSTEM_PROMPT = (
 COST_LABEL = "subscription-equivalent estimate (BYO-Claude desktop — not a per-call charge)"
 
 
+async def _deny_non_lithrim(input_data, tool_use_id, context):
+    """The A-SAFE floor (S-BS-90): a deny-by-default PreToolUse gate. ``allowed_tools`` only
+    governs prompting, and ``permission_mode="bypassPermissions"`` skips prompts, so the ONLY
+    mechanism that gates EVERY tool call regardless of permission rules is a PreToolUse hook
+    (claude-agent-sdk: ``can_use_tool`` is *not* invoked under bypass). This bounds the loop to
+    the in-process ``mcp__lithrim__*`` tools — a built-in (Bash/Read/Write/...) is refused at the
+    tool layer, not merely declined by persona (the live hole probe-1 found + the smoke proved).
+
+    FAIL-CLOSED: this runs under bypass, where a raising hook could fail OPEN, so it never raises
+    and default-DENIES anything not provably a lithrim tool (a missing/None tool_name -> deny)."""
+    try:
+        name = (input_data or {}).get("tool_name") or ""
+    except Exception:
+        name = ""
+    if name.startswith("mcp__lithrim__"):
+        return {}  # pass-through: allowed (no decision == allow under the existing allowlist)
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                f"{name or '<unknown>'} is not a Lithrim tool; this agent is bounded to "
+                "mcp__lithrim__* (it can never fire a paid run or touch the host)."
+            ),
+        }
+    }
+
+
 def _build_options(ctx: ToolContext):
-    """ClaudeAgentOptions for the BYO-Claude loop over the in-process tools (lazy SDK)."""
-    from claude_agent_sdk import ClaudeAgentOptions, create_sdk_mcp_server
+    """ClaudeAgentOptions for the BYO-Claude loop over the in-process tools (lazy SDK).
+
+    A-SAFE floor (S-BS-90): the PreToolUse deny hook (``_deny_non_lithrim``) is the AUTHORITATIVE
+    gate — ``allowed_tools`` is defense-in-depth (prompting only) and ``bypassPermissions`` skips
+    prompts. SDK isolation: ``setting_sources=[]`` (do NOT inherit the user's ~/.claude settings /
+    their MCP servers / auto-allow rules) + ``skills=[]`` (no skill listing; a context filter, not
+    a sandbox -- the hook is the real gate). The in-process MCP server is passed in-options, so
+    isolation does not touch it (the 8 tools still load -- A-WORKS, live-confirmed)."""
+    from claude_agent_sdk import ClaudeAgentOptions, HookMatcher, create_sdk_mcp_server
 
     tools = build_sdk_tools(ctx)
     server = create_sdk_mcp_server(name="lithrim", version="0.1.0", tools=tools)
     allowed = [f"mcp__lithrim__{name}" for _, name, *_ in _TOOL_SPECS]
     return ClaudeAgentOptions(
         mcp_servers={"lithrim": server},
-        allowed_tools=allowed,
-        permission_mode="bypassPermissions",  # safe: the tools are gate/replay-bounded (A-SAFE)
+        allowed_tools=allowed,  # defense-in-depth; the deny hook below is the real bound
+        permission_mode="bypassPermissions",
+        hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[_deny_non_lithrim])]},
+        setting_sources=[],  # SDK isolation: no inherited ~/.claude settings / MCP servers
+        skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
         system_prompt=_SYSTEM_PROMPT,
         max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
     )
