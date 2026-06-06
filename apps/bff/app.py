@@ -1000,6 +1000,19 @@ def _build_tool_context(
                 latest_audit = None
         return {"runs": runs, "latest_run_id": latest_id, "latest_audit": latest_audit}
 
+    # ── UAP-5c-2: the eval-pack BATCH closure (the first wrapper over a PAID-CAPABLE op).
+    def _run_eval_pack(pack_id: str, agents: list[str]) -> dict:
+        # A-SAFE crux: eval_pack_run_endpoint's `live` knob fires one paid :8002 call per
+        # agent. The wrapper HARDCODES live=False — there is NO branch, here or in the tool,
+        # that yields a paid batch (mirrors _run_eval_replay). Per the S-BS-82 rule, pass
+        # every Depends param explicitly (a direct call bypasses the FastAPI router).
+        return eval_pack_run_endpoint(
+            EvalPackRunRequest(pack_id=pack_id, agents=agents, live=False),
+            db_path=db_path,
+            out_dir=out_dir,
+            collections_db=collections_db,
+        )
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
@@ -1007,6 +1020,7 @@ def _build_tool_context(
         get_agent=_get_agent,
         author_flag=_author_flag,
         review_runs=_review_runs,
+        run_eval_pack=_run_eval_pack,
         default_agent=req_agent,
     )
 

@@ -48,6 +48,10 @@ AUTHOR_FLAG_SCHEMA: dict[str, Any] = {
     "rationale": str,
 }
 REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int}
+# UAP-5c-2 — the eval-pack BATCH (the first tool over a PAID-CAPABLE op). The schema
+# carries NO live/confirm/in_process knob; the bound _run_eval_pack hardcodes live=False,
+# so the agent has no path to a paid batch (the A-SAFE re-proof, S-BS-81 generalized).
+RUN_EVAL_PACK_SCHEMA: dict[str, Any] = {"pack_id": str, "agents": list}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -67,6 +71,8 @@ class ToolContext:
     - ``author_flag(flag_code, tier, gradeable, rationale) -> dict``  (UAP-5c Flag; an
       audited ontology edit of an EXISTING flag; raises on 404/422 — the handler surfaces it)
     - ``review_runs(limit) -> dict``  (UAP-5c Review, $0 — run history + latest provenance)
+    - ``run_eval_pack(pack_id, agents) -> dict``  (UAP-5c-2 batch Run; ALWAYS live=False —
+      the wrapper over the paid-capable eval-pack op hardcodes the $0 path, the A-SAFE crux)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -76,6 +82,7 @@ class ToolContext:
     get_agent: Callable[..., dict]
     author_flag: Callable[..., dict]
     review_runs: Callable[..., dict]
+    run_eval_pack: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -205,6 +212,29 @@ async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     )
 
 
+async def run_eval_pack_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # The batch Run leg ($0 replay). A-SAFE: NO live/confirm/in_process is read or honored —
+    # the bound ctx.run_eval_pack hardcodes live=False, so the agent cannot fire a paid batch.
+    # Each batched run persists provenance, so its run id round-trips to GET /v1/runs.
+    pack_id = str(args.get("pack_id") or "chat-pack")
+    agents = list(args.get("agents") or [ctx.default_agent])
+    try:
+        res = ctx.run_eval_pack(pack_id=pack_id, agents=agents)
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(f"Eval-pack batch {pack_id!r} failed: {detail}.")
+    run_ids = [r for r in (res.get("run_ids") or []) if r]
+    ctx.emit(audit_part(run_ids[-1] if run_ids else ""))
+    outcomes = (res.get("pack") or {}).get("outcomes") or []
+    verdicts = [str(o.get("verdict") or "—") for o in outcomes]
+    return _text(
+        f"Ran a $0 REPLAY eval-pack {pack_id!r} over {len(agents)} agent(s): "
+        f"verdicts={verdicts}. {len(run_ids)} run(s) persisted — they show in the run "
+        f"history. (A live batch — one paid :8002 call per agent — is the human's "
+        f"cost-confirmed action, never this tool.)"
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -252,6 +282,14 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "Review the run history, the latest run's provenance, and the config-change audit "
         "trail ($0, no write). Use to show what was authored and what a run decided.",
         REVIEW_RUNS_SCHEMA,
+    ),
+    (
+        run_eval_pack_handler,
+        "run_eval_pack",
+        "Run a $0 REPLAY eval-pack BATCH over one or more agents and render the run "
+        "history. REPLAY ONLY — like run_eval it can never fire a paid (live) batch; one "
+        "paid :8002 call per agent is the human's explicit cost-confirmed action.",
+        RUN_EVAL_PACK_SCHEMA,
     ),
 ]
 
