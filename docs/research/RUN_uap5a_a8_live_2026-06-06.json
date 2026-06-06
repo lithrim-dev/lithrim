@@ -1837,5 +1837,46 @@
    "artifact",
    "verdict"
   ]
+ },
+ "root_cause_analysis": {
+  "question": "Is the needs_review (score 0.45) a composite under-weighting of real fabrications, a defensible needs_review, or something else?",
+  "answer": "CONFIRMED root cause: the ACTIVE DRAFT ontology (ws0_default) is mis-calibrated - HIGH=0.45 < block_at_or_above=0.5, so NO semantic finding can ever reach BLOCK (max attainable 0.45 -> WARN). The composite MECHANISM is sound (score=max severity weight, report.py:31; rescore thresholds ontology.py:86-92). Against committed clinical_v1 (HIGH=1.0) the SAME case BLOCKs. Not a mechanism flaw; a config-plane calibration gap.",
+  "deterministic_rescore": {
+   "method": "re-scored the EXACT 8 active findings from run 8a41ef3e under two weight maps (report.py:31 / ontology.py:86 algorithm); only the weights differ -> isolates the variable, no council non-determinism, no config mutation",
+   "draft": {
+    "weights": {
+     "HIGH": 0.45,
+     "MEDIUM": 0.4
+    },
+    "block_at_or_above": 0.5,
+    "max": 0.45,
+    "verdict": "WARN (reproduces this run)"
+   },
+   "committed_clinical_v1": {
+    "weights": {
+     "HIGH": 1.0,
+     "MEDIUM": 0.5
+    },
+    "block_at_or_above": 0.5,
+    "max": 1.0,
+    "verdict": "BLOCK"
+   },
+   "findings_severity": "6 of 8 active findings are HIGH (FABRICATED_CONSENT, FABRICATED_HISTORY, 3x hallucination, 1x omission); 2 MEDIUM"
+  },
+  "audit_who_when_why": {
+   "actor": "dev-default (the default UI actor)",
+   "trail": [
+    "2026-06-04T01:46 HIGH 1.0->0.45",
+    "01:48 ->0.7",
+    "15:48 ->0.4",
+    "22:02 ->1.0 (restored)",
+    "22:03:33 ->0.45",
+    "final HIGH=0.45/MED=0.4 @2026-06-04T22:05:57"
+   ],
+   "why": "EVERY weight edit has an EMPTY rationale -> the SS2B why/when/who/what audit captured who/when/what but NOT why (a dogfooding gap in the authoring UI)."
+  },
+  "seam": "S-BS-86",
+  "correction_note": "Supersedes the initial read that the MED suppression tipped BLOCK->WARN; the suppression is correct but irrelevant to the rescore (nothing draft-side reaches 0.5).",
+  "remediation": "restore the draft severity_map to committed values (HIGH>=0.5) WITH a rationale; consider requiring a non-empty why on blocking-weight edits + a lint warning when no severity weight reaches block_at_or_above."
  }
 }
