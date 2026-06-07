@@ -5,6 +5,7 @@ import { Mark, Wordmark } from "./brand.jsx";
 import { ConfigCard } from "./cards.jsx";
 import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
+import { Markdown } from "./components/Markdown.jsx";
 import { THREADS, STEPS } from "./data.jsx";
 
 // S-BS-19: the scripted host emits INPUT tool-parts; each widget's onResult threads
@@ -274,7 +275,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 <div className="av ai"><Mark size={17} /></div>
                 <div className="content">
                   <div className="name">Lithrim <span className="t">setup assistant</span></div>
-                  {m.text && <p style={{ whiteSpace: "pre-wrap" }}>{m.text}</p>}
+                  {m.text && <Markdown>{m.text}</Markdown>}
                   {(m.parts || []).map((part, j) => (
                     <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>
                   ))}
