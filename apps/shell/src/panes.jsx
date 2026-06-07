@@ -18,7 +18,7 @@ const SETUP_PARTS = [
 ];
 
 /* ============================ LEFT RAIL ============================ */
-export function LeftRail({ width, active, setActive }) {
+export function LeftRail({ width, active, setActive, onNewEval }) {
   return (
     <aside className="rail" style={{ width }}>
       <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
@@ -27,7 +27,7 @@ export function LeftRail({ width, active, setActive }) {
       <div className="rail-sec">
         <div className="rail-hd">
           <span className="lbl">Evaluations</span>
-          <button className="icon-btn" title="New evaluation"><Icon name="plus" size={16} /></button>
+          <button className="icon-btn" title="New evaluation" onClick={onNewEval}><Icon name="plus" size={16} /></button>
         </div>
         <div className="tb-cmd" style={{ position: "static", transform: "none", width: "100%", height: 32 }}>
           <Icon name="search" size={14} /><span>Search</span><span className="kbd">⌘K</span>
@@ -96,6 +96,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const convoRef = useRef(null); // the scroll container
   const bottomRef = useRef(null); // autoscroll anchor at the end of the thread
   const [atBottom, setAtBottom] = useState(true); // is the user reading the latest turn?
+  const [showExample, setShowExample] = useState(false); // S-BS-89: the scripted showcase is opt-in
 
   const send = async () => {
     const message = input.trim();
@@ -168,6 +169,13 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   }, [input]);
 
+  // S-BS-89: empty-state suggestions FILL the composer (never auto-send — intent stays the
+  // user's, as does the eventual spend on a paid run).
+  const fillPrompt = (text) => {
+    setInput(text);
+    taRef.current?.focus();
+  };
+
   // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by
   // the in-DOM CostModal (never window.confirm). On confirm, hit the EXISTING
   // confirm-gated endpoint via the app's run handler.
@@ -184,11 +192,20 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     <main className="center">
       <div className="center-hd">
         <div style={{ minWidth: 0 }}>
-          <div className="h-title">Scribe Agent v4</div>
+          <div className="h-title">{showExample ? "Scribe Agent v4" : "New evaluation"}</div>
         </div>
-        <span className="chip"><span className="d" style={{ background: "var(--accent)" }} /> Run in progress</span>
-        <span className="chip">2,400 samples</span>
+        {showExample && (
+          <>
+            <span className="chip"><span className="d" style={{ background: "var(--accent)" }} /> Run in progress</span>
+            <span className="chip">2,400 samples</span>
+          </>
+        )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {showExample && (
+            <button className="btn btn-ghost" title="Hide the example conversation" onClick={() => setShowExample(false)}>
+              <Icon name="close" size={14} /> Hide example
+            </button>
+          )}
           <button className="icon-btn" title="Refresh"><Icon name="refresh" size={16} /></button>
           {!artifactOpen && (
             <button className="btn btn-ghost" onClick={() => onOpenArtifact("report")}>
@@ -201,6 +218,11 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
       <div className="convo" ref={convoRef} onScroll={onConvoScroll}>
         <div className="convo-inner">
 
+          {/* S-BS-89: the scripted 8-message showcase is now OPT-IN (showExample). The clean
+              empty-state below is the real default surface; the frozen Journey stays the
+              canonical demo (root.jsx mode="journey"), untouched. */}
+          {showExample && (
+            <>
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
@@ -288,15 +310,44 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               </div>
             </div>
           </div>
+            </>
+          )}
+
+          {/* S-BS-89: the clean default surface — a real greeting + suggested prompts that
+              fill the composer (no auto-send). The scripted demo is one click away. */}
+          {chat.length === 0 && !showExample && (
+            <div className="empty-state">
+              <div className="es-mark"><Mark size={30} /></div>
+              <h2 className="es-title">What do you want to evaluate?</h2>
+              <p className="es-sub">
+                Describe an agent, author a judge or flag, or run a $0 replay. Every change is
+                written to the config plane with a who/when/what/why audit trail.
+              </p>
+              <div className="es-prompts">
+                {[
+                  "Create a risk judge for clinical scribe notes",
+                  "Add a safety flag for fabricated allergies",
+                  "Run a $0 replay on the current config",
+                ].map((p) => (
+                  <button key={p} className="es-prompt" onClick={() => fillPrompt(p)}>
+                    <Icon name="spark" size={14} /> {p}
+                  </button>
+                ))}
+              </div>
+              <button className="es-example" onClick={() => setShowExample(true)}>
+                Show example conversation
+              </button>
+            </div>
+          )}
 
           {/* UAP-5b / R11: the LIVE conversational loop. Streamed assistant turns +
               tool-result gen-UI parts (rendered via the existing registry). */}
           {chat.map((m, i) =>
             m.role === "user" ? (
               <div className="msg user" key={i}>
-                <div className="av user">JR</div>
+                <div className="av user">You</div>
                 <div className="content">
-                  <div className="name">Jordan</div>
+                  <div className="name">You</div>
                   <p style={{ whiteSpace: "pre-wrap" }}>{m.text}</p>
                 </div>
               </div>
@@ -304,7 +355,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               <div className="msg" key={i}>
                 <div className="av ai"><Mark size={17} /></div>
                 <div className="content">
-                  <div className="name">Lithrim <span className="t">setup assistant</span></div>
+                  <div className="name">Lithrim</div>
                   {m.text && <Markdown>{m.text}</Markdown>}
                   {(m.parts || []).map((part, j) => (
                     <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>

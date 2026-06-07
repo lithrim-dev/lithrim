@@ -70,6 +70,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const theme = themeProp ?? themeLocal;
   const setTheme = setThemeProp ?? setThemeLocal;
   const [active, setActive] = useState("t1");
+  // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
+  // (bumping its key clears chat + setup + showExample + input — no lifted state needed).
+  const [sessionKey, setSessionKey] = useState(0);
 
   // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
   // render its composite in the ReportTab. replay is the $0 default; live is one paid call.
@@ -117,9 +120,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
           onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode} />
         <div className="body">
-          <LeftRail width={leftW} active={active} setActive={setActive} />
+          <LeftRail width={leftW} active={active} setActive={setActive}
+            onNewEval={() => setSessionKey((k) => k + 1)} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
-          <CenterPane onOpenArtifact={openArtifact} artifactOpen={open}
+          <CenterPane key={sessionKey} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
