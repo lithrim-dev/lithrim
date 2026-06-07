@@ -4,7 +4,7 @@
    side that the Python tests/test_ws5_bff.py round-trip does not cover. */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { runEval, getOntology } from "./bff.js";
+import { runEval, getOntology, listAgents, createAgent, deleteAgent } from "./bff.js";
 import { ArtifactPane } from "./artifact.jsx";
 
 // A representative /v1/run-eval response: the S-BS-7 clinical story (reject; one
@@ -65,5 +65,59 @@ describe("bff.js → ReportTab binding (S-BS-18)", () => {
     const ont = await getOntology("ws0_default");
     expect(fetch).toHaveBeenCalledWith("/v1/ontology?agent=ws0_default", expect.anything());
     expect(ont.domain).toBe("clinical");
+  });
+});
+
+// CRUD-1 (D4): the config-plane agent switcher + the blank-slate create/delete client.
+describe("CRUD-1 bff.js config-plane client", () => {
+  it("listAgents() GETs /v1/agents", async () => {
+    vi.stubGlobal("fetch", mockFetch({ agents: ["ws0_default", "eval-1"] }));
+    const out = await listAgents();
+    expect(fetch).toHaveBeenCalledWith("/v1/agents", expect.anything());
+    expect(out.agents).toContain("eval-1");
+  });
+
+  it("createAgent() clones the seed dataset/ontology but starts authoring-blank (RUNNABLE)", async () => {
+    const seed = {
+      name: "ws0_default",
+      eval_profile: {
+        judges: ["risk_judge"],
+        council_config: { disposition: "compose-over-live-v2" },
+        ontology_ref: "clinical/1",
+        ontology_path: "data/ontology/clinical_v1.json",
+        tools: ["presence_check"],
+        kb_bindings: {},
+        severity_map_ref: "ontology:clinical/1",
+      },
+      dataset: { case_id: "C", source: "S", baseline: "B", mode: "replay" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => seed, text: async () => "" })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "ok", name: "eval-2" }), text: async () => "" }),
+    );
+    await createAgent("eval-2");
+    // 1) it reads the seed default
+    expect(fetch).toHaveBeenNthCalledWith(1, "/v1/agent?name=ws0_default", expect.anything());
+    // 2) it PUTs a blank-but-runnable agent: empty judges/tools, the cloned ontology + Dataset
+    const [url, opts] = fetch.mock.calls[1];
+    expect(url).toContain("/v1/agent?rationale=");
+    expect(opts.method).toBe("PUT");
+    const body = JSON.parse(opts.body);
+    expect(body.name).toBe("eval-2");
+    expect(body.eval_profile.judges).toEqual([]); // authoring-blank
+    expect(body.eval_profile.tools).toEqual([]);
+    expect(body.eval_profile.ontology_path).toBe("data/ontology/clinical_v1.json"); // cloned
+    expect(body.dataset).toEqual(seed.dataset); // BOUND Dataset -> runnable from clean
+  });
+
+  it("deleteAgent() DELETEs /v1/agent?name=", async () => {
+    vi.stubGlobal("fetch", mockFetch({ status: "deleted", name: "eval-2" }));
+    await deleteAgent("eval-2", { rationale: "rm" });
+    const [url, opts] = fetch.mock.calls[0];
+    expect(opts.method).toBe("DELETE");
+    expect(url).toContain("name=eval-2");
   });
 });
