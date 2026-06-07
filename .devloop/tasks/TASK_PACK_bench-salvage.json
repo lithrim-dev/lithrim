@@ -1510,6 +1510,47 @@
         "FROZEN: _apply_consensus + the per-judge seam dict + judge_metric + the entity model/withstands-gate/audit + the committed seeds + the EXISTING BFF ops (incl. put_agent_endpoint / eval_pack_run_endpoint -- wrap+stream, never modify; A6 0-delta). Drive-by formatting / dep bumps."
       ],
       "next_action": "READY -- run /devloop-kickoff bench-salvage UAP-5c-2. Plan-review resolves D-A (assemble_agent facet or defer) / D-B (batch adapter card) / D-C (live=False hardcode + the Query/Header-explicit binding rule) / D-D (the A-SAFE test extensions, incl. live=True-dropped) / D-E (A-LIVE cost + the UAP-5c-A-LIVE-first sequencing). HARD-GATE: fresh-critic at close."
+    },
+    {
+      "phase": "ONB-0",
+      "title": "ONB-0 -- conversational memory (the de-risk #1 prerequisite): POST /v1/chat gains a client-replayed history:[{role,content}] array, threaded through chat_endpoint -> run_chat and replayed into a FRESH ClaudeSDKClient WITHOUT re-executing prior tool-calls or re-spending. Closes S-BS-87. = SPEC_ONBOARDING_JOURNEY Phase 0 (the teaching on-ramp's single load-bearing dependency).",
+      "status": "ready",
+      "closed": null,
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseONB-0-conversational-memory-driver",
+      "milestone": "ONB / UAP-6 (the onboarding/teaching journey) + de-risk gap #1 (SME-authorable bounded context, PLATFORM_THESIS §4-5). Phase 0 = the memory foundation that unblocks ONB Phases 1-4.",
+      "origin": "SPEC_ONBOARDING_JOURNEY.md §2A/§7/§8/§11 (LOCKED 2026-06-06) + S-BS-87 (CONFIRMED in code, docs/research/REPORT_live_journey_dryrun_2026-06-06.md) + the 2026-06-06 pitch-derisk handoff. Authored from the LOCKED SPEC (no prior stub) per the established UAP pattern (memory devloop-task-pack-stale-uap-from-spec).",
+      "hardness": "HARD-GATE (the /v1/chat request contract + the loop's message-seeding change -> the A-SAFE floor [allowlist-bounds + no-paid-knob + BYO-Claude] re-proven as the surface widens; the genuinely-new no-re-execution/no-re-spend negative; SPEC §7 flags Phase 0 as loop-touching -> fresh-critic the default).",
+      "regrepped_2026_06_06": "ALL CONFIRMED (0 drifted, 0 missing) vs HEAD e8c52e1: app.py ChatRequest:231 {message,agent}, chat_endpoint:1062 -> run_chat(req.message,ctx):1091; loop.py _real_source:71 / client.query:77 / fresh ClaudeSDKClient:76 / run_chat:82 / source Callable:86 / max_turns=12:67 (within one message); bff.js chatStream:122 / body:126; panes.jsx chat:90 [{role,text,parts}] / send:96 / append:101 / chatStream:110-111; tests/test_uap5b_chat.py:184/:198/:220/:253; panes.chat.test.jsx.",
+      "deliverables": [
+        "D1: ChatRequest gains history: list[ChatTurn]=[] (ChatTurn={role:Literal[user,assistant],content:str}); default empty = back-compat; text-only, NO paid field (app.py:231).",
+        "D2: chat_endpoint threads it -> run_chat(req.message, ctx, history=req.history) (app.py:1091).",
+        "D3 (the core, D-A): loop.run_chat + _real_source accept+replay history into the fresh ClaudeSDKClient WITHOUT re-executing tools/re-spending -- recommended default = a transcript-preamble fold on the query/system-prompt; a native SDK multi-message seed only if VERIFIED no tool re-invocation. source Callable signature widens. SDK stays lazy (A5).",
+        "D4: bff.js chatStream({message,agent,actor,history}) puts history in the body; panes.jsx send() snapshots the prior `chat` turns as history=chat.map(m=>({role,content:m.text||''})) before the optimistic append.",
+        "D5 (A-SAFE re-proof, $0): history threads to the source; back-compat (no-history still yields the 4 events); THE NO-RE-EXECUTION NEGATIVE (a history mentioning a prior tool-call => zero new audited writes / no paid call); text-only (no paid knob); tool set stays exactly 8; Vitest: 2nd send carries history.",
+        "D6: docs (SPEC_PRODUCT_SHELL §10 /v1/chat contract; mark SPEC_ONBOARDING_JOURNEY Phase 0) + session log. A-LIVE: a >=6-turn :5180 coherence run ($0)."
+      ],
+      "acceptance": [
+        "A1 memory coherence across >=6 turns on :5180 (the S-BS-87 'no config writes this session' failure does NOT recur) [A-LIVE].",
+        "A2 the history contract threads end-to-end (default empty = back-compat); A3 the FE passes prior chat turns as history.",
+        "A-SAFE (re-proven): allowlist == exactly the 8 mcp__lithrim__*; history text-only; replay triggers NO new audited write and NO paid call (negative-tested); BYO-Claude no key.",
+        "A4 no re-execution (a history mentioning a prior tool-call => no duplicate write/charge).",
+        "A6 frozen 0-delta (the 8 tool schemas/handlers + _apply_consensus + the per-judge seam dict + judge_metric + seeds byte-identical; tool set stays 8; SDK stays lazy).",
+        "A5/A7 green bar (default + [bff]/[agent] + Vitest + ruff); pathspec-only; no pushes."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "The mode:teach|operate field, curriculum_v1.json, capabilities_v1.json, and the 6 teaching gen-UI card types -- all ONB Phases 1-2.",
+        "A server-side session_id / persisted sessions (OQ-1 deferred -- client-replayed history only).",
+        "Re-running prior tool-calls / replaying the writes (FORBIDDEN -- re-spend + duplicate audit).",
+        "Any new paid-capable path or a paid field on ChatRequest/ChatTurn; any new window.confirm (the paid gate stays the in-DOM CostModal).",
+        "FROZEN: the 8-tool _TOOL_SPECS set + every schema/handler + the audited-write path + _apply_consensus + the per-judge seam dict + judge_metric + seeds (thread history through the loop; touch no tool)."
+      ],
+      "next_action": "run /devloop-kickoff bench-salvage ONB-0 -> paste into a fresh executor session ROOTED IN lithrim-bench. Plan-review resolves D-A (the replay mechanism -- VERIFY no tool re-execution against the real SDK) / D-B (history shape + cap) / D-C (the A-SAFE tests incl. the no-re-execution negative + the source-Callable signature) / D-D (the >=6-turn A-LIVE; BFF must be a persistent process). HARD-GATE: fresh-critic at close. Unblocks SPEC_ONBOARDING_JOURNEY Phases 1-4."
     }
   ],
   "seams": [

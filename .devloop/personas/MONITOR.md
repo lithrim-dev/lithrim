@@ -105,6 +105,11 @@ On clean audit + clean critique:
 - Commit close-out (any monitor-authored supplements; STATE updates).
 - Update `.devloop/state/STREAM_<stream>.md` with cycle completion +
   new seams + next candidates.
+- **Proof capsule (at every A-LIVE attestation):** produce the proof
+  capsule — a proof doc (`docs/research/PROOF_<stream>_<phase>_<date>.md`)
+  + a zyng-narrated video (`out/zyng_narrate/`) — per
+  `.devloop/templates/PROOF_CAPSULE_TEMPLATE.md`. Honest-Δ only: an honest
+  loss is documented as a loss; never a manufactured win.
 - Propose the next cycle.
 
 On audit or critique drift:
