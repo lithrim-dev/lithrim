@@ -20,6 +20,8 @@ const props = { onOpenArtifact: () => {}, artifactOpen: true, onRunEval: () => {
 describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
   it("mounts FlagEditor + ContractBuilder + KbPicker", async () => {
     render(<CenterPane {...props} />);
+    // S-BS-89: the scripted showcase is opt-in now — reveal it before asserting its widgets.
+    fireEvent.click(screen.getByText(/Show example conversation/i));
     // each widget identified by its unique action button (FlagEditor after its GET resolves).
     expect(await screen.findByRole("button", { name: /Persist draft/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add contract/i })).toBeInTheDocument();
@@ -30,6 +32,7 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
 
   it("threads a widget's onResult into config-plane state", async () => {
     render(<CenterPane {...props} />);
+    fireEvent.click(screen.getByText(/Show example conversation/i)); // S-BS-89: reveal the opt-in showcase
     // KbPicker binds namespaces by default → "Bind KB" is enabled; its onResult captures "kb".
     fireEvent.click(screen.getByRole("button", { name: /Bind KB/i }));
     await waitFor(() => expect(screen.getByText("kb")).toBeInTheDocument());
@@ -40,6 +43,7 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
   // not author a judge in the shell (the assignment had to go through curl).
   it("mounts the JudgeEditor with the $0 prompt preview (S-BS-62)", async () => {
     render(<CenterPane {...props} />);
+    fireEvent.click(screen.getByText(/Show example conversation/i)); // S-BS-89: reveal the opt-in showcase
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
     // the live $0 prompt-preview surface (the assignment→prompt bridge, no model call)
     expect(screen.getByText(/the exact role_key_questions/)).toBeInTheDocument();

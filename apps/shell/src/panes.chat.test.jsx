@@ -41,6 +41,7 @@ vi.mock("./bff.js", () => ({
 }));
 
 import { CenterPane } from "./panes.jsx";
+import App from "./app.jsx";
 import { chatStream } from "./bff.js";
 
 beforeEach(() => chatStream.mockClear());
@@ -129,5 +130,84 @@ describe("CenterPane — the R11 conversational loop", () => {
     fireEvent.click(confirm);
     // confirm calls the EXISTING paid path (live=true) — the modal is the only door
     await waitFor(() => expect(onRunEval).toHaveBeenCalledWith(true));
+  });
+});
+
+// UX-1 (S-BS-89): the chat surface defaults CLEAN — empty-state instead of the scripted
+// 8-message preamble; the showcase is opt-in; "New evaluation" resets to a clean slate;
+// live turns carry a neutral identity; cadence (auto-grow + autoscroll) is wired.
+describe("CenterPane / Shell — UX-1: clean default + cadence + New-eval (S-BS-89)", () => {
+  const props = { onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
+
+  // revealing the opt-in showcase mounts the scripted FlagEditor, which self-fetches
+  // GET /v1/ontology — stub fetch so the reveal is clean.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ domain: "clinical", ontology_version: "clinical/1", severity_map: { block_at_or_above: 0.5, warn_above: 0, weights: {} }, flags: [] }),
+      }),
+    );
+  });
+
+  it("opens to a clean empty-state — no scripted demo content; 'Show example' reveals it", () => {
+    render(<CenterPane {...props} />);
+    // the real greeting is shown...
+    expect(screen.getByText(/What do you want to evaluate\?/i)).toBeInTheDocument();
+    // ...and NONE of the scripted preamble / fake header chips (A2)
+    expect(screen.queryByText(/Scribe Agent v4/)).toBeNull();
+    expect(screen.queryByText("Jordan")).toBeNull();
+    expect(screen.queryByText(/2,400 samples/)).toBeNull();
+
+    // opt-in reveals the canned showcase (preamble + the fake header chips)
+    fireEvent.click(screen.getByText(/Show example conversation/i));
+    expect(screen.getByText(/2,400 samples/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Scribe Agent v4/).length).toBeGreaterThan(0);
+  });
+
+  it("live turns use a neutral identity (You), never the scripted Jordan", async () => {
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "hello" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    await screen.findByText(/Authoring the risk judge/);
+    expect(screen.getAllByText("You").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Jordan")).toBeNull();
+  });
+
+  it("'New evaluation' resets the chat to a clean slate (App remounts CenterPane)", async () => {
+    render(<App mode="shell" setMode={() => {}} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "reset me please" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    expect(await screen.findByText("reset me please")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("New evaluation"));
+    // the live turn is gone and the empty-state is back
+    expect(screen.queryByText("reset me please")).toBeNull();
+    expect(screen.getByText(/What do you want to evaluate\?/i)).toBeInTheDocument();
+  });
+
+  it("composer auto-grows with input, capped at 200px", () => {
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    Object.defineProperty(ta, "scrollHeight", { configurable: true, value: 120 });
+    fireEvent.change(ta, { target: { value: "a\nb\nc" } });
+    expect(ta.style.height).toBe("120px");
+    // grows up to the cap, then stops
+    Object.defineProperty(ta, "scrollHeight", { configurable: true, value: 500 });
+    fireEvent.change(ta, { target: { value: "a\nb\nc\nd\ne\nf\ng" } });
+    expect(ta.style.height).toBe("200px");
+  });
+
+  it("autoscrolls to the latest turn on stream (scrollIntoView)", async () => {
+    const spy = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "scroll me" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    await screen.findByText(/Authoring the risk judge/);
+    expect(spy).toHaveBeenCalled();
   });
 });
