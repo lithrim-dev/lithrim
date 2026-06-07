@@ -1050,6 +1050,19 @@ def _build_tool_context(
             x_actor=x_actor,
         )
 
+    def _delete_judge(role: str, rationale: str = "") -> dict:
+        # CRUD-1 (D3): REVERT a judge to its default lens via the FROZEN audited delete op
+        # (remove its JudgeConfig). Reversible + bounded — the bound op is revert-only, so the
+        # agent can NEITHER delete an agent NOR fire a paid run. Per the S-BS-82 rule, pass
+        # every Query/Header param explicitly (a direct call bypasses the FastAPI router).
+        return delete_judge_endpoint(
+            role,
+            rationale=rationale,
+            db_path=db_path,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+
     def _get_judge(role: str) -> dict:
         # S-BS-82: pass assigned_flags=None EXPLICITLY. Calling an endpoint as a plain
         # function bypasses the FastAPI router, so an omitted Query(...)/Header(...)
@@ -1166,6 +1179,7 @@ def _build_tool_context(
         review_runs=_review_runs,
         run_eval_pack=_run_eval_pack,
         assemble_agent=_assemble_agent,
+        delete_judge=_delete_judge,
         default_agent=req_agent,
     )
 

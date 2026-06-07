@@ -64,6 +64,12 @@ ASSEMBLE_AGENT_SCHEMA: dict[str, Any] = {
     "remove_judge": str,
     "rationale": str,
 }
+# CRUD-1 (D3) — the FIRST agent-reachable DELETE, scoped to REVERT-TO-DEFAULT: remove a
+# judge's authored JudgeConfig so the role falls back to its default lens. Reversible +
+# bounded (no PAID_KEY); the role never disappears (LENS_BY_ROLE), no flag is orphaned —
+# which is why judge-delete is agent-exposable. Agent-DELETE is NOT a tool (human-only,
+# too destructive — mirrors flag-create's human-act posture).
+DELETE_JUDGE_SCHEMA: dict[str, Any] = {"role": str, "rationale": str}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -88,6 +94,9 @@ class ToolContext:
     - ``assemble_agent(name, add_judge, remove_judge, rationale) -> dict``  (UAP-5c-2 Domain
       WRITE, EDIT-ONE-FACET: load→edit the judges roster→put; audited; raises on an unknown
       role/agent — the handler surfaces it, never a full-dict from the model)
+    - ``delete_judge(role, rationale) -> dict``  (CRUD-1 D3: REVERT a judge to its default
+      lens — remove its authored config; audited; reversible. Raises on an unknown role —
+      the handler surfaces it. It CANNOT delete an agent or fire a paid run.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -99,6 +108,7 @@ class ToolContext:
     review_runs: Callable[..., dict]
     run_eval_pack: Callable[..., dict]
     assemble_agent: Callable[..., dict]
+    delete_judge: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -281,6 +291,33 @@ async def assemble_agent_handler(ctx: ToolContext, args: dict[str, Any]) -> dict
     )
 
 
+async def delete_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # CRUD-1 (D3): REVERT a judge to its default lens (remove its authored JudgeConfig).
+    # Reversible + bounded — the agent-exposable half of CRUD. A-SAFE: no PAID_KEY in the
+    # schema, and the bound op is delete_judge_endpoint (revert-only) — this tool can NEITHER
+    # delete an agent (human-only) NOR fire a paid run. An unknown role (404) is surfaced.
+    role = str(args.get("role") or "")
+    rationale = str(args.get("rationale") or "reverted to default via the conversational shell")
+    try:
+        res = ctx.delete_judge(role=role, rationale=rationale)
+    except Exception as exc:  # HTTPException (404 unknown role) or anything the op raises
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not revert judge {role!r}: {detail}. Nothing was changed. Revert a KNOWN "
+            f"judge role (risk_judge / policy_judge / faithfulness_judge)."
+        )
+    ctx.emit(judge_part(role, ctx.default_agent))
+    state = (
+        "removed its authored config — it now uses its DEFAULT lens"
+        if res.get("removed")
+        else "was already at its default lens (no change)"
+    )
+    return _text(
+        f"Reverted judge {role!r}: {state} (actor {res.get('actor', {}).get('id', '?')}). "
+        f"The revert is audited; re-author it any time to re-bind a lens."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -344,6 +381,15 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "ONE known judge role. It does NOT build an agent from scratch or accept a full "
         "agent dict; an unknown role is rejected — surface the error, do not retry blindly.",
         ASSEMBLE_AGENT_SCHEMA,
+    ),
+    (
+        delete_judge_handler,
+        "delete_judge",
+        "REVERT a judge to its DEFAULT lens (remove its authored config; an audited config "
+        "write). Reversible — re-author any time. It reverts a KNOWN judge role only; it "
+        "CANNOT delete an agent (human-only) or fire a paid run. An unknown role is rejected "
+        "— surface the error, do not retry blindly.",
+        DELETE_JUDGE_SCHEMA,
     ),
 ]
 
