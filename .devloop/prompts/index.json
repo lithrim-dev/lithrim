@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-06",
+  "updated": "2026-06-07",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -331,6 +331,30 @@
       "created": "2026-06-06",
       "last_re_verified": "2026-06-06 (concurrent-session: build_judge_lm:205 + _ROLE_DEPLOYMENT:65 + _build_signature:175 + llm_provider.py + settings.py:30 + app.py:622)",
       "next_action": "READY -- /devloop-kickoff bench-salvage BYOC-1. Plan-review resolves D-A (tool-less mechanism, the A-SAFE crux) .. D-F (cost envelope). HARD-GATE: fresh-critic at close. The driver + report are committed (9f850e3); this entry is the deferred shared-state registration."
+    },
+    {
+      "id": "bench-salvage-phaseUX-1-chat-markdown-ux-driver",
+      "stream": "bench-salvage",
+      "phase": "UX-1",
+      "scope": "shell-chat-markdown-rendering-plus-cadence-plus-clean-default-chat-demo-opt-in-S-BS-89",
+      "file": "bench-salvage_phaseUX-1_chat-markdown-ux_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "NOT a HARD-GATE (shell-only; no spec/API contract, no paid path, no core invariant). Inline critique at close. BUT the :5180 visual smoke (A7) is LOAD-BEARING -- the shell has shipped visible defects past vite build + Vitest (WS-5c).",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "apps/shell/src/panes.jsx (CenterPane:80; scripted preamble:173-259 + fake chips:158-159; live render user:269/assistant:277 raw <p whiteSpace:pre-wrap>; composer textarea:305-313 + dead attach/layers:316-317; New-evaluation button NO onClick:29 = S-BS-89 site; chat append:105 / assistant_delta:118 / history map:102 [ONB-0 contract, FROZEN])",
+        "apps/shell/src/bff.js (chatStream:122 -- the SSE contract {message,agent,history}, FROZEN this cycle; events assistant_delta|tool_call|tool_result|error|done)",
+        "apps/shell/src/root.jsx (mode default 'journey':13 -> the FROZEN 4-act demo is mode=='journey'; the Shell CenterPane preamble is SEPARATE/redundant canned content -> demo-opt-in never touches the journey)",
+        "apps/shell/src/app.jsx (CenterPane mount:122, sibling of LeftRail -- the New-eval reset lift site)",
+        "apps/shell/src/styles.css (.convo scroll container:295 overflow-y:auto; .msg:298-311; .msg p:308; code.inl:312; .composer textarea:422 -- markdown + autoscroll + auto-grow CSS anchors)",
+        "apps/shell/package.json (React ^18.3.1 / Vite ^6 / Vitest ^4 / @testing-library/react ^16 / jsdom ^29; add react-markdown ^9 + remark-gfm ^4)"
+      ],
+      "_note": "UX-1 = user objective #3 (markdown + 'fix various ux issues like chat experience so I can actually use it'). SHELL-ONLY (apps/shell/). 3 deliverables: D1 markdown rendering for chat assistant text (react-markdown + remark-gfm; raw HTML INERT -- NO rehype-raw = XSS-safe by construction); D2 cadence (autoscroll-to-latest, composer auto-grow, dead-affordance cleanup); D3 clean default chat + demo opt-in (empty-state by default; scripted cards behind 'Show example'; wire the New-evaluation + to reset to a clean slate = S-BS-89) + neutral live-turn identity. The FROZEN Journey (root.jsx mode='journey', apps/shell/src/journey/*) is the canonical demo and is 0-touch (A4). NOT in scope: apps/bff/* (S-BS-91 post-deny agent UX is a loop.py _SYSTEM_PROMPT fix -> ASAFE-1-gated, a separate cycle), the SSE contract, the gen-UI cards/artifact pane, CRUD/judge/flag (objective #2), BYO-Claude (BYOC-1), Tailwind. User-locked scope decisions 2026-06-07: markdown+cadence + 'Clean chat, demo opt-in'. Pathspec-only commits (dirty shared branch bench-salvage/ws6c-dspy).",
+      "created": "2026-06-07",
+      "last_re_verified": "2026-06-07 (monitor authored from a live code-scan; ALL citations re-grepped against HEAD: panes.jsx render:269/277 raw <p> + no md lib in package.json [CONFIRMED -- markdown gap], scripted preamble:173-259, New-eval no-onClick:29, composer dead buttons:316-317, .convo overflow-y:auto:295, chatStream:122 contract, root.jsx mode='journey':13/19; services live :5180/:8787/:8002/:3031 = the A7 smoke is available at close)",
+      "expanded": "2026-06-07 (driver authored directly from the live surface scan -- no prior stub; the one product fork [scripted-preamble default] was resolved with the user = 'Clean chat, demo opt-in' before authoring. Six plan-review decisions D-A..D-F remain for the executor [D-A markdown lib+sanitization is load-bearing]. A TASK_PACK_bench-salvage.json UX-1 entry should be backfilled per the established UAP pattern [memory devloop-task-pack-stale-uap-from-spec].)",
+      "next_action": "READY -- /devloop-kickoff bench-salvage UX-1. Plan-review resolves D-A (markdown lib + no-rehype-raw sanitization) .. D-F (autoscroll behavior). Inline critique + the load-bearing :5180 visual smoke at close. First of the 3 user objectives (UX-1 -> then BYOC-1 [provider] -> then CRUD-from-clean [objective #2, guarded CRUD + admissibility gates])."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
