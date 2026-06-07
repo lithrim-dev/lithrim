@@ -1,5 +1,5 @@
 /* panes.jsx — left rail, center conversation (ported verbatim; placeholder mark → real logo). */
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { Icon } from "./icons.jsx";
 import { Mark, Wordmark } from "./brand.jsx";
 import { ConfigCard } from "./cards.jsx";
@@ -93,6 +93,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const [sending, setSending] = useState(false);
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
   const taRef = useRef(null);
+  const convoRef = useRef(null); // the scroll container
+  const bottomRef = useRef(null); // autoscroll anchor at the end of the thread
+  const [atBottom, setAtBottom] = useState(true); // is the user reading the latest turn?
 
   const send = async () => {
     const message = input.trim();
@@ -138,6 +141,33 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     }
   };
 
+  // D2 cadence — autoscroll to the latest turn as it streams, but only when the user is
+  // already near the bottom; if they've scrolled up to read, leave them be and surface a
+  // "↓ latest" affordance instead (D-F).
+  useEffect(() => {
+    if (atBottom) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [chat, atBottom]);
+
+  const onConvoScroll = () => {
+    const el = convoRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  };
+
+  const jumpToLatest = () => {
+    setAtBottom(true);
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  };
+
+  // D2 cadence — grow the composer with multi-line input (capped ~5 rows / 200px); since
+  // send() clears `input`, this also shrinks it back to one row after a turn.
+  useLayoutEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  }, [input]);
+
   // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by
   // the in-DOM CostModal (never window.confirm). On confirm, hit the EXISTING
   // confirm-gated endpoint via the app's run handler.
@@ -168,7 +198,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
         </div>
       </div>
 
-      <div className="convo">
+      <div className="convo" ref={convoRef} onScroll={onConvoScroll}>
         <div className="convo-inner">
 
           <div className="msg">
@@ -287,8 +317,15 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             ),
           )}
 
+          <div ref={bottomRef} />
         </div>
       </div>
+
+      {!atBottom && chat.length > 0 && (
+        <button className="jump-latest" onClick={jumpToLatest} title="Jump to latest">
+          <Icon name="chevD" size={15} /> Latest
+        </button>
+      )}
 
       <CostModal
         open={paid.open}
@@ -314,8 +351,6 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             />
             <div className="composer-bar">
               <div className="left">
-                <button className="icon-btn"><Icon name="attach" size={16} /></button>
-                <button className="icon-btn"><Icon name="layers" size={16} /></button>
                 <button className="icon-btn" title="Run a live, paid evaluation (you authorize the spend)"
                   onClick={() => setPaid({ open: true, busy: false })}>
                   <Icon name="bolt" size={16} />

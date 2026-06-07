@@ -277,7 +277,7 @@ input, textarea { font-family: inherit; }
 .rail-foot .org { font-size: 11px; color: var(--muted); }
 
 /* ---------- CENTER CONVERSATION ---------- */
-.center { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.center { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); position: relative; }
 .center-hd {
   flex: 0 0 auto; height: 48px; display: flex; align-items: center; gap: 10px;
   padding: 0 18px; border-bottom: 1px solid var(--border);
@@ -448,7 +448,8 @@ input[type="range"].slider::-moz-range-thumb {
 .composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .composer textarea {
   width: 100%; border: none; outline: none; resize: none; background: transparent;
-  padding: 12px 13px 4px; font-size: 14px; color: var(--ink); line-height: 1.5; max-height: 130px;
+  padding: 12px 13px 4px; font-size: 14px; color: var(--ink); line-height: 1.5;
+  max-height: 200px; overflow-y: auto;
 }
 .composer textarea::placeholder { color: var(--muted); }
 .composer-bar { display: flex; align-items: center; gap: 8px; padding: 6px 9px 8px 11px; }
@@ -459,6 +460,15 @@ input[type="range"].slider::-moz-range-thumb {
   display: flex; align-items: center; justify-content: center;
 }
 .send-btn:hover { background: var(--accent-ink); }
+
+/* D2 cadence — "jump to latest" pill, shown when the user has scrolled up mid-stream. */
+.jump-latest {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 92px; z-index: 5;
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 13px;
+  border-radius: 16px; font-size: 12.5px; font-weight: 560; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--border-strong); box-shadow: var(--shadow-card);
+}
+.jump-latest:hover { border-color: var(--accent); color: var(--accent-ink); }
 
 /* ---------- RIGHT ARTIFACT PANE ---------- */
 .artifact {
