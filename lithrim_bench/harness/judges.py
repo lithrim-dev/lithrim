@@ -32,6 +32,7 @@ from typing import Any
 from lithrim_bench.harness.audit import (
     AuditRecord,
     Target,
+    delete_with_audit,
     make_actor,
     upsert_with_audit,
 )
@@ -114,6 +115,51 @@ def save_judge(
         audit_log=audit_log,
     )
     return str(db_path)
+
+
+def delete_judge(
+    role: str,
+    *,
+    db_path: str | Path = DEFAULT_CONFIG_DB,
+    actor: Any = None,
+    audit_log: Any = None,
+    rationale: str = "",
+) -> bool:
+    """Delete a judge-config row so the role REVERTS to its default lens. The role
+    itself is fixed by ``LENS_BY_ROLE`` (judge_metric) and never disappears — "deleting
+    a judge" removes only the authored ``JudgeConfig`` binding, so no flag is orphaned
+    (CRUD-1 §0). Returns ``True`` iff an authored row was removed; deleting an
+    unauthored role is an idempotent no-op that returns ``False`` and writes NO audit
+    record (the §2B trail is change-only).
+
+    When ``audit_log`` is passed (the BFF delete path) the row removal and its immutable
+    ``AuditRecord`` (``action="delete"``, ``target.type="judge"``, ``before=<the row>``,
+    ``after=None``) land in ONE transaction via :func:`audit.delete_with_audit`. ``actor``
+    is the §2B "who". Absent ``audit_log`` it is a plain delete (back-compat). This
+    primitive does NOT validate ``role`` against ``LENS_BY_ROLE`` — that 404 stays at the
+    BFF edge (judges.py is council/dspy-free by construction)."""
+    db_path = Path(db_path)
+
+    def _record(before: dict[str, Any]) -> AuditRecord:
+        return AuditRecord(
+            actor=make_actor(actor) if not hasattr(actor, "type") else actor,
+            action="delete",
+            target=Target(type="judge", id=role),
+            why={"rationale": rationale},
+            before=before,
+            after=None,
+        )
+
+    return delete_with_audit(
+        db_path,
+        schema_sql=_SCHEMA,
+        select_before_sql="SELECT json FROM judges WHERE role = ?",
+        select_before_params=(role,),
+        delete_sql="DELETE FROM judges WHERE role = ?",
+        delete_params=(role,),
+        record_factory=_record if audit_log is not None else None,
+        audit_log=audit_log,
+    )
 
 
 def load_judge(role: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> JudgeConfig | None:

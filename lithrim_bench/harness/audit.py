@@ -214,3 +214,48 @@ def upsert_with_audit(
         conn.commit()
     finally:
         conn.close()
+
+
+def delete_with_audit(
+    db_path: str | Path,
+    *,
+    schema_sql: str,
+    select_before_sql: str,
+    select_before_params: tuple[Any, ...],
+    delete_sql: str,
+    delete_params: tuple[Any, ...],
+    record_factory: Callable[[dict[str, Any]], AuditRecord] | None = None,
+    audit_log: AuditLog | None = None,
+) -> bool:
+    """Delete one config-plane doc-shim row and (optionally) its immutable delete
+    :class:`AuditRecord` in ONE connection / ONE transaction — the removal mirror of
+    :func:`upsert_with_audit` (so the config plane's delete primitives, CRUD-1's
+    ``config.delete_agent`` / ``judges.delete_judge``, share the transaction discipline
+    rather than copy-pasting it). Returns ``True`` iff a row was actually removed.
+
+    The §2B trail is CHANGE-ONLY: deleting a row that does not exist is a no-op that
+    writes NO audit record (``record_factory`` is invoked only when a prior row was
+    read inside the txn) — the immutable history is never polluted with non-events.
+    When ``audit_log`` is None the audit machinery is skipped entirely (a plain delete,
+    byte-equivalent to a pre-audit removal). When given, the prior row is read inside
+    the txn, ``record_factory(before)`` builds the §2B record (``before=<the row>``,
+    ``after=None``), and the DELETE + the audit INSERT commit together — no config
+    deletion escapes a record.
+    """
+    db_path = Path(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(schema_sql)
+        before: dict[str, Any] | None = None
+        if audit_log is not None:
+            row = conn.execute(select_before_sql, select_before_params).fetchone()
+            before = json.loads(row[0]) if row is not None else None
+        cur = conn.execute(delete_sql, delete_params)
+        removed = cur.rowcount > 0
+        if audit_log is not None and record_factory is not None and before is not None:
+            audit_log.record(record_factory(before), conn=conn)
+        conn.commit()
+        return removed
+    finally:
+        conn.close()

@@ -32,6 +32,7 @@ from typing import Any
 from lithrim_bench.harness.audit import (
     AuditRecord,
     Target,
+    delete_with_audit,
     make_actor,
     upsert_with_audit,
 )
@@ -193,6 +194,61 @@ def save_agent(
         audit_log=audit_log,
     )
     return str(db_path)
+
+
+def delete_agent(
+    name: str,
+    *,
+    db_path: str | Path = DEFAULT_CONFIG_DB,
+    actor: Any = None,
+    audit_log: Any = None,
+    rationale: str = "",
+) -> bool:
+    """Delete an agent eval-profile row from the config plane. Returns ``True`` iff a
+    row was removed; deleting an absent agent is an idempotent no-op that returns
+    ``False`` and writes NO audit record (the §2B trail is change-only).
+
+    This is a PURE capability: the policy guards (refuse the seed default / the last
+    remaining agent) live at the BFF edge (``DELETE /v1/agent``), not here, so the
+    primitive stays reusable. When ``audit_log`` is passed the removal and its immutable
+    ``AuditRecord`` (``action="delete"``, ``target.type="agent"``, ``before=<the row>``,
+    ``after=None``) land in ONE transaction via :func:`audit.delete_with_audit`. Runs /
+    provenance are a SEPARATE immutable store keyed by ``run_id`` — deleting an agent's
+    config row never touches its run blobs (they remain auditable history)."""
+    db_path = Path(db_path)
+
+    def _record(before: dict[str, Any]) -> AuditRecord:
+        return AuditRecord(
+            actor=make_actor(actor) if not hasattr(actor, "type") else actor,
+            action="delete",
+            target=Target(type="agent", id=name),
+            why={"rationale": rationale},
+            before=before,
+            after=None,
+        )
+
+    return delete_with_audit(
+        db_path,
+        schema_sql=_SCHEMA,
+        select_before_sql="SELECT json FROM agents WHERE name = ?",
+        select_before_params=(name,),
+        delete_sql="DELETE FROM agents WHERE name = ?",
+        delete_params=(name,),
+        record_factory=_record if audit_log is not None else None,
+        audit_log=audit_log,
+    )
+
+
+def list_agents(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> list[str]:
+    """All saved agent names, sorted (empty before any seed/author). Backs ``GET
+    /v1/agents`` (the rail switcher) + the BFF last-agent delete-guard."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(_SCHEMA)
+        rows = conn.execute("SELECT name FROM agents ORDER BY name").fetchall()
+    finally:
+        conn.close()
+    return [r[0] for r in rows]
 
 
 def load_agent(name: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> Agent:
