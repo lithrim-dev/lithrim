@@ -362,7 +362,7 @@
       "phase": "CRUD-1",
       "scope": "judge-agent-DELETE-plus-blank-slate-create-guarded-audited",
       "file": "bench-salvage_phaseCRUD-1_judge-agent-delete-blank-slate_driver.md",
-      "status": "ready",
+      "status": "closed-CLEAN (893d7a7..eff4911; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic a989dc135dc2d4d6a NON-BLOCKING [0 BLOCKING/2 NB/2 OQ]). Judges+agents full guarded CRUD + runnable blank-slate: harness audited delete primitives (delete_with_audit + delete_judge revert + delete_agent + list_agents, action=delete change-only) + BFF DELETE /v1/judges/{role} + DELETE /v1/agent + GET /v1/agents (422 seed-default + 422 last-agent + 404; audited) + the 9th conv tool delete_judge (revert-only; agent-delete HUMAN-ONLY) + shell blank-slate New-eval (runnable agent) + rail agents list. A-SAFE 9-tool bound non-vacuous (2 scratch-perturbation proofs); deny-hook byte-identical; council frozen-seam 0-delta; no run-delete. Green: debuglithrim 460/2/3 (2 pre-existing), plain 347/0/27, vitest 69/69. A7 :5180 light+dark create->switch->delete. Opened S-BS-98 (global judge store -> clean=roster/Dataset/chat not judge-clean) + sharpened S-BS-96 (order-non-deterministic). No proof capsule (CRUD-mechanics).",
       "version": "v1",
       "hardness": "HARD-GATE (new DELETE routes = API-contract change + a config-plane delete primitive + a conversational delete tool = an A-SAFE surface). fresh-critic at close.",
       "target_repos": ["lithrim-bench"],
@@ -379,7 +379,7 @@
       "created": "2026-06-07",
       "last_re_verified": "2026-06-07 (monitor CRUD-surface scan: NO delete anywhere [grep @app.delete empty]; harness CRUD layer + the audited-write pattern + the audit action enum all confirmed first-hand)",
       "expanded": "2026-06-07 (driver authored from the live CRUD-surface scan; 5 plan-review decisions D-A..D-E [D-A judge-delete semantics, D-B conv-delete scope are load-bearing]; backfill a TASK_PACK entry per the UAP pattern).",
-      "next_action": "READY -- /devloop-kickoff bench-salvage CRUD-1. Plan-review resolves D-A (judge-delete=revert-to-default) .. D-E (active-agent threading). HARD-GATE: fresh-critic at close. Runs FIRST of the CRUD pair; FLAG-1 reuses its audited-delete pattern."
+      "next_action": "CLOSED CLEAN 2026-06-07. Judges+agents CRUD shipped + fresh-critic NON-BLOCKING. NEXT = FLAG-1 (reference-flag create/delete local + the gradeable cross-repo precondition gate; driver authored at 8f59407): /devloop-kickoff bench-salvage FLAG-1 (HARD-GATE — touches the ontology/taxonomy invariant). FLAG-1 reuses CRUD-1's audited-delete pattern (delete_with_audit). Session session-bench-salvage-CRUD-1-2026-06-07.json; critique critique-bench-salvage-CRUD-1-2026-06-07.md."
     },
     {
       "id": "bench-salvage-phaseFLAG-1-reference-flag-create-delete-driver",
