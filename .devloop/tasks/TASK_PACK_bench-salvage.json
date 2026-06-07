@@ -1551,6 +1551,44 @@
         "FROZEN: the 8-tool _TOOL_SPECS set + every schema/handler + the audited-write path + _apply_consensus + the per-judge seam dict + judge_metric + seeds (thread history through the loop; touch no tool)."
       ],
       "next_action": "run /devloop-kickoff bench-salvage ONB-0 -> paste into a fresh executor session ROOTED IN lithrim-bench. Plan-review resolves D-A (the replay mechanism -- VERIFY no tool re-execution against the real SDK) / D-B (history shape + cap) / D-C (the A-SAFE tests incl. the no-re-execution negative + the source-Callable signature) / D-D (the >=6-turn A-LIVE; BFF must be a persistent process). HARD-GATE: fresh-critic at close. Unblocks SPEC_ONBOARDING_JOURNEY Phases 1-4."
+    },
+    {
+      "phase": "BYOC-1",
+      "title": "BYOC-1 -- BYO-Claude as a first-class LLM provider (judges + generation; a model-composition lab).",
+      "status": "ready",
+      "blocked_by": [],
+      "priority": "P1",
+      "target": "executor",
+      "repos": [
+        "lithrim-bench"
+      ],
+      "prompt_bundle": "bench-salvage-phaseBYOC-1-byo-claude-provider-driver",
+      "milestone": "Make BYO-Claude selectable per-judge + platform-wide (build_judge_lm provider-aware). Completes the airgapped trust thesis (today judges are Azure-locked) + turns the council into a swap-a-model-and-measure lab. Tracks S-BS-92.",
+      "origin": "Concurrent-session de-risk thread 2026-06-06 (commit 9f850e3): 5 live spikes proved the capability; this productionizes it. Builds on ASAFE-1/S-BS-90 (the tool-less requirement). REGISTERED by the active ONB-0/ASAFE-1 session at close per RECONCILE_BYOC-1_for-active-session_2026-06-06.md.",
+      "hardness": "HARD-GATE; fresh-critic required at close.",
+      "deliverables": [
+        "D1 tool-less ClaudeCliLM(dspy.BaseLM)",
+        "D2 provider-aware build_judge_lm + the judge model selector (Azure path byte-unchanged)",
+        "D3 the $0 Claude-judge test + the tool-less A-SAFE negative test",
+        "D4 the mixed-council composition demo vs all-Azure (cost-gated; the A-LIVE)",
+        "D5 LITHRIM_LLM_PROVIDER=claude-cli global switch",
+        "D6 docs + the logprob-confidence design note"
+      ],
+      "acceptance": [
+        "A1 a judge runs on BYO-Claude ($0, structured)",
+        "A-SAFE the LM is tool-less (negative-tested)",
+        "A3 mixed-council verdict differs vs all-Azure, gold-scored",
+        "A4 confidence-without-logprobs surfaced not faked",
+        "A6 frozen-set 0-delta except build_judge_lm",
+        "A-LIVE the conv-UI-driven mixed-council demo (cost-gated)"
+      ],
+      "scope_guardrails_not_in_scope": [
+        "the conversational tool surface (inherits the ASAFE-1 deny-hook if touched)",
+        "hosted/multi-tenant Claude (BYO/desktop only)",
+        "the jute-transform generator (a sibling follow-on reusing ClaudeCliLM)",
+        "FROZEN except build_judge_lm: _apply_consensus + JudgeSignature + judge_metric + seeds + existing BFF ops"
+      ],
+      "next_action": "READY -- /devloop-kickoff bench-salvage BYOC-1. See the driver for D-A..D-F."
     }
   ],
   "seams": [
