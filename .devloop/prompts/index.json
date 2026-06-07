@@ -338,7 +338,7 @@
       "phase": "UX-1",
       "scope": "shell-chat-markdown-rendering-plus-cadence-plus-clean-default-chat-demo-opt-in-S-BS-89",
       "file": "bench-salvage_phaseUX-1_chat-markdown-ux_driver.md",
-      "status": "ready",
+      "status": "closed-NON-BLOCKING (c58d7f2..f8bed47; CLEAN; monitor 7-item audit CLEAN re-verified [11 files, BFF/journey/bff.js/genui 0-touch, ONB-0 history contract intact :107, foreign files never swept, 61/61 re-run green, vite build clean] + inline critique NON-BLOCKING [0 BLOCKING / 2 NB / 0 OQ] + independent :5180 re-smoke [A2 clean empty-state + A3 dead-buttons-gone + A4 journey-unchanged CONFIRMED live light; dark executor-verified]). Shell-only across 5 atomic pathspec commits: cb6a9dd markdown (react-markdown@9 + remark-gfm@4; Markdown.jsx NO rehype-raw = HTML inert; hardened links) + b6dff1e cadence (near-bottom autoscroll + jump pill, composer auto-grow cap 200px, dead attach/layers removed) + b7eee95 clean-default (empty-state + suggestions fill composer, preamble behind 'Show example', neutral You/Lithrim, New-eval remount-by-key) + 16ebf0f tests (Markdown.test.jsx NON-VACUOUS sanitization + UX-1 suite; 52->61 green) + f8bed47 bookkeeping. S-BS-89 CLOSED; opened S-BS-93 (low -- persistent fake chrome left by R1 design). No proof capsule (UX-polish, not a capability A-LIVE).",
       "version": "v1",
       "hardness": "NOT a HARD-GATE (shell-only; no spec/API contract, no paid path, no core invariant). Inline critique at close. BUT the :5180 visual smoke (A7) is LOAD-BEARING -- the shell has shipped visible defects past vite build + Vitest (WS-5c).",
       "target_repos": ["lithrim-bench"],
@@ -354,7 +354,7 @@
       "created": "2026-06-07",
       "last_re_verified": "2026-06-07 (monitor authored from a live code-scan; ALL citations re-grepped against HEAD: panes.jsx render:269/277 raw <p> + no md lib in package.json [CONFIRMED -- markdown gap], scripted preamble:173-259, New-eval no-onClick:29, composer dead buttons:316-317, .convo overflow-y:auto:295, chatStream:122 contract, root.jsx mode='journey':13/19; services live :5180/:8787/:8002/:3031 = the A7 smoke is available at close)",
       "expanded": "2026-06-07 (driver authored directly from the live surface scan -- no prior stub; the one product fork [scripted-preamble default] was resolved with the user = 'Clean chat, demo opt-in' before authoring. Six plan-review decisions D-A..D-F remain for the executor [D-A markdown lib+sanitization is load-bearing]. A TASK_PACK_bench-salvage.json UX-1 entry should be backfilled per the established UAP pattern [memory devloop-task-pack-stale-uap-from-spec].)",
-      "next_action": "READY -- /devloop-kickoff bench-salvage UX-1. Plan-review resolves D-A (markdown lib + no-rehype-raw sanitization) .. D-F (autoscroll behavior). Inline critique + the load-bearing :5180 visual smoke at close. First of the 3 user objectives (UX-1 -> then BYOC-1 [provider] -> then CRUD-from-clean [objective #2, guarded CRUD + admissibility gates])."
+      "next_action": "CLOSED CLEAN 2026-06-07. First of the 3 user objectives shipped. NEXT = BYOC-1 (/devloop-kickoff bench-salvage BYOC-1; Claude as a native provider, HARD-GATE) -> then CRUD-from-clean (monitor authors CRUD-1/FLAG-1; guarded CRUD + admissibility gates). Session session-bench-salvage-phaseUX-1-2026-06-07.json; critique critique-bench-salvage-phaseUX-1-2026-06-07.md."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
