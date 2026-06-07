@@ -18,6 +18,8 @@ import pytest
 from lithrim_bench.harness.ontology import load_ontology
 from lithrim_bench.runtime.council.withstands import apply_withstands_gate
 
+from ._seam_freeze import assert_judges_dspy_consensus_seam_frozen
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 
@@ -52,10 +54,13 @@ def _clean_case() -> dict:
 
 def test_frozen_seam_zero_delta():
     """A4 — the D2 provenance work + the D3 entity surface add ZERO lines to the frozen
-    consensus seam + the per-judge seam + the metric + the committed seeds."""
+    consensus seam + the per-judge seam + the metric + the committed seeds.
+
+    BYOC-1: judges_dspy.py is no longer whole-file-pinned — ``build_judge_lm`` +
+    ``build_trio`` are the authorized provider-seam change (driver A6). Its CONSENSUS seam
+    is instead asserted byte-frozen by :func:`assert_judges_dspy_consensus_seam_frozen`."""
     frozen = [
         "lithrim_bench/runtime/council/compliance_council.py",
-        "lithrim_bench/runtime/council/judges_dspy.py",
         "lithrim_bench/runtime/council/judge_metric.py",
         "data/ontology/clinical_v1.json",
         "data/config/agents/ws0_default.json",
@@ -69,6 +74,7 @@ def test_frozen_seam_zero_delta():
         check=True,
     )
     assert out.stdout == "", f"frozen seam drifted:\n{out.stdout[:2000]}"
+    assert_judges_dspy_consensus_seam_frozen(REPO_ROOT)
 
 
 def test_gate_cannot_relabel_true_case():

@@ -32,6 +32,8 @@ from lithrim_bench.harness.ontology import load_ontology
 from lithrim_bench.runtime.council.signals import build_judge_signals
 from lithrim_bench.runtime.council.withstands import apply_withstands_gate
 
+from ._seam_freeze import assert_judges_dspy_consensus_seam_frozen
+
 _REPO = Path(__file__).resolve().parents[1]
 
 # the exhibit FP: a Tier-1 code OUTSIDE risk_judge's lens, sole-owned by policy_judge.
@@ -205,10 +207,14 @@ def test_withstands_decision_audited(tmp_path):
 
 def test_frozen_seam_zero_delta():
     """A3: the gate adds ZERO lines to the frozen consensus seam + the per-judge seam
-    + the metric + the committed seeds."""
+    + the metric + the committed seeds.
+
+    BYOC-1: judges_dspy.py is no longer whole-file-pinned — ``build_judge_lm`` +
+    ``build_trio`` are the authorized provider-seam change (driver A6). Its CONSENSUS seam
+    (the JudgeSignature, the per-judge seam dict, the finding normalizers, evaluate_dspy)
+    is instead asserted byte-frozen by :func:`assert_judges_dspy_consensus_seam_frozen`."""
     frozen = [
         "lithrim_bench/runtime/council/compliance_council.py",
-        "lithrim_bench/runtime/council/judges_dspy.py",
         "lithrim_bench/runtime/council/judge_metric.py",
         "data/ontology/clinical_v1.json",
         "data/config/agents/ws0_default.json",
@@ -222,6 +228,7 @@ def test_frozen_seam_zero_delta():
         check=True,
     )
     assert out.stdout == "", f"frozen seam drifted:\n{out.stdout[:2000]}"
+    assert_judges_dspy_consensus_seam_frozen(_REPO)
 
 
 # ─────────────────────────── full-pipeline exhibit (dspy/openai-gated) ──────────────
