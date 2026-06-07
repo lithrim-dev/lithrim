@@ -86,12 +86,15 @@ from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
     agent_from_dict,
     agent_to_dict,
+    delete_agent,
+    list_agents,
     load_agent,
     save_agent,
     seed_config_db,
 )
 from lithrim_bench.harness.judges import (  # noqa: E402
     JudgeConfig,
+    delete_judge,
     list_judges,
     load_judge,
     save_judge,
@@ -466,6 +469,63 @@ def put_agent_endpoint(
     return {"status": "ok", "name": ag.name, "actor": actor.model_dump()}
 
 
+# ── CRUD-1: GET /v1/agents (the rail switcher) + DELETE /v1/agent (guarded) ────
+
+
+@app.get("/v1/agents")
+def list_agents_endpoint(db_path: Path = Depends(get_config_db)) -> dict:
+    """List the config-plane agent names (CRUD-1: the shell rail switcher + the
+    blank-slate flow). Builds the DB from the committed seeds on first use (mirrors
+    _load_agent), so the seeded agents appear before any authoring."""
+    if not db_path.exists():
+        seed_config_db(db_path=db_path)
+    return {"agents": list_agents(db_path=db_path)}
+
+
+@app.delete("/v1/agent")
+def delete_agent_endpoint(
+    name: str = Query(..., description="The agent to delete"),
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Delete an agent eval-profile from the config plane (CRUD-1 D2), with an
+    actor-attributed immutable audit record (action="delete", R0). GUARDS (422):
+    refuse the seed default (``ws0_default`` — the blank-slate baseline) and refuse
+    deleting the LAST remaining agent (the config plane stays non-empty). 404 on an
+    unknown name. NEVER touches the committed seed JSON; runs/provenance (a separate
+    immutable store keyed by run_id) are untouched — a run that referenced a since-
+    deleted agent stays valid history."""
+    if not db_path.exists():
+        seed_config_db(db_path=db_path)
+    names = list_agents(db_path=db_path)
+    if name not in names:
+        raise HTTPException(status_code=404, detail=f"unknown agent {name!r}")
+    if name == DEFAULT_AGENT:
+        raise HTTPException(
+            status_code=422,
+            detail=f"refusing to delete the seed default agent {name!r} (the blank-slate baseline)",
+        )
+    if len(names) <= 1:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"refusing to delete the last remaining agent {name!r} "
+                "(the config plane must stay non-empty)"
+            ),
+        )
+    actor = _resolve_actor(x_actor, default_actor)
+    delete_agent(
+        name,
+        db_path=db_path,
+        actor=actor,
+        audit_log=AuditLog(db_path=db_path),
+        rationale=rationale,
+    )
+    return {"status": "deleted", "name": name, "actor": actor.model_dump()}
+
+
 # ── UAP-2 R2: GET/PUT /v1/judges — author a judge via ontology-assignment ──────
 
 
@@ -641,6 +701,34 @@ def put_judge_endpoint(
         "actor": actor.model_dump(),
         "assigned_flags": assigned,
     }
+
+
+@app.delete("/v1/judges/{role}")
+def delete_judge_endpoint(
+    role: str,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Delete a judge's authored config so the role REVERTS to its default lens
+    (CRUD-1 D2). The role is fixed by ``LENS_BY_ROLE`` and never disappears — this
+    removes only the authored ``JudgeConfig`` binding (reversible, no flag orphaned),
+    which is why judge-delete is the agent-exposable half of CRUD. Audited
+    (action="delete", R0). **404** on an unknown role; a known-but-already-default role
+    is an idempotent **200** (``removed=false``, no audit row — the trail is
+    change-only). NEVER writes the committed seed."""
+    if role not in LENS_BY_ROLE:
+        raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
+    actor = _resolve_actor(x_actor, default_actor)
+    removed = delete_judge(
+        role,
+        db_path=db_path,
+        actor=actor,
+        audit_log=AuditLog(db_path=db_path),
+        rationale=rationale,
+    )
+    return {"status": "reverted", "role": role, "removed": removed, "actor": actor.model_dump()}
 
 
 @app.post("/v1/judges/{role}/optimize")
