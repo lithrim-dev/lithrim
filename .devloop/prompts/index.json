@@ -357,6 +357,56 @@
       "next_action": "CLOSED CLEAN 2026-06-07. First of the 3 user objectives shipped. NEXT = BYOC-1 (/devloop-kickoff bench-salvage BYOC-1; Claude as a native provider, HARD-GATE) -> then CRUD-from-clean (monitor authors CRUD-1/FLAG-1; guarded CRUD + admissibility gates). Session session-bench-salvage-phaseUX-1-2026-06-07.json; critique critique-bench-salvage-phaseUX-1-2026-06-07.md."
     },
     {
+      "id": "bench-salvage-phaseCRUD-1-judge-agent-delete-blank-slate-driver",
+      "stream": "bench-salvage",
+      "phase": "CRUD-1",
+      "scope": "judge-agent-DELETE-plus-blank-slate-create-guarded-audited",
+      "file": "bench-salvage_phaseCRUD-1_judge-agent-delete-blank-slate_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (new DELETE routes = API-contract change + a config-plane delete primitive + a conversational delete tool = an A-SAFE surface). fresh-critic at close.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "lithrim_bench/harness/judges.py (JudgeConfig:50 / save_judge:75 / load_judge:119 / list_judges:131 -- NO delete; add delete_judge)",
+        "lithrim_bench/harness/config.py (save_agent:148 / load_agent:198 / _record:172 -- NO delete_agent/list_agents; add both)",
+        "lithrim_bench/harness/audit.py (AuditRecord.action open enum:83 -> action='delete'; AuditLog.record:111; upsert_with_audit:179 = the write+audit txn to mirror)",
+        "apps/bff/app.py (put_agent_endpoint:438 / put_judge_endpoint:608 / _validate_judge_assignment:508 / get_agent_endpoint:428 -- the audited-write pattern to mirror for DELETE)",
+        "apps/bff/agent/tools.py (_TOOL_SPECS:286 the frozen 8; PAID_KEYS:69) + apps/bff/agent/loop.py (_deny_non_lithrim:55 -- the new tool inherits the deny-hook + allowlist-bound/no-paid-knob tests S-BS-81/90)",
+        "apps/shell/src/{app.jsx sessionKey:75/onNewEval:124, panes.jsx New-eval:29, bff.js} -- the blank-slate create+switch (extends UX-1's remount)",
+        "lithrim_bench/harness/collections.py (insert:59/list_all:104 -- NO delete; runs immutable, KEEP)"
+      ],
+      "_note": "CRUD-1 = the judges+agents half of user objective #2 (local, NO taxonomy collision). DELETE for judges (remove JudgeConfig -> role reverts to its default LENS_BY_ROLE lens; inherently safe, no orphan -- the production trio is fixed) + agents (guards: refuse ws0_default + the last agent; audited) + blank-slate create (the shell New-eval creates+switches a fresh empty agent, not ws0_default) + a conversational delete_judge tool (revert-to-default; agent-delete stays HUMAN-ONLY, too destructive -- mirrors flag-create's human-act posture). Runs/provenance stay append-only (NO run-delete). AuditRecord.action='delete' (the §2B audit covers it). FROZEN: _apply_consensus + the per-judge seam + seeds (0-delta). User scope decision 2026-06-07 = guarded CRUD + admissibility gates. Pathspec-only (concurrent root.jsx uncommitted -- leave it).",
+      "created": "2026-06-07",
+      "last_re_verified": "2026-06-07 (monitor CRUD-surface scan: NO delete anywhere [grep @app.delete empty]; harness CRUD layer + the audited-write pattern + the audit action enum all confirmed first-hand)",
+      "expanded": "2026-06-07 (driver authored from the live CRUD-surface scan; 5 plan-review decisions D-A..D-E [D-A judge-delete semantics, D-B conv-delete scope are load-bearing]; backfill a TASK_PACK entry per the UAP pattern).",
+      "next_action": "READY -- /devloop-kickoff bench-salvage CRUD-1. Plan-review resolves D-A (judge-delete=revert-to-default) .. D-E (active-agent threading). HARD-GATE: fresh-critic at close. Runs FIRST of the CRUD pair; FLAG-1 reuses its audited-delete pattern."
+    },
+    {
+      "id": "bench-salvage-phaseFLAG-1-reference-flag-create-delete-driver",
+      "stream": "bench-salvage",
+      "phase": "FLAG-1",
+      "scope": "reference-flag-create-delete-local-honest-gradeable-gated-cross-repo",
+      "file": "bench-salvage_phaseFLAG-1_reference-flag-create-delete_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (touches the ontology + the CORE INVARIANT: labels-true-by-construction + the taxonomy-snapshot contract). fresh-critic at close.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "CLAUDE.md (Core invariant: labels are true by construction; Taxonomy snapshot is the contract -- NON-NEGOTIABLE)",
+        "lithrim_bench/harness/ontology.py (FlagDefinition:41-51 fields the create needs; is_reference:116; is_gradeable:111; gradeable_flags:107; from_dict:136; load_ontology:182)",
+        "apps/bff/app.py (_validate_ontology:709-729 the admissibility gate [gradeable-outside-snapshot 422]; put_ontology_endpoint:732 audited working-copy write; _author_flag:989 the edit-only 404 to extend)",
+        "apps/bff/agent/tools.py (AUTHOR_FLAG_SCHEMA:47 edit-only [omits category/definition/when_*]; author_flag_handler:189; PAID_KEYS:69)",
+        "scripts/seed_ontology.py (gradeable_flags_outside_snapshot ~:152 / load_snapshot_codes ~:139) + scripts/snapshot_taxonomy.py (--backend-path REQUIRED -- the ONLY source of gradeable codes)",
+        "scripts/lint_golden_against_taxonomy.py (D1 :59) + lithrim_bench/packager.py (package_case D1:144 + D3-owner:150) -- the by-construction lints delete must not break",
+        "lithrim_bench/runtime/council/judge_metric.py (LENS_BY_ROLE:110) + taxonomy/taxonomy_snapshot.json (tier1_owners/production_judges/declared_but_not_running -- why gradeable is cross-repo)"
+      ],
+      "_note": "FLAG-1 = the flags half of user objective #2. USER SCOPE DECISION 2026-06-07 = 'Reference local; gradeable cross-repo'. THE LAW: create/delete REFERENCE (gradeable=false) flags LOCALLY; NEVER create a gradeable (scoreable) flag from clean -- the snapshot's codes come ONLY from lithrim-backend (snapshot_taxonomy.py --backend-path); a locally-invented gradeable flag = manufacturing a label = violates the repo's reason-for-existing (deep-trace agent ae6ab7f44357c1113). D1 reference-create (gradeable=False/tier=None/owner_roles=[] HARDCODED, audited PUT) + D2 create_flag tool (definitional fields, NO gradeable knob) + D3 reference-only delete (guards: refuse in-snapshot/gradeable, judge-assigned, case-emitted; audited) + D4 the HONEST gradeable-create precondition gate (422 'needs a backend re-snapshot', never faked) + D5 tests (gradeable-from-clean REFUSED non-vacuous). FROZEN: taxonomy_snapshot.json byte-untouched, _apply_consensus + seeds 0-delta. Runs AFTER CRUD-1 (reuses its audited-delete). Pathspec-only.",
+      "created": "2026-06-07",
+      "last_re_verified": "2026-06-07 (FLAG-1 invariant deep-trace [agent ae6ab7f44357c1113] + monitor first-hand reads of _validate_ontology + _author_flag + FlagDefinition; the gradeable-create-is-cross-repo finding CONFIRMED across snapshot_taxonomy.py + _validate_ontology + package_case)",
+      "expanded": "2026-06-07 (driver authored from the invariant deep-trace; the gradeable-vs-reference fork RESOLVED with the user = 'Reference local; gradeable cross-repo' before authoring; 5 plan-review decisions D-A..D-E; backfill a TASK_PACK entry).",
+      "next_action": "READY (after CRUD-1) -- /devloop-kickoff bench-salvage FLAG-1. Plan-review resolves D-A (create surface) .. D-E (create/edit split). HARD-GATE: fresh-critic at close (focus: the taxonomy snapshot stays byte-untouched + gradeable-from-clean is refused non-vacuously)."
+    },
+    {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
       "stream": "bench-salvage",
       "phase": "WS-6c-DSPy-3b",
