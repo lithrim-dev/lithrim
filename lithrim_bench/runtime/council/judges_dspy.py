@@ -203,13 +203,34 @@ def _build_signature():
 
 
 def build_judge_lm(role: str, **overrides: Any):
-    """Construct a deterministic ``dspy.LM`` bound to ``role``'s Azure deployment.
+    """Construct the per-``role`` judge LM — provider-aware (BYOC-1).
 
-    Reads the salvaged ``settings`` (endpoint/key/version + the role's deployment
-    id), preserving the v2 deployment-id-substitution route. temperature=0 +
-    logprobs on for the calibrated-confidence path (decision #5 determinism); the
-    caller may override any litellm kwarg. ``dspy`` imported lazily.
+    Default: a deterministic Azure ``dspy.LM`` bound to ``role``'s deployment (the v2
+    deployment-id-substitution route; temperature=0 + logprobs on for the calibrated-
+    confidence path; the caller may override any litellm kwarg). BYOC-1: when the
+    per-judge ``model``/``provider`` override names BYO-Claude
+    (``byo-claude``/``claude-cli``/``claude``) OR the global
+    ``settings.LITHRIM_LLM_PROVIDER`` selects ``claude-cli``, return the tool-less
+    :class:`ClaudeCliLM` instead (the customer's own ``claude -p`` — no API key, no
+    logprobs → confidence ``None``). ``model``/``provider`` are BYOC-1 selectors, not
+    litellm kwargs, so they never reach the byte-unchanged Azure construction below.
+    ``dspy`` imported lazily.
     """
+    from .byo_claude_lm import BYO_CLAUDE_MODEL_VALUES
+
+    selector = str(overrides.get("model") or overrides.get("provider") or "").strip().lower()
+    global_provider = str(getattr(settings, "LITHRIM_LLM_PROVIDER", "") or "").strip().lower()
+    if selector in BYO_CLAUDE_MODEL_VALUES or global_provider in BYO_CLAUDE_MODEL_VALUES:
+        from .byo_claude_lm import build_claude_cli_lm
+
+        for _selector_key in ("model", "provider", "logprobs"):
+            overrides.pop(_selector_key, None)  # selectors / no-Anthropic-logprobs, not LM kwargs
+        return build_claude_cli_lm(**overrides)
+    # An Azure build carries no BYOC-1 selector kwarg; drop them so the frozen path below
+    # is byte-identical for every existing caller (a no-op when none was passed).
+    overrides.pop("model", None)
+    overrides.pop("provider", None)
+
     import dspy
 
     dep_attr = _ROLE_DEPLOYMENT.get(role, "AZURE_OPENAI_DEPLOYMENT_COUNCIL")
@@ -301,6 +322,7 @@ def build_trio(
     taxonomy_context: str | None = None,
     ontology: Any = None,
     assignments: dict[str, Sequence[str]] | None = None,
+    models: dict[str, str] | None = None,
 ) -> list[Judge]:
     """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
 
@@ -323,6 +345,12 @@ def build_trio(
     binds its own deterministic ``dspy.LM`` via :func:`build_judge_lm` (the role's
     Azure deployment, temperature=0, logprobs on). The returned list feeds
     :func:`evaluate_dspy` directly.
+
+    ``models`` (BYOC-1): an optional per-role provider selector (role → model string,
+    e.g. ``{"risk_judge": "byo-claude"}``) threaded into :func:`build_judge_lm` so a
+    MIXED-provider council (one role on the tool-less BYO-Claude LM, the rest on Azure)
+    is assemblable. ``None``/empty (the default) is byte-identical to before — each
+    judge binds ``build_judge_lm(role)`` with no override (A5 back-compat).
     """
     judges: list[Judge] = []
     for role in V2_ROLES:
@@ -341,10 +369,12 @@ def build_trio(
                 )
             )
         else:
+            role_model = (models or {}).get(role) or ""
+            lm = build_judge_lm(role, model=role_model) if role_model else build_judge_lm(role)
             judges.append(
                 Judge(
                     role,
-                    lm=build_judge_lm(role),
+                    lm=lm,
                     role_prompt=role_prompt,
                     taxonomy_context=taxonomy_context,
                 )
