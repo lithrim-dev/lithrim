@@ -59,6 +59,57 @@ export const putAgent = (agent, { actor, rationale = "" } = {}) =>
     headers: actor ? { "X-Actor": actor } : undefined,
   });
 
+/* ── CRUD-1: the config-plane agent switcher + the blank-slate create/delete ───── */
+
+/* GET /v1/agents — the config-plane agent names (the rail switcher). */
+export const listAgents = () => call("/v1/agents");
+
+/* PUT a blank-slate but RUNNABLE agent: authoring-blank (no judges/tools/kb) yet it
+   clones the seed default's committed ontology + Dataset so create → author a judge →
+   RUN → see it grade works immediately from clean (the Dataset is BOUND, not empty, so
+   run_eval can load a case). The judge-config store is global, so a fresh agent shares
+   whatever lenses exist; "blank" here is the agent's roster + a clean chat. */
+export async function createAgent(name, { actor } = {}) {
+  const seed = await getAgent("ws0_default");
+  const ep = seed.eval_profile || {};
+  const agent = {
+    name,
+    eval_profile: {
+      judges: [],
+      council_config: ep.council_config || {},
+      ontology_ref: ep.ontology_ref || "",
+      ontology_path: ep.ontology_path || "",
+      tools: [],
+      kb_bindings: {},
+      severity_map_ref: ep.severity_map_ref || "",
+    },
+    dataset: seed.dataset,
+  };
+  return putAgent(agent, { actor, rationale: `blank-slate agent ${name} (CRUD-1 New evaluation)` });
+}
+
+/* DELETE /v1/agent?name= — remove an agent eval-profile (audited). The BFF refuses
+   (422) the seed default + the last remaining agent; 404 on unknown. Throws on a
+   guard/404 so the caller can surface it. */
+export const deleteAgent = (name, { actor, rationale = "" } = {}) => {
+  const q = new URLSearchParams({ name });
+  if (rationale) q.set("rationale", rationale);
+  return call(`/v1/agent?${q.toString()}`, {
+    method: "DELETE",
+    headers: actor ? { "X-Actor": actor } : undefined,
+  });
+};
+
+/* DELETE /v1/judges/{role} — revert a judge to its default lens (audited). 404 on an
+   unknown role; a known-but-already-default role is an idempotent 200 (removed=false). */
+export const deleteJudge = (role, { actor, rationale = "" } = {}) => {
+  const q = rationale ? `?rationale=${encodeURIComponent(rationale)}` : "";
+  return call(`/v1/judges/${encodeURIComponent(role)}${q}`, {
+    method: "DELETE",
+    headers: actor ? { "X-Actor": actor } : undefined,
+  });
+};
+
 /* GET /v1/audit — the config-change audit stream (§2B stream 1): who/when/what/why. */
 export const getAudit = ({ actor, target_type, target_id, since } = {}) => {
   const q = new URLSearchParams();

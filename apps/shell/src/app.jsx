@@ -69,9 +69,14 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [themeLocal, setThemeLocal] = useState("light");
   const theme = themeProp ?? themeLocal;
   const setTheme = setThemeProp ?? setThemeLocal;
-  const [active, setActive] = useState("t1");
+  // CRUD-1 (D4): the active config-plane agent + the rail's agent list (GET /v1/agents).
+  // The selected agent threads into the chat (CenterPane) + the run (doRun) — no more
+  // hardcoded ws0_default.
+  const [activeAgent, setActiveAgent] = useState("ws0_default");
+  const [agents, setAgents] = useState([]);
   // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
-  // (bumping its key clears chat + setup + showExample + input — no lifted state needed).
+  // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
+  // also create + switch to a fresh runnable blank agent.
   const [sessionKey, setSessionKey] = useState(0);
 
   // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
@@ -87,11 +92,63 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     setOpen(true);
     try {
       const { runEval } = await import("./bff.js");
-      setRunResult(await runEval({ live }));
+      setRunResult(await runEval({ live, agent: activeAgent }));
       setRunStatus("ready");
     } catch (err) {
       setRunError(String(err.message || err));
       setRunStatus("error");
+    }
+  };
+
+  // CRUD-1 (D4): load the config-plane agents for the rail switcher (GET /v1/agents).
+  const refreshAgents = async () => {
+    try {
+      const { listAgents } = await import("./bff.js");
+      const out = await listAgents();
+      setAgents(out.agents || []);
+      return out.agents || [];
+    } catch {
+      return [];
+    }
+  };
+  useEffect(() => { refreshAgents(); }, []);
+
+  // The blank-slate create: clear the chat IMMEDIATELY (UX-1's instant remount reset),
+  // then create a fresh RUNNABLE empty agent (eval-N) + switch to it when the BFF responds.
+  const onNewEval = async () => {
+    setSessionKey((k) => k + 1); // synchronous: clean chat now (offline-safe; survives create failure)
+    try {
+      const { createAgent } = await import("./bff.js");
+      const existing = await refreshAgents();
+      let n = 1;
+      while (existing.includes(`eval-${n}`)) n += 1;
+      const name = `eval-${n}`;
+      await createAgent(name);
+      setActiveAgent(name);
+      await refreshAgents();
+    } catch (err) {
+      console.error("New evaluation: create failed", err);
+    }
+  };
+
+  const onSwitchAgent = (name) => {
+    if (name === activeAgent) return;
+    setActiveAgent(name);
+    setSessionKey((k) => k + 1); // a switch starts a clean chat for that agent
+  };
+
+  const onDeleteAgent = async (name) => {
+    try {
+      const { deleteAgent } = await import("./bff.js");
+      await deleteAgent(name, { rationale: "deleted via the rail (CRUD-1)" });
+    } catch (err) {
+      console.error("Delete agent failed (guard or 404)", err); // a 422 guard surfaces here
+      return;
+    }
+    const left = await refreshAgents();
+    if (name === activeAgent) {
+      setActiveAgent(left[0] || "ws0_default");
+      setSessionKey((k) => k + 1);
     }
   };
 
@@ -120,10 +177,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
           onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode} />
         <div className="body">
-          <LeftRail width={leftW} active={active} setActive={setActive}
-            onNewEval={() => setSessionKey((k) => k + 1)} />
+          <LeftRail width={leftW} agents={agents} activeAgent={activeAgent}
+            onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
-          <CenterPane key={sessionKey} onOpenArtifact={openArtifact} artifactOpen={open}
+          <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />

@@ -6,7 +6,7 @@ import { ConfigCard } from "./cards.jsx";
 import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
-import { THREADS, STEPS } from "./data.jsx";
+import { STEPS } from "./data.jsx";
 
 // S-BS-19: the scripted host emits INPUT tool-parts; each widget's onResult threads
 // the collected config into local config-plane state (the §3 "the conversation writes
@@ -18,7 +18,11 @@ const SETUP_PARTS = [
 ];
 
 /* ============================ LEFT RAIL ============================ */
-export function LeftRail({ width, active, setActive, onNewEval }) {
+// CRUD-1 (D4): the rail lists the REAL config-plane agents (GET /v1/agents) — click to
+// switch, × to delete (audited). The seed default + the last agent hide their delete
+// affordance (the BFF's 422 guards, reflected in the UI). "New evaluation" (the +)
+// creates a fresh runnable blank agent and switches to it.
+export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDeleteAgent, onNewEval }) {
   return (
     <aside className="rail" style={{ width }}>
       <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
@@ -27,7 +31,7 @@ export function LeftRail({ width, active, setActive, onNewEval }) {
       <div className="rail-sec">
         <div className="rail-hd">
           <span className="lbl">Evaluations</span>
-          <button className="icon-btn" title="New evaluation" onClick={onNewEval}><Icon name="plus" size={16} /></button>
+          <button className="icon-btn" title="New evaluation" aria-label="New evaluation" onClick={onNewEval}><Icon name="plus" size={16} /></button>
         </div>
         <div className="tb-cmd" style={{ position: "static", transform: "none", width: "100%", height: 32 }}>
           <Icon name="search" size={14} /><span>Search</span><span className="kbd">⌘K</span>
@@ -35,16 +39,32 @@ export function LeftRail({ width, active, setActive, onNewEval }) {
       </div>
       <div className="rail-scroll">
         <div style={{ padding: "8px 12px 0" }}>
-          {THREADS.map((t) => (
-            <div key={t.id} className={"thread" + (active === t.id ? " active" : "")} onClick={() => setActive(t.id)}>
-              <span className="st" style={{ background: t.color }} />
-              <div className="tt">
-                <div className="ti">{t.title}</div>
-                <div className="ts">{t.sub}</div>
-              </div>
-              <div className="tm">{t.meta}</div>
+          {agents.length === 0 && (
+            <div className="ts" style={{ padding: "10px 6px", color: "var(--muted)" }}>
+              No evaluations yet — click + to start one.
             </div>
-          ))}
+          )}
+          {agents.map((name) => {
+            const seed = name === "ws0_default";
+            const canDelete = !seed && agents.length > 1;
+            return (
+              <div key={name} data-testid={`agent-row-${name}`}
+                className={"thread" + (activeAgent === name ? " active" : "")}
+                onClick={() => onSwitchAgent?.(name)}>
+                <span className="st" style={{ background: activeAgent === name ? "var(--accent)" : "var(--border)" }} />
+                <div className="tt">
+                  <div className="ti">{name}</div>
+                  <div className="ts">{seed ? "seed default" : "config-plane agent"}</div>
+                </div>
+                {canDelete && (
+                  <button className="icon-btn" title="Delete this evaluation" aria-label={`Delete ${name}`}
+                    onClick={(e) => { e.stopPropagation(); onDeleteAgent?.(name); }}>
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
         <div className="journey">
           <div className="rail-hd" style={{ padding: "12px 6px 12px" }}>
