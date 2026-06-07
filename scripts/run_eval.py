@@ -176,6 +176,7 @@ def run(
     out_dir: str | Path | None = None,
     ontology_path: str | Path | None = None,
     assignments: dict[str, Any] | None = None,
+    models: dict[str, str] | None = None,
     collections_db: str | Path | None = None,
 ) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record.
@@ -195,6 +196,15 @@ def run(
     in-process council (back-compat). Ignored on the replay path (no live council) and
     on the live ``:8002`` path (per-judge assignment-injection is WS-2-backend-gated,
     HARD-GATE-paused; S-BS-63 closes for in_process only this cycle).
+
+    ``models`` (BYOC-1): role → provider/model selector (e.g.
+    ``{"risk_judge": "byo-claude"}``), the persisted judge ``model`` binding. Threaded
+    into the authored in_process trio (``build_authored_semantic_stage`` →
+    ``build_trio(models=)``) so a role can run on the tool-less BYO-Claude LM while the
+    rest stay Azure — the model-composition council. A ``model`` selector alone (no flag
+    assignments) still builds the authored trio (the seed-base lens). ``None``/absent →
+    the default all-Azure council (back-compat). Like ``assignments``, ignored on
+    replay/live.
 
     ``collections_db`` (UAP-3 R6 / S-BS-52): the doc-shim DB run-provenance persists
     to. ``None`` → ``DEFAULT_COLLECTIONS_DB`` (back-compat). The BFF threads its
@@ -235,7 +245,7 @@ def run(
         # default-deps replay/live paths above never reach it. No assignments → the
         # default in-process council (back-compat).
         semantic_stage = None
-        if assignments:
+        if assignments or models:
             from lithrim_bench.runtime.council.authored_stage import (
                 build_authored_semantic_stage,
             )
@@ -243,10 +253,12 @@ def run(
             # UAP-3b: the authored trio grades THROUGH the pre-consensus withstands-gate
             # (apply_gate default True); the gate's per-judge decisions land in
             # ``withstands_sink`` so they can be audited + emit RLVR correction records
-            # after grade (below). No assignments => no authored stage => no gate.
+            # after grade (below). No assignments AND no models => no authored stage =>
+            # no gate. BYOC-1: ``models`` selects a per-role provider (the mixed council).
             semantic_stage = build_authored_semantic_stage(
                 ontology=ontology,
                 assignments=assignments,
+                models=models,
                 decisions_sink=withstands_sink,
             )
         result = grade_inprocess(

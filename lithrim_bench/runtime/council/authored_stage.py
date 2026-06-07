@@ -48,6 +48,7 @@ def build_authored_semantic_stage(
     apply_gate: bool = True,
     decisions_sink: list[Any] | None = None,
     http_client: Any | None = None,
+    models: dict[str, str] | None = None,
 ):
     """Return an async semantic stage that grades via the authored DSPy trio.
 
@@ -67,6 +68,11 @@ def build_authored_semantic_stage(
     offline determinism; omit it for the live v2 Azure trio (the paid in-process
     path).
 
+    ``models`` (BYOC-1) is forwarded to :func:`build_trio` as a per-role provider
+    selector (e.g. ``{"risk_judge": "byo-claude"}``) so one role runs on the tool-less
+    BYO-Claude LM while the rest stay Azure — the model-composition council. ``None``
+    (the default) is byte-identical to before.
+
     UAP-3b (THE MOAT): when ``apply_gate`` is True (default), the per-judge
     **withstands-gate** (:func:`apply_withstands_gate`) runs BETWEEN the trio results
     and the frozen ``_apply_consensus`` — it reconciles each judge's verdict against
@@ -83,7 +89,9 @@ def build_authored_semantic_stage(
     from .judges_dspy import build_trio
     from .withstands import apply_withstands_gate
 
-    trio = build_trio(ontology=ontology, assignments=assignments, predictors=predictors)
+    trio = build_trio(
+        ontology=ontology, assignments=assignments, predictors=predictors, models=models
+    )
     council = council or ComplianceCouncil()
 
     def _evaluator(payload: dict[str, Any]) -> dict[str, Any]:

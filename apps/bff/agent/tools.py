@@ -35,6 +35,9 @@ AUTHOR_JUDGE_SCHEMA: dict[str, Any] = {
     "role": str,
     "assigned_flags": list,
     "rationale": str,
+    # BYOC-1: the provider selector — "" (default Azure LM) | "byo-claude" (the tool-less
+    # BYO-Claude judge). Not a paid knob (an audited config write via put_judge).
+    "model": str,
 }
 GET_JUDGE_SCHEMA: dict[str, Any] = {"role": str}
 RUN_EVAL_SCHEMA: dict[str, Any] = {"agent": str}
@@ -115,8 +118,11 @@ async def author_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
     role = str(args.get("role") or "")
     assigned = list(args.get("assigned_flags") or [])
     rationale = str(args.get("rationale") or "authored via the conversational shell")
+    model = str(args.get("model") or "")  # BYOC-1 provider selector ("" | "byo-claude")
     try:
-        res = ctx.author_judge(role=role, assigned_flags=assigned, rationale=rationale)
+        res = ctx.author_judge(
+            role=role, assigned_flags=assigned, rationale=rationale, model=model
+        )
     except Exception as exc:  # HTTPException (422/404) or anything the op raises
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(
@@ -126,6 +132,7 @@ async def author_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
     ctx.emit(judge_part(role, ctx.default_agent))
     return _text(
         f"Authored judge {role!r} with assigned flags {res.get('assigned_flags', assigned)} "
+        f"on model {model or '(default Azure)'} "
         f"(actor {res.get('actor', {}).get('id', '?')}). The write is audited."
     )
 

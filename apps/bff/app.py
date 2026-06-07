@@ -288,11 +288,14 @@ def run_eval_endpoint(
     # S-BS-63: thread the persisted judge authoring through to the in-process grade so
     # an authored judge re-votes with its authored lens (the static→live close). Read
     # from the SAME config DB the BFF resolves agents from (tests override get_config_db).
+    judges_cfg = list_judges(db_path=db_path)
     assignments = {
-        role: jc.assigned_flags
-        for role, jc in list_judges(db_path=db_path).items()
-        if jc.assigned_flags
+        role: jc.assigned_flags for role, jc in judges_cfg.items() if jc.assigned_flags
     }
+    # BYOC-1: thread the persisted per-judge ``model`` binding so a judge authored on
+    # ``byo-claude`` runs on the tool-less BYO-Claude LM (the mixed-provider council);
+    # roles with no/empty model stay Azure (the default, byte-identical to before).
+    models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
     try:
         record = run_eval.run(
             agent,
@@ -301,6 +304,7 @@ def run_eval_endpoint(
             out_dir=out_dir,
             ontology_path=ontology_path,
             assignments=assignments or None,
+            models=models or None,
             collections_db=collections_db,
         )
     except SystemExit as exc:  # run_eval raises this when the case is missing
@@ -942,8 +946,13 @@ def _build_tool_context(
     """
     from agent import ToolContext  # lazy: keep [agent] off app import (no SDK pulled here)
 
-    def _author_judge(role: str, assigned_flags: list[str], rationale: str) -> dict:
-        body = {"assigned_flags": assigned_flags, "validator_refs": [], "model": ""}
+    def _author_judge(
+        role: str, assigned_flags: list[str], rationale: str, model: str = ""
+    ) -> dict:
+        # BYOC-1 (resolves NB-2): ``model`` is the provider selector — "" binds the
+        # default Azure LM, "byo-claude" binds the tool-less BYO-Claude judge. Persisted
+        # via the unchanged ``put_judge_endpoint`` (audited; not a paid run).
+        body = {"assigned_flags": assigned_flags, "validator_refs": [], "model": model or ""}
         return put_judge_endpoint(
             role,
             judge=body,
