@@ -26,7 +26,9 @@ cd apps/shell && npm run dev                        # http://localhost:5180
 
 In the shell (switch to **Shell** mode, top-center), press **Run eval** → the real
 `run_eval.run()` composite renders in the right artifact pane. **Run live** opts into one
-real, paid `:8002` council call (needs the services up + a valid `.live_env`).
+real, paid council run on the configured backend — `LITHRIM_COUNCIL_BACKEND` selects it:
+unset/`in_process` (the OSS default, BYO Azure/Claude key, no `:8002`) or `http` (a live
+`:8002` deployment). See [`docs/QUICKSTART.md`](../../docs/QUICKSTART.md).
 
 Override the BFF target with `VITE_BFF_URL` (e.g. an absolute Tauri/VPC URL); unset, the
 client uses a relative base through the vite proxy.

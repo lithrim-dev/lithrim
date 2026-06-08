@@ -60,6 +60,11 @@ lithrim-bench/
 
 ## Quick start
 
+> **Want to run the conversational eval _product_** (the 3-pane shell + the in-process
+> council + the grounding floor, BYO Azure/Claude key, no `lithrim-backend`/Mongo)?
+> See [`docs/QUICKSTART.md`](docs/QUICKSTART.md). The steps below are the _engine_
+> (Synthea → labeled cases).
+
 ```bash
 # 1. Point at the Synthea sample CSV cohort
 ln -s ~/Workspace/github.com/synthea_sample_data_csv_latest data/synthea_sample_data_csv_latest
