@@ -69,10 +69,11 @@ def test_create_flag_schema_has_no_gradeable_field():
 
 
 def test_flag_tools_are_the_tenth_and_eleventh_no_paid_knob():
-    """A-SAFE: the FLAG-1 tools complete the 11-tool set and NEITHER carries a paid knob
-    (the S-BS-81 guarantee generalized). delete_flag is exactly {flag_code, rationale}."""
+    """A-SAFE: the FLAG-1 tools complete the (pre-CHATBIND-2) 11-tool set and NEITHER carries a
+    paid knob (the S-BS-81 guarantee generalized). delete_flag is exactly {flag_code, rationale}.
+    The full surface is now 12 (CHATBIND-2 added focus_artifact); the sweep below covers it."""
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 11 and len(set(names)) == 11, names
+    assert len(names) == 12 and len(set(names)) == 12, names
     assert {"create_flag", "delete_flag"} <= set(names)
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:  # NON-VACUOUS: the new tools included
         assert [k for k in agent_tools.PAID_KEYS if k in schema] == [], (n, schema)

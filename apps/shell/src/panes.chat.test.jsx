@@ -151,6 +151,70 @@ describe("CenterPane — the R11 conversational loop", () => {
   });
 });
 
+// CHATBIND-2: the chat drives the 3rd pane — a tool-open_artifact part is a DIRECTIVE (open +
+// focus a tab), NOT a card; a run_result event lifts the chat's $0 run into the shell's shared
+// runResult. The end-to-end (the focused tab renders THIS run) is app.chat.test.jsx (A4).
+describe("CenterPane — CHATBIND-2: the chat drives the artifact pane", () => {
+  it("A2 (non-vacuous): a tool-open_artifact part drives onOpenArtifact + a tiny affordance, never a card", async () => {
+    const onOpenArtifact = vi.fn();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "assistant_delta", text: "Showing you the judge council." });
+      onEvent({ event: "tool_result", part: { type: "tool-open_artifact", state: "output-available", output: { tab: "judges" } } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane onOpenArtifact={onOpenArtifact} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "show me the judge council" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the directive OPENED + FOCUSED the judges tab — FAILS if ignored
+    await waitFor(() => expect(onOpenArtifact).toHaveBeenCalledWith("judges"));
+    // it rendered a tiny NON-CARD affordance, NOT a gen-UI card and NOT the fallback (FAILS if
+    // rendered inline via renderTool)
+    expect(await screen.findByTestId("pane-directive")).toHaveTextContent(/Opened the Judge council panel/);
+    expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+
+  it("the shell guards an off-contract tab — a bogus directive does NOT open the pane", async () => {
+    // defense-in-depth: the BFF tool already rejects an unknown tab, so a malformed/forged
+    // frame can never reach openArtifact (which would setTab to an unknown -> titles[tab] crash).
+    const onOpenArtifact = vi.fn();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-open_artifact", state: "output-available", output: { tab: "bogus" } } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane onOpenArtifact={onOpenArtifact} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "open bogus" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    await screen.findByTestId("pane-directive"); // the turn settled
+    expect(onOpenArtifact).not.toHaveBeenCalled(); // the guard held
+  });
+
+  it("D4: a run_result event lifts the chat's $0 run via onRunResult", async () => {
+    const onRunResult = vi.fn();
+    const record = { composite: { verdict: "reject" }, council: { votes: [{ vote: "reject" }] }, case_id: "c1" };
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "run_result", result: record });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane onOpenArtifact={vi.fn()} onRunResult={onRunResult} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "run a replay" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the lift threads the EXACT record up to the shell (byte-same to the manual Run-eval result)
+    await waitFor(() => expect(onRunResult).toHaveBeenCalledWith(record));
+  });
+});
+
 // UX-1 (S-BS-89): the chat surface defaults CLEAN — empty-state instead of the scripted
 // 8-message preamble; the showcase is opt-in; "New evaluation" resets to a clean slate;
 // live turns carry a neutral identity; cadence (auto-grow + autoscroll) is wired.

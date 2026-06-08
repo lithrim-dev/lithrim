@@ -71,6 +71,21 @@ describe("ConfigTab — ontology config from GET /v1/ontology (A1)", () => {
     expect(screen.getByText("reference")).toBeInTheDocument(); // the non-gradeable flag
     expect(screen.getByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument(); // contract
   });
+
+  it("CHATBIND-2: fetches the ACTIVE agent's ontology (the agent thread), not ws0_default", async () => {
+    // The approved deviation: ArtifactPane threads `agent` (= activeAgent) to ConfigTab so the
+    // chat-driven "show its config" loads the SELECTED case's ontology. NON-VACUOUS — pre-thread
+    // ConfigTab self-fetched the hardcoded ws0_default, and this getOntology arg assertion fails.
+    getOntology.mockResolvedValue({
+      domain: "radiology",
+      ontology_version: "radiology/1",
+      severity_map: { block_at_or_above: 1.0, warn_above: 0, weights: {} },
+      flags: [],
+    });
+    render(<ArtifactPane {...paneProps} tab="config" agent="imported_case_42" runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText(/radiology · radiology\/1/);
+    expect(getOntology).toHaveBeenCalledWith("imported_case_42");
+  });
 });
 
 describe("CorpusTab — GET /v1/corpus (A2)", () => {
