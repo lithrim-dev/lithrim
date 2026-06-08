@@ -1,0 +1,118 @@
+{
+  "session_id": "session-bench-salvage-LAUNCH-PREP-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "LAUNCH-PREP",
+  "driver_bundle_id": "bench-salvage-phaseLAUNCH-PREP-v1-standalone-and-release-prep-driver",
+  "started_at": "2026-06-09T05:00:00+05:30",
+  "ended_at": "2026-06-09T05:40:00+05:30",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T04:55:00+05:30",
+    "user_approved_at": "2026-06-09T05:00:00+05:30",
+    "monitor_go_conditions": [
+      "MUST (A-SAFE): the chat's _run_eval_replay calls run_eval_endpoint directly, so the replay path flows through _resolve_run_backend; the hermetic test MUST assert live=False,in_process=False -> (False,False) replay REGARDLESS of LITHRIM_COUNCIL_BACKEND (env read gated inside `if req.live`). FOLDED: test_replay_stays_replay loops http+in_process+unset.",
+      "SHOULD #1 (honest-scope): the eval-pack live endpoint (app.py:424) still routes to :8002 (build_pack has no in_process param); document the limitation in QUICKSTART/RELEASE so 'no lithrim-backend' does not overclaim. PARTIAL at executor close -> monitor added the S-BS-109 triage row.",
+      "SHOULD #2 (honest-Δ): the standalone A-LIVE proves 'a real grounded verdict backend-stopped', NOT 'verdict == :8002'; in_process is >=-strict (WS-6c-AGENTIC). Recorded in RELEASE pre-push + the A-LIVE hint."
+    ],
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D1 achieved purely in the BFF (_resolve_run_backend at run_eval_endpoint); the shell's 'Run live' button needs NO logic change, only a tooltip-copy + a bff.js comment update.",
+        "evidence": "git show 84c3c82 -- apps/shell/src/{app.jsx,bff.js}: 2-line tooltip + comment only; the button already posts live=true and the BFF resolves the backend.",
+        "decided_at": "2026-06-09T05:00:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "One new test file tests/test_launch_standalone.py (hermetic resolver unit tests, no paid call) — within the driver's test plan, not new scope.",
+        "evidence": "5 passed on …/3.10.15/envs/debuglithrim/bin/python.",
+        "decided_at": "2026-06-09T05:00:00+05:30"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "PYENV_VERSION=debuglithrim python resolved to pyenv 3.12.8 in the executor shell (no openai/dspy -> council tests spuriously skipped). The real interpreter is ~/.pyenv/versions/3.10.15/envs/debuglithrim/bin/python; the green bar was run via that explicit path. Kickoff guidance should cite the full path.",
+        "evidence": "executor return note; monitor independently used the explicit path for the 5-test re-run. Memory council-runtime-test-env updated.",
+        "decided_at": "2026-06-09T05:35:00+05:30"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "84c3c82344d7011e2fae7084d2d2b65451028167",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): standalone in_process council backend (no :8002/Mongo dependency) + the shell route",
+      "summary": "_resolve_run_backend(req)->(live_http,in_process) reads LITHRIM_COUNCIL_BACKEND (default in_process), gated inside `if req.live` (env never lifts replay); run_eval_endpoint swaps live=req.live,in_process=req.in_process for the resolved pair. Shell tooltip + bff.js comment go backend-agnostic. Hermetic resolver test (5 passed). loop.py deny-hook/allowlist byte-identical."
+    },
+    {
+      "hash": "4dbc417",
+      "repo": "lithrim-bench",
+      "title": "docs(launch): product QUICKSTART + RELEASE v1 checklist",
+      "summary": "docs/QUICKSTART.md (clean-clone product walkthrough, BYO Azure/Claude key, $0 replay default, standalone framing) + docs/RELEASE_v1.md (OSS-core scope, airgapped/no-us-hosted framing, owner-executed push checklist, draft notes); README + apps/bff/README pointers."
+    },
+    {
+      "hash": "ec526f4",
+      "repo": "lithrim-bench",
+      "title": "chore(launch): green-bar + the seam-triage table",
+      "summary": "RELEASE_v1.md seam-triage table (S-BS-98/101/102/104/105/106/107/108 -> all post-v1, no HARD launch-blocker) + the S-BS-96/cred-gated green-bar note."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — _resolve_run_backend routes correctly (env unset -> live=in_process; =http -> live=:8002; in_process=true -> always in_process; replay stays replay), no paid call",
+      "verdict": "PASS",
+      "evidence": "tests/test_launch_standalone.py 5 passed on …/3.10.15/envs/debuglithrim/bin/python (monitor re-ran). Asserts the resolver tuple, not a live grade."
+    },
+    {
+      "criterion": "A2 — the QUICKSTART install/replay path works from a clean clone (executor self-followed; no autostart, no paid run)",
+      "verdict": "PASS",
+      "evidence": "executor followed docs/QUICKSTART.md install + $0 replay; the paid live run is gated to the A-LIVE user-run."
+    },
+    {
+      "criterion": "A3 — green bar; S-BS-96 pre-existing (touches no diff file); cred-gated council tests documented as BYO-key",
+      "verdict": "PASS",
+      "evidence": "522 passed / 2 failed / 3 skipped (real 3.10.15/debuglithrim). The 2 = S-BS-96 order-non-deterministic observation-isolation (pass 13/13 standalone; the diff touches no runtime/observation/ file — monitor structurally confirmed). The 3 = cred-gated. ruff clean."
+    },
+    {
+      "criterion": "A4 — A-SAFE: deny-hook/allowlist byte-identical; D1 lives only at the human's run path",
+      "verdict": "PASS",
+      "evidence": "git diff 84c3c82~1 ec526f4 -- apps/bff/agent/loop.py is EMPTY. app.py change = resolver fn + 3-line endpoint wiring only. test_replay_stays_replay pins live=False,in_process=False -> (False,False) under both env values + unset."
+    },
+    {
+      "criterion": "A-LIVE — on :5180 with lithrim-backend STOPPED + LITHRIM_COUNCIL_BACKEND unset, 'Run live' -> an in_process council run completes (BYO key) with a real verdict + audit record",
+      "verdict": "SKIP (OWED user-run)",
+      "evidence": "The executor did not autostart or fire a paid run (standing prefs). This is the load-bearing live proof of standalone v1 + the RELEASE pre-push gate. Honest-Δ: acceptance = a real grounded verdict backend-stopped + a persisted blob, NOT verdict==:8002 (in_process is >=-strict)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "resolver": "_resolve_run_backend(req)->(live_http,in_process); env LITHRIM_COUNCIL_BACKEND default in_process; gated inside `if req.live` (env cannot lift replay)",
+    "suite": "522 passed / 2 failed (S-BS-96, pre-existing) / 3 skipped (cred-gated) on real 3.10.15/debuglithrim",
+    "new_test_file": "tests/test_launch_standalone.py (5 passed; monitor re-ran)",
+    "loop_py_diff": "EMPTY across the 3-commit range (A-SAFE byte-identical)",
+    "files_changed": "8 (app.py, app.jsx, bff.js, test_launch_standalone.py, QUICKSTART.md, RELEASE_v1.md, README.md, apps/bff/README.md)",
+    "commits": "3 functional (84c3c82, 4dbc417, ec526f4) + session log 9b6d3c1; pathspec-only; concurrent 0793a8c (CHATBIND-2 capsule) interleaved above (no conflict)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-109",
+      "title": "The eval-pack live endpoint (/v1/eval-pack/run, live=true) still routes to :8002 — build_pack has no in_process param",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/evalpack.build_pack (add an in_process path) + apps/bff/app.py eval-pack endpoint resolver",
+      "impact": "Single-agent 'Run live' is standalone; batched/eval-pack live is not. NOT shell-exposed (no live-pack button; the chat's pack op is replay-only) and the offline lithrim-bench-pack gate is $0/standalone — practical exposure is a direct CLI/SDK POST. A standalone batched live run needs LITHRIM_COUNCIL_BACKEND=http until the batched in_process follow-on lands.",
+      "confidence": "CONFIRMED",
+      "evidence": "apps/bff/app.py eval-pack endpoint passes live=req.live to evalpack.build_pack; the endpoint docstring already calls a batched in_process path 'a follow-on'. Triaged in docs/RELEASE_v1.md."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "LAUNCH-PREP made the OSS core self-contained in 3 pathspec-only commits (84c3c82 bff+shell+test, 4dbc417 QUICKSTART/RELEASE, ec526f4 seam-triage). A human's paid 'Run live' now defaults to the bundled in-process v2 council via _resolve_run_backend + LITHRIM_COUNCIL_BACKEND (default in_process) — NO :8002/lithrim-backend, NO Mongo; http is the opt-in. Monitor independently re-verified the load-bearing claims: in_process self-containment CONFIRMED (greps empty), A-SAFE byte-identity CONFIRMED (loop.py diff EMPTY; the resolver gates the env read inside `if req.live`, and test_replay_stays_replay pins live=False,in_process=False -> replay under both env values + unset — the plan-review A-SAFE MUST, folded), and the resolver matches the approved design. The new hermetic test passes 5/5 on the real 3.10.15/debuglithrim interpreter; full suite 522/2(S-BS-96, pre-existing)/3(cred-gated). QUICKSTART + RELEASE + the 8-seam triage shipped (no HARD launch-blocker). CAVEATS: the standalone A-LIVE is an owed user-run (the load-bearing live proof + the RELEASE pre-push gate); S-BS-109 (low — the eval-pack live path still needs :8002, SHOULD-#1 residual, now triaged); push/PR/tag PREPARED but owner-gated. CITATION-DRIFT logged (PYENV_VERSION=debuglithrim -> 3.12.8; use the explicit interpreter path).",
+
+  "next_session_hint": "USER runs the standalone A-LIVE: services down -> start the BFF (uvicorn app:app --app-dir apps/bff --port 8787) + shell (npm run dev :5180) WITHOUT lithrim-backend/:8002, LITHRIM_COUNCIL_BACKEND unset, BYO key set; open :5180 Shell mode -> 'Run live' on ws0_default -> confirm a real verdict renders + an audit blob persists (GET /v1/runs/{id}/audit), no :8002 call. On PASS: a proof capsule (PROOF doc + zyng video; honest-Δ) + the owner-gated push (RELEASE_v1.md checklist). If FAIL: reopen (likely env/key, not the resolver — routing is proven). Do NOT autostart; the user authorizes the paid run."
+}
