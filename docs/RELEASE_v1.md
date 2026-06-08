@@ -93,4 +93,21 @@ the provider-picker / Claude-council UI (S-BS-105) · the plugin refactor
 
 ## Seam triage (launch-blocking?)
 
-_(Filled in the green-bar commit — see below.)_
+The open seams as of this release, each triaged against v1. **No HARD launch-blocker.**
+
+| Seam | Sev | Summary | Launch verdict |
+|---|---|---|---|
+| S-BS-98 | med | The judge-config store is GLOBAL (per-role), not per-agent → a blank agent shares globally-authored judge lenses ("clean state" is roster/Dataset/chat-clean, not judge-clean). | **post-v1** — the current global posture is the BYOC-1/UAP design; honestly disclosed. A per-agent store is a config-schema refactor, not a v1 gate. |
+| S-BS-101 | low | A single-judge roster degenerates at the frozen consensus floor (`min_valid=2` → needs_review). | **post-v1** — 2/3-judge rungs ship; 1-judge is a deliberate consensus-policy decision, not a bug. |
+| S-BS-102 | low | `pack_gate` silently skips orphan/missing outcome rows. | **post-v1** — benign for engine-built packs (one paired outcome per case); defense-in-depth assert is a follow-on. |
+| S-BS-104 | low | The live council over-fires on imported cases + the imported scribe artifact is free-text-not-JSON. | **post-v1** — imported cases are second-class (no recipe/JSON artifact); verdict-match holds, finding-set is noisy. Import-fidelity note. |
+| S-BS-105 | med | The shell UI cannot drive the `in_process` model-mix judge-set ladder (the composition contrast is CLI/SDK-only). | **post-v1** — the provider-picker UI is an explicit v1 CUT. **D1 partly addresses it**: "Run live" now drives the in-process council by default; the judge-set *picker* stays post-v1. |
+| S-BS-106 | low | `review_runs` has a 200-row global-window ceiling before the per-agent Python filter. | **post-v1** — acceptable for the single-tenant/demo posture; the SQL-level agent-filter is a frozen-op change. |
+| S-BS-107 | low | Pre-existing `ruff format` drift in two edited test files (regions this work did not touch). | **post-v1** — left as-is (no drive-by reformat); a `ruff format` sweep cleans it in its own commit. |
+| S-BS-108 | low | `ConfigTab` may render the error state (vs an empty config) for a brand-new blank agent. | **post-v1** — cosmetic; the error branch already prevents a crash. |
+
+> Also noted (not in the launch-triage list): **S-BS-96** — the observation-isolation test
+> debt is **order-non-deterministic** (the two `test_observation_pipeline.py` isolation
+> tests pass standalone, fail when run after the full suite). Pre-existing; not a
+> regression. The credential-gated council/optimizer live tests skip without a BYO key
+> (documented, not a failure).
