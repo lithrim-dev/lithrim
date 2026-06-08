@@ -70,6 +70,19 @@ ASSEMBLE_AGENT_SCHEMA: dict[str, Any] = {
 # which is why judge-delete is agent-exposable. Agent-DELETE is NOT a tool (human-only,
 # too destructive — mirrors flag-create's human-act posture).
 DELETE_JUDGE_SCHEMA: dict[str, Any] = {"role": str, "rationale": str}
+# FLAG-1 (D2) — CREATE a NEW *reference* flag. The DEFINITIONAL fields only; there is NO
+# `gradeable` field AT ALL — the agent has no knob to make a flag scoreable, and the bound
+# _create_flag hardcodes gradeable=False/tier=None/owner_roles=[]. A gradeable flag is a
+# lithrim-backend re-snapshot (labels are true by construction); it cannot be created from
+# clean. The A-SAFE test asserts "gradeable" not in this schema (non-vacuous).
+CREATE_FLAG_SCHEMA: dict[str, Any] = {
+    "flag_code": str,
+    "category": str,
+    "definition": str,
+    "when_to_use": str,
+    "when_NOT_to_use": str,
+    "rationale": str,
+}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -97,6 +110,9 @@ class ToolContext:
     - ``delete_judge(role, rationale) -> dict``  (CRUD-1 D3: REVERT a judge to its default
       lens — remove its authored config; audited; reversible. Raises on an unknown role —
       the handler surfaces it. It CANNOT delete an agent or fire a paid run.)
+    - ``create_flag(flag_code, category, definition, when_to_use, when_NOT_to_use, rationale)
+      -> dict``  (FLAG-1 D1: CREATE a new REFERENCE flag — gradeable=False/tier=None/
+      owner_roles=[] hardcoded; raises 409 if it exists. It CANNOT create a gradeable flag.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -109,6 +125,7 @@ class ToolContext:
     run_eval_pack: Callable[..., dict]
     assemble_agent: Callable[..., dict]
     delete_judge: Callable[..., dict]
+    create_flag: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -318,6 +335,41 @@ async def delete_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
     )
 
 
+async def create_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # FLAG-1 (audited WRITE): CREATE a NEW reference flag. gradeable=False BY CONSTRUCTION —
+    # this schema has NO gradeable field and the bound _create_flag hardcodes gradeable=False/
+    # tier=None/owner_roles=[]. The agent CANNOT create a scoreable flag; a gradeable flag is a
+    # lithrim-backend re-snapshot. 409 if the code already exists (edit it via author_flag).
+    flag_code = str(args.get("flag_code") or "")
+    category = str(args.get("category") or "")
+    definition = str(args.get("definition") or "")
+    when_to_use = str(args.get("when_to_use") or "")
+    when_not = str(args.get("when_NOT_to_use") or "")
+    rationale = str(args.get("rationale") or "created via the conversational shell")
+    try:
+        ctx.create_flag(
+            flag_code=flag_code,
+            category=category,
+            definition=definition,
+            when_to_use=when_to_use,
+            when_NOT_to_use=when_not,
+            rationale=rationale,
+        )
+    except Exception as exc:  # HTTPException (409 exists / 422 malformed) or anything the op raises
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not create flag {flag_code!r}: {detail}. Nothing was persisted. Create a NEW "
+            f"reference flag (non-gradeable by construction); to re-grade a flag you need a backend "
+            f"re-snapshot, and to edit an existing flag use author_flag."
+        )
+    ctx.emit(flag_part(ctx.default_agent))
+    return _text(
+        f"Created reference flag {flag_code!r} (gradeable=False, tier=None, owner_roles=[]) for "
+        f"agent {ctx.default_agent!r}. It is grounding-skip-logged, never scored. The ontology "
+        f"working copy is audited."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -390,6 +442,15 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "CANNOT delete an agent (human-only) or fire a paid run. An unknown role is rejected "
         "— surface the error, do not retry blindly.",
         DELETE_JUDGE_SCHEMA,
+    ),
+    (
+        create_flag_handler,
+        "create_flag",
+        "CREATE a NEW reference (non-gradeable) flag in the agent's ontology (an audited config "
+        "write). Reference flags are grounding-skip-logged, never scored. It CANNOT create a "
+        "gradeable/scoreable flag — that requires a lithrim-backend re-snapshot. 409 if the code "
+        "already exists (edit it via author_flag) — surface the error, do not retry blindly.",
+        CREATE_FLAG_SCHEMA,
     ),
 ]
 

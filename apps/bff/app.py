@@ -1230,6 +1230,7 @@ def _build_tool_context(
         run_eval_pack=_run_eval_pack,
         assemble_agent=_assemble_agent,
         delete_judge=_delete_judge,
+        create_flag=_create_flag,
         default_agent=req_agent,
     )
 
