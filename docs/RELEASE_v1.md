@@ -105,6 +105,7 @@ The open seams as of this release, each triaged against v1. **No HARD launch-blo
 | S-BS-106 | low | `review_runs` has a 200-row global-window ceiling before the per-agent Python filter. | **post-v1** — acceptable for the single-tenant/demo posture; the SQL-level agent-filter is a frozen-op change. |
 | S-BS-107 | low | Pre-existing `ruff format` drift in two edited test files (regions this work did not touch). | **post-v1** — left as-is (no drive-by reformat); a `ruff format` sweep cleans it in its own commit. |
 | S-BS-108 | low | `ConfigTab` may render the error state (vs an empty config) for a brand-new blank agent. | **post-v1** — cosmetic; the error branch already prevents a crash. |
+| S-BS-109 | low | The eval-pack **live** endpoint (`/v1/eval-pack/run`, `live=true`) still routes to `:8002` — `build_pack` has no in_process param (a code-acknowledged follow-on). Single-agent "Run live" is standalone; **batched** live is not. | **post-v1** — not shell-exposed (no live-pack button; the chat's pack op is replay-only), and the offline `lithrim-bench-pack` gate is `$0`/standalone. Until the batched in_process follow-on lands, a standalone **batched** live run needs `LITHRIM_COUNCIL_BACKEND=http`. The single-agent standalone claim is unaffected. |
 
 > Also noted (not in the launch-triage list): **S-BS-96** — the observation-isolation test
 > debt is **order-non-deterministic** (the two `test_observation_pipeline.py` isolation
