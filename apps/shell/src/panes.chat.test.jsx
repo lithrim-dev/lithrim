@@ -69,6 +69,24 @@ describe("CenterPane — the R11 conversational loop", () => {
     expect(await screen.findByText("REJECT")).toBeInTheDocument();
   });
 
+  it("CHATBIND-1: threads the ACTIVE (rail-selected) agent into chatStream, not ws0_default", async () => {
+    // The shell half of the active-agent binding (S-BS-103): CenterPane's `agent` prop comes
+    // from app.jsx's activeAgent; send() must POST it so the BFF loop scopes to the selected
+    // case. Regression guard — if the prop threading regresses to the ws0_default default,
+    // the chat would review the wrong case (the live dogfooding symptom).
+    render(<CenterPane agent="imported_X" onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "show + review this case" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
+    expect(chatStream).toHaveBeenCalledWith(
+      { message: "show + review this case", agent: "imported_X", history: [] },
+      expect.objectContaining({ onEvent: expect.any(Function) }),
+    );
+  });
+
   it("streams the journey tool-parts and renders them inline via the existing registry (no new cards)", async () => {
     // UAP-5c: re-script the loop to stream the NEW journey cards as tool_result parts.
     // The chat pane renders them through the SAME type-agnostic renderTool path as the
