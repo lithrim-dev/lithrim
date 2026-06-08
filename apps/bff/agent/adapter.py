@@ -27,6 +27,11 @@ UAP-5c-2 (the split tools — REUSE the same two cards, no new types [D-B]):
                                           round-trip to GET /v1/runs)
     assemble_agent -> tool-agent_editor (agent_part; the Domain-roster edit renders the same card
                                           as get_agent — it self-fetches the updated GET /v1/agent)
+
+CHATBIND-2 (the pane-control channel — a DIRECTIVE, not a card):
+    focus_artifact -> tool-open_artifact (open_artifact_part; the shell OPENS+FOCUSES the named
+                                          ArtifactPane tab. NOT a gen-UI card — it is absent from
+                                          KNOWN_TOOLS and is NEVER routed through renderTool.)
 """
 
 from __future__ import annotations
@@ -92,3 +97,11 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
             "agreement": f"{agree} / {n}" if n else "—",
         },
     )
+
+
+def open_artifact_part(tab: str) -> dict[str, Any]:
+    """CHATBIND-2: focus_artifact -> a pane-control DIRECTIVE (not a gen-UI card). The shell
+    honors it by OPENING + FOCUSING the named ArtifactPane tab; it is absent from KNOWN_TOOLS
+    and is NEVER routed through ``renderTool``. ``tab`` is one of report|judges|config|corpus
+    (the caller validates it). $0 — emitting a directive can never fire a paid run."""
+    return _part("open_artifact", {"tab": tab})

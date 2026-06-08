@@ -13,6 +13,10 @@ SSE event shapes (D-B, resolved at plan-review):
     {"event": "assistant_delta", "text": str}
     {"event": "tool_call",       "name": str, "input": dict}
     {"event": "tool_result",     "part": {type, state, output}}   # the gen-UI part
+    {"event": "run_result",      "result": {...}}                 # CHATBIND-2 (D4): the chat's
+        # $0 REPLAY record, lifted so the shell threads it into the shared runResult (the
+        # run-bearing Report/Judge tabs render it). BYTE-SAME to the manual Run-eval result;
+        # only run_eval (replay-only) emits it -> no paid run is ever lifted here.
     {"event": "error",           "detail": str}
     {"event": "done",            "cost_usd": float|None, "cost_label": str}
 """
@@ -49,6 +53,9 @@ _SYSTEM_PROMPT = (
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
     "trail of everything you authored -- $0.\n"
+    "  - focus_artifact: open + focus the artifact side-panel on a tab (report | judges | "
+    "config | corpus) to SHOW your work in the side panel -- $0, a UI directive (never a paid "
+    "run).\n"
     "You can NEVER fire a paid run; a live or in-process run -- single or batch -- is the "
     "human's explicit cost-confirmed action in the UI. If a tool returns an error (an "
     "off-lens assignment, an unknown or out-of-snapshot flag, an unknown judge role), "
@@ -72,7 +79,13 @@ def _system_prompt(active_agent: str) -> str:
         f"it BY DEFAULT: get_agent, run_eval, run_eval_pack, and review_runs target "
         f"`{active_agent}` unless the user EXPLICITLY names another agent. When the user says "
         f'"this case", "the current case", "this agent", or "the runs", they mean '
-        f"`{active_agent}`."
+        f"`{active_agent}`.\n\n"
+        "Drive the artifact side-panel as you work (CHATBIND-2): after you produce a verdict "
+        'or review runs, call focus_artifact("judges") for the council votes or '
+        'focus_artifact("report") for the composite; after you author or edit a judge or flag, '
+        'call focus_artifact("config"); when you discuss the correction corpus or flywheel, '
+        'call focus_artifact("corpus"). Pair the inline card with the pane focus so the human '
+        "SEES the result -- it is $0 and can never fire a paid run."
     )
 
 
@@ -212,6 +225,12 @@ async def run_chat(
             # Drain any gen-UI parts the tool handlers emitted on this turn.
             while ctx.parts:
                 yield {"event": "tool_result", "part": ctx.parts.pop(0)}
+            # CHATBIND-2 (D4): lift any $0 replay record run_eval stashed this turn into a
+            # run_result event -> the shell threads it into the shared runResult so the focused
+            # Report/Judge tab shows THIS run. Byte-same to the manual Run-eval result; only the
+            # replay-only run_eval emits it, so no paid run ever streams here.
+            while ctx.run_results:
+                yield {"event": "run_result", "result": ctx.run_results.pop(0)}
     except Exception as exc:  # surface a loop/transport failure to the pane, don't 500
         yield {"event": "error", "detail": str(exc)}
         return

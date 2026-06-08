@@ -27,7 +27,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from .adapter import agent_part, audit_part, flag_part, judge_part, verdict_part
+from .adapter import (
+    agent_part,
+    audit_part,
+    flag_part,
+    judge_part,
+    open_artifact_part,
+    verdict_part,
+)
 
 # Plain-dict input schemas (SDK-free; the A-SAFE test asserts the paid keys are
 # ABSENT from RUN_EVAL_SCHEMA — the agent literally cannot request a paid run).
@@ -88,6 +95,12 @@ CREATE_FLAG_SCHEMA: dict[str, Any] = {
 # judge-assigned, case-emitted) live in the ENDPOINT (delete_flag_endpoint), NOT here, so they hold
 # for EVERY caller; this tool reaches only an UNUSED reference flag.
 DELETE_FLAG_SCHEMA: dict[str, Any] = {"flag_code": str, "rationale": str}
+# CHATBIND-2 — the pane-control DIRECTIVE tool ($0, read-only). It emits a UI directive so the
+# conversation can OPEN + FOCUS the artifact pane; it wraps NO op and carries NO paid knob. The
+# schema is {tab} ONLY — `ref` was dropped (no consumer under the run_result lift; re-add with one
+# later, per the CHATBIND-1 drop-unreachable discipline). The 4 tabs are the contract.
+FOCUS_ARTIFACT_SCHEMA: dict[str, Any] = {"tab": str}
+_ARTIFACT_TABS = ("report", "judges", "config", "corpus")
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -137,9 +150,17 @@ class ToolContext:
     delete_flag: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
+    run_results: list[dict] = field(default_factory=list)
 
     def emit(self, part: dict) -> None:
         self.parts.append(part)
+
+    def emit_run(self, record: dict) -> None:
+        """CHATBIND-2 (D4): stash the chat's $0 REPLAY record so the loop LIFTS it into the
+        shell's shared ``runResult`` (the run-bearing Report/Judge tabs render it). The record
+        is byte-same to the manual Run-eval result; ONLY run_eval (replay-only) ever calls this,
+        so no paid path is ever lifted."""
+        self.run_results.append(record)
 
 
 def _text(summary: str) -> dict[str, Any]:
@@ -156,9 +177,7 @@ async def author_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
     rationale = str(args.get("rationale") or "authored via the conversational shell")
     model = str(args.get("model") or "")  # BYOC-1 provider selector ("" | "byo-claude")
     try:
-        res = ctx.author_judge(
-            role=role, assigned_flags=assigned, rationale=rationale, model=model
-        )
+        res = ctx.author_judge(role=role, assigned_flags=assigned, rationale=rationale, model=model)
     except Exception as exc:  # HTTPException (422/404) or anything the op raises
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(
@@ -198,6 +217,7 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(f"Replay run failed for {agent!r}: {detail}.")
     ctx.emit(verdict_part(record))
+    ctx.emit_run(record)  # CHATBIND-2 (D4): lift this $0 replay into the shell's runResult
     composite = record.get("composite") or {}
     return _text(
         f"Ran a $0 REPLAY eval for {agent!r}: verdict={composite.get('verdict', '—')}. "
@@ -402,6 +422,23 @@ async def delete_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     )
 
 
+async def focus_artifact_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # CHATBIND-2: emit a pane-control DIRECTIVE so the conversation can OPEN + FOCUS the artifact
+    # pane. $0/read-only — NO bound op, NO paid knob. An unknown tab (outside the 4-tab contract)
+    # is REJECTED and surfaced, never emitted; the directive never carries a run or fires one.
+    tab = str(args.get("tab") or "")
+    if tab not in _ARTIFACT_TABS:
+        return _error(
+            f"Cannot focus the artifact pane on {tab!r}: the tab must be one of "
+            f"{', '.join(_ARTIFACT_TABS)}. No pane directive was emitted."
+        )
+    ctx.emit(open_artifact_part(tab))
+    return _text(
+        f"Opened the artifact pane and focused the {tab!r} tab. The run-bearing tabs show the "
+        f"latest $0 replay; a paid run stays the human's cost-confirmed action."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -492,6 +529,16 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "gradeable/in-snapshot contract code, or one a judge assigns or a case emits, is refused "
         "(422) — surface the error, do not retry blindly.",
         DELETE_FLAG_SCHEMA,
+    ),
+    (
+        focus_artifact_handler,
+        "focus_artifact",
+        "Open + focus the artifact side-panel on a tab (report | judges | config | corpus) to "
+        "SHOW your work ($0, read-only — emits a UI directive, never a paid run). Pair it with "
+        "the relevant card: after a verdict/run-review focus judges or report; after a config/"
+        "judge/flag change focus config; for the corpus/flywheel focus corpus. An unknown tab is "
+        "rejected — surface it, do not retry blindly.",
+        FOCUS_ARTIFACT_SCHEMA,
     ),
 ]
 
