@@ -61,7 +61,10 @@ def _med_overfire_result() -> dict:
                 {
                     "violation_code": _MED_CODE,
                     "spans": [
-                        {"quote": "Continue zidovudine 300 MG Oral Tablet 300 MG daily", "turn_ids": []},
+                        {
+                            "quote": "Continue zidovudine 300 MG Oral Tablet 300 MG daily",
+                            "turn_ids": [],
+                        },
                         {
                             "quote": "Dr: I see you're on zidovudine 300 MG Oral Tablet. "
                             "Continue taking 300 MG daily.",
