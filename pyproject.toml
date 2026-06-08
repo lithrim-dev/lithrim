@@ -72,6 +72,10 @@ agent = [
     "claude-agent-sdk>=0.2.90,<0.3",
 ]
 
+[project.scripts]
+# DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).
+lithrim-bench-pack = "lithrim_bench.harness.pack_gate:main"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"

@@ -87,28 +87,59 @@ def build_pack(
     agents: list[Agent],
     *,
     live: bool = False,
+    in_process: bool = False,
+    models: dict[str, str] | None = None,
+    roles: list[str] | None = None,
+    assignments: dict[str, Any] | None = None,
     out_dir: str | Path | None = None,
     collections_db: str | Path | None = None,
+    pack_version: str = "1",
+    threshold: float = 96.0,
+    judge_set: dict[str, Any] | None = None,
+    expected_locked: bool = True,
 ) -> dict[str, Any]:
     """Run each agent through ``run_eval.run`` and freeze a thin eval-pack.
 
-    ``live`` is forwarded to ``run`` (default replay, $0). ``out_dir`` is where the
-    per-case persist artifacts land (pass a tmp dir in tests). ``collections_db`` is
-    forwarded so each run's provenance persists to the caller's run-history DB (UAP-3
-    R6 — the batch run ids show up in ``GET /v1/runs``). The returned pack is
-    JSON-round-trippable (no absolute paths, no raw baseline blob); each outcome
-    carries its ``pipeline_run_id`` (the batch → run-history link).
+    ``live`` is forwarded to ``run`` (default replay, $0). ``in_process`` (DOGFOOD-1 D3)
+    runs the in-process v2 council per case — a MULTI-CASE pack with no captured baseline
+    (PAID Azure unless every leg is BYO-Claude). ``models``/``roles``/``assignments`` (the
+    judge set) are forwarded to ``run`` so the whole pack grades under one judge set; the
+    SAME assignments across sets keep the model-mix contrast apples-to-apples (the gate
+    runs the authored trio + withstands-gate uniformly). ``out_dir`` is where the per-case
+    persist artifacts land (pass a tmp dir in tests). ``collections_db`` is forwarded so
+    each run's provenance persists to the caller's run-history DB (UAP-3 R6 — the batch run
+    ids show up in ``GET /v1/runs``).
+
+    The returned pack is JSON-round-trippable (no absolute paths, no raw baseline blob);
+    each outcome carries its ``pipeline_run_id`` (the batch → run-history link). The
+    manifest carries the LOCKED acceptance criteria the CI/CD gate reads:
+    ``pack_version``, ``threshold`` (min reliability %), ``judge_set`` (the resolved set
+    dict — provenance for which council graded), and ``expected_locked`` (the per-case
+    ``expected`` block is the frozen gold the gate compares against).
     """
     run = _run_core()
     cases: list[dict[str, Any]] = []
     outcomes: list[dict[str, Any]] = []
     for agent in agents:
-        record = run(agent, live=live, out_dir=out_dir, collections_db=collections_db)
+        record = run(
+            agent,
+            live=live,
+            in_process=in_process,
+            models=models,
+            roles=roles,
+            assignments=assignments,
+            out_dir=out_dir,
+            collections_db=collections_db,
+        )
         cases.append(_case_entry(record))
         outcomes.append(_outcome(record))
     return {
         "schema_version": EVALPACK_SCHEMA_VERSION,
         "pack_id": pack_id,
+        "pack_version": pack_version,
+        "threshold": threshold,
+        "judge_set": judge_set,
+        "expected_locked": expected_locked,
         "cases": cases,
         "outcomes": outcomes,
     }
