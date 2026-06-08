@@ -819,7 +819,12 @@ def _validate_ontology(ontology: dict) -> None:
     if offenders:
         raise HTTPException(
             status_code=422,
-            detail=f"gradeable flags outside taxonomy snapshot (re-snapshot, do not hand-edit): {offenders}",
+            detail=(
+                "a gradeable flag requires a lithrim-backend re-snapshot "
+                "(scripts/snapshot_taxonomy.py --backend-path …); it cannot be created from clean "
+                "locally — labels are true by construction. See docs/ONTOLOGY_FLAG_LIFECYCLE.md. "
+                f"Offending gradeable codes: {offenders}"
+            ),
         )
 
 
