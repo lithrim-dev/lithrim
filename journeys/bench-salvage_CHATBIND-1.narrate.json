@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "stream": "bench-salvage",
+    "phase": "CHATBIND-1",
+    "produced": "2026-06-09",
+    "tool": "mcp__zyng__compose_lesson",
+    "provider": "offline",
+    "name": "chatbind1_capsule_preview.mp4",
+    "out_dir": "out/zyng_narrate",
+    "total_s": 106.37,
+    "voiced": false,
+    "note": "Owner chose the $0 offline silent+captioned cut (no ElevenLabs this pass). Re-render voiced with provider='elevenlabs' (needs ELEVENLABS_API_KEY in zyng's server env) + voice='narrator', pronunciation pack 'lithrim'. The live-demo segment drives the real :5180 chat (BYO-Claude loop); the chat-driven binding was attested live (PROOF_bench-salvage_CHATBIND-1_2026-06-09.md). Deferred polish: add a scroll-to-prose step after the 30s response wait so the 'You're evaluating <case>' line is the hero frame (and the global-audit ws0_default rows are off-screen).",
+    "selectors": {
+      "rail_case": "[data-testid=\"agent-row-<agent_name>\"]",
+      "chat_input": ".composer-box textarea",
+      "chat_send": "[data-testid=\"chat-send\"]"
+    }
+  },
+  "spec": {
+    "title": "Lithrim — talk to the case you're evaluating",
+    "theme": "midnight",
+    "aspect": "16:9",
+    "segments": [
+      {
+        "card": {
+          "layout": "title",
+          "heading": "Lithrim",
+          "bullets": [
+            "Evaluation workspace for clinical AI",
+            "Labels true by construction · a grounding floor that can overrule the judges"
+          ],
+          "narration": "Lithrim is an evaluation workspace for clinical AI. Every label is true by construction, and a tool-grounded floor can overrule a confident-but-wrong judge."
+        }
+      },
+      {
+        "walkthrough": {
+          "url": "http://localhost:5180",
+          "steps": [
+            { "do": "wait", "ms": 2500, "say": "Here is a real imported case: a diabetes SOAP note flagged as a clean violation." },
+            { "do": "click", "selector": "[data-testid=\"agent-row-imported_scribe_scribe_diabetes_soap_clean_violation\"]", "say": "I select it in the rail — this is now the active case." },
+            { "do": "fill", "selector": ".composer-box textarea", "value": "Which case am I evaluating right now? Show its config and review its runs.", "say": "And I just ask, in plain language, what I am evaluating." },
+            { "do": "click", "selector": "[data-testid=\"chat-send\"]", "say": "The assistant loads its Lithrim tools and reads the agent I selected." },
+            { "do": "wait", "ms": 30000, "say": "It names the exact case I picked — not a default — reports its three-judge council and clinical ontology, and pulls its run history: a blocked verdict. It cannot fire a paid run; that stays my decision." }
+          ]
+        }
+      },
+      {
+        "card": {
+          "layout": "statement",
+          "heading": "Verifiable truth, not a promised win",
+          "narration": "The labels are true by construction, and a verification floor can flip a verdict the judges got wrong. That is the moat: we sell verifiable truth, never a manufactured win."
+        }
+      },
+      {
+        "card": {
+          "layout": "bullets",
+          "heading": "How it is built",
+          "bullets": [
+            "An audited config plane — judges, flags, ontology, every change logged",
+            "A live judge council plus a grounding floor that can overrule it",
+            "Mongo-free — runs in your own environment"
+          ],
+          "narration": "Underneath: an auditable config plane, a live judge council, and a grounding floor — all running in your own environment."
+        }
+      },
+      {
+        "card": {
+          "layout": "closing",
+          "heading": "Open core. Premium vertical packs. Healthcare first.",
+          "narration": "Open core for the platform, premium packs for regulated verticals — healthcare first."
+        }
+      }
+    ]
+  }
+}
