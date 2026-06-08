@@ -1593,6 +1593,28 @@
       "created": "2026-06-09",
       "last_re_verified": "2026-06-09 (HEAD 6178b44; monitor reads of loop.py:1-17 SSE contract, bff.js:167-206 chatStream, app.jsx:171/183/188 openArtifact+runResult, artifact.jsx:413-423 the 4 tabs + their data sources, panes.jsx:101/381 CenterPane+renderTool, tools.py _TOOL_SPECS)",
       "next_action": "CLOSED PROCEED-WITH-CAVEATS 2026-06-09 (build e7b0806 bff + 4bf3c89 shell + d8d9e70 tests + log 961140d; my 1ba6291 spec interleaved; branch bench-salvage/ws6c-dspy, NOT pushed). The chat drives the artifact pane: focus_artifact({tab}) $0 directive -> the shell opens/focuses report/judges/config/corpus (guarded by ARTIFACT_TABS, a tiny non-card affordance, never renderTool); a run_result SSE event lifts the chat's $0 replay (byte-same to the manual Run-eval) into the shared runResult so the focused Report/Judge tab shows THIS run. Per GO: D4=Option D (lift event), the ConfigTab activeAgent thread is in, ref dropped. Monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic a55dc0be504726cde NON-BLOCKING [0 BLOCKING / 1 NB / 1 nit]: C1 loop.py A-SAFE byte-identity (full-_build_options diff = 0; allowlist +1 exactly via _TOOL_SPECS), C2 no paid path (emit_run from the single replay-only run_eval_handler; run_result can't carry a paid run; no PAID_KEYS), C3 directive non-vacuous + never a card, C4 lift byte-same-shape + ConfigTab active-agent, C5 app.py/frozen-ops byte-untouched. Re-ran 17/17 chatbind2+asafe+chatbind1 (debuglithrim); 408 BFF (creds) + 75 shell. Opened S-BS-107 (ruff drift) + S-BS-108 (ConfigTab blank-agent; renumbered from the log's collided S-BS-106). A-LIVE owed (user-run $0: chat 'run a $0 replay + show the judge council' -> the pane opens/focuses; then 'show its config'). Session session-bench-salvage-phaseCHATBIND-2-2026-06-09.json; critique critique-bench-salvage-CHATBIND-2-2026-06-09.md. NEXT (v1-launch focus): LAUNCH-PREP driver."
+    },
+    {
+      "id": "bench-salvage-phaseLAUNCH-PREP-v1-standalone-and-release-prep-driver",
+      "stream": "bench-salvage",
+      "phase": "LAUNCH-PREP",
+      "scope": "v1-standalone-in_process-council-topology-plus-product-quickstart-plus-release-checklist",
+      "file": "bench-salvage_phaseLAUNCH-PREP_v1-standalone-and-release-prep_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "ROUTINE-with-care (a live standalone smoke + inline critique; NOT HARD-GATE -- does not touch the A-SAFE conversational gate; escalate to a fresh-critic only if D1 must touch it).",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "apps/bff/app.py:224-228 (RunEvalRequest: live -> :8002 backend; in_process -> the bundled v2 council; replay $0 default) + the run_eval route",
+        "lithrim_bench/runtime/council/ (the WS-6c ported v2 council -- Mongo-free, importable, in_process-capable; CONFIRM self-contained, no lithrim-backend)",
+        "apps/shell/src/bff.js:25 + app.jsx:32/95 ('Run live' -> live=true -> :8002 today)",
+        "README.md (engine-only, no product quickstart) + pyproject.toml extras [bff]/[council]/[agent] + the lithrim-bench-pack script",
+        "memory conversational-first-core-plugin-line (the v1-launch pivot + the CUT) + gtm-launch-and-journey-thesis (open-core / BYO-key / no-us-hosted; install-friction risk)"
+      ],
+      "_note": "LAUNCH-PREP = make the EXISTING product launchable as v1 (packaging, NOT features). v1 is ~built (the clinical conversational tool-grounded eval platform, live-attested + CHATBIND-2). The launch gap: a live run needs lithrim-backend on :8002 (+ Mongo) and the README is engine-only. D1 (load-bearing) standalone topology: a council-backend selector (env LITHRIM_COUNCIL_BACKEND=in_process|http, default in_process) so the OSS core runs the bundled v2 council BYO Azure/Claude key -- no :8002, no Mongo (A-SAFE: the chat stays replay-only/$0; D1 changes the human's paid-run backend only; confirm the in_process council imports self-contained). D2 product QUICKSTART (install extras + BYO-key + run BFF/shell/in_process council). D3 green bar + a seam-triage table (S-BS-98/101/102/104/105/106/107/108 -> none HARD-blocking). D4 RELEASE.md/checklist + notes (OSS-core scope + BYO-key framing; push owner-gated -- PREPARE only). OUT: SCENARIO-1/FHIR/StoryWorld, IMPORT-1, the provider picker, the plugin refactor (parked post-v1), the actual push. Unconditional cycle (needed for any v1 launch); the pitch-vs-self-serve scope-line only layers IMPORT-1 + the provider picker AFTER, in parallel. Pathspec-only.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (HEAD 8f87843; monitor reads of README.md [engine-only], app.py:224-228 RunEvalRequest live/in_process/replay defaults, bff.js:25 + app.jsx:32/95 'Run live'=:8002, pyproject extras bff/council/agent)",
+      "next_action": "READY -- /devloop-kickoff bench-salvage LAUNCH-PREP. The NEXT cycle (v1 critical path: CHATBIND-2 done -> LAUNCH-PREP -> push). Plan-review resolves: the D1 council-backend selector mechanism + CONFIRM the in_process council is self-contained (no lithrim-backend/:8002/Mongo) + the A-SAFE-untouched bound + the in_process default. ROUTINE-with-care: a live standalone smoke (run with lithrim-backend STOPPED) + inline critique. A-LIVE = USER-RUN (the standalone v1 run on :5180, BYO-key, no :8002). PENDING (parallel, non-blocking): the v1-scope-line (pitch/early-access [rec] vs self-serve [+IMPORT-1 + the provider picker AFTER])."
     }
   ]
 }
