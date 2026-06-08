@@ -7,7 +7,7 @@
 > **Bundle ID:** `bench-salvage-phaseS-BS-74-live-correction-demo-driver`
 > **Version:** v1
 > **Authored:** 2026-06-08
-> **Last re-verified against code:** 2026-06-08 (HEAD `63d4d65`; per MONITOR §Phase 1a — recon `ac9a1c501480c3455` + monitor spot-greps; ONE drift CORRECTED, see §1 note)
+> **Last re-verified against code:** 2026-06-08 (HEAD `63d4d65`; per MONITOR §Phase 1a — recon `ac9a1c501480c3455` + monitor spot-greps. **CORRECTION 2026-06-08 (executor plan-review caught it):** a monitor spot-grep MISREAD `OptimizeRequest.confirm` (`app.py:236`) as a run-eval cost-gate; `RunEvalRequest` (`:224-229`) has NO `confirm` field. The recon's original "no confirm field" was RIGHT. See §1.)
 > **Hardness:** HARD GATE (a live paid attestation that a deterministic floor CORRECTS a confidently-wrong LLM judge and FLIPS the composite verdict — a labels-true-by-construction claim; touches the core invariant; fresh-critic at close).
 
 ---
@@ -24,7 +24,7 @@ Read in this order:
   4. lithrim_bench/harness/grounding.py:398-508 (ground), :118-175 (PresenceCheck), :426 (suppress_decls)
   5. lithrim_bench/harness/ontology.py:86-92 (rescore) + lithrim_bench/harness/report.py:81-92 (composite)
   6. examples/proof_case.jsonl (the clean-negative TEMPLATE: bench_scribe_v1_clean_negative_aaecd73c3bcf) + tests/test_uap3b_withstands.py:257-337 (the MOAT EXHIBIT flip pattern)
-  7. apps/bff/app.py:224-236 (RunEvalRequest + the confirm cost-gate) + :276-331 (POST /v1/run-eval) + docs/research/RUN_uap5a_a8_live_2026-06-06.json (the live over-fire+suppress, run 8a41ef3e)
+  7. apps/bff/app.py:224-229 (RunEvalRequest — agent/live/in_process, NO confirm) + :276-331 (POST /v1/run-eval, no API cost-gate) + docs/research/RUN_uap5a_a8_live_2026-06-06.json (the live over-fire+suppress, run 8a41ef3e)
   8. .devloop/state/STREAM_bench-salvage.md (open seams: S-BS-70/73/74/75) + .devloop/templates/PROOF_CAPSULE_TEMPLATE.md
 
 Then post your plan-review per EXECUTOR.md §"Plan-review (non-negotiable)".
@@ -54,10 +54,10 @@ Driver doc: .devloop/prompts/bench-salvage_phaseS-BS-74_live-correction-demo_dri
 4. `examples/proof_case.jsonl` — the clean-negative TEMPLATE `bench_scribe_v1_clean_negative_aaecd73c3bcf` (keys: `case_id, agent_type, artifacts, clean_negative, expected_safety_flags, expected_compliance_verdict, expected_artifact_verdict, expected_owner_map, injection_recipes, ground_truth_basis, generated_at`). `zidovudine 300 MG Oral Tablet` is present verbatim in both the med list and the transcript — the canonical presence-disprovable scaffold.
 5. `tests/test_uap3b_withstands.py:257-337` — `test_MOAT_EXHIBIT_gate_flips_composite_and_ground_alone_does_not` (the gate-locus double-assertion) + the consensus-flip; `tests/test_uap5a_flip_demo.py:68-95` — the offline injected-predictor pattern.
 6. `data/ontology/clinical_v1.json:385-419` — the ONE committed suppress contract (`presence_check` for `MEDICATION_NOT_IN_TRANSCRIPT`). **This is sufficient — do NOT add a contract.**
-7. `apps/bff/app.py:224-236` — `RunEvalRequest{agent, live, in_process, confirm}` + the cost-gate (the route **422s without `confirm:true`**) + :276-331 `POST /v1/run-eval`. `docs/research/RUN_uap5a_a8_live_2026-06-06.json` — the live over-fire+suppress evidence (run `8a41ef3e`, `live=true`).
+7. `apps/bff/app.py:224-229` — `RunEvalRequest{agent, live, in_process}` (**NO `confirm` field**) + :276-331 `POST /v1/run-eval` (**NO API-level cost gate** — `live=true` is itself the explicit paid opt-in; replay/`$0` is the default). The `confirm` 422-gate (`:232-236` `OptimizeRequest` + `:761-768`) is on the OPTIMIZE route, not run-eval. `docs/research/RUN_uap5a_a8_live_2026-06-06.json` — the live over-fire+suppress evidence (run `8a41ef3e`, `live=true`).
 8. `.devloop/state/STREAM_bench-salvage.md` (open seams S-BS-70/73/74/75) + `.devloop/templates/PROOF_CAPSULE_TEMPLATE.md` (honest-Δ only).
 
-> **⚠️ CITATION-DRIFT CORRECTED (Phase-1a, monitor 2026-06-08):** the recon report said "`RunEvalRequest` has NO `confirm` field; the cost gate is client-side `window.confirm`". That is **superseded** — `app.py:224-236` shows `confirm: bool = False` and "the route refuses (422) without it." So the LIVE paid run is fired via `POST :8787/v1/run-eval {agent, live:true, confirm:true}` (the `confirm:true` IS the explicit cost-acknowledgment). The shell still surfaces an in-DOM modal (S-BS-69); the chat-surface `window.confirm` freeze is irrelevant to the API path.
+> **⚠️ CITATION NOTE (corrected 2026-06-08, executor plan-review):** an earlier monitor note here claimed `RunEvalRequest` carries a `confirm` cost-gate. **That was a misread and is RETRACTED** — `RunEvalRequest` (`app.py:224-229`) is `{agent, live, in_process}` with **NO `confirm` field**; the `confirm: bool = False` at `:236` belongs to `OptimizeRequest`, and the only 422-without-confirm gate (`:761-768`) is on `/v1/judges/{role}/optimize`. `run_eval_endpoint` has **no** confirm check. So the LIVE paid run is fired via `POST :8787/v1/run-eval {agent, live:true}` — **no `confirm`** (a phantom `confirm:true` is silently ignored). `/v1/run-eval` has no API-level cost gate; `live=true` IS the explicit paid opt-in (replay/`$0` is the default), and cost safety is OPERATIONAL: `curl /health` first, the `$0` dry-run green first, exactly ONE deliberate run. The shell's in-DOM modal (S-BS-69) gates the UI path; the API path trusts the explicit `live=true`.
 
 > **Citation discipline:** every file:line above was re-grepped at HEAD `63d4d65`. If you spot further drift on read, halt and surface it in plan-review.
 
@@ -118,7 +118,7 @@ The cycle is done when ALL of these are PASS (a documented honest LOSS on A-LIVE
 - **A3 — both loci proven offline.** A2 (floor) green + `test_uap3b_withstands.py::test_MOAT_EXHIBIT_…` (gate) still green.
 - **A4 — green bar, no regression.** Full suite — canonical `PYENV_VERSION=debuglithrim python -m pytest -q` (baseline the 2 pre-existing S-BS-96 observation failures — read the count in the MAIN checkout, not a worktree) + plain `python -m pytest -q`; ruff clean on touched files. No new failures.
 - **A5 — frozen-seam 0-delta.** `git diff <parent>..HEAD` touches NO file in the frozen set (§4); `taxonomy_snapshot.json` + `clinical_v1.json` byte-untouched.
-- **A-LIVE — ONE cost-gated live attestation (honest-Δ).** Fire `POST :8787/v1/run-eval {agent: s_bs_74_demo, live:true, confirm:true}` (services UP — `curl :8002/health` + `:8787` first; do NOT autostart). Capture `RUN_s_bs_74_live_2026-06-08.json`. **PASS = an HONEST result, recorded either way:** WIN = the live council over-fired MED, `ground()` suppressed it, composite flipped BLOCK→PASS (the visceral demo → proof capsule); LOSS = it didn't flip (the council didn't over-fire MED, or over-fired/hallucinated something else that held the block) → documented honestly in the capsule, mechanism still stands on A2 + `8a41ef3e`. **A manufactured win = FAIL.** Stop after ≤1–2 paid runs (≤ ~$2–3); do NOT iterate for a flip.
+- **A-LIVE — ONE cost-gated live attestation (honest-Δ).** Fire `POST :8787/v1/run-eval {agent: s_bs_74_demo, live:true}` (**NO `confirm`** — run-eval has no API cost-gate; `live=true` is the explicit paid opt-in. Services UP — `curl :8002/health` + `:8787` first; do NOT autostart). Capture `RUN_s_bs_74_live_2026-06-08.json`. **PASS = an HONEST result, recorded either way:** WIN = the live council over-fired MED, `ground()` suppressed it, composite flipped BLOCK→PASS (the visceral demo → proof capsule); LOSS = it didn't flip (the council didn't over-fire MED, or over-fired/hallucinated something else that held the block) → documented honestly in the capsule, mechanism still stands on A2 + `8a41ef3e`. **A manufactured win = FAIL.** Stop after ≤1–2 paid runs (≤ ~$2–3); do NOT iterate for a flip.
 
 ### Diagnostic stats (NOT gates)
 - Whether the live flip reproduced (win/loss) — reported in the capsule; NOT a gate (the gate is HONESTY).
