@@ -182,6 +182,29 @@ def get_kb_http_client() -> Any | None:
     return None
 
 
+def _resolve_run_backend(req: RunEvalRequest) -> tuple[bool, bool]:
+    """LAUNCH-PREP D1: map a run request to the (live_http, in_process) backend pair.
+
+    The OSS core is self-contained — a human's explicit paid run defaults to the
+    bundled in-process v2 council (BYO Azure/Claude key), so NO ``:8002``/lithrim-backend
+    and NO Mongo are needed. ``LITHRIM_COUNCIL_BACKEND`` selects the backend the shell's
+    "Run live" button drives:
+      - unset / ``in_process`` (the OSS default) -> the bundled council
+      - ``http``                                 -> opt-in to a live ``:8002`` deployment
+    An explicit ``in_process=true`` (CLI/SDK) always runs in-process; replay stays ``$0``.
+
+    A-SAFE: this resolves only the HUMAN's paid-run backend at ``run_eval_endpoint``; it
+    does NOT touch the agent loop's deny-hook/allowlist (apps/bff/agent/loop.py) — the
+    chat stays replay-only / ``$0``."""
+    if req.in_process:
+        return (False, True)
+    if req.live:
+        if os.environ.get("LITHRIM_COUNCIL_BACKEND", "in_process") == "http":
+            return (True, False)
+        return (False, True)
+    return (False, False)
+
+
 def get_collections_db() -> Path:
     """The doc-shim DB the BFF reads run-provenance blobs from (PIPELINE_RUNS).
     Override in tests so the run-audit read is hermetic."""
@@ -305,11 +328,14 @@ def run_eval_endpoint(
     # ``byo-claude`` runs on the tool-less BYO-Claude LM (the mixed-provider council);
     # roles with no/empty model stay Azure (the default, byte-identical to before).
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
+    # LAUNCH-PREP D1: resolve the council backend from the request + LITHRIM_COUNCIL_BACKEND
+    # so a non-replay run defaults to the bundled in-process council (no :8002/Mongo).
+    live, in_process = _resolve_run_backend(req)
     try:
         record = run_eval.run(
             agent,
-            live=req.live,
-            in_process=req.in_process,
+            live=live,
+            in_process=in_process,
             out_dir=out_dir,
             ontology_path=ontology_path,
             assignments=assignments or None,

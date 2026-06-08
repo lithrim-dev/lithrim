@@ -20,8 +20,9 @@ async function call(path, { method = "GET", body, headers } = {}) {
 }
 
 /* POST /v1/run-eval — drive one case end-to-end. replay (live=false) is the $0
-   default; live=true opts into one real, paid :8002 call; in_process=true opts into
-   the in-process v2 Azure council (paid) — the path an authored judge re-votes on. */
+   default; live=true opts into one real, paid council run on the configured backend
+   (LITHRIM_COUNCIL_BACKEND: in_process [the OSS default, BYO key] | http [:8002]);
+   in_process=true forces the in-process v2 council — the path an authored judge re-votes on. */
 export const runEval = ({ agent = "ws0_default", live = false, in_process = false } = {}) =>
   call("/v1/run-eval", { method: "POST", body: { agent, live, in_process } });
 

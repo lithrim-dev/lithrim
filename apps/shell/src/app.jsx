@@ -27,7 +27,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
         <button className={"icon-btn" + (artifactOpen ? " on" : "")} title="Toggle artifact panel" onClick={toggleArtifact}>
           <I name="panel" size={16} />
         </button>
-        <button className="btn btn-ghost" title="One real, PAID :8002 council call"
+        <button className="btn btn-ghost" title="One real, PAID council run — BYO key (the configured backend)"
           disabled={runStatus === "loading"} onClick={() => onRunEval(true)}>
           <I name="bolt" size={14} /> Run live
         </button>
