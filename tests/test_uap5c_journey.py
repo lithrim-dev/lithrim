@@ -199,19 +199,22 @@ def test_build_options_carries_exactly_the_bounded_allowlist_under_bypass(env):
     assert set(opts.allowed_tools).isdisjoint(BUILTIN_TOOLS)
 
 
-# ── UAP-5c-2 + CRUD-1: the split + delete tools re-prove A-SAFE as the surface widens to 9 ─
+# ── UAP-5c-2 + CRUD-1 + FLAG-1: the split + delete + flag tools re-prove A-SAFE (surface == 11) ─
 
 
 def test_split_and_crud_tools_grow_the_set_to_nine_with_no_paid_knob():
-    """A-SAFE (structural): the UAP-5c-2 split tools (eval-pack batch + agent-roster write)
-    plus the CRUD-1 ``delete_judge`` revert complete the 9-tool set, and NONE of the three
-    exposes a paid knob — the S-BS-81 no-paid-knob guarantee generalized across the widened
-    surface. (The exhaustive sweep over ALL 9 is test_no_tool_schema_carries_a_paid_knob.)"""
+    """A-SAFE (structural): the UAP-5c-2 split tools (eval-pack batch + agent-roster write),
+    the CRUD-1 ``delete_judge`` revert, and the FLAG-1 ``create_flag``/``delete_flag`` complete
+    the 11-tool set, and NONE exposes a paid knob — the S-BS-81 no-paid-knob guarantee
+    generalized across the widened surface. (The exhaustive sweep over ALL 11 is
+    test_no_tool_schema_carries_a_paid_knob.)"""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 9, names
-    assert {"run_eval_pack", "assemble_agent", "delete_judge"} <= set(names)
+    assert len(names) == 11, names
+    assert {"run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag"} <= set(
+        names
+    )
     by_name = {name: schema for _h, name, _d, schema in agent_tools._TOOL_SPECS}
-    for tool in ("run_eval_pack", "assemble_agent", "delete_judge"):
+    for tool in ("run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag"):
         assert [k for k in PAID_KEYS if k in by_name[tool]] == [], tool
 
 
