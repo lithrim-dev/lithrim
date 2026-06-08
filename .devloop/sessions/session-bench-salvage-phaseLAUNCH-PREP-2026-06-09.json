@@ -1,0 +1,101 @@
+{
+  "session_id": "session-bench-salvage-phaseLAUNCH-PREP-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "LAUNCH-PREP",
+  "driver_bundle_id": "bench-salvage-phaseLAUNCH-PREP-v1-standalone-and-release-prep-driver",
+  "started_at": "2026-06-09T05:00:00Z",
+  "ended_at": "2026-06-09T05:35:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T05:02:00Z",
+    "user_approved_at": "2026-06-09T05:03:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D1 achieved purely in the BFF resolver; the shell needs only a tooltip-copy + comment update (no shell logic change).",
+        "evidence": "Plan-review 'Deviations' bullet; user GO acknowledged ROUTINE-with-care, resolver doesn't touch deny-hook.",
+        "decided_at": "2026-06-09T05:03:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Minor doc-consistency edit beyond the named D2 files: apps/bff/README 'Run live' line corrected to match the D1 standalone default (it said ':8002 council call').",
+        "evidence": "apps/bff/README.md:27-31 — pre-edit claimed 'one real, paid :8002 council call' (now stale after D1).",
+        "decided_at": "2026-06-09T05:03:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "The driver/kickoff says run the suite via `PYENV_VERSION=debuglithrim`; in this shell that resolved to pyenv 3.12.8 (no openai/dspy → council tests spuriously skipped). The real env is /Users/aregee/.pyenv/versions/3.10.15/envs/debuglithrim/bin/python — used directly for the green bar.",
+        "evidence": "`PYENV_VERSION=debuglithrim python -c 'import sys;print(sys.executable)'` -> /Users/aregee/.pyenv/versions/3.12.8/bin/python; the env is at 3.10.15/envs/debuglithrim (openai 2.39.0, dspy 3.2.1).",
+        "decided_at": "2026-06-09T05:25:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "84c3c82344d7011e2fae7084d2d2b65451028167",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): standalone in_process council backend (no :8002/Mongo dependency) + the shell route",
+      "summary": "Add _resolve_run_backend(req) + LITHRIM_COUNCIL_BACKEND (default in_process) at run_eval_endpoint so a human's paid run routes to the bundled in-process council (no :8002/Mongo); shell 'Run live' tooltip + bff.js comment go backend-agnostic; hermetic resolver test."
+    },
+    {
+      "hash": "4dbc417",
+      "repo": "lithrim-bench",
+      "title": "docs(launch): product QUICKSTART + RELEASE v1 checklist",
+      "summary": "docs/QUICKSTART.md (clean-clone product walk-through, BYO-key, $0 replay default, standalone in_process default) + docs/RELEASE_v1.md (OSS-core scope, BYO-key/airgapped/no-us-hosted framing, owner-executed push checklist, draft notes); README + apps/bff/README pointers."
+    },
+    {
+      "hash": "ec526f4",
+      "repo": "lithrim-bench",
+      "title": "chore(launch): green-bar + the seam-triage table",
+      "summary": "Append the S-BS-98/101/102/104/105/106/107/108 seam-triage table to RELEASE_v1.md (no HARD launch-blocker; all post-v1) + record the green-bar (522/2/3)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 (standalone) — the product runs end-to-end with NO :8002/lithrim-backend and no Mongo (in_process council, BYO key); a non-replay run produces the correct verdict.",
+      "verdict": "PASS",
+      "evidence": "CONFIRMED self-containment: grep pymongo|motor|MongoClient over runtime/ + backends/local_pipeline.py = none; grep 'from lithrim_backend|from app.' over runtime/pipeline/ + local_pipeline.py = none. _resolve_run_backend maps live->in_process by default (tests/test_launch_standalone.py 5 passed). The verdict-producing A-LIVE is the user-run (A-LIVE below)."
+    },
+    {
+      "criterion": "A2 (quickstart) — clean-clone install + run works; $0 replay default works with no key, the paid run needs the BYO key.",
+      "verdict": "PASS",
+      "evidence": "$0 replay verified offline, no key: `python scripts/run_eval.py` -> verdict reject (BLOCK), composite 1.0, grounded MEDICATION_NOT_IN_TRANSCRIPT->SUPPRESSED. QUICKSTART install/run commands grounded in apps/bff/README + Makefile + devstack.sh (uvicorn app:app --app-dir apps/bff --port 8787; npm run dev :5180). The live BFF+shell run = the A-LIVE user-run (no autostart)."
+    },
+    {
+      "criterion": "A3 (green bar) — full suite green under debuglithrim (cred-gated council tests documented as BYO-key); ruff clean; seam-triage no HARD blocker.",
+      "verdict": "PASS",
+      "evidence": "522 passed / 2 failed / 3 skipped on 3.10.15/envs/debuglithrim. The 2 failed = S-BS-96 order-non-deterministic observation-isolation (test_observation_pipeline.py passes 13/13 standalone at HEAD; at HEAD~3 the 2 pass standalone too -> pre-existing, 0 new; my diff touches no runtime/observation/ file). 3 skipped = live cred-gated council/optimizer (BYO key). ruff clean on apps/bff/app.py + tests/test_launch_standalone.py. Seam table: no HARD launch-blocker."
+    },
+    {
+      "criterion": "A4 (release) — RELEASE.md/checklist + draft release notes; OSS-core scope + BYO-key framing; push steps listed for the owner.",
+      "verdict": "PASS",
+      "evidence": "docs/RELEASE_v1.md: 'What ships in v1', the BYO-key/airgapped/no-us-hosted framing, the owner-executed push/PR/tag checklist (7 steps), draft v1.0.0 release notes, the seam-triage table."
+    },
+    {
+      "criterion": "A-LIVE (USER-RUN) — on :5180 with lithrim-backend STOPPED, a run completes via the in_process council (BYO key), proving the standalone v1.",
+      "verdict": "SKIP",
+      "evidence": "OWED to the user — needs a running BFF/shell + a BYO key + a paid run. Not executed (standing prefs: no autostart, no paid run without explicit go). The mechanism is in place: LITHRIM_COUNCIL_BACKEND unset -> 'Run live' drives in_process; verify with lithrim-backend stopped."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "green_bar": "522 passed / 2 failed (S-BS-96, pre-existing order-dependent) / 3 skipped (live cred-gated BYO-key)",
+    "diff_scope_HEAD~3..HEAD": "8 files, +324/-6 (apps/bff/app.py, apps/bff/README.md, apps/shell/src/{app.jsx,bff.js}, README.md, docs/QUICKSTART.md, docs/RELEASE_v1.md, tests/test_launch_standalone.py)",
+    "a_safe": "byte-identical — apps/bff/agent/loop.py deny-hook/allowlist untouched; D1 lives only at run_eval_endpoint (the human's paid path)",
+    "new_tests": "tests/test_launch_standalone.py (5 hermetic, no paid call)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "LAUNCH-PREP packaged v1 as a standalone OSS core. D1: a LITHRIM_COUNCIL_BACKEND selector (default in_process) at run_eval_endpoint routes a human's paid 'Run live' to the bundled in-process v2 council — no :8002/lithrim-backend, no Mongo (self-containment CONFIRMED by grep over the import chain; A-SAFE untouched — the change is at the human's run path, not the agent loop's deny-hook). D2/D4: docs/QUICKSTART.md (product clean-clone walk-through, BYO-key, $0 replay default) + docs/RELEASE_v1.md (OSS-core scope, airgapped/no-us-hosted framing, owner-executed push checklist + draft notes + the seam-triage table — no HARD launch-blocker). D3: green bar 522/2/3 (the 2 = S-BS-96 order-dependent observation-isolation, pre-existing, 0 new; the 3 = live cred-gated, BYO-key). The only caveat: the A-LIVE (lithrim-backend stopped, a real in_process run on :5180) is OWED as a user-run — not executed (no autostart, no unprompted paid run). The push is owner-gated and NOT done. Monitor should first verify the A-SAFE byte-identity of loop.py and run the A-LIVE.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage LAUNCH-PREP, confirm A-SAFE loop.py byte-identity, then drive the standalone A-LIVE (lithrim-backend stopped) before the owner-gated push."
+}
