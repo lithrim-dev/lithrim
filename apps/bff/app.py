@@ -1112,6 +1112,56 @@ def _build_tool_context(
         )
         return {"flag": flag_code, "tier": match["tier"], "gradeable": match["gradeable"], **put}
 
+    def _create_flag(
+        flag_code: str,
+        category: str,
+        definition: str,
+        when_to_use: str = "",
+        when_NOT_to_use: str = "",
+        rationale: str = "",
+    ) -> dict:
+        # FLAG-1 (D1): CREATE a NEW *reference* flag. gradeable/tier/owner_roles are HARDCODED
+        # here (gradeable=False, tier=None, owner_roles=[]) — NEVER read from args, and the tool
+        # schema carries no gradeable knob — so the create path can NEVER produce a gradeable /
+        # scoreable flag. A gradeable flag requires a lithrim-backend re-snapshot (labels are true
+        # by construction; CLAUDE.md). 409 if the code already exists (create != edit — editing an
+        # existing flag stays author_flag). Persisted via the FROZEN audited put_ontology_endpoint
+        # (so _validate_ontology runs and the action="edit" audit on target=ontology fires — the
+        # before->after diff IS the create evidence).
+        ag = _load_agent(req_agent, db_path)
+        ont_path, _src = _resolve_ontology_path(ag, workdir)
+        ontology = json.loads(ont_path.read_text())
+        flags = ontology.get("flags") or []
+        if any(f.get("flag") == flag_code for f in flags):
+            raise HTTPException(
+                status_code=409,
+                detail=f"flag {flag_code!r} already exists (edit it via author_flag; create adds a new one)",
+            )
+        flags.append(
+            {
+                "flag": flag_code,
+                "category": category,
+                "definition": definition,
+                "when_to_use": when_to_use,
+                "when_NOT_to_use": when_NOT_to_use,
+                "owner_roles": [],  # HARDCODED — reference flags are unowned; never invent owners (D-D)
+                "tier": None,  # HARDCODED — out-of-snapshot, untiered
+                "gradeable": False,  # HARDCODED — the create can NEVER make a gradeable flag (the one law)
+                "reliability_pillar": None,
+            }
+        )
+        ontology["flags"] = flags
+        put = put_ontology_endpoint(
+            ontology=ontology,
+            agent=req_agent,
+            rationale=rationale,
+            db_path=db_path,
+            workdir=workdir,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+        return {"flag": flag_code, "gradeable": False, "tier": None, "owner_roles": [], **put}
+
     def _review_runs(limit: int = 5) -> dict:
         listing = list_runs_endpoint(limit=limit, collections_db=collections_db)
         runs = listing.get("runs") or []
