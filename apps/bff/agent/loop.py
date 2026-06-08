@@ -55,6 +55,27 @@ _SYSTEM_PROMPT = (
     "surface it plainly and propose a valid alternative -- never claim success you did not get."
 )
 
+
+def _system_prompt(active_agent: str) -> str:
+    """CHATBIND-1 (S-BS-103): the active-agent-aware system prompt. ``_SYSTEM_PROMPT`` is
+    the static base; this appends a stanza NAMING the rail-selected agent so the model
+    targets it BY DEFAULT. The live bug was a static prompt with no active-agent context:
+    the model emitted ``ws0_default`` for the agent-scoped tools (get_agent/run_eval), so
+    chat reviewed the wrong case. The handlers already default an OMITTED arg to
+    ``ctx.default_agent`` (tools.py) -- naming the agent here is what stops the model
+    supplying a stale ``ws0_default`` in the first place. No A-SAFE surface changes: this
+    is the system_prompt string only; the deny-hook + isolation in ``_build_options`` are
+    byte-identical."""
+    return (
+        f"{_SYSTEM_PROMPT}\n\n"
+        f"The current evaluation in this workspace is the agent `{active_agent}`. Operate on "
+        f"it BY DEFAULT: get_agent, run_eval, run_eval_pack, and review_runs target "
+        f"`{active_agent}` unless the user EXPLICITLY names another agent. When the user says "
+        f'"this case", "the current case", "this agent", or "the runs", they mean '
+        f"`{active_agent}`."
+    )
+
+
 # The BYO-Claude cost figure the SDK reports is the subscription-EQUIVALENT estimate,
 # not a per-loop charge (fold 4 — cost honesty, consistent with the honest-Δ discipline).
 COST_LABEL = "subscription-equivalent estimate (BYO-Claude desktop — not a per-call charge)"
@@ -109,7 +130,7 @@ def _build_options(ctx: ToolContext):
         hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[_deny_non_lithrim])]},
         setting_sources=[],  # SDK isolation: no inherited ~/.claude settings / MCP servers
         skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=_system_prompt(ctx.default_agent),  # CHATBIND-1: name the active agent
         max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
     )
 

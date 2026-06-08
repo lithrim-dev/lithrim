@@ -1293,8 +1293,14 @@ def _build_tool_context(
         )
 
     def _review_runs(limit: int = 5) -> dict:
-        listing = list_runs_endpoint(limit=limit, collections_db=collections_db)
-        runs = listing.get("runs") or []
+        # CHATBIND-1 (S-BS-103): SCOPE the run history to the ACTIVE agent (req_agent) so
+        # "review the runs" shows the rail-selected case's runs, not the global history. The
+        # frozen list_runs_endpoint is unscoped, so fetch a generous newest-first window (200,
+        # < the endpoint's 500 cap), filter on the `agent` field every row already carries
+        # (_run_summary -> agent_id; replay/in_process/live all backfill it), then truncate to
+        # `limit`. latest_id/latest_audit then reflect the ACTIVE agent's latest run.
+        listing = list_runs_endpoint(limit=200, collections_db=collections_db)
+        runs = [r for r in (listing.get("runs") or []) if r.get("agent") == req_agent][:limit]
         latest_id = runs[0].get("run_id") if runs else None
         latest_audit = None
         if latest_id:
