@@ -42,6 +42,8 @@ _SYSTEM_PROMPT = (
     "  - create_flag: CREATE a NEW reference (non-gradeable) flag in the ontology (an audited "
     "config write) -- reference flags are skip-logged, never scored; you CANNOT create a "
     "gradeable/scoreable flag (that needs a backend re-snapshot).\n"
+    "  - delete_flag: DELETE a REFERENCE flag (an audited config write; reversible) -- only an "
+    "unused reference flag; a gradeable/contract code, or one a judge or case uses, is refused.\n"
     "  - run_eval: run a $0 REPLAY evaluation and show the verdict.\n"
     "  - run_eval_pack: run a $0 REPLAY eval-pack BATCH over one or more agents and show "
     "the run history -- a live batch (one paid call per agent) is the human's.\n"

@@ -165,6 +165,12 @@ def get_ontology_workdir() -> Path:
     return DEFAULT_ONTOLOGY_WORKDIR
 
 
+def get_examples_dir() -> Path:
+    """The corpus dir DELETE /v1/ontology/flags scans for a case-orphan (a committed case
+    that emits the flag in expected_safety_flags). Override in tests for hermeticity."""
+    return REPO_ROOT / "examples"
+
+
 def get_kb_service() -> str:
     """The backend KB base URL the KbRagTool composes over (:8002). Override in tests."""
     return os.environ.get("LITHRIM_KB_SERVICE", "http://localhost:8002")
@@ -858,6 +864,108 @@ def put_ontology_endpoint(
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
 
 
+def _cases_emitting_flag(flag_code: str, examples_dir: Path) -> list[str]:
+    """Case ids in ``examples/*.jsonl`` whose ``expected_safety_flags`` include ``flag_code``
+    — the corpus-orphan guard for flag delete. A missing dir / unreadable row contributes
+    nothing (best-effort: a malformed corpus line must not 500 an honest delete decision; the
+    golden lint is the real enforcer)."""
+    hits: list[str] = []
+    d = Path(examples_dir)
+    if not d.exists():
+        return hits
+    for p in sorted(d.glob("*.jsonl")):
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if flag_code in (row.get("expected_safety_flags") or []):
+                hits.append(str(row.get("case_id") or p.name))
+    return sorted(set(hits))
+
+
+@app.delete("/v1/ontology/flags/{flag_code}")
+def delete_flag_endpoint(
+    flag_code: str,
+    agent: str = DEFAULT_AGENT,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
+    examples_dir: Path = Depends(get_examples_dir),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Delete a REFERENCE flag from the agent's ontology working copy (FLAG-1 D3), with an
+    actor-attributed immutable audit record (action="delete", target.type="flag", R0).
+
+    REFERENCE-ONLY + orphan-guarded — and CRUCIALLY the three guards live HERE, in the
+    endpoint, NOT in any tool wrapper, so they hold for EVERY caller (human, API, agent):
+      404  the flag is not in the agent's ontology (nothing to delete);
+      422  the flag is gradeable OR in the taxonomy snapshot — a contract code; removing it
+           desyncs the contract-of-record, which is a lithrim-backend re-snapshot, never a
+           local delete (labels are true by construction);
+      422  a persisted judge assigns the flag (a judge orphan — judges are global, S-BS-98);
+      422  a committed case emits the flag in expected_safety_flags (a corpus orphan — would
+           break the golden lint).
+    Only an UNUSED reference flag deletes. NEVER writes the committed seed or the snapshot; the
+    write target is the agent-scoped working copy (clobber-safe, mirrors PUT /v1/ontology)."""
+    ag = _load_agent(agent, db_path)
+    ont_path, _src = _resolve_ontology_path(ag, workdir)
+    ontology = json.loads(ont_path.read_text())
+    flags = ontology.get("flags") or []
+    target_flag = next((f for f in flags if f.get("flag") == flag_code), None)
+    if target_flag is None:
+        raise HTTPException(status_code=404, detail=f"unknown flag {flag_code!r} (nothing to delete)")
+    # GUARD 1 — gradeable / in-snapshot contract code (a re-snapshot, not a local delete).
+    if bool(target_flag.get("gradeable")) or flag_code in seed_ontology.load_snapshot_codes():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"refusing to delete {flag_code!r}: it is a gradeable / in-snapshot contract code. "
+                "Removing a contract code is a lithrim-backend re-snapshot "
+                "(scripts/snapshot_taxonomy.py --backend-path …), never a local delete — "
+                "labels are true by construction."
+            ),
+        )
+    # GUARD 2 — judge orphan: a persisted (global) judge assigns it; revert that judge first.
+    assigned_by = sorted(
+        role for role, jc in list_judges(db_path=db_path).items() if flag_code in jc.assigned_flags
+    )
+    if assigned_by:
+        raise HTTPException(
+            status_code=422,
+            detail=f"refusing to delete {flag_code!r}: judge(s) {assigned_by} assign it (revert them first)",
+        )
+    # GUARD 3 — corpus orphan: a committed case emits it (would break the golden lint).
+    emitting = _cases_emitting_flag(flag_code, examples_dir)
+    if emitting:
+        raise HTTPException(
+            status_code=422,
+            detail=f"refusing to delete {flag_code!r}: case(s) {emitting} emit it in expected_safety_flags",
+        )
+    # Remove + persist the working copy (mirror put_ontology_endpoint's write), then audit.
+    ontology["flags"] = [f for f in flags if f.get("flag") != flag_code]
+    _validate_ontology(ontology)  # defensive round-trip: removing a reference flag stays admissible
+    workdir.mkdir(parents=True, exist_ok=True)
+    path = workdir / f"{agent}.json"
+    path.write_text(json.dumps(ontology, indent=2, sort_keys=True))
+    actor = _resolve_actor(x_actor, default_actor)
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=actor,
+            action="delete",
+            target=Target(type="flag", id=flag_code),
+            why={"rationale": rationale},
+            before=target_flag,
+            after=None,
+        )
+    )
+    return {"status": "deleted", "flag": flag_code, "agent": agent, "actor": actor.model_dump()}
+
+
 # ── R0: the two §2B audit streams as why/when/who/what reports ────────────────
 
 
@@ -1162,6 +1270,23 @@ def _build_tool_context(
         )
         return {"flag": flag_code, "gradeable": False, "tier": None, "owner_roles": [], **put}
 
+    def _delete_flag(flag_code: str, rationale: str = "") -> dict:
+        # FLAG-1 (D3): the agent-reachable flag DELETE. This wrapper ONLY binds-and-forwards
+        # params explicitly (S-BS-82 — a direct call bypasses the FastAPI router, so omitted
+        # Query/Depends params would stay FieldInfo sentinels). ALL guards (gradeable/in-snapshot,
+        # judge-assigned, case-emitted) live in delete_flag_endpoint, NOT here, so they hold for
+        # EVERY caller — the agent can delete only an UNUSED reference flag, never a contract code.
+        return delete_flag_endpoint(
+            flag_code,
+            agent=req_agent,
+            rationale=rationale,
+            db_path=db_path,
+            workdir=workdir,
+            examples_dir=get_examples_dir(),
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+
     def _review_runs(limit: int = 5) -> dict:
         listing = list_runs_endpoint(limit=limit, collections_db=collections_db)
         runs = listing.get("runs") or []
@@ -1231,6 +1356,7 @@ def _build_tool_context(
         assemble_agent=_assemble_agent,
         delete_judge=_delete_judge,
         create_flag=_create_flag,
+        delete_flag=_delete_flag,
         default_agent=req_agent,
     )
 

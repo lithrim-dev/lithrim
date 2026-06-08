@@ -83,6 +83,11 @@ CREATE_FLAG_SCHEMA: dict[str, Any] = {
     "when_NOT_to_use": str,
     "rationale": str,
 }
+# FLAG-1 (D3) — DELETE a REFERENCE flag (reversible — re-create any time). {flag_code, rationale}
+# only: no gradeable knob, no paid knob. The reference-only + orphan guards (gradeable/in-snapshot,
+# judge-assigned, case-emitted) live in the ENDPOINT (delete_flag_endpoint), NOT here, so they hold
+# for EVERY caller; this tool reaches only an UNUSED reference flag.
+DELETE_FLAG_SCHEMA: dict[str, Any] = {"flag_code": str, "rationale": str}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -113,6 +118,9 @@ class ToolContext:
     - ``create_flag(flag_code, category, definition, when_to_use, when_NOT_to_use, rationale)
       -> dict``  (FLAG-1 D1: CREATE a new REFERENCE flag — gradeable=False/tier=None/
       owner_roles=[] hardcoded; raises 409 if it exists. It CANNOT create a gradeable flag.)
+    - ``delete_flag(flag_code, rationale) -> dict``  (FLAG-1 D3: DELETE a REFERENCE flag;
+      reversible. The reference-only + orphan guards live in the endpoint, so this reaches only
+      an UNUSED reference flag; a contract/judge-assigned/case-emitted flag raises and is surfaced.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -126,6 +134,7 @@ class ToolContext:
     assemble_agent: Callable[..., dict]
     delete_judge: Callable[..., dict]
     create_flag: Callable[..., dict]
+    delete_flag: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
 
@@ -370,6 +379,29 @@ async def create_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     )
 
 
+async def delete_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # FLAG-1 (audited WRITE): DELETE a REFERENCE flag. The reference-only + orphan guards
+    # (gradeable/in-snapshot, judge-assigned, case-emitted) live in delete_flag_endpoint, so
+    # this reaches only an UNUSED reference flag; a contract code (or a judge-assigned / case-
+    # emitted flag) raises 422 and is surfaced. Reversible — re-create any time.
+    flag_code = str(args.get("flag_code") or "")
+    rationale = str(args.get("rationale") or "deleted via the conversational shell")
+    try:
+        res = ctx.delete_flag(flag_code=flag_code, rationale=rationale)
+    except Exception as exc:  # HTTPException (404 unknown / 422 guard) or anything the op raises
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not delete flag {flag_code!r}: {detail}. Nothing was changed. Delete an UNUSED "
+            f"reference flag only — a gradeable/in-snapshot contract code, or one a judge assigns or "
+            f"a case emits, is refused."
+        )
+    ctx.emit(flag_part(ctx.default_agent))
+    return _text(
+        f"Deleted reference flag {flag_code!r} for agent {ctx.default_agent!r} "
+        f"(actor {res.get('actor', {}).get('id', '?')}). The removal is audited (action=delete)."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -451,6 +483,15 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "gradeable/scoreable flag — that requires a lithrim-backend re-snapshot. 409 if the code "
         "already exists (edit it via author_flag) — surface the error, do not retry blindly.",
         CREATE_FLAG_SCHEMA,
+    ),
+    (
+        delete_flag_handler,
+        "delete_flag",
+        "DELETE a REFERENCE (non-gradeable) flag from the agent's ontology (an audited config "
+        "write; reversible — re-create any time). It deletes only an UNUSED reference flag; a "
+        "gradeable/in-snapshot contract code, or one a judge assigns or a case emits, is refused "
+        "(422) — surface the error, do not retry blindly.",
+        DELETE_FLAG_SCHEMA,
     ),
 ]
 
