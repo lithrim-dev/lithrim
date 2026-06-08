@@ -455,6 +455,30 @@
       "next_action": "READY -- /devloop-kickoff bench-salvage S-BS-49-WIN. Plan-review resolves the 6 open decisions (the selection mechanism [reserve-a-slot vs interleave, keep the 4-cap]; ensuring >=1 dose-rich clean is teacher-nailable; cohort size/composition; max_bootstrapped_demos keep-4; the live-run gate [fire ONLY after the offline proof shows the clean reached + Δ non-negative; <=$0.40, one run]; SPLIT confirm bind->re-run + faithfulness OUT). HARD-GATE: fresh-critic at close (accept-gate judge_metric + the held-out test split byte-untouched = NO manufactured win; the selection-reaches-a-clean proof non-vacuous; corpus byte-deterministic+additive; the A-LIVE Δ HONEST). Live run is a USER-RUN cost-gated gate (curl health first, no autostart)."
     },
     {
+      "id": "bench-salvage-phaseDOGFOOD-1-load-judgesets-run-pack-driver",
+      "stream": "bench-salvage",
+      "phase": "DOGFOOD-1",
+      "scope": "load-lithrim-backend-cases-plus-judge-set-ladder-plus-run-plus-reusable-sdk-runnable-eval-pack-cicd-gate",
+      "file": "bench-salvage_phaseDOGFOOD-1_load-judgesets-run-pack_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE-class (touches build_trio/the council assembly adjacent to the FROZEN _apply_consensus; runs PAID mixed-model councils; ships a new product surface [the importer + the eval-pack CI/CD gate = the premium lithrim-sdk parity]). fresh-critic at close.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "lithrim_bench/packager.py:125-231 (package_case row shape) + picklist.py:45-112 (load_case) + data/config/agents/{ws0_default,s_bs_74_demo}.json (agent+Dataset seed)",
+        "lithrim_bench/runtime/council/judges_dspy.py:52 V2_ROLES + :65-69 _ROLE_DEPLOYMENT + :205-253 build_judge_lm + :319-380 build_trio (loops V2_ROLES, NO roles= subset yet -- D2b adds it) + authored_stage.py:55-92 + run_eval.py:179-268,439-441",
+        "lithrim_bench/harness/evalpack.py:85-127 build_pack (loops agents; no in_process/models param yet -- D3 adds it) + report.py:159-205 calibration_check (PASS/WARN verdict-match -- the pass/fail primitive)",
+        "../lithrim-backend/examples/ci_cd_gate.py (THE RULE: passed = reliability>=threshold AND never_events==0; reliability=100*matches/total; exit 0/1) + ../lithrim-sdk/examples/run_eval_pack.py (the premium SDK story) + scripts/validate_canonical_12_via_sdk.py:364-368 (the exit-code shape)",
+        "../lithrim-backend/demo_dataset/*.jsonl + eval_golden.jsonl + tests/eval_packs/council_v2_smoke.jsonl (~270 synthetic cases, no PHI; the 5 starter picks in the driver §2 D1)",
+        "lithrim_bench/harness/judges.py:42-56 (the GLOBAL per-role store -- S-BS-98; NOT used for the dogfood's sets, call-time models= instead)"
+      ],
+      "_note": "DOGFOOD-1 = the by-today end-to-end DOGFOOD + the premium eval-pack-SDK surface (user pivot 2026-06-08/09: prove the generic platform works on real data, then the CI/CD pack-gate = the lithrim-sdk parity). Recons aaa89c12 (lithrim-backend salvage) + a6d25955 (bench surface) found it's mostly ASSEMBLY: grading is ALREADY SHARED (LithrimPipelineBackend -> the same :8002 /v1/pipeline/evaluate), the cases are near-aligned (~80-line importer), judge-sets need NO S-BS-98 refactor (run_eval.run takes models= as a CALL-TIME arg). D1 importer (lithrim-backend demo cases -> taxonomy-linted imported_demo_*.jsonl, second-class/no-recipe, graded vs provided labels) + D2a the model-mix ladder (call-time models= dicts: all-Azure / Claude-risk / all-Claude; GUARANTEED today) + D2b roster-size 1/2/3 via build_trio roles= (GUARDED: verify _apply_consensus accepts a <3-vote subset; if not, model-mix ships + roster-size is a seam, NEVER edit the frozen seam) + D3 build_pack(in_process=,models=) multi-case unlock + D4 the CLI pack-gate (reliability>=threshold AND never_events==0 -> exit 0/1, replicate ci_cd_gate.py Mongo-free) + D5 runbook + the user-run cost-gated live dogfood. FROZEN: _apply_consensus + judge_metric/accept-gate + taxonomy_snapshot (importer LINTS, never edits) + committed seeds + first-class examples. lithrim-backend READ-ONLY (no Mongo/eval_external). Honest composition Δ (BYO-Claude confidence=None disclosed). Cases synthetic (Synthea, no PHI). Pathspec-only.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (HEAD 0757fd1; recons aaa89c12 + a6d25955 + monitor read of build_trio:319-380 [confirmed it loops the fixed V2_ROLES trio, no roles= subset -> D2b is a real additive change + the _apply_consensus subset question]; the optimize route's confirm gate + the ci_cd_gate rule CONFIRMED)",
+      "expanded": "2026-06-09 (driver authored from the two recons + the user's clarified judge-set ladder [1 judge Claude -> 2 -> 3-judge mixes, same flags] + the SDK-CI/CD-pack ask; ranked guaranteed-core-first [D1+D2a+D3] with D2b roster-size + D4 SDK-gate as guarded/splittable; honest-Δ + frozen-seam + read-only-backend the load-bearing guardrails).",
+      "next_action": "READY -- /devloop-kickoff bench-salvage DOGFOOD-1. Plan-review resolves the 6 decisions (the D2b _apply_consensus-subset gate FIRST [never edit the frozen seam]; importer-admissibility [imported_demo is second-class, exempt from the strict lint]; flag-reconciliation drops; the gate threshold/never-event def; cost posture + a $0 smoke first; scope/split if D1+D2a+D3+D4 is too much -- D4 SDK-gate is the natural fast-follow). HARD-GATE: fresh-critic at close (frozen seam+accept-gate+snapshot byte-untouched = no manufactured pass; the gate CLI 0/1 non-vacuous; imported cases not smuggled into the strict lint; honest composition Δ). The live dogfood is a USER-RUN cost-gated gate (curl health first, no autostart)."
+    },
+    {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
       "stream": "bench-salvage",
       "phase": "WS-6c-DSPy-3b",
