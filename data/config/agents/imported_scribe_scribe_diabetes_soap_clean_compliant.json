@@ -1,0 +1,26 @@
+{
+  "name": "imported_scribe_scribe_diabetes_soap_clean_compliant",
+  "eval_profile": {
+    "judges": [
+      "risk_judge",
+      "policy_judge",
+      "faithfulness_judge"
+    ],
+    "council_config": {
+      "disposition": "in-process-v2",
+      "compliance_council_version": "v2",
+      "note": "DOGFOOD-1 imported demo case (second-class; ground_truth_basis=imported_demo). Graded in-process by the v2 trio. Same trio as ws0_default; the judge-set ladder varies models/roles at call time."
+    },
+    "ontology_ref": "clinical/1",
+    "ontology_path": "data/ontology/clinical_v1.json",
+    "tools": [],
+    "kb_bindings": {},
+    "severity_map_ref": "ontology:clinical/1"
+  },
+  "dataset": {
+    "case_id": "imported_scribe_scribe_diabetes_soap_clean_compliant",
+    "source": "examples/imported_demo_scribe.jsonl",
+    "baseline": null,
+    "mode": "in_process"
+  }
+}
