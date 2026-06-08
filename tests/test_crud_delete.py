@@ -221,7 +221,11 @@ def _route_deletes(client):
 
 
 def test_get_agents_lists_the_seeds(client):
-    assert set(client.get("/v1/agents").json()["agents"]) == {"ws0_default", "uap5a_flip_demo"}
+    assert set(client.get("/v1/agents").json()["agents"]) == {
+        "ws0_default",
+        "uap5a_flip_demo",
+        "s_bs_74_demo",
+    }
 
 
 def test_delete_agent_guards_404_and_audit(client):
