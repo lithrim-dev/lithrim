@@ -1549,6 +1549,28 @@
         }
       ],
       "next_action": "CLOSED-WITH-CAVEATS 2026-06-04 via verify-and-close (the build had already landed in the parallel journey rework, not a driver-bounded executor). REMAINING = the :5180 visual-parity smoke (user-run, no-autostart) -- the close is conditional on it. Then WS-7b (Align: floor + KB into Act 3 -- now that the dosage floor + KbRagTool are merged at dc1cb7c) is the next product act. S-BS-50/51 fold into WS-5e packaging / a journey-bff.js cleanup. NOTE: the driver's 'zero backend/BFF/Python' leverage assumption was falsified -- the verify act needed a modest BFF extension (the case fetch + votes view)."
+    },
+    {
+      "id": "bench-salvage-phaseCHATBIND-1-chat-active-agent-binding-driver",
+      "stream": "bench-salvage",
+      "phase": "CHATBIND-1",
+      "scope": "bind-the-conversational-chat-loop-to-the-active-agent-system-prompt-plus-tool-defaults",
+      "file": "bench-salvage_phaseCHATBIND-1_chat-active-agent-binding_driver.md",
+      "status": "ready",
+      "version": "v2",
+      "hardness": "HARD-GATE-class (touches the A-SAFE conversational surface -- the binding must NOT widen the paid surface; fresh-critic at close).",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "apps/bff/agent/loop.py:28-112 (the STATIC _SYSTEM_PROMPT -- never names the active agent; system_prompt=_SYSTEM_PROMPT:112; the frozen deny-hook)",
+        "apps/bff/app.py:1130-1365 (_build_tool_context(req_agent): _get_judge agent=req_agent:1186 GOOD; _run_eval_replay(agent):1189 + _get_agent(name):1200 take the LLM param; _review_runs(limit):1295; ToolContext default_agent=req_agent:1365) + :1369-1401 chat_endpoint -> _build_tool_context(req.agent)",
+        "apps/shell/src/bff.js:173-184 (chatStream ALREADY POSTs {message, agent, history}) + app.jsx:183 (<CenterPane agent={activeAgent}>) -- the shell side is ALREADY WIRED; verify-only",
+        "memory conversational-authoring-surface-complete (the 8-tool $0/replay A-SAFE bound) + fastapi-endpoint-as-plain-call-fieldinfo-trap (S-BS-82) + the DOGFOOD-1 critique addendum (the live dogfooding that found S-BS-103)"
+      ],
+      "_note": "CHATBIND-1 = S-BS-103: from chat, the agent operates on ws0_default not the rail-SELECTED case (DOGFOOD-1 live dogfooding). ROOT CAUSE CORRECTED at authoring (Phase-1a re-grep, NOT the v1 draft's shell claim): the binding chain is ALREADY wired (app.jsx:183 agent={activeAgent} -> bff.js:182 POSTs agent -> app.py:1393 _build_tool_context(req.agent)). The real break is the BFF LOOP: _SYSTEM_PROMPT (loop.py:28) never names the active agent + the agent-scoped tools _get_agent(name)/_run_eval_replay(agent) take the LLM's param (not default_agent=req_agent which the ToolContext already carries :1365), so the model defaults to ws0_default. FIX (BFF-side): D1 make the system prompt active-agent-aware (name req_agent; operate-on-it-by-default) threaded via ctx.default_agent; D2 default _get_agent/_run_eval_replay (+ scope _review_runs) to req_agent; D3 verify the shell path (already wired). A-SAFE NON-NEGOTIABLE: no paid knob, run_eval_replay stays live=in_process=False, the deny-hook byte-identical. Unblocks the fully-chat-driven imported-case demo (+ 'demo what cases we're evaluating' from chat) -> the OWED narrated video. OUT: S-BS-98 (per-agent judges), S-BS-105 (in_process in the UI), S-BS-104 (imported-case finding noise). Pathspec-only.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (HEAD e911828; monitor re-grep CORRECTED the root cause -- bff.js:173-184 chatStream POSTs agent, app.py:1393 chat_endpoint uses req.agent, app.py:1186 _get_judge uses req_agent, BUT loop.py:28 _SYSTEM_PROMPT is static + app.py:1189/1200 _run_eval_replay/_get_agent take the LLM param + :1365 default_agent=req_agent unused by them; so the fix is the BFF loop, not the shell as the v1 draft claimed)",
+      "expanded": "2026-06-09 (driver v2 authored/corrected by the monitor: a pre-existing draft blamed the shell [thread activeAgent -> /v1/chat], but Phase-1a re-grep proved the shell + BFF binding chain is already wired end-to-end; the real gap is the loop's static system prompt + the agent-param tools defaulting to ws0_default; deliverables re-pointed to loop.py + _build_tool_context).",
+      "next_action": "READY -- /devloop-kickoff bench-salvage CHATBIND-1. Plan-review resolves: _review_runs scoping (list-all vs filter-by-req_agent); how the active agent reaches system_prompt= (via ctx.default_agent in run_chat/_build_options) without disturbing the frozen deny-hook; A-SAFE (defaulting to req_agent adds no paid path); shell verify-only (the chain is wired). HARD-GATE: fresh-critic at close (no paid path added = A-SAFE intact non-vacuous + byte-identical deny-hook; the chat operates on the ACTIVE agent not ws0_default = non-vacuous; frozen ops + audit gates byte-untouched). The A-LIVE is a USER-RUN $0 smoke (select an imported case -> chat 'show + review this case' -> the agent targets it)."
     }
   ]
 }
