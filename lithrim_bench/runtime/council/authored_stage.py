@@ -49,6 +49,7 @@ def build_authored_semantic_stage(
     decisions_sink: list[Any] | None = None,
     http_client: Any | None = None,
     models: dict[str, str] | None = None,
+    roles: Sequence[str] | None = None,
 ):
     """Return an async semantic stage that grades via the authored DSPy trio.
 
@@ -73,6 +74,11 @@ def build_authored_semantic_stage(
     BYO-Claude LM while the rest stay Azure — the model-composition council. ``None``
     (the default) is byte-identical to before.
 
+    ``roles`` (DOGFOOD-1 D2b) is forwarded to :func:`build_trio` to grade with a SMALLER
+    roster (the judge-set-ladder rungs). ``None`` (the default) is the full trio,
+    byte-identical to before. A 2- or 3-role roster grades normally; a single-role roster
+    degenerates at the frozen consensus (``len(valid) >= 2`` guard) — see ``build_trio``.
+
     UAP-3b (THE MOAT): when ``apply_gate`` is True (default), the per-judge
     **withstands-gate** (:func:`apply_withstands_gate`) runs BETWEEN the trio results
     and the frozen ``_apply_consensus`` — it reconciles each judge's verdict against
@@ -90,7 +96,11 @@ def build_authored_semantic_stage(
     from .withstands import apply_withstands_gate
 
     trio = build_trio(
-        ontology=ontology, assignments=assignments, predictors=predictors, models=models
+        ontology=ontology,
+        assignments=assignments,
+        predictors=predictors,
+        models=models,
+        roles=roles,
     )
     council = council or ComplianceCouncil()
 
@@ -101,7 +111,9 @@ def build_authored_semantic_stage(
         # (the ab_harness precedent).
         transcript = (payload.get("call_context") or {}).get("transcript", "")
         artifact = "\n\n".join(
-            (a.get("content") or "") for a in (payload.get("artifacts") or []) if isinstance(a, dict)
+            (a.get("content") or "")
+            for a in (payload.get("artifacts") or [])
+            if isinstance(a, dict)
         )
         results = [j.forward(transcript=transcript, artifact=artifact) for j in trio]
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -177,6 +178,7 @@ def run(
     ontology_path: str | Path | None = None,
     assignments: dict[str, Any] | None = None,
     models: dict[str, str] | None = None,
+    roles: Sequence[str] | None = None,
     collections_db: str | Path | None = None,
 ) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record.
@@ -205,6 +207,13 @@ def run(
     assignments) still builds the authored trio (the seed-base lens). ``None``/absent →
     the default all-Azure council (back-compat). Like ``assignments``, ignored on
     replay/live.
+
+    ``roles`` (DOGFOOD-1 D2b): an ordered subset of ``V2_ROLES`` selecting a SMALLER
+    roster for the judge-set ladder. Threaded into the authored in_process trio
+    (``build_authored_semantic_stage`` → ``build_trio(roles=)``); a ``roles`` selector
+    alone (no assignments/models) still builds the authored trio. ``None``/absent → the
+    full trio (back-compat). A single-role roster degenerates at the frozen consensus
+    (``len(valid) >= 2``); use 2 or 3. Ignored on replay/live.
 
     ``collections_db`` (UAP-3 R6 / S-BS-52): the doc-shim DB run-provenance persists
     to. ``None`` → ``DEFAULT_COLLECTIONS_DB`` (back-compat). The BFF threads its
@@ -245,7 +254,7 @@ def run(
         # default-deps replay/live paths above never reach it. No assignments → the
         # default in-process council (back-compat).
         semantic_stage = None
-        if assignments or models:
+        if assignments or models or roles:
             from lithrim_bench.runtime.council.authored_stage import (
                 build_authored_semantic_stage,
             )
@@ -259,6 +268,7 @@ def run(
                 ontology=ontology,
                 assignments=assignments,
                 models=models,
+                roles=roles,
                 decisions_sink=withstands_sink,
             )
         result = grade_inprocess(
@@ -437,7 +447,9 @@ def main() -> int:
     # the in-process grade so an authored judge re-votes with its authored lens. Empty
     # before any PUT /v1/judges → the default council (back-compat).
     assignments = {
-        role: jc.assigned_flags for role, jc in list_judges(db_path=db_path).items() if jc.assigned_flags
+        role: jc.assigned_flags
+        for role, jc in list_judges(db_path=db_path).items()
+        if jc.assigned_flags
     }
 
     record = run(

@@ -323,6 +323,7 @@ def build_trio(
     ontology: Any = None,
     assignments: dict[str, Sequence[str]] | None = None,
     models: dict[str, str] | None = None,
+    roles: Sequence[str] | None = None,
 ) -> list[Judge]:
     """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
 
@@ -351,9 +352,21 @@ def build_trio(
     MIXED-provider council (one role on the tool-less BYO-Claude LM, the rest on Azure)
     is assemblable. ``None``/empty (the default) is byte-identical to before — each
     judge binds ``build_judge_lm(role)`` with no override (A5 back-compat).
+
+    ``roles`` (DOGFOOD-1 D2b): an optional ordered subset of :data:`V2_ROLES` to build a
+    SMALLER roster (the judge-set-ladder rungs). ``None`` (the default) builds the full
+    trio, byte-identical to before. NOTE: the frozen ``_apply_consensus`` requires
+    ``len(valid) >= 2`` in full-council mode, so a 2- or 3-role roster grades normally
+    but a SINGLE-role roster returns ``insufficient_valid_models`` (a degenerate
+    ``needs_review``) — single-judge support is a consensus-policy decision, not a
+    ``build_trio`` change. Each name must be in :data:`V2_ROLES`.
     """
+    selected = tuple(roles) if roles else V2_ROLES
+    unknown = [r for r in selected if r not in V2_ROLES]
+    if unknown:
+        raise ValueError(f"roles {unknown!r} not in V2_ROLES {V2_ROLES!r}")
     judges: list[Judge] = []
-    for role in V2_ROLES:
+    for role in selected:
         if ontology is not None:
             assigned = assignments.get(role) if assignments else None
             role_prompt = render_role_questions(ontology, role, assigned_flags=assigned)
