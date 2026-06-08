@@ -221,11 +221,11 @@ def _route_deletes(client):
 
 
 def test_get_agents_lists_the_seeds(client):
-    assert set(client.get("/v1/agents").json()["agents"]) == {
-        "ws0_default",
-        "uap5a_flip_demo",
-        "s_bs_74_demo",
-    }
+    # The canonical seeds are present. Asserted as a SUBSET (not exact set) so legitimate
+    # seed additions (e.g. DOGFOOD-1's imported_* demo cases) don't make this brittle.
+    assert {"ws0_default", "uap5a_flip_demo", "s_bs_74_demo"} <= set(
+        client.get("/v1/agents").json()["agents"]
+    )
 
 
 def test_delete_agent_guards_404_and_audit(client):

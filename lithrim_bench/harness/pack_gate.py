@@ -180,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pack-id", default="dogfood", help="pack_id when building")
     parser.add_argument("--dump", help="When building, also freeze the built pack to this path")
     parser.add_argument("--out-dir", help="Per-case persist dir when building")
+    parser.add_argument(
+        "--collections-db",
+        help="When building in_process, persist run blobs to this DB so the runs show in "
+        "GET /v1/runs (point at the BFF's collections DB). Default: the engine default.",
+    )
     args = parser.parse_args(argv)
 
     # Lazy import so --pack (offline) never pulls run_eval/council heavy deps.
@@ -210,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
             judge_set=js,
             threshold=args.threshold if args.threshold is not None else DEFAULT_THRESHOLD,
             out_dir=args.out_dir,
+            collections_db=args.collections_db,
         )
         if args.dump:
             dump_pack(pack, args.dump)
