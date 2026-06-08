@@ -1,0 +1,133 @@
+{
+  "session_id": "session-bench-salvage-phaseCHATBIND-2-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "CHATBIND-2",
+  "driver_bundle_id": "bench-salvage-phaseCHATBIND-2-chat-drives-the-artifact-pane-driver",
+  "started_at": "2026-06-09T04:00:00+05:30",
+  "ended_at": "2026-06-09T04:25:00+05:30",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T03:55:00+05:30",
+    "user_approved_at": "2026-06-09T04:00:00+05:30",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D4 = Option D (the run_result lift SSE event), not Option C (shell re-runs a $0 replay). Also extend the loop.py SSE-contract docstring to include run_result; the payload is byte-same to the manual Run-eval result and fires only for the chat's $0 replay.",
+        "evidence": "monitor GO message decision 1; implemented in loop.py run_chat drain + ToolContext.emit_run + the SSE docstring",
+        "decided_at": "2026-06-09T04:00:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Include the 3-line ConfigTab activeAgent thread (ArtifactPane gains `agent` -> <ConfigTab agent={...}>) so the chat-driven 'show its config' loads the ACTIVE agent's ontology, not hardcoded ws0_default; getOntology's contract unchanged beyond the existing agent param; covered by a non-vacuous test.",
+        "evidence": "monitor GO message decision 2; app.jsx + artifact.jsx + artifact.test.jsx",
+        "decided_at": "2026-06-09T04:00:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "DROP `ref` from focus_artifact — no consumer under Option D; ship focus_artifact({tab}) only (CHATBIND-1 drop-unreachable discipline).",
+        "evidence": "monitor GO message decision 3; FOCUS_ARTIFACT_SCHEMA = {tab} only; test asserts {tab: str} == schema",
+        "decided_at": "2026-06-09T04:00:00+05:30"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Pre-existing ruff-format drift in two EDITED test files (tests/test_uap5c_journey.py, tests/test_crud_delete.py) in regions NOT touched by this cycle (BUILTIN_TOOLS set, the steps list, a `delete_judge(...) is True` line). Confirmed present at HEAD before the edit; deliberately NOT reformatted (no drive-by). My edited lines (count 11->12 + comments) are ruff-clean.",
+        "evidence": "ruff format --check on `git show HEAD:tests/test_uap5c_journey.py` -> 'Would reformat' (pre-existing); ruff check clean on all touched files",
+        "decided_at": "2026-06-09T04:18:00+05:30"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "e7b0806d15f0c580645910586ef3d2b606fe72dd",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): focus_artifact tool + pane-control prompt + run_result lift (chat drives the artifact pane)",
+      "summary": "adapter.open_artifact_part directive; tools.focus_artifact_handler ($0, {tab}-only, no PAID_KEY, in _TOOL_SPECS); ToolContext.run_results+emit_run; run_eval_handler stashes its $0 record; loop _SYSTEM_PROMPT focus_artifact bullet + _system_prompt pane-control stanza + run_chat run_result drain + the SSE docstring. _build_options gate byte-identical."
+    },
+    {
+      "hash": "4bf3c895ef70cf5fcc21157af0e77083101bcd7f",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): honor the tool-open_artifact directive + lift the chat run into runResult",
+      "summary": "CenterPane.onEvent fires onOpenArtifact(tab) on a tool-open_artifact part (guarded by ARTIFACT_TABS) + renders a tiny non-card affordance (never renderTool); a run_result event -> onRunResult -> App.setRunResult; ArtifactPane threads activeAgent -> ConfigTab. No paid path; surgical (compact style preserved, no prettier drive-by)."
+    },
+    {
+      "hash": "d8d9e70820dfc4ce0cc016c7b4afc984e0c34ef9",
+      "repo": "lithrim-bench",
+      "title": "test(chatbind-2): the chat opens+focuses the pane (non-vacuous) + A-SAFE bound",
+      "summary": "tests/test_chatbind2_pane.py (A1 4-tabs+reject, A-SAFE no-paid-knob+allowlist+1+byte-identical gate, D4 lift); panes.chat.test.jsx (A2 directive+guard+run_result); app.chat.test.jsx (A4 e2e -> Judge tab shows the run); artifact.test.jsx (ConfigTab active-agent); tool-count asserts 11->12 in 4 existing files."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — focus_artifact emits a valid tool-open_artifact part for each of the 4 tab keys; an invalid tab is rejected (unit)",
+      "verdict": "PASS",
+      "evidence": "tests/test_chatbind2_pane.py::test_focus_artifact_emits_a_directive_for_each_tab + ::test_focus_artifact_rejects_an_unknown_tab (no part on reject). 88 BFF chat-suite tests green."
+    },
+    {
+      "criterion": "A2 (non-vacuous) — a streamed tool-open_artifact part drives the shell to OPEN+FOCUS that tab; fails if ignored or rendered inline",
+      "verdict": "PASS",
+      "evidence": "panes.chat.test.jsx 'A2 (non-vacuous)…' asserts onOpenArtifact('judges') fired + a pane-directive affordance + NO 'Unsupported component' fallback; the off-contract-tab guard test asserts a bogus tab does NOT open the pane."
+    },
+    {
+      "criterion": "A3 — A-SAFE intact: no paid knob on the new tool; deny-hook byte-identical; allowlist = prior set + exactly focus_artifact; test_asafe_tool_gate.py + no-paid-knob green",
+      "verdict": "PASS",
+      "evidence": "FOCUS_ARTIFACT_SCHEMA={tab} (no PAID_KEY); test_chatbind2_pane.py::test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byte_identical; git diff d0edcdd..HEAD on loop.py shows ZERO lines touch deny/bypassPermissions/setting_sources/skills/allowed_tools/max_turns/permission_mode; test_asafe_tool_gate.py green unmodified."
+    },
+    {
+      "criterion": "A4 — a chat-driven $0 run result is shown in the focused Report/Judge tab; config/corpus focus + self-load with no run data",
+      "verdict": "PASS",
+      "evidence": "app.chat.test.jsx (A4 e2e): a chat run_result + tool-open_artifact('judges') renders risk_judge/BLOCK in the focused Judge council tab. ConfigTab self-fetch (now the ACTIVE agent) covered by artifact.test.jsx; CorpusTab self-fetch unchanged."
+    },
+    {
+      "criterion": "A5 — green bar (BFF + shell, debuglithrim) + ruff/prettier clean on touched; frozen ops + audit gates + deny-hook untouched",
+      "verdict": "PASS",
+      "evidence": "408 BFF tests pass (full tests/ tree, debuglithrim) + 75 shell tests pass. ruff check clean on all touched .py. No frozen op / audit / deny-hook line changed (loop.py diff proof above)."
+    },
+    {
+      "criterion": "A-LIVE (USER-RUN, $0) — on :5180 select an imported case -> chat 'run a $0 replay and show me the judge council' -> pane opens+focuses Judge council with THIS case's votes; then 'show its config' -> Config",
+      "verdict": "SKIP",
+      "evidence": "USER-RUN by design (HARD-GATE close ritual). All offline acceptance + the A4 end-to-end test pass; pending the user's live $0 attestation + the proof capsule."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "tool_surface": "11 -> 12 (focus_artifact; $0, {tab}-only, no PAID_KEY)",
+    "bff_tests": "408 passed (full tests/ tree, debuglithrim)",
+    "shell_tests": "75 passed (14 files)",
+    "new_test_files": "tests/test_chatbind2_pane.py, apps/shell/src/app.chat.test.jsx",
+    "build_options_gate": "byte-identical (only system_prompt VALUE changed via _system_prompt; allowlist grew via _TOOL_SPECS derivation, not a _build_options edit)",
+    "commits": "3 (e7b0806 bff, 4bf3c89 shell, d8d9e70 tests); pathspec-only; concurrent session 1ba6291 interleaved (no conflict)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-106",
+      "title": "ConfigTab self-fetch via getOntology(agent) may 404 for a brand-new blank agent before its ontology working-copy exists",
+      "severity": "low",
+      "fix_location": "apps/shell/src/artifact.jsx ConfigTab (error-state already handled) / apps/bff GET /v1/ontology",
+      "impact": "Threading activeAgent into ConfigTab is correct, but a freshly created eval-N agent with no ontology working copy may render ConfigTab's error state rather than an empty config. Cosmetic; the error branch already prevents a crash. Verify in the A-LIVE.",
+      "confidence": "HYPOTHESIS",
+      "evidence": "ConfigTab catches the fetch error (artifact.jsx:217-230 try/catch -> status='error'); not exercised live this cycle for a blank agent."
+    },
+    {
+      "id": "S-BS-107",
+      "title": "Pre-existing ruff-format drift in tests/test_uap5c_journey.py + tests/test_crud_delete.py (untouched regions)",
+      "severity": "low",
+      "fix_location": "tests/test_uap5c_journey.py, tests/test_crud_delete.py",
+      "impact": "Both files carry ruff-format drift in regions this cycle did not touch (confirmed pre-existing at HEAD). Left as-is to avoid drive-by reformatting; a future `ruff format` sweep (its own commit) should clean them.",
+      "confidence": "CONFIRMED",
+      "evidence": "ruff format --check on `git show HEAD:tests/test_uap5c_journey.py` -> 'Would reformat: ...' before any edit; my edited lines are ruff-clean."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "CHATBIND-2 landed in 3 pathspec-only commits (e7b0806 bff, 4bf3c89 shell, d8d9e70 tests). The chat now drives the 3rd pane: a new $0 read-only focus_artifact({tab}) tool emits a tool-open_artifact DIRECTIVE the shell honors (open+focus, guarded by ARTIFACT_TABS, rendered as a tiny non-card affordance — never via renderTool), and a run_result SSE event lifts the chat's $0 replay (byte-same to the manual Run-eval result) into the shared runResult so the focused Report/Judge tab shows THIS run. Per the monitor's GO: D4=Option D (lift event), the 3-line ConfigTab activeAgent thread is in, `ref` dropped. A-SAFE is intact and proven byte-identical — the loop.py diff touches ZERO deny-hook/isolation/allowlist-construction/max_turns lines; the allowlist grew by exactly mcp__lithrim__focus_artifact via the _TOOL_SPECS derivation; no schema gained a paid knob; run_eval_replay stays $0. Green bar: 408 BFF + 75 shell. CAVEATS: A-LIVE is the user's pending $0 run (HARD-GATE: fresh-critic + A-LIVE at close); two low seams opened (S-BS-106 blank-agent ConfigTab 404; S-BS-107 pre-existing ruff-format drift in two edited test files, NOT introduced here).",
+
+  "next_session_hint": "HARD-GATE: spawn a FRESH-CRITIC session on CHATBIND-2 (focus: no paid path on focus_artifact, byte-identical gate, non-vacuous directive) + the user runs the A-LIVE $0 demo on :5180; then monitor runs /devloop-close-phase bench-salvage CHATBIND-2."
+}
