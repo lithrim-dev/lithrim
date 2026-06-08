@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-07",
+  "updated": "2026-06-08",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -387,7 +387,7 @@
       "phase": "FLAG-1",
       "scope": "reference-flag-create-delete-local-honest-gradeable-gated-cross-repo",
       "file": "bench-salvage_phaseFLAG-1_reference-flag-create-delete_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the ontology + the CORE INVARIANT: labels-true-by-construction + the taxonomy-snapshot contract). fresh-critic at close.",
       "target_repos": ["lithrim-bench"],
@@ -404,7 +404,7 @@
       "created": "2026-06-07",
       "last_re_verified": "2026-06-07 (FLAG-1 invariant deep-trace [agent ae6ab7f44357c1113] + monitor first-hand reads of _validate_ontology + _author_flag + FlagDefinition; the gradeable-create-is-cross-repo finding CONFIRMED across snapshot_taxonomy.py + _validate_ontology + package_case)",
       "expanded": "2026-06-07 (driver authored from the invariant deep-trace; the gradeable-vs-reference fork RESOLVED with the user = 'Reference local; gradeable cross-repo' before authoring; 5 plan-review decisions D-A..D-E; backfill a TASK_PACK entry).",
-      "next_action": "READY (after CRUD-1) -- /devloop-kickoff bench-salvage FLAG-1. Plan-review resolves D-A (create surface) .. D-E (create/edit split). HARD-GATE: fresh-critic at close (focus: the taxonomy snapshot stays byte-untouched + gradeable-from-clean is refused non-vacuously)."
+      "next_action": "CLOSED CLEAN 2026-06-08 (build 6592a2a..67d3025, 5 atomic + log, parent 6592a2a, NOT pushed). Reference-flag CREATE+DELETE local + the HONEST gradeable-from-clean refusal shipped; the flags half of objective #2 -> ALL 3 of the user's 2026-06-07 objectives done. APPROVED DEVIATION (logged): delete = the 11th conv tool, not route-only (count 9->11). Monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic aca2db88ac2ec11f8 NON-BLOCKING [0 BLOCKING / 1 NB / 1 OQ-resolved] (perturbations flipped real tests: add gradeable/live to a schema -> A-SAFE fails; flip the _create_flag hardcode -> the create 422s; disable a delete guard -> the guard test fails; PIN 1 airtight = no agent PUT backdoor; snapshot byte-untouched; golden lint OK; frozen-seam 0-delta). Baseline reconciled to canonical 478/2/3 (the critic's worktree-6 = a worktree-isolation artifact -> S-BS-96). Opened S-BS-99 (low, corpus-orphan guard best-effort). No proof capsule (CRUD-mechanics). Session session-bench-salvage-FLAG-1-2026-06-08.json; critique critique-bench-salvage-FLAG-1-2026-06-08.md."
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-3b-judge-optimizer-driver",
