@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-08",
+  "updated": "2026-06-09",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -1571,6 +1571,28 @@
       "last_re_verified": "2026-06-09 (HEAD e911828; monitor re-grep CORRECTED the root cause -- bff.js:173-184 chatStream POSTs agent, app.py:1393 chat_endpoint uses req.agent, app.py:1186 _get_judge uses req_agent, BUT loop.py:28 _SYSTEM_PROMPT is static + app.py:1189/1200 _run_eval_replay/_get_agent take the LLM param + :1365 default_agent=req_agent unused by them; so the fix is the BFF loop, not the shell as the v1 draft claimed)",
       "expanded": "2026-06-09 (driver v2 authored/corrected by the monitor: a pre-existing draft blamed the shell [thread activeAgent -> /v1/chat], but Phase-1a re-grep proved the shell + BFF binding chain is already wired end-to-end; the real gap is the loop's static system prompt + the agent-param tools defaulting to ws0_default; deliverables re-pointed to loop.py + _build_tool_context).",
       "next_action": "CLOSED PROCEED-WITH-CAVEATS 2026-06-09 (build 574f98f feat + ef6e540 test + log e19b7b0; parent 6e19e5a, branch bench-salvage/ws6c-dspy, NOT pushed). The chat loop is bound to the active agent (corrected root cause = the BFF loop, NOT the shell): D1 _system_prompt(active_agent) names the rail-selected agent so the model stops emitting a stale ws0_default for the agent-scoped tools (loop.py; the ONLY _build_options change is system_prompt= -> A-SAFE deny-hook/bypassPermissions/setting_sources=[]/allowlist/max_turns byte-identical); D2 _review_runs scopes the run history to req_agent (app.py; NON-VACUOUS -- the filter key matches the _run_summary agent_id->agent projection; pre-fix the foreign run leaks). The driver closure-default was DROPPED as unreachable (tools.py resolves args.get(...) or ctx.default_agent before the closure). Monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic a543783125606a12c CLEAN [0 BLOCKING / 2 NB / 0 OQ] (C1 loop.py A-SAFE byte-identity; C2 no paid path [run_eval_replay live=in_process=False; tools.py UNCHANGED; no PAID_KEYS]; C3 review_runs NON-VACUOUS in production + the agent-vs-agent_id vacuity trap AVOIDED; C4 prompt parameterized; C5 scope held / frozen ops untouched). 10/10 chatbind+asafe tests on debuglithrim (none skipped), ruff clean. Closed S-BS-103; opened S-BS-106 (low -- review_runs 200-row global-window ceiling; the SQL-level agent-filter is a frozen-op change, out of scope). A-LIVE OWED (user-run $0: on :5180 select an imported case -> chat 'show + review this case' -> the agent targets the SELECTED case, not ws0_default; unlocks the fully-chat-driven imported-case demo -> the OWED narrated video). Session session-bench-salvage-CHATBIND-1-2026-06-09.json; critique critique-bench-salvage-CHATBIND-1-2026-06-09.md."
+    },
+    {
+      "id": "bench-salvage-phaseCHATBIND-2-chat-drives-the-artifact-pane-driver",
+      "stream": "bench-salvage",
+      "phase": "CHATBIND-2",
+      "scope": "the-chat-drives-the-artifact-pane-focus_artifact-directive-plus-smart-genui-triggers",
+      "file": "bench-salvage_phaseCHATBIND-2_chat-drives-the-artifact-pane_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE-class (touches the A-SAFE conversational surface -- a NEW focus_artifact tool; the directive must add NO paid path; fresh-critic at close).",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "apps/bff/agent/loop.py:1-17 (SSE: tool_result carries {part:{type,state,output}}) + _system_prompt (CHATBIND-1) + the FROZEN _build_options deny-hook/allowlist",
+        "apps/bff/agent/tools.py (_TOOL_SPECS + PAID_KEYS; a new $0 focus_artifact tool joins the allowlist)",
+        "apps/shell/src/app.jsx:171/183/188 (openArtifact(t)=setTab(t)+setOpen(true); CenterPane gets onOpenArtifact; ArtifactPane mounted with runResult) + artifact.jsx:413-423 (tabs report/judges/config/corpus; report+judges render runResult, config+corpus self-fetch)",
+        "apps/shell/src/bff.js:167-206 (chatStream data: frames -> onEvent) + panes.jsx:101/381 (CenterPane; chat parts via renderTool)",
+        "the CHATBIND-1 driver + critique-bench-salvage-CHATBIND-1-2026-06-09.md (the A-SAFE bound + byte-identity discipline) + memory conversational-authoring-surface-complete"
+      ],
+      "_note": "CHATBIND-2 = the conversational-first capability demo (user direction 2026-06-09, chosen FIRST over the plugin spec/refactor): the chat must SMARTLY drive the 3rd pane (ArtifactPane: report/judges/config/corpus) -- open it, focus the right tab, load its data -- as part of the conversation, not just render inline cards. Composes over CHATBIND-1 + the EXISTING openArtifact(t)=setTab+setOpen (app.jsx:171, already passed into the chat pane :183) + the SSE gen-UI part stream (loop.py:15). The gap: the agent has no way to EMIT a pane directive, + the run-bearing tabs (report/judges) need the chat's run result threaded in. Recommended shape: D1 a new $0 focus_artifact(tab,ref?) SDK-MCP tool emitting a tool-open_artifact part; D2 a _system_prompt stanza for WHEN to focus (verdict->judges/report, config-change->config, corpus->corpus); D3 the shell honors the directive -> onOpenArtifact(tab) (NOT rendered inline); D4 thread the chat run result into the focused report/judges tab (plan-review: lift-into-shared-runResult vs fetch-by-id). A-SAFE NON-NEGOTIABLE: focus_artifact is $0/read, no paid knob, deny-hook byte-identical, allowlist grows by exactly one. OUT: the plugin registry / the frontend plugin KIND (Plugin Phase-1), a JUTE chat tool, new tabs, S-BS-98/105. This is the runtime channel BEHIND the future frontend/component plugin kind, NOT its registry. Pathspec-only.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (HEAD 6178b44; monitor reads of loop.py:1-17 SSE contract, bff.js:167-206 chatStream, app.jsx:171/183/188 openArtifact+runResult, artifact.jsx:413-423 the 4 tabs + their data sources, panes.jsx:101/381 CenterPane+renderTool, tools.py _TOOL_SPECS)",
+      "next_action": "READY -- /devloop-kickoff bench-salvage CHATBIND-2. User chose this FIRST (2026-06-09) over the plugin spec/refactor. Plan-review resolves: the directive mechanism (standalone focus_artifact tool [recommended] vs a hint on existing results); the D4 run-data threading (lift-into-shared-runResult vs fetch-by-ref); the A-SAFE deltas (only system_prompt= + the +1 allowlist; deny-hook byte-identical); confirm the directive is NOT rendered inline. HARD-GATE: fresh-critic at close (no paid path = A-SAFE non-vacuous; the pane directive drives the tab non-vacuously; frozen ops byte-untouched). A-LIVE = USER-RUN $0 (chat 'run a $0 replay and show me the judge council for this case' -> the pane opens+focuses Judge council with this case's votes; then 'show its config' -> Config)."
     }
   ]
 }

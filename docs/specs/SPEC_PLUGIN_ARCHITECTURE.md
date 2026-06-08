@@ -2,7 +2,7 @@
 
 > The extension-point contract that lets lithrim-bench ship a generic OSS **Core** and separable, license-gated **Pro** capabilities (healthcare packs, premium grounding contracts) — the technical realization of the open-core GTM (free core + premium annual license + optional VPC; no us-hosted surface).
 >
-> **Status: DRAFT** — OQ-1..3 open (the Core/Pro line, the transport stance, the licensing mechanism). Authored 2026-06-09. Owner: monitor + user.
+> **Status: DRAFT** — **OQ-1..3 RESOLVED 2026-06-09** (the conversational-first-Core direction; see §Open Questions). The full **Phase-1 spec-lock** — the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite — lands in the **Plugin Phase-1** cycle (sequenced AFTER **CHATBIND-2**, the user's first pick). Authored 2026-06-09. Owner: monitor + user.
 
 ---
 
@@ -118,11 +118,14 @@ The **moat is not the bits** (Core is genuinely useful and open) — it is the v
 
 ---
 
-## Open Questions (the user resolves; these gate the lock)
+## Open Questions — RESOLVED 2026-06-09 (user)
 
-- **OQ-1 — the exact Core/Pro line.** *Lean:* Core = engine + generic harness + the gate-CLI + a redacted sample pack; Pro = the full healthcare pack + premium contracts (terminology/JUTE/expressions) + registry/VPC + FDE. Where exactly does the line sit — e.g. is the *expressions evaluator* core (a generic math primitive) or pro?
-- **OQ-2 — transport stance.** *Lean:* support **both** in-process and microservice behind one interface (flexible, reuses the existing pattern). Alternative: **microservices-only for Pro** (cleaner VPC isolation + license enforcement, heavier ops). Which?
-- **OQ-3 — licensing mechanism.** A **license key** that unlocks *locally-bundled* Pro plugins (simpler, but the bits are present) vs Pro plugins **only fetchable from a private registry** (can't have the bits without a license — stronger, ties to the no-us-hosted/trust-wedge stance). Which enforcement model?
+> Resolved in the conversational-first-Core direction-setting (2026-06-09). The full Phase-1 spec-lock (the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite) lands in the **Plugin Phase-1** cycle — these are the locked decisions it implements.
+
+- **OQ-1 — the Core/Pro line. RESOLVED.** **Core (OSS)** = the **conversational shell** (the chat-first eval interface) + the engine (council orchestration + the grounding-floor mechanism) + the SQLite config plane + `run_eval`/eval-pack/the gate-CLI + the generic harness/importer + **ALL of JUTE** (the validator authoring/apply engine, *incl.* structural contracts) + **BYOK** + the **publicly-listed plugins**. **Pro (locked)** = the **vertical domain packs** (the full healthcare pack — ontology bundles + calibrated validators) + the **SME-calibration loop** + registry/VPC + FDE. *JUTE line (user, OQ-1 refinement): **all JUTE is Core**; only the domain packs + calibration are Pro — the generous-core OSS-adoption wedge.* The moat is the calibrated vertical CONTENT + the flywheel, **not** the bits.
+- **OQ-2 — transport. RESOLVED: BOTH.** In-process AND microservice behind one interface (the existing `_HTTP_CONTRACT_TYPES` pattern). Locked Pro packs run as services *inside the operator's stack / VPC* (airgapped-friendly); BYOK + the conversational core run in-process.
+- **OQ-3 — licensing. RESOLVED: separate distribution.** A subset of plugins is **listed publicly** (OSS, shipped in Core); the rest are **locked in the owner's private stack** (separately distributed — *not present in the OSS bits*). The stronger trust model (no us-hosted surface; you cannot have the locked bits without access) — **not** a license key that unlocks locally-bundled Pro plugins.
+- **NEW — a `frontend`/`component` plugin kind (extends §1).** The 5 existing kinds are backend-only; the gen-UI cards + the artifact-pane surfaces are **FE plugins** under the same `tier: core|pro` + public/locked split (some gen-UI OSS, some Pro). To be formalized in **Phase-1**. **CHATBIND-2 builds the runtime trigger channel** (the conversational agent driving FE surfaces — the chat opens/focuses the 3rd pane + smart inline gen-UI); it does **not** build the registry.
 
 ---
 
