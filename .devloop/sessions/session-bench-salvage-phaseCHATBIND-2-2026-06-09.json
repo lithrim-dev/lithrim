@@ -87,9 +87,9 @@
       "evidence": "408 BFF tests pass (full tests/ tree, debuglithrim) + 75 shell tests pass. ruff check clean on all touched .py. No frozen op / audit / deny-hook line changed (loop.py diff proof above)."
     },
     {
-      "criterion": "A-LIVE (USER-RUN, $0) — on :5180 select an imported case -> chat 'run a $0 replay and show me the judge council' -> pane opens+focuses Judge council with THIS case's votes; then 'show its config' -> Config",
-      "verdict": "SKIP",
-      "evidence": "USER-RUN by design (HARD-GATE close ritual). All offline acceptance + the A4 end-to-end test pass; pending the user's live $0 attestation + the proof capsule."
+      "criterion": "A-LIVE ($0) — on :5180 chat 'run a $0 replay and show me the judge council' -> pane opens+focuses Judge council with THIS case's votes; then 'show its config' -> Config",
+      "verdict": "PASS",
+      "evidence": "ATTESTED LIVE (BYO-Claude, $0). Turn 1 (ws0_default): run_eval -> verdict_card(REJECT) -> run_result{pipeline_run_id a57bd49d, 3 votes: risk PASS 1.0 / policy BLOCK / faithfulness BLOCK 1.0} -> focus_artifact -> tool-open_artifact{tab:judges}; pane focused Judge council w/ votes (frame-verified ~76s). Turn 2 'show its config' -> focus_artifact -> tool-open_artifact{tab:config}; pane focused Config (clinical/1, 23 flags, frame-verified ~126s). Blob docs/research/RUN_chatbind2_alive_2026-06-09.json; capsule docs/research/PROOF_bench-salvage_CHATBIND-2_2026-06-09.md + out/zyng_narrate/chatbind2_alive_voiced.mp4. NOTE: the driver's 'imported case' 500s on replay (S-BS-108, pre-existing backend bug) -> used ws0_default; the agent was honest about the imported failure (no fabricated council)."
     }
   ],
 
@@ -103,6 +103,15 @@
   },
 
   "seams_opened": [
+    {
+      "id": "S-BS-108",
+      "title": "imported_* (and s_bs_74_demo / uap5a_flip_demo) agents 500 on $0 replay: 'expected str, bytes or os.PathLike object, not NoneType'",
+      "severity": "medium",
+      "fix_location": "apps/bff replay path-resolution (the dataset source/baseline -> None for imported agents)",
+      "impact": "Pre-existing backend replay bug (NOT CHATBIND-2) — only ws0_default replays cleanly. Found during the A-LIVE when the driver's 'imported case' failed; the chat agent honestly surfaced it rather than fabricate a council. Blocks demoing CHATBIND-2 on an imported case until fixed; the mechanism is proven on ws0_default.",
+      "confidence": "CONFIRMED",
+      "evidence": "POST /v1/run-eval {agent: imported_scribe_*} -> 500 'Internal Server Error'; the live chat narration: 'run_eval fails internally every time with: expected str, bytes or os.PathLike object, not NoneType'. ws0_default replays OK (reject, 3 votes). docs/research/RUN_chatbind2_alive_2026-06-09.json turn0."
+    },
     {
       "id": "S-BS-106",
       "title": "ConfigTab self-fetch via getOntology(agent) may 404 for a brand-new blank agent before its ontology working-copy exists",
@@ -127,7 +136,7 @@
 
   "verdict": "PROCEED-WITH-CAVEATS",
 
-  "report": "CHATBIND-2 landed in 3 pathspec-only commits (e7b0806 bff, 4bf3c89 shell, d8d9e70 tests). The chat now drives the 3rd pane: a new $0 read-only focus_artifact({tab}) tool emits a tool-open_artifact DIRECTIVE the shell honors (open+focus, guarded by ARTIFACT_TABS, rendered as a tiny non-card affordance — never via renderTool), and a run_result SSE event lifts the chat's $0 replay (byte-same to the manual Run-eval result) into the shared runResult so the focused Report/Judge tab shows THIS run. Per the monitor's GO: D4=Option D (lift event), the 3-line ConfigTab activeAgent thread is in, `ref` dropped. A-SAFE is intact and proven byte-identical — the loop.py diff touches ZERO deny-hook/isolation/allowlist-construction/max_turns lines; the allowlist grew by exactly mcp__lithrim__focus_artifact via the _TOOL_SPECS derivation; no schema gained a paid knob; run_eval_replay stays $0. Green bar: 408 BFF + 75 shell. CAVEATS: A-LIVE is the user's pending $0 run (HARD-GATE: fresh-critic + A-LIVE at close); two low seams opened (S-BS-106 blank-agent ConfigTab 404; S-BS-107 pre-existing ruff-format drift in two edited test files, NOT introduced here).",
+  "report": "CHATBIND-2 landed in 3 pathspec-only commits (e7b0806 bff, 4bf3c89 shell, d8d9e70 tests). The chat now drives the 3rd pane: a new $0 read-only focus_artifact({tab}) tool emits a tool-open_artifact DIRECTIVE the shell honors (open+focus, guarded by ARTIFACT_TABS, rendered as a tiny non-card affordance — never via renderTool), and a run_result SSE event lifts the chat's $0 replay (byte-same to the manual Run-eval result) into the shared runResult so the focused Report/Judge tab shows THIS run. Per the monitor's GO: D4=Option D (lift event), the 3-line ConfigTab activeAgent thread is in, `ref` dropped. A-SAFE is intact and proven byte-identical — the loop.py diff touches ZERO deny-hook/isolation/allowlist-construction/max_turns lines; the allowlist grew by exactly mcp__lithrim__focus_artifact via the _TOOL_SPECS derivation; no schema gained a paid knob; run_eval_replay stays $0. Green bar: 408 BFF + 75 shell. A-LIVE ATTESTED ($0, BYO-Claude): the live chat opened+focused Judge council with 3 real votes (run a57bd49d) then focused Config — proof capsule shipped (PROOF_bench-salvage_CHATBIND-2_2026-06-09.md + RUN_chatbind2_alive_2026-06-09.json + out/zyng_narrate/chatbind2_alive_voiced.mp4). CAVEATS: HARD-GATE fresh-critic still pending; the driver's 'imported case' 500s on replay (S-BS-108 — pre-existing backend bug, NOT CHATBIND-2; the agent honestly surfaced it; demoed on ws0_default instead); S-BS-106 (blank-agent ConfigTab 404, low); S-BS-107 (pre-existing ruff-format drift in two edited test files, NOT introduced here, low).",
 
-  "next_session_hint": "HARD-GATE: spawn a FRESH-CRITIC session on CHATBIND-2 (focus: no paid path on focus_artifact, byte-identical gate, non-vacuous directive) + the user runs the A-LIVE $0 demo on :5180; then monitor runs /devloop-close-phase bench-salvage CHATBIND-2."
+  "next_session_hint": "HARD-GATE: spawn a FRESH-CRITIC session on CHATBIND-2 (focus: no paid path on focus_artifact, byte-identical gate, non-vacuous directive). A-LIVE done. Then monitor runs /devloop-close-phase bench-salvage CHATBIND-2. Separately: S-BS-108 (imported-case replay 500) wants its own fix cycle."
 }
