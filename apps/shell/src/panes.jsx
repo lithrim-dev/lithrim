@@ -98,7 +98,13 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
 }
 
 /* ============================ CENTER ============================ */
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default" }) {
+// CHATBIND-2: the artifact pane's 4 tabs (the focus_artifact directive contract) + their
+// labels. ARTIFACT_TABS guards the directive in the shell (defense-in-depth; the BFF tool
+// already rejects an unknown tab) so a bogus tab can never open the pane to a crash.
+const ARTIFACT_TABS = ["report", "judges", "config", "corpus"];
+const TAB_LABELS = { report: "Report", judges: "Judge council", config: "Config", corpus: "Corpus" };
+
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   const captureSetup = (key) => (result) => setSetup((s) => ({ ...s, [key]: result }));
@@ -141,8 +147,19 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
         {
           onEvent: (ev) => {
             if (ev.event === "assistant_delta") patchLast((m) => ({ ...m, text: (m.text || "") + ev.text }));
-            else if (ev.event === "tool_result" && ev.part)
+            else if (ev.event === "tool_result" && ev.part) {
+              // CHATBIND-2: a tool-open_artifact part is a pane-control DIRECTIVE, not a card.
+              // Fire the open+focus side-effect ON ARRIVAL (once); it still appends so the turn
+              // shows a tiny affordance (special-cased OUT of renderTool in the render map below).
+              if (ev.part.type === "tool-open_artifact") {
+                const t = ev.part.output?.tab;
+                if (ARTIFACT_TABS.includes(t)) onOpenArtifact?.(t);
+              }
               patchLast((m) => ({ ...m, parts: [...(m.parts || []), ev.part] }));
+            } else if (ev.event === "run_result")
+              // CHATBIND-2 (D4): lift the chat's $0 replay into the shell's shared runResult so
+              // the focused Report/Judge tab shows THIS run (byte-same to the manual Run-eval).
+              onRunResult?.(ev.result);
             else if (ev.event === "error")
               patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${ev.detail}` }));
           },
@@ -377,9 +394,17 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 <div className="content">
                   <div className="name">Lithrim</div>
                   {m.text && <Markdown>{m.text}</Markdown>}
-                  {(m.parts || []).map((part, j) => (
-                    <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>
-                  ))}
+                  {(m.parts || []).map((part, j) =>
+                    part.type === "tool-open_artifact" ? (
+                      // CHATBIND-2: the pane-control directive renders as a tiny non-card trace,
+                      // NEVER through renderTool (it is not a registered gen-UI card).
+                      <div key={j} data-testid="pane-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                        ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
+                      </div>
+                    ) : (
+                      <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>
+                    ),
+                  )}
                   {!m.text && !(m.parts || []).length && sending && i === chat.length - 1 && (
                     <p style={{ color: "var(--muted)" }}>Thinking…</p>
                   )}

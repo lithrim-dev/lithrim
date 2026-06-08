@@ -181,13 +181,14 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
             onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
-            onRunEval={doRun} runStatus={runStatus} />
+            onRunEval={doRun} runStatus={runStatus}
+            onRunResult={(r) => { setRunResult(r); setRunStatus("ready"); }} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
           )}
           {open && (
             <ArtifactPane
-              width={rightW} full={full} tab={tab} setTab={setTab}
+              width={rightW} full={full} tab={tab} setTab={setTab} agent={activeAgent}
               onClose={() => { setOpen(false); setFull(false); }}
               onToggleFull={() => setFull((f) => !f)}
               runStatus={runStatus} runResult={runResult} runError={runError}

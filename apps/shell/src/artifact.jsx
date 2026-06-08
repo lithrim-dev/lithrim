@@ -385,7 +385,7 @@ function CorpusTab() {
   );
 }
 
-export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, runStatus, runResult, runError }) {
+export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
     report: ["Evaluation report", "scribe-agent-v4 · run #218"],
     judges: ["Judge council", "per-case realized votes"],
@@ -419,7 +419,7 @@ export function ArtifactPane({ width, full, tab, setTab, onClose, onToggleFull, 
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
-          {tab === "config" && <ConfigTab />}
+          {tab === "config" && <ConfigTab agent={agent} />}
           {tab === "corpus" && <CorpusTab />}
         </div>
       </div>
