@@ -23,15 +23,14 @@ from __future__ import annotations
 import ast
 import json
 import os
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKS_DIR = REPO_ROOT / "packs"
 DEFAULT_PACK = "healthcare"
-_COUNCIL_SOURCE = (
-    REPO_ROOT / "lithrim_bench" / "runtime" / "council" / "compliance_council.py"
-)
+_COUNCIL_SOURCE = REPO_ROOT / "lithrim_bench" / "runtime" / "council" / "compliance_council.py"
 _COUNCIL_TIER_NAMES = ("TIER_1_NEVER_EVENTS", "TIER_2_HIGH_RISK", "TIER_3_MEDIUM")
 
 
@@ -121,3 +120,100 @@ def pack_taxonomy_path(pack: str | None = None) -> Path:
     pack = pack or active_pack()
     assert_pack_council_consistent(pack)
     return _resolve(_manifest(pack)["flags_ref"])
+
+
+# ─────────────────────────── the judges layer (PACK-2) ───────────────────────────
+# Layer 2 relocates the clinical council role prompts (``council_roles/*.txt``) into the
+# pack. The frozen council still globs the prompt files itself, so its ``_ROLE_PROMPTS_DIR``
+# is repointed here via an AUTHORIZED path-only carve-out — the same shape as the codes
+# gate above: a textual (AST-parse, no-import) bridge keeps the council frozen while the
+# domain content lives in the pack. Un-hardcoding the roster/lenses themselves is layer 2b.
+
+
+@lru_cache(maxsize=1)
+def council_roster() -> frozenset[str]:
+    """Every judge role the frozen council knows, AST-parsed from its source — no import.
+
+    The union of the ``CouncilModel(name=…, prompt_role=…)`` roster (across both the v2
+    and v1 branches → risk/policy/faithfulness/behavior) and the ``_TIER1_OWNERS`` owner
+    sets (which carry the dormant ``source_message_judge``). This is the authoritative
+    "known role" set the judges gate checks against — the same no-import technique as
+    :func:`council_known_codes`."""
+    tree = ast.parse(_COUNCIL_SOURCE.read_text())
+    roles: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "CouncilModel"
+        ):
+            for kw in node.keywords:
+                if kw.arg in ("name", "prompt_role") and isinstance(kw.value, ast.Constant):
+                    roles.add(kw.value.value)
+    for node in tree.body:
+        # ``_TIER1_OWNERS: Dict[str, set] = {…}`` is an annotated assignment.
+        if isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        elif isinstance(node, ast.Assign):
+            targets = node.targets
+        else:
+            continue
+        if any(isinstance(t, ast.Name) and t.id == "_TIER1_OWNERS" for t in targets):
+            for owners in ast.literal_eval(node.value).values():
+                roles.update(owners)
+            break
+    else:
+        raise KeyError(f"'_TIER1_OWNERS' not found in council source {_COUNCIL_SOURCE}")
+    return frozenset(roles)
+
+
+def assert_judges_known(
+    declared: Iterable[str],
+    prompt_stems: Iterable[str],
+    *,
+    roster: frozenset[str] | None = None,
+    pack: str = "<pack>",
+) -> None:
+    """The pure judges-consistency check (no disk I/O), so the fail-closed path is
+    test-pinnable on crafted sets without writing a bad pack to disk (A3, non-vacuous):
+
+      (i)  every declared judge is a council-known role,
+      (ii) every declared judge has a relocated prompt file,
+      (iii) no relocated ``.txt`` is for a non-roster role.
+    """
+    roster = council_roster() if roster is None else roster
+    declared = list(declared)
+    stems = set(prompt_stems)
+    unknown = sorted(set(declared) - roster)
+    if unknown:
+        raise PackConsistencyError(
+            f"pack {pack!r} declares judges not in the frozen council roster: {unknown}"
+        )
+    missing = sorted(set(declared) - stems)
+    if missing:
+        raise PackConsistencyError(
+            f"pack {pack!r} declares judges with no council-role prompt file: {missing}"
+        )
+    stray = sorted(stems - roster)
+    if stray:
+        raise PackConsistencyError(
+            f"pack {pack!r} carries council-role prompt(s) for unknown role(s): {stray}"
+        )
+
+
+@lru_cache(maxsize=8)
+def assert_pack_judges_consistent(pack: str) -> None:
+    """Assert the pack's declared judges have relocated prompts ∧ ⊆ the frozen council
+    roster, and that no relocated prompt is for a non-roster role (cached; runs once per
+    pack on first prompts resolution). The bridge that lets the council stay frozen while
+    its role prompts live in the pack."""
+    prompts_dir = _resolve(_manifest(pack)["council_roles"])
+    stems = [p.stem for p in prompts_dir.glob("*.txt")]
+    assert_judges_known(_manifest(pack)["judges"], stems, pack=pack)
+
+
+def pack_prompts_path(pack: str | None = None) -> Path:
+    """The active (or named) pack's council-role-prompts dir, gated for judge-consistency."""
+    pack = pack or active_pack()
+    assert_pack_judges_consistent(pack)
+    return _resolve(_manifest(pack)["council_roles"])

@@ -5,5 +5,6 @@
   "domain": "clinical",
   "ontology": "packs/healthcare/ontology.json",
   "flags_ref": "packs/healthcare/taxonomy_snapshot.json",
+  "council_roles": "packs/healthcare/council_roles",
   "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
 }
