@@ -21,11 +21,13 @@ read-only (the same technique ``scripts/seed_ontology.py`` uses).
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import os
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
+from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKS_DIR = REPO_ROOT / "packs"
@@ -217,3 +219,43 @@ def pack_prompts_path(pack: str | None = None) -> Path:
     pack = pack or active_pack()
     assert_pack_judges_consistent(pack)
     return _resolve(_manifest(pack)["council_roles"])
+
+
+# ─────────────────────────── the floors layer (PACK-3) ───────────────────────────
+# Layer 3 is the FIRST packs-as-CODE step: the clinical grounding *executors* relocate
+# OUT of the core into the pack's ``floors`` module, behind this registration interface.
+# The module is importlib-loaded from the manifest's ``floors`` path (so the core carries
+# no clinical-executor import) and cached. ``harness/grounding.py`` merges the module's
+# ``SUPPRESS_EXECUTORS`` / ``FLOOR_EXECUTORS`` dicts into its generic registries LAZILY
+# (on first grounding use) — the dependency points pack→core only, so there is no import
+# cycle. A pack with no ``floors`` declaration degrades cleanly to ``None`` (the core
+# engine runs with its generic executors alone). Un-freezing the council is layer 2b/1b.
+
+
+def load_pack_floors(pack: str | None = None) -> ModuleType | None:
+    """Importlib-load the active (or named) pack's ``floors`` module, or ``None`` if the
+    pack declares no ``floors`` (cached; loaded once per pack per process).
+
+    The module exposes the pack's executor-registration dicts (``SUPPRESS_EXECUTORS`` /
+    ``FLOOR_EXECUTORS``); ``harness.grounding`` merges them into its generic registries.
+    Loaded by file path from the manifest — never by package import — so the core resolves
+    the pack's code through the manifest, exactly as it resolves the ontology/prompts paths.
+    """
+    return _load_pack_floors(pack or active_pack())
+
+
+@lru_cache(maxsize=8)
+def _load_pack_floors(pack: str) -> ModuleType | None:
+    """The cached loader, keyed on the RESOLVED pack id — so ``load_pack_floors()`` and
+    ``load_pack_floors("healthcare")`` return the SAME module object (one class identity;
+    ``isinstance`` across the engine and callers holds)."""
+    ref = _manifest(pack).get("floors")
+    if not ref:
+        return None
+    path = _resolve(ref)
+    spec = importlib.util.spec_from_file_location(f"lithrim_bench_pack_{pack}_floors", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load pack floors module for {pack!r} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
