@@ -1,0 +1,116 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-2-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "PACK-2",
+  "driver_bundle_id": "bench-salvage-phasePACK-2-healthcare-pack-judges-layer-driver",
+  "started_at": "2026-06-09T13:55:00+05:30",
+  "ended_at": "2026-06-09T14:25:00+05:30",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T14:02:00+05:30",
+    "user_approved_at": "2026-06-09T14:08:00+05:30",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Blast radius beyond the driver's §2 enumeration: the two existing frozen-seam tests (test_uap3b2_provenance.py / test_uap3b_withstands.py) whole-file-pin compliance_council.py + council_roles to acc4973 → both go false after the carve-out+move; required reconciliation (PACK-1 precedent). Plus scripts/seed_ontology.py:67 ROLE_DIR is a live read needing a repoint to the pack.",
+        "evidence": "monitor: 'Verified independently — the executor's blast-radius catch is correct and complete … the driver's §2 under-enumerated the test-reconciliation footprint; your catch fills that gap and is required for green-bar, in-scope (PACK-1 precedent, not new scope creep).'",
+        "decided_at": "2026-06-09T14:08:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Fork 1 (import wrinkle): the one authorized compliance_council.py:470 line must call pack_prompts_path() with NO second import hunk → resolved via inline __import__, Path()-wrapped to keep the existing `from pathlib import Path` used (avoids a net-new F401 that would force a second hunk). Behavior-preserving, import-time-bound (matches today), one difflib hunk.",
+        "evidence": "monitor: 'import-time, ONE line at :470 … Do NOT touch _load_role_prompts … Keep the carve-out to the single :470 line so the difflib one-hunk guard is clean.' Executor refinement: Path()-wrap to avoid the F401-induced 2nd hunk.",
+        "decided_at": "2026-06-09T14:08:00+05:30"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Fork 2 (gate role set): a single council_roster() union (CouncilModel name/prompt_role ∪ _TIER1_OWNERS owners = the 5 roles) used for BOTH the declared-judge clause and the stray-.txt clause — admits the carried v1 behavior/source_message provenance prompts while still rejecting a bogus FOO_judge.txt.",
+        "evidence": "monitor: 'one council_roster() union, used for both checks … Don't split into a tighter v2-only declared-set — PACK-2 relocates prompts, it doesn't re-scope the roster (that's 2b).'",
+        "decided_at": "2026-06-09T14:08:00+05:30"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "11b3811ee96ec20bc557745ded96292a93cd13b9",
+      "repo": "lithrim-bench",
+      "title": "feat(pack): PACK-2 D1 — pack_prompts_path + judges-consistency gate (dormant)",
+      "summary": "packs/healthcare/pack.json council_roles ref + harness/pack.py: council_roster() (AST no-import), assert_judges_known (pure, A3-pinnable), assert_pack_judges_consistent (cached), pack_prompts_path. Dormant until D3 repoints."
+    },
+    {
+      "hash": "1795327a73610716b5d69dbe0dd4e69c183f6ecc",
+      "repo": "lithrim-bench",
+      "title": "feat(pack): PACK-2 D2/D3 — relocate council role prompts into the healthcare pack",
+      "summary": "git mv council_roles/ → packs/healthcare/council_roles/ (5 .txt R100), repoint all 3 readers to pack_prompts_path(): judge_assignment:25 (clean import), compliance_council:470 (Path()-wrapped inline __import__, one-hunk path-only carve-out), seed_ontology:67."
+    },
+    {
+      "hash": "44e9a2499b3be2bec7a4aaf3138cce1114974b24",
+      "repo": "lithrim-bench",
+      "title": "test(pack): PACK-2 D5 — carve-out freeze guards + reconcile the frozen-seam tests",
+      "summary": "_seam_freeze.py: assert_compliance_council_prompts_dir_relocated_only (difflib one-hunk, non-vacuous) + assert_council_roles_relocated_only (5 .txt byte-identical vs acc4973 old path). Both uap3b test_frozen_seam_zero_delta drop compliance_council.py + council_roles from the whole-file frozen list (judge_metric.py stays), call the two guards."
+    },
+    {
+      "hash": "deed21c5bc1020c7888239a836fcfb7ed1500749",
+      "repo": "lithrim-bench",
+      "title": "test(pack): PACK-2 D5/A1/A3 — layer-2 boundary + judges-gate proof",
+      "summary": "tests/test_pack_layer2.py (mirrors layer-1a): boundary (no council_roles dir/literal in core; scripts clean), both readers resolve via pack (council-light direct, frozen council AST-asserted), gate fails closed on 3 modes, council_roster AST-parsed in no-openai env. 11 tests."
+    },
+    {
+      "hash": "f28942c5a87ed21766d0b84a4b52beb0cb26082b",
+      "repo": "lithrim-bench",
+      "title": "docs(pack): PACK-2 D6 — record layer-2 (judges) landed in the plugin spec",
+      "summary": "SPEC_PLUGIN_ARCHITECTURE §Healthcare-realm-as-pack: layer-2 landed note + the prompts-as-carve-out vs roster/lenses/owners-as-2b nuance + layers 3–5/1b follow-ons."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — core resolves role prompts via the active pack; both readers (judge_assignment:25 + compliance_council:470) go through pack_prompts_path(); no hardcoded council_roles load-path literal survives in the core.",
+      "verdict": "PASS",
+      "evidence": "tests/test_pack_layer2.py: test_core_package_carries_no_council_roles_dir + _load_path + test_council_light_reader_resolves_through_the_pack (judge_assignment._ROLE_PROMPTS_DIR == pack.pack_prompts_path(), 'packs/healthcare' in path) + test_frozen_council_reader_resolves_through_the_pack_textually (AST asserts compliance_council :470 uses pack_prompts_path). 11/11 pass core env."
+    },
+    {
+      "criterion": "A2 — byte-behavior-identical clinical product: both the live council _load_role_prompts and the DSPy load_role_prompt read the SAME prompt bytes from the new home.",
+      "verdict": "PASS",
+      "evidence": "$0 byte-identity proof (kickoff: 'A2 provable $0 via byte-identity'): SHA256 of all 5 .txt identical pre-move (lithrim_bench/.../council_roles) and post-move (packs/healthcare/council_roles) — aa3c68dd…/c239fea6…/bab6e5e6…/6fafbbeb…/86f0084c…. Live council (debuglithrim) ComplianceCouncil._ROLE_PROMPTS_DIR → packs/healthcare/council_roles; _load_role_prompts() globs all 5 (lengths 11465/12106/2136/5580/4931). Consensus engine 0-delta (A5 difflib guard) ⇒ identical inputs + identical engine ⇒ identical votes/verdicts. NOTE: an empirical live before/after A/B on ws0_default is a paid run the user fires; behavior-identity is INFERRED from byte-identity + zero-delta engine."
+    },
+    {
+      "criterion": "A3 — the consistency gate holds (pack's declared judges have prompts ∧ ⊆ the council roster); a deliberately-mismatched pack fails closed (PackConsistencyError), non-vacuous.",
+      "verdict": "PASS",
+      "evidence": "tests/test_pack_layer2.py: test_healthcare_pack_is_judge_consistent (no raise; {risk,policy,faithfulness} ⊆ roster). Three fail-closed tests on crafted sets via the pure assert_judges_known: declared-judge-with-no-prompt ('no council-role prompt'), stray non-roster .txt ('FOO_judge'), declared-judge-off-roster ('NOPE_judge')."
+    },
+    {
+      "criterion": "A4 — content byte-identity: the 5 .txt are byte-identical to the moved originals (git R100); the live council + DSPy path read identical bytes; lint_golden green.",
+      "verdict": "PASS",
+      "evidence": "git diff-tree HEAD shows R100 for all 5 .txt (0 content delta). assert_council_roles_relocated_only diffs each pack-home file vs acc4973:old-path (passes in both uap3b suites). scripts/lint_golden_against_taxonomy.py --golden examples/proof_case.jsonl → 'OK: every expected_safety_flags code resolves to the snapshotted taxonomy' (taxonomy contract resolved via the active pack)."
+    },
+    {
+      "criterion": "A5 — the authorized carve-out is provably MINIMAL: compliance_council.py byte-identical to acc4973 except the single _ROLE_PROMPTS_DIR line (non-vacuous); judge_metric + judges_dspy consensus seam + roster + _TIER1_OWNERS + KNOWN_TAXONOMY_CODES + agent seeds 0-delta; green bar; ruff clean; pathspec-only commits.",
+      "verdict": "PASS",
+      "evidence": "git diff acc4973 -- compliance_council.py = exactly 1 @@ hunk @ :470 (one-line replace). difflib guard asserts exactly one changed hunk containing _ROLE_PROMPTS_DIR; non-vacuity confirmed (revert ⇒ 0 hunks ⇒ FAIL). judge_metric.py stays whole-file-frozen in both reconciled lists; assert_judges_dspy_consensus_seam_frozen still green; no data/config (agent seed) files in the diff. ruff check: compliance_council net-new findings 0 (96==96 vs acc4973, F401 avoided via Path()-wrap); all other touched files ruff clean + formatted. Green: core (python3, no openai) 398 passed / 24 skipped / 0 failed; debuglithrim 554 passed / 3 skipped / 2 failed (pre-existing S-BS-96, identical to baseline). All commits pathspec-only; full scope = 15 intended files, no foreign files swept."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "core_suite_baseline": "387 passed / 24 skipped / 0 failed (python3, no openai)",
+    "core_suite_final": "398 passed / 24 skipped / 0 failed (+11 = test_pack_layer2.py)",
+    "debuglithrim_baseline": "543 passed / 3 skipped / 2 failed (pre-existing S-BS-96 observation-isolation)",
+    "debuglithrim_final": "554 passed / 3 skipped / 2 failed (+11 layer2; the same 2 pre-existing failures, 0 new)",
+    "compliance_council_carve_out": "exactly 1 difflib hunk @ :470 (one-line replace); ruff net-new findings 0 (96==96)",
+    "role_prompts_moved": "5 (.txt, git R100 byte-identical; SHA256 verified pre/post)",
+    "council_roster_parsed": "{risk_judge, policy_judge, faithfulness_judge, behavior_judge, source_message_judge} (AST, no import)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PACK-2 (healthcare-realm-as-pack, layer 2 = judges) landed in 5 atomic pathspec-only commits (11b3811..f28942c, parent a43597b). The 5 clinical council role prompts relocated (R100 byte-identical) into packs/healthcare/council_roles/; both readers (the above-seam council-light judge_assignment:25 and the FROZEN live council compliance_council:470) resolve via the new pack.pack_prompts_path(), gated by assert_pack_judges_consistent (council_roster() AST-parse, no import). The one authorized frozen-file touch is provably minimal — a difflib one-hunk guard (non-vacuous) pins compliance_council.py byte-identical to acc4973 except the single _ROLE_PROMPTS_DIR line; the consensus engine, roster, _TIER1_OWNERS, KNOWN_TAXONOMY_CODES, judge_metric.py, and the judges_dspy consensus seam are 0-delta. The two existing frozen-seam tests were reconciled (PACK-1 precedent, monitor-approved at plan-review) and scripts/seed_ontology.py:67 was repointed. All §5 acceptance PASS; A2's empirical live before/after is a paid run the user fires (byte-identity is the accepted $0 proof). Caveat (the ONLY reason not CLEAN): this is HARD GATE — a fresh worktree-isolated critic must verify (i) the carve-out is genuinely path-only/behavior-preserving, (ii) the boundary is real, (iii) the move is content-identical, (iv) the gate is non-vacuous in the no-openai env, (v) A2 byte-behavior-identity. The 2 debuglithrim failures are pre-existing S-BS-96 (baselined before any edit), NOT PACK-2.",
+
+  "next_session_hint": "monitor should spawn a fresh worktree-isolated critic (/devloop-critique bench-salvage PACK-2, isolation:'worktree' per devloop-critic-worktree-isolation) then run /devloop-audit bench-salvage PACK-2; scan the close-commit output for [detached HEAD]."
+}
