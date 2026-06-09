@@ -215,6 +215,34 @@ describe("CenterPane — CHATBIND-2: the chat drives the artifact pane", () => {
   });
 });
 
+// CHATBIND-4: the consented live-run HAND-OFF — a tool-propose_live_run DIRECTIVE opens the in-DOM
+// cost-confirm modal; the agent only PROPOSES, the human's confirm is the SOLE paid path.
+describe("CenterPane — CHATBIND-4: the consented live-run hand-off", () => {
+  it("a propose_live_run directive OPENS the cost modal but the agent NEVER spends (only the human's confirm does)", async () => {
+    const onRunEval = vi.fn().mockResolvedValue();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "assistant_delta", text: "This case has no replay baseline — confirm a live run." });
+      onEvent({ event: "tool_result", part: { type: "tool-propose_live_run", state: "output-available", output: {} } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={onRunEval} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "run it live" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the directive renders a tiny NON-CARD affordance AND opens the cost-confirm modal (the door)
+    expect(await screen.findByTestId("paid-directive")).toHaveTextContent(/Surfaced the cost-confirm/);
+    expect(await screen.findByTestId("cost-confirm")).toBeInTheDocument();
+    // A-SAFE (NON-VACUOUS): opening the modal did NOT spend — onRunEval is untouched until the HUMAN confirms
+    expect(onRunEval).not.toHaveBeenCalled();
+    // the human's confirm is the ONLY thing that fires the paid (live=true) run
+    fireEvent.click(screen.getByTestId("cost-confirm"));
+    await waitFor(() => expect(onRunEval).toHaveBeenCalledWith(true));
+  });
+});
+
 // UX-1 (S-BS-89): the chat surface defaults CLEAN — empty-state instead of the scripted
 // 8-message preamble; the showcase is opt-in; "New evaluation" resets to a clean slate;
 // live turns carry a neutral identity; cadence (auto-grow + autoscroll) is wired.

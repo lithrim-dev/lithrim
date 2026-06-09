@@ -155,6 +155,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 const t = ev.part.output?.tab;
                 if (ARTIFACT_TABS.includes(t)) onOpenArtifact?.(t);
               }
+              // CHATBIND-4: a tool-propose_live_run DIRECTIVE opens the in-DOM CostModal — the agent
+              // PROPOSES; only the human's confirm (confirmPaidRun) spends. The agent never runs paid.
+              if (ev.part.type === "tool-propose_live_run") setPaid({ open: true, busy: false });
               patchLast((m) => ({ ...m, parts: [...(m.parts || []), ev.part] }));
             } else if (ev.event === "run_result")
               // CHATBIND-2 (D4): lift the chat's $0 replay into the shell's shared runResult so
@@ -394,18 +397,24 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 <div className="content">
                   <div className="name">Lithrim</div>
                   {m.text && <Markdown>{m.text}</Markdown>}
-                  {(m.parts || []).map((part, j) =>
-                    part.type === "tool-open_artifact" ? (
-                      // CHATBIND-2: the pane-control directive renders as a tiny non-card trace,
-                      // NEVER through renderTool (it is not a registered gen-UI card).
-                      <div key={j} data-testid="pane-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
-                        ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
-                      </div>
-                    ) : (
-                      // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                      <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>
-                    ),
-                  )}
+                  {(m.parts || []).map((part, j) => {
+                    // CHATBIND-2/4: pane-control + cost-confirm DIRECTIVES render as tiny non-card
+                    // traces, NEVER through renderTool (they are not registered gen-UI cards).
+                    if (part.type === "tool-open_artifact")
+                      return (
+                        <div key={j} data-testid="pane-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                          ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
+                        </div>
+                      );
+                    if (part.type === "tool-propose_live_run")
+                      return (
+                        <div key={j} data-testid="paid-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                          ↗ Surfaced the cost-confirm — you authorize the paid run
+                        </div>
+                      );
+                    // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
+                    return <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>;
+                  })}
                   {!m.text && !(m.parts || []).length && sending && i === chat.length - 1 && (
                     <p style={{ color: "var(--muted)" }}>Thinking…</p>
                   )}

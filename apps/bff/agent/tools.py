@@ -34,6 +34,7 @@ from .adapter import (
     flag_part,
     judge_part,
     open_artifact_part,
+    propose_live_run_part,
     verdict_part,
 )
 
@@ -107,6 +108,9 @@ _ARTIFACT_TABS = ("case", "report", "judges", "config", "corpus")
 # CHATBIND-3: show_case takes NO params — it summarizes the ACTIVE agent's source case as an
 # inline card (the card self-fetches GET /v1/case). $0/read, no paid knob, nothing to smuggle.
 SHOW_CASE_SCHEMA: dict[str, Any] = {}
+# CHATBIND-4: propose_live_run takes NO params — it asks the shell to OPEN the cost-confirm modal.
+# The agent PROPOSES; the human's modal-confirm is the only paid path. No paid knob, nothing to smuggle.
+PROPOSE_LIVE_RUN_SCHEMA: dict[str, Any] = {}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -456,6 +460,19 @@ async def show_case_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str,
     )
 
 
+async def propose_live_run_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # CHATBIND-4: emit a $0 DIRECTIVE that opens the in-DOM CostModal so the HUMAN can authorize a
+    # live/in-process run. The agent NEVER fires the run — propose_live_run_part carries no paid
+    # knob and the shell only OPENS the modal; confirmPaidRun (the human's confirm click) is the
+    # SOLE paid path. This is the A-SAFE-preserving hand-off, not a paid tool.
+    ctx.emit(propose_live_run_part())
+    return _text(
+        "I've surfaced the cost-confirm. A live in-process council run makes real (paid) model "
+        "calls, so it's your authorization — confirm it in the modal to run. I cannot fire a paid "
+        "run myself; a $0 replay is the most I can do directly."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -565,6 +582,15 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "the human wants to SEE or explore the case BEFORE running. The card's 'View case' opens "
         "the full Case tab. No params — it summarizes the current evaluation's case.",
         SHOW_CASE_SCHEMA,
+    ),
+    (
+        propose_live_run_handler,
+        "propose_live_run",
+        "Surface the cost-confirm modal so the HUMAN can authorize a LIVE (paid, in-process) "
+        "council run — use it when they want the real verdict (not a $0 replay), e.g. on a case "
+        "with no replay baseline. You only PROPOSE: this opens the modal; the human's confirm is "
+        "the only thing that spends. You can NEVER fire a paid run yourself. No params.",
+        PROPOSE_LIVE_RUN_SCHEMA,
     ),
 ]
 

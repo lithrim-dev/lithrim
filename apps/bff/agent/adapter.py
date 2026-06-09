@@ -112,3 +112,11 @@ def case_summary_part(agent: str) -> dict[str, Any]:
     the reference-carrying pattern, like agent_part/judge_part). An inline summary of the
     SOURCE case the council grades, with a "View case ->" that opens the full Case tab. $0."""
     return _part("case_summary", {"agent": agent})
+
+
+def propose_live_run_part() -> dict[str, Any]:
+    """CHATBIND-4: propose_live_run -> a $0 DIRECTIVE (not a card; like open_artifact) that asks
+    the shell to OPEN the in-DOM CostModal. The AGENT only PROPOSES — it never fires the run; the
+    human's explicit modal-confirm (confirmPaidRun) is the ONLY paid path. Absent from KNOWN_TOOLS,
+    never routed through renderTool, carries no agent/run/paid field — emitting it cannot spend."""
+    return _part("propose_live_run", {})

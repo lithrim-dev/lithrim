@@ -111,6 +111,20 @@ def test_focus_artifact_rejects_an_unknown_tab(ctx):
     assert ctx.parts == []  # nothing emitted on a rejected tab
 
 
+def test_propose_live_run_emits_a_no_paid_knob_directive(ctx):
+    """A-SAFE (CHATBIND-4): propose_live_run emits a $0 tool-propose_live_run DIRECTIVE the shell
+    honors by OPENING the cost-confirm modal. It carries NO agent/run/paid field, so emitting it
+    can never spend — the human's modal-confirm is the only paid path. NON-VACUOUS: assert the
+    emitted output is empty (no smuggled knob) and the schema has no PAID_KEY."""
+    ctx.parts.clear()
+    res = asyncio.run(agent_tools.propose_live_run_handler(ctx, {}))
+    assert not res.get("is_error")
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    assert agent_tools.PROPOSE_LIVE_RUN_SCHEMA == {}  # no params -> nothing to smuggle
+    assert not any(k in agent_tools.PROPOSE_LIVE_RUN_SCHEMA for k in PAID_KEYS)
+    assert not any(k in ctx.parts[0]["output"] for k in PAID_KEYS)  # output carries no paid knob
+
+
 # ── A-SAFE — no paid path; the allowlist grows by exactly one ─────────────────
 
 
@@ -127,7 +141,8 @@ def test_focus_artifact_joins_the_tool_set_exactly_once():
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
     assert names.count("focus_artifact") == 1
     assert names.count("show_case") == 1
-    assert len(names) == 13  # the prior 12 + show_case (CHATBIND-3; $0 read, no paid knob)
+    assert names.count("propose_live_run") == 1
+    assert len(names) == 14  # +show_case (CHATBIND-3) +propose_live_run (CHATBIND-4); both $0, no paid knob
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in PAID_KEYS), name
 
@@ -144,8 +159,12 @@ def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byt
     allowed = list(opts.allowed_tools)
     derived = {f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS}
     assert set(allowed) == derived  # exactly the tool set — no extra, no paid surface
-    assert len(allowed) == len(set(allowed)) == 13
-    assert {"mcp__lithrim__focus_artifact", "mcp__lithrim__show_case"} <= set(allowed)
+    assert len(allowed) == len(set(allowed)) == 14
+    assert {
+        "mcp__lithrim__focus_artifact",
+        "mcp__lithrim__show_case",
+        "mcp__lithrim__propose_live_run",
+    } <= set(allowed)
     assert all(a.startswith("mcp__lithrim__") for a in allowed)
     # the gate + isolation + turn budget are byte-identical (CHATBIND-1 discipline)
     callbacks = [cb for m in opts.hooks["PreToolUse"] for cb in m.hooks]
