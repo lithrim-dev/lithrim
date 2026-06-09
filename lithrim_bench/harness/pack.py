@@ -24,6 +24,7 @@ import ast
 import importlib.util
 import json
 import os
+import sys
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -257,5 +258,57 @@ def _load_pack_floors(pack: str) -> ModuleType | None:
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load pack floors module for {pack!r} from {path}")
     module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# ─────────────────────────── the generators layer (PACK-5a) ───────────────────────────
+# Layer 5a is the FIRST packs-as-GENERATION step: the clinical scribe DATASET-GENERATION
+# realm (the scribe synthesizers + injectors + the ``SCRIBE_PACK`` recipe) relocates OUT of
+# the domain-agnostic engine into the pack's ``generators`` package, behind this registration
+# interface. This UNIFIES the two "pack" concepts — ``lithrim_bench.packs.PACKS`` (per-agent
+# generation recipes) ⊕ ``packs/healthcare/`` (eval-config) — so a pack is now data + grading
+# + generation. ``lithrim_bench.packs.active_packs()`` merges the package's ``PACKS`` over the
+# core's non-scribe recipes LAZILY (on first generation use), so the dependency points
+# pack→core only and there is no import cycle. A pack with no ``generators`` declaration
+# degrades cleanly to ``None`` (the core generates with its remaining core recipes alone).
+# The relocation is a MOVE: the ``InjectionRecipe`` (the by-construction label) is byte-
+# verbatim, so the scribe corpus regenerates byte-identical.
+
+
+def load_pack_generators(pack: str | None = None) -> ModuleType | None:
+    """Importlib-load the active (or named) pack's ``generators`` package, or ``None`` if the
+    pack declares no ``generators`` (cached; loaded once per pack per process).
+
+    The package exposes the pack's recipe-registration dict (``PACKS``) + its re-exported
+    injectors/synthesizers; ``lithrim_bench.packs.active_packs()`` merges its ``PACKS`` into
+    the core recipe set. Loaded by FILE PATH from the manifest — never by ``import packs.*`` —
+    so the core resolves the pack's code through the manifest, exactly as it resolves the
+    ``floors`` module and the ontology/prompts paths. Unlike ``floors`` (a single module),
+    ``generators`` is a multi-file PACKAGE (the relocated modules import sibling helpers
+    relatively), so it is loaded with ``submodule_search_locations`` + a ``sys.modules``
+    registration that lets those intra-package relative imports resolve.
+    """
+    return _load_pack_generators(pack or active_pack())
+
+
+@lru_cache(maxsize=8)
+def _load_pack_generators(pack: str) -> ModuleType | None:
+    """The cached loader, keyed on the RESOLVED pack id — so ``load_pack_generators()`` and
+    ``load_pack_generators("healthcare")`` return the SAME package object (one identity)."""
+    ref = _manifest(pack).get("generators")
+    if not ref:
+        return None
+    path = _resolve(ref)
+    mod_name = f"lithrim_bench_pack_{pack}_generators"
+    spec = importlib.util.spec_from_file_location(
+        mod_name, path, submodule_search_locations=[str(path.parent)]
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load pack generators package for {pack!r} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    # Register BEFORE exec so the package's intra-package relative imports resolve against
+    # this synthetic package name + its ``__path__`` (= submodule_search_locations).
+    sys.modules[mod_name] = module
     spec.loader.exec_module(module)
     return module

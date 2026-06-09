@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
 from ._soap import mutate_soap_body
-from .base import DefectInjector, InjectionRecipe, InjectionResult
 
 
 class MissingAllergyInjector(DefectInjector):

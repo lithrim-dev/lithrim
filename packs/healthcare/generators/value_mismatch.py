@@ -19,9 +19,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..encounter_spec import EncounterSpec, Observation
+from lithrim_bench.encounter_spec import EncounterSpec, Observation
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
 from ._soap import mutate_soap_body
-from .base import DefectInjector, InjectionRecipe, InjectionResult
 
 _TARGET_LOINCS = {"4548-4", "2093-3", "2339-0", "2571-8", "2085-9", "13457-7"}
 

@@ -1,26 +1,20 @@
 from .base import DefectInjector, InjectionRecipe, InjectionResult
 from .fabricated_consent import FabricatedConsentInjector
-from .fabricated_history import FabricatedHistoryInjector
-from .hallucinated_detail import HallucinatedDetailInjector
 from .hl7_invalid_field_format import Hl7InvalidFieldFormatInjector
 from .hl7_malformed_date import Hl7MalformedDateInjector
 from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
 from .hl7_missing_segment import Hl7MissingSegmentInjector
 from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
 from .missed_escalation import MissedEscalationInjector
-from .missing_allergy import MissingAllergyInjector
 from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
 from .upcoding_risk import UpcodingRiskInjector
-from .value_mismatch import ValueMismatchInjector
-from .wrong_dosage import WrongDosageInjector
 
-SCRIBE_INJECTORS: list[type[DefectInjector]] = [
-    WrongDosageInjector,
-    MissingAllergyInjector,
-    FabricatedHistoryInjector,
-    ValueMismatchInjector,
-    HallucinatedDetailInjector,
-]
+# The 5 SCRIBE injectors (WrongDosage / MissingAllergy / FabricatedHistory / ValueMismatch /
+# HallucinatedDetail) + the shared ``_soap`` helper relocated into the active healthcare
+# pack's ``generators`` package (PACK-5a, healthcare-realm-as-pack); reach them via
+# ``harness.pack.load_pack_generators()`` (or the ``scribe_v1`` recipe in
+# ``lithrim_bench.packs.active_packs()``). The generic base (DefectInjector / InjectionRecipe
+# / InjectionResult) stays core — it is the by-construction label machinery, domain-agnostic.
 
 # FabricatedConsentInjector is exported but intentionally NOT in
 # SCHEDULING_INJECTORS: adding it would change what the existing scheduling_v1
@@ -46,9 +40,9 @@ HL7_ADT_INJECTORS: list[type[DefectInjector]] = [
     Hl7TriggerEventMismatchInjector,
 ]
 
+# The non-scribe CORE injectors (the scribe set relocated to the pack, PACK-5a).
 ALL_INJECTORS: list[type[DefectInjector]] = (
-    SCRIBE_INJECTORS + SCHEDULING_INJECTORS + CODING_INJECTORS + TRIAGE_INJECTORS
-    + HL7_ADT_INJECTORS
+    SCHEDULING_INJECTORS + CODING_INJECTORS + TRIAGE_INJECTORS + HL7_ADT_INJECTORS
 )
 
 __all__ = [
@@ -56,9 +50,7 @@ __all__ = [
     "CODING_INJECTORS",
     "DefectInjector",
     "FabricatedConsentInjector",
-    "FabricatedHistoryInjector",
     "HL7_ADT_INJECTORS",
-    "HallucinatedDetailInjector",
     "Hl7InvalidFieldFormatInjector",
     "Hl7MalformedDateInjector",
     "Hl7MissingRequiredFieldInjector",
@@ -67,12 +59,8 @@ __all__ = [
     "InjectionRecipe",
     "InjectionResult",
     "MissedEscalationInjector",
-    "MissingAllergyInjector",
     "PhiDisclosurePreVerificationInjector",
     "SCHEDULING_INJECTORS",
-    "SCRIBE_INJECTORS",
     "TRIAGE_INJECTORS",
     "UpcodingRiskInjector",
-    "ValueMismatchInjector",
-    "WrongDosageInjector",
 ]

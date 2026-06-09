@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
 from ._soap import mutate_soap_body
-from .base import DefectInjector, InjectionRecipe, InjectionResult
 
 # Plausible conditions that are commonly fabricated by hallucinating scribes.
 # Order matters: the first one not in the patient's actual condition set is used.

@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec, Observation
-from ._pmh import clinical_conditions
+from lithrim_bench.encounter_spec import EncounterSpec, Observation
+from lithrim_bench.synthesizers._pmh import clinical_conditions
 
 _LAB_INTEREST = {
     "4548-4",   # HbA1c

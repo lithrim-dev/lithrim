@@ -7,5 +7,6 @@
   "flags_ref": "packs/healthcare/taxonomy_snapshot.json",
   "council_roles": "packs/healthcare/council_roles",
   "floors": "packs/healthcare/floors.py",
+  "generators": "packs/healthcare/generators/__init__.py",
   "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
 }
