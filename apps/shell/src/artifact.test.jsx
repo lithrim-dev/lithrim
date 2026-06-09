@@ -8,16 +8,18 @@ import { render, screen } from "@testing-library/react";
 vi.mock("./bff.js", () => ({
   getOntology: vi.fn(),
   getCorpus: vi.fn(),
+  getCase: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";
-import { getOntology, getCorpus } from "./bff.js";
+import { getOntology, getCorpus, getCase } from "./bff.js";
 
 const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
 
 beforeEach(() => {
   getOntology.mockReset();
   getCorpus.mockReset();
+  getCase.mockReset();
 });
 
 const COUNCIL_RESULT = {
@@ -119,5 +121,39 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     getCorpus.mockResolvedValue({ rows: [] });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText(/No corrections yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
+  it("renders transcript + a JSON artifact (structured) + the planted ground-truth flag", async () => {
+    getCase.mockResolvedValue({
+      case_id: "bench_scribe_v1_inject_condition",
+      transcript: "Dr: Hello Antony.\nPatient: I'm here for a sprain.",
+      artifact: JSON.stringify({ resourceType: "DocumentReference", status: "current" }),
+      conditions: ["Diabetes mellitus type 2 (disorder)", "Anemia (disorder)"],
+      expected_safety_flags: ["FABRICATED_HISTORY"],
+      injection_recipe: null,
+    });
+    render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/here for a sprain/)).toBeInTheDocument(); // the transcript
+    expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // the by-construction ground truth
+    expect(screen.getByText("structured")).toBeInTheDocument(); // JSON artifact detected + pretty-printed
+    expect(screen.getByText(/Diabetes mellitus type 2/)).toBeInTheDocument(); // the patient record
+    expect(getCase).toHaveBeenCalledWith("ws0_default"); // self-fetches the ACTIVE agent
+  });
+
+  it("renders a free-text artifact + a clean-negative (nothing planted) without crashing", async () => {
+    getCase.mockResolvedValue({
+      case_id: "imported_scheduling_clean",
+      transcript: "Patient calls to book a follow-up.",
+      artifact: "Booking confirmed for 2026-07-01 at 10:00.", // free text — NOT json
+      conditions: [],
+      expected_safety_flags: [],
+      injection_recipe: null,
+    });
+    render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText("free text")).toBeInTheDocument(); // generic: not mis-parsed as JSON
+    expect(screen.getByText(/nothing planted/i)).toBeInTheDocument(); // clean negative
+    expect(screen.getByText(/Booking confirmed/)).toBeInTheDocument();
   });
 });

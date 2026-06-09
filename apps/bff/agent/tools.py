@@ -98,9 +98,11 @@ DELETE_FLAG_SCHEMA: dict[str, Any] = {"flag_code": str, "rationale": str}
 # CHATBIND-2 — the pane-control DIRECTIVE tool ($0, read-only). It emits a UI directive so the
 # conversation can OPEN + FOCUS the artifact pane; it wraps NO op and carries NO paid knob. The
 # schema is {tab} ONLY — `ref` was dropped (no consumer under the run_result lift; re-add with one
-# later, per the CHATBIND-1 drop-unreachable discipline). The 4 tabs are the contract.
+# later, per the CHATBIND-1 drop-unreachable discipline). The 5 tabs are the contract.
 FOCUS_ARTIFACT_SCHEMA: dict[str, Any] = {"tab": str}
-_ARTIFACT_TABS = ("report", "judges", "config", "corpus")
+# "case" (CHATBIND-3) is the SOURCE INPUT view (transcript + artifact + the planted label) — the
+# "show me the case before we run it" leg. Still $0/read: the tab self-fetches GET /v1/case.
+_ARTIFACT_TABS = ("case", "report", "judges", "config", "corpus")
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")

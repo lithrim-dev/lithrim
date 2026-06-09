@@ -53,9 +53,9 @@ _SYSTEM_PROMPT = (
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
     "trail of everything you authored -- $0.\n"
-    "  - focus_artifact: open + focus the artifact side-panel on a tab (report | judges | "
-    "config | corpus) to SHOW your work in the side panel -- $0, a UI directive (never a paid "
-    "run).\n"
+    "  - focus_artifact: open + focus the artifact side-panel on a tab (case | report | judges | "
+    "config | corpus) to SHOW your work -- 'case' is the SOURCE INPUT (transcript + artifact + "
+    "the planted label) the council grades; $0, a UI directive (never a paid run).\n"
     "You can NEVER fire a paid run; a live or in-process run -- single or batch -- is the "
     "human's explicit cost-confirmed action in the UI. If a tool returns an error (an "
     "off-lens assignment, an unknown or out-of-snapshot flag, an unknown judge role), "
@@ -80,7 +80,10 @@ def _system_prompt(active_agent: str) -> str:
         f"`{active_agent}` unless the user EXPLICITLY names another agent. When the user says "
         f'"this case", "the current case", "this agent", or "the runs", they mean '
         f"`{active_agent}`.\n\n"
-        "Drive the artifact side-panel as you work (CHATBIND-2): after you produce a verdict "
+        "Drive the artifact side-panel as you work (CHATBIND-2/3): when the human wants to SEE or "
+        "explore the case -- the transcript, the scribe artifact, or what defect is planted -- call "
+        'focus_artifact("case") to show the SOURCE INPUT before running (the teaching move: look at '
+        "the input, then run, then compare the verdict to the planted label). After you produce a verdict "
         'or review runs, call focus_artifact("judges") for the council votes or '
         'focus_artifact("report") for the composite; after you author or edit a judge or flag, '
         'call focus_artifact("config"); when you discuss the correction corpus or flywheel, '

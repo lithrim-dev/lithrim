@@ -6,7 +6,7 @@
      - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
 import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { getOntology, getCorpus } from "./bff.js";
+import { getOntology, getCorpus, getCase } from "./bff.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
 const VERDICT_UI = {
@@ -390,8 +390,84 @@ function CorpusTab() {
   );
 }
 
+// CHATBIND-3: the SOURCE INPUT view — what the council actually grades. Self-fetches GET /v1/case
+// for the active agent + renders the transcript + the artifact GENERICALLY (JSON -> pretty; free
+// text -> as-is — the shape varies by domain) + the by-construction planted label. The "look at the
+// input, then run, then compare the verdict to ground truth" teaching move.
+const _PRE = {
+  margin: 0, padding: "11px 13px", background: "var(--surface-muted)", border: "1px solid var(--border)",
+  borderRadius: "var(--r-sm)", fontFamily: "var(--mono)", fontSize: 11.5, whiteSpace: "pre-wrap",
+  wordBreak: "break-word", lineHeight: 1.55, maxHeight: 300, overflow: "auto",
+};
+
+function prettyArtifact(art) {
+  if (art == null || art === "") return { text: "(no artifact)", kind: "empty" };
+  try { return { text: JSON.stringify(JSON.parse(art), null, 2), kind: "structured" }; }
+  catch { return { text: String(art), kind: "free text" }; }
+}
+
+function CaseTab({ agent = "ws0_default" }) {
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [kase, setKase] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setStatus("loading");
+    getCase(agent)
+      .then((c) => { if (live) { setKase(c); setStatus("ready"); } })
+      .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
+    return () => { live = false; };
+  }, [agent]);
+
+  if (status === "loading") return <ReportMessage>Loading the source case…</ReportMessage>;
+  if (status === "error")
+    return (
+      <ReportMessage>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read the case</div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+      </ReportMessage>
+    );
+
+  const planted = kase.expected_safety_flags || [];
+  const conditions = kase.conditions || [];
+  const art = prettyArtifact(kase.artifact);
+  return (
+    <div>
+      <div className="art-sec">
+        <div className="art-h2">Transcript <span className="cnt">{kase.case_id}</span></div>
+        <pre style={_PRE}>{kase.transcript || "(no transcript)"}</pre>
+      </div>
+      <div className="art-sec">
+        <div className="art-h2">Artifact <span className="cnt">{art.kind}</span></div>
+        <pre style={_PRE}>{art.text}</pre>
+      </div>
+      <div className="art-sec">
+        <div className="art-h2">Planted defect <span className="cnt">by-construction ground truth</span></div>
+        {planted.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 12.5 }}>clean negative — nothing planted (expected verdict: approve)</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {planted.map((f) => <span key={f} className="chip">{f}</span>)}
+          </div>
+        )}
+        {kase.injection_recipe ? <pre style={{ ..._PRE, marginTop: 8 }}>{JSON.stringify(kase.injection_recipe, null, 2)}</pre> : null}
+      </div>
+      {conditions.length > 0 && (
+        <div className="art-sec">
+          <div className="art-h2">Patient record <span className="cnt">{conditions.length} condition(s)</span></div>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", lineHeight: 1.7 }}>
+            {conditions.slice(0, 30).map((c, i) => <div key={i}>· {c}</div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
+    case: ["Source case", "transcript + artifact · what the council grades"],
     report: ["Evaluation report", "scribe-agent-v4 · run #218"],
     judges: ["Judge council", "per-case realized votes"],
     config: ["Config editor", "ontology · read-only"],
@@ -415,13 +491,14 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
           </div>
         </div>
         <div className="art-tabs">
-          {[["report", "Report"], ["judges", "Judge council"], ["config", "Config"], ["corpus", "Corpus"]].map(([k, label]) => (
+          {[["case", "Case"], ["report", "Report"], ["judges", "Judge council"], ["config", "Config"], ["corpus", "Corpus"]].map(([k, label]) => (
             <button key={k} className={"art-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
       </div>
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
+          {tab === "case" && <CaseTab agent={agent} />}
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} />}

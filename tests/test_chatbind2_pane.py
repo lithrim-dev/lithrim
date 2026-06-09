@@ -87,10 +87,11 @@ def ctx(tmp_path):
 
 
 def test_focus_artifact_emits_a_directive_for_each_tab(ctx):
-    """A1: each of the 4 tabs yields exactly one tool-open_artifact DIRECTIVE part with the
+    """A1: each of the 5 tabs yields exactly one tool-open_artifact DIRECTIVE part with the
     tab in its output. The part is NOT a gen-UI card type (the shell special-cases it out of
-    renderTool); here we assert the wire shape the shell honors."""
-    assert _ARTIFACT_TABS == ("report", "judges", "config", "corpus")
+    renderTool); here we assert the wire shape the shell honors. CHATBIND-3 added "case" (the
+    source-input view) — a $0 read tab, no paid knob (the A-SAFE tests below still hold)."""
+    assert _ARTIFACT_TABS == ("case", "report", "judges", "config", "corpus")
     for tab in _ARTIFACT_TABS:
         ctx.parts.clear()
         res = asyncio.run(focus_artifact_handler(ctx, {"tab": tab}))

@@ -101,8 +101,8 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
 // CHATBIND-2: the artifact pane's 4 tabs (the focus_artifact directive contract) + their
 // labels. ARTIFACT_TABS guards the directive in the shell (defense-in-depth; the BFF tool
 // already rejects an unknown tab) so a bogus tab can never open the pane to a crash.
-const ARTIFACT_TABS = ["report", "judges", "config", "corpus"];
-const TAB_LABELS = { report: "Report", judges: "Judge council", config: "Config", corpus: "Corpus" };
+const ARTIFACT_TABS = ["case", "report", "judges", "config", "corpus"];
+const TAB_LABELS = { case: "Case", report: "Report", judges: "Judge council", config: "Config", corpus: "Corpus" };
 
 export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult }) {
   // config-plane state the input tool-parts write into (S-BS-19).
