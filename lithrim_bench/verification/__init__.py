@@ -55,8 +55,8 @@ from .tools import (
     VerificationTool,
 )
 
-# NOTE: the CLINICAL executors (InRowTool, DosageGroundingTool) relocated into the active
-# pack (packs/healthcare/floors.py, PACK-3); the core toolbox exports only generic tools.
+# NOTE: the CLINICAL executors (the record-presence + dose-grounding tools) relocated into
+# the active pack (packs/healthcare/floors.py, PACK-3); the core exports only generic tools.
 
 __all__ = [
     "Claim",

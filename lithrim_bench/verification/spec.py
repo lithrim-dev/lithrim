@@ -66,7 +66,7 @@ class Claim:
     claim_type: str
     flag_code: str | None  # the council flag this claim adjudicates (None for pure structural)
     subject: Any  # artifact text | extracted items | the value under test
-    locus: str = ""  # the section the flag is ABOUT ("PMH"/"dosage"/...) — claim-scoping
+    locus: str = ""  # the named section the flag is ABOUT — claim-scoping
     source: dict = field(default_factory=dict)  # provenance slice of the case row
 
 

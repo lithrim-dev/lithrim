@@ -11,7 +11,7 @@ The only lever that closes it reasons about span *content* — a presence-check.
 WS-1: the contract set is no longer hardcoded. Contracts are **declared in the
 ontology** (``packs/healthcare/ontology.json`` → ``verification_contracts``) and
 this module supplies the *executors* keyed by ``contract_type``. The med
-presence-check's extraction strategy (med source, token floor, dosage regex, noise
+presence-check's extraction strategy (med source, token floor, extraction regex, noise
 tokens) is read from the declaration's ``params`` — it is data, not module
 constants (WS-0 critique Q4.3). The severity→verdict re-score is the ontology's
 ``severity_map`` (Q4.2). Real / mid-loop tool grounding via JUTE / pinecone is WS-3.
@@ -120,7 +120,7 @@ class PresenceCheck(VerificationContract):
     """Disprove an "X not in transcript" finding when X is in fact in the transcript.
 
     Built from a :class:`VerificationContractDecl`; the extraction strategy is the
-    declaration's ``params`` (med source path, token floor, dosage regex, noise
+    declaration's ``params`` (med source path, token floor, extraction regex, noise
     tokens). Conservative: only suppress on a *positive* presence match; never
     suppress on a failed extraction. The finding's evidence spans are cross-checked
     as corroboration when present (the S-BS-7 self-refuting span).

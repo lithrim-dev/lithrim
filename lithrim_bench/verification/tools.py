@@ -6,10 +6,10 @@
 | KbRagTool        | backend KB `:8002 /v1/kb/search`    | pinned namespace + retrieval verdict     |
 | RecordRagTool    | `lithrim_search_sdk` + Pinecone     | pinned corpus + retrieval manifest       |
 
-The CLINICAL executors (the record-presence `InRowTool` + the `DosageGroundingTool`
-floor + their SOAP/PMH/dose extractors) relocated OUT of the core into the active pack
-(`packs/healthcare/floors.py`, PACK-3); the generic helpers `_dig`/`_norm` they depend on
-stay here and the pack imports them. Every tool returns a tri-state `conforms` (see
+The CLINICAL executors (the record-presence + dose-grounding tools and their clinical
+extractors) relocated OUT of the core into the active pack (`packs/healthcare/floors.py`,
+PACK-3); the generic helpers `_dig`/`_norm` they depend on stay here and the pack imports
+them. Every tool returns a tri-state `conforms` (see
 `spec.py`). The flag-clearing
 decision lives in `router.compose_verdict`, not in the tools — a tool only
 answers "does this locus conform to the pinned reference?".
