@@ -95,7 +95,12 @@ def _system_prompt(active_agent: str) -> str:
         'focus_artifact("report") for the composite; after you author or edit a judge or flag, '
         'call focus_artifact("config"); when you discuss the correction corpus or flywheel, '
         'call focus_artifact("corpus"). Pair the inline card with the pane focus so the human '
-        "SEES the result -- it is $0 and can never fire a paid run."
+        "SEES the result -- it is $0 and can never fire a paid run. "
+        "CALIBRATION (Act 3 -- make the judge right): when the human wants to optimize, tune, or "
+        "calibrate a judge, call get_judge(role) to surface the JudgeEditor card; it carries the "
+        "OPTIMIZE button -- a cost-confirmed paid DSPy tune the HUMAN authorizes (you propose by "
+        "surfacing the card, the human spends; you can never optimize yourself). The card then shows "
+        "the honest baseline->optimized held-out delta to compare."
     )
 
 

@@ -487,8 +487,10 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         get_judge_handler,
         "get_judge",
-        "Read a judge's current config + derived questions ($0, no write). Use before "
-        "authoring to see the assignable lens.",
+        "Read a judge's config + derived questions AND surface the JudgeEditor card ($0, no "
+        "write). The card carries the OPTIMIZE button — the calibration trainer (a cost-confirmed "
+        "paid DSPy tune the HUMAN authorizes; you can't optimize, you surface the card + its honest "
+        "held-out Δ). Use it to show a judge, set up its lens, or hand off calibration (Act 3).",
         GET_JUDGE_SCHEMA,
     ),
     (

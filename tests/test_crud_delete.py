@@ -119,10 +119,10 @@ def test_delete_agent_audited_and_list_agents_sorted(tmp_path):
 def test_asafe_delete_judge_is_the_ninth_tool_no_paid_knob():
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
     # CRUD-1 added delete_judge (9th); FLAG-1 added create_flag (10th) + delete_flag (11th);
-    # CHATBIND-2 added focus_artifact (12th).
-    assert len(names) == 12 and len(set(names)) == 12, names
+    # CHATBIND-2 added focus_artifact (12th); CHATBIND-3 show_case (13th); CHATBIND-4 propose_live_run (14th).
+    assert len(names) == 14 and len(set(names)) == 14, names
     assert {"delete_judge", "create_flag", "delete_flag"} <= set(names)
-    # NON-VACUOUS: every one of the 12 schemas is no-paid-knob, the new tools included.
+    # NON-VACUOUS: every one of the 14 schemas is no-paid-knob, the new tools included.
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:
         assert [k for k in agent_tools.PAID_KEYS if k in schema] == [], (n, schema)
     # delete_judge's schema is exactly {role, rationale} — no agent target, no paid field.

@@ -204,16 +204,18 @@ def test_build_options_carries_exactly_the_bounded_allowlist_under_bypass(env):
 
 def test_split_and_crud_tools_grow_the_set_to_nine_with_no_paid_knob():
     """A-SAFE (structural): the UAP-5c-2 split tools (eval-pack batch + agent-roster write),
-    the CRUD-1 ``delete_judge`` revert, and the FLAG-1 ``create_flag``/``delete_flag`` — plus
-    the CHATBIND-2 ``focus_artifact`` pane directive — make the 12-tool set, and NONE exposes a
-    paid knob — the S-BS-81 no-paid-knob guarantee generalized across the widened surface. (The
-    exhaustive sweep over ALL 12 is test_no_tool_schema_carries_a_paid_knob; the focus_artifact
-    A-SAFE bound is tests/test_chatbind2_pane.py.)"""
+    the CRUD-1 ``delete_judge`` revert, the FLAG-1 ``create_flag``/``delete_flag``, the CHATBIND-2
+    ``focus_artifact`` pane directive, the CHATBIND-3 ``show_case`` source-input card, and the
+    CHATBIND-4 ``propose_live_run`` consented paid-run hand-off — make the 14-tool set, and NONE
+    exposes a paid knob — the S-BS-81 no-paid-knob guarantee generalized across the widened surface.
+    (The exhaustive sweep over ALL 14 is test_no_tool_schema_carries_a_paid_knob; the focus_artifact
+    / show_case / propose_live_run A-SAFE bounds are tests/test_chatbind2_pane.py.)"""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 12, names
-    assert {"run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag"} <= set(
-        names
-    )
+    assert len(names) == 14, names
+    assert {
+        "run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag",
+        "show_case", "propose_live_run",
+    } <= set(names)
     by_name = {name: schema for _h, name, _d, schema in agent_tools._TOOL_SPECS}
     for tool in ("run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag"):
         assert [k for k in PAID_KEYS if k in by_name[tool]] == [], tool
