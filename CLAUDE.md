@@ -10,7 +10,7 @@ When fixing a labeling / verdict / determinism bug, post the verbatim evidence (
 
 This is the entire reason this repo exists. A case is admissible **only** if:
 
-1. Every `expected_safety_flags` code is in `taxonomy/taxonomy_snapshot.json` `KNOWN_TAXONOMY_CODES`.
+1. Every `expected_safety_flags` code is in `packs/healthcare/taxonomy_snapshot.json` `KNOWN_TAXONOMY_CODES`.
 2. The `injection_recipe` block specifies `defect_type`, `mutated_projection`, `mutated_field_or_span`, `pre_value`, `post_value`. The recipe **is** the label justification.
 3. Clean negatives have `injection_recipe: null` and `expected_safety_flags: []`. They are first-class, not residue.
 4. Every flag has a `production_judges`-resident owner per `tier1_owners`. Flags whose only owner is `source_message_judge` (declared but not running) must be excluded or reassigned; never silently scored.
@@ -40,7 +40,7 @@ If a case cannot meet (1)–(4), it does **not** ship. Do not append to `example
 
 ## Taxonomy snapshot is the contract
 
-`taxonomy/taxonomy_snapshot.json` is the only coupling point to `lithrim-backend`. Refresh it via `scripts/snapshot_taxonomy.py --backend-path …`. Never hand-edit. If the lint script starts failing after a backend taxonomy change, the fix is to re-snapshot, not to soft-pass cases.
+`packs/healthcare/taxonomy_snapshot.json` is the only coupling point to `lithrim-backend` — the snapshot relocated INTO the `healthcare` pack (PACK-1, layer-1a: the invariant *moves* into the pack, it does not weaken). Refresh it via `scripts/snapshot_taxonomy.py --backend-path … --out packs/healthcare/taxonomy_snapshot.json` (the `--out` default already points there). Never hand-edit. If the lint script starts failing after a backend taxonomy change, the fix is to re-snapshot, not to soft-pass cases. The core resolves the snapshot via the **active pack** (`lithrim_bench/harness/pack.py`), not a hardcoded path.
 
 ## Document organization
 
