@@ -8,9 +8,14 @@ from lithrim_bench.encounter_spec import (
     Medication,
     SyntheaProvenance,
 )
-from lithrim_bench.injectors import WrongDosageInjector
-from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
-from lithrim_bench.synthesizers.transcript import synthesize_scribe_transcript
+from lithrim_bench.harness import pack as _pack
+
+# PACK-5a: the scribe injectors + synthesizers relocated into the active healthcare pack;
+# reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+WrongDosageInjector = _GEN.WrongDosageInjector
+synthesize_scribe_artifact = _GEN.synthesize_scribe_artifact
+synthesize_scribe_transcript = _GEN.synthesize_scribe_transcript
 
 
 def _spec() -> EncounterSpec:

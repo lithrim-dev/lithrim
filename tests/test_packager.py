@@ -1,14 +1,17 @@
-from lithrim_bench.injectors import (
-    FabricatedHistoryInjector,
-    MissingAllergyInjector,
-    WrongDosageInjector,
-)
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
-from lithrim_bench.synthesizers.transcript import synthesize_scribe_transcript
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5a: the scribe injectors + synthesizers relocated into the active healthcare pack;
+# reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+FabricatedHistoryInjector = _GEN.FabricatedHistoryInjector
+MissingAllergyInjector = _GEN.MissingAllergyInjector
+WrongDosageInjector = _GEN.WrongDosageInjector
+synthesize_scribe_artifact = _GEN.synthesize_scribe_artifact
+synthesize_scribe_transcript = _GEN.synthesize_scribe_transcript
 
 
 def _setup():

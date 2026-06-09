@@ -1,9 +1,14 @@
 import json
 
-from lithrim_bench.injectors import ValueMismatchInjector
-from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
+from lithrim_bench.harness import pack as _pack
 
 from ._factories import make_spec
+
+# PACK-5a: the scribe injectors + synthesizers relocated into the active healthcare pack;
+# reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+ValueMismatchInjector = _GEN.ValueMismatchInjector
+synthesize_scribe_artifact = _GEN.synthesize_scribe_artifact
 
 
 def test_applies_requires_a_lab_of_interest():

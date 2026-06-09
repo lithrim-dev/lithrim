@@ -39,12 +39,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lithrim_bench.encounter_spec import EncounterSpec
-from lithrim_bench.injectors import WrongDosageInjector
+from lithrim_bench.harness.pack import load_pack_generators
 from lithrim_bench.packager import package_case, write_jsonl
 from lithrim_bench.synthea_loader import SyntheaCohort
-from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
-from lithrim_bench.synthesizers.transcript import synthesize_scribe_transcript
 from lithrim_bench.taxonomy import load_taxonomy
+
+# PACK-5a: the scribe injector + synthesizers relocated into the active healthcare pack;
+# reach them through the pack generator loader.
+_GEN = load_pack_generators()
+WrongDosageInjector = _GEN.WrongDosageInjector
+synthesize_scribe_artifact = _GEN.synthesize_scribe_artifact
+synthesize_scribe_transcript = _GEN.synthesize_scribe_transcript
 
 # A subtle drift: 1.5x the agreed dose. Blatant enough to be a real WRONG_DOSAGE
 # (truth), borderline enough that the base lens may under-fire — the calibration gap

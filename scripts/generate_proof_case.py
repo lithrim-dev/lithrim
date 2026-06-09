@@ -21,19 +21,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lithrim_bench.encounter_spec import EncounterSpec
-from lithrim_bench.injectors import (
-    ALL_INJECTORS,
-    DefectInjector,
-    FabricatedHistoryInjector,
-    MissingAllergyInjector,
-    ValueMismatchInjector,
-    WrongDosageInjector,
-)
+from lithrim_bench.harness.pack import load_pack_generators
+from lithrim_bench.injectors import DefectInjector
 from lithrim_bench.packager import package_case, write_jsonl
 from lithrim_bench.synthea_loader import SyntheaCohort
-from lithrim_bench.synthesizers.scribe_artifact import synthesize_scribe_artifact
-from lithrim_bench.synthesizers.transcript import synthesize_scribe_transcript
 from lithrim_bench.taxonomy import load_taxonomy
+
+# PACK-5a: the scribe injectors + synthesizers relocated into the active healthcare pack;
+# reach them through the pack generator loader.
+_GEN = load_pack_generators()
+FabricatedHistoryInjector = _GEN.FabricatedHistoryInjector
+MissingAllergyInjector = _GEN.MissingAllergyInjector
+ValueMismatchInjector = _GEN.ValueMismatchInjector
+WrongDosageInjector = _GEN.WrongDosageInjector
+synthesize_scribe_artifact = _GEN.synthesize_scribe_artifact
+synthesize_scribe_transcript = _GEN.synthesize_scribe_transcript
 
 
 def _find_spec_for(cohort: SyntheaCohort, injectors: list[DefectInjector]) -> EncounterSpec | None:

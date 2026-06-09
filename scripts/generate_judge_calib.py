@@ -7,7 +7,7 @@ CLAUDE.md core invariant) — covering policy / risk / faithfulness positives,
 clean negatives, and a cross-owner multi-defect case.
 
 It REUSES the existing primitives (the injectors, the per-pack synthesizers via
-lithrim_bench.packs.PACKS, and packager.package_case). It does NOT run an
+lithrim_bench.packs.active_packs(), and packager.package_case). It does NOT run an
 optimizer and makes NO live calls — $0 / offline.
 
 Determinism: the cohort walk is deterministic, rows are emitted sorted by
@@ -34,20 +34,25 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.harness.pack import load_pack_generators
 from lithrim_bench.injectors import (
     DefectInjector,
     FabricatedConsentInjector,
-    FabricatedHistoryInjector,
     MissedEscalationInjector,
-    MissingAllergyInjector,
     PhiDisclosurePreVerificationInjector,
-    ValueMismatchInjector,
-    WrongDosageInjector,
 )
 from lithrim_bench.packager import package_case, write_jsonl
-from lithrim_bench.packs import PACKS, PackDefinition
+from lithrim_bench.packs import PackDefinition, active_packs
 from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.taxonomy import Taxonomy, load_taxonomy
+
+# PACK-5a: the scribe injectors relocated into the active healthcare pack; reach them via
+# the pack generator loader. The non-scribe injectors (above) stay core.
+_SCRIBE_GEN = load_pack_generators()
+FabricatedHistoryInjector = _SCRIBE_GEN.FabricatedHistoryInjector
+MissingAllergyInjector = _SCRIBE_GEN.MissingAllergyInjector
+ValueMismatchInjector = _SCRIBE_GEN.ValueMismatchInjector
+WrongDosageInjector = _SCRIBE_GEN.WrongDosageInjector
 
 # A frozen timestamp so the corpus is byte-deterministic. packager.package_case
 # stamps datetime.now(); we overwrite it. The value is the cycle date — a
@@ -171,6 +176,7 @@ def main() -> None:
 
     cohort = SyntheaCohort(args.cohort)
     taxonomy = load_taxonomy()
+    packs = active_packs()
 
     rows_by_id: dict[str, dict[str, Any]] = {}
     coverage: Counter[str] = Counter()
@@ -184,7 +190,7 @@ def main() -> None:
 
     # ── positives ────────────────────────────────────────────────────────────
     for lens, pack_name, inj_cls, count in POSITIVE_TARGETS:
-        pack = PACKS[pack_name]
+        pack = packs[pack_name]
         inj = inj_cls()
         produced = 0
         for spec in _walk_specs(cohort, pack.requires_active_medication):
@@ -215,7 +221,7 @@ def main() -> None:
 
     # ── clean negatives ───────────────────────────────────────────────────────
     for pack_name, count in CLEAN_TARGETS:
-        pack = PACKS[pack_name]
+        pack = packs[pack_name]
         produced = 0
         for spec in _walk_specs(cohort, pack.requires_active_medication):
             if produced >= count:
@@ -239,7 +245,7 @@ def main() -> None:
 
     # ── cross-owner multi-defect (co-raise fixture) ───────────────────────────
     pack_name, inj_classes, count = MULTI_TARGET
-    pack = PACKS[pack_name]
+    pack = packs[pack_name]
     injectors = [c() for c in inj_classes]
     produced = 0
     for spec in _walk_specs(cohort, pack.requires_active_medication):
@@ -278,7 +284,7 @@ def main() -> None:
     # case_ids. Each new row's split is overridden to `calibration` so the held-out
     # `test` split is frozen to the v1 set (driver "go" #2).
     for lens, pack_name, inj_cls, extra in WIDEN_TARGETS:
-        pack = PACKS[pack_name]
+        pack = packs[pack_name]
         inj = inj_cls()
         produced = 0
         for spec in _walk_specs(cohort, pack.requires_active_medication):

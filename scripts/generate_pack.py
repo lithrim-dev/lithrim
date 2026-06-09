@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lithrim_bench.encounter_spec import EncounterSpec
 from lithrim_bench.injectors import DefectInjector
 from lithrim_bench.packager import package_case, write_jsonl
-from lithrim_bench.packs import PACKS, PackDefinition
+from lithrim_bench.packs import PackDefinition, active_packs
 from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.taxonomy import load_taxonomy
 
@@ -65,7 +65,7 @@ def main() -> None:
         default=Path(__file__).resolve().parent.parent / "data" / "synthea_sample_data_csv_latest",
         type=Path,
     )
-    ap.add_argument("--pack", required=True, choices=sorted(PACKS.keys()))
+    ap.add_argument("--pack", required=True, choices=sorted(active_packs().keys()))
     ap.add_argument("--size", type=int, default=50)
     ap.add_argument(
         "--mix",
@@ -76,7 +76,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
 
-    pack = PACKS[args.pack]
+    pack = active_packs()[args.pack]
     out_path = args.out or (
         Path(__file__).resolve().parent.parent / "out" / f"{pack.name}.jsonl"
     )
