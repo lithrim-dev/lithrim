@@ -1639,6 +1639,50 @@
       "created": "2026-06-09",
       "last_re_verified": "2026-06-09 (authored from SPEC_GROUNDING_TOOL_LAYER during a live derisking session; MOST citations EXECUTED live not just grepped: the real InRowTool discriminated the demo pair [clean conforms=True / violation conforms=False] + scored 16/16 on judge_calib_v1.jsonl; grounding.py:290 registry + KbGrounding adapter, verification/tools.py InRowTool, ontology.py:86 rescore, clinical_v1.json:385 contracts, injectors/_soap.py:26 decode, the over-fire RUN -- all read this session)",
       "next_action": "READY -- /devloop-kickoff bench-salvage GROUND-FLOOR-1. The NEXT cycle (Phase 1 of the grounding tool layer). Plan-review resolves the 4 decisions: D-A P0 string-match snomed_core confirm (Hermes=TERMINOLOGY-1); D-B decode-helper placement; D-C is D5 the paid live run in-cycle or split to GROUND-FLOOR-1b (monitor lean: offline D1-D4 is the shippable core, D5 splittable); D-D record_presence wires BOTH ground() post-consensus AND the withstands-gate pre-consensus via _CONTRACT_EXECUTORS -- confirm intended. HARD-GATE: fresh-critic at close."
+    },
+    {
+      "id": "bench-salvage-phaseGROUND-FLOOR-1b-honest-live-flip-driver",
+      "stream": "bench-salvage",
+      "phase": "GROUND-FLOOR-1b",
+      "scope": "the-honest-live-grounding-flip-design-plus-run-one-paid-live-case-where-the-record-floor-corrects-a-confident-wrong-council-honest-delta",
+      "file": "bench-salvage_phaseGROUND-FLOOR-1b_honest-live-flip_driver.md",
+      "status": "parked",
+      "version": "v1",
+      "hardness": "user-authorized paid run (~$0.01; the DESIGN is the load-bearing part) -- routine critique at close, NOT a fresh-critic HARD-GATE (live attestation of an already-proven floor; no code/ontology/verdict-floor change)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "memory live-overfire-context-primed (WHY the naive version loses)",
+        "docs/research/PROOF_bench-salvage_S-BS-74_2026-06-08.md (the documented honest-loss + the offline mechanism that holds) + docs/research/RUN_uap5a_a8_live_2026-06-06.json (8a41ef3e live BLOCK->WARN)",
+        "lithrim_bench/harness/grounding.py (RecordPresence + ground() -- the offline-proven floor; do NOT modify)",
+        ".devloop/state/STREAM_bench-salvage.md (S-BS-70 the finale, S-BS-100 the re-scope, S-BS-74 the loss)"
+      ],
+      "_note": "GROUND-FLOOR-1b = the paid live verdict-flip SPLIT from GROUND-FLOOR-1's D5 (deferred-not-dropped, now a real artifact). PARKED: activate ONLY when a specific pitch needs the visceral live grounding flip (BLOCK->PASS). The mechanism is already proven without it (GROUND-FLOOR-1 offline 16/16 + 8a41ef3e live BLOCK->WARN), and the naive version is a documented likely-loss (S-BS-74 unanimous-approve; the over-fire is context-primed). The deliverable is a DESIGN task (D-A: pick one -- (a) near-miss surface-mismatch, (b) held-block WARN->PASS, (c) accept the offline twin + 8a41ef3e as the honest finding). honest-delta NON-NEGOTIABLE: a no-flip is a documented PASS, a manufactured win is FAIL; video only if it genuinely flips. ONE user-authorized paid run, drive via the BFF API not the confirm-gated UI. OUT: touching the offline floor, the FROZEN council seam, widening the ontology/flag set, non-admissible demo cases. LOCAL is SSOT; pathspec-only.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (written this session as the deferred-not-dropped artifact; grounded in the S-BS-74 honest-loss + 8a41ef3e live-suppression evidence + the GROUND-FLOOR-1 offline floor)",
+      "next_action": "PARKED -- do NOT kickoff until a pitch needs the visceral live flip (monitor lean: stay parked). When activated: /devloop-kickoff bench-salvage GROUND-FLOOR-1b; plan-review resolves D-A (which of the 3 case designs); the monitor confirms the design before the paid run."
+    },
+    {
+      "id": "bench-salvage-phasePACK-1-healthcare-pack-ontology-layer-driver",
+      "stream": "bench-salvage",
+      "phase": "PACK-1",
+      "scope": "healthcare-realm-as-pack-layer-1a-make-the-core-load-ontology-plus-taxonomy-from-an-active-healthcare-pack-plus-a-consistency-gate-above-the-frozen-council",
+      "file": "bench-salvage_phasePACK-1_healthcare-pack-ontology-layer_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE (touches taxonomy_snapshot -- the CLAUDE.md core invariant + the only lithrim-backend coupling point -- and the admissibility path; the move must be byte-behavior-identical [A2] and must NOT silently relax the by-construction gate or breach the frozen council [D-A]; the critic verifies the boundary is real, the move is content-identical, and the consistency gate is non-vacuous)",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/specs/SPEC_PLUGIN_ARCHITECTURE.md (3 packs + the Pack manifest [pack_id healthcare, ontology, flags_ref taxonomy_snapshot, tier pro] + Build-sequencing Phase-1 + the Healthcare-realm-as-pack note)",
+        "docs/specs/SPEC_EVAL_SCENARIOS.md (D-C per-domain admissibility = the floor IS the by-construction label; SCENARIO-1 un-hardcode the domain)",
+        "lithrim_bench/harness/ontology.py:38 (DEFAULT_ONTOLOGY_PATH -> clinical_v1.json; load_ontology:182 -- the wiring site: resolve via the active pack)",
+        "lithrim_bench/taxonomy.py:13 (_SNAPSHOT_PATH -> taxonomy/taxonomy_snapshot.json -- the taxonomy half)",
+        "lithrim_bench/runtime/council/compliance_council.py:292 (KNOWN_TAXONOMY_CODES -- FROZEN hardcode, read-only; the D4 consistency gate validates AGAINST it; un-hardcoding it = layer 1b, OUT)",
+        "lithrim_bench/harness/config.py:11 + correction.py + grounding.py:575 (the load_ontology call sites that must resolve via the active pack) + scripts/seed_ontology.py (becomes the pack's seeder) + memory healthcare-realm-as-pack"
+      ],
+      "_note": "PACK-1 = the FIRST concrete cut of SPEC_PLUGIN_ARCHITECTURE Phase-1 (sharpened by the user's healthcare-realm-as-pack decision) intersect SPEC_EVAL_SCENARIOS SCENARIO-1. Extract LAYER 1a: make the core LOAD its ontology + taxonomy from an active healthcare pack instead of the hardcoded clinical_v1.json/taxonomy_snapshot.json, so the core ontology-load path is domain-agnostic and the boundary is grep-verifiable. Layer 1 SPLITS because KNOWN_TAXONOMY_CODES is hardcoded INSIDE the FROZEN compliance_council.py:292: 1a = the LOAD path (ontology.py:38, taxonomy.py:13 -- above the seam) + a consistency gate (loaded pack codes subset of the frozen council set); 1b = un-hardcode the council (inside the seam, deferred behind explicit un-freeze). D1 the pack manifest + packs/healthcare/ layout + a pack-resolution helper. D2 relocate clinical_v1.json + taxonomy_snapshot.json into packs/healthcare/ BYTE-IDENTICAL (D-B move vs reference). D3 pack-aware load (load_ontology + taxonomy resolve via active_pack, all call sites). D4 the consistency gate (the bridge to the still-frozen council). D5 the boundary grep test (no clinical_v1 path in the core load path). D6 docs. OUT: layer 1b (the frozen council), layers 2-5 (judges/floors/journey/dataset), the story/2nd pack, the licensing gate, HPACK. FROZEN: _apply_consensus + KNOWN_TAXONOMY_CODES + the seam + judge_metric + agent seeds; the snapshot+ontology CONTENT stays byte-identical (a MOVE, not an edit). LOCAL is SSOT (no push); pathspec-only on the dirty shared branch bench-salvage/ws6c-dspy.",
+      "created": "2026-06-09",
+      "last_re_verified": "2026-06-09 (authored from the user healthcare-realm-as-pack decision; the load sites were GREPPED live this session: ontology.py:38 DEFAULT_ONTOLOGY_PATH, taxonomy.py:13 _SNAPSHOT_PATH, compliance_council.py:292 KNOWN_TAXONOMY_CODES [frozen], the load_ontology call sites in config.py/correction.py/grounding.py; the Pack manifest confirmed present in SPEC_PLUGIN_ARCHITECTURE)",
+      "next_action": "READY -- /devloop-kickoff bench-salvage PACK-1. The STRATEGIC FOUNDATIONAL cycle (the healthcare-realm-as-pack track the product rides on). Plan-review resolves the 4 decisions: D-A the frozen-seam line (stay ABOVE compliance_council; consistency gate; defer 1b -- touching the council is a HARD STOP without go); D-B relocate vs reference; D-C call-site coverage; D-D green-throughout (byte-behavior-identical clinical product). HARD-GATE: fresh-critic at close."
     }
   ]
 }
