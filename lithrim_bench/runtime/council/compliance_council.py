@@ -467,7 +467,7 @@ class ComplianceCouncil:
     """Run multiple LLMs with identical context payloads and apply consensus rules."""
 
     # Role prompt directory (loaded at class level for efficiency)
-    _ROLE_PROMPTS_DIR = Path(__file__).parent / "council_roles"
+    _ROLE_PROMPTS_DIR = Path(__import__("lithrim_bench.harness.pack", fromlist=["pack_prompts_path"]).pack_prompts_path())  # PACK-2 carve-out: prompts relocated into the active pack (path-only, behavior-preserving)
 
     def __init__(self, models: Optional[Iterable[CouncilModel]] = None) -> None:
         self._openai, council_model = get_sync_openai_client(purpose="council")

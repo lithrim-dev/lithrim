@@ -64,7 +64,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 COUNCIL_DIR = REPO_ROOT / "lithrim_bench" / "runtime" / "council"
 SAFETY_FLAGS_PY = COUNCIL_DIR / "safety_flags.py"
 COMPLIANCE_PY = COUNCIL_DIR / "compliance_council.py"
-ROLE_DIR = COUNCIL_DIR / "council_roles"
+ROLE_DIR = REPO_ROOT / "packs" / "healthcare" / "council_roles"  # PACK-2: relocated into the pack
 OUT_PATH = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 SNAPSHOT_PATH = REPO_ROOT / "packs" / "healthcare" / "taxonomy_snapshot.json"
 

@@ -16,13 +16,17 @@ adds the heavy bindings (``Judge``/``dspy.LM``) above this module, never below i
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
+
+from ...harness.pack import pack_prompts_path
 
 # The per-role prompt sources the live prompt-council loads (compliance_council
 # ._load_role_prompts globs the same dir → prompts[file.stem]); the DSPy Judge is
-# fed the SAME text via role_prompt= so the A/B compares like prompts.
-_ROLE_PROMPTS_DIR = Path(__file__).parent / "council_roles"
+# fed the SAME text via role_prompt= so the A/B compares like prompts. PACK-2: the
+# prompts relocated INTO the active healthcare pack; both readers resolve via
+# pack_prompts_path() (harness.pack is stdlib-only, so the BFF $0 preview keeps
+# working without the [council] extra).
+_ROLE_PROMPTS_DIR = pack_prompts_path()
 
 
 def load_role_prompt(role: str) -> str:
