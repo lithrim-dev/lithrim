@@ -1,0 +1,128 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-1-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "PACK-1",
+  "driver_bundle_id": "bench-salvage-phasePACK-1-healthcare-pack-ontology-layer-driver",
+  "started_at": "2026-06-09T00:00:00Z",
+  "ended_at": "2026-06-09T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T00:00:00Z",
+    "user_approved_at": "2026-06-09T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-B = RELOCATE (physical git mv), re-scoping A5: the 8 agent seeds get a behavior-preserving ontology_path-ONLY update (no longer whole-file-frozen); ontology/snapshot CONTENT stays byte-identical (a move, not an edit). User locked it over the monitor-floated reference-in-place after I surfaced the A4(move)-vs-§4(frozen-seeds) tension.",
+        "evidence": "User GO: 'Locked: D-B = RELOCATE... each seed's diff must be exactly the path line, nothing else.'",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Provenance-label treatment: the 5 corpus-generator `taxonomy_snapshot` strings stay at the OLD path (historical record), NOT migrated. The live load path is fully pack-resolved; migrating the labels would force regenerating committed corpora + a fixture (rewriting provenance). A1 reframes to 'no old path in the LIVE LOAD path'.",
+        "evidence": "AskUserQuestion answer: 'Leave as historical record (Recommended)'. Determinism guard test_uap4_corpus_superset byte-compares regen vs committed examples/judge_calib_v1.jsonl.",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "A1 grep footprint larger than the GO parenthetical: beyond the 4 named scripts, the snapshot path lived in 7 more scripts (build_label_owner_matrix, lint_golden_against_taxonomy, + 5 provenance-label generators) plus docstrings across lithrim_bench/ + scripts/. A1 ('grep the 3 trees -> empty') mandates migrating the live ones; done.",
+        "evidence": "grep lithrim_bench data/config scripts for the two old paths; functional load sites all migrated; the 5 provenance labels carved out per the mid-cycle decision.",
+        "decided_at": "2026-06-09T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "ec0da44",
+      "repo": "lithrim-bench",
+      "title": "refactor(pack): relocate clinical realm into packs/healthcare/ + pack-aware core load (PACK-1 layer-1a)",
+      "summary": "git mv (R100) the ontology+snapshot into packs/healthcare/; pack.json manifest; harness/pack.py (active_pack + AST consistency gate, no openai import); ontology.py/taxonomy.py resolve via the pack; 8 seeds path-only; live script load paths migrated; _seam_freeze split working-tree(pack) vs baseline(old@acc4973)."
+    },
+    {
+      "hash": "e2dea60",
+      "repo": "lithrim-bench",
+      "title": "test(pack): layer-1a boundary + consistency-gate proof (PACK-1 D5/A3)",
+      "summary": "tests/test_pack_layer1a.py — boundary grep (core+config clean; scripts residual = provenance labels only), active-pack resolution, ontology/taxonomy identity, the fail-closed non-vacuous consistency gate, AST-without-openai."
+    },
+    {
+      "hash": "a0f8b28",
+      "repo": "lithrim-bench",
+      "title": "docs(pack): layer-1a landed — coupling point relocated into the healthcare pack (PACK-1 D6)",
+      "summary": "CLAUDE.md: the taxonomy snapshot coupling point relocated into packs/healthcare/ (invariant MOVES, not weakens); the core resolves via the active pack. SPEC_PLUGIN_ARCHITECTURE: layer-1a landed + what stays 1a-deferred."
+    },
+    {
+      "hash": "02d5231",
+      "repo": "lithrim-bench",
+      "title": "fix(pack): reconcile the second frozen-seam guard for the relocated ws0_default path",
+      "summary": "test_uap3b_withstands.py carries a SECOND test_frozen_seam_zero_delta; surfaced only after the path-only seed edit landed in HEAD (guard diffs acc4973..HEAD). Same reconciliation as test_uap3b2_provenance: path-only delta via assert_seed_ontology_path_relocated_only."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — core resolves ontology+taxonomy via an active pack (healthcare default); no hardcoded clinical_v1/snapshot path in the core load path (D5 grep)",
+      "verdict": "PASS",
+      "evidence": "grep lithrim_bench/ + data/config/ for the two old paths -> EMPTY. scripts/ residual = the 5 taxonomy_snapshot PROVENANCE LABELS only (documented carve-out; live loads go through load_taxonomy()->pack). tests/test_pack_layer1a.py 10/10 pins the boundary."
+    },
+    {
+      "criterion": "A2 — byte-behavior-identical clinical product (identical ontology + verdicts before/after; the MOVE changed the source not the behavior)",
+      "verdict": "PASS",
+      "evidence": "Default suite 410->420 (the +10 are the new pack tests; 0 fail). debuglithrim 533->543 passed, same 2 pre-existing S-BS-96 fails. test_pack_layer1a: loaded ontology gradeable codes == the 19 frozen council codes; ontology_version clinical/1. Move is R100 (byte-identical). PAID before/after eval on ws0_default = OWED/optional (user fires paid runs)."
+    },
+    {
+      "criterion": "A3 — the consistency gate holds (pack codes subset of frozen council KNOWN_TAXONOMY_CODES); a mismatched pack fails closed (test-pinned)",
+      "verdict": "PASS",
+      "evidence": "assert_pack_council_consistent('healthcare') no-raise; council_known_codes()==19; assert_codes_known(known | {'NOT_A_REAL_TAXONOMY_CODE'}) raises PackConsistencyError. Gate AST-parses the council source (no import) -> runs in the no-openai core env."
+    },
+    {
+      "criterion": "A4 — content byte-identity (pack JSONs byte-identical to the moved originals; git renames not deltas; lint green; re-snapshot path still works)",
+      "verdict": "PASS",
+      "evidence": "git diff dd8b78d HEAD -M: 'rename ... (100%)' x2, 0 insertions/0 deletions on the moved files. scripts/lint_golden_against_taxonomy.py --golden examples/proof_case.jsonl -> OK (exit 0) via the new --snapshot default. snapshot_taxonomy.py --out default now packs/healthcare/taxonomy_snapshot.json."
+    },
+    {
+      "criterion": "A5 — FROZEN set 0-delta (compliance_council incl KNOWN_TAXONOMY_CODES + seam + judge_metric + council content); green bar (default + debuglithrim); ruff clean; pathspec-only",
+      "verdict": "PASS",
+      "evidence": "Both test_frozen_seam_zero_delta guards (test_uap3b2_provenance + test_uap3b_withstands) green: council/judges_dspy-seam/judge_metric/council_roles empty-diff vs acc4973; clinical-ontology owner/consensus seam frozen (additive contracts only); ws0_default path-ONLY delta proven. ruff clean on all touched non-script files (the 6 touched scripts had 6 PRE-EXISTING ruff errors, unchanged). 4 atomic pathspec-only commits; working tree clean (no foreign sweep)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "default_suite": "420 passed, 32 skipped (baseline 410; +10 new pack tests; 0 fail)",
+    "debuglithrim_suite": "543 passed, 2 failed (pre-existing S-BS-96 only, env/ordering artifact), 3 skipped",
+    "move_similarity": "R100 on both files (0 content delta)",
+    "council_vs_snapshot_codes": "19 == 19, subset holds (gate non-vacuous + passing)",
+    "files_changed": "47 files, 375 insertions, 56 deletions",
+    "seed_ontology_check": "exit 1 (STALE) — PRE-EXISTING S-BS-113 owner drift, proven byte-identical to pre-move HEAD; not introduced/fixed this cycle"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-114",
+      "title": "apps/shell FE test fixtures carry a stale ontology_path literal (data/ontology/clinical_v1.json)",
+      "severity": "low",
+      "fix_location": "apps/shell/src/bff.test.jsx, apps/shell/src/genui/AgentEditor.test.jsx",
+      "impact": "FE vitest fixtures still hardcode the old ontology_path string; they don't read the FS so tests stay green, but the string is stale post-move. Out of layer-1a scope (apps/shell = layer-4 journey literals, FROZEN). Sweep with layer 4.",
+      "confidence": "CONFIRMED",
+      "evidence": "grep apps/shell -> bff.test.jsx:87/112 + AgentEditor.test.jsx:14 contain 'data/ontology/clinical_v1.json'; out of the A1 grep scope (lithrim_bench/, data/config/, scripts/)."
+    },
+    {
+      "id": "S-BS-115",
+      "title": "docs/ + a research script carry stale old-path references post-move",
+      "severity": "low",
+      "fix_location": "docs/research/RUN_calib_progression_2026-06-03.py:73 + several docs/*.md + docs/specs/*",
+      "impact": "RUN_calib_progression_2026-06-03.py reads data/ontology/clinical_v1.json directly (would break if run); docs prose mentions the old path. Out of the A1 grep scope (docs/ excluded). Cosmetic/accuracy; fold into a docs sweep or the next layer.",
+      "confidence": "CONFIRMED",
+      "evidence": "grep docs -> RUN_calib_progression_2026-06-03.py:73 json.loads(Path('data/ontology/clinical_v1.json')...) + PROOF/SPEC mentions; A1 scope is lithrim_bench/+data/config/+scripts/ only."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PACK-1 layer-1a landed: the clinical ontology + taxonomy snapshot RELOCATED (git mv, R100 byte-identical) into packs/healthcare/, and the core now loads them via an active-pack resolver (harness/pack.py, default 'healthcare', LITHRIM_BENCH_PACK-overridable) instead of two hardcoded paths. The consistency gate AST-parses the FROZEN council's KNOWN_TAXONOMY_CODES (no import — the core env has no openai) and fails closed on an out-of-council pack code, so 1a ships without touching the frozen seam (D-A held). Boundary is grep-verifiable: lithrim_bench/ + data/config/ carry no relocated clinical path; the only scripts/ residual are 5 taxonomy_snapshot PROVENANCE LABELS (user-decided to keep as historical record — the live loads are pack-resolved). The move is byte-identical (R100) and both frozen-seam guards prove the council content is 0-delta vs acc4973 while ws0_default's seed delta is PATH-ONLY. Caveats: (1) the move's footprint was larger than the GO parenthetical — it migrated 20 test fixtures + reconciled a SECOND frozen-seam guard (test_uap3b_withstands) that only surfaced once the seed edit hit HEAD; monitor should verify the per-seed path-only invariant the critic will check. (2) PROCEED-WITH-CAVEATS because the PAID before/after eval on ws0_default is OWED (user fires paid runs) and HARD GATE wants a fresh critic. Monitor: audit first on (a) every per-seed diff == exactly the ontology_path line, (b) the consistency gate is non-vacuous, (c) the A4 R100 renames, (d) S-BS-113 staleness is pre-existing (proven byte-identical to pre-move HEAD), then run the fresh critic.",
+
+  "next_session_hint": "monitor: run /devloop-audit bench-salvage PACK-1, then a fresh-critic session (HARD GATE) via /devloop-critique bench-salvage PACK-1; the OWED paid ws0_default before/after is user-run."
+}
