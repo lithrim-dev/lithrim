@@ -23,6 +23,11 @@ const VOTE_COLOR = {
   BLOCK: "var(--accent)",
 };
 
+// grade_path → the cost tag. in_process is the OSS-standalone PAID default (LAUNCH-PREP);
+// only an actual replay is $0 — never label a paid run "$0" (S-BS-110).
+const gradeTag = (gp) =>
+  gp === "replay" ? "replay · $0" : gp === "in_process" ? "in-process · paid" : "live · paid";
+
 function ReportMessage({ children }) {
   return (
     <div style={{ padding: "48px 16px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
@@ -52,7 +57,7 @@ function ReportTab({ runStatus, runResult, runError }) {
   const comp = runResult.composite;
   const cal = runResult.calibration_check;
   const ui = VERDICT_UI[comp.verdict] || VERDICT_UI.needs_review;
-  const live = runResult.grade_path === "live";
+  const gradeLabel = gradeTag(runResult.grade_path);
 
   return (
     <div>
@@ -70,7 +75,7 @@ function ReportTab({ runStatus, runResult, runError }) {
       <div className="art-sec">
         <div className="art-h2">
           Headline metrics
-          <span className="cnt">{live ? "live · paid" : "replay · $0"}</span>
+          <span className="cnt">{gradeLabel}</span>
         </div>
         <div className="tiles">
           {[
@@ -171,7 +176,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
         <div>
           <div className="ct">{blocking ? `${blocking} blocking vote(s)` : "No blocking votes"}</div>
           <div className="cs">
-            Realized votes on {runResult.case_id} · {runResult.grade_path === "live" ? "live · paid" : "replay · $0"}
+            Realized votes on {runResult.case_id} · {gradeTag(runResult.grade_path)}
           </div>
         </div>
       </div>

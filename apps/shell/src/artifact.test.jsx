@@ -44,6 +44,16 @@ describe("JudgeTab — realized council votes (A1)", () => {
     expect(screen.getByText(/confidence n\/a/)).toBeInTheDocument();
   });
 
+  it("S-BS-110: an in_process run is labeled PAID (in-process · paid), never replay · $0", () => {
+    // Pre-fix the tag was `grade_path === "live" ? "live · paid" : "replay · $0"`, so the
+    // LAUNCH-PREP in_process default mislabeled a real PAID run as $0. NON-VACUOUS: pre-fix
+    // this asserts the wrong tag and fails.
+    const paid = { ...COUNCIL_RESULT, grade_path: "in_process" };
+    const { container } = render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runResult={paid} runError={null} />);
+    expect(container.textContent).toContain("in-process · paid");
+    expect(container.textContent).not.toContain("replay · $0");
+  });
+
   it("prompts to run when there is no run yet", () => {
     render(<ArtifactPane {...paneProps} tab="judges" runStatus="idle" runResult={null} runError={null} />);
     expect(screen.getByText(/per-case votes/i)).toBeInTheDocument();
