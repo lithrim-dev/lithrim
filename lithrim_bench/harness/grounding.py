@@ -32,6 +32,7 @@ declared flag at all) is left in active unchanged, as before.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -277,6 +278,121 @@ class KbGrounding(VerificationContract):
         )
 
 
+class RecordPresence(VerificationContract):
+    """Disprove a false ``FABRICATED_HISTORY`` by GROUNDING the artifact's documented
+    history in the patient record — the S-BS-7 presence-check generalized from the
+    transcript to ``patient_profile.conditions``.
+
+    Where :class:`PresenceCheck` clears ``"X not in transcript"`` by finding X in the
+    transcript, this clears ``"history item X was never in the record"`` by finding
+    every documented PMH item already present in the patient's condition list. A
+    legitimately carried-forward PMH grounded in the record SUPPRESSES the false
+    finding; a genuinely injected condition (∉ the record) leaves the finding to
+    STAND. Wraps the proven :class:`~lithrim_bench.verification.InRowTool`
+    (``extract_pmh_items`` + ``snomed_core`` set-membership) — purpose-built, reused
+    not rewritten.
+
+    Conservative on three axes (never clears a true fabrication, never clears by
+    silence):
+      * suppress ONLY when ALL extracted PMH items are grounded (``conforms is True``);
+        any ungrounded item ⇒ the WHOLE finding stands (``conforms is False``).
+      * a non-SOAP / non-DocumentReference artifact (scheduling/triage rows) decodes
+        to ``None`` ⇒ inconclusive, never suppressed.
+      * an EMPTY PMH extraction (zero items) ⇒ inconclusive, never suppressed —
+        ``InRowTool`` conforms *vacuously* on ``[]`` ("nothing to check" ≠ "all
+        grounded"), so this guard is load-bearing.
+
+    NOTE (P0 string match): ``match: snomed_core`` is a string set-membership check.
+    It is sound here only because the synthetic bench mints both the note PMH and
+    ``patient_profile.conditions`` from identical SNOMED FSN strings. It does NOT
+    generalize to real clinical text — code-based resolution (Hermes ``snomed_code``)
+    is TERMINOLOGY-1, the next phase.
+
+    params = {"oracle_path": "patient_profile.conditions",  # required
+              "extractor": "soap_pmh_items",                # required
+              "match": "snomed_core",                       # required (P0 string)
+              "artifact_decode": "fhir_documentreference"}  # informational
+    """
+
+    contract_type = "record_presence"
+
+    def __init__(self, decl: VerificationContractDecl) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.verification import (
+            RECORD_PRESENCE,
+            Claim,
+            InRowTool,
+            VerificationSpec,
+        )
+
+        soap = _decode_artifact_soap(case)
+        if soap is None:
+            return Verdict(
+                disproved=False,
+                reason=(
+                    "artifact is not a SOAP-bearing FHIR DocumentReference "
+                    "(no content[0].attachment.data); inconclusive, flag stays open"
+                ),
+            )
+
+        p = self._params
+        locus = p.get("locus", "")
+        spec = VerificationSpec(
+            tool="in_row",
+            applies_to_flags=(self.flag_code,),
+            locus=locus,
+            reference={
+                "oracle_path": p["oracle_path"],
+                "extractor": p["extractor"],
+                "match": p["match"],
+            },
+            version=self.version,
+        )
+        claim = Claim(
+            claim_type=RECORD_PRESENCE,
+            flag_code=self.flag_code,
+            subject=soap,
+            locus=locus,
+            source=case,
+        )
+        result = InRowTool().verify(claim, spec)
+        items_checked = int(result.evidence.get("items_checked", 0))
+        if items_checked == 0:
+            return Verdict(
+                disproved=False,
+                reason=(
+                    "no PMH items extracted from the artifact; nothing to ground "
+                    "(inconclusive — 'nothing to check' is not 'all grounded')"
+                ),
+            )
+        if result.conforms is True:
+            return Verdict(
+                disproved=True,
+                evidence=(
+                    f"all {items_checked} documented PMH item(s) are grounded in "
+                    f"{p['oracle_path']} (oracle_size={result.evidence.get('oracle_size')})"
+                ),
+                reason=(
+                    f"every documented history item is present in the patient record "
+                    f"({p['oracle_path']}, match={p['match']}); the FABRICATED_HISTORY "
+                    f"finding is disproven by the record"
+                ),
+            )
+        return Verdict(
+            disproved=False,
+            reason=(
+                f"{len(result.evidence.get('ungrounded') or [])} documented history "
+                f"item(s) not grounded in {p['oracle_path']} "
+                f"({result.evidence.get('ungrounded')}); fabrication stands"
+            ),
+        )
+
+
 # contract_type -> executor factory. This is the SUPPRESS registry (per-finding
 # contracts that disprove an existing confident-but-wrong finding). The structural
 # FLOOR direction (artifact-level contracts that inject a BLOCK the council missed)
@@ -287,7 +403,17 @@ class KbGrounding(VerificationContract):
 # presence-check generalized to the backend KB. It needs the injected ``http_client``
 # (it composes over live :8002), so ``_build_contract`` threads it in; ``PresenceCheck``
 # is pure-stdlib and ignores it.
-_CONTRACT_EXECUTORS = {"presence_check": PresenceCheck, "kb_grounding": KbGrounding}
+# ``record_presence`` (GROUND-FLOOR-1) is the record-grounded suppress executor —
+# the S-BS-7 presence-check generalized from the transcript to the patient record.
+# It wraps the pure-stdlib ``InRowTool`` (no httpx), so it is NOT in
+# ``_HTTP_CONTRACT_TYPES`` and ``_build_contract`` constructs it from the declaration
+# alone. Registering it here wires BOTH gates: post-consensus ``ground()`` and the
+# pre-consensus withstands-gate (``runtime/council/signals.py`` reads this registry).
+_CONTRACT_EXECUTORS = {
+    "presence_check": PresenceCheck,
+    "kb_grounding": KbGrounding,
+    "record_presence": RecordPresence,
+}
 _HTTP_CONTRACT_TYPES = {"kb_grounding"}
 
 # contract_type set for the WS-3 structural floor. These resolve to the promoted
@@ -317,6 +443,30 @@ def _artifact_content(case: dict[str, Any]) -> Any:
     if not artifacts or not isinstance(artifacts[0], dict):
         return None
     return artifacts[0].get("content")
+
+
+def _decode_artifact_soap(case: dict[str, Any]) -> str | None:
+    """The SOAP note inside the first artifact's FHIR DocumentReference, or ``None``.
+
+    The corpus artifact is a DocumentReference JSON string with the SOAP body at
+    ``content[0].attachment.data`` stored as **plaintext** — the injector reads and
+    writes it as a string with no base64 (``injectors/_soap.py``). Real-FHIR base64
+    attachments are FHIR-1, not this cycle; there is deliberately no base64 branch.
+    The nested path is dug directly (clean rows lack the ``_soap_text`` convenience
+    key). Any artifact that is not a SOAP-bearing DocumentReference — e.g. the
+    scheduling/triage conversation rows, which have no ``content[0].attachment.data``
+    — returns ``None`` so :class:`RecordPresence` stays inconclusive and never
+    suppresses by silence.
+    """
+    raw = _artifact_content(case)
+    if not isinstance(raw, str):
+        return None
+    try:
+        doc = json.loads(raw)
+        data = doc["content"][0]["attachment"]["data"]
+    except (TypeError, ValueError, KeyError, IndexError):
+        return None
+    return data if isinstance(data, str) else None
 
 
 def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_client: Any | None):
