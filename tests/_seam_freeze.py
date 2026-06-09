@@ -14,6 +14,7 @@ the provider binder may evolve. Single-sourced so the two guards can never drift
 from __future__ import annotations
 
 import ast
+import json
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,8 @@ _JUDGES_DSPY_REL = "lithrim_bench/runtime/council/judges_dspy.py"
 _SEAM_BASELINE = "acc4973"  # the UAP-3b parent — the moat-seam pin
 # The ONLY symbols BYOC-1 is authorized to change in judges_dspy.py (the provider binder).
 _BYOC1_PROVIDER_SEAM = frozenset({"build_judge_lm", "build_trio"})
+
+_CLINICAL_ONTOLOGY_REL = "data/ontology/clinical_v1.json"
 
 
 def _toplevel_defs(src_text: str, *, exclude: frozenset[str]) -> dict[str, str]:
@@ -53,3 +56,37 @@ def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
     )
     drifted = [name for name, src in base.items() if cur[name] != src]
     assert not drifted, f"consensus-seam symbol(s) drifted in judges_dspy.py: {drifted}"
+
+
+def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
+    """The consensus/owner seam in ``clinical_v1.json`` — flags, tiers, owners,
+    questions, severity_map, versions — is byte-identical to ``acc4973``; only the
+    grounding ``verification_contracts`` array may grow ADDITIVELY.
+
+    GROUND-FLOOR-1 onward, ``verification_contracts`` is the grounding surface that
+    evolves phase by phase (med presence_check → record_presence → terminology → …);
+    whole-file-pinning it was overly broad. This mirrors the BYOC-1 provider-binder
+    carve-out: the moat seam stays provably frozen, only the authorized surface may
+    evolve — and even there, existing contracts may not be edited or removed (purely
+    additive)."""
+    base = json.loads(
+        subprocess.run(
+            ["git", "show", f"{_SEAM_BASELINE}:{_CLINICAL_ONTOLOGY_REL}"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    cur = json.loads((repo / _CLINICAL_ONTOLOGY_REL).read_text())
+    base_contracts = base.pop("verification_contracts", [])
+    cur_contracts = cur.pop("verification_contracts", [])
+    assert cur == base, (
+        "clinical_v1.json consensus/owner seam drifted outside verification_contracts "
+        "(flags/tiers/owners/questions/severity_map must stay frozen vs acc4973)"
+    )
+    for c in base_contracts:
+        assert c in cur_contracts, (
+            "a baseline verification_contract was removed or edited (must be additive): "
+            f"{c.get('flag_code')}"
+        )

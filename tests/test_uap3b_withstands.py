@@ -32,7 +32,10 @@ from lithrim_bench.harness.ontology import load_ontology
 from lithrim_bench.runtime.council.signals import build_judge_signals
 from lithrim_bench.runtime.council.withstands import apply_withstands_gate
 
-from ._seam_freeze import assert_judges_dspy_consensus_seam_frozen
+from ._seam_freeze import (
+    assert_clinical_ontology_seam_frozen,
+    assert_judges_dspy_consensus_seam_frozen,
+)
 
 _REPO = Path(__file__).resolve().parents[1]
 
@@ -216,7 +219,6 @@ def test_frozen_seam_zero_delta():
     frozen = [
         "lithrim_bench/runtime/council/compliance_council.py",
         "lithrim_bench/runtime/council/judge_metric.py",
-        "data/ontology/clinical_v1.json",
         "data/config/agents/ws0_default.json",
         "lithrim_bench/runtime/council/council_roles",
     ]
@@ -229,6 +231,9 @@ def test_frozen_seam_zero_delta():
     )
     assert out.stdout == "", f"frozen seam drifted:\n{out.stdout[:2000]}"
     assert_judges_dspy_consensus_seam_frozen(_REPO)
+    # clinical_v1.json's consensus/owner seam stays frozen; only verification_contracts
+    # may grow additively (GROUND-FLOOR-1's record_presence contract).
+    assert_clinical_ontology_seam_frozen(_REPO)
 
 
 # ─────────────────────────── full-pipeline exhibit (dspy/openai-gated) ──────────────
