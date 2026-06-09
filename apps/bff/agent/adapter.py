@@ -102,6 +102,13 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
 def open_artifact_part(tab: str) -> dict[str, Any]:
     """CHATBIND-2: focus_artifact -> a pane-control DIRECTIVE (not a gen-UI card). The shell
     honors it by OPENING + FOCUSING the named ArtifactPane tab; it is absent from KNOWN_TOOLS
-    and is NEVER routed through ``renderTool``. ``tab`` is one of report|judges|config|corpus
+    and is NEVER routed through ``renderTool``. ``tab`` is one of case|report|judges|config|corpus
     (the caller validates it). $0 — emitting a directive can never fire a paid run."""
     return _part("open_artifact", {"tab": tab})
+
+
+def case_summary_part(agent: str) -> dict[str, Any]:
+    """CHATBIND-3: show_case -> the CaseCard (it self-fetches GET /v1/case for ``agent`` —
+    the reference-carrying pattern, like agent_part/judge_part). An inline summary of the
+    SOURCE case the council grades, with a "View case ->" that opens the full Case tab. $0."""
+    return _part("case_summary", {"agent": agent})

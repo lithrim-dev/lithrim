@@ -10,6 +10,7 @@ import "./AgentEditor.jsx";
 import "./AuditView.jsx";
 import "./JudgeEditor.jsx";
 import "./RunPanel.jsx";
+import "./CaseCard.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -22,3 +23,4 @@ export { default as AgentEditor } from "./AgentEditor.jsx";
 export { default as AuditView } from "./AuditView.jsx";
 export { default as JudgeEditor } from "./JudgeEditor.jsx";
 export { default as RunPanel } from "./RunPanel.jsx";
+export { default as CaseCard } from "./CaseCard.jsx";

@@ -126,28 +126,27 @@ def test_focus_artifact_joins_the_tool_set_exactly_once():
     one) gains a paid knob — the S-BS-81 guarantee generalized across the +1 surface."""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
     assert names.count("focus_artifact") == 1
-    assert len(names) == 12  # the prior 11 + focus_artifact
+    assert names.count("show_case") == 1
+    assert len(names) == 13  # the prior 12 + show_case (CHATBIND-3; $0 read, no paid knob)
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in PAID_KEYS), name
 
 
 def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byte_identical(ctx):
-    """A-SAFE (HARD-GATE): the allowlist gains EXACTLY mcp__lithrim__focus_artifact and the
-    deny-hook + isolation + max_turns are byte-identical. NON-VACUOUS — drop focus_artifact
-    from the derived set and the membership assertion fails."""
+    """A-SAFE (HARD-GATE): the allowlist is EXACTLY the _TOOL_SPECS-derived set (mcp__lithrim__<name>)
+    — no extra surface — and the deny-hook + isolation + max_turns are byte-identical. NON-VACUOUS:
+    drop a tool from _TOOL_SPECS and the set-equality fails. CHATBIND-3 adds show_case ($0 card);
+    CHATBIND-2 added focus_artifact — both $0 read, no paid knob (asserted above)."""
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent.loop import _build_options, _deny_non_lithrim
 
     opts = _build_options(ctx)
     allowed = list(opts.allowed_tools)
-    # the allowlist is exactly the _TOOL_SPECS-derived set, +1 = focus_artifact, no dupes
-    assert "mcp__lithrim__focus_artifact" in allowed
-    assert allowed.count("mcp__lithrim__focus_artifact") == 1
-    assert len(allowed) == len(set(allowed)) == 12
+    derived = {f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS}
+    assert set(allowed) == derived  # exactly the tool set — no extra, no paid surface
+    assert len(allowed) == len(set(allowed)) == 13
+    assert {"mcp__lithrim__focus_artifact", "mcp__lithrim__show_case"} <= set(allowed)
     assert all(a.startswith("mcp__lithrim__") for a in allowed)
-    # remove the one new tool -> the prior 11-tool allowlist, unchanged
-    prior = [a for a in allowed if a != "mcp__lithrim__focus_artifact"]
-    assert len(prior) == 11
     # the gate + isolation + turn budget are byte-identical (CHATBIND-1 discipline)
     callbacks = [cb for m in opts.hooks["PreToolUse"] for cb in m.hooks]
     assert _deny_non_lithrim in callbacks

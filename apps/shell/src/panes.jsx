@@ -402,7 +402,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                         ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
                       </div>
                     ) : (
-                      <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`) })}</div>
+                      // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
+                      <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>
                     ),
                   )}
                   {!m.text && !(m.parts || []).length && sending && i === chat.length - 1 && (

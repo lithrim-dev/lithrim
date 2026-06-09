@@ -26,11 +26,12 @@ const EXPECTED = {
   "tool-audit_log": /Audit trail/i, // UAP-1 R0 — the why/when/who/what view
   "tool-judge_editor": /Loading judge|Judge ·/i, // UAP-2 R2 — ontology-assignment authoring
   "tool-run_panel": /Run evaluation/i, // UAP-3 R4 — the processing surface
+  "tool-case_summary": /Loading the case|Source case/i, // CHATBIND-3 — the inline source-case summary
 };
 
 describe("renderTool registry", () => {
-  it("knows all 9 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(9);
+  it("knows all 10 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(10);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

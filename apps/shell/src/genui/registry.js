@@ -29,6 +29,7 @@ export const KNOWN_TOOLS = [
   "tool-audit_log",
   "tool-judge_editor",
   "tool-run_panel",
+  "tool-case_summary",
 ];
 
 const TOOL_REGISTRY = {};

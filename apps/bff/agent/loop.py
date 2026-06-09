@@ -53,6 +53,8 @@ _SYSTEM_PROMPT = (
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
     "trail of everything you authored -- $0.\n"
+    "  - show_case: show the SOURCE case (transcript + artifact + the planted label) as an inline "
+    "Case Summary card -- $0; use it to let the human SEE what they're about to evaluate.\n"
     "  - focus_artifact: open + focus the artifact side-panel on a tab (case | report | judges | "
     "config | corpus) to SHOW your work -- 'case' is the SOURCE INPUT (transcript + artifact + "
     "the planted label) the council grades; $0, a UI directive (never a paid run).\n"
@@ -82,8 +84,9 @@ def _system_prompt(active_agent: str) -> str:
         f"`{active_agent}`.\n\n"
         "Drive the artifact side-panel as you work (CHATBIND-2/3): when the human wants to SEE or "
         "explore the case -- the transcript, the scribe artifact, or what defect is planted -- call "
-        'focus_artifact("case") to show the SOURCE INPUT before running (the teaching move: look at '
-        "the input, then run, then compare the verdict to the planted label). After you produce a verdict "
+        "show_case to drop an inline Case Summary card (its \"View case\" opens the full Case tab); this "
+        "is the teaching move: look at the input, then run, then compare the verdict to the planted label. "
+        "After you produce a verdict "
         'or review runs, call focus_artifact("judges") for the council votes or '
         'focus_artifact("report") for the composite; after you author or edit a judge or flag, '
         'call focus_artifact("config"); when you discuss the correction corpus or flywheel, '

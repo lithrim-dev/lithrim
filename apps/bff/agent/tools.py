@@ -30,6 +30,7 @@ from typing import Any
 from .adapter import (
     agent_part,
     audit_part,
+    case_summary_part,
     flag_part,
     judge_part,
     open_artifact_part,
@@ -103,6 +104,9 @@ FOCUS_ARTIFACT_SCHEMA: dict[str, Any] = {"tab": str}
 # "case" (CHATBIND-3) is the SOURCE INPUT view (transcript + artifact + the planted label) — the
 # "show me the case before we run it" leg. Still $0/read: the tab self-fetches GET /v1/case.
 _ARTIFACT_TABS = ("case", "report", "judges", "config", "corpus")
+# CHATBIND-3: show_case takes NO params — it summarizes the ACTIVE agent's source case as an
+# inline card (the card self-fetches GET /v1/case). $0/read, no paid knob, nothing to smuggle.
+SHOW_CASE_SCHEMA: dict[str, Any] = {}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -441,6 +445,17 @@ async def focus_artifact_handler(ctx: ToolContext, args: dict[str, Any]) -> dict
     )
 
 
+async def show_case_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # CHATBIND-3: emit an inline Case Summary card for the ACTIVE agent's source case. $0/read —
+    # NO bound op (the card self-fetches GET /v1/case), NO paid knob, no params. Pairs with
+    # focus_artifact: the card summarizes inline; its "View case" opens the full Case tab.
+    ctx.emit(case_summary_part(ctx.default_agent))
+    return _text(
+        f"Showing the source case for {ctx.default_agent!r} as a card — the transcript, the scribe "
+        f"artifact, and the planted (by-construction) label. Open it to read the full case ($0)."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -535,12 +550,21 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         focus_artifact_handler,
         "focus_artifact",
-        "Open + focus the artifact side-panel on a tab (report | judges | config | corpus) to "
-        "SHOW your work ($0, read-only — emits a UI directive, never a paid run). Pair it with "
-        "the relevant card: after a verdict/run-review focus judges or report; after a config/"
-        "judge/flag change focus config; for the corpus/flywheel focus corpus. An unknown tab is "
-        "rejected — surface it, do not retry blindly.",
+        "Open + focus the artifact side-panel on a tab (case | report | judges | config | corpus) "
+        "to SHOW your work ($0, read-only — emits a UI directive, never a paid run). Pair it with "
+        "the relevant card: 'case' shows the source input; after a verdict/run-review focus judges "
+        "or report; after a config/judge/flag change focus config; for the corpus/flywheel focus "
+        "corpus. An unknown tab is rejected — surface it, do not retry blindly.",
         FOCUS_ARTIFACT_SCHEMA,
+    ),
+    (
+        show_case_handler,
+        "show_case",
+        "Show the SOURCE case the council grades as an inline Case Summary card ($0, read-only) — "
+        "the transcript, the scribe artifact, and the by-construction planted label. Use it when "
+        "the human wants to SEE or explore the case BEFORE running. The card's 'View case' opens "
+        "the full Case tab. No params — it summarizes the current evaluation's case.",
+        SHOW_CASE_SCHEMA,
     ),
 ]
 
