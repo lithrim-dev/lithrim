@@ -1,0 +1,77 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-3-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "PACK-3",
+  "driver_bundle_id": "bench-salvage-phasePACK-3-healthcare-pack-floors-layer-driver",
+  "started_at": "2026-06-09T00:00:00Z",
+  "ended_at": "2026-06-09T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T00:00:00Z",
+    "user_approved_at": "2026-06-09T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "A1 re-scoped: the driver's blanket `grep dosage→empty` over the engine is unsatisfiable (the generic PresenceCheck reads a FROZEN `dosage_regex` ontology param key; `dosage_grounding`/`TOOL_DOSAGE_GROUNDING` is interface vocab in spec.py). Re-scoped to the PACK-1/2 precedent: specific clinical CODE needles absent-in-engine + present-in-pack (relocation, not deletion) + a CLOSED enumerated carve-out for the irreducible residual.",
+        "evidence": "grounding.py:137 `self._dosage_re = re.compile(params[\"dosage_regex\"])` is read by the GENERIC PresenceCheck (stays core); user CONFIRMED the crux + APPROVED the re-scope.",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D-C partition refinement (user-directed): `_core` (the SNOMED-FSN helper) is consumed ONLY by the moving InRowTool, so it MOVED to the pack rather than staying core with a scrubbed comment. `_norm` (used by KbRagTool/FakeRecordRagTool) + `_dig` (generic, no clinical token) STAY core.",
+        "evidence": "grep: `_core` usages == tools.py:158-159 (InRowTool._ungrounded) only; `_norm` also used by KbRagTool:520/522 + FakeRecordRagTool:742/744.",
+        "decided_at": "2026-06-09T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {"hash": "ca54008", "repo": "lithrim-bench", "title": "feat(pack): PACK-3 D1/D4 — relocate clinical grounding executors into the healthcare pack", "summary": "packs/healthcare/floors.py (new, behavior-identical relocation) + pack.json `floors` ref + pack.load_pack_floors() importlib loader cached on resolved pack id."},
+    {"hash": "0308975", "repo": "lithrim-bench", "title": "refactor(grounding): PACK-3 D2/D3 — pack-merged suppress + floor registries (moat-visible)", "summary": "_CONTRACT_EXECUTORS keeps only generic; suppress_executors()/floor_executors()/floor_contract_types() lazy-merge the pack; _run_floor becomes registry-dispatch (FloorExecutor); removed _decode_artifact_soap + the inline dosage branch + unused json import."},
+    {"hash": "50e1d29", "repo": "lithrim-bench", "title": "refactor(verification): PACK-3 D4/D-C — drop relocated clinical tools from the core toolbox", "summary": "InRowTool/DosageGroundingTool/_core/extract_*/_norm_dose/_DOSE_RE removed from tools.py (moved to pack); _norm/_dig stay; dropped the two tools from __init__ exports; spec.py name constants stay (interface vocab)."},
+    {"hash": "1bebf31", "repo": "lithrim-bench", "title": "refactor(signals): PACK-3 D-D — withstands-gate reads the pack-merged suppress registry", "summary": "signals.py:182 grounding._CONTRACT_EXECUTORS -> grounding.suppress_executors() (one-line, behavior-preserving; the moat now sees the pack's record_presence)."},
+    {"hash": "1e5625d", "repo": "lithrim-bench", "title": "test(pack): PACK-3 — repoint relocated-symbol imports at the pack loader (green-bar)", "summary": "test_ground_floor1 / test_dosage_floor / test_toolbox reach RecordPresence/_decode_artifact_soap/DosageGroundingTool/InRowTool via pack.load_pack_floors(); no assertion-logic change."},
+    {"hash": "7fde256", "repo": "lithrim-bench", "title": "test(pack): PACK-3 D5/A1/A3/A4 — layer-3 boundary + registration interface + moat guard", "summary": "tests/test_pack_layer3.py (8 tests): boundary CODE needles absent-in-engine/present-in-pack, closed carve-out, registration interface + no-floors degrade + fail-closed, ground() byte-identical on the demo pair, moat sees pack record_presence + unregister loses it; + shrink the carve-out by genericizing incidental prose."},
+    {"hash": "d3b6d44", "repo": "lithrim-bench", "title": "docs(pack): PACK-3 D6 — record layer-3 (floors; first packs-as-code) in the plugin spec", "summary": "SPEC_PLUGIN_ARCHITECTURE Layer-3 LANDED entry: the BE pack executor-registration interface, the lazy pack->core merge, moat-visibility, the in-process-Python trust note, the A1 closed carve-out, and the 4-5/2b/1b follow-ons."}
+  ],
+
+  "acceptance": [
+    {"criterion": "A1 — boundary grep-clean (re-scoped, user-approved)", "verdict": "PASS", "evidence": "tests/test_pack_layer3.py::test_engine_carries_no_clinical_executor_code + test_clinical_executors_live_in_the_pack + test_broad_domain_sweep_residual_is_the_closed_carveout (8 passed). The CLINICAL CODE needles (class RecordPresence/InRowTool/DosageGroundingTool, def extract_pmh_items/_decode_artifact_soap, soap_pmh_items/snomed_core/dose_token) are EMPTY in harness/+verification/ and PRESENT (16x) under packs/healthcare/floors.py; the broad-word residual is a closed, justified carve-out."},
+    {"criterion": "A2 — byte-behavior-identical (ground + withstands on GROUND-FLOOR-1 demo + ws0_default)", "verdict": "PASS", "evidence": "test_pack_layer3::test_ground_byte_behavior_identical_on_the_demo_pair (clean BLOCK->PASS suppressed, viol BLOCK stands) + test_ground_floor1 (unchanged, 16/16 non-regression, demo-pair flip, withstands-gate parity) all green through the pack-merged registry. $0 (offline, no LLM)."},
+    {"criterion": "A3 — registration interface non-vacuous + fail-closed", "verdict": "PASS", "evidence": "test_pack_floors_register_the_clinical_executors (record_presence/dosage_grounding sourced from pack, not core) + test_no_floors_pack_degrades_to_the_generic_engine (load_pack_floors None; suppress==core-generic) + test_unknown_contract_type_fails_closed (ValueError 'no executor registered')."},
+    {"criterion": "A4 — moat-visible (signals.py sees the pack's record_presence)", "verdict": "PASS", "evidence": "test_moat_sees_the_pack_record_presence_and_unregister_loses_it: build_judge_signals over the demo pair sees record_presence (clean disproved, viol stands); UNREGISTER the pack -> the validator signal disappears (proves pack-sourced, non-vacuous)."},
+    {"criterion": "A5 — frozen 0-delta + green (default + debuglithrim) + ruff net-new 0 + pathspec-only commits", "verdict": "PASS", "evidence": "frozen-seam guards 8 passed; git diff a502059..HEAD touches no ontology.json/compliance_council.py/judge_metric.py/judges_dspy.py/agent-seed (only pack.json +1 line). debuglithrim: 562 passed / 2 failed (pre-existing observation isolation-order artifacts, pass 13/13 in isolation) / 3 skipped vs baseline 554/2/3 (+8 = the new layer-3 tests, 0-new failures). core (3.12.8, no-openai): 114 passed / 3 dspy-skips. ruff check all-changed PASS; only pre-existing would-reformat hunks (grounding/signals/tools/test_ground_floor1 are would-reformat at BASELINE too); the new test file is ruff-format-clean. 7 atomic pathspec-only commits, parent a502059, NOT pushed."}
+  ],
+
+  "diagnostic_stats": {
+    "files_relocated_to_pack": "packs/healthcare/floors.py (RecordPresence + _decode_artifact_soap + InRowTool + DosageGroundingTool + _core/extract_pmh_items/extract_plan_dose_tokens/_norm_dose/_DOSE_RE)",
+    "engine_clinical_code_needles": "0 in harness/+verification/ (was the clinical executors); 16 hits in the pack",
+    "suppress_executors_merged": "{presence_check, kb_grounding} (core) ∪ {record_presence} (pack)",
+    "floor_executors_merged": "{structural_jute, jute_gen} (core) ∪ {dosage_grounding} (pack)",
+    "full_suite_debuglithrim": "562 passed / 2 failed (pre-existing) / 3 skipped",
+    "full_suite_core_layer_subset": "114 passed / 3 dspy-skipped",
+    "import_isolation_A6": "import grounding -> no httpx/dspy/onnxruntime/pinecone (pack loaded lazily on first grounding use)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BENCH-SALVAGE-PACK3-1",
+      "title": "Pro packs now ship in-process Python (the BE plugin trust surface)",
+      "severity": "low",
+      "fix_location": "harness/pack.py load_pack_floors + SPEC_PLUGIN_ARCHITECTURE Phase-3 (license enforcement / sandbox / signing)",
+      "impact": "A pack's floors module is importlib-exec'd from the manifest path; for a local first-party pack this is fine, but a distributed Pro-pack model needs the Phase-3 license/verification/sandbox layer the spec defers. Flagged in docs as a plan-review note, not a blocker.",
+      "confidence": "CONFIRMED",
+      "evidence": "harness/pack.py:_load_pack_floors uses importlib.util.spec_from_file_location + exec_module; SPEC_PLUGIN_ARCHITECTURE Layer-3 entry records the in-process-Python trust note + the Phase-3 deferral."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PACK-3 (healthcare-realm-as-pack, layer 3 — the FIRST packs-as-CODE step) landed in 7 atomic commits on bench-salvage/ws6c-dspy (parent a502059, NOT pushed). The clinical grounding executors (RecordPresence suppress + DosageGroundingTool floor + InRowTool + the SOAP/PMH/dose extractors) relocated BEHAVIOR-IDENTICAL out of the domain-agnostic engine into packs/healthcare/floors.py, behind a pack executor-registration interface (pack.load_pack_floors() + declarative SUPPRESS_EXECUTORS/FLOOR_EXECUTORS dicts). The engine lazily merges them (suppress_executors()/floor_executors(), cached on active_pack, loaded first-use so the dependency points pack->core with no cycle and `import grounding` stays stdlib-only), _run_floor became registry-dispatch, and the UAP-3b withstands-gate (signals.py:182, THE MOAT) reads the pack-merged registry so record_presence is moat-visible. The CAVEAT is the one user-approved deviation: A1's blanket-grep was over-specified (unsatisfiable without editing frozen contract data), re-scoped to the PACK-1/2 precedent (clinical CODE needles + a closed carve-out) — the boundary guarantee is fully met and grep-verifiable. Green throughout: debuglithrim 562 passed / 2 pre-existing isolation-order failures (0-new) / 3 skipped; core env 114 passed; frozen-seam guards 8 passed; A2/A4 byte-behavior pinned offline ($0). Monitor: this is HARD GATE — spawn the worktree-isolated fresh critic (/devloop-critique bench-salvage PACK-3), scan the close-commit for [detached HEAD]; the critic should diff the moved classes for any logic edit and re-run the GROUND-FLOOR-1 16/16 suppress + the real-fabrication-still-blocks defeat-test.",
+
+  "next_session_hint": "monitor should spawn the HARD-GATE fresh critic (/devloop-critique bench-salvage PACK-3, isolation:'worktree') then run /devloop-audit bench-salvage PACK-3; next layer = PACK-4 (journey literals)."
+}
