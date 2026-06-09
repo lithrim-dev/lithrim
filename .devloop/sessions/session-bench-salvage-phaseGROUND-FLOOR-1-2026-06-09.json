@@ -1,0 +1,142 @@
+{
+  "session_id": "session-bench-salvage-phaseGROUND-FLOOR-1-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "GROUND-FLOOR-1",
+  "driver_bundle_id": "bench-salvage-phaseGROUND-FLOOR-1-record-presence-floor-driver",
+  "started_at": "2026-06-09T00:00:00Z",
+  "ended_at": "2026-06-09T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T00:00:00Z",
+    "user_approved_at": "2026-06-09T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-C: the 1 paid live-confirmation run (D5/A7) SPLIT to GROUND-FLOOR-1b; this cycle is offline/$0 (D1-D4+D6).",
+        "evidence": "GO: 'D-C SPLIT D5 -> GROUND-FLOOR-1b confirmed. This cycle is $0.'",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-B: drop the base64 decode branch — the corpus stores SOAP as PLAINTEXT at content[0].attachment.data; dig the nested path (not _soap_text). Add a required empty-extract guard (0 PMH items -> inconclusive, never suppress).",
+        "evidence": "GO: 'Plaintext read — drop the base64 branch ... Add an empty-extract guard (required).' injectors/_soap.py:25-33",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D3 ontology write: a clean re-seed sweeps 3 PRE-EXISTING, out-of-scope owner_roles additions (S-BS-113). HALTED; user chose hand-add-contract-only so the diff stays the single additive contract. Seeder constant kept (forward-correct).",
+        "evidence": "AskUserQuestion 'D3 ontology write' -> 'Hand-add contract only (Rec.)'. Confirmed pre-existing: committed seeder --check vs committed ontology exits STALE (1) with ZERO of my edits.",
+        "decided_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Two sibling moat-guard tests (UAP-3b/3b2) whole-file-froze clinical_v1.json vs acc4973 and tripped on the sanctioned additive contract. HALTED; user chose the BYOC-1-style carve-out (allow additive verification_contracts; keep flags/owners/severity byte-frozen). Edits 3 test-infra files beyond the §2 list.",
+        "evidence": "AskUserQuestion 'Frozen-seam guards' -> 'Carve out contracts (Rec.)'. Drift detected = exactly the one contract (flags/owners/questions/severity_map untouched).",
+        "decided_at": "2026-06-09T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "9997b45",
+      "repo": "lithrim-bench",
+      "title": "feat(grounding): record_presence suppress executor wrapping InRowTool + FHIR decode (GROUND-FLOOR-1 D1/D2)",
+      "summary": "RecordPresence(VerificationContract) wraps InRowTool; registered in _CONTRACT_EXECUTORS (wires both ground() + signals withstands-gate); plaintext _decode_artifact_soap helper + non-SOAP/empty-PMH guards."
+    },
+    {
+      "hash": "286d724",
+      "repo": "lithrim-bench",
+      "title": "feat(ontology): declare the FABRICATED_HISTORY record_presence contract (GROUND-FLOOR-1 D3)",
+      "summary": "RECORD_PRESENCE_CONTRACT added to seed_ontology.py (re-seed carries it) + hand-added to clinical_v1.json in canonical sorted shape (additive-only diff; owner drift NOT swept, logged S-BS-113). Floor coverage 1/19 -> 2/19."
+    },
+    {
+      "hash": "9fbc810",
+      "repo": "lithrim-bench",
+      "title": "test(ground-floor): demo pair flip + 16/16 non-regression + non-SOAP/empty guards + additive identity + withstands parity (GROUND-FLOOR-1 D4)",
+      "summary": "tests/test_ground_floor1.py — 9 offline/$0 tests covering A1/A2/A3/A4/A5/A6 + the empty-PMH guard + the D-D withstands verdict-neutrality parity."
+    },
+    {
+      "hash": "1548756",
+      "repo": "lithrim-bench",
+      "title": "docs(spec): GROUND-FLOOR-1 landed — Phase 1 of the grounding tool layer (D6)",
+      "summary": "Mark Phase 1 LANDED (offline core; paid run split to 1b); record S-BS-104/S-BS-112 disposition + the new S-BS-113 seam."
+    },
+    {
+      "hash": "aecbba4",
+      "repo": "lithrim-bench",
+      "title": "test(seam): carve verification_contracts out of the clinical_v1.json moat freeze (GROUND-FLOOR-1)",
+      "summary": "assert_clinical_ontology_seam_frozen added to tests/_seam_freeze.py (BYOC-1-style carve-out); both UAP-3b/3b2 guards swap the whole-file pin for it. Moat seam stays byte-frozen; only verification_contracts may grow additively."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — executor wired: record_presence in _CONTRACT_EXECUTORS; ground() runs it per-finding; adapter maps conforms->Verdict (mirrors KbGrounding); unit-tested",
+      "verdict": "PASS",
+      "evidence": "test_record_presence_registered_and_buildable PASS; record_presence in _CONTRACT_EXECUTORS, not in _HTTP_CONTRACT_TYPES; _build_contract(decl) -> RecordPresence."
+    },
+    {
+      "criterion": "A2 — demo pair flip (offline/$0): clean_negative_aaecd73c3bcf suppressed -> BLOCK->PASS; inject_condition_1bd0f10dc7b5 stands -> BLOCK; NON-VACUOUS (BLOCK asserted before via contract-less ontology)",
+      "verdict": "PASS",
+      "evidence": "test_demo_pair_flip_offline PASS: pre-floor both BLOCK; with floor clean original=BLOCK verdict=PASS suppressed={FABRICATED_HISTORY} active=[]; viol verdict=BLOCK suppressed=[] active={FABRICATED_HISTORY}."
+    },
+    {
+      "criterion": "A3 — no false-regression: 16/16 on judge_calib_v1.jsonl (every inject stands; every clean negative suppressible); count asserted",
+      "verdict": "PASS",
+      "evidence": "test_no_false_regression_16 PASS: stands==12 (inject_condition all BLOCK, suppressed==[]), suppressible==4 (scribe clean_negative all PASS), 12+4==16. All 16 have non-empty PMH (empty-guard inert on A3)."
+    },
+    {
+      "criterion": "A4 — non-SOAP guard: non-DocumentReference artifact -> inconclusive, never suppressed, no crash",
+      "verdict": "PASS",
+      "evidence": "test_non_soap_artifact_inconclusive PASS: bench_scheduling_v1 row -> _decode_artifact_soap None -> finding stands (active={FABRICATED_HISTORY}, suppressed=[], verdict=BLOCK), no KeyError. Plus test_empty_pmh_is_inconclusive_not_suppressed PASS."
+    },
+    {
+      "criterion": "A5 — additive ontology + invariant intact: clinical_v1.json diff = the single new contract; taxonomy_snapshot 0-delta; lint green; contract survives a re-seed",
+      "verdict": "PASS",
+      "evidence": "git diff clinical_v1.json = 12 insertions (one contract); taxonomy_snapshot.json 0-delta; lint_golden_against_taxonomy.py green on both corpora; fresh re-seed reproduces the contract BYTE-IDENTICALLY (committed-vs-reseed diff = ONLY the 3 pre-existing owner_roles lines / S-BS-113, contract identical). seed --check full byte-identity remains red SOLELY due to S-BS-113, not this cycle."
+    },
+    {
+      "criterion": "A6 — green bar + isolation: ruff-clean; default + debuglithrim suites; default-deps import stays stdlib; pathspec-only commits",
+      "verdict": "PASS",
+      "evidence": "ruff check clean on all 8 changed files. Default suite 410 passed / 32 skipped (all dep-gated). debuglithrim (3.10.15, dspy+openai): grounding/council/withstands subset 125 passed / 3 skipped (only live-Azure). test_import_isolation_stdlib_only PASS (no httpx/dspy/onnx/pinecone on grounding import). All commits pathspec-only; working tree clean, no foreign files swept."
+    },
+    {
+      "criterion": "A7 — (if D5 in-cycle) honest live confirmation",
+      "verdict": "SKIP",
+      "evidence": "D5 SPLIT to GROUND-FLOOR-1b per D-C (user-approved). No paid runs this cycle. Re-scoped: design an honest live test (the captured over-fire is a different case firing HALLUCINATED_DETAIL/INCOMPLETE_DOCUMENTATION, not FABRICATED_HISTORY; S-BS-74 shows the clean twin is unanimously approved -> a live FH flip likely won't reproduce; honest-Delta)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "floor_coverage_gradeable_flags": "1/19 -> 2/19 (record_presence on FABRICATED_HISTORY)",
+    "demo_pair_verdict_delta_clean": "BLOCK -> PASS (illustrative; 15->0 active FABRICATED_HISTORY findings on the synthetic result)",
+    "demo_pair_verdict_delta_viol": "BLOCK -> BLOCK (stands; 1 ungrounded PMH item: 'Diabetes mellitus type 2 (disorder)')",
+    "non_regression_count": "16/16 (12 inject_condition stand, 4 scribe clean_negative suppressible)",
+    "default_suite": "410 passed, 32 skipped",
+    "debuglithrim_subset": "125 passed, 3 skipped (live-Azure only)",
+    "paid_runs": "0 (D5 split to 1b)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-113",
+      "title": "Committed clinical_v1.json owner_roles drifted from its seed sources (pre-existing; a clean re-seed sweeps 3 unrelated owner additions)",
+      "severity": "medium",
+      "fix_location": "data/ontology/clinical_v1.json vs scripts/seed_ontology.py (compliance_council.py _TIER1_OWNERS) — resolve via a re-snapshot/owner-reconcile decision",
+      "impact": "A full `seed_ontology.py` re-seed adds FABRICATED_CONSENT +policy_judge, MISSING_ALLERGY +faithfulness_judge, VALUE_MISMATCH +faithfulness_judge — changing WHO may BLOCK on those flags. Forced the contract to be hand-added (additive-only). seed --check stays red until reconciled.",
+      "confidence": "CONFIRMED",
+      "evidence": "committed seed_ontology.py --check vs committed clinical_v1.json exits STALE(1) with ZERO of this cycle's edits; fresh-reseed-vs-committed diff = exactly lines 46/151/236 (the 3 owner additions), contract identical."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "GROUND-FLOOR-1 offline core LANDED, $0, 5 atomic commits (9997b45..aecbba4). The record_presence suppress executor wraps the existing InRowTool and is registered in _CONTRACT_EXECUTORS, wiring BOTH ground() (post-consensus) and the signals.py withstands-gate (pre-consensus); a record-grounded PMH suppresses a false FABRICATED_HISTORY (clean twin BLOCK->PASS) while a true injected condition stands (viol twin BLOCK). Floor coverage 1/19 -> 2/19. All acceptance PASS except A7 (D5 paid run SPLIT to GROUND-FLOOR-1b per user). Two mid-cycle halts, both user-resolved: (1) S-BS-113 — the committed ontology was already stale vs its seed sources, so the contract was hand-added to keep the diff additive-only (the seeder constant is forward-correct + reproduces the contract byte-identically; only the pre-existing owner drift differs); (2) two sibling moat-guard tests whole-file-froze clinical_v1.json and were reconciled via a BYOC-1-style carve-out that keeps flags/owners/severity byte-frozen but allows additive verification_contracts. CAVEAT for audit: this is a HARD GATE cycle (verdict-flipping executor + ontology-of-record edit + the labels-true-by-construction guard) — a fresh-critic session is required (/devloop-critique bench-salvage GROUND-FLOOR-1). Monitor should first verify A5 additive-diff + A2/A3 non-vacuity + the FROZEN 0-delta + decide S-BS-113's re-snapshot path and re-scope GROUND-FLOOR-1b (the honest live test).",
+
+  "next_session_hint": "monitor: run /devloop-audit bench-salvage GROUND-FLOOR-1, then a FRESH-CRITIC session (/devloop-critique bench-salvage GROUND-FLOOR-1) — HARD GATE; then triage S-BS-113 (re-snapshot/owner-reconcile) and re-scope GROUND-FLOOR-1b."
+}
