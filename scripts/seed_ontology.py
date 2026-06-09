@@ -117,6 +117,28 @@ MED_PRESENCE_CONTRACT = {
     },
 }
 
+# GROUND-FLOOR-1: the record-grounded suppress contract — the S-BS-7 presence-check
+# generalized from the transcript to the patient record. The executor (grounding.py
+# RecordPresence, contract_type="record_presence") grounds the artifact's documented
+# PMH against patient_profile.conditions; a fully-grounded history SUPPRESSES a false
+# FABRICATED_HISTORY, a genuinely injected condition leaves it to stand. P0 match is
+# the snomed_core STRING set-membership — sound only because the synthetic bench mints
+# note PMH and conditions from identical FSN strings; code-based resolution is
+# TERMINOLOGY-1. artifact_decode is informational (the plaintext FHIR DocumentReference
+# decode is in the executor).
+RECORD_PRESENCE_CONTRACT = {
+    "flag_code": "FABRICATED_HISTORY",
+    "question": "Is each documented history item grounded in the patient record?",
+    "contract_type": "record_presence",
+    "version": "record-presence/v1",
+    "params": {
+        "oracle_path": "patient_profile.conditions",
+        "extractor": "soap_pmh_items",
+        "match": "snomed_core",
+        "artifact_decode": "fhir_documentreference",
+    },
+}
+
 
 def _module_assign(source: str, name: str) -> ast.expr:
     """Return the value node of a top-level ``name = <literal>`` assignment."""
@@ -247,7 +269,7 @@ def build_seed() -> dict:
         "severity_map": SEVERITY_MAP,
         "flags": flags,
         "questions": questions,
-        "verification_contracts": [MED_PRESENCE_CONTRACT],
+        "verification_contracts": [MED_PRESENCE_CONTRACT, RECORD_PRESENCE_CONTRACT],
         "_provenance": {
             "seeded_by": "scripts/seed_ontology.py",
             "flag_source": "lithrim_bench/runtime/council/safety_flags.py:SAFETY_FLAG_DEFINITIONS",

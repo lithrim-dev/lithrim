@@ -414,6 +414,18 @@
       },
       "question": "Is the flagged medication actually present in the transcript?",
       "version": "med-presence-check/v1"
+    },
+    {
+      "contract_type": "record_presence",
+      "flag_code": "FABRICATED_HISTORY",
+      "params": {
+        "artifact_decode": "fhir_documentreference",
+        "extractor": "soap_pmh_items",
+        "match": "snomed_core",
+        "oracle_path": "patient_profile.conditions"
+      },
+      "question": "Is each documented history item grounded in the patient record?",
+      "version": "record-presence/v1"
     }
   ]
 }
