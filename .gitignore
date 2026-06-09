@@ -25,3 +25,7 @@ out/
 
 # Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
 .devstack/
+
+# Local Claude Code tooling — agent worktrees (GBs), local settings (tokens), launch config.
+# NEVER commit; concurrent agent sessions write here. (git-commit-pathspec-dirty-index)
+.claude/
