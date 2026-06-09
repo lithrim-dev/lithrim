@@ -32,9 +32,9 @@ declared flag at all) is left in active unchanged, as before.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from .ontology import Ontology, VerificationContractDecl, load_ontology
@@ -278,160 +278,133 @@ class KbGrounding(VerificationContract):
         )
 
 
-class RecordPresence(VerificationContract):
-    """Disprove a false ``FABRICATED_HISTORY`` by GROUNDING the artifact's documented
-    history in the patient record — the S-BS-7 presence-check generalized from the
-    transcript to ``patient_profile.conditions``.
-
-    Where :class:`PresenceCheck` clears ``"X not in transcript"`` by finding X in the
-    transcript, this clears ``"history item X was never in the record"`` by finding
-    every documented PMH item already present in the patient's condition list. A
-    legitimately carried-forward PMH grounded in the record SUPPRESSES the false
-    finding; a genuinely injected condition (∉ the record) leaves the finding to
-    STAND. Wraps the proven :class:`~lithrim_bench.verification.InRowTool`
-    (``extract_pmh_items`` + ``snomed_core`` set-membership) — purpose-built, reused
-    not rewritten.
-
-    Conservative on three axes (never clears a true fabrication, never clears by
-    silence):
-      * suppress ONLY when ALL extracted PMH items are grounded (``conforms is True``);
-        any ungrounded item ⇒ the WHOLE finding stands (``conforms is False``).
-      * a non-SOAP / non-DocumentReference artifact (scheduling/triage rows) decodes
-        to ``None`` ⇒ inconclusive, never suppressed.
-      * an EMPTY PMH extraction (zero items) ⇒ inconclusive, never suppressed —
-        ``InRowTool`` conforms *vacuously* on ``[]`` ("nothing to check" ≠ "all
-        grounded"), so this guard is load-bearing.
-
-    NOTE (P0 string match): ``match: snomed_core`` is a string set-membership check.
-    It is sound here only because the synthetic bench mints both the note PMH and
-    ``patient_profile.conditions`` from identical SNOMED FSN strings. It does NOT
-    generalize to real clinical text — code-based resolution (Hermes ``snomed_code``)
-    is TERMINOLOGY-1, the next phase.
-
-    params = {"oracle_path": "patient_profile.conditions",  # required
-              "extractor": "soap_pmh_items",                # required
-              "match": "snomed_core",                       # required (P0 string)
-              "artifact_decode": "fhir_documentreference"}  # informational
-    """
-
-    contract_type = "record_presence"
-
-    def __init__(self, decl: VerificationContractDecl) -> None:
-        self.flag_code = decl.flag_code
-        self.question = decl.question
-        self.version = decl.version
-        self._params = decl.params
-
-    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
-        from lithrim_bench.verification import (
-            RECORD_PRESENCE,
-            Claim,
-            InRowTool,
-            VerificationSpec,
-        )
-
-        soap = _decode_artifact_soap(case)
-        if soap is None:
-            return Verdict(
-                disproved=False,
-                reason=(
-                    "artifact is not a SOAP-bearing FHIR DocumentReference "
-                    "(no content[0].attachment.data); inconclusive, flag stays open"
-                ),
-            )
-
-        p = self._params
-        locus = p.get("locus", "")
-        spec = VerificationSpec(
-            tool="in_row",
-            applies_to_flags=(self.flag_code,),
-            locus=locus,
-            reference={
-                "oracle_path": p["oracle_path"],
-                "extractor": p["extractor"],
-                "match": p["match"],
-            },
-            version=self.version,
-        )
-        claim = Claim(
-            claim_type=RECORD_PRESENCE,
-            flag_code=self.flag_code,
-            subject=soap,
-            locus=locus,
-            source=case,
-        )
-        result = InRowTool().verify(claim, spec)
-        items_checked = int(result.evidence.get("items_checked", 0))
-        if items_checked == 0:
-            return Verdict(
-                disproved=False,
-                reason=(
-                    "no PMH items extracted from the artifact; nothing to ground "
-                    "(inconclusive — 'nothing to check' is not 'all grounded')"
-                ),
-            )
-        if result.conforms is True:
-            return Verdict(
-                disproved=True,
-                evidence=(
-                    f"all {items_checked} documented PMH item(s) are grounded in "
-                    f"{p['oracle_path']} (oracle_size={result.evidence.get('oracle_size')})"
-                ),
-                reason=(
-                    f"every documented history item is present in the patient record "
-                    f"({p['oracle_path']}, match={p['match']}); the FABRICATED_HISTORY "
-                    f"finding is disproven by the record"
-                ),
-            )
-        return Verdict(
-            disproved=False,
-            reason=(
-                f"{len(result.evidence.get('ungrounded') or [])} documented history "
-                f"item(s) not grounded in {p['oracle_path']} "
-                f"({result.evidence.get('ungrounded')}); fabrication stands"
-            ),
-        )
-
-
-# contract_type -> executor factory. This is the SUPPRESS registry (per-finding
-# contracts that disprove an existing confident-but-wrong finding). The structural
-# FLOOR direction (artifact-level contracts that inject a BLOCK the council missed)
-# is a categorically different shape — it is keyed in ``_FLOOR_CONTRACT_TYPES`` and
-# run by ``_run_floor``, not here.
+# contract_type -> executor factory. This is the core-GENERIC SUPPRESS registry
+# (per-finding contracts that disprove an existing confident-but-wrong finding). The
+# structural FLOOR direction (artifact-level contracts that inject a BLOCK the council
+# missed) is a categorically different shape — it is keyed by ``floor_contract_types()``
+# and run by ``_run_floor``, not here.
 #
 # ``kb_grounding`` (WS-7b) is the KB-grounded suppress executor — the S-BS-7
 # presence-check generalized to the backend KB. It needs the injected ``http_client``
 # (it composes over live :8002), so ``_build_contract`` threads it in; ``PresenceCheck``
 # is pure-stdlib and ignores it.
-# ``record_presence`` (GROUND-FLOOR-1) is the record-grounded suppress executor —
-# the S-BS-7 presence-check generalized from the transcript to the patient record.
-# It wraps the pure-stdlib ``InRowTool`` (no httpx), so it is NOT in
-# ``_HTTP_CONTRACT_TYPES`` and ``_build_contract`` constructs it from the declaration
-# alone. Registering it here wires BOTH gates: post-consensus ``ground()`` and the
-# pre-consensus withstands-gate (``runtime/council/signals.py`` reads this registry).
+#
+# PACK-3: the CLINICAL suppress executor (``record_presence`` / GROUND-FLOOR-1) relocated
+# OUT of the core into the active pack (``packs/healthcare/floors.py``). The full suppress
+# registry the engine runs — and that the withstands-gate reads — is ``suppress_executors()``
+# = this generic dict MERGED with the pack's ``SUPPRESS_EXECUTORS`` (lazy + cached, so the
+# pack is loaded only on first grounding use and the dependency points pack→core, no cycle).
 _CONTRACT_EXECUTORS = {
     "presence_check": PresenceCheck,
     "kb_grounding": KbGrounding,
-    "record_presence": RecordPresence,
 }
 _HTTP_CONTRACT_TYPES = {"kb_grounding"}
 
-# contract_type set for the WS-3 structural floor. These resolve to the promoted
-# ``lithrim_bench.verification`` tools (imported lazily in ``_run_floor`` so this
-# module's own import stays stdlib-only — no httpx/dspy pulled). KB / vector floor
-# executors land in WS-3b. ``dosage_grounding`` is the offline deterministic floor:
-# pure-stdlib, no http_client, grounds documented doses against transcript+chart.
-_FLOOR_CONTRACT_TYPES = {"structural_jute", "jute_gen", "dosage_grounding"}
+
+@dataclass(frozen=True)
+class FloorExecutor:
+    """One structural-floor executor: how to build its tool + its pinned reference.
+
+    ``tool_factory(http_client) -> VerificationTool`` (the injected client threads to the
+    HTTP-composing tools; pure-stdlib tools ignore it). ``reference_builder(params) -> dict``
+    lifts the SME-pinned reference out of the ontology declaration's ``params``. The
+    generic dispatch (artifact guard, ``Claim``/``VerificationSpec`` construction,
+    ``tool.verify``) stays in :func:`_run_floor`; the registry supplies only these two."""
+
+    tool_factory: Any
+    reference_builder: Any
+
+
+@lru_cache(maxsize=1)
+def _core_floor_executors() -> dict[str, FloorExecutor]:
+    """The core-GENERIC floor executors (``structural_jute`` / ``jute_gen``). Lazy so this
+    module's own import stays stdlib-only — importing the ``verification`` tools (httpx/dspy
+    lazy within them) is deferred to the first floor run. The CLINICAL floor
+    (``dosage_grounding``) is registered by the pack, not here (PACK-3)."""
+    from lithrim_bench.verification import JuteGenValidatorTool, StructuralJuteTool
+
+    def _structural_jute_ref(params: dict[str, Any]) -> dict[str, Any]:
+        ref = {
+            "service": params["service"],
+            "mapping_selector": params["mapping_selector"],
+            "artifact_kind": params["artifact_kind"],
+        }
+        if params.get("pinned_content_sha256"):
+            ref["pinned_content_sha256"] = params["pinned_content_sha256"]
+        return ref
+
+    def _jute_gen_ref(params: dict[str, Any]) -> dict[str, Any]:
+        ref = {
+            "service": params["service"],
+            "artifact_kind": params["artifact_kind"],
+            "pinned_template": params["pinned_template"],
+        }
+        if params.get("pinned_template_sha256"):
+            ref["pinned_template_sha256"] = params["pinned_template_sha256"]
+        return ref
+
+    return {
+        "structural_jute": FloorExecutor(
+            tool_factory=lambda http_client: StructuralJuteTool(http_client=http_client),
+            reference_builder=_structural_jute_ref,
+        ),
+        "jute_gen": FloorExecutor(
+            tool_factory=lambda http_client: JuteGenValidatorTool(http_client=http_client),
+            reference_builder=_jute_gen_ref,
+        ),
+    }
+
+
+@lru_cache(maxsize=8)
+def _pack_registries(pack: str) -> tuple[dict[str, Any], dict[str, FloorExecutor]]:
+    """The active pack's ``(SUPPRESS_EXECUTORS, FLOOR_EXECUTORS)`` registration dicts, or
+    ``({}, {})`` when the pack declares no ``floors`` module. Cached per pack id."""
+    from . import pack as _pack
+
+    module = _pack.load_pack_floors(pack)
+    if module is None:
+        return {}, {}
+    return (
+        dict(getattr(module, "SUPPRESS_EXECUTORS", {})),
+        dict(getattr(module, "FLOOR_EXECUTORS", {})),
+    )
+
+
+def _active_pack() -> str:
+    from . import pack as _pack
+
+    return _pack.active_pack()
+
+
+def suppress_executors() -> dict[str, Any]:
+    """The full suppress registry the engine runs: the core-generic executors MERGED with
+    the active pack's ``SUPPRESS_EXECUTORS``. The withstands-gate
+    (``runtime/council/signals.py``) reads THIS — so a pack-registered suppress executor
+    (e.g. the clinical ``record_presence``) is moat-visible, not just visible to ``ground()``."""
+    suppress, _ = _pack_registries(_active_pack())
+    return {**_CONTRACT_EXECUTORS, **suppress}
+
+
+def floor_executors() -> dict[str, FloorExecutor]:
+    """The full floor registry: the core-generic floors MERGED with the active pack's
+    ``FLOOR_EXECUTORS`` (e.g. the clinical ``dosage_grounding``)."""
+    _, floors = _pack_registries(_active_pack())
+    return {**_core_floor_executors(), **floors}
+
+
+def floor_contract_types() -> set[str]:
+    """The set of contract_types the floor dispatch knows (core ∪ pack)."""
+    return set(floor_executors())
 
 
 def _build_contract(
     decl: VerificationContractDecl, *, http_client: Any | None = None
 ) -> VerificationContract:
-    factory = _CONTRACT_EXECUTORS.get(decl.contract_type)
+    factory = suppress_executors().get(decl.contract_type)
     if factory is None:
         raise ValueError(f"no executor registered for contract_type {decl.contract_type!r}")
     # HTTP-composing suppress executors (kb_grounding) reuse the injected client;
-    # pure-stdlib ones (presence_check) take only the declaration.
+    # pure-stdlib ones (presence_check / the pack's record_presence) take only the declaration.
     if decl.contract_type in _HTTP_CONTRACT_TYPES:
         return factory(decl, http_client=http_client)
     return factory(decl)
@@ -443,30 +416,6 @@ def _artifact_content(case: dict[str, Any]) -> Any:
     if not artifacts or not isinstance(artifacts[0], dict):
         return None
     return artifacts[0].get("content")
-
-
-def _decode_artifact_soap(case: dict[str, Any]) -> str | None:
-    """The SOAP note inside the first artifact's FHIR DocumentReference, or ``None``.
-
-    The corpus artifact is a DocumentReference JSON string with the SOAP body at
-    ``content[0].attachment.data`` stored as **plaintext** — the injector reads and
-    writes it as a string with no base64 (``injectors/_soap.py``). Real-FHIR base64
-    attachments are FHIR-1, not this cycle; there is deliberately no base64 branch.
-    The nested path is dug directly (clean rows lack the ``_soap_text`` convenience
-    key). Any artifact that is not a SOAP-bearing DocumentReference — e.g. the
-    scheduling/triage conversation rows, which have no ``content[0].attachment.data``
-    — returns ``None`` so :class:`RecordPresence` stays inconclusive and never
-    suppresses by silence.
-    """
-    raw = _artifact_content(case)
-    if not isinstance(raw, str):
-        return None
-    try:
-        doc = json.loads(raw)
-        data = doc["content"][0]["attachment"]["data"]
-    except (TypeError, ValueError, KeyError, IndexError):
-        return None
-    return data if isinstance(data, str) else None
 
 
 def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_client: Any | None):
@@ -489,44 +438,16 @@ def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_cli
     if artifact is None:
         return None
 
-    from lithrim_bench.verification import (
-        STRUCTURAL_CONFORMANCE,
-        Claim,
-        DosageGroundingTool,
-        JuteGenValidatorTool,
-        StructuralJuteTool,
-        VerificationSpec,
-    )
+    from lithrim_bench.verification import STRUCTURAL_CONFORMANCE, Claim, VerificationSpec
+
+    executor = floor_executors().get(decl.contract_type)
+    if executor is None:  # pragma: no cover - guarded by the partition in ground()
+        raise ValueError(f"no floor executor for contract_type {decl.contract_type!r}")
 
     params = decl.params
     locus = params.get("locus", "")
-    if decl.contract_type == "dosage_grounding":
-        tool = DosageGroundingTool()
-        reference = {"dose_regex": params["dose_regex"]}
-        if params.get("transcript_path"):
-            reference["transcript_path"] = params["transcript_path"]
-        if params.get("record_path"):
-            reference["record_path"] = params["record_path"]
-    elif decl.contract_type == "jute_gen":
-        tool = JuteGenValidatorTool(http_client=http_client)
-        reference = {
-            "service": params["service"],
-            "artifact_kind": params["artifact_kind"],
-            "pinned_template": params["pinned_template"],
-        }
-        if params.get("pinned_template_sha256"):
-            reference["pinned_template_sha256"] = params["pinned_template_sha256"]
-    elif decl.contract_type == "structural_jute":
-        tool = StructuralJuteTool(http_client=http_client)
-        reference = {
-            "service": params["service"],
-            "mapping_selector": params["mapping_selector"],
-            "artifact_kind": params["artifact_kind"],
-        }
-        if params.get("pinned_content_sha256"):
-            reference["pinned_content_sha256"] = params["pinned_content_sha256"]
-    else:  # pragma: no cover - guarded by the partition in ground()
-        raise ValueError(f"no floor executor for contract_type {decl.contract_type!r}")
+    tool = executor.tool_factory(http_client)
+    reference = executor.reference_builder(params)
 
     spec = VerificationSpec(
         tool=decl.contract_type,
@@ -563,7 +484,7 @@ def ground(
     unchanged.
 
     WS-3 structural floor: after the per-finding suppress pass, any floor contract
-    declared in the ontology (``contract_type`` in ``_FLOOR_CONTRACT_TYPES``) runs
+    declared in the ontology (``contract_type`` in ``floor_contract_types()``) runs
     over the *artifact*. A real structural violation the council missed
     (``conforms is False``) injects a BLOCK-driving finding into ``active`` so the
     re-score flips PASS→BLOCK. ``http_client`` is injectable for the floor's apply
@@ -573,13 +494,14 @@ def ground(
     ``floor_blocks == []``).
     """
     ontology = ontology or load_ontology()
-    suppress_decls = [d for d in ontology.contracts if d.contract_type in _CONTRACT_EXECUTORS]
-    floor_decls = [d for d in ontology.contracts if d.contract_type in _FLOOR_CONTRACT_TYPES]
+    suppress_registry = suppress_executors()
+    floor_types = floor_contract_types()
+    suppress_decls = [d for d in ontology.contracts if d.contract_type in suppress_registry]
+    floor_decls = [d for d in ontology.contracts if d.contract_type in floor_types]
     unknown = [
         d
         for d in ontology.contracts
-        if d.contract_type not in _CONTRACT_EXECUTORS
-        and d.contract_type not in _FLOOR_CONTRACT_TYPES
+        if d.contract_type not in suppress_registry and d.contract_type not in floor_types
     ]
     if unknown:
         raise ValueError(f"no executor registered for contract_type {unknown[0].contract_type!r}")
