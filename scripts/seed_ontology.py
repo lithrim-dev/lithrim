@@ -2,7 +2,7 @@
 """Seed the clinical ontology from the council seed sources → clinical_v1.json.
 
 This is the *seed-not-import* boundary (WS-1 §3.1). The eval path depends only on
-the committed ``data/ontology/clinical_v1.json``; this script reads the values out
+the committed ``packs/healthcare/ontology.json``; this script reads the values out
 of ``lithrim_bench/runtime/council/`` ONCE, at seed-build time, and emits a
 human-reviewable, byte-deterministic JSON.
 
@@ -37,7 +37,7 @@ scoring-time rule, not a seed-time edit.
 gradeable policy (S-BS-10, Option A — snapshot-authoritative + lint gate): a flag
 is ``gradeable`` iff the runtime council assigns it a tier (``bool(tier)`` — i.e.
 the council would actually score it). The snapshot
-(``taxonomy/taxonomy_snapshot.json``, the CLAUDE.md contract-of-record) is the
+(``packs/healthcare/taxonomy_snapshot.json``, the CLAUDE.md contract-of-record) is the
 *gate*: ``--check`` / a fresh build FAILS if any gradeable flag is outside the
 snapshot's 19-code tier union. In steady state runtime-tier and the snapshot agree,
 so gradeable == in-snapshot; the lint fires only when the council tiers a flag the
@@ -47,7 +47,7 @@ FABRICATED_CONSENT_SCOPE / MALAFFI_CODE_PROPAGATION / MISSING_DUAL_CODING /
 WRONG_PATIENT_INFO) carry ``gradeable=false, tier=null`` and are skip-logged by
 grounding, never scored.
 
-    python scripts/seed_ontology.py            # writes data/ontology/clinical_v1.json
+    python scripts/seed_ontology.py            # writes packs/healthcare/ontology.json
     python scripts/seed_ontology.py --check     # fail if the committed seed is stale
 """
 
@@ -65,8 +65,8 @@ COUNCIL_DIR = REPO_ROOT / "lithrim_bench" / "runtime" / "council"
 SAFETY_FLAGS_PY = COUNCIL_DIR / "safety_flags.py"
 COMPLIANCE_PY = COUNCIL_DIR / "compliance_council.py"
 ROLE_DIR = COUNCIL_DIR / "council_roles"
-OUT_PATH = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
-SNAPSHOT_PATH = REPO_ROOT / "taxonomy" / "taxonomy_snapshot.json"
+OUT_PATH = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
+SNAPSHOT_PATH = REPO_ROOT / "packs" / "healthcare" / "taxonomy_snapshot.json"
 
 ONTOLOGY_VERSION = "clinical/1"
 DOMAIN = "clinical"
@@ -284,7 +284,7 @@ def build_seed() -> dict:
             ),
             "gradeable_note": (
                 "gradeable=bool(tier) (S-BS-10 Option A): a flag is gradeable iff "
-                "the runtime council tiers it. The snapshot taxonomy/taxonomy_snapshot.json "
+                "the runtime council tiers it. The snapshot packs/healthcare/taxonomy_snapshot.json "
                 "is the gate — the seed FAILS if a gradeable flag is outside its 19-code "
                 "tier union. In steady state gradeable == in-snapshot."
             ),

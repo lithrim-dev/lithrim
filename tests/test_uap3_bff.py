@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 BASELINE_RUN_ID = "a57bd49d-94cd-4397-8c53-f8cbaad3aec2"  # the fixture baseline's provenance id
 

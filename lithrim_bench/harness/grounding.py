@@ -9,7 +9,7 @@ findings-first, fully evidenced, validated (REPORT_r3d_precheck_falsification).
 The only lever that closes it reasons about span *content* — a presence-check.
 
 WS-1: the contract set is no longer hardcoded. Contracts are **declared in the
-ontology** (``data/ontology/clinical_v1.json`` → ``verification_contracts``) and
+ontology** (``packs/healthcare/ontology.json`` → ``verification_contracts``) and
 this module supplies the *executors* keyed by ``contract_type``. The med
 presence-check's extraction strategy (med source, token floor, dosage regex, noise
 tokens) is read from the declaration's ``params`` — it is data, not module

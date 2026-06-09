@@ -43,7 +43,7 @@ STARTERS: list[tuple[str, str, str]] = [
 EXAMPLES_DIR = REPO_ROOT / "examples"
 AGENTS_DIR = REPO_ROOT / "data" / "config" / "agents"
 ONTOLOGY_REF = "clinical/1"
-ONTOLOGY_PATH = "data/ontology/clinical_v1.json"
+ONTOLOGY_PATH = "packs/healthcare/ontology.json"
 
 
 def _find_row(src: Path, scenario_id: str) -> dict | None:

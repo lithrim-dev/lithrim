@@ -23,7 +23,12 @@ _SEAM_BASELINE = "acc4973"  # the UAP-3b parent — the moat-seam pin
 # The ONLY symbols BYOC-1 is authorized to change in judges_dspy.py (the provider binder).
 _BYOC1_PROVIDER_SEAM = frozenset({"build_judge_lm", "build_trio"})
 
-_CLINICAL_ONTOLOGY_REL = "data/ontology/clinical_v1.json"
+# The clinical ontology relocated into the healthcare pack (PACK-1, layer 1a). The
+# baseline content lives at the OLD path in ``acc4973``; the working tree reads the
+# pack location. Comparing them proves the move is content-identical to the frozen
+# baseline (PACK-1 A4) — modulo the additive ``verification_contracts`` carve-out.
+_CLINICAL_ONTOLOGY_BASELINE_REL = "data/ontology/clinical_v1.json"
+_CLINICAL_ONTOLOGY_REL = "packs/healthcare/ontology.json"
 
 
 def _toplevel_defs(src_text: str, *, exclude: frozenset[str]) -> dict[str, str]:
@@ -58,6 +63,33 @@ def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
     assert not drifted, f"consensus-seam symbol(s) drifted in judges_dspy.py: {drifted}"
 
 
+def assert_seed_ontology_path_relocated_only(repo: Path, seed_rel: str) -> None:
+    """An agent seed is byte-frozen vs ``acc4973`` EXCEPT its
+    ``eval_profile.ontology_path``, which relocated ``data/ontology/clinical_v1.json``
+    → ``packs/healthcare/ontology.json`` (PACK-1 A5 re-scope: the seeds get a
+    behavior-preserving, path-only update — every other field stays frozen)."""
+    base = json.loads(
+        subprocess.run(
+            ["git", "show", f"{_SEAM_BASELINE}:{seed_rel}"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    cur = json.loads((repo / seed_rel).read_text())
+    assert base["eval_profile"]["ontology_path"] == _CLINICAL_ONTOLOGY_BASELINE_REL, (
+        f"{seed_rel}: baseline ontology_path was not the pre-move clinical path"
+    )
+    assert cur["eval_profile"]["ontology_path"] == _CLINICAL_ONTOLOGY_REL, (
+        f"{seed_rel}: working ontology_path is not the relocated pack path"
+    )
+    base["eval_profile"]["ontology_path"] = cur["eval_profile"]["ontology_path"]
+    assert cur == base, (
+        f"{seed_rel} drifted beyond ontology_path (the seed update must be path-only)"
+    )
+
+
 def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     """The consensus/owner seam in ``clinical_v1.json`` — flags, tiers, owners,
     questions, severity_map, versions — is byte-identical to ``acc4973``; only the
@@ -71,7 +103,7 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     additive)."""
     base = json.loads(
         subprocess.run(
-            ["git", "show", f"{_SEAM_BASELINE}:{_CLINICAL_ONTOLOGY_REL}"],
+            ["git", "show", f"{_SEAM_BASELINE}:{_CLINICAL_ONTOLOGY_BASELINE_REL}"],
             cwd=repo,
             capture_output=True,
             text=True,

@@ -10,7 +10,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-_SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "taxonomy" / "taxonomy_snapshot.json"
+from lithrim_bench.harness.pack import pack_taxonomy_path
+
+# Resolved via the active pack (default ``healthcare``): the snapshot — the CLAUDE.md
+# contract-of-record — relocated INTO the pack (healthcare-realm-as-pack, 1a).
+_SNAPSHOT_PATH = pack_taxonomy_path()
 
 
 @dataclass(frozen=True)

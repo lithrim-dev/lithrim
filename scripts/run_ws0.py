@@ -38,7 +38,7 @@ DEFAULT_BASELINE = (
     / "out"
     / "scribe_v1.live_pipeline_evaluate.bench_scribe_v1_inject_condition_1bd0f10dc7b5.json"
 )
-DEFAULT_ONTOLOGY = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+DEFAULT_ONTOLOGY = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 
 
 def _ephemeral_agent(case: str, source: str, baseline: str) -> Agent:

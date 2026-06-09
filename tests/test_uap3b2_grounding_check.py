@@ -110,7 +110,7 @@ def test_eval_profile_grounding_checks_roundtrips():
             "judges": ["risk_judge"],
             "council_config": {},
             "ontology_ref": "clinical/1",
-            "ontology_path": "data/ontology/clinical_v1.json",
+            "ontology_path": "packs/healthcare/ontology.json",
             "tools": ["presence_check"],
             "kb_bindings": {},
             "severity_map_ref": "ontology:clinical/1",

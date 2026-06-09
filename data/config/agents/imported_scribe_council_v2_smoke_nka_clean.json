@@ -12,7 +12,7 @@
       "note": "DOGFOOD-1 imported demo case (second-class; ground_truth_basis=imported_demo). Graded in-process by the v2 trio. Same trio as ws0_default; the judge-set ladder varies models/roles at call time."
     },
     "ontology_ref": "clinical/1",
-    "ontology_path": "data/ontology/clinical_v1.json",
+    "ontology_path": "packs/healthcare/ontology.json",
     "tools": [],
     "kb_bindings": {},
     "severity_map_ref": "ontology:clinical/1"

@@ -9,7 +9,7 @@
       "note": "S-BS-74 LIVE grounding-correction demo agent (additive; NOT the ws0_default seed). The dataset is a by-construction CLEAN NEGATIVE (expected approve) engineered so the live council over-fires MEDICATION_NOT_IN_TRANSCRIPT on a medication that is verbatim in the transcript (the doubled-sig 'zidovudine 300 MG Oral Tablet 300 MG daily' PLAN line empirically over-fired in run 8a41ef3e). The committed med-presence-check/v1 contract disproves+suppresses it post-hoc; because the otherwise-spotless note leaves nothing else of HIGH/MEDIUM severity active, the composite is engineered to flip BLOCK->PASS / reject->approve. Fire {agent: s_bs_74_demo, live: true} (no confirm field on /v1/run-eval; cost safety is operational). HONEST-DELTA: a no-flip (e.g. policy_judge FABRICATED_CONSENT or a null-code hallucination holding the block) is a documented LOSS, never a manufactured win. Same v2 trio as ws0_default."
     },
     "ontology_ref": "clinical/1",
-    "ontology_path": "data/ontology/clinical_v1.json",
+    "ontology_path": "packs/healthcare/ontology.json",
     "tools": ["presence_check"],
     "kb_bindings": {},
     "severity_map_ref": "ontology:clinical/1"

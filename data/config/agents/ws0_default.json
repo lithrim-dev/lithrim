@@ -9,7 +9,7 @@
       "note": "S-BS-6 ratified: the harness baseline is compose-over-live-v2 (the prod-real v2 council over-fires; grounding cleans it). STORED ONLY here; injection into the backend PipelineRequest.council_config is WS-2. judges = the v2 trio that actually runs per runtime/council/compliance_council.py (behavior_judge / source_message_judge are declared-not-running in v2)."
     },
     "ontology_ref": "clinical/1",
-    "ontology_path": "data/ontology/clinical_v1.json",
+    "ontology_path": "packs/healthcare/ontology.json",
     "tools": ["presence_check"],
     "kb_bindings": {},
     "severity_map_ref": "ontology:clinical/1"

@@ -8,7 +8,7 @@ off it — no hardcoded ``--case/--baseline/contracts/severity-map``.
 
 Source-of-truth split (WS-1 plan-review decision 2):
   - The committed, reviewable seed is ``data/config/agents/<name>.json`` (and the
-    ontology it references is ``data/ontology/clinical_v1.json``).
+    ontology it references is ``packs/healthcare/ontology.json``).
   - The config ``.sqlite`` is *built* from those JSONs (gitignored), separate from
     the WS-0 *results* DB ``out/ws0/ws0.sqlite``.
 

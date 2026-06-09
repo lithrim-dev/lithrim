@@ -144,7 +144,7 @@ def package_case(
         if not taxonomy.is_known(r.safety_flag):
             raise ValueError(
                 f"recipe.safety_flag {r.safety_flag!r} not in snapshotted taxonomy "
-                f"(semantic or structural); refresh taxonomy/taxonomy_snapshot.json "
+                f"(semantic or structural); refresh packs/healthcare/taxonomy_snapshot.json "
                 f"or fix the injector"
             )
         if r.safety_flag in taxonomy.tier1_owners and not taxonomy.production_owners_of(

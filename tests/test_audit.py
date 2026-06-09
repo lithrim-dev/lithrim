@@ -26,7 +26,7 @@ from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 # scripts/ on path so run_eval imports the same way the BFF does.
@@ -141,7 +141,7 @@ def test_save_agent_emits_audit_in_one_transaction(tmp_path):
     db = tmp_path / "cfg.sqlite"
     log = AuditLog(db_path=db)
 
-    def agent(ont="data/ontology/clinical_v1.json"):
+    def agent(ont="packs/healthcare/ontology.json"):
         return Agent(
             name="a1",
             eval_profile=EvalProfile(
@@ -167,7 +167,7 @@ def test_save_agent_emits_audit_in_one_transaction(tmp_path):
     rows = log.query(target_id="a1")
     assert [r["action"] for r in rows] == ["author", "edit"]
     # the edit carries the canonical before→after diff.
-    assert rows[1]["before"]["eval_profile"]["ontology_path"] == "data/ontology/clinical_v1.json"
+    assert rows[1]["before"]["eval_profile"]["ontology_path"] == "packs/healthcare/ontology.json"
     assert rows[1]["after"]["eval_profile"]["ontology_path"] == "data/ontology/other.json"
 
 

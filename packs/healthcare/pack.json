@@ -1,0 +1,9 @@
+{
+  "pack_id": "healthcare",
+  "version": "1.0.0",
+  "tier": "pro",
+  "domain": "clinical",
+  "ontology": "packs/healthcare/ontology.json",
+  "flags_ref": "packs/healthcare/taxonomy_snapshot.json",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}

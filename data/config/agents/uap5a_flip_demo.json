@@ -9,7 +9,7 @@
       "note": "UAP-5a live-flip demo agent (additive; NOT the ws0_default seed). The dataset is a by-construction subtle WRONG_DOSAGE case (300 MG -> 450 MG, 1.5x). DESIGN HYPOTHESIS: the base risk_judge would under-fire (calibration gap) and an AUTHORED WRONG_DOSAGE lens assigned to risk_judge would catch it (Tier-1 one-strike), flipping non-reject -> reject. REFUTED LIVE (UAP-5a -> S-BS-70): the base risk_judge CAUGHT the 1.5x drift (unassigned verdict = BLOCK), so the live composite did NOT flip; the case remains a valid by-construction WRONG_DOSAGE defect and the offline flip test still proves the authoring is consequential at $0. Same v2 trio as ws0_default."
     },
     "ontology_ref": "clinical/1",
-    "ontology_path": "data/ontology/clinical_v1.json",
+    "ontology_path": "packs/healthcare/ontology.json",
     "tools": ["presence_check"],
     "kb_bindings": {},
     "severity_map_ref": "ontology:clinical/1"

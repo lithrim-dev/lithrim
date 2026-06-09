@@ -227,7 +227,7 @@ for _p in (_SCRIPTS, _BFF):
         sys.path.insert(0, str(_p))
 
 _BFF_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-_BFF_ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+_BFF_ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 _BFF_CASE = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 

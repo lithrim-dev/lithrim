@@ -31,7 +31,10 @@ def main() -> int:
     ap.add_argument("--golden", required=True, type=Path)
     ap.add_argument(
         "--snapshot",
-        default=Path(__file__).resolve().parent.parent / "taxonomy" / "taxonomy_snapshot.json",
+        default=Path(__file__).resolve().parent.parent
+        / "packs"
+        / "healthcare"
+        / "taxonomy_snapshot.json",
         type=Path,
     )
     ap.add_argument(

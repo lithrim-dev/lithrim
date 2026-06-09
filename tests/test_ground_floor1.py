@@ -2,7 +2,7 @@
 
 No network, no LLM, $0. Everything runs against the committed corpus
 (``examples/judge_calib_v1.jsonl`` + ``examples/proof_case.jsonl``) and the
-committed ontology (``data/ontology/clinical_v1.json``, which now declares the
+committed ontology (``packs/healthcare/ontology.json``, which now declares the
 ``record_presence`` / ``FABRICATED_HISTORY`` contract). The result dicts are
 synthesized — the corpus rows are eval *inputs*; this exercises the suppress
 mechanism by feeding a FABRICATED_HISTORY finding into ``ground()`` and asserting
@@ -67,7 +67,7 @@ def ont_with_rp():
 def ont_without_rp():
     """The same ontology with the record_presence contract removed — the pre-floor
     baseline, so a flip is attributable to the floor and nothing else."""
-    data = json.loads((REPO_ROOT / "data" / "ontology" / "clinical_v1.json").read_text())
+    data = json.loads((REPO_ROOT / "packs" / "healthcare" / "ontology.json").read_text())
     data["verification_contracts"] = [
         c for c in data["verification_contracts"] if c["contract_type"] != "record_presence"
     ]

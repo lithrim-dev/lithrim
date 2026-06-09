@@ -33,7 +33,7 @@ FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 BASELINE = FIXTURES / f"baseline.{CASE_ID}.json"
 CASE = FIXTURES / f"case.{CASE_ID}.jsonl"
-ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 
 # The 4 fork flags — known but out-of-snapshot (S-BS-10 reference partition).
 REFERENCE_FLAGS = {

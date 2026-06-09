@@ -1,4 +1,4 @@
-"""Refresh taxonomy/taxonomy_snapshot.json from a lithrim-backend checkout.
+"""Refresh packs/healthcare/taxonomy_snapshot.json from a lithrim-backend checkout.
 
 Run when compliance_council.py changes upstream. The snapshot is the
 contract between this repo and the backend; never hand-edit it.
@@ -10,7 +10,7 @@ preserved verbatim from the existing snapshot on refresh.
 Usage:
     python scripts/snapshot_taxonomy.py \
         --backend-path /path/to/lithrim-backend \
-        [--out taxonomy/taxonomy_snapshot.json]
+        [--out packs/healthcare/taxonomy_snapshot.json]
 """
 from __future__ import annotations
 
@@ -73,7 +73,10 @@ def main() -> None:
     ap.add_argument("--backend-path", required=True, type=Path)
     ap.add_argument(
         "--out",
-        default=Path(__file__).resolve().parent.parent / "taxonomy" / "taxonomy_snapshot.json",
+        default=Path(__file__).resolve().parent.parent
+        / "packs"
+        / "healthcare"
+        / "taxonomy_snapshot.json",
         type=Path,
     )
     args = ap.parse_args()

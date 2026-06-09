@@ -26,7 +26,7 @@ WS4A_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws4a"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 BASELINE = FIXTURES / f"baseline.{CASE_ID}.json"
 CASE = FIXTURES / f"case.{CASE_ID}.jsonl"
-ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 PINNED_VALIDATOR = REPO_ROOT / "validators" / "fhir_us_core_patient_validator.generated.jute"
 
 # scripts/ on path so the test can drive the canonical run_eval.run core (the run_ws0 precedent).

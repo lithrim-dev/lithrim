@@ -3,7 +3,7 @@ per-role judge questions, verification-contract declarations, and the
 severity→verdict map.
 
 Domain-agnostic by construction: nothing here is clinical. A domain is a JSON
-seed (``data/ontology/clinical_v1.json`` is the first one), loaded into the typed
+seed (``packs/healthcare/ontology.json`` is the first one), loaded into the typed
 model below. The harness depends only on this model + the committed seed — never
 on a live ``import lithrim_bench.runtime.*`` (the seed sources are read once, at
 seed-build time, by ``scripts/seed_ontology.py``; see that script and WS-1 §3.1).
@@ -12,7 +12,7 @@ Shapes (all data, no behaviour):
   - ``FlagDefinition``        — flag + category + definition + when_to_use /
     when_NOT_to_use + owner_roles + tier + ``gradeable`` (+ reliability_pillar,
     carried from the seed source as free structured data). ``gradeable`` is the
-    S-BS-10 partition: True iff the flag is in ``taxonomy/taxonomy_snapshot.json``
+    S-BS-10 partition: True iff the flag is in ``packs/healthcare/taxonomy_snapshot.json``
     (the contract-of-record). Out-of-snapshot "reference" flags carry
     ``gradeable=False, tier=None`` and are never scored (grounding skip-logs them).
   - ``JudgeQuestion``         — (role, ordinal, text) parsed from a role prompt's
@@ -34,8 +34,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .pack import pack_ontology_path
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_ONTOLOGY_PATH = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+# Resolved via the active pack (default ``healthcare``), not a hardcoded clinical
+# path: the core carries no clinical content path (healthcare-realm-as-pack, 1a).
+DEFAULT_ONTOLOGY_PATH = pack_ontology_path()
 
 
 @dataclass(frozen=True)

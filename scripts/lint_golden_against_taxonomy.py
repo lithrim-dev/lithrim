@@ -11,7 +11,7 @@ exits non-zero if any case fails.
 Usage:
     python scripts/lint_golden_against_taxonomy.py \
         --golden /path/to/eval_golden.jsonl \
-        [--snapshot taxonomy/taxonomy_snapshot.json]
+        [--snapshot packs/healthcare/taxonomy_snapshot.json]
 """
 from __future__ import annotations
 
@@ -31,7 +31,10 @@ def main() -> int:
     ap.add_argument("--golden", required=True, type=Path)
     ap.add_argument(
         "--snapshot",
-        default=Path(__file__).resolve().parent.parent / "taxonomy" / "taxonomy_snapshot.json",
+        default=Path(__file__).resolve().parent.parent
+        / "packs"
+        / "healthcare"
+        / "taxonomy_snapshot.json",
         type=Path,
     )
     args = ap.parse_args()

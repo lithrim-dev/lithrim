@@ -33,7 +33,7 @@ from lithrim_bench.harness.judges import JudgeConfig, save_judge
 from lithrim_bench.harness.ontology import load_ontology
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ONTOLOGY_SEED = REPO_ROOT / "data" / "ontology" / "clinical_v1.json"
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 
 # The agent package is import-safe on the default core (SDK is pulled LAZILY; no fastapi at
 # module level), so the STRUCTURAL + HANDLER layers run in BOTH suites — not only under [bff].

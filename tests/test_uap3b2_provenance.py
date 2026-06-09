@@ -21,6 +21,7 @@ from lithrim_bench.runtime.council.withstands import apply_withstands_gate
 from ._seam_freeze import (
     assert_clinical_ontology_seam_frozen,
     assert_judges_dspy_consensus_seam_frozen,
+    assert_seed_ontology_path_relocated_only,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -65,7 +66,6 @@ def test_frozen_seam_zero_delta():
     frozen = [
         "lithrim_bench/runtime/council/compliance_council.py",
         "lithrim_bench/runtime/council/judge_metric.py",
-        "data/config/agents/ws0_default.json",
         "lithrim_bench/runtime/council/council_roles",
     ]
     out = subprocess.run(
@@ -77,6 +77,10 @@ def test_frozen_seam_zero_delta():
     )
     assert out.stdout == "", f"frozen seam drifted:\n{out.stdout[:2000]}"
     assert_judges_dspy_consensus_seam_frozen(REPO_ROOT)
+    # PACK-1: ws0_default.json is no longer whole-file-pinned — the healthcare-pack
+    # relocation gives it a behavior-preserving, path-ONLY ontology_path update; every
+    # other field stays byte-frozen vs acc4973 (asserted precisely here).
+    assert_seed_ontology_path_relocated_only(REPO_ROOT, "data/config/agents/ws0_default.json")
     # clinical_v1.json's consensus/owner seam stays frozen; only verification_contracts
     # may grow additively (GROUND-FLOOR-1's record_presence contract).
     assert_clinical_ontology_seam_frozen(REPO_ROOT)

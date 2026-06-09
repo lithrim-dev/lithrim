@@ -36,7 +36,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORPUS = REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
 PRE_WIDEN = REPO_ROOT / "tests" / "fixtures" / "uap4" / "judge_calib_v1_pre_widen.jsonl"
-SNAPSHOT = REPO_ROOT / "taxonomy" / "taxonomy_snapshot.json"
+SNAPSHOT = REPO_ROOT / "packs" / "healthcare" / "taxonomy_snapshot.json"
 COHORT = REPO_ROOT / "data" / "synthea_sample_data_csv_latest"
 
 
