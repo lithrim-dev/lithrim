@@ -245,7 +245,10 @@ def build_judge_lm(role: str, **overrides: Any):
         "api_base": settings.AZURE_OPENAI_ENDPOINT,
         "api_version": settings.AZURE_OPENAI_API_VERSION,
         "temperature": 0,
-        "max_tokens": 1024,
+        # 1024 truncated the structured verdict (evidence_consensus_pillar_verdicts) on
+        # evidence-heavy cases — the judge quotes clinical spans (e.g. a 20-item PMH), so
+        # it needs headroom. Caps, never forces, so cost only rises on genuinely long output (S-BS-111).
+        "max_tokens": 4096,
         "logprobs": True,
         "cache": True,
     }
