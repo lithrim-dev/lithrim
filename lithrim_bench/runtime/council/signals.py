@@ -13,8 +13,9 @@ withstands-gate (``withstands.py``) reconciles its verdict against:
     when / when-NOT / severity tags.
   * **validator-output signals** — the deterministic result of running each of the
     judge's raised codes through its matching suppress contract
-    (``PresenceCheck`` / ``KbGrounding``), executed by REUSING ``grounding.py``'s
-    ``_build_contract`` + the ``_CONTRACT_EXECUTORS`` registry — never reimplemented.
+    (``PresenceCheck`` / ``KbGrounding`` / the active pack's ``record_presence``),
+    executed by REUSING ``grounding.py``'s ``_build_contract`` + the pack-merged
+    ``suppress_executors()`` registry — never reimplemented.
 
 Pure + deterministic, **NO LLM**. The signals are the floor that lets the critique
 *ground* a judge's reasoning rather than merely self-critique it (the
@@ -179,7 +180,7 @@ def build_judge_signals(
         if not code:
             continue
         decl = ontology.contract_for(code)
-        if decl is None or decl.contract_type not in grounding._CONTRACT_EXECUTORS:
+        if decl is None or decl.contract_type not in grounding.suppress_executors():
             continue
         contract = grounding._build_contract(decl, http_client=http_client)
         verdict = contract.check(_to_grounding_finding(code, f), dict(case))
