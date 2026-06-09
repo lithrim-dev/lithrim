@@ -1,12 +1,16 @@
-"""The WS-3 verification toolbox: three backends behind one `VerificationTool`.
+"""The WS-3 verification toolbox: generic backends behind one `VerificationTool`.
 
 | tool             | access                              | determinism                              |
 |------------------|-------------------------------------|------------------------------------------|
-| InRowTool        | the case row (`patient_profile`)    | fully deterministic (dotted oracle path) |
 | StructuralJute   | etlp `:3031` Jute validator         | mapping selector + content-hash PIN      |
+| KbRagTool        | backend KB `:8002 /v1/kb/search`    | pinned namespace + retrieval verdict     |
 | RecordRagTool    | `lithrim_search_sdk` + Pinecone     | pinned corpus + retrieval manifest       |
 
-Every tool returns a tri-state `conforms` (see `spec.py`). The flag-clearing
+The CLINICAL executors (the record-presence `InRowTool` + the `DosageGroundingTool`
+floor + their SOAP/PMH/dose extractors) relocated OUT of the core into the active pack
+(`packs/healthcare/floors.py`, PACK-3); the generic helpers `_dig`/`_norm` they depend on
+stay here and the pack imports them. Every tool returns a tri-state `conforms` (see
+`spec.py`). The flag-clearing
 decision lives in `router.compose_verdict`, not in the tools — a tool only
 answers "does this locus conform to the pinned reference?".
 
@@ -30,7 +34,6 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from .spec import (
-    TOOL_DOSAGE_GROUNDING,
     TOOL_KB_RAG,
     Claim,
     VerificationResult,
@@ -49,48 +52,10 @@ class VerificationTool(ABC):
 
 
 # --------------------------------------------------------------------------- #
-# shared text helpers (relocated from grounding.py)
+# shared text helpers (generic; the relocated clinical executors import these)
 # --------------------------------------------------------------------------- #
 def _norm(s: Any) -> str:
     return re.sub(r"\s+", " ", str(s).strip().lower())
-
-
-def _core(s: Any) -> str:
-    # drop a trailing SNOMED-style qualifier: "... (finding)" / "(disorder)" / "(situation)"
-    return _norm(re.sub(r"\s*\([^)]*\)\s*$", "", str(s)))
-
-
-def extract_pmh_items(soap_text: str) -> list[str]:
-    items, in_pmh = [], False
-    for line in str(soap_text).splitlines():
-        st = line.strip()
-        if st.upper().startswith("PMH"):
-            in_pmh = True
-            continue
-        if in_pmh:
-            if st.startswith("- "):
-                items.append(st[2:].strip())
-            elif st.endswith(":"):  # next section header
-                break
-    return list(dict.fromkeys(items))  # dedup, preserve order
-
-
-_DOSE_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:MG/ML|MG/ACTUAT|MCG|MG|ML|G|UNITS?)\b", re.IGNORECASE)
-
-
-def _norm_dose(token: str) -> str:
-    return re.sub(r"\s+", "", str(token)).upper()
-
-
-def extract_plan_dose_tokens(soap_text: str) -> list[str]:
-    """Dose tokens (e.g. '3000MG', '5 MG') found in the PLAN section of a SOAP note."""
-    lines = str(soap_text).splitlines()
-    plan = ""
-    for i, line in enumerate(lines):
-        if line.strip().upper().startswith("PLAN"):
-            plan = "\n".join(lines[i + 1 :])
-            break
-    return _DOSE_RE.findall(plan)
 
 
 def _dig(source: dict, dotted_path: str) -> list:
@@ -102,133 +67,6 @@ def _dig(source: dict, dotted_path: str) -> list:
         else:
             return []
     return cur if isinstance(cur, list) else ([] if cur is None else [cur])
-
-
-# --------------------------------------------------------------------------- #
-# InRowTool — the proven deterministic record-presence primitive
-# --------------------------------------------------------------------------- #
-class InRowTool(VerificationTool):
-    """Structured-oracle presence check against a dotted path in the case row.
-
-    reference = {"oracle_path": "patient_profile.conditions",
-                 "extractor": "soap_pmh_items" | "soap_plan_dose_tokens",
-                 "match": "snomed_core" | "dose_token"}
-    """
-
-    name = "in_row"
-
-    _EXTRACTORS = {
-        "soap_pmh_items": extract_pmh_items,
-        "soap_plan_dose_tokens": extract_plan_dose_tokens,
-    }
-
-    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
-        ref = spec.reference
-        extractor = self._EXTRACTORS.get(ref["extractor"])
-        if extractor is None:
-            raise ValueError(f"unknown in_row extractor {ref['extractor']!r}")
-
-        subject_items = extractor(claim.subject)
-        oracle_items = _dig(claim.source, ref["oracle_path"])
-        ungrounded = self._ungrounded(ref["match"], subject_items, oracle_items)
-
-        conforms = len(ungrounded) == 0
-        evidence = {
-            "oracle_path": ref["oracle_path"],
-            "extractor": ref["extractor"],
-            "match": ref["match"],
-            "items_checked": len(subject_items),
-            "oracle_size": len(oracle_items),
-            "ungrounded": ungrounded,
-        }
-        manifest = {
-            "tool": self.name,
-            "deterministic": True,
-            "spec_version": spec.version,
-            "locus": spec.locus,
-            "oracle_path": ref["oracle_path"],
-            "match": ref["match"],
-        }
-        return VerificationResult(conforms=conforms, evidence=evidence, manifest=manifest)
-
-    @staticmethod
-    def _ungrounded(match: str, subject_items: list[str], oracle_items: list) -> list[str]:
-        if match == "snomed_core":
-            full = {_norm(o) for o in oracle_items}
-            cores = {_core(o) for o in oracle_items}
-            return [it for it in subject_items if _norm(it) not in full and _core(it) not in cores]
-        if match == "dose_token":
-            oracle_doses: set[str] = set()
-            for o in oracle_items:
-                oracle_doses |= {_norm_dose(t) for t in _DOSE_RE.findall(str(o))}
-            return [it for it in subject_items if _norm_dose(it) not in oracle_doses]
-        raise ValueError(f"unknown in_row match strategy {match!r}")
-
-
-# --------------------------------------------------------------------------- #
-# DosageGroundingTool — deterministic dose-faithfulness floor (offline, no network)
-# --------------------------------------------------------------------------- #
-class DosageGroundingTool(VerificationTool):
-    """Floor: every medication dose DOCUMENTED in the artifact must be grounded in
-    the encounter evidence — the transcript instruction and, when present, the
-    patient record. A documented dose grounded in NEITHER is a dosage-drift
-    violation (``conforms=False``); ``ground()`` then injects WRONG_DOSAGE, flipping
-    the verdict independent of any judge — a deterministic floor, not an LLM.
-
-    This is the dose analogue of the record-grounding moat: it grounds against the
-    transcript AND the chart, not the transcript alone — closing the same
-    transcript-only blind spot that makes a judge flag a record-sourced dose.
-
-    reference = {"dose_regex": <pinned extraction pattern>,            # required, SME-pinned
-                 "transcript_path": "transcript",                      # free-text encounter (default)
-                 "record_path": "patient_profile.active_medications"}  # optional chart oracle
-
-    Conservative: when the artifact documents no parseable dose, ``conforms=None``
-    (inconclusive — never flips a verdict, never clears by silence).
-    """
-
-    name = TOOL_DOSAGE_GROUNDING
-
-    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
-        ref = spec.reference
-        dose_re = re.compile(ref["dose_regex"], re.IGNORECASE)
-
-        def _doses(text: Any) -> set[str]:
-            return {_norm_dose(m.group(0)) for m in dose_re.finditer(str(text))}
-
-        subject = claim.subject if isinstance(claim.subject, str) else json.dumps(claim.subject)
-        documented = _doses(subject)
-
-        transcript_path = ref.get("transcript_path", "transcript")
-        grounded = _doses((claim.source or {}).get(transcript_path) or "")
-        record_path = ref.get("record_path")
-        record_items = _dig(claim.source, record_path) if record_path else []
-        for item in record_items:
-            grounded |= _doses(item)
-
-        manifest = {
-            "tool": self.name,
-            "deterministic": True,
-            "spec_version": spec.version,
-            "locus": spec.locus,
-            "transcript_path": transcript_path,
-            "record_path": record_path,
-        }
-        if not documented:
-            return VerificationResult(
-                conforms=None,
-                evidence={"reason": "artifact documents no parseable dose", "documented_doses": []},
-                manifest=manifest,
-            )
-
-        ungrounded = sorted(documented - grounded)
-        evidence = {
-            "documented_doses": sorted(documented),
-            "grounded_doses": sorted(grounded),
-            "ungrounded_doses": ungrounded,
-            "grounded_against": ["transcript"] + (["record"] if record_items else []),
-        }
-        return VerificationResult(conforms=not ungrounded, evidence=evidence, manifest=manifest)
 
 
 # --------------------------------------------------------------------------- #

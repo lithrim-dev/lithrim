@@ -48,14 +48,15 @@ from .spec import (
     VerificationSpec,
 )
 from .tools import (
-    DosageGroundingTool,
     FakeRecordRagTool,
-    InRowTool,
     KbRagTool,
     RecordRagTool,
     StructuralJuteTool,
     VerificationTool,
 )
+
+# NOTE: the CLINICAL executors (InRowTool, DosageGroundingTool) relocated into the active
+# pack (packs/healthcare/floors.py, PACK-3); the core toolbox exports only generic tools.
 
 __all__ = [
     "Claim",
@@ -71,9 +72,7 @@ __all__ = [
     "TOOL_JUTE_GEN",
     "TOOL_DOSAGE_GROUNDING",
     "VerificationTool",
-    "InRowTool",
     "StructuralJuteTool",
-    "DosageGroundingTool",
     "KbRagTool",
     "RecordRagTool",
     "FakeRecordRagTool",
