@@ -289,6 +289,14 @@ def run(
         result = grade_live(case, council_config=council_config, ontology=ontology_payload)
         grade_path = "live"
     else:
+        if agent.dataset.baseline is None:
+            # Imported/live-only agents carry no captured baseline, so a $0 replay has
+            # nothing to read. Fail with a clear message (the BFF maps SystemExit -> 400)
+            # instead of Path(None) -> TypeError -> 500 (S-BS-108).
+            raise SystemExit(
+                f"agent {agent.name!r} has no captured baseline — $0 replay is unavailable "
+                f"for imported/live-only cases; run it live or in_process instead."
+            )
         result = grade_replay(case, agent.baseline_abspath())
         grade_path = "replay"
 

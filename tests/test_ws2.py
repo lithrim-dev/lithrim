@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from lithrim_bench.harness import grounding
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile
 from lithrim_bench.harness.grade import build_request_body
@@ -66,6 +68,20 @@ def _agent_over_fixtures() -> Agent:
         ),
         dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=str(BASELINE)),
     )
+
+
+def test_replay_without_baseline_fails_clean_not_typeerror(tmp_path):
+    """S-BS-108: an imported/live-only agent (dataset.baseline=None) replays with a clear
+    SystemExit (-> BFF 400), NOT Path(None) -> TypeError -> 500. Non-vacuous: pre-fix the
+    Path(None) call raised TypeError, so this SystemExit/match assertion fails."""
+    run_eval = _load_run_eval()
+    agent = Agent(
+        name="sbs108_no_baseline",
+        eval_profile=_agent_over_fixtures().eval_profile,
+        dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=None),
+    )
+    with pytest.raises(SystemExit, match="no captured baseline"):
+        run_eval.run(agent, live=False, in_process=False, out_dir=tmp_path / "out")
 
 
 # ── A1: S-BS-10 gradeable/reference partition + lint gate ─────────────────────
