@@ -10,14 +10,17 @@ same blind spot a transcript-only judge has — proven by ``test_*_record`` belo
 
 from __future__ import annotations
 
+from lithrim_bench.harness import pack
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict
 from lithrim_bench.verification import (
     TOOL_DOSAGE_GROUNDING,
     Claim,
-    DosageGroundingTool,
     VerificationSpec,
 )
+
+# PACK-3: the DosageGroundingTool floor relocated into the active healthcare pack.
+DosageGroundingTool = pack.load_pack_floors().DosageGroundingTool
 
 # the SME-pinned extraction pattern (mirrors the proven module _DOSE_RE)
 _DOSE_REGEX = r"\d+(?:\.\d+)?\s*(?:MG/ML|MG/ACTUAT|MCG|MG|ML|G|UNITS?)\b"

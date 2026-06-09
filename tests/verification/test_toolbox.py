@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import json
 
+from lithrim_bench.harness import pack
 from lithrim_bench.verification import (
     CLEARED,
     UNRESOLVED,
     Claim,
     FakeRecordRagTool,
-    InRowTool,
     JuteGenValidatorTool,
     RecordRagTool,
     Router,
@@ -28,6 +28,9 @@ from lithrim_bench.verification import (
     compose_verdict,
 )
 from lithrim_bench.verification.spec import RECORD_PRESENCE, STRUCTURAL_CONFORMANCE
+
+# PACK-3: the clinical InRowTool record-presence primitive relocated into the pack.
+InRowTool = pack.load_pack_floors().InRowTool
 
 # --------------------------------------------------------------------------- #
 # fixtures (mirror confirmed scribe_v1 shapes)

@@ -22,9 +22,15 @@ from pathlib import Path
 
 import pytest
 
-from lithrim_bench.harness import grounding
-from lithrim_bench.harness.grounding import _decode_artifact_soap, ground
+from lithrim_bench.harness import grounding, pack
+from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict, load_ontology
+
+# PACK-3: the clinical suppress executor (RecordPresence) + its SOAP decoder relocated
+# into the active healthcare pack; the test reaches them through the pack loader, the
+# same way the engine merges them into suppress_executors().
+_FLOORS = pack.load_pack_floors()
+_decode_artifact_soap = _FLOORS._decode_artifact_soap
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CALIB = REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
@@ -78,12 +84,14 @@ def ont_without_rp():
 # A1 — wired
 # --------------------------------------------------------------------------- #
 def test_record_presence_registered_and_buildable(ont_with_rp):
-    assert "record_presence" in grounding._CONTRACT_EXECUTORS
+    # PACK-3: record_presence is registered by the pack, visible via the merged accessor.
+    assert "record_presence" in grounding.suppress_executors()
+    assert "record_presence" not in grounding._CONTRACT_EXECUTORS  # not core-generic
     assert "record_presence" not in grounding._HTTP_CONTRACT_TYPES  # pure stdlib, no http
     decl = ont_with_rp.contract_for("FABRICATED_HISTORY")
     assert decl is not None and decl.contract_type == "record_presence"
     contract = grounding._build_contract(decl)  # built from the declaration alone
-    assert isinstance(contract, grounding.RecordPresence)
+    assert isinstance(contract, _FLOORS.RecordPresence)
 
 
 # --------------------------------------------------------------------------- #
