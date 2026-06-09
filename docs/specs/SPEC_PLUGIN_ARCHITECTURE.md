@@ -140,6 +140,16 @@ The **moat is not the bits** (Core is genuinely useful and open) — it is the v
 - **This INFORMS but does NOT BLOCK DOGFOOD-1** — DOGFOOD-1 is all Core surface (importer / judge-sets / eval-pack / gate-CLI). Let it proceed.
 - **This SHOULD land before HPACK** — so the SNOMED terminology floor is the *first Pro plugin built to the interface*, not a retrofit. (Phase 0 + a minimal Phase 1 unblock HPACK.)
 
+### Healthcare-realm-as-pack (the user's 2026-06-09 sharpening of Phase-1)
+
+> User decision: **the entire healthcare/clinical realm loads as a PACK, not hardcoded** — for a *verifiable* boundary (grep the core for `clinical`/`snomed`/`scribe` → empty; load/unload the pack → core still runs). This sharpens Phase-1 from "tag the registries core/pro (pure refactor)" to "**relocate the clinical CONTENT into the pack so the core has zero clinical hardcoding.**" [[healthcare-realm-as-pack]]
+
+Strangler-fig, layered, green at each step: (1) **ontology + taxonomy** → (2) judges → (3) floors/verification-contracts → (4) journey literals (`apps/shell/src/data.jsx:13` / `cards.jsx:25,29`) → (5) dataset. Completion test = the boundary grep returns empty.
+
+**The frozen-seam tension (grounded 2026-06-09).** `KNOWN_TAXONOMY_CODES` is hardcoded in the **FROZEN** `compliance_council.py:292` (+ enforced `judges_dspy.py:142` / `judge_metric.py`). So layer 1 splits: **1a** = the ontology/taxonomy LOAD path (`harness/ontology.py:38` `DEFAULT_ONTOLOGY_PATH`, `taxonomy.py:13` `_SNAPSHOT_PATH` — *above* the seam, tractable) + a consistency gate; **1b** = un-hardcode the council's taxonomy (*inside* the frozen seam — explicit un-freeze authorization, a later cycle). The invariant MOVES not weakens: `taxonomy_snapshot` becomes the **pack's** contract; the admissibility gate parameterizes on the loaded pack (D-C in `SPEC_EVAL_SCENARIOS`).
+
+**First cut = PACK-1** (driver `bench-salvage_phasePACK-1_healthcare-pack-ontology-layer_driver.md`, **HARD GATE**): the pack manifest + layer-1a extraction (the core loads ontology/taxonomy from the active `healthcare` pack) + the consistency gate + the boundary grep test. 1b + layers 2–5 + the story/second pack are explicit follow-ons.
+
 ---
 
 ## Dependencies
