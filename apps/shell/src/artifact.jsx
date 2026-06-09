@@ -438,8 +438,14 @@ function CaseTab({ agent = "ws0_default" }) {
         <div className="art-h2">Transcript <span className="cnt">{kase.case_id}</span></div>
         <pre style={_PRE}>{kase.transcript || "(no transcript)"}</pre>
       </div>
+      {kase.artifact_text ? (
+        <div className="art-sec">
+          <div className="art-h2">Note <span className="cnt">the scribe artifact (readable)</span></div>
+          <pre style={_PRE}>{kase.artifact_text}</pre>
+        </div>
+      ) : null}
       <div className="art-sec">
-        <div className="art-h2">Artifact <span className="cnt">{art.kind}</span></div>
+        <div className="art-h2">Artifact <span className="cnt">{kase.artifact_text ? `raw · ${art.kind}` : art.kind}</span></div>
         <pre style={_PRE}>{art.text}</pre>
       </div>
       <div className="art-sec">

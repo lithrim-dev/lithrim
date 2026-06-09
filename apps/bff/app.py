@@ -388,25 +388,56 @@ def _council_view(record: dict) -> dict:
     return {"votes": votes, "configured": list(prov_council.get("judges") or [])}
 
 
+def _artifact_note(artifact: Any) -> str | None:
+    """Surface the human-readable note buried in a FHIR artifact (base64 DocumentReference
+    attachment, or a narrative ``text.div``) for DISPLAY — the raw ``artifact`` stays exactly
+    what the council grades. None when there is nothing to decode. Pure Python on purpose:
+    base64 is not a reliable JUTE builtin; JUTE is for cross-resource mapping, not trivial
+    decodes. [[jute-for-data-transformations]]"""
+    import base64
+
+    if not isinstance(artifact, str):
+        return None
+    try:
+        res = json.loads(artifact)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(res, dict):
+        return None
+    for c in res.get("content") or []:
+        data = (c.get("attachment") or {}).get("data") if isinstance(c, dict) else None
+        if data:
+            try:  # FHIR convention is base64; this synthetic data stores the note as plain text
+                decoded = base64.b64decode(data, validate=True).decode("utf-8")
+                if decoded.strip():
+                    return decoded.strip()
+            except (ValueError, TypeError, UnicodeDecodeError):
+                pass
+            return str(data).strip() or None  # not base64 → the attachment IS the note
+    text = res.get("text")
+    return (text.get("div") if isinstance(text, dict) else None) or None
+
+
 @app.get("/v1/case")
 def case_endpoint(
     agent: str = DEFAULT_AGENT,
     db_path: Path = Depends(get_config_db),
 ) -> dict:
     """The agent's case content — so the shell DISPLAYS the same case the council GRADES
-    (no mockup mismatch). The transcript + the first artifact + the patient record."""
+    (no mockup mismatch). The transcript + the first artifact (raw, as graded) + a decoded
+    human-readable note for display + the patient record."""
     ag = _load_agent(agent, db_path)
     case = load_case(ag.dataset.case_id, source=ag.source_abspath())
     if case is None:
         raise HTTPException(status_code=404, detail=f"case {ag.dataset.case_id!r} not found")
     artifacts = case.get("artifacts") or []
     pp = case.get("patient_profile") or {}
+    artifact = artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None
     return {
         "case_id": case.get("case_id"),
         "transcript": case.get("transcript"),
-        "artifact": (
-            artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None
-        ),
+        "artifact": artifact,
+        "artifact_text": _artifact_note(artifact),
         "conditions": pp.get("conditions") or [],
         "expected_safety_flags": case.get("expected_safety_flags") or [],
         "injection_recipe": case.get("injection_recipe"),

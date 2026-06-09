@@ -130,14 +130,16 @@ describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
       case_id: "bench_scribe_v1_inject_condition",
       transcript: "Dr: Hello Antony.\nPatient: I'm here for a sprain.",
       artifact: JSON.stringify({ resourceType: "DocumentReference", status: "current" }),
+      artifact_text: "SUBJECTIVE: 28M presents for sprain.", // the decoded readable note
       conditions: ["Diabetes mellitus type 2 (disorder)", "Anemia (disorder)"],
       expected_safety_flags: ["FABRICATED_HISTORY"],
       injection_recipe: null,
     });
     render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText(/here for a sprain/)).toBeInTheDocument(); // the transcript
+    expect(screen.getByText(/SUBJECTIVE: 28M presents/)).toBeInTheDocument(); // the readable note (decoded)
     expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // the by-construction ground truth
-    expect(screen.getByText("structured")).toBeInTheDocument(); // JSON artifact detected + pretty-printed
+    expect(screen.getByText("raw · structured")).toBeInTheDocument(); // a note present -> the artifact is the raw view
     expect(screen.getByText(/Diabetes mellitus type 2/)).toBeInTheDocument(); // the patient record
     expect(getCase).toHaveBeenCalledWith("ws0_default"); // self-fetches the ACTIVE agent
   });
