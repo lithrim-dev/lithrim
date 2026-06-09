@@ -25,7 +25,8 @@ So a pitch can show clinical, but cannot fluidly stand up "…and here's a FHIR 
 ## Decisions (LOCKED 2026-06-09, user)
 
 - **D-A — the journey: working frame now, pitch-narrative later.** Make the existing **5-step setup-journey** (`Domain → Judge → Flag → Run → Review`) **domain-agnostic** — that is the working frame every Scenario flows through. Keep the polished **4-act journey FROZEN** as the clinical pitch (untouched). Generalizing the 4-act into a per-Scenario pitch narrative is a later refinement (R-LATER), not now. [[unified-authoring-product-frozen-journey]] stays in force for the 4-act.
-- **D-B — FHIR bench is the first new Scenario** (after the frame). A real published benchmark (FHIR-AgentBench), more pitch-credible to technical buyers, partial assets exist (`data/picklist_fhir_mini.json` + `docs/research/REPORT_fhir_agentbench_2026-06-04.md` + [[fhir-agentbench-benchmark]]). StoryWorld (the generic domain-agnostic proof) follows.
+- **D-B — FHIR bench is the first new Scenario** (after the frame). A real published benchmark (FHIR-AgentBench), more pitch-credible to technical buyers, partial assets exist (`data/picklist_fhir_mini.json` + `docs/research/REPORT_fhir_agentbench_2026-06-04.md` + [[fhir-agentbench-benchmark]]). StoryWorld (the generic domain-agnostic proof) follows. **(Re-confirmed 2026-06-09: keep FHIR-first; the narrative CE wedge does NOT pull StoryWorld ahead.)**
+- **D-C — per-domain admissibility = the floor IS the by-construction label** (user-decided 2026-06-09; the unlock that makes "eval anything" honest). Each Scenario carries its OWN ontology + admissibility, NOT the clinical `taxonomy_snapshot`. A domain's **floor-checkable defects** — deterministic checks (clinical `dosage_grounding`; narrative cliché/repetition/faithfulness-to-choice-as-graph) — ARE the label justification (the `injection_recipe`-is-the-label invariant generalized per domain, so the CLAUDE.md core invariant stays pure). **Subjective quality** (narrative coherence, clinical tone) = judge-only → **second-class** cases (cf. the DOGFOOD-1 `imported_demo` second-class pattern, S-BS-104). External human annotations (e.g. narrative per-bridge labels) are a **calibration/comparison signal, NOT the admissibility gate**. Rides the existing `_FLOOR_CONTRACT_TYPES` registry (no rebuild). The SCENARIO-1+ build un-binds the gate from the clinical snapshot to the active Scenario's own admissible floor. This resolves the recurring narrative-label-model blocker. [[jute-generated-contracts-unification]]
 
 ---
 
@@ -139,6 +140,19 @@ A Scenario reuses the plugin **pack manifest** verbatim under `pack`; `dataset` 
 ### Critical sequencing
 - **SCENARIO-1 needs only the frame + seeded data** — it does NOT block on IMPORT-1 (seed the proof Scenario like the imported demo cases). Fluid data-load (IMPORT-1) thickens it later.
 - **The FHIR floor rides the existing WS-3a floor registry** — it does NOT block on the full Plugin Phase-1 refactor.
+
+### The StoryWorld / narrative CE wedge (the NARR sub-sequence — gated)
+
+The narrative Scenario is the **CE flagship demo** — "eval anything, self-hosted, BYOK": a writer / narrative-AI shop grades its own LLM output conversationally (the Lenador story-data story). It is **Phase 4 (StoryWorld), kept AFTER the FHIR scenario** (D-B, user-confirmed 2026-06-09) and gated behind **v1 ship** ("once Product is done"). It is NOT a parallel track — its build decomposes onto existing phases, and the user's "NARR-1..4" framing reconciles as:
+
+| The wedge step (user's NARR) | = existing phase | precondition |
+|---|---|---|
+| NARR-1 domain-agnostic config + **per-domain admissibility** (author a narrative ontology/flags from the UI without the clinical gate) | **SCENARIO-1** (P0) + **D-C** (unbind the admissibility gate from the clinical snapshot) | v1 |
+| NARR-2 chat ingestion ("import my story sessions → a pack") over the generated JUTE extractor | **IMPORT-1** (P2) + the **CONTRACT-AUTHOR `jute_transform`** (bench-gated generated normalizer) | SCENARIO-1; the de-risk spike can run earlier |
+| NARR-3 the **cliché/repetition/faithfulness-to-choice floor** + the JudgeEditor ATTACH-VALIDATORS hook | a StoryWorld floor on `_FLOOR_CONTRACT_TYPES` (a GROUND-FLOOR-1 sibling) — **this floor IS the by-construction admissibility (D-C)** | SCENARIO-1 |
+| NARR-4 the end-to-end frontend demo on real story data (Claude/GPT/Llama via `build_judge_lm`) | the **StoryWorld Scenario** (Phase 4) | FHIR scenario (locked order) |
+
+**Executor-ready drivers expand when the gate is the active frontier** (v1 → SCENARIO-1 → FHIR → StoryWorld) — NOT now (they would cite code SCENARIO-1/FHIR will reshape). The narrative **label model is RESOLVED (D-C)**; the only narrative-specific design left for the StoryWorld cycle is the cliché/repetition floor's deterministic detector spec (bench-gated). CE/Pro split: StoryWorld + clinical samples = **core (CE)**; the full healthcare/FHIR packs = **pro** (the `tier: core|pro` line). [[conversational-first-core-plugin-line]]
 
 ## Dependencies
 - No new external service for SCENARIO-1 (config-plane + shell only). The FHIR graph/resolution floor may add an in-process contract or a sidecar (OQ-1). IMPORT-1 + Plugin Phase-1 are their own specs/cycles.
