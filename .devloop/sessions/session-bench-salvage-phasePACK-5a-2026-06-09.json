@@ -1,0 +1,134 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-5a-2026-06-09",
+  "stream": "bench-salvage",
+  "phase": "PACK-5a",
+  "driver_bundle_id": "bench-salvage-phasePACK-5a-healthcare-pack-generators-layer-driver",
+  "started_at": "2026-06-09T13:30:00Z",
+  "ended_at": "2026-06-09T15:16:22Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-09T14:05:00Z",
+    "user_approved_at": "2026-06-09T14:20:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver D-B / §1.4 claims `_pmh.py` is shared by scribe AND coding (coding_note.py) → kept core. Grep disproves: coding_note imports `_coding_dx`, not `_pmh`; `clinical_conditions` is imported ONLY by the 2 scribe synthesizers. `_pmh` is scribe-only today.",
+        "evidence": "lithrim_bench/synthesizers/coding_note.py:27 `from ._coding_dx import resolve_primary_dx`; grep `clinical_conditions` → only transcript.py:21 + scribe_artifact.py:17 (both scribe)",
+        "decided_at": "2026-06-09T14:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "`_pmh` placement decision: user chose KEEP IN CORE (driver default) despite the stale 'shared with coding' rationale — minimal blast radius, valid pack→core import, relocates with coding in 5b. (AskUserQuestion Q1.)",
+        "evidence": "Q1 answer = 'Keep in core (driver default)'",
+        "decided_at": "2026-06-09T14:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Consumer list is bigger than driver D5's '2 consumers': the relocated scribe SYMBOLS also break generate_proof_case.py + generate_uap5a_flip_demo.py (direct imports) + 6 tests (incl. a deep `FABRICATIONS` import). The 6 tests are mandatory for green; user approved repointing the 2 demo scripts too. (AskUserQuestion Q2.)",
+        "evidence": "Q2 answer = 'Repoint them now'",
+        "decided_at": "2026-06-09T14:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-A interface shape resolved: `generators/` is a PACKAGE (the D2 `generators.py` vs D3 `generators/` ambiguity) loaded by FILE PATH with `submodule_search_locations` + `sys.modules` registration (so the relocated modules' relative `._soap` import resolves) — honors load_pack_floors' 'never import packs.*' invariant. Parent baselined at HEAD 0bcdd1b (no 'PACK-5a driver commit' exists; the driver .md + .devloop/prompts/index.json are untracked devloop bookkeeping, left for the monitor).",
+        "evidence": "driver D2 vs D3; lithrim_bench/harness/pack.py load_pack_generators",
+        "decided_at": "2026-06-09T14:20:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "aeb0ac048e62d41cd435cb60fe25cad7253fd7a7",
+      "repo": "lithrim-bench",
+      "title": "refactor(pack): PACK-5a — relocate scribe dataset-generation into the healthcare pack behind load_pack_generators",
+      "summary": "git mv 8 scribe files (R100/R092-096, import-only edits) → packs/healthcare/generators/; new generators/__init__.py registration surface (PACKS); pack.json `generators` ref; harness/pack.py load_pack_generators; packs.py active_packs() lazy merge + drop scribe; injectors/__init__.py drop scribe."
+    },
+    {
+      "hash": "7f45643aaab9f588d07493af4fbe054632a97cf5",
+      "repo": "lithrim-bench",
+      "title": "test(pack): PACK-5a — repoint relocated scribe imports at the pack loader (green-bar)",
+      "summary": "generate_pack.py + generate_judge_calib.py (PACKS→active_packs; calib's 4 scribe injectors via loader), 2 demo scripts, 6 scribe tests — all repointed at load_pack_generators(). Mechanical, no behavior change."
+    },
+    {
+      "hash": "0540557963527188afb3a89332e5e3c49c13ee93",
+      "repo": "lithrim-bench",
+      "title": "test(pack): PACK-5a — layer-5a boundary + registration interface + by-construction byte-identity",
+      "summary": "tests/test_pack_layer5a.py (8 tests): boundary needles absent-core/present-pack + AST pack→core; active_packs registration non-vacuous + no-generators degrade + heavy-dep-free; cohort-gated judge_calib byte-identity."
+    },
+    {
+      "hash": "aab2f8fe954017f3a8ee5a878c60a617dbdc8dd2",
+      "repo": "lithrim-bench",
+      "title": "docs(pack): PACK-5a — record layer-5a (dataset generation; unified pack model) in the plugin spec",
+      "summary": "SPEC_PLUGIN_ARCHITECTURE.md '✅ Layer 5a LANDED' entry: unified pack model (data+grading+generation), the registration interface, the HARD-GATE byte-identity crux, 5b follow-on + layer-4 dropped."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — scribe generator CODE absent from lithrim_bench/ AND present under packs/healthcare/ (relocation≠deletion)",
+      "verdict": "PASS",
+      "evidence": "tests/test_pack_layer5a.py::test_engine_carries_no_scribe_generator_code + ::test_scribe_generators_live_in_the_pack PASS (8 class/def needles). 5a-scoped per driver (full grep-empty is 5b)."
+    },
+    {
+      "criterion": "A2 — by-construction byte-identity: scribe corpus regenerates byte-identical; every injection_recipe + expected_safety_flags unchanged",
+      "verdict": "PASS",
+      "evidence": "generate_judge_calib.py reproduces tracked examples/judge_calib_v1.jsonl BYTE-IDENTICAL (frozen-timestamp; test_judge_calib_regenerates_byte_identical). generate_pack.py --pack scribe_v1 identical modulo the wall-clock `generated_at` (pre-existing non-determinism, S-BS-120): 50/50 rows identical after normalizing generated_at."
+    },
+    {
+      "criterion": "A3 — registration interface non-vacuous + fail-clean (scribe from pack, non-scribe from core, no-generators degrades, pack→core only, import heavy-dep-free)",
+      "verdict": "PASS",
+      "evidence": "test_pack_layer5a.py::{test_active_packs_resolves_scribe_from_pack_and_nonscribe_from_core, test_load_pack_generators_cache_identity, test_no_generators_pack_degrades, test_core_never_imports_top_level_packs, test_import_lithrim_bench_packs_heavy_dep_free} all PASS."
+    },
+    {
+      "criterion": "A4 — generic framework 0-delta (base/InjectionRecipe/EncounterSpec/packager/synthea_* byte-untouched; 4 non-scribe agent-types generate identically)",
+      "verdict": "PASS",
+      "evidence": "git diff 0bcdd1b HEAD: base.py/packager.py/encounter_spec.py/synthea_loader.py/synthea_fhir_loader.py/_pmh.py all ABSENT (untouched). 27 passed: test_{scheduling,coding,triage,hl7}_pack + test_fabricated_consent_injector. judge_calib (carries scheduling/triage rows) byte-identical."
+    },
+    {
+      "criterion": "A5 — green both envs, 0-new at parent, ruff clean, pathspec-only commits, NOT pushed",
+      "verdict": "PASS",
+      "evidence": "default env: 414 passed / 0 failed / 24 skipped (baseline 406 + 8 new). debuglithrim: 461 passed / 0 failed. ruff: 0 NEW errors on touched files (fixed packs.py + generators/__init__ UP035; the 2 relocated-file errors _soap UP035 + value_mismatch F401 travel byte-identically = S-BS-96 pair; generate_pack.py:22/:123 pre-existing untouched lines). 4 pathspec-scoped commits; foreign .devloop files untouched; branch bench-salvage/ws6c-dspy, NOT pushed."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "files_relocated": "8 (5 injectors + _soap + 2 synthesizers; R100/R092-096)",
+    "default_env": "414 passed / 0 failed / 24 skipped",
+    "debuglithrim_env": "461 passed / 0 failed",
+    "new_tests": "8 (tests/test_pack_layer5a.py)",
+    "consumers_repointed": "10 (2 generator scripts + 2 demo scripts + 6 tests)",
+    "diff_vs_parent": "25 files, +503 / -104 (rename-aware)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-120",
+      "title": "generate_pack.py `generated_at` is wall-clock → scribe corpus not byte-deterministic across runs",
+      "severity": "low",
+      "fix_location": "scripts/generate_pack.py (or packager.package_case `generated_at`)",
+      "impact": "The A2 'byte-identical scribe corpus' check can only be verified modulo `generated_at` via generate_pack.py; the clean automated gate relies on generate_judge_calib.py's FROZEN_TIMESTAMP. A `--frozen-timestamp` flag (or freezing it) would make generate_pack.py output a true byte-deterministic A2 surface.",
+      "confidence": "CONFIRMED",
+      "evidence": "diff /tmp/pack5a_scribe_pre.jsonl /tmp/pack5a_scribe_post.jsonl = `1,50c1,50` (all rows differ ONLY in generated_at); identical after popping generated_at (50/50). packager.py:230 `datetime.now(timezone.utc).isoformat()`."
+    },
+    {
+      "id": "S-BS-121",
+      "title": "`_pmh.py` (clinical_conditions) is scribe-only but kept in core for 5a — a thin clinical residual until 5b",
+      "severity": "low",
+      "fix_location": "lithrim_bench/synthesizers/_pmh.py",
+      "impact": "A scribe-only clinical PMH-filtering helper (with clinical allowlist literals) remains in core `lithrim_bench/synthesizers/`. Boundary A1 still passes (no `_pmh` needle in the scribe-code set). Relocate it with coding in 5b (it becomes pack→pack then). Driver D-B's 'shared with coding' rationale was stale.",
+      "confidence": "CONFIRMED",
+      "evidence": "grep `clinical_conditions` → imported only by packs/healthcare/generators/{transcript,scribe_artifact}.py; coding_note.py uses `_coding_dx`."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "PACK-5a landed the dataset-generation layer of the core↔domain boundary: the clinical scribe synthesizers + 5 injectors + the SCRIBE_PACK recipe relocated (byte-identical git mv, import-only repoint) into packs/healthcare/generators/, behind a new load_pack_generators registration interface mirroring PACK-3's load_pack_floors (file-path load + submodule_search_locations + sys.modules registration for the multi-file package; core active_packs() merges core⊕pack lazily, pack→core, no cycle). This unifies the two 'pack' concepts (a pack is now data+grading+generation). The MOVE preserved every label: generate_judge_calib.py reproduces the tracked examples/judge_calib_v1.jsonl BYTE-IDENTICAL, and the scribe corpus is identical modulo the pre-existing wall-clock generated_at (S-BS-120). Both envs green (default 414/0, debuglithrim 461/0); generic framework (base/InjectionRecipe/EncounterSpec/packager/synthea_*) byte-untouched. All 5 acceptance criteria PASS. THIS IS A HARD GATE: a fresh-critic worktree review is still OWED before close — the critic should verify the relocated injectors/synthesizers are byte-verbatim (R100/R09x, only core-primitive imports repointed), the byte-identity gate, the merge non-vacuous + fail-clean, the generic base 0-delta, and no core→pack import leaked. On audit, check first: (1) the byte-identity claim via the judge_calib diff, (2) S-BS-121 (_pmh scribe-only-in-core, a 5b cleanup), (3) the driver D-B citation-drift (already surfaced + user-decided keep-core).",
+
+  "next_session_hint": "monitor: spawn the HARD-GATE fresh critic (isolation:'worktree') on these 4 commits, then run /devloop-audit bench-salvage PACK-5a; next cycle = PACK-5b (coding/hl7/scheduling/triage generators + _pmh relocation + empty core packs.py → thin resolver; only then does grep lithrim_bench/ → empty fully hold)."
+}
