@@ -42,6 +42,7 @@ from lithrim_bench.injectors.base import DefectInjector
 from lithrim_bench.packs import PackDefinition
 
 from ._hl7 import find_segment, parse_segments
+from ._triage_scenarios import SCENARIOS, pick_scenario
 from .coding_artifact import synthesize_coding_artifact
 from .coding_transcript import synthesize_coding_transcript
 from .fabricated_consent import FabricatedConsentInjector
@@ -54,6 +55,7 @@ from .hl7_malformed_date import Hl7MalformedDateInjector
 from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
 from .hl7_missing_segment import Hl7MissingSegmentInjector
 from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
+from .missed_escalation import MissedEscalationInjector
 from .missing_allergy import MissingAllergyInjector
 from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
 from .scheduling_artifact import synthesize_scheduling_artifact
@@ -64,6 +66,8 @@ from .scheduling_transcript import (
 )
 from .scribe_artifact import synthesize_scribe_artifact
 from .transcript import synthesize_scribe_transcript
+from .triage_artifact import synthesize_triage_artifact
+from .triage_transcript import synthesize_triage_transcript
 from .upcoding_risk import UpcodingRiskInjector
 from .value_mismatch import ValueMismatchInjector
 from .wrong_dosage import WrongDosageInjector
@@ -139,13 +143,27 @@ SCHEDULING_PACK = PackDefinition(
     injectors=SCHEDULING_INJECTORS,
 )
 
-# The registration surface (PACK-5a D1): the core's active_packs() merges this over the
-# non-scribe core recipes. Declarative — no execution at import beyond building the recipe.
+TRIAGE_INJECTORS: list[type[DefectInjector]] = [
+    MissedEscalationInjector,
+]
+
+TRIAGE_PACK = PackDefinition(
+    name="triage_v1",
+    agent_type="triage",
+    transcript_fn=synthesize_triage_transcript,
+    artifact_fn=synthesize_triage_artifact,
+    injectors=TRIAGE_INJECTORS,
+)
+
+# The registration surface (PACK-5a D1): the core's active_packs() resolves the FULL recipe
+# set from here (PACK-5b emptied the core ``_CORE_PACKS`` — all 5 agent-types are now pack-
+# sourced). Declarative — no execution at import beyond building the recipes.
 PACKS: dict[str, PackDefinition] = {
     SCRIBE_PACK.name: SCRIBE_PACK,
     HL7_ADT_PACK.name: HL7_ADT_PACK,
     CODING_PACK.name: CODING_PACK,
     SCHEDULING_PACK.name: SCHEDULING_PACK,
+    TRIAGE_PACK.name: TRIAGE_PACK,
 }
 
 __all__ = [
@@ -158,6 +176,8 @@ __all__ = [
     "CODING_PACK",
     "SCHEDULING_INJECTORS",
     "SCHEDULING_PACK",
+    "TRIAGE_INJECTORS",
+    "TRIAGE_PACK",
     "FabricatedConsentInjector",
     "FabricatedHistoryInjector",
     "HallucinatedDetailInjector",
@@ -166,15 +186,18 @@ __all__ = [
     "Hl7MissingRequiredFieldInjector",
     "Hl7MissingSegmentInjector",
     "Hl7TriggerEventMismatchInjector",
+    "MissedEscalationInjector",
     "MissingAllergyInjector",
     "PhiDisclosurePreVerificationInjector",
     "UpcodingRiskInjector",
     "ValueMismatchInjector",
     "WrongDosageInjector",
+    "SCENARIOS",
     "VERIFICATION_END",
     "VERIFICATION_START",
     "find_segment",
     "parse_segments",
+    "pick_scenario",
     "synthesize_coding_artifact",
     "synthesize_coding_transcript",
     "synthesize_hl7_adt_artifact",
@@ -183,4 +206,6 @@ __all__ = [
     "synthesize_scheduling_transcript",
     "synthesize_scribe_artifact",
     "synthesize_scribe_transcript",
+    "synthesize_triage_artifact",
+    "synthesize_triage_transcript",
 ]

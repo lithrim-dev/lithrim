@@ -20,7 +20,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from ._triage_scenarios import pick_scenario
 
 ASSESSMENT_SNOMED_CODE = "709510001"

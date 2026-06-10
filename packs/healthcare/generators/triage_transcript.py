@@ -21,7 +21,8 @@ audit trail.
 """
 from __future__ import annotations
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from ._triage_scenarios import pick_scenario
 from .triage_artifact import HIGH_RISK_PROBABILITY
 

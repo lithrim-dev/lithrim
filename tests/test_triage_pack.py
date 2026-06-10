@@ -1,14 +1,21 @@
 import json
 
-from lithrim_bench.injectors import MissedEscalationInjector
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.packs import TRIAGE_PACK
-from lithrim_bench.synthesizers._triage_scenarios import SCENARIOS, pick_scenario
-from lithrim_bench.synthesizers.triage_artifact import synthesize_triage_artifact
-from lithrim_bench.synthesizers.triage_transcript import synthesize_triage_transcript
+from lithrim_bench.packs import active_packs
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5b: the triage injector + synthesizers + scenarios + the triage_v1 recipe relocated
+# into the active healthcare pack; reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+MissedEscalationInjector = _GEN.MissedEscalationInjector
+SCENARIOS = _GEN.SCENARIOS
+pick_scenario = _GEN.pick_scenario
+synthesize_triage_artifact = _GEN.synthesize_triage_artifact
+synthesize_triage_transcript = _GEN.synthesize_triage_transcript
+TRIAGE_PACK = active_packs()["triage_v1"]
 
 
 def test_pick_scenario_is_deterministic_per_patient_id():

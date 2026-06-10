@@ -35,18 +35,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lithrim_bench.encounter_spec import EncounterSpec
 from lithrim_bench.harness.pack import load_pack_generators
-from lithrim_bench.injectors import DefectInjector, MissedEscalationInjector
+from lithrim_bench.injectors import DefectInjector
 from lithrim_bench.packager import package_case, write_jsonl
 from lithrim_bench.packs import PackDefinition, active_packs
 from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.taxonomy import Taxonomy, load_taxonomy
 
-# PACK-5a/5b: the scribe + HL7 + coding + scheduling generators relocated into the active
-# healthcare pack; reach them via the pack generator loader. MissedEscalation (triage) stays
-# core until 5b's triage bundle.
+# PACK-5a/5b: ALL the agent-type generators relocated into the active healthcare pack; reach
+# them via the pack generator loader (the core carries no clinical generation code post-5b).
 _GEN = load_pack_generators()
 FabricatedConsentInjector = _GEN.FabricatedConsentInjector
 FabricatedHistoryInjector = _GEN.FabricatedHistoryInjector
+MissedEscalationInjector = _GEN.MissedEscalationInjector
 MissingAllergyInjector = _GEN.MissingAllergyInjector
 PhiDisclosurePreVerificationInjector = _GEN.PhiDisclosurePreVerificationInjector
 ValueMismatchInjector = _GEN.ValueMismatchInjector

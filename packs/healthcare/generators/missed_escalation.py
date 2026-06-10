@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
-from .base import DefectInjector, InjectionRecipe, InjectionResult
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
 
 _DOWNGRADED_MITIGATION = (
     "Recommended self-care at home: rest, hydration, and over-the-counter "

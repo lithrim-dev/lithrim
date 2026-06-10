@@ -5,12 +5,14 @@ artifact shape, applicable injectors) behind one identifier. The pack
 generator dispatches on the `--pack` flag; new agent types add a new
 PackDefinition entry rather than a new generator script.
 
-PACK-5a (healthcare-realm-as-pack, layer 5a) relocated the SCRIBE recipe OUT of this
+PACK-5a/5b (healthcare-realm-as-pack) relocated ALL the per-agent recipes OUT of this
 core module into the active pack's ``generators`` package: the PackDefinition *class*
-stays core (the generic recipe shape), but the scribe *instance* — with its
-synthesizers + injectors — moved. ``active_packs()`` resolves the full recipe set: the
-core's remaining non-scribe recipes merged with the active pack's relocated generators
-(``harness.pack.load_pack_generators``). The other 4 agent-types stay core until 5b.
+stays core (the generic recipe shape), but every recipe *instance* — scribe (5a) and
+hl7_adt / coding / scheduling / triage (5b) — with its synthesizers + injectors moved.
+``_CORE_PACKS`` is now empty; ``active_packs()`` resolves the full recipe set entirely
+from the active pack (``harness.pack.load_pack_generators``). The dependency points
+pack → core only (the relocated recipes import core primitives), loaded lazily so there
+is no import cycle.
 """
 from __future__ import annotations
 
@@ -20,12 +22,7 @@ from functools import lru_cache
 from typing import Any
 
 from .encounter_spec import EncounterSpec
-from .injectors import (
-    TRIAGE_INJECTORS,
-    DefectInjector,
-)
-from .synthesizers.triage_artifact import synthesize_triage_artifact
-from .synthesizers.triage_transcript import synthesize_triage_transcript
+from .injectors import DefectInjector
 
 TranscriptFn = Callable[[EncounterSpec], str]
 ArtifactFn = Callable[[EncounterSpec], list[dict[str, Any]] | dict[str, Any]]
@@ -41,19 +38,13 @@ class PackDefinition:
     requires_active_medication: bool = False
 
 
-TRIAGE_PACK = PackDefinition(
-    name="triage_v1",
-    agent_type="triage",
-    transcript_fn=synthesize_triage_transcript,
-    artifact_fn=synthesize_triage_artifact,
-    injectors=TRIAGE_INJECTORS,
-)
-
-# The non-scribe CORE recipes. The scribe recipe (``scribe_v1``) relocated into the active
-# pack's ``generators`` package (PACK-5a); ``active_packs()`` merges it back over these.
-_CORE_PACKS: dict[str, PackDefinition] = {
-    TRIAGE_PACK.name: TRIAGE_PACK,
-}
+# PACK-5b emptied the core recipe set: ALL agent-types (scribe / hl7_adt / coding /
+# scheduling / triage) relocated into the active pack's ``generators`` package.
+# ``_CORE_PACKS`` is now empty and ``active_packs()`` resolves the full recipe set from the
+# pack (``load_pack_generators``). The ``PackDefinition`` class + ``active_packs()`` stay
+# core — the generic recipe shape + the resolver. A pack with no ``generators`` declaration
+# degrades to ``{}`` (there is no core recipe fallback post-5b).
+_CORE_PACKS: dict[str, PackDefinition] = {}
 
 
 @lru_cache(maxsize=8)

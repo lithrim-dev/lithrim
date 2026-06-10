@@ -106,20 +106,17 @@ def test_core_never_imports_top_level_packs():
 
 
 # ──────────── A3 — the registration interface (non-vacuous + fail-clean) ────────────
-def test_active_packs_resolves_scribe_from_pack_and_nonscribe_from_core():
-    """active_packs() = the core's non-scribe recipes ⊕ the pack's relocated scribe recipe.
-    scribe_v1 is the PACK's instance (identity), the 4 others are the CORE instances."""
+def test_active_packs_resolves_scribe_from_pack():
+    """active_packs() includes the pack's relocated scribe recipe — scribe_v1 is the PACK's
+    instance (by identity). PACK-5b relocated the other 4 agent-types too; the full
+    all-pack-sourced + ``_CORE_PACKS == {}`` resolution is asserted in test_pack_layer5b."""
     import lithrim_bench.packs as P
 
     ap = P.active_packs()
     assert set(ap) == {"scribe_v1", "scheduling_v1", "coding_v1", "triage_v1", "hl7_adt_v1"}
 
     gen = pack.load_pack_generators()
-    assert ap["scribe_v1"] is gen.PACKS["scribe_v1"]  # scribe from the PACK, not core
-    assert ap["coding_v1"] is P.CODING_PACK  # non-scribe from CORE
-    assert ap["scheduling_v1"] is P.SCHEDULING_PACK
-    assert ap["triage_v1"] is P.TRIAGE_PACK
-    assert ap["hl7_adt_v1"] is P.HL7_ADT_PACK
+    assert ap["scribe_v1"] is gen.PACKS["scribe_v1"]  # scribe from the PACK
 
     assert ap["scribe_v1"].agent_type == "scribe"
     assert ap["scribe_v1"].requires_active_medication is True
@@ -141,9 +138,9 @@ def test_load_pack_generators_cache_identity():
 
 def test_no_generators_pack_degrades(monkeypatch):
     """A pack that declares no ``generators`` degrades cleanly: load returns None, and
-    active_packs() yields ONLY the core recipes (scribe absent — there is no core fallback
-    for it post-5a). NON-VACUOUS: unregister the pack generators → scribe_v1 disappears,
-    proving it is pack-sourced, not core."""
+    active_packs() yields ONLY the (post-5b empty) core recipes — every recipe absent, since
+    there is no core fallback. NON-VACUOUS: unregister the pack generators → scribe_v1
+    disappears, proving it is pack-sourced, not core."""
     import lithrim_bench.packs as P
 
     monkeypatch.setattr(pack, "_manifest", lambda _p: {"generators": None})
