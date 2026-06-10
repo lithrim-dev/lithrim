@@ -1,0 +1,125 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-2b-2026-06-11",
+  "stream": "bench-salvage",
+  "phase": "PACK-2b",
+  "driver_bundle_id": "bench-salvage-phasePACK-2b-council-owners-unfreeze-driver",
+  "started_at": "2026-06-10T23:35:00+04:00",
+  "ended_at": "2026-06-11T00:25:00+04:00",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-10T23:46:00+04:00",
+    "user_approved_at": "2026-06-10T23:50:00+04:00",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Monitor 'go' = the default trio: D-B Option B (clean seed cleanup — drop source/_module_assign/ast/COMPLIANCE_PY), D-E harden-now (the per-line guard hardening closing S-BS-124), and the light test_pack_layer2.py docstring touch (no rename). D-C fixture sentinel = yes.",
+        "evidence": "plan-review default 'B + harden-now + light docstring touch'; user replied 'go'",
+        "decided_at": "2026-06-10T23:50:00+04:00"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "SELF-CAUGHT REGRESSION in planned D3a: my first cut re-pointed council_roster() to pack_tier1_owners() of the ACTIVE pack, which broke council import under the _tiers_fixture pack (lost source_message_judge → judges gate rejected the reused healthcare council_roles), failing both the new 2b subprocess test AND the previously-green 1b subprocess test. Did NOT halt — the fix is an unambiguous correctness restoration (council_roster is the council's pack-INDEPENDENT validation identity → read DEFAULT_PACK, exactly pre-2b behavior), within the planned D3a scope, not new scope. Caught by the debuglithrim acceptance run, fixed in commit 9813e2c with a pinning test, surfaced here for monitor/critic review.",
+        "evidence": "debuglithrim FAILED tests/test_pack_layer1b.py::test_council_follows_active_pack_subprocess + tests/test_pack_layer2b.py::test_council_follows_active_pack_owners_subprocess; PackConsistencyError: pack '_tiers_fixture' carries council-role prompt(s) for unknown role(s): ['source_message_judge']; root-caused via packs/_tiers_fixture/pack.json 'council_roles' -> packs/healthcare/council_roles",
+        "decided_at": "2026-06-11T00:14:00+04:00"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "The freeze-guard docstring's CouncilModel-roster citation was stale (:485-516); the actual roster constructions are :468-497 (__init__ :454-500). Fixed to the driver's :467-498 (within tolerance, brackets the v2+v1 CouncilModel calls). The 1b SPEC entry's :485-516 was NOT edited (historical); my 2b SPEC entry uses :467-498.",
+        "evidence": "grep 'CouncilModel(' compliance_council.py -> :468,:476,:484,:495,:496,:497; self.models :500",
+        "decided_at": "2026-06-10T23:46:00+04:00"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "833cfc8",
+      "repo": "lithrim-bench",
+      "title": "refactor(pack): PACK-2b D1/D3 — add pack_tier1_owners() + re-point the 2 owner-map AST-readers to the snapshot",
+      "summary": "harness/pack.py adds pack_tier1_owners() (snapshot tier1_owners -> dict[str,frozenset], the owner-map twin of pack_tiers) + re-points council_roster()'s owner leg; scripts/seed_ontology.py reads owners from the snapshot (drops the orphaned source/_module_assign/ast/COMPLIANCE_PY); test_pack_layer2.py docstring touch. Council literal still intact; all green."
+    },
+    {
+      "hash": "55c136d",
+      "repo": "lithrim-bench",
+      "title": "refactor(council): PACK-2b D2/D4 — un-freeze the Tier-1 owner-map + harden the freeze guard (S-BS-124)",
+      "summary": "compliance_council.py:214-245 -> _TIER1_OWNERS = dict(__import__(...).pack_tier1_owners()) (provenance relocated verbatim); _seam_freeze.py guard extended to 3 carve-outs + the S-BS-124 per-line hardening + the :467-498 citation fix. Behavior 0-delta; council ruff 96=96."
+    },
+    {
+      "hash": "71c16f1",
+      "repo": "lithrim-bench",
+      "title": "test(pack): PACK-2b D5/D-C — owner-map equivalence + non-vacuity tests + the fixture sentinel owner",
+      "summary": "tests/test_pack_layer2b.py (mirrors 1b): core accessor/equivalence/roster-0-delta + guard revert/smuggled-line; [council] council==snapshot + the fixture subprocess. _tiers_fixture gains a SENTINEL tier1_owners entry (positive non-vacuity)."
+    },
+    {
+      "hash": "a0edcfa",
+      "repo": "lithrim-bench",
+      "title": "docs(pack): PACK-2b D6 — SPEC layer-2b LANDED entry + CLAUDE.md owner-map runtime note",
+      "summary": "SPEC_PLUGIN_ARCHITECTURE Layer 2b (owner-map) LANDED entry (scope = owner-map only; roster/LENS deferred to 2c) + CLAUDE.md notes tier1_owners is now read at runtime."
+    },
+    {
+      "hash": "9813e2c",
+      "repo": "lithrim-bench",
+      "title": "fix(pack): PACK-2b — council_roster() reads the CANONICAL (DEFAULT_PACK) owner-map, not the active pack (regression fix)",
+      "summary": "Restores council_roster()'s pack-independence (it is the council's validation identity): read pack_tier1_owners(DEFAULT_PACK), not the active pack. Fixes the fixture-pack council-import regression; adds the pinning test. Both envs green."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — council resolves _TIER1_OWNERS FROM the active pack (no hardcoded literal body); import compliance_council works in [council]; import harness.pack stays heavy-dep-free",
+      "verdict": "PASS",
+      "evidence": "compliance_council.py:239 _TIER1_OWNERS = dict(__import__(...).pack_tier1_owners()); debuglithrim council import resolves 8 frozenset entries; test_pack_import_is_heavy_dep_free green (no openai in sys.modules)"
+    },
+    {
+      "criterion": "A2 — behavior 0-delta: consensus oracle green unchanged; resolved _TIER1_OWNERS == acc4973 literal == snapshot == load_taxonomy().tier1_owners (8); :2077 membership unchanged; lens⊆owners green",
+      "verdict": "PASS",
+      "evidence": "debuglithrim runtime/council/tests 98 passed (test_consensus oracle + test_trio_dspy lens⊆owners); test_council_owners_equal_the_pack_snapshot PASS; load_taxonomy().tier1_owners == snapshot (8, verified True); :2077 byte-unchanged (guard proves only 3 carve-outs changed)"
+    },
+    {
+      "criterion": "A3 — non-vacuity both directions: (i) fixture -> council _TIER1_OWNERS follows pack sentinel; (ii) guard FAILS on unauthorized edit AND on reverting the owners carve-out (tiers+prompts still required)",
+      "verdict": "PASS",
+      "evidence": "test_council_follows_active_pack_owners_subprocess PASS (sentinel {FIXTURE_SENTINEL_T1:[FIXTURE_SENTINEL_OWNER]}, disjoint codes+roles); test_freeze_guard_fails_on_reverting_the_owners_carveout + _smuggled_code_line + the 1b revert/unauthorized tests all PASS"
+    },
+    {
+      "criterion": "A4 — frozen-set 0-delta: CouncilModel roster, _apply_consensus, LENS_BY_ROLE, signals.py, withstands.py, ontology, 1b tier carve-out byte-unchanged; surviving freeze guards green",
+      "verdict": "PASS",
+      "evidence": "git diff 92f1689 HEAD: judge_metric.py/signals.py/withstands.py/ontology.json ABSENT; compliance_council.py changes = only the 3 authorized carve-outs (guard proves); assert_clinical_ontology_seam_frozen + assert_council_roles_relocated_only + assert_judges_dspy_consensus_seam_frozen green via test_uap3b_withstands/test_uap3b2_provenance"
+    },
+    {
+      "criterion": "A5 — green both envs; 0-new at parent; ruff clean; pathspec-only; NOT pushed",
+      "verdict": "PASS",
+      "evidence": "core py3.12 440 passed/30 skipped/0 failed; debuglithrim py3.10.15 493 passed/0 failed (full tests/ sweep) — 0 failures => 0-new; ruff authored files clean, council 96=96 vs parent (0-new); 5 pathspec-scoped commits, no foreign files; no upstream tracking branch (not pushed)"
+    }
+  ],
+
+  "diagnostic_stats": {
+    "files_changed": "9 code (+1 monitor driver doc from 7fa8d91)",
+    "core_tests": "440 passed / 30 skipped / 0 failed (py3.12)",
+    "debuglithrim_tests": "493 passed / 0 failed (full tests/ sweep) + runtime/council/tests 98 passed",
+    "owner_map_equivalence": "council == acc4973 literal == snapshot tier1_owners == load_taxonomy().tier1_owners (8 entries, sets equal)",
+    "council_ruff": "96 = 96 vs parent (0-new; the Dict[str,set] annotation preserved)",
+    "authorized_carveouts": "3 (prompts-dir + tiers + owners); guard non-vacuous both directions + S-BS-124 per-line hardening"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-125",
+      "title": "council_roster (canonical/DEFAULT_PACK) vs council_known_codes (active_pack) pack-resolution asymmetry",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/pack.py council_roster()",
+      "impact": "council_roster() reads DEFAULT_PACK's owner-map (pack-independent — the council's validation identity), while council_known_codes() reads active_pack() (the 1b taxonomy flip). Correct for today (one real pack + the taxonomy-only _tiers_fixture), but a future SECOND real judge-bearing pack would need council_roster() to follow the active real pack's roster. Documented in the council_roster docstring; revisit at the multi-pack / 2c cut.",
+      "confidence": "CONFIRMED",
+      "evidence": "pack.py council_roster() -> pack_tier1_owners(DEFAULT_PACK); council_known_codes() -> _pack_taxonomy_codes(active_pack())"
+    }
+  ],
+
+  "seams_closed": ["S-BS-124"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PACK-2b LANDED: the FROZEN compliance_council.py's Tier-1 owner-map (_TIER1_OWNERS) now resolves FROM the active pack's taxonomy_snapshot.json tier1_owners via pack_tier1_owners() — the direct 1b analogue, value-preserving (8 entries == acc4973 literal == snapshot == load_taxonomy), behavior 0-delta at the :2077 one-strike. Scope = owner-map ONLY (roster + LENS deferred to 2c, per the monitor reassessment). The freeze guard extended to 3 carve-outs AND hardened (S-BS-124 closed: every added code line in an authorized hunk must carry a marker; comments exempt). Both envs fully green (core 440/0-failed; debuglithrim 493/0-failed). CAVEATS for the monitor: (1) HARD GATE — the fresh-critic (isolation:'worktree') is still REQUIRED and is the monitor's to spawn; key scrutiny target = the SELF-CAUGHT regression fix (commit 9813e2c): council_roster() must read DEFAULT_PACK (canonical/pack-independent), NOT the active pack — verify this is the right call (it restores exact pre-2b behavior; the carve-out still follows the active pack, which is the actual 2b flip). (2) S-BS-125 (low) logged: the council_roster/council_known_codes pack-resolution asymmetry for a future multi-pack world. (3) the 1b SPEC entry's stale :485-516 roster citation was left as-is (historical); my 2b entry uses the correct :467-498.",
+
+  "next_session_hint": "monitor: spawn the HARD-GATE fresh critic (isolation:'worktree') scrutinizing the council_roster canonical-pack decision + the carve-out value-preservation + guard non-vacuity, then run /devloop-audit bench-salvage PACK-2b"
+}
