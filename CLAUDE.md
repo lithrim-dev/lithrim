@@ -40,7 +40,7 @@ If a case cannot meet (1)–(4), it does **not** ship. Do not append to `example
 
 ## Taxonomy snapshot is the contract
 
-`packs/healthcare/taxonomy_snapshot.json` is the only coupling point to `lithrim-backend` — the snapshot relocated INTO the `healthcare` pack (PACK-1, layer-1a: the invariant *moves* into the pack, it does not weaken). Refresh it via `scripts/snapshot_taxonomy.py --backend-path … --out packs/healthcare/taxonomy_snapshot.json` (the `--out` default already points there). Never hand-edit. If the lint script starts failing after a backend taxonomy change, the fix is to re-snapshot, not to soft-pass cases. The core resolves the snapshot via the **active pack** (`lithrim_bench/harness/pack.py`), not a hardcoded path.
+`packs/healthcare/taxonomy_snapshot.json` is the only coupling point to `lithrim-backend` — the snapshot relocated INTO the `healthcare` pack (PACK-1, layer-1a: the invariant *moves* into the pack, it does not weaken). Refresh it via `scripts/snapshot_taxonomy.py --backend-path … --out packs/healthcare/taxonomy_snapshot.json` (the `--out` default already points there). Never hand-edit. If the lint script starts failing after a backend taxonomy change, the fix is to re-snapshot, not to soft-pass cases. The core resolves the snapshot via the **active pack** (`lithrim_bench/harness/pack.py`), not a hardcoded path. As of PACK-1b the live council reads its `KNOWN_TAXONOMY_CODES` + tier sets FROM this snapshot at runtime (`pack_tiers()`), so it is load-bearing at runtime, not just a lint contract.
 
 ## Document organization
 
