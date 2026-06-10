@@ -23,8 +23,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
-from .base import DefectInjector, InjectionRecipe, InjectionResult
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
 
 # Tokens whose presence in the source dialogue would mean the patient DID
 # engage with consent/authorization — in which case fabricating it is no longer

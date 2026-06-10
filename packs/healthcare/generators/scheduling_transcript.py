@@ -17,7 +17,7 @@ case.
 """
 from __future__ import annotations
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
 
 VERIFICATION_START = "<!-- verification -->"
 VERIFICATION_END = "<!-- /verification -->"

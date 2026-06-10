@@ -9,7 +9,7 @@ import json
 from datetime import timedelta
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
 
 
 def _slot_window(spec: EncounterSpec) -> tuple[str, str]:

@@ -35,24 +35,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lithrim_bench.encounter_spec import EncounterSpec
 from lithrim_bench.harness.pack import load_pack_generators
-from lithrim_bench.injectors import (
-    DefectInjector,
-    FabricatedConsentInjector,
-    MissedEscalationInjector,
-    PhiDisclosurePreVerificationInjector,
-)
+from lithrim_bench.injectors import DefectInjector, MissedEscalationInjector
 from lithrim_bench.packager import package_case, write_jsonl
 from lithrim_bench.packs import PackDefinition, active_packs
 from lithrim_bench.synthea_loader import SyntheaCohort
 from lithrim_bench.taxonomy import Taxonomy, load_taxonomy
 
-# PACK-5a: the scribe injectors relocated into the active healthcare pack; reach them via
-# the pack generator loader. The non-scribe injectors (above) stay core.
-_SCRIBE_GEN = load_pack_generators()
-FabricatedHistoryInjector = _SCRIBE_GEN.FabricatedHistoryInjector
-MissingAllergyInjector = _SCRIBE_GEN.MissingAllergyInjector
-ValueMismatchInjector = _SCRIBE_GEN.ValueMismatchInjector
-WrongDosageInjector = _SCRIBE_GEN.WrongDosageInjector
+# PACK-5a/5b: the scribe + HL7 + coding + scheduling generators relocated into the active
+# healthcare pack; reach them via the pack generator loader. MissedEscalation (triage) stays
+# core until 5b's triage bundle.
+_GEN = load_pack_generators()
+FabricatedConsentInjector = _GEN.FabricatedConsentInjector
+FabricatedHistoryInjector = _GEN.FabricatedHistoryInjector
+MissingAllergyInjector = _GEN.MissingAllergyInjector
+PhiDisclosurePreVerificationInjector = _GEN.PhiDisclosurePreVerificationInjector
+ValueMismatchInjector = _GEN.ValueMismatchInjector
+WrongDosageInjector = _GEN.WrongDosageInjector
 
 # A frozen timestamp so the corpus is byte-deterministic. packager.package_case
 # stamps datetime.now(); we overwrite it. The value is the cycle date — a

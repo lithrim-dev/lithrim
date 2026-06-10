@@ -44,6 +44,7 @@ from lithrim_bench.packs import PackDefinition
 from ._hl7 import find_segment, parse_segments
 from .coding_artifact import synthesize_coding_artifact
 from .coding_transcript import synthesize_coding_transcript
+from .fabricated_consent import FabricatedConsentInjector
 from .fabricated_history import FabricatedHistoryInjector
 from .hallucinated_detail import HallucinatedDetailInjector
 from .hl7_adt_artifact import synthesize_hl7_adt_artifact
@@ -54,6 +55,13 @@ from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
 from .hl7_missing_segment import Hl7MissingSegmentInjector
 from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
 from .missing_allergy import MissingAllergyInjector
+from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
+from .scheduling_artifact import synthesize_scheduling_artifact
+from .scheduling_transcript import (
+    VERIFICATION_END,
+    VERIFICATION_START,
+    synthesize_scheduling_transcript,
+)
 from .scribe_artifact import synthesize_scribe_artifact
 from .transcript import synthesize_scribe_transcript
 from .upcoding_risk import UpcodingRiskInjector
@@ -115,12 +123,29 @@ CODING_PACK = PackDefinition(
     injectors=CODING_INJECTORS,
 )
 
+# FabricatedConsentInjector is exported but intentionally NOT in
+# SCHEDULING_INJECTORS: adding it would change what the existing scheduling_v1
+# pack generates. The judge-calibration builder (scripts/generate_judge_calib.py)
+# references it directly.
+SCHEDULING_INJECTORS: list[type[DefectInjector]] = [
+    PhiDisclosurePreVerificationInjector,
+]
+
+SCHEDULING_PACK = PackDefinition(
+    name="scheduling_v1",
+    agent_type="scheduling",
+    transcript_fn=synthesize_scheduling_transcript,
+    artifact_fn=synthesize_scheduling_artifact,
+    injectors=SCHEDULING_INJECTORS,
+)
+
 # The registration surface (PACK-5a D1): the core's active_packs() merges this over the
 # non-scribe core recipes. Declarative — no execution at import beyond building the recipe.
 PACKS: dict[str, PackDefinition] = {
     SCRIBE_PACK.name: SCRIBE_PACK,
     HL7_ADT_PACK.name: HL7_ADT_PACK,
     CODING_PACK.name: CODING_PACK,
+    SCHEDULING_PACK.name: SCHEDULING_PACK,
 }
 
 __all__ = [
@@ -131,6 +156,9 @@ __all__ = [
     "HL7_ADT_PACK",
     "CODING_INJECTORS",
     "CODING_PACK",
+    "SCHEDULING_INJECTORS",
+    "SCHEDULING_PACK",
+    "FabricatedConsentInjector",
     "FabricatedHistoryInjector",
     "HallucinatedDetailInjector",
     "Hl7InvalidFieldFormatInjector",
@@ -139,15 +167,20 @@ __all__ = [
     "Hl7MissingSegmentInjector",
     "Hl7TriggerEventMismatchInjector",
     "MissingAllergyInjector",
+    "PhiDisclosurePreVerificationInjector",
     "UpcodingRiskInjector",
     "ValueMismatchInjector",
     "WrongDosageInjector",
+    "VERIFICATION_END",
+    "VERIFICATION_START",
     "find_segment",
     "parse_segments",
     "synthesize_coding_artifact",
     "synthesize_coding_transcript",
     "synthesize_hl7_adt_artifact",
     "synthesize_hl7_adt_transcript",
+    "synthesize_scheduling_artifact",
+    "synthesize_scheduling_transcript",
     "synthesize_scribe_artifact",
     "synthesize_scribe_transcript",
 ]

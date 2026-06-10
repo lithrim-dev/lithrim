@@ -18,9 +18,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
-from ..synthesizers.scheduling_transcript import VERIFICATION_END, VERIFICATION_START
-from .base import DefectInjector, InjectionRecipe, InjectionResult
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
+from .scheduling_transcript import VERIFICATION_END, VERIFICATION_START
 
 
 class PhiDisclosurePreVerificationInjector(DefectInjector):

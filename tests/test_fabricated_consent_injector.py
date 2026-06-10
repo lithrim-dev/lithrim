@@ -12,14 +12,20 @@ import json
 
 import pytest
 
-from lithrim_bench.injectors import FabricatedConsentInjector
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.packs import SCHEDULING_PACK
-from lithrim_bench.synthesizers.scheduling_artifact import synthesize_scheduling_artifact
-from lithrim_bench.synthesizers.scheduling_transcript import synthesize_scheduling_transcript
+from lithrim_bench.packs import active_packs
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5b: the scheduling generators + the scheduling_v1 recipe relocated into the active
+# healthcare pack; reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+FabricatedConsentInjector = _GEN.FabricatedConsentInjector
+synthesize_scheduling_artifact = _GEN.synthesize_scheduling_artifact
+synthesize_scheduling_transcript = _GEN.synthesize_scheduling_transcript
+SCHEDULING_PACK = active_packs()["scheduling_v1"]
 
 
 def test_injector_adds_consent_absent_from_transcript():

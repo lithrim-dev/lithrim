@@ -21,12 +21,9 @@ from typing import Any
 
 from .encounter_spec import EncounterSpec
 from .injectors import (
-    SCHEDULING_INJECTORS,
     TRIAGE_INJECTORS,
     DefectInjector,
 )
-from .synthesizers.scheduling_artifact import synthesize_scheduling_artifact
-from .synthesizers.scheduling_transcript import synthesize_scheduling_transcript
 from .synthesizers.triage_artifact import synthesize_triage_artifact
 from .synthesizers.triage_transcript import synthesize_triage_transcript
 
@@ -44,14 +41,6 @@ class PackDefinition:
     requires_active_medication: bool = False
 
 
-SCHEDULING_PACK = PackDefinition(
-    name="scheduling_v1",
-    agent_type="scheduling",
-    transcript_fn=synthesize_scheduling_transcript,
-    artifact_fn=synthesize_scheduling_artifact,
-    injectors=SCHEDULING_INJECTORS,
-)
-
 TRIAGE_PACK = PackDefinition(
     name="triage_v1",
     agent_type="triage",
@@ -63,7 +52,6 @@ TRIAGE_PACK = PackDefinition(
 # The non-scribe CORE recipes. The scribe recipe (``scribe_v1``) relocated into the active
 # pack's ``generators`` package (PACK-5a); ``active_packs()`` merges it back over these.
 _CORE_PACKS: dict[str, PackDefinition] = {
-    SCHEDULING_PACK.name: SCHEDULING_PACK,
     TRIAGE_PACK.name: TRIAGE_PACK,
 }
 
