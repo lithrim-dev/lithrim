@@ -211,38 +211,32 @@ PHI_FALSE_POSITIVE_TYPES = {
 # grounded evidence still escalate regardless of ownership — corroboration
 # overrides ownership. Mirrors the prompt scope boundaries on each
 # council_roles/*.txt file.
-_TIER1_OWNERS: Dict[str, set] = {
-    "WRONG_DOSAGE":                    {"behavior_judge", "source_message_judge", "risk_judge"},
-    # WS-6c-AGENTIC (S-BS-31, 2026-06-02): under v2-only the production trio is
-    # risk/policy/faithfulness_judge, so behavior_judge + source_message_judge are
-    # dormant. faithfulness_judge is the v2 successor that emits MISSING_ALLERGY
-    # (council_roles/faithfulness_judge.txt) — add it so single-judge Tier-1
-    # one-strike is restored under v2. risk_judge is deliberately NOT added: it
-    # emits FABRICATED_ALLERGY, not MISSING_ALLERGY, so it could never solo-fire
-    # this code (an inert owner would be misleading).
-    "MISSING_ALLERGY":                 {"behavior_judge", "source_message_judge", "faithfulness_judge"},
-    # 2026-05-11 council calibration: FABRICATED_ALLERGY is co-owned by
-    # risk_judge (patient-safety framing) and behavior_judge (fidelity
-    # framing). Single-judge fire from either is enough to reject. The
-    # source_message_judge is included for Lane-2 batch flows that may
-    # surface fabricated allergy entries against structured source records.
-    "FABRICATED_ALLERGY":              {"risk_judge", "behavior_judge", "source_message_judge"},
-    # WS-6c-AGENTIC (S-BS-31): consent / authorization is the policy judge's
-    # domain (policy_judge.txt question 5; risk_judge.txt defers consent to
-    # policy). Add policy_judge so v2 single-judge Tier-1 one-strike is restored
-    # for FABRICATED_CONSENT.
-    "FABRICATED_CONSENT":              {"behavior_judge", "source_message_judge", "policy_judge"},
-    "MISSED_ESCALATION":               {"behavior_judge", "risk_judge"},
-    "SEVERITY_ESCALATION":             {"behavior_judge", "risk_judge"},
-    "PHI_DISCLOSURE_PRE_VERIFICATION": {"policy_judge"},
-    # DP-SPRINT-01-B2-FIX: VALUE_MISMATCH is an artifact-vs-transcript fidelity
-    # check. WS-6c-AGENTIC (S-BS-31, 2026-06-02): behavior_judge is dormant under
-    # v2-only; faithfulness_judge is the v2 successor carrying transcript+artifact
-    # fidelity scope (council_roles/faithfulness_judge.txt names VALUE_MISMATCH),
-    # so add it to restore single-judge Tier-1 one-strike. NOT replicating the
-    # source_message_judge entry pattern (operationally dead per DP-SPRINT-01-B2).
-    "VALUE_MISMATCH":                  {"behavior_judge", "faithfulness_judge"},
-}
+# The 8 owner entries resolve from the active pack's snapshot via the PACK-2b carve-out (the
+# owner-map source-of-truth flip; the direct PACK-1b analogue): they live in
+# packs/<id>/taxonomy_snapshot.json `tier1_owners`, read through harness.pack.pack_tier1_owners()
+# with the same inline-__import__ shape PACK-1b used for the tier sets (no top-level harness.pack
+# import — the frozen file stays dep-light). The symbol name + the one-strike membership read in
+# _apply_consensus are 0-delta; only the SOURCE moves. The clinical / S-BS-31 ownership provenance
+# that annotated the former literal entries is preserved here verbatim:
+#   MISSING_ALLERGY — WS-6c-AGENTIC (S-BS-31, 2026-06-02): under v2-only the production trio is
+#   risk/policy/faithfulness_judge, so behavior_judge + source_message_judge are dormant.
+#   faithfulness_judge is the v2 successor that emits MISSING_ALLERGY (council_roles/
+#   faithfulness_judge.txt) — add it so single-judge Tier-1 one-strike is restored under v2.
+#   risk_judge is deliberately NOT added: it emits FABRICATED_ALLERGY, not MISSING_ALLERGY, so it
+#   could never solo-fire this code (an inert owner would be misleading).
+#   FABRICATED_ALLERGY — 2026-05-11 council calibration: co-owned by risk_judge (patient-safety
+#   framing) and behavior_judge (fidelity framing). Single-judge fire from either is enough to
+#   reject. The source_message_judge is included for Lane-2 batch flows that may surface
+#   fabricated allergy entries against structured source records.
+#   FABRICATED_CONSENT — WS-6c-AGENTIC (S-BS-31): consent / authorization is the policy judge's
+#   domain (policy_judge.txt question 5; risk_judge.txt defers consent to policy). Add policy_judge
+#   so v2 single-judge Tier-1 one-strike is restored for FABRICATED_CONSENT.
+#   VALUE_MISMATCH — DP-SPRINT-01-B2-FIX: an artifact-vs-transcript fidelity check. WS-6c-AGENTIC
+#   (S-BS-31, 2026-06-02): behavior_judge is dormant under v2-only; faithfulness_judge is the v2
+#   successor carrying transcript+artifact fidelity scope (council_roles/faithfulness_judge.txt
+#   names VALUE_MISMATCH), so add it to restore single-judge Tier-1 one-strike. NOT replicating the
+#   source_message_judge entry pattern (operationally dead per DP-SPRINT-01-B2).
+_TIER1_OWNERS: Dict[str, set] = dict(__import__("lithrim_bench.harness.pack", fromlist=["pack_tier1_owners"]).pack_tier1_owners())  # PACK-2b carve-out: owner-map resolved from the active pack (source-of-truth flip, value-preserving)
 
 # ---------------------------------------------------------------------------
 # FR-5: gate_mode=True 1-judge fast config (SPEC §3.1, §3.3 — Lane 1 NFR-1).

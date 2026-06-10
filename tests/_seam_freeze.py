@@ -141,12 +141,14 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
         )
 
 
-# PACK-1b (layer 1b): the council's taxonomy un-froze. The 3 tier-set LITERALS
-# (TIER_1_NEVER_EVENTS/TIER_2_HIGH_RISK/TIER_3_MEDIUM) now resolve from the active pack's
-# snapshot via an inline ``__import__`` of ``harness.pack.pack_tiers()`` — the source-of-truth
-# flip (the council reads its codes FROM the pack; the values are 0-delta). So the FROZEN
-# council now carries TWO authorized carve-outs vs ``acc4973``: the PACK-2 ``_ROLE_PROMPTS_DIR``
-# line AND the PACK-1b taxonomy block. The guard admits exactly these, byte-freezing all else.
+# PACK-1b/2b (layer 1b/2b): the council's clinical DATA un-froze — first the taxonomy, then the
+# Tier-1 owner-map. The 3 tier-set LITERALS (TIER_1_NEVER_EVENTS/TIER_2_HIGH_RISK/TIER_3_MEDIUM,
+# PACK-1b) and the ``_TIER1_OWNERS`` map (PACK-2b) now resolve from the active pack's snapshot via
+# inline ``__import__``s of ``harness.pack.pack_tiers()`` / ``pack_tier1_owners()`` — the
+# source-of-truth flip (the council reads its codes + owners FROM the pack; the values are 0-delta).
+# So the FROZEN council carries THREE authorized carve-outs vs ``acc4973``: the PACK-2
+# ``_ROLE_PROMPTS_DIR`` line, the PACK-1b taxonomy block, AND the PACK-2b owner-map block. The
+# guard admits exactly these, byte-freezing all else.
 _COUNCIL_AUTHORIZED_MARKERS = (
     "_ROLE_PROMPTS_DIR",     # PACK-2 prompts-dir carve-out
     "TIER_1_NEVER_EVENTS",   # PACK-1b taxonomy carve-out
@@ -154,32 +156,36 @@ _COUNCIL_AUTHORIZED_MARKERS = (
     "TIER_3_MEDIUM",
     "KNOWN_TAXONOMY_CODES",
     "pack_tiers",
+    "_TIER1_OWNERS",         # PACK-2b owner-map carve-out
+    "pack_tier1_owners",
 )
 # The exact carve-out CALL signatures that must be present (revert-detection). Reverting
-# either carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
+# any carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
 _COUNCIL_REQUIRED_CARVEOUTS = (
     '__import__("lithrim_bench.harness.pack", fromlist=["pack_tiers"]).pack_tiers()',
     '__import__("lithrim_bench.harness.pack", fromlist=["pack_prompts_path"]).pack_prompts_path()',
+    '__import__("lithrim_bench.harness.pack", fromlist=["pack_tier1_owners"]).pack_tier1_owners()',
 )
 
 
 def assert_compliance_council_carveouts_only(repo: Path) -> None:
-    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT two AUTHORIZED
-    carve-outs: the PACK-2 ``_ROLE_PROMPTS_DIR`` line (role prompts → the pack) and the
-    PACK-1b taxonomy block (the 3 tier sets → ``pack_tiers()``; the source-of-truth flip).
+    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT three AUTHORIZED
+    carve-outs: the PACK-2 ``_ROLE_PROMPTS_DIR`` line (role prompts → the pack), the PACK-1b
+    taxonomy block (the 3 tier sets → ``pack_tiers()``), and the PACK-2b owner-map block
+    (``_TIER1_OWNERS`` → ``pack_tier1_owners()``) — the clinical-DATA source-of-truth flips.
 
-    Everything else — the consensus engine, the ``CouncilModel`` roster (``:485-516``),
-    ``_TIER1_OWNERS``, the ``KNOWN_TAXONOMY_CODES`` union line (unchanged), ``_apply_consensus``,
+    Everything else — the consensus engine, the ``CouncilModel`` roster (``:467-498``),
+    ``LENS_BY_ROLE``, the ``KNOWN_TAXONOMY_CODES`` union line (unchanged), ``_apply_consensus``,
     ``_load_role_prompts`` — stays FROZEN. The carve-outs are class-/module-level statements,
     so the top-level-symbol freeze (used for ``judges_dspy``) is too coarse; a ``difflib``
     line-diff is used instead.
 
-    Non-vacuous in BOTH directions: (upper bound) every changed hunk must be a ``replace``
-    carrying an authorized marker, so an unauthorized edit anywhere else FAILS; (lower bound)
-    both carve-out call signatures must be present, so reverting EITHER carve-out FAILS. Honest
-    residual (parity with the single-hunk PACK-2 guard this replaces): a malicious line added
-    INSIDE an authorized hunk that still carries a marker would pass — the marker bar is not
-    lowered, only widened from one carve-out to two."""
+    Non-vacuous in BOTH directions: (upper bound) every changed hunk must be a ``replace`` whose
+    every added CODE line carries an authorized marker (comments/blanks — e.g. the relocated
+    provenance — are exempt), so an unauthorized edit anywhere else FAILS *and* a malicious code
+    line smuggled inside an authorized hunk FAILS (the PACK-2b per-line hardening, S-BS-124 —
+    closes the prior 'a marker-bearing hunk can hide an extra line' residual); (lower bound) all
+    three carve-out call signatures must be present, so reverting ANY carve-out FAILS."""
     base = subprocess.run(
         ["git", "show", f"{_SEAM_BASELINE}:{_COMPLIANCE_COUNCIL_REL}"],
         cwd=repo,
@@ -208,10 +214,24 @@ def assert_council_carveouts_only(base_lines: list[str], cur_text: str) -> None:
         changed_base = "".join(base_lines[i1:i2])
         changed_cur = "".join(cur[j1:j2])
         assert any(m in changed_base or m in changed_cur for m in _COUNCIL_AUTHORIZED_MARKERS), (
-            "unauthorized changed hunk in compliance_council.py (no taxonomy / prompts-dir "
-            f"marker):\n  base={changed_base!r}\n  cur={changed_cur!r}"
+            "unauthorized changed hunk in compliance_council.py (no taxonomy / prompts-dir / "
+            f"owner-map marker):\n  base={changed_base!r}\n  cur={changed_cur!r}"
         )
-    # Lower bound: both carve-outs ARE applied (rejects reverting either).
+        # PACK-2b hardening (S-BS-124): within an authorized hunk, every ADDED *code* line must
+        # itself carry a marker — comments (the relocated clinical provenance) and blank lines are
+        # exempt. Closes the prior residual where a malicious line could ride inside a marker-bearing
+        # hunk: a smuggled code line carries no marker, so it FAILS here. (All real carve-out code
+        # lines — the _ROLE_PROMPTS_DIR / _PACK_TIERS / TIER_* / _TIER1_OWNERS assignments — carry
+        # one, so the real tree passes.)
+        for line in cur[j1:j2]:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            assert any(m in line for m in _COUNCIL_AUTHORIZED_MARKERS), (
+                "unauthorized code line inside an authorized compliance_council.py carve-out "
+                f"hunk (no marker): {line!r}"
+            )
+    # Lower bound: all carve-outs ARE applied (rejects reverting any).
     for sig in _COUNCIL_REQUIRED_CARVEOUTS:
         assert sig in cur_text, (
             f"compliance_council.py is missing an authorized carve-out (reverted?): {sig!r}"
