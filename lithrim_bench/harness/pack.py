@@ -17,9 +17,14 @@ hardcode. :func:`council_known_codes` therefore reads the SAME snapshot (a self-
 value, no longer an AST parse of the council's literals), and
 :func:`assert_pack_council_consistent` is now a cheap self-consistency no-op; the genuine
 council⇄snapshot equivalence (that the *imported* council resolved the same set) is pinned in
-the ``[council]``-env layer-1b test. The AST-parse-no-import technique survives for the
-ROSTER (:func:`council_roster`, which still reads the literal ``CouncilModel`` roster +
-``_TIER1_OWNERS`` — un-freezing those is layer 2b).
+the ``[council]``-env layer-1b test.
+
+Layer 2b extends the flip to the **Tier-1 owner-map**: the council resolves ``_TIER1_OWNERS``
+FROM the snapshot via :func:`pack_tier1_owners` (the same inline-``__import__`` carve-out), so
+the consensus one-strike owner-map is pack-resolved too. :func:`council_roster` therefore reads
+its owner roles from the snapshot; the AST-parse-no-import technique survives only for the
+``CouncilModel`` roster names (still a council literal — un-freezing that infra roster + the
+``judge_metric.LENS_BY_ROLE`` lenses is a later, separate cut).
 """
 
 from __future__ import annotations
@@ -112,6 +117,21 @@ def pack_tiers(pack: str | None = None) -> dict[str, frozenset[str]]:
     return {name: frozenset(snap["tiers"][name]) for name in _COUNCIL_TIER_NAMES}
 
 
+def pack_tier1_owners(pack: str | None = None) -> dict[str, frozenset[str]]:
+    """The active (or named) pack's Tier-1 ownership map (``code -> {owning judge roles}``),
+    read straight from the snapshot ``tier1_owners``.
+
+    This is the layer-2b source-of-truth flip — the owner-map twin of :func:`pack_tiers`: the
+    FROZEN council resolves ``_TIER1_OWNERS`` from HERE (``compliance_council.py`` inline
+    ``__import__`` carve-out) instead of carrying a hardcoded literal copy, so the consensus
+    one-strike owner-map lives in ``packs/<id>/taxonomy_snapshot.json``. Ungated and stdlib-only
+    ON PURPOSE for the SAME reason as :func:`pack_tiers`: the council imports this during its OWN
+    module import, so any gated/heavy path would re-enter; a direct snapshot read stays acyclic
+    and ``import lithrim_bench.harness.pack`` heavy-dep-free (no ``openai``)."""
+    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    return {code: frozenset(owners) for code, owners in snap["tier1_owners"].items()}
+
+
 def pack_taxonomy_codes(pack: str | None = None) -> frozenset[str]:
     """The active (or named) pack's full taxonomy code set (the TIER_1|2|3 union)."""
     return frozenset().union(*pack_tiers(pack).values())
@@ -159,13 +179,17 @@ def pack_taxonomy_path(pack: str | None = None) -> Path:
 
 @lru_cache(maxsize=1)
 def council_roster() -> frozenset[str]:
-    """Every judge role the frozen council knows, AST-parsed from its source — no import.
+    """Every judge role the frozen council knows: the ``CouncilModel(name=…, prompt_role=…)``
+    roster (AST-parsed from the council source — no import) UNION the Tier-1 owner roles.
 
-    The union of the ``CouncilModel(name=…, prompt_role=…)`` roster (across both the v2
-    and v1 branches → risk/policy/faithfulness/behavior) and the ``_TIER1_OWNERS`` owner
-    sets (which carry the dormant ``source_message_judge``). This is the authoritative
-    "known role" set the judges gate checks against — the same no-import technique as
-    :func:`council_known_codes`."""
+    The roster names (across both the v2 and v1 branches → risk/policy/faithfulness/behavior)
+    are still AST-collected from the frozen source (it stays a literal). The owner roles (which
+    carry the dormant ``source_message_judge``) now come FROM the active pack's snapshot via
+    :func:`pack_tier1_owners` — post-layer-2b ``_TIER1_OWNERS`` is no longer a council literal
+    (the carve-out resolves it from the pack), so AST-eval'ing it would raise; the value is
+    0-delta (the snapshot owner-map == the former literal). Both legs are ``openai``-free, so
+    this still runs in the core (no-import) env — the authoritative "known role" set the judges
+    gate checks against."""
     tree = ast.parse(_COUNCIL_SOURCE.read_text())
     roles: set[str] = set()
     for node in ast.walk(tree):
@@ -177,20 +201,8 @@ def council_roster() -> frozenset[str]:
             for kw in node.keywords:
                 if kw.arg in ("name", "prompt_role") and isinstance(kw.value, ast.Constant):
                     roles.add(kw.value.value)
-    for node in tree.body:
-        # ``_TIER1_OWNERS: Dict[str, set] = {…}`` is an annotated assignment.
-        if isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        elif isinstance(node, ast.Assign):
-            targets = node.targets
-        else:
-            continue
-        if any(isinstance(t, ast.Name) and t.id == "_TIER1_OWNERS" for t in targets):
-            for owners in ast.literal_eval(node.value).values():
-                roles.update(owners)
-            break
-    else:
-        raise KeyError(f"'_TIER1_OWNERS' not found in council source {_COUNCIL_SOURCE}")
+    for owners in pack_tier1_owners().values():
+        roles.update(owners)
     return frozenset(roles)
 
 

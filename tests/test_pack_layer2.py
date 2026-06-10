@@ -152,9 +152,11 @@ def test_gate_fails_closed_on_a_declared_judge_off_the_roster():
 
 
 def test_council_roster_is_ast_parsed_without_importing_openai():
-    """The gate reads the frozen council roster via AST, not import — so it runs in the
-    core (no-openai) env. The green run with openai absent is itself the proof; here we
-    pin that the parse yields the real roles (not an empty/vacuous set)."""
+    """The gate reads the frozen council roster without importing it — so it runs in the
+    core (no-openai) env. Post-layer-2b the ``CouncilModel`` roster NAMES are still AST-parsed
+    from the source, while the Tier-1 owner roles come from the pack snapshot; both legs are
+    openai-free. The green run with openai absent is itself the proof; here we pin that the
+    resolution yields the real roles (not an empty/vacuous set)."""
     roster = pack.council_roster()
     assert "risk_judge" in roster and "source_message_judge" in roster
     assert len(roster) == 5

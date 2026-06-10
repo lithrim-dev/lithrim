@@ -11,12 +11,12 @@ Extraction strategy (forced by the runtime's import chain):
     23 ``SafetyFlagDefinition`` rows (flag, category, definition, when_to_use,
     when_NOT_to_use, reliability_pillar).
   - ``compliance_council`` does ``import openai`` at module top, which is NOT
-    installed in the seed/eval environment — so we CANNOT import it. Post-PACK-1b its
-    ``TIER_1_NEVER_EVENTS`` / ``TIER_2_HIGH_RISK`` / ``TIER_3_MEDIUM`` sets are no
-    longer literals (the council resolves them FROM the snapshot via ``pack_tiers()``),
-    so we read the tier→label map from ``taxonomy_snapshot.json`` (the source of truth);
-    the ``_TIER1_OWNERS`` dict is still a literal (2b), so it stays ``ast.literal_eval``'d
-    straight out of the source file.
+    installed in the seed/eval environment — so we CANNOT import it. Post-PACK-1b/2b its
+    ``TIER_1_NEVER_EVENTS`` / ``TIER_2_HIGH_RISK`` / ``TIER_3_MEDIUM`` sets AND its
+    ``_TIER1_OWNERS`` map are no longer literals (the council resolves them FROM the
+    snapshot via ``pack_tiers()`` / ``pack_tier1_owners()``), so we read the tier→label
+    map and the owner-map straight from ``taxonomy_snapshot.json`` (the source of truth) —
+    no council-source AST parse at all.
   - ``council_roles/*.txt`` numbered "KEY QUESTIONS TO ANSWER" blocks are parsed
     as plain text. Only 3 of the 5 role files carry that block (policy / risk /
     source_message); behavior / faithfulness use a different prose structure and
@@ -56,7 +56,6 @@ grounding, never scored.
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import re
 import sys
@@ -65,7 +64,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COUNCIL_DIR = REPO_ROOT / "lithrim_bench" / "runtime" / "council"
 SAFETY_FLAGS_PY = COUNCIL_DIR / "safety_flags.py"
-COMPLIANCE_PY = COUNCIL_DIR / "compliance_council.py"
 ROLE_DIR = REPO_ROOT / "packs" / "healthcare" / "council_roles"  # PACK-2: relocated into the pack
 OUT_PATH = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 SNAPSHOT_PATH = REPO_ROOT / "packs" / "healthcare" / "taxonomy_snapshot.json"
@@ -142,24 +140,6 @@ RECORD_PRESENCE_CONTRACT = {
 }
 
 
-def _module_assign(source: str, name: str) -> ast.expr:
-    """Return the value node of a top-level ``name = <literal>`` assignment."""
-    tree = ast.parse(source)
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            for tgt in node.targets:
-                if isinstance(tgt, ast.Name) and tgt.id == name:
-                    return node.value
-        if (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and node.target.id == name
-            and node.value is not None
-        ):
-            return node.value
-    raise KeyError(f"top-level assignment {name!r} not found in source")
-
-
 def load_snapshot_codes(path: Path = SNAPSHOT_PATH) -> set[str]:
     """The 19-code tier union from ``taxonomy_snapshot.json`` — the gradeable gate.
 
@@ -186,15 +166,16 @@ def gradeable_flags_outside_snapshot(flags: list[dict], snapshot_codes: set[str]
 
 
 def parse_tiers_and_owners(
-    source: str, snapshot_path: Path = SNAPSHOT_PATH
+    snapshot_path: Path = SNAPSHOT_PATH,
 ) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """The tier→label map (from the snapshot) + ``_TIER1_OWNERS`` (from the council source).
+    """The tier→label map + the Tier-1 owner-map, both read from ``taxonomy_snapshot.json``.
 
-    Post-PACK-1b the council resolves its tier sets FROM the snapshot, so they are no longer
-    literal-evalable from the council source — the tier→label map is read from
-    ``taxonomy_snapshot.json`` (the source of truth). ``_TIER1_OWNERS`` is still a council
-    literal (2b), so it stays ``ast.literal_eval``'d from ``source`` (no import — openai absent)."""
-    tiers = json.loads(snapshot_path.read_text())["tiers"]
+    Post-PACK-1b/2b the FROZEN council resolves BOTH its tier sets AND its ``_TIER1_OWNERS``
+    map FROM the snapshot (the source of truth), so neither is literal-evalable from the council
+    source any more — we read both straight from ``taxonomy_snapshot.json`` (no council import;
+    ``openai`` is absent in the seed env)."""
+    snap = json.loads(snapshot_path.read_text())
+    tiers = snap["tiers"]
     tier_of: dict[str, str] = {}
     for tier_name, label in (
         ("TIER_1_NEVER_EVENTS", "TIER_1"),
@@ -204,8 +185,7 @@ def parse_tiers_and_owners(
         for code in tiers[tier_name]:
             tier_of[code] = label
 
-    owners_raw = ast.literal_eval(_module_assign(source, "_TIER1_OWNERS"))
-    owners = {code: sorted(roles) for code, roles in owners_raw.items()}
+    owners = {code: sorted(roles) for code, roles in snap["tier1_owners"].items()}
     return tier_of, owners
 
 
@@ -245,7 +225,7 @@ def build_seed() -> dict:
     sys.path.insert(0, str(REPO_ROOT))
     from lithrim_bench.runtime.council import safety_flags as sf  # noqa: E402
 
-    tier_of, owners = parse_tiers_and_owners(COMPLIANCE_PY.read_text())
+    tier_of, owners = parse_tiers_and_owners()
 
     flags = []
     for d in sf.SAFETY_FLAG_DEFINITIONS:
