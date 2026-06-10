@@ -62,10 +62,10 @@ def _active_packs(pack: str) -> dict[str, PackDefinition]:
 
 
 def active_packs() -> dict[str, PackDefinition]:
-    """The active pack's full recipe set: the core's non-scribe recipes ⊕ the pack's
-    relocated generators (``load_pack_generators(active_pack()).PACKS``). Cached on the
-    resolved pack id. A pack with no ``generators`` declaration yields just the core
-    recipes (the scribe recipe absent — there is no core fallback for it post-5a)."""
+    """The active pack's full recipe set, resolved entirely from the pack
+    (``load_pack_generators(active_pack()).PACKS``) — PACK-5b emptied ``_CORE_PACKS``,
+    so there are no core recipes to merge. Cached on the resolved pack id. A pack with
+    no ``generators`` declaration degrades to ``{}`` (no core fallback)."""
     from .harness.pack import active_pack
 
     return _active_packs(active_pack())
