@@ -141,19 +141,45 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
         )
 
 
-def assert_compliance_council_prompts_dir_relocated_only(repo: Path) -> None:
-    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT the single
-    ``_ROLE_PROMPTS_DIR`` class-attr line (PACK-2 D5 carve-out).
+# PACK-1b (layer 1b): the council's taxonomy un-froze. The 3 tier-set LITERALS
+# (TIER_1_NEVER_EVENTS/TIER_2_HIGH_RISK/TIER_3_MEDIUM) now resolve from the active pack's
+# snapshot via an inline ``__import__`` of ``harness.pack.pack_tiers()`` — the source-of-truth
+# flip (the council reads its codes FROM the pack; the values are 0-delta). So the FROZEN
+# council now carries TWO authorized carve-outs vs ``acc4973``: the PACK-2 ``_ROLE_PROMPTS_DIR``
+# line AND the PACK-1b taxonomy block. The guard admits exactly these, byte-freezing all else.
+_COUNCIL_AUTHORIZED_MARKERS = (
+    "_ROLE_PROMPTS_DIR",     # PACK-2 prompts-dir carve-out
+    "TIER_1_NEVER_EVENTS",   # PACK-1b taxonomy carve-out
+    "TIER_2_HIGH_RISK",
+    "TIER_3_MEDIUM",
+    "KNOWN_TAXONOMY_CODES",
+    "pack_tiers",
+)
+# The exact carve-out CALL signatures that must be present (revert-detection). Reverting
+# either carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
+_COUNCIL_REQUIRED_CARVEOUTS = (
+    '__import__("lithrim_bench.harness.pack", fromlist=["pack_tiers"]).pack_tiers()',
+    '__import__("lithrim_bench.harness.pack", fromlist=["pack_prompts_path"]).pack_prompts_path()',
+)
 
-    The live council globs the prompt files itself, so relocating ``council_roles`` into
-    the pack required repointing its ``_ROLE_PROMPTS_DIR`` — an AUTHORIZED, path-only,
-    behavior-preserving touch. Everything else (the consensus engine, the ``CouncilModel``
-    roster, ``_TIER1_OWNERS``, ``KNOWN_TAXONOMY_CODES``, ``_load_role_prompts``) stays
-    FROZEN. ``_ROLE_PROMPTS_DIR`` is a CLASS attribute, so the top-level-symbol freeze
-    (used for ``judges_dspy``) is too coarse — a ``difflib`` line-diff is used instead.
 
-    Non-vacuous: reverting the carve-out collapses the diff to zero changed hunks, which
-    FAILS the 'exactly one' assertion."""
+def assert_compliance_council_carveouts_only(repo: Path) -> None:
+    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT two AUTHORIZED
+    carve-outs: the PACK-2 ``_ROLE_PROMPTS_DIR`` line (role prompts → the pack) and the
+    PACK-1b taxonomy block (the 3 tier sets → ``pack_tiers()``; the source-of-truth flip).
+
+    Everything else — the consensus engine, the ``CouncilModel`` roster (``:485-516``),
+    ``_TIER1_OWNERS``, the ``KNOWN_TAXONOMY_CODES`` union line (unchanged), ``_apply_consensus``,
+    ``_load_role_prompts`` — stays FROZEN. The carve-outs are class-/module-level statements,
+    so the top-level-symbol freeze (used for ``judges_dspy``) is too coarse; a ``difflib``
+    line-diff is used instead.
+
+    Non-vacuous in BOTH directions: (upper bound) every changed hunk must be a ``replace``
+    carrying an authorized marker, so an unauthorized edit anywhere else FAILS; (lower bound)
+    both carve-out call signatures must be present, so reverting EITHER carve-out FAILS. Honest
+    residual (parity with the single-hunk PACK-2 guard this replaces): a malicious line added
+    INSIDE an authorized hunk that still carries a marker would pass — the marker bar is not
+    lowered, only widened from one carve-out to two."""
     base = subprocess.run(
         ["git", "show", f"{_SEAM_BASELINE}:{_COMPLIANCE_COUNCIL_REL}"],
         cwd=repo,
@@ -161,22 +187,27 @@ def assert_compliance_council_prompts_dir_relocated_only(repo: Path) -> None:
         text=True,
         check=True,
     ).stdout.splitlines(keepends=True)
-    cur = (repo / _COMPLIANCE_COUNCIL_REL).read_text().splitlines(keepends=True)
+    cur_text = (repo / _COMPLIANCE_COUNCIL_REL).read_text()
+    cur = cur_text.splitlines(keepends=True)
     changed = [
         op for op in difflib.SequenceMatcher(None, base, cur).get_opcodes() if op[0] != "equal"
     ]
-    assert len(changed) == 1, (
-        f"compliance_council.py carve-out must be exactly one changed hunk vs {_SEAM_BASELINE}, "
-        f"found {len(changed)}: {[op[0] for op in changed]}"
-    )
-    tag, i1, i2, j1, j2 = changed[0]
-    assert tag == "replace", f"the one carve-out hunk must be a replace, got {tag!r}"
-    changed_base = "".join(base[i1:i2])
-    changed_cur = "".join(cur[j1:j2])
-    assert "_ROLE_PROMPTS_DIR" in changed_base and "_ROLE_PROMPTS_DIR" in changed_cur, (
-        "the one changed hunk in compliance_council.py is not the _ROLE_PROMPTS_DIR line:\n"
-        f"  base={changed_base!r}\n  cur={changed_cur!r}"
-    )
+    # Upper bound: every changed hunk is an authorized replace (rejects edits elsewhere).
+    for tag, i1, i2, j1, j2 in changed:
+        assert tag == "replace", (
+            f"compliance_council.py change at base L{i1 + 1}-{i2} must be a replace, got {tag!r}"
+        )
+        changed_base = "".join(base[i1:i2])
+        changed_cur = "".join(cur[j1:j2])
+        assert any(m in changed_base or m in changed_cur for m in _COUNCIL_AUTHORIZED_MARKERS), (
+            "unauthorized changed hunk in compliance_council.py (no taxonomy / prompts-dir "
+            f"marker):\n  base={changed_base!r}\n  cur={changed_cur!r}"
+        )
+    # Lower bound: both carve-outs ARE applied (rejects reverting either).
+    for sig in _COUNCIL_REQUIRED_CARVEOUTS:
+        assert sig in cur_text, (
+            f"compliance_council.py is missing an authorized carve-out (reverted?): {sig!r}"
+        )
 
 
 def assert_council_roles_relocated_only(repo: Path) -> None:
