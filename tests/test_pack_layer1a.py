@@ -6,8 +6,10 @@ clinical content path; the only residual old-path strings in ``scripts/`` are
 ``taxonomy_snapshot`` PROVENANCE LABELS stamped into already-committed corpora (a
 documented carve-out — those are output metadata recording where the snapshot lived
 at build time, not live load dependencies; the live ``load_taxonomy()`` resolves via
-the pack). The consistency gate (D4/A3) keeps the loaded pack council-compatible
-while ``compliance_council.KNOWN_TAXONOMY_CODES`` stays FROZEN (layer 1b un-freezes it).
+the pack). The consistency gate (D4/A3) kept the loaded pack council-compatible while the
+council still owned a hardcoded ``KNOWN_TAXONOMY_CODES`` copy; **layer 1b flipped that** — the
+council now reads its codes FROM the pack (``pack.pack_tiers``), so ``council_known_codes()``
+reads the same snapshot and the gate is a self-consistency no-op (see ``test_pack_layer1b``).
 """
 
 from __future__ import annotations
@@ -120,9 +122,12 @@ def test_gate_fails_closed_on_an_unknown_code():
     assert "NOT_A_REAL_TAXONOMY_CODE" in str(ei.value)
 
 
-def test_council_codes_are_ast_parsed_without_importing_openai():
-    """The gate reads the frozen council via AST, not import — so it runs in the core
-    (no-openai) env. The green run with openai absent is itself the proof; here we pin
-    that the parse yields real council codes (not an empty/vacuous set)."""
+def test_council_codes_resolve_from_the_pack_without_importing_openai():
+    """``council_known_codes()`` resolves the taxonomy with no council import and no
+    ``openai`` — so it runs in the core (no-openai) env. Post layer-1b the council reads its
+    codes FROM the pack, so this reads the SAME snapshot directly (it no longer AST-parses the
+    council's literals — those are now ``pack_tiers()`` subscripts a ``literal_eval`` would
+    reject). The green run with openai absent is itself the proof; here we pin that it yields
+    real codes (not an empty/vacuous set)."""
     codes = pack.council_known_codes()
     assert "WRONG_DOSAGE" in codes and "MISSING_ALLERGY" in codes

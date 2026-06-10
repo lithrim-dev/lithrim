@@ -9,13 +9,17 @@ content path. ``harness/ontology.py`` and ``taxonomy.py`` resolve their defaults
 through here; relocating the clinical realm into ``packs/healthcare/`` is what makes
 the core↔domain boundary grep-verifiable (no ``clinical_v1`` literal in the core).
 
-The **consistency gate** (:func:`assert_pack_council_consistent`) bridges to the
-still-FROZEN council: it asserts the loaded pack's taxonomy codes are a subset of the
-council's ``KNOWN_TAXONOMY_CODES`` while that set stays hardcoded in the frozen
-``compliance_council.py`` (un-freezing it is layer 1b). The council's codes are read
-by AST-parsing its source — NOT by importing it: the core (OSS) env has no ``openai``,
-so ``import ...compliance_council`` fails there; a textual parse is dependency-free and
-read-only (the same technique ``scripts/seed_ontology.py`` uses).
+The **taxonomy source-of-truth** (healthcare-realm-as-pack, layer 1b): the FROZEN council
+reads its 3 tier sets FROM the active pack's snapshot via :func:`pack_tiers` (the PACK-2
+inline-``__import__`` carve-out in ``compliance_council.py``), so
+``packs/<id>/taxonomy_snapshot.json`` is the **single source of truth** — not a council
+hardcode. :func:`council_known_codes` therefore reads the SAME snapshot (a self-consistency
+value, no longer an AST parse of the council's literals), and
+:func:`assert_pack_council_consistent` is now a cheap self-consistency no-op; the genuine
+council⇄snapshot equivalence (that the *imported* council resolved the same set) is pinned in
+the ``[council]``-env layer-1b test. The AST-parse-no-import technique survives for the
+ROSTER (:func:`council_roster`, which still reads the literal ``CouncilModel`` roster +
+``_TIER1_OWNERS`` — un-freezing those is layer 2b).
 """
 
 from __future__ import annotations
@@ -67,20 +71,16 @@ def _resolve(ref: str) -> Path:
 
 @lru_cache(maxsize=1)
 def council_known_codes() -> frozenset[str]:
-    """The frozen council's ``KNOWN_TAXONOMY_CODES`` (TIER_1|2|3), AST-parsed from
-    source — no import (``openai`` is absent in the core env)."""
-    tree = ast.parse(_COUNCIL_SOURCE.read_text())
-    codes: set[str] = set()
-    for name in _COUNCIL_TIER_NAMES:
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == name for t in node.targets
-            ):
-                codes.update(ast.literal_eval(node.value))
-                break
-        else:
-            raise KeyError(f"{name!r} not found in council source {_COUNCIL_SOURCE}")
-    return frozenset(codes)
+    """The council's ``KNOWN_TAXONOMY_CODES`` (TIER_1|2|3 union).
+
+    Post layer-1b the council reads its taxonomy FROM the active pack (:func:`pack_tiers`),
+    so "the council's known codes" ARE the pack snapshot's codes — read here directly from
+    the snapshot (no ``openai``, no council import; the core OSS env stays dependency-light).
+    The genuine council⇄snapshot equivalence — that the *imported* council resolved the SAME
+    set — is pinned in the ``[council]``-env layer-1b test. (Pre-1b this AST-parsed the
+    council's literal tier sets; once those became ``pack_tiers()`` subscripts a
+    ``literal_eval`` would raise, so the re-point is atomic with the council carve-out.)"""
+    return _pack_taxonomy_codes(active_pack())
 
 
 def assert_codes_known(codes: frozenset[str] | set[str], *, pack: str = "<pack>") -> None:
@@ -96,18 +96,42 @@ def assert_codes_known(codes: frozenset[str] | set[str], *, pack: str = "<pack>"
         )
 
 
+def pack_tiers(pack: str | None = None) -> dict[str, frozenset[str]]:
+    """The active (or named) pack's 3 taxonomy tier sets, keyed by the council's tier-set
+    names (``TIER_1_NEVER_EVENTS`` / ``TIER_2_HIGH_RISK`` / ``TIER_3_MEDIUM``), read straight
+    from the snapshot ``tiers``.
+
+    This is the layer-1b source-of-truth flip: the FROZEN council resolves its tier sets from
+    HERE (``compliance_council.py`` inline ``__import__`` carve-out) instead of carrying a
+    hardcoded literal copy — so the pack snapshot is the single source of truth. Ungated and
+    stdlib-only ON PURPOSE: the council imports this during its OWN module import, so calling
+    the consistency gate (or :mod:`lithrim_bench.taxonomy`, which resolves a *gated* path at
+    its module import) from here would re-enter; reading the snapshot directly keeps it
+    acyclic and ``import lithrim_bench.harness.pack`` heavy-dep-free (no ``openai``)."""
+    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    return {name: frozenset(snap["tiers"][name]) for name in _COUNCIL_TIER_NAMES}
+
+
+def pack_taxonomy_codes(pack: str | None = None) -> frozenset[str]:
+    """The active (or named) pack's full taxonomy code set (the TIER_1|2|3 union)."""
+    return frozenset().union(*pack_tiers(pack).values())
+
+
 def _pack_taxonomy_codes(pack: str) -> frozenset[str]:
-    snap = json.loads(_resolve(_manifest(pack)["flags_ref"]).read_text())
-    codes: set[str] = set()
-    for tier in snap["tiers"].values():
-        codes.update(tier)
-    return frozenset(codes)
+    """Private union accessor, kept for the consistency gate + :func:`council_known_codes`."""
+    return pack_taxonomy_codes(pack)
 
 
 @lru_cache(maxsize=8)
 def assert_pack_council_consistent(pack: str) -> None:
-    """Assert the pack's taxonomy codes ⊆ the frozen council's known codes (cached;
-    runs once per pack per process, on first ontology/taxonomy resolution)."""
+    """A cheap self-consistency no-op, retained on the ontology/taxonomy resolution path.
+
+    Pre-1b this asserted the pack's codes ⊆ the council's HARDCODED ``KNOWN_TAXONOMY_CODES``
+    (the bridge that let the council stay frozen). Post-1b the council reads its codes FROM
+    the pack (:func:`council_known_codes` now returns the active pack's snapshot codes), so
+    for the active pack this is ``codes ⊆ codes`` — vacuously true. It is kept (not deleted)
+    so the resolution path keeps its fail-closed shape; the genuine council⇄snapshot
+    equivalence is pinned in the ``[council]``-env layer-1b test. Cached; runs once per pack."""
     assert_codes_known(_pack_taxonomy_codes(pack), pack=pack)
 
 
