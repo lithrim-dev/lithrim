@@ -74,6 +74,12 @@ def main() -> None:
     )
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", type=Path)
+    ap.add_argument(
+        "--generated-at",
+        default=None,
+        help="freeze each row's 'generated_at' to this ISO timestamp so the corpus is "
+        "byte-deterministic across runs (S-BS-120); default None = wall-clock now()",
+    )
     args = ap.parse_args()
 
     pack = active_packs()[args.pack]
@@ -162,6 +168,8 @@ def main() -> None:
             taxonomy=taxonomy,
             pinned=pinned,
         )
+        if args.generated_at:
+            row["generated_at"] = args.generated_at
         rows.append(row)
         matrix.append((row["case_id"], slot, row["expected_compliance_verdict"], row["expected_safety_flags"]))
 
