@@ -96,6 +96,36 @@ def test_council_roster_unchanged_by_the_owner_reposition():
     assert len(pack.council_roster()) == 5
 
 
+def test_council_roster_is_pack_independent_under_a_fixture_pack():
+    """Regression guard (the council's roster is its VALIDATION IDENTITY, not active-pack DATA):
+    ``council_roster()`` stays CANONICAL (the 5 real roles incl. the owner-only
+    ``source_message_judge``) even under ``LITHRIM_BENCH_PACK=_tiers_fixture`` — it reads
+    ``DEFAULT_PACK``'s owner-map, NOT the active pack's sentinel. If it followed the active pack the
+    fixture's reused healthcare ``council_roles`` would fail the judges gate at council import (the
+    bug this pins). A subprocess because the accessor is ``lru_cache``d; openai-free (AST + snapshot,
+    no council import)."""
+    env = dict(os.environ)
+    env["LITHRIM_BENCH_PACK"] = _FIXTURE_PACK
+    out = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import json; from lithrim_bench.harness import pack; "
+            "print(json.dumps(sorted(pack.council_roster())))",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    roster = set(json.loads(out.stdout.strip().splitlines()[-1]))
+    assert roster == _ROSTER_5, (
+        f"council_roster() followed the fixture pack (must stay canonical): {sorted(roster)}"
+    )
+    assert "source_message_judge" in roster
+
+
 # ─────────────────── core-env: the relaxed freeze guard's owner-map non-vacuity (A3 ii) ──────────────────
 
 

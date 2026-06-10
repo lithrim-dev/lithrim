@@ -19,12 +19,14 @@ value, no longer an AST parse of the council's literals), and
 council⇄snapshot equivalence (that the *imported* council resolved the same set) is pinned in
 the ``[council]``-env layer-1b test.
 
-Layer 2b extends the flip to the **Tier-1 owner-map**: the council resolves ``_TIER1_OWNERS``
-FROM the snapshot via :func:`pack_tier1_owners` (the same inline-``__import__`` carve-out), so
-the consensus one-strike owner-map is pack-resolved too. :func:`council_roster` therefore reads
-its owner roles from the snapshot; the AST-parse-no-import technique survives only for the
-``CouncilModel`` roster names (still a council literal — un-freezing that infra roster + the
-``judge_metric.LENS_BY_ROLE`` lenses is a later, separate cut).
+Layer 2b extends the flip to the **Tier-1 owner-map**: the council resolves its *runtime*
+``_TIER1_OWNERS`` FROM the ACTIVE pack's snapshot via :func:`pack_tier1_owners` (the same
+inline-``__import__`` carve-out), so the consensus one-strike owner-map is pack-resolved too.
+:func:`council_roster` (the council's *validation* identity, against which packs are checked) reads
+its owner roles from the council's CANONICAL (``DEFAULT_PACK``) snapshot — pack-INDEPENDENT, so a
+fixture pack that overrides the owner-map DATA cannot mutate the roster. The AST-parse-no-import
+technique survives only for the ``CouncilModel`` roster names (still a council literal — un-freezing
+that infra roster + the ``judge_metric.LENS_BY_ROLE`` lenses is a later, separate cut).
 """
 
 from __future__ import annotations
@@ -182,14 +184,18 @@ def council_roster() -> frozenset[str]:
     """Every judge role the frozen council knows: the ``CouncilModel(name=…, prompt_role=…)``
     roster (AST-parsed from the council source — no import) UNION the Tier-1 owner roles.
 
-    The roster names (across both the v2 and v1 branches → risk/policy/faithfulness/behavior)
-    are still AST-collected from the frozen source (it stays a literal). The owner roles (which
-    carry the dormant ``source_message_judge``) now come FROM the active pack's snapshot via
-    :func:`pack_tier1_owners` — post-layer-2b ``_TIER1_OWNERS`` is no longer a council literal
-    (the carve-out resolves it from the pack), so AST-eval'ing it would raise; the value is
-    0-delta (the snapshot owner-map == the former literal). Both legs are ``openai``-free, so
-    this still runs in the core (no-import) env — the authoritative "known role" set the judges
-    gate checks against."""
+    This is the council's INTRINSIC roster — its IDENTITY, against which ANY active pack's declared
+    judges + relocated ``council_roles`` prompts are validated (the judges gate). It is therefore
+    **pack-independent**: the names are AST-collected from the frozen source (still a literal); the
+    owner roles (which carry the dormant ``source_message_judge``) come from the council's CANONICAL
+    pack snapshot (:func:`pack_tier1_owners` of ``DEFAULT_PACK``), NOT the active pack. Post-layer-2b
+    ``_TIER1_OWNERS`` is no longer a council literal (the carve-out resolves the council's *runtime*
+    owner-map from the ACTIVE pack), so AST-eval'ing it would raise — but the ROSTER must stay
+    canonical: a fixture/alternate pack that overrides the owner-map DATA (e.g. ``_tiers_fixture``'s
+    sentinel) must NOT mutate the council's known-role set, else its reused canonical ``council_roles``
+    prompts would fail the gate. The value is 0-delta with the pre-2b literal (``DEFAULT_PACK``'s
+    owner-map == the former council literal). Both legs are ``openai``-free, so this runs in the core
+    (no-import) env."""
     tree = ast.parse(_COUNCIL_SOURCE.read_text())
     roles: set[str] = set()
     for node in ast.walk(tree):
@@ -201,7 +207,7 @@ def council_roster() -> frozenset[str]:
             for kw in node.keywords:
                 if kw.arg in ("name", "prompt_role") and isinstance(kw.value, ast.Constant):
                     roles.add(kw.value.value)
-    for owners in pack_tier1_owners().values():
+    for owners in pack_tier1_owners(DEFAULT_PACK).values():
         roles.update(owners)
     return frozenset(roles)
 
