@@ -11,10 +11,12 @@ Extraction strategy (forced by the runtime's import chain):
     23 ``SafetyFlagDefinition`` rows (flag, category, definition, when_to_use,
     when_NOT_to_use, reliability_pillar).
   - ``compliance_council`` does ``import openai`` at module top, which is NOT
-    installed in the seed/eval environment — so we CANNOT import it. We
-    ``ast.literal_eval`` the ``TIER_1_NEVER_EVENTS`` / ``TIER_2_HIGH_RISK`` /
-    ``TIER_3_MEDIUM`` set literals and the ``_TIER1_OWNERS`` dict literal straight
-    out of the source file.
+    installed in the seed/eval environment — so we CANNOT import it. Post-PACK-1b its
+    ``TIER_1_NEVER_EVENTS`` / ``TIER_2_HIGH_RISK`` / ``TIER_3_MEDIUM`` sets are no
+    longer literals (the council resolves them FROM the snapshot via ``pack_tiers()``),
+    so we read the tier→label map from ``taxonomy_snapshot.json`` (the source of truth);
+    the ``_TIER1_OWNERS`` dict is still a literal (2b), so it stays ``ast.literal_eval``'d
+    straight out of the source file.
   - ``council_roles/*.txt`` numbered "KEY QUESTIONS TO ANSWER" blocks are parsed
     as plain text. Only 3 of the 5 role files carry that block (policy / risk /
     source_message); behavior / faithfulness use a different prose structure and
@@ -183,16 +185,23 @@ def gradeable_flags_outside_snapshot(flags: list[dict], snapshot_codes: set[str]
     )
 
 
-def parse_tiers_and_owners(source: str) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """AST-literal-parse the tier sets + _TIER1_OWNERS (no import — openai absent)."""
+def parse_tiers_and_owners(
+    source: str, snapshot_path: Path = SNAPSHOT_PATH
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """The tier→label map (from the snapshot) + ``_TIER1_OWNERS`` (from the council source).
+
+    Post-PACK-1b the council resolves its tier sets FROM the snapshot, so they are no longer
+    literal-evalable from the council source — the tier→label map is read from
+    ``taxonomy_snapshot.json`` (the source of truth). ``_TIER1_OWNERS`` is still a council
+    literal (2b), so it stays ``ast.literal_eval``'d from ``source`` (no import — openai absent)."""
+    tiers = json.loads(snapshot_path.read_text())["tiers"]
     tier_of: dict[str, str] = {}
     for tier_name, label in (
         ("TIER_1_NEVER_EVENTS", "TIER_1"),
         ("TIER_2_HIGH_RISK", "TIER_2"),
         ("TIER_3_MEDIUM", "TIER_3"),
     ):
-        codes = ast.literal_eval(_module_assign(source, tier_name))
-        for code in codes:
+        for code in tiers[tier_name]:
             tier_of[code] = label
 
     owners_raw = ast.literal_eval(_module_assign(source, "_TIER1_OWNERS"))
