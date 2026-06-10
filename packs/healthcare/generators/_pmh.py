@@ -15,7 +15,7 @@ stands out.
 """
 from __future__ import annotations
 
-from ..encounter_spec import Condition
+from lithrim_bench.encounter_spec import Condition
 
 # Synthea description suffixes that are NOT clinical PMH. Anything with
 # these tokens is filtered out.

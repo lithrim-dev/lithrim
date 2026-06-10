@@ -1,35 +1,36 @@
-"""Healthcare pack — the scribe DATASET-GENERATION recipe (PACK-5a, layer 5a).
+"""Healthcare pack — the DATASET-GENERATION recipes (PACK-5a/5b, the generation layer).
 
 PACK-1/2 moved DATA (ontology/taxonomy, role prompts); PACK-3 moved the first CODE
-(the clinical grounding executors → ``floors.py``). Layer 5a moves the *generation*
-realm: the scribe synthesizers + injectors + the ``SCRIBE_PACK`` recipe relocate OUT of
-the domain-agnostic engine into this package, behind the pack generator-registration
-interface (``harness.pack.load_pack_generators``). This **unifies the two "pack" words**:
-``lithrim_bench.packs.PACKS`` (per-agent generation recipes) ⊕ ``packs/healthcare/``
-(eval-config) — a pack is now **data + grading + generation**.
+(the clinical grounding executors → ``floors.py``). The generation layer moves the *whole*
+generation realm here: layer 5a relocated the scribe agent-type + built the pack generator-
+registration interface (``harness.pack.load_pack_generators``); layer 5b relocated the
+remaining four agent-types (hl7_adt / coding / scheduling / triage) + the ``_pmh`` scribe
+helper, and emptied the core ``lithrim_bench.packs._CORE_PACKS`` to ``{}`` (a thin resolver).
+ALL five per-agent recipes — with their synthesizers + injectors — now live in this package.
+This **unifies the two "pack" words**: ``lithrim_bench.packs.PACKS`` (per-agent generation
+recipes) ⊕ ``packs/healthcare/`` (eval-config) — a pack is now **data + grading + generation**.
 
 The by-construction invariant is preserved verbatim (CLAUDE.md "labels are true by
-construction"): the relocation is a MOVE, not an edit — the relocated injectors carry the
-``InjectionRecipe`` (the label justification) byte-identical, only their imports of the
-core primitives are repointed. The scribe corpus regenerates byte-identical.
+construction"): every relocation is a MOVE, not an edit — the relocated injectors carry the
+``InjectionRecipe`` (the label justification) byte-identical, only their imports of the core
+primitives are repointed. Each of the five corpora regenerates byte-identical (the C1
+baselines + the layer5b by-construction gate).
 
 The dependency points **pack → core** only (never core → pack at import): this package
 imports the core primitives it builds against (``PackDefinition`` from ``lithrim_bench.packs``;
 ``EncounterSpec`` from the core; ``DefectInjector``/``InjectionRecipe`` via the relocated
-injectors' own ``lithrim_bench.injectors.base`` imports; ``_pmh.clinical_conditions``, which
-stays core in 5a). The core loads this module LAZILY (on first ``active_packs()`` use, by
-which point ``lithrim_bench.packs`` is fully imported) — so there is no import cycle, and
-it is loaded by FILE PATH from the manifest (``pack.json`` ``"generators"``), never by
-``import packs.*``.
+injectors' own ``lithrim_bench.injectors.base`` imports). Intra-pack helpers (``_hl7``,
+``_coding_dx``, ``_icd10_map``, ``_triage_scenarios``, ``_pmh``, ``_soap``) and the cross-
+synthesizer references are RELATIVE so the package is self-contained. The core loads this
+package LAZILY (on first ``active_packs()`` use, by which point ``lithrim_bench.packs`` is
+fully imported) — so there is no import cycle, and it is loaded by FILE PATH from the
+manifest (``pack.json`` ``"generators"``), never by ``import packs.*``.
 
 The registration surface is the module-level ``PACKS`` dict (mirror ``floors.py``'s
-``SUPPRESS_EXECUTORS`` / ``FLOOR_EXECUTORS``): ``lithrim_bench.packs.active_packs()`` merges
-it over the core's non-scribe recipes. The injector classes + synthesizers are re-exported
-so the (relocated-symbol) test/script consumers reach them through the loader, exactly as
-PACK-3's consumers reach ``RecordPresence`` via ``load_pack_floors()``.
-
-5a is scribe-only; coding/hl7/scheduling/triage stay core via ``lithrim_bench.packs`` until
-5b (when ``_pmh`` relocates with coding and the core ``packs.py`` empties to a thin resolver).
+``SUPPRESS_EXECUTORS`` / ``FLOOR_EXECUTORS``): ``lithrim_bench.packs.active_packs()`` resolves
+the full recipe set from it. The injector classes + synthesizers (+ the helper symbols tests
+reach) are re-exported so the relocated-symbol test/script consumers reach them through the
+loader, exactly as PACK-3's consumers reach ``RecordPresence`` via ``load_pack_floors()``.
 """
 
 from __future__ import annotations

@@ -14,7 +14,8 @@ import json
 from typing import Any
 
 from lithrim_bench.encounter_spec import EncounterSpec, Observation
-from lithrim_bench.synthesizers._pmh import clinical_conditions
+
+from ._pmh import clinical_conditions
 
 _LAB_INTEREST = {
     "4548-4",   # HbA1c
