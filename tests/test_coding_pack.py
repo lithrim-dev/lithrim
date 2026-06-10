@@ -1,14 +1,20 @@
 import json
 
 from lithrim_bench.encounter_spec import Condition
-from lithrim_bench.injectors import UpcodingRiskInjector
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.packs import CODING_PACK
-from lithrim_bench.synthesizers.coding_artifact import synthesize_coding_artifact
-from lithrim_bench.synthesizers.coding_transcript import synthesize_coding_transcript
+from lithrim_bench.packs import active_packs
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5b: the coding injectors + synthesizers + the coding_v1 recipe relocated into the
+# active healthcare pack; reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+UpcodingRiskInjector = _GEN.UpcodingRiskInjector
+synthesize_coding_artifact = _GEN.synthesize_coding_artifact
+synthesize_coding_transcript = _GEN.synthesize_coding_transcript
+CODING_PACK = active_packs()["coding_v1"]
 
 
 def _spec_with_diabetes():

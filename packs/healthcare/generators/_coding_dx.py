@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from ._icd10_map import IcdMapping, lookup
 
 _ADULT_EXAM = (

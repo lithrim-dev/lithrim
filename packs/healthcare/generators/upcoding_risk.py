@@ -15,9 +15,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
-from ..synthesizers._icd10_map import lookup
-from .base import DefectInjector, InjectionRecipe, InjectionResult
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
+from ._icd10_map import lookup
 
 
 class UpcodingRiskInjector(DefectInjector):

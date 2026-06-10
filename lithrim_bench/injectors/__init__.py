@@ -2,7 +2,6 @@ from .base import DefectInjector, InjectionRecipe, InjectionResult
 from .fabricated_consent import FabricatedConsentInjector
 from .missed_escalation import MissedEscalationInjector
 from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
-from .upcoding_risk import UpcodingRiskInjector
 
 # The 5 SCRIBE injectors (WrongDosage / MissingAllergy / FabricatedHistory / ValueMismatch /
 # HallucinatedDetail) + the shared ``_soap`` helper relocated into the active healthcare
@@ -19,23 +18,16 @@ SCHEDULING_INJECTORS: list[type[DefectInjector]] = [
     PhiDisclosurePreVerificationInjector,
 ]
 
-CODING_INJECTORS: list[type[DefectInjector]] = [
-    UpcodingRiskInjector,
-]
-
 TRIAGE_INJECTORS: list[type[DefectInjector]] = [
     MissedEscalationInjector,
 ]
 
-# The non-scribe CORE injectors (the scribe set relocated to the pack, PACK-5a; the HL7
-# set relocated, PACK-5b).
-ALL_INJECTORS: list[type[DefectInjector]] = (
-    SCHEDULING_INJECTORS + CODING_INJECTORS + TRIAGE_INJECTORS
-)
+# The non-scribe CORE injectors (the scribe set relocated to the pack, PACK-5a; the HL7 +
+# coding sets relocated, PACK-5b).
+ALL_INJECTORS: list[type[DefectInjector]] = SCHEDULING_INJECTORS + TRIAGE_INJECTORS
 
 __all__ = [
     "ALL_INJECTORS",
-    "CODING_INJECTORS",
     "DefectInjector",
     "FabricatedConsentInjector",
     "InjectionRecipe",
@@ -44,5 +36,4 @@ __all__ = [
     "PhiDisclosurePreVerificationInjector",
     "SCHEDULING_INJECTORS",
     "TRIAGE_INJECTORS",
-    "UpcodingRiskInjector",
 ]

@@ -27,7 +27,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from ._coding_dx import resolve_primary_dx
 from .coding_note import synthesize_coding_note
 

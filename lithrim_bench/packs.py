@@ -21,13 +21,10 @@ from typing import Any
 
 from .encounter_spec import EncounterSpec
 from .injectors import (
-    CODING_INJECTORS,
     SCHEDULING_INJECTORS,
     TRIAGE_INJECTORS,
     DefectInjector,
 )
-from .synthesizers.coding_artifact import synthesize_coding_artifact
-from .synthesizers.coding_transcript import synthesize_coding_transcript
 from .synthesizers.scheduling_artifact import synthesize_scheduling_artifact
 from .synthesizers.scheduling_transcript import synthesize_scheduling_transcript
 from .synthesizers.triage_artifact import synthesize_triage_artifact
@@ -55,14 +52,6 @@ SCHEDULING_PACK = PackDefinition(
     injectors=SCHEDULING_INJECTORS,
 )
 
-CODING_PACK = PackDefinition(
-    name="coding_v1",
-    agent_type="coding",
-    transcript_fn=synthesize_coding_transcript,
-    artifact_fn=synthesize_coding_artifact,
-    injectors=CODING_INJECTORS,
-)
-
 TRIAGE_PACK = PackDefinition(
     name="triage_v1",
     agent_type="triage",
@@ -75,7 +64,6 @@ TRIAGE_PACK = PackDefinition(
 # pack's ``generators`` package (PACK-5a); ``active_packs()`` merges it back over these.
 _CORE_PACKS: dict[str, PackDefinition] = {
     SCHEDULING_PACK.name: SCHEDULING_PACK,
-    CODING_PACK.name: CODING_PACK,
     TRIAGE_PACK.name: TRIAGE_PACK,
 }
 

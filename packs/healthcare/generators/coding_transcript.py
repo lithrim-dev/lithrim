@@ -18,7 +18,8 @@ construction.
 """
 from __future__ import annotations
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from ._coding_dx import resolve_primary_dx
 
 
