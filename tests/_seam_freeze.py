@@ -188,16 +188,24 @@ def assert_compliance_council_carveouts_only(repo: Path) -> None:
         check=True,
     ).stdout.splitlines(keepends=True)
     cur_text = (repo / _COMPLIANCE_COUNCIL_REL).read_text()
+    assert_council_carveouts_only(base, cur_text)
+
+
+def assert_council_carveouts_only(base_lines: list[str], cur_text: str) -> None:
+    """The pure predicate behind :func:`assert_compliance_council_carveouts_only` — split out
+    so the non-vacuity (layer-1b A3) can be pinned on SYNTHESIZED ``cur`` variants without a
+    fake git repo: feed the real ``acc4973`` base + a tampered ``cur`` and assert it raises.
+    Raises ``AssertionError`` unless ``cur`` is ``base`` plus ONLY the two authorized carve-outs."""
     cur = cur_text.splitlines(keepends=True)
     changed = [
-        op for op in difflib.SequenceMatcher(None, base, cur).get_opcodes() if op[0] != "equal"
+        op for op in difflib.SequenceMatcher(None, base_lines, cur).get_opcodes() if op[0] != "equal"
     ]
     # Upper bound: every changed hunk is an authorized replace (rejects edits elsewhere).
     for tag, i1, i2, j1, j2 in changed:
         assert tag == "replace", (
             f"compliance_council.py change at base L{i1 + 1}-{i2} must be a replace, got {tag!r}"
         )
-        changed_base = "".join(base[i1:i2])
+        changed_base = "".join(base_lines[i1:i2])
         changed_cur = "".join(cur[j1:j2])
         assert any(m in changed_base or m in changed_cur for m in _COUNCIL_AUTHORIZED_MARKERS), (
             "unauthorized changed hunk in compliance_council.py (no taxonomy / prompts-dir "
