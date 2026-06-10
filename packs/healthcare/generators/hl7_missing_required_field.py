@@ -20,9 +20,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+from lithrim_bench.injectors.base import DefectInjector, InjectionRecipe, InjectionResult
+
 from ._hl7 import find_segment, mutate_hl7
-from .base import DefectInjector, InjectionRecipe, InjectionResult
 
 
 class Hl7MissingRequiredFieldInjector(DefectInjector):

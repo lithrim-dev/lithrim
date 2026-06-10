@@ -1,17 +1,22 @@
-from lithrim_bench.injectors import (
-    Hl7InvalidFieldFormatInjector,
-    Hl7MalformedDateInjector,
-    Hl7MissingSegmentInjector,
-    Hl7TriggerEventMismatchInjector,
-)
-from lithrim_bench.injectors._hl7 import find_segment, parse_segments
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.packs import HL7_ADT_PACK
-from lithrim_bench.synthesizers.hl7_adt_artifact import synthesize_hl7_adt_artifact
-from lithrim_bench.synthesizers.hl7_adt_transcript import synthesize_hl7_adt_transcript
+from lithrim_bench.packs import active_packs
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5b: the HL7 injectors + synthesizers + the hl7_adt_v1 recipe relocated into the
+# active healthcare pack; reach them through the pack generator loader.
+_GEN = _pack.load_pack_generators()
+Hl7InvalidFieldFormatInjector = _GEN.Hl7InvalidFieldFormatInjector
+Hl7MalformedDateInjector = _GEN.Hl7MalformedDateInjector
+Hl7MissingSegmentInjector = _GEN.Hl7MissingSegmentInjector
+Hl7TriggerEventMismatchInjector = _GEN.Hl7TriggerEventMismatchInjector
+find_segment = _GEN.find_segment
+parse_segments = _GEN.parse_segments
+synthesize_hl7_adt_artifact = _GEN.synthesize_hl7_adt_artifact
+synthesize_hl7_adt_transcript = _GEN.synthesize_hl7_adt_transcript
+HL7_ADT_PACK = active_packs()["hl7_adt_v1"]
 
 
 def test_synthesized_message_has_required_segments_and_msh2():

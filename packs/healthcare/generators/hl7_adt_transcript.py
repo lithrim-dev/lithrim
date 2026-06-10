@@ -20,7 +20,8 @@ a complete, self-contained registration record rather than a stub.
 """
 from __future__ import annotations
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
+
 from .hl7_adt_artifact import ATTENDING, INSURANCE, PATIENT_CLASS_LABEL, REG_ADDRESS, WARD
 
 

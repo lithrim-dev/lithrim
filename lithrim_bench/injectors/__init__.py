@@ -1,10 +1,5 @@
 from .base import DefectInjector, InjectionRecipe, InjectionResult
 from .fabricated_consent import FabricatedConsentInjector
-from .hl7_invalid_field_format import Hl7InvalidFieldFormatInjector
-from .hl7_malformed_date import Hl7MalformedDateInjector
-from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
-from .hl7_missing_segment import Hl7MissingSegmentInjector
-from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
 from .missed_escalation import MissedEscalationInjector
 from .phi_disclosure_pre_verification import PhiDisclosurePreVerificationInjector
 from .upcoding_risk import UpcodingRiskInjector
@@ -32,17 +27,10 @@ TRIAGE_INJECTORS: list[type[DefectInjector]] = [
     MissedEscalationInjector,
 ]
 
-HL7_ADT_INJECTORS: list[type[DefectInjector]] = [
-    Hl7MalformedDateInjector,
-    Hl7MissingSegmentInjector,
-    Hl7InvalidFieldFormatInjector,
-    Hl7MissingRequiredFieldInjector,
-    Hl7TriggerEventMismatchInjector,
-]
-
-# The non-scribe CORE injectors (the scribe set relocated to the pack, PACK-5a).
+# The non-scribe CORE injectors (the scribe set relocated to the pack, PACK-5a; the HL7
+# set relocated, PACK-5b).
 ALL_INJECTORS: list[type[DefectInjector]] = (
-    SCHEDULING_INJECTORS + CODING_INJECTORS + TRIAGE_INJECTORS + HL7_ADT_INJECTORS
+    SCHEDULING_INJECTORS + CODING_INJECTORS + TRIAGE_INJECTORS
 )
 
 __all__ = [
@@ -50,12 +38,6 @@ __all__ = [
     "CODING_INJECTORS",
     "DefectInjector",
     "FabricatedConsentInjector",
-    "HL7_ADT_INJECTORS",
-    "Hl7InvalidFieldFormatInjector",
-    "Hl7MalformedDateInjector",
-    "Hl7MissingRequiredFieldInjector",
-    "Hl7MissingSegmentInjector",
-    "Hl7TriggerEventMismatchInjector",
     "InjectionRecipe",
     "InjectionResult",
     "MissedEscalationInjector",

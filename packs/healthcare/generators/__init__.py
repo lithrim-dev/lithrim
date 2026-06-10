@@ -41,8 +41,16 @@ from lithrim_bench.encounter_spec import EncounterSpec
 from lithrim_bench.injectors.base import DefectInjector
 from lithrim_bench.packs import PackDefinition
 
+from ._hl7 import find_segment, parse_segments
 from .fabricated_history import FabricatedHistoryInjector
 from .hallucinated_detail import HallucinatedDetailInjector
+from .hl7_adt_artifact import synthesize_hl7_adt_artifact
+from .hl7_adt_transcript import synthesize_hl7_adt_transcript
+from .hl7_invalid_field_format import Hl7InvalidFieldFormatInjector
+from .hl7_malformed_date import Hl7MalformedDateInjector
+from .hl7_missing_required_field import Hl7MissingRequiredFieldInjector
+from .hl7_missing_segment import Hl7MissingSegmentInjector
+from .hl7_trigger_event_mismatch import Hl7TriggerEventMismatchInjector
 from .missing_allergy import MissingAllergyInjector
 from .scribe_artifact import synthesize_scribe_artifact
 from .transcript import synthesize_scribe_transcript
@@ -76,19 +84,49 @@ SCRIBE_PACK = PackDefinition(
     requires_active_medication=True,
 )
 
+HL7_ADT_INJECTORS: list[type[DefectInjector]] = [
+    Hl7MalformedDateInjector,
+    Hl7MissingSegmentInjector,
+    Hl7InvalidFieldFormatInjector,
+    Hl7MissingRequiredFieldInjector,
+    Hl7TriggerEventMismatchInjector,
+]
+
+HL7_ADT_PACK = PackDefinition(
+    name="hl7_adt_v1",
+    agent_type="hl7_adt",
+    transcript_fn=synthesize_hl7_adt_transcript,
+    artifact_fn=synthesize_hl7_adt_artifact,
+    injectors=HL7_ADT_INJECTORS,
+)
+
 # The registration surface (PACK-5a D1): the core's active_packs() merges this over the
 # non-scribe core recipes. Declarative — no execution at import beyond building the recipe.
-PACKS: dict[str, PackDefinition] = {SCRIBE_PACK.name: SCRIBE_PACK}
+PACKS: dict[str, PackDefinition] = {
+    SCRIBE_PACK.name: SCRIBE_PACK,
+    HL7_ADT_PACK.name: HL7_ADT_PACK,
+}
 
 __all__ = [
     "PACKS",
     "SCRIBE_INJECTORS",
     "SCRIBE_PACK",
+    "HL7_ADT_INJECTORS",
+    "HL7_ADT_PACK",
     "FabricatedHistoryInjector",
     "HallucinatedDetailInjector",
+    "Hl7InvalidFieldFormatInjector",
+    "Hl7MalformedDateInjector",
+    "Hl7MissingRequiredFieldInjector",
+    "Hl7MissingSegmentInjector",
+    "Hl7TriggerEventMismatchInjector",
     "MissingAllergyInjector",
     "ValueMismatchInjector",
     "WrongDosageInjector",
+    "find_segment",
+    "parse_segments",
+    "synthesize_hl7_adt_artifact",
+    "synthesize_hl7_adt_transcript",
     "synthesize_scribe_artifact",
     "synthesize_scribe_transcript",
 ]

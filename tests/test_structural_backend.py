@@ -5,13 +5,18 @@ from lithrim_bench.analysis import analyze_pack, analyze_per_case
 from lithrim_bench.backends import MockBackend
 from lithrim_bench.backends.etlp_structural import _extract_checks, _failed_checks
 from lithrim_bench.eval_runner import run_pack
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.packager import package_case
-from lithrim_bench.packs import HL7_ADT_PACK
-from lithrim_bench.synthesizers.hl7_adt_artifact import synthesize_hl7_adt_artifact
-from lithrim_bench.synthesizers.hl7_adt_transcript import synthesize_hl7_adt_transcript
+from lithrim_bench.packs import active_packs
 from lithrim_bench.taxonomy import load_taxonomy
 
 from ._factories import make_spec
+
+# PACK-5b: HL7 generation relocated into the active healthcare pack; reach it via the loader.
+_GEN = _pack.load_pack_generators()
+synthesize_hl7_adt_artifact = _GEN.synthesize_hl7_adt_artifact
+synthesize_hl7_adt_transcript = _GEN.synthesize_hl7_adt_transcript
+HL7_ADT_PACK = active_packs()["hl7_adt_v1"]
 
 
 def test_failed_checks_real_shape():
@@ -65,9 +70,7 @@ def test_mock_backend_emits_structural_verdict_for_hl7_cases(tmp_path: Path):
     artifacts = synthesize_hl7_adt_artifact(spec)
     taxonomy = load_taxonomy()
 
-    from lithrim_bench.injectors import Hl7MalformedDateInjector
-
-    inj = Hl7MalformedDateInjector()
+    inj = _GEN.Hl7MalformedDateInjector()
     result = inj.inject(spec, transcript, artifacts)
     row = package_case(
         spec=spec,
@@ -103,9 +106,7 @@ def test_structural_drift_rate_breaks_recall(tmp_path: Path):
     transcript = synthesize_hl7_adt_transcript(spec)
     artifacts = synthesize_hl7_adt_artifact(spec)
     taxonomy = load_taxonomy()
-    from lithrim_bench.injectors import Hl7MissingSegmentInjector
-
-    result = Hl7MissingSegmentInjector().inject(spec, transcript, artifacts)
+    result = _GEN.Hl7MissingSegmentInjector().inject(spec, transcript, artifacts)
     row = package_case(
         spec=spec,
         pack=HL7_ADT_PACK.name,

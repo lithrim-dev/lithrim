@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..encounter_spec import EncounterSpec
+from lithrim_bench.encounter_spec import EncounterSpec
 
 _FIELD = "|"
 _COMP = "^"
