@@ -1,0 +1,128 @@
+{
+  "_provenance": {
+    "note": "Hand-authored for CE-STANDALONE-1 (the standalone-CE walking-skeleton). A non-clinical support-ticket-QA domain: auditing a support agent's reply to a customer ticket. Internally consistent with taxonomy_snapshot.json — every gradeable flag's code is in a tier; Tier-1 codes have an owning role; the snapshot lenses are a subset of the tier union. Deliberately declares NO verification_contracts so the grade path never reaches :8002 (the minimal standalone cut, SPEC §3.1). The prose is needle-free (no HIPAA/patient/medication/dosage/allergy/clinical/SOAP/escalation/consent/transcript wording) so render_role_questions emits a clean non-clinical judge prompt (A-STANDALONE-1).",
+    "seeded_by": "hand-authored (not scripts/seed_ontology.py — this pack has no Synthea/backend seed source)"
+  },
+  "domain": "support_ticket_qa",
+  "ontology_version": "support_ticket_qa/1",
+  "taxonomy_version": "support_ticket_qa/1",
+  "flags": [
+    {
+      "category": "policy",
+      "definition": "The reply states a company policy, rule, fee, or entitlement that does not appear in the support knowledge base and was not established earlier in the ticket thread.",
+      "flag": "FABRICATED_POLICY",
+      "gradeable": true,
+      "owner_roles": [
+        "policy_judge"
+      ],
+      "reliability_pillar": "policy_adherence",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The cited policy is present in the support knowledge base or was already stated by an authorized agent earlier in the thread. The reply paraphrases a real policy without changing its meaning.",
+      "when_to_use": "1) The reply cites a '30-day guaranteed-refund policy' that the knowledge base does not contain. 2) The reply invents an eligibility rule ('only Pro accounts qualify for free returns') with no basis in the documented policy."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The reply promises an action, refund, delivery date, or outcome the agent has no documented basis or authority to guarantee.",
+      "flag": "UNSUPPORTED_COMMITMENT",
+      "gradeable": true,
+      "owner_roles": [
+        "risk_judge"
+      ],
+      "reliability_pillar": "trustworthiness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The commitment is backed by a documented entitlement, an existing order, or a stated policy. The reply offers a conditional next step ('I can request a refund for you') rather than an unconditional guarantee.",
+      "when_to_use": "1) The reply guarantees 'your refund will arrive within 24 hours' with no order or approval on record. 2) The reply commits to 'we will overnight a replacement at no charge' without any documented entitlement."
+    },
+    {
+      "category": "policy",
+      "definition": "The reply omits a disclosure the situation requires, such as a restocking fee, a non-refundable charge, or a processing delay the customer must be told about.",
+      "flag": "MISSING_DISCLOSURE",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "completeness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "No disclosure is required for the situation. The required disclosure is already present in the reply or earlier in the thread.",
+      "when_to_use": "1) The reply approves a return but omits the documented restocking fee. 2) The reply confirms a cancellation but does not mention the non-refundable setup charge."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The reply states something that directly contradicts what was said earlier in the ticket thread.",
+      "flag": "CONTRADICTS_THREAD",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "The reply corrects an earlier mistake and clearly says so. The apparent contradiction is a reasonable clarification rather than a reversal.",
+      "when_to_use": "1) The customer said the order arrived damaged, but the reply says 'glad your order arrived in good condition'. 2) Earlier the agent confirmed a refund was issued, and the reply now says no refund was made."
+    },
+    {
+      "category": "completeness",
+      "definition": "The reply closes or deflects the ticket without addressing the customer's actual question or request.",
+      "flag": "UNRESOLVED_ISSUE",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "completeness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "The reply answers the question or gives a concrete next step. The issue genuinely requires more information from the customer and the reply asks for it.",
+      "when_to_use": "1) The customer asks how to export their data and the reply only thanks them for their feedback. 2) The reply marks the ticket solved while the reported problem is still unanswered."
+    },
+    {
+      "category": "tone",
+      "definition": "The reply uses a dismissive, blaming, or unprofessional tone toward the customer.",
+      "flag": "TONE_VIOLATION",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "professionalism",
+      "tier": "TIER_3",
+      "when_NOT_to_use": "The reply is direct or firm but remains courteous. A neutral, factual statement that the customer simply dislikes.",
+      "when_to_use": "1) The reply says 'that is your problem, not ours'. 2) The reply mocks the customer for not reading the manual."
+    }
+  ],
+  "questions": [
+    {
+      "ordinal": 1,
+      "role": "policy_judge",
+      "text": "Does every policy, fee, or rule the reply cites appear in the support knowledge base or earlier in the ticket thread?"
+    },
+    {
+      "ordinal": 2,
+      "role": "policy_judge",
+      "text": "Did the reply include any disclosure (fees, delays, non-refundable charges) the situation requires?"
+    },
+    {
+      "ordinal": 1,
+      "role": "risk_judge",
+      "text": "Does the reply promise only actions, refunds, or dates the agent has the authority and basis to guarantee?"
+    },
+    {
+      "ordinal": 2,
+      "role": "risk_judge",
+      "text": "Are the reply's statements consistent with what was established earlier in the ticket thread?"
+    },
+    {
+      "ordinal": 1,
+      "role": "faithfulness_judge",
+      "text": "Does the reply directly address the customer's actual question or request?"
+    },
+    {
+      "ordinal": 2,
+      "role": "faithfulness_judge",
+      "text": "Does anything in the reply contradict the earlier ticket thread?"
+    },
+    {
+      "ordinal": 3,
+      "role": "faithfulness_judge",
+      "text": "Is the reply's tone professional and courteous?"
+    }
+  ],
+  "verification_contracts": [],
+  "severity_map": {
+    "block_at_or_above": 0.5,
+    "warn_above": 0.0,
+    "weights": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.5,
+      "LOW": 0.2
+    }
+  }
+}

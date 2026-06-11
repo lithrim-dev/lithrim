@@ -1,0 +1,49 @@
+{
+  "snapshot_metadata": {
+    "source": "CE-STANDALONE-1 generic-pack walking-skeleton (tests/test_standalone_ce.py)",
+    "note": "A genuinely INDEPENDENT non-clinical pack — unlike the story_audit pack (which reuses the healthcare pack's ontology + role prompts), this pack supplies its OWN ontology, council_roles, and taxonomy with no cross-pack reuse. It is the falsification fixture for the standalone-CE claim (SPEC_STANDALONE_CORE_VALIDATION §3.1): under LITHRIM_BENCH_PACK=support_ticket_qa the FROZEN council resolves its tiers (pack_tiers), Tier-1 owner-map (pack_tier1_owners), roster identity (pack_production_judges), and lens authority (pack_lenses) entirely from THIS snapshot, with the healthcare pack unloaded and :8002 down. production_judges reuses the role NAMES of the core deployable trio (the PACK-2c OQ-2 boundary — packs subset KNOWN deployable identities; they do NOT introduce a new deployable judge). tier: core = the OSS sample tier."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "FABRICATED_POLICY",
+      "UNSUPPORTED_COMMITMENT"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "MISSING_DISCLOSURE",
+      "CONTRADICTS_THREAD",
+      "UNRESOLVED_ISSUE"
+    ],
+    "TIER_3_MEDIUM": [
+      "TONE_VIOLATION"
+    ]
+  },
+  "tier1_owners": {
+    "FABRICATED_POLICY": [
+      "policy_judge"
+    ],
+    "UNSUPPORTED_COMMITMENT": [
+      "risk_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "UNSUPPORTED_COMMITMENT",
+      "CONTRADICTS_THREAD"
+    ],
+    "policy_judge": [
+      "FABRICATED_POLICY",
+      "MISSING_DISCLOSURE"
+    ],
+    "faithfulness_judge": [
+      "CONTRADICTS_THREAD",
+      "UNRESOLVED_ISSUE",
+      "TONE_VIOLATION"
+    ]
+  },
+  "declared_but_not_running": []
+}
