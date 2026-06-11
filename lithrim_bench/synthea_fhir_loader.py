@@ -24,7 +24,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from .encounter_spec import Demographics, SyntheaProvenance
+from .encounter_spec import Demographics, SyntheaProvenance, _repo_relative
 
 # Non-patient bundles that share fhir/ with patient bundles.
 _AUX_BUNDLE_PREFIXES = ("hospitalInformation", "practitionerInformation")
@@ -68,7 +68,7 @@ class SyntheaFhirCohort:
         self._sorted_pids = sorted(self._bundle_paths_by_pid.keys())
 
         self.provenance = SyntheaProvenance(
-            cohort_path=str(self.fhir_dir),
+            cohort_path=_repo_relative(self.fhir_dir),
             cohort_sha256=self._cohort_id_hash(),
             synthea_version="v4.0.0",
         )

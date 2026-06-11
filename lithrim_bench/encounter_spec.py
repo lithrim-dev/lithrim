@@ -7,10 +7,32 @@ recorded so the label is true by construction.
 """
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repo_relative(p: Path) -> str:
+    """Serialize a cohort dir as a repo-relative POSIX string when it lives under
+    REPO_ROOT, else its absolute string.
+
+    Keeps ``SyntheaProvenance.cohort_path`` portable across checkouts/CI (the
+    by-construction corpus must regenerate byte-identically anywhere) without
+    crashing on an out-of-tree cohort. Uses ``abspath`` rather than ``resolve``
+    so the cohort's own terminal symlink name is preserved — the canonical
+    ``data/synthea_sample_data_csv_latest`` is a symlink to a dir OUTSIDE the
+    repo, so resolving it would escape REPO_ROOT and force the absolute fallback.
+    """
+    absolute = Path(os.path.abspath(p))
+    if absolute.is_relative_to(REPO_ROOT):
+        return absolute.relative_to(REPO_ROOT).as_posix()
+    return str(p)
+
 
 Gender = Literal["M", "F", "O", "U"]
 

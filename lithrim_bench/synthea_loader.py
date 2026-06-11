@@ -21,6 +21,7 @@ from .encounter_spec import (
     Medication,
     Observation,
     SyntheaProvenance,
+    _repo_relative,
 )
 
 _NAME_SUFFIX = re.compile(r"\d+$")
@@ -66,7 +67,7 @@ class SyntheaCohort:
         self._encounters = self._encounters.sort_values(["PATIENT", "START"]).reset_index(drop=True)
 
         self.provenance = SyntheaProvenance(
-            cohort_path=str(cohort_dir),
+            cohort_path=_repo_relative(cohort_dir),
             cohort_sha256=_file_sha256(cohort_dir / "patients.csv"),
         )
 
