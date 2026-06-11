@@ -22,10 +22,11 @@ Findings surfaced by this cycle (both residual couplings for "standalone CE"; NE
 pack from running, so this is a finding, not an escalation):
   * S-BS-129 — the core DSPy ``JudgeSignature`` hard-codes clinical prose (see the non-gating
     diagnostic below). Off the authored render path; the $0 predictor path bypasses it.
-  * S-BS-130 — ``DEFAULT_PACK='healthcare'`` (``harness/pack.py:46``) makes ``council_roster()``
-    read healthcare's ``pack.json`` + ``taxonomy_snapshot.json`` for canonical-roster validation
-    even under a non-healthcare active pack (see A-STANDALONE-4, which permits ONLY that metadata
-    and fails on any healthcare DOMAIN content).
+  * S-BS-130 — CLOSED by CE-PACK-NEUTRAL-DEFAULT. ``DEFAULT_PACK`` used to be ``'healthcare'``,
+    making ``council_roster()`` read healthcare's ``pack.json`` + ``taxonomy_snapshot.json`` for
+    canonical-roster validation even under a non-healthcare active pack. The default is now the
+    neutral ``_core`` pack, so A-STANDALONE-4 tightened to assert ZERO ``packs/healthcare/`` reads
+    (see ``tests/test_neutral_default.py`` for the env-unset shipped-default proof).
 """
 
 from __future__ import annotations
@@ -257,33 +258,29 @@ def test_a3_grade_completes_with_8002_down(grade_out):
 
 
 def test_a4_healthcare_domain_unloaded(grade_out):
-    """A4: the run resolves its ENTIRE active domain from the generic pack; the ONLY healthcare
-    files touched are the hardcoded DEFAULT_PACK canonical-roster metadata (pack.json +
-    taxonomy_snapshot.json) — NEVER healthcare's domain content (ontology/council_roles/floors).
+    """A4: the run resolves its ENTIRE active domain from the generic pack and reads ZERO
+    ``packs/healthcare/`` files — neither domain content (ontology/council_roles/floors) NOR the
+    canonical-roster metadata.
+
+    Post CE-PACK-NEUTRAL-DEFAULT the core-shipped ``DEFAULT_PACK`` is the neutral ``_core`` pack,
+    so ``council_roster()`` reads ``packs/_core/`` for the canonical roster — the two healthcare
+    metadata files it used to read under ``DEFAULT_PACK='healthcare'`` are gone. This is the strict
+    form of the gate, now achievable: **S-BS-130 closed.**
 
     Non-vacuous: ``story_audit`` (which reuses healthcare's ontology + council_roles) would put
-    those DOMAIN paths in ``healthcare_reads`` and FAIL the forbidden-marker check. S-BS-130:
-    ``DEFAULT_PACK='healthcare'`` (harness/pack.py:46) is why the two metadata files are read."""
+    those DOMAIN paths in ``healthcare_reads`` and FAIL the zero-reads check."""
     assert grade_out["active_pack"] == PACK
     assert f"/packs/{PACK}/" in grade_out["prompts_dir"]
     assert f"/packs/{PACK}/" in grade_out["ontology_path"]
 
     reads = grade_out["healthcare_reads"]
-    # (i) no healthcare DOMAIN content may be read — the load-bearing decoupling claim.
-    forbidden = (
-        "packs/healthcare/ontology.json",
-        "packs/healthcare/council_roles",
-        "packs/healthcare/floors.py",
-        "packs/healthcare/generators",
-    )
-    domain_leak = [p for p in reads if any(m in p for m in forbidden)]
-    assert not domain_leak, f"healthcare DOMAIN content read (decoupling breach): {domain_leak}"
-    # (ii) nothing beyond the DEFAULT_PACK roster metadata may be read (S-BS-130 bound).
-    permitted = ("packs/healthcare/pack.json", "packs/healthcare/taxonomy_snapshot.json")
-    unexpected = [p for p in reads if not any(p.endswith(s) for s in permitted)]
-    assert not unexpected, (
-        f"unexpected healthcare read beyond the DEFAULT_PACK roster metadata (S-BS-130): "
-        f"{unexpected}"
+    # ZERO healthcare reads — the strict gate, now achievable. Post CE-PACK-NEUTRAL-DEFAULT the
+    # core-shipped DEFAULT_PACK is the neutral ``_core`` pack, so ``council_roster()`` reads
+    # ``packs/_core/`` (not healthcare) for the canonical roster metadata. S-BS-130 (which left
+    # ``pack.json`` + ``taxonomy_snapshot.json`` leaking under the old healthcare default) is closed:
+    # the run reads NO ``packs/healthcare/`` file at all — neither domain content nor roster metadata.
+    assert not reads, (
+        f"healthcare read under a non-healthcare active pack (S-BS-130 not closed): {reads}"
     )
 
 
