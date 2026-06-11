@@ -173,9 +173,9 @@ def _build_signature():
     import dspy
 
     class JudgeSignature(dspy.Signature):
-        """Audit one agent-produced clinical artifact against its source transcript.
+        """Audit one produced artifact against its source conversation.
 
-        You are one judge on a HIPAA / clinical-safety compliance council. Apply
+        You are one judge on an audit council. Apply
         the role guidance in ``role_key_questions`` to the transcript and artifact
         and raise ONLY violations you can ground in a specific span. Emit each
         violation as a finding {taxonomy_code, evidence_spans} using ONLY a code
@@ -186,9 +186,9 @@ def _build_signature():
         from the model's logprobs, not your assertion.
         """
 
-        transcript: str = dspy.InputField(desc="the provider/patient conversation (ground truth)")
+        transcript: str = dspy.InputField(desc="the source conversation (ground truth)")
         artifact: str = dspy.InputField(
-            desc="the agent-produced clinical note / artifact under audit"
+            desc="the produced artifact under audit"
         )
         role_key_questions: str = dspy.InputField(desc="this judge's role prompt and key questions")
         taxonomy_context: str = dspy.InputField(desc="the valid taxonomy codes + tiers")

@@ -294,21 +294,22 @@ def test_a5_provider_seam_present_and_bypassed_at_zero_cost(grade_out):
     assert grade_out["build_judge_lm_callable"] is True
 
 
-# ── NON-GATING diagnostic: the S-BS-129 finding tracker ──────────────────────
+# ── S-BS-129 / G4 CLOSED: the core judge signature is clinical-clean (CE-PACK-6b-CLEAN) ──
 
 
-def test_diagnostic_core_judge_signature_still_carries_clinical_prose():
-    """NON-GATING finding tracker (S-BS-129). The core DSPy ``JudgeSignature``
-    (``judges_dspy.py`` ``_build_signature``) hard-codes clinical framing. It is NOT on the
-    authored render path (A1 stays clean) and the $0 predictor path bypasses ``_build_signature``
-    entirely — so the generic pack runs with NO core change — but on the LIVE path this prose
-    reaches the LLM. This quantifies the residual so the 6b cleanup can retire it; when 6b lands
-    this assertion flips and the finding closes. SPEC_STANDALONE_CORE_VALIDATION §3.3."""
+def test_core_judge_signature_is_clinical_clean():
+    """S-BS-129 / G4 CLOSED (CE-PACK-6b-CLEAN). The core DSPy ``JudgeSignature``
+    (``judges_dspy.py`` ``_build_signature``) was genericized to a domain-agnostic scaffold, so
+    even the LIVE path sends NO clinical prose to the LLM — domain specificity now arrives ONLY
+    via ``role_key_questions`` (pack role prompts) + ``taxonomy_context`` (pack codes). This was
+    the non-gating S-BS-129 tracker (it used to assert the residue was PRESENT); it is now
+    INVERTED to assert the residue is GONE. ``transcript`` survives only as a generic I/O field
+    NAME (not a clinical needle for the demarcation grep). SPEC_STANDALONE_CORE_VALIDATION §3.3."""
     src = (REPO_ROOT / "lithrim_bench/runtime/council/judges_dspy.py").read_text()
     start = src.index("def _build_signature")
     end = src.index("return JudgeSignature", start)
     needles = sorted({m.lower() for m in CLINICAL_NEEDLES.findall(src[start:end])})
-    assert needles, "expected clinical needles in _build_signature (S-BS-129 tracker)"
-    assert {"clinical", "patient", "hipaa"} <= set(needles), (
-        f"S-BS-129 residual shape changed (update this tracker / close the finding): {needles}"
+    clinical = set(needles) - {"transcript"}  # the generic field NAME, kept by design (§1.1)
+    assert not clinical, (
+        f"_build_signature must be clinical-clean after 6b-CLEAN (S-BS-129/G4); found: {sorted(clinical)}"
     )
