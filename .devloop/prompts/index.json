@@ -2071,6 +2071,29 @@
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD 2742d32: run_eval:256-273 dispatch CONFIRMED; build_prompt:2459 reached via default council + stages.py/ab_harness/test_consensus:311 CONFIRMED; build_authored_semantic_stage(assignments=None) works CONFIRMED).",
       "next_action": "CLOSED CLEAN 2026-06-12 (build 2b1f43d..c6ecd30; monitor 7-item + inline critique CLEAN; subagent-executed, D0 0-new). The in-process product grade is now AUTHORED-PATH-ONLY (no-assignment -> full pack-lens default); build_prompt is dead code on the product path (NOT deleted -- 6b-CLEAN does that, FROZEN). UI-authored prompts are the single live prompt source. No frozen council touched; 628 passed 0-new. Full close: critique-bench-salvage-CE-PACK-6b-ROUTE-2026-06-12.md."
+    },
+    {
+      "id": "bench-salvage-phaseCE-PACK-6b-CLEAN-clinical-clean-core-council-driver",
+      "stream": "bench-salvage",
+      "phase": "CE-PACK-6b-CLEAN",
+      "scope": "delete-build_prompt-relocate-safety_flags-seed-genericize-_build_signature-clinical-clean-core-council",
+      "file": "bench-salvage_phaseCE-PACK-6b-CLEAN_clinical-clean-core-council_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic worktree pass required. Deletes from + edits the FROZEN compliance_council.py + judges_dspy.py; reroutes the pipeline (stages.py/ab_harness) off the default council; relocates the safety_flags SEED into the healthcare pack; adds a freeze-guard authorized-DELETION mechanism. The biggest/most-entangled cycle of the program. Fresh-SESSION execution (paste kickoff), NOT subagent.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "judges_dspy.py:171-200 _build_signature (4 clinical strings :176/:178/:189/:191; live path :289) + compliance_council.py:517-788 build_prompt + :2456-2459 evaluate transcript branch (the self-call) -- BOTH FROZEN",
+        "ENTANGLEMENT (the build_prompt callers via evaluate): runtime/pipeline/stages.py:746 (reroute to authored) + ab_harness.py:235/247 (reroute/retire) + test_consensus.py:311 + test_live_smoke.py:97 (rewrite/remove)",
+        "safety_flags.py = the healthcare ontology SEED source (SAFETY_FLAG_DEFINITIONS/TAXONOMY_VERSION imported by scripts/seed_ontology.py:226,231,257) -> RELOCATE into packs/healthcare/, byte-identical ontology regen; get_flag_prompt_section dies with build_prompt",
+        "tests/_seam_freeze.py:211-250 assert_council_carveouts_only (asserts tag=='replace' -> a DELETE FAILS; add _COUNCIL_AUTHORIZED_DELETIONS) + :62-81 assert_judges_dspy_consensus_seam_frozen (byte-pins judges_dspy except _BYOC1_PROVIDER_SEAM; authorize _build_signature)"
+      ],
+      "_note": "6b-CLEAN = the FROZEN endgame, clinical-clean the core council: genericize _build_signature (S-BS-129, live-evidenced by the CE smoke) + DELETE build_prompt + get_flag_prompt_section + relocate the safety_flags SEED to the healthcare pack. A 2-agent reassessment (2026-06-12) found build_prompt is NOT a clean delete (it's the council evaluate() prompt-builder, reached by stages.py [the pipeline, CORE] + ab_harness + 2 unit tests) and safety_flags is the healthcare ontology seed source -> so the cycle ALSO reroutes the pipeline off the default council + relocates the seed + adds a freeze-guard authorized-deletion mechanism. The MECHANISM (consensus/withstands/_apply_consensus = the moat) stays byte-frozen. Goal: grep runtime/council/ clinical-clean. FULL cycle in one (user decision); fresh SESSION, fresh-critic at close. LOCAL is SSOT.",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12 (HEAD 4ecbe43 + 2-agent reassessment: _build_signature clinical strings + frozen-guard CONFIRMED; build_prompt entanglement [stages.py/ab_harness/2 tests] CONFIRMED; safety_flags-as-seed-source [seed_ontology imports] CONFIRMED; freeze-guard rejects delete opcode CONFIRMED).",
+      "next_action": "READY -- hand the kickoff to a FRESH executor session; plan-review BEFORE any edit; fresh-critic worktree pass at close. The clinical-clean-core endgame."
     }
   ]
 }
