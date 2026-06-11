@@ -23,6 +23,13 @@ _JUDGES_DSPY_REL = "lithrim_bench/runtime/council/judges_dspy.py"
 _SEAM_BASELINE = "acc4973"  # the UAP-3b parent — the moat-seam pin
 # The ONLY symbols BYOC-1 is authorized to change in judges_dspy.py (the provider binder).
 _BYOC1_PROVIDER_SEAM = frozenset({"build_judge_lm", "build_trio"})
+# CE-PACK-6b-CLEAN: ``_build_signature`` (the JudgeSignature) is genericized — the 4 clinical
+# strings → a domain-agnostic scaffold (S-BS-129). Its I/O field NAMES stay byte-stable, but the
+# docstring/desc prose changes, so it joins the authorized-to-evolve set. Everything else —
+# ``evaluate_dspy`` (the unchanged ``_apply_consensus`` call), ``Judge``, ``Finding`` + the
+# normalizers — stays byte-frozen vs acc4973 (the C4 non-vacuity test proves the rest still fails).
+_SIGNATURE_GENERICIZE_SEAM = frozenset({"_build_signature"})
+_AUTHORIZED_JUDGES_SEAM = _BYOC1_PROVIDER_SEAM | _SIGNATURE_GENERICIZE_SEAM
 
 # PACK-2 (layer 2): the clinical council role prompts relocated into the healthcare pack.
 # The live council globs the prompt files ITSELF, so relocating them requires repointing
@@ -59,9 +66,26 @@ def _toplevel_defs(src_text: str, *, exclude: frozenset[str]) -> dict[str, str]:
     }
 
 
+def _assert_judges_dspy_seam_frozen(base_src: str, cur_src: str) -> None:
+    """Pure predicate: every top-level symbol in ``judges_dspy.py`` EXCEPT the authorized
+    seam (``_AUTHORIZED_JUDGES_SEAM`` — the BYOC-1 provider binder + the CE-PACK-6b-CLEAN
+    ``_build_signature`` genericization) is byte-identical between ``base_src`` and
+    ``cur_src``. Split out so the C4 non-vacuity can feed a SYNTHESIZED ``cur_src`` (an edit
+    to a frozen symbol such as ``evaluate_dspy`` must still raise)."""
+    base = _toplevel_defs(base_src, exclude=_AUTHORIZED_JUDGES_SEAM)
+    cur = _toplevel_defs(cur_src, exclude=_AUTHORIZED_JUDGES_SEAM)
+    assert set(cur) == set(base), (
+        "judges_dspy.py consensus-seam symbol set changed: "
+        f"added={sorted(set(cur) - set(base))} removed={sorted(set(base) - set(cur))}"
+    )
+    drifted = [name for name, src in base.items() if cur[name] != src]
+    assert not drifted, f"consensus-seam symbol(s) drifted in judges_dspy.py: {drifted}"
+
+
 def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
     """The consensus seam in ``judges_dspy.py`` (everything except the BYOC-1 provider
-    binder ``build_judge_lm``/``build_trio``) is byte-identical to ``acc4973``."""
+    binder ``build_judge_lm``/``build_trio`` and the CE-PACK-6b-CLEAN ``_build_signature``
+    genericization) is byte-identical to ``acc4973``."""
     base_src = subprocess.run(
         ["git", "show", f"{_SEAM_BASELINE}:{_JUDGES_DSPY_REL}"],
         cwd=repo,
@@ -70,14 +94,7 @@ def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
         check=True,
     ).stdout
     cur_src = (repo / _JUDGES_DSPY_REL).read_text()
-    base = _toplevel_defs(base_src, exclude=_BYOC1_PROVIDER_SEAM)
-    cur = _toplevel_defs(cur_src, exclude=_BYOC1_PROVIDER_SEAM)
-    assert set(cur) == set(base), (
-        "judges_dspy.py consensus-seam symbol set changed: "
-        f"added={sorted(set(cur) - set(base))} removed={sorted(set(base) - set(cur))}"
-    )
-    drifted = [name for name, src in base.items() if cur[name] != src]
-    assert not drifted, f"consensus-seam symbol(s) drifted in judges_dspy.py: {drifted}"
+    _assert_judges_dspy_seam_frozen(base_src, cur_src)
 
 
 def assert_seed_ontology_path_relocated_only(repo: Path, seed_rel: str) -> None:
@@ -128,6 +145,15 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
         ).stdout
     )
     cur = json.loads((repo / _CLINICAL_ONTOLOGY_REL).read_text())
+    _assert_clinical_ontology_frozen(base, cur)
+
+
+def _assert_clinical_ontology_frozen(base: dict, cur: dict) -> None:
+    """Pure predicate behind :func:`assert_clinical_ontology_seam_frozen` — the
+    consensus/owner seam (everything except the additive ``verification_contracts``) is
+    byte-identical. Split out so the C4 non-vacuity can feed a SYNTHESIZED tampered ``cur``
+    (a flags / owner / ``_provenance`` edit must still raise — this is what pins the
+    CE-PACK-6b-CLEAN D2-a decision to keep ``flag_source`` VERBATIM). Mutates its args."""
     base_contracts = base.pop("verification_contracts", [])
     cur_contracts = cur.pop("verification_contracts", [])
     assert cur == base, (
@@ -165,6 +191,19 @@ _COUNCIL_AUTHORIZED_MARKERS = (
     "pack_tier1_owners",
     "_ROLE_DEPLOYMENT",      # PACK-2c roster carve-out (core deployment table; matches _ROLE_DEPLOYMENT_ALL too)
     "pack_production_judges",
+    "6b-CLEAN",              # CE-PACK-6b-CLEAN: the transcript-branch raise sentinel (see below)
+)
+# CE-PACK-6b-CLEAN: the FROZEN council sheds its last clinical residue. ``build_prompt`` (the
+# legacy clinical default-council prompt builder) + its ``safety_flags`` import are DELETED, and
+# ``evaluate()``'s transcript branch raises (the authored stage is the single live prompt source,
+# OQ-1). This adds TWO authorizations to the carve-out guard, kept non-vacuous by the C4 tests:
+#  (a) a ``delete`` hunk is admitted IFF its REMOVED block carries an authorized-deletion marker
+#      below (an unauthorized deletion — e.g. ``_apply_consensus`` — carries none, so it FAILS);
+#  (b) the transcript-branch ``replace`` carries the cycle sentinel ``6b-CLEAN`` on its raise line
+#      (a normal authorized replace under the S-BS-124 per-line bar — no extra line can ride along).
+_COUNCIL_AUTHORIZED_DELETION_MARKERS = (
+    "def build_prompt",           # the build_prompt method block (compliance_council.py:517-788)
+    "from .safety_flags import",  # its get_flag_prompt_section import (compliance_council.py:27)
 )
 # The exact carve-out CALL signatures that must be present (revert-detection). Reverting
 # any carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
@@ -217,16 +256,27 @@ def assert_council_carveouts_only(base_lines: list[str], cur_text: str) -> None:
     changed = [
         op for op in difflib.SequenceMatcher(None, base_lines, cur).get_opcodes() if op[0] != "equal"
     ]
-    # Upper bound: every changed hunk is an authorized replace (rejects edits elsewhere).
+    # Upper bound: every changed hunk is an authorized replace OR an authorized delete.
     for tag, i1, i2, j1, j2 in changed:
-        assert tag == "replace", (
-            f"compliance_council.py change at base L{i1 + 1}-{i2} must be a replace, got {tag!r}"
-        )
         changed_base = "".join(base_lines[i1:i2])
         changed_cur = "".join(cur[j1:j2])
+        # CE-PACK-6b-CLEAN: an authorized DELETION (build_prompt + its safety_flags import) is a
+        # ``delete`` opcode — admitted IFF its REMOVED block carries an authorized-deletion marker.
+        # An unauthorized deletion (e.g. ``_apply_consensus``) carries none, so it FAILS here. A
+        # pure delete adds no lines, so the per-line hardening below is a no-op for it.
+        if tag == "delete":
+            assert any(m in changed_base for m in _COUNCIL_AUTHORIZED_DELETION_MARKERS), (
+                f"unauthorized DELETION in compliance_council.py at base L{i1 + 1}-{i2} "
+                f"(no authorized-deletion marker):\n  removed={changed_base!r}"
+            )
+            continue
+        assert tag == "replace", (
+            f"compliance_council.py change at base L{i1 + 1}-{i2} must be a replace or an "
+            f"authorized delete, got {tag!r}"
+        )
         assert any(m in changed_base or m in changed_cur for m in _COUNCIL_AUTHORIZED_MARKERS), (
             "unauthorized changed hunk in compliance_council.py (no taxonomy / prompts-dir / "
-            f"owner-map marker):\n  base={changed_base!r}\n  cur={changed_cur!r}"
+            f"owner-map / 6b-CLEAN marker):\n  base={changed_base!r}\n  cur={changed_cur!r}"
         )
         # PACK-2b hardening (S-BS-124): within an authorized hunk, every ADDED *code* line must
         # itself carry a marker — comments (the relocated clinical provenance) and blank lines are
