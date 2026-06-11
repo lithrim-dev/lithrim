@@ -2,7 +2,7 @@
 
 > The extension-point contract that lets lithrim-bench ship a generic OSS **Core** and separable, license-gated **Pro** capabilities (healthcare packs, premium grounding contracts) — the technical realization of the open-core GTM (free core + premium annual license + optional VPC; no us-hosted surface).
 >
-> **Status: DRAFT** — **OQ-1..3 RESOLVED 2026-06-09** (the conversational-first-Core direction; see §Open Questions). The full **Phase-1 spec-lock** — the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite — lands in the **Plugin Phase-1** cycle (sequenced AFTER **CHATBIND-2**, the user's first pick). Authored 2026-06-09. Owner: monitor + user.
+> **Status: LOCKED 2026-06-11** — OQ-1..3 RESOLVED 2026-06-09; the **Phase-1 spec-lock** landed in this revision: the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite (correcting the draft's mis-listing of "JUTE structural" under Pro). **The BE content-relocation half of Phase-1 already SHIPPED** via the `healthcare-realm-as-pack` arc (**PACK-1..2c, 2026-06-09→11**) — the core council is now domain-agnostic, the entire clinical realm lives in the `healthcare` pack, verified by grep + the second-pack subprocess proof. **What remains for the Plugin Phase-1 CODE cycle:** the registry-unification refactor (fold `_CONTRACT_EXECUTORS` / `build_judge_lm` / the pack loaders onto one plugin manifest) + the `tier: core|pro` load-time gate (permit-all default) + parity tests. The `frontend`-kind realization is sequenced **AFTER CHATBIND-2** (it needs the runtime trigger channel). Authored 2026-06-09, locked 2026-06-11. Owner: monitor + user.
 
 ---
 
@@ -29,9 +29,10 @@ We are about to build a *batch* of new capabilities — the SNOMED terminology f
 | **`provider`** (judge / model) | A model backend a judge binds to (Azure, BYO-Claude, …). | `runtime/council/judges_dspy.py` `build_judge_lm` + `_ROLE_DEPLOYMENT` (BYOC-1 made it swappable) |
 | **`importer`** (case source / generator) | Turns external records or scenarios into bench cases. | `lithrim_bench/importers/backend_demo.py` (DOGFOOD-1), the Synthea injector pipeline |
 | **`tool`** (agent MCP tool) | A read/lookup capability the conversational agent can call. | `apps/bff/agent/loop.py` allowlist + the S-BS-90 fail-closed deny-hook (Hermes MCP = the first external one) |
-| **`pack`** (domain bundle) | A manifest bundling the above + ontology + judges + flags for a vertical domain. | the existing "pack" concept (ontology + judges + flags + grounding-tools); `harness/evalpack.py` |
+| **`frontend`** (UI component / surface) | A front-end surface the host renders — a gen-UI authoring card, an artifact-pane viewer, a result visualization. Tiered + public/locked like any plugin (some gen-UI Core, some Pro). Driven at runtime by the conversational agent via **CHATBIND-2's trigger channel** (chat opens/focuses the 3rd pane + smart inline gen-UI); the channel is a *precondition* for this kind. | `apps/shell` gen-UI cards + artifact-pane surfaces (`data.jsx` / `cards.jsx`); runtime trigger channel = CHATBIND-2 |
+| **`pack`** (domain bundle) | A manifest bundling the above + ontology + judges + flags for a vertical domain. | the existing "pack" concept (ontology + judges + flags + grounding-tools); `harness/evalpack.py`; **realized by the PACK-1..2c loaders** (`harness/pack.py`) |
 
-The **`contract` is the unit that carries most of the Pro value** (terminology, JUTE, expressions); the **`pack` is how a vertical is sold** (healthcare pack v1).
+The **`contract` is the unit that carries most of the Pro value** (terminology, expressions); the **`pack` is how a vertical is sold** (healthcare pack v1); the new **`frontend` kind** extends the tier/public-locked split to the UI surface. **All JUTE is Core** — see §4.
 
 ### 2. The plugin CONTRACT — one interface, two transports
 
@@ -50,8 +51,10 @@ A **pack** = a manifest that names the plugins + config a vertical needs. The **
 
 Every plugin and pack manifest declares **`tier: core | pro`**. **Core** loads always. **Pro** is **license-gated** at load time and **distributed separately** (private registry / VPC bundle). The split:
 
-- **Core (OSS):** the engine (council orchestration, the grounding-floor *mechanism*, the SQLite config plane, `run_eval`, eval-pack + the DOGFOOD-1 CI/CD gate-CLI), the generic harness + importer, **a redacted sample pack**.
-- **Pro (licensed / VPC):** the **full healthcare pack**, **premium grounding contracts** (SNOMED terminology, JUTE structural, the expressions evaluator), the registry/spawn, and FDE/SME calibration.
+- **Core (OSS):** the **conversational shell** (the chat-first eval interface) + the engine (council orchestration, the grounding-floor *mechanism*, the SQLite config plane, `run_eval`, eval-pack + the DOGFOOD-1 CI/CD gate-CLI) + the generic harness + importer + **ALL of JUTE** (the validator authoring/apply engine, *incl. structural contracts*) + **BYOK** + the **publicly-listed plugins** + **a redacted sample pack**.
+- **Pro (licensed / VPC):** the **full vertical domain packs** (the full healthcare pack — ontology bundles + calibrated validators) + **premium grounding contracts** (SNOMED terminology, the expressions evaluator) + the **SME-calibration loop** + the registry/spawn/VPC + FDE.
+
+> **JUTE-into-Core (OQ-1 refinement, locked):** all JUTE — including structural contracts — is **Core**, the generous-core OSS-adoption wedge. Only the *verticalized domain packs + the SME-calibration loop* are Pro. The moat is the calibrated CONTENT + the flywheel, **not** the bits. (This corrects the pre-lock draft, which mis-listed "JUTE structural" under Pro.)
 
 The **moat is not the bits** (Core is genuinely useful and open) — it is the verticalized packs, the SME-calibration loop, the corpus/flywheel, and the brand (see `eval-services-venture-thesis`, `gtm-launch-and-journey-thesis`).
 
@@ -120,7 +123,7 @@ The **moat is not the bits** (Core is genuinely useful and open) — it is the v
 
 ## Open Questions — RESOLVED 2026-06-09 (user)
 
-> Resolved in the conversational-first-Core direction-setting (2026-06-09). The full Phase-1 spec-lock (the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite) lands in the **Plugin Phase-1** cycle — these are the locked decisions it implements.
+> Resolved in the conversational-first-Core direction-setting (2026-06-09); **folded into the spec body + LOCKED 2026-06-11** (the §1 `frontend`-kind addition + the §4 JUTE-into-Core rewrite). The remaining **Plugin Phase-1 CODE cycle** (registry-unification + the tier gate) implements these locked decisions.
 
 - **OQ-1 — the Core/Pro line. RESOLVED.** **Core (OSS)** = the **conversational shell** (the chat-first eval interface) + the engine (council orchestration + the grounding-floor mechanism) + the SQLite config plane + `run_eval`/eval-pack/the gate-CLI + the generic harness/importer + **ALL of JUTE** (the validator authoring/apply engine, *incl.* structural contracts) + **BYOK** + the **publicly-listed plugins**. **Pro (locked)** = the **vertical domain packs** (the full healthcare pack — ontology bundles + calibrated validators) + the **SME-calibration loop** + registry/VPC + FDE. *JUTE line (user, OQ-1 refinement): **all JUTE is Core**; only the domain packs + calibration are Pro — the generous-core OSS-adoption wedge.* The moat is the calibrated vertical CONTENT + the flywheel, **not** the bits.
 - **OQ-2 — transport. RESOLVED: BOTH.** In-process AND microservice behind one interface (the existing `_HTTP_CONTRACT_TYPES` pattern). Locked Pro packs run as services *inside the operator's stack / VPC* (airgapped-friendly); BYOK + the conversational core run in-process.
