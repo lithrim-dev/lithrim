@@ -20,7 +20,6 @@ pytest.importorskip("tenacity")
 from lithrim_bench.runtime.council.ab_harness import (  # noqa: E402
     OFFLINE_NOTE,
     _context_payload,
-    run_live,
     run_offline_structural,
 )
 
@@ -170,11 +169,6 @@ def test_calibration_is_none_aware(result):
     # faithfulness: only value_mismatch differs (0.7 − 0.9 = −0.2) over 3 paired
     assert cal["faithfulness_judge"]["n_paired"] == 3
     assert cal["faithfulness_judge"]["mean_delta"] == round(-0.2 / 3, 4)
-
-
-def test_run_live_refuses_without_cost_confirmation():
-    with pytest.raises(RuntimeError, match="confirm_cost"):
-        run_live(CASES)
 
 
 def test_context_payload_nests_transcript_under_call_context():

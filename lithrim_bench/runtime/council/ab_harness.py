@@ -1,15 +1,10 @@
-"""Prompt-council vs DSPy-council A/B harness (WS-6c-DSPy-2).
+"""DSPy-council A/B harness — offline harness-logic test (WS-6c-DSPy-2).
 
-Measures the ported imperative prompt-council (the "control" arm —
-``ComplianceCouncil.evaluate``) against the DSPy-rebuilt council (the "treatment"
-arm — ``evaluate_dspy`` over the role-prompt-bound trio) on the by-construction
-recipe=label packs. Emits a structured diff: per-case composite-verdict
+Emits a structured diff over per-judge seam dicts: per-case composite-verdict
 agreement, per-role raised-code-set agreement, per-role calibration (``None``-aware),
 and each arm's :func:`judge_metric.score_judge` result on the role's
 ``LENS_BY_ROLE`` lens.
 
-Two modes
----------
 * **offline-structural** (``$0``, deterministic) — BOTH arms are fed FIXTURED
   per-judge seam dicts; each arm's composite verdict is computed by routing those
   dicts through the SHARED ported ``ComplianceCouncil._apply_consensus``. This
@@ -17,13 +12,12 @@ Two modes
   **HARNESS-LOGIC test only**: because both arms share the same consensus and are
   fed hand-authored inputs, it produces **zero real prompt-vs-DSPy signal**. Never
   present offline-structural output as an "A/B result".
-* **live** (cost-gated) — the control arm calls ``ComplianceCouncil.evaluate``
-  (real Azure fan-out) and the treatment arm runs the live ``build_trio()`` through
-  ``evaluate_dspy``. This is the only mode that yields a real comparison. It makes
-  paid Azure calls, so it refuses to run without ``confirm_cost=True`` (the
-  standing cost-confirm rule). As of WS-6c-DSPy-2 the live mode is implemented but
-  **deliberately unexercised** — the comparison numbers are DEFERRED to a separate
-  cost-confirmed run.
+
+The original ``live`` mode — the prompt-council control arm (``ComplianceCouncil.evaluate``
+→ the legacy ``build_prompt``) against the live DSPy trio — was **RETIRED in
+CE-PACK-6b-CLEAN**: ``build_prompt`` is deleted (the authored DSPy stage is the single
+live prompt source, OQ-1), so the prompt-vs-DSPy comparison no longer has a prompt arm.
+The harness now only carries the offline-structural HARNESS-LOGIC test.
 
 The consensus math is the ported IP, called UNCHANGED below the per-judge seam;
 this harness adds nothing to it (``RECOMPOSITION_PLAN_ws6.md`` §6).
@@ -209,86 +203,9 @@ def _artifact_text(case: Mapping[str, Any]) -> str:
     return "\n\n".join((_get(a, "content", "") or "") for a in (case.get("artifacts") or []))
 
 
-def run_live(
-    cases: Iterable[dict[str, Any]],
-    *,
-    confirm_cost: bool = False,
-    council: Any = None,
-    roles: Iterable[str] = V2_ROLES,
-) -> dict[str, Any]:
-    """Run the REAL prompt-council vs DSPy-council A/B (paid Azure calls).
-
-    Refuses to run without ``confirm_cost=True`` (the standing cost-confirm rule).
-    The control arm is ``ComplianceCouncil.evaluate``; the treatment arm is the
-    live ``build_trio()`` through ``evaluate_dspy``. Per-case the same recipe=label
-    is used to score both arms on the lens. **Unexercised as of WS-6c-DSPy-2** —
-    deferred to a separate cost-confirmed run.
-    """
-    if not confirm_cost:
-        raise RuntimeError(
-            "run_live makes paid Azure calls (both arms × the trio per case); "
-            "pass confirm_cost=True only after an explicit cost check"
-        )
-    from .compliance_council import ComplianceCouncil
-    from .judges_dspy import build_trio, evaluate_dspy
-
-    council = council or ComplianceCouncil()
-    roles = tuple(roles)
-    cases = list(cases)
-    trio = build_trio()
-
-    per_case: list[dict[str, Any]] = []
-    arm_seams: dict[str, dict[str, dict[str, dict[str, Any]]]] = {"prompt": {}, "dspy": {}}
-    for case in cases:
-        cid = case["case_id"]
-        transcript = case.get("transcript", "")
-        artifact = _artifact_text(case)
-
-        prompt_eval = council.evaluate(_context_payload(case), case_id=cid)
-        prompt_seams = {
-            m["model"]: m for m in (prompt_eval.get("models") or []) if not m.get("errors")
-        }
-        prompt_res = ArmCaseResult(
-            case_id=cid,
-            verdict=(prompt_eval.get("consensus") or {}).get("decision", "needs_review"),
-            per_role={
-                role: {
-                    "codes": raised_codes(prompt_seams.get(role, {})),
-                    "confidence": _get(prompt_seams.get(role, {}), "confidence"),
-                }
-                for role in roles
-            },
-        )
-
-        # run the live trio, then route the per-judge seams through the documented
-        # §6 hybrid entrypoint (evaluate_dspy = the ported _apply_consensus, unchanged)
-        dspy_seams = {j.role: j.forward(transcript=transcript, artifact=artifact) for j in trio}
-        dspy_consensus = evaluate_dspy(
-            list(dspy_seams.values()), transcript=transcript, artifact=artifact, council=council
-        )
-        dspy_res = ArmCaseResult(
-            case_id=cid,
-            verdict=dspy_consensus["decision"],
-            per_role={
-                role: {
-                    "codes": raised_codes(dspy_seams.get(role, {})),
-                    "confidence": _get(dspy_seams.get(role, {}), "confidence"),
-                }
-                for role in roles
-            },
-        )
-
-        per_case.append(diff_case(prompt_res, dspy_res, roles=roles))
-        arm_seams["prompt"][cid] = prompt_seams
-        arm_seams["dspy"][cid] = dspy_seams
-
-    n = len(per_case)
-    agree = sum(1 for r in per_case if r["verdict_agree"])
-    return {
-        "mode": "live",
-        "n": n,
-        "verdict_agreement_pct": round(100.0 * agree / n, 2) if n else 0.0,
-        "per_case": per_case,
-        "per_role_score": _score_both_arms(cases, arm_seams, roles=roles),
-        "calibration": _calibration_deltas(per_case, roles),
-    }
+# ``run_live`` (the paid prompt-council-vs-DSPy A/B) was RETIRED in CE-PACK-6b-CLEAN:
+# its control arm called ``ComplianceCouncil.evaluate`` → the legacy ``build_prompt``,
+# which is now deleted (the authored DSPy stage is the single live prompt source, OQ-1).
+# A prompt-vs-DSPy comparison with no prompt arm is moot; ``run_offline_structural``
+# (the HARNESS-LOGIC diff/scoring test) is what remains. The live DSPy grade is covered
+# by ``scripts/run_eval.py --in-process`` + the CE-STANDALONE-1 live smoke.

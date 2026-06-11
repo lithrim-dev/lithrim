@@ -910,12 +910,50 @@ def _run_council_and_map(
     return _runner
 
 
+def _default_authored_evaluator() -> CouncilEvaluator:
+    """The default ``context_kind=transcript`` council evaluator — the AUTHORED DSPy
+    trio over the ACTIVE PACK, each production judge at its FULL pack lens.
+
+    CE-PACK-6b-CLEAN D1: when no evaluator is injected (the orchestrator default /
+    ``LocalPipelineBackend`` / ``run_local_scribe``), the default transcript grade runs
+    the authored path — the single live prompt source (OQ-1) — so the legacy
+    ``ComplianceCouncil.build_prompt`` default council is never reached. Mirrors the
+    6b-ROUTE pattern in ``scripts/run_eval.py`` (no-assignment → ``pack_lenses()[role]``
+    over ``pack_production_judges()``). Heavy deps (``dspy`` via ``build_trio``, the
+    pack ontology) are imported lazily here so the default-deps core stays import-clean.
+    """
+    from lithrim_bench.harness.ontology import load_ontology
+    from lithrim_bench.harness.pack import (
+        pack_lenses,
+        pack_ontology_path,
+        pack_production_judges,
+    )
+    from lithrim_bench.runtime.council.authored_stage import build_authored_evaluator
+
+    ontology = load_ontology(pack_ontology_path())
+    lenses = pack_lenses()
+    assignments = {
+        role: sorted(lenses[role]) for role in pack_production_judges() if role in lenses
+    }
+    return build_authored_evaluator(ontology=ontology, assignments=assignments)
+
+
 async def run_semantic_transcript(
     request: PipelineRequest,
     *,
     council_evaluate: Optional[CouncilEvaluator] = None,
 ) -> Tuple[StageResult, Dict[str, Any]]:
-    """Run the compliance council for ``context_kind=transcript``."""
+    """Run the compliance council for ``context_kind=transcript``.
+
+    When no evaluator is injected, the council grades via the AUTHORED stage — each
+    production judge at its full pack lens (:func:`_default_authored_evaluator`) — so
+    the legacy ``ComplianceCouncil.build_prompt`` default council is never reached
+    (CE-PACK-6b-CLEAN D1). The ``context_kind=source_message`` path
+    (:func:`run_semantic_source_message`) is unchanged and still routes through
+    ``ComplianceCouncil.evaluate`` → ``build_source_message_prompt``.
+    """
+    if council_evaluate is None:
+        council_evaluate = _default_authored_evaluator()
     payload, retrieval = await _build_transcript_payload(request)
     runner = _run_council_and_map(
         request=request,

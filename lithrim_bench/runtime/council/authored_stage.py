@@ -38,7 +38,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 
-def build_authored_semantic_stage(
+def build_authored_evaluator(
     *,
     ontology: Any,
     assignments: dict[str, Sequence[str]] | None,
@@ -51,12 +51,16 @@ def build_authored_semantic_stage(
     models: dict[str, str] | None = None,
     roles: Sequence[str] | None = None,
 ):
-    """Return an async semantic stage that grades via the authored DSPy trio.
+    """Build the authored DSPy-trio council evaluator — the ``council_evaluate`` seam
+    (``payload -> {consensus, models, evidence_summary}``) that mirrors
+    ``ComplianceCouncil.evaluate``'s envelope.
 
-    The returned callable matches the orchestrator's ``semantic_stage`` contract
-    (``async (PipelineRequest) -> (StageResult, meta)``) and is passed straight to
-    :func:`lithrim_bench.harness.grade.grade_inprocess` via its existing
-    ``semantic_stage=`` param — no signature change downstream.
+    :func:`build_authored_semantic_stage` wraps this into the orchestrator
+    ``semantic_stage`` contract; ``runtime/pipeline/stages.py``'s default
+    ``context_kind=transcript`` path (CE-PACK-6b-CLEAN D1) calls it DIRECTLY when no
+    evaluator is injected, so the default in-process transcript grade IS the authored
+    path and the legacy ``ComplianceCouncil.build_prompt`` default council is never
+    reached (OQ-1: the authored path is the single live prompt source).
 
     ``ontology`` + ``assignments`` (role → assigned flag codes) drive
     :func:`build_trio` so each judge binds its AUTHORED ``role_key_questions``. With
@@ -67,17 +71,9 @@ def build_authored_semantic_stage(
 
     ``predictors`` (role → callable) is forwarded to :func:`build_trio` for $0
     offline determinism; omit it for the live v2 Azure trio (the paid in-process
-    path).
-
-    ``models`` (BYOC-1) is forwarded to :func:`build_trio` as a per-role provider
-    selector (e.g. ``{"risk_judge": "byo-claude"}``) so one role runs on the tool-less
-    BYO-Claude LM while the rest stay Azure — the model-composition council. ``None``
-    (the default) is byte-identical to before.
-
-    ``roles`` (DOGFOOD-1 D2b) is forwarded to :func:`build_trio` to grade with a SMALLER
-    roster (the judge-set-ladder rungs). ``None`` (the default) is the full trio,
-    byte-identical to before. A 2- or 3-role roster grades normally; a single-role roster
-    degenerates at the frozen consensus (``len(valid) >= 2`` guard) — see ``build_trio``.
+    path). ``models`` (BYOC-1) is the per-role provider selector; ``roles`` (DOGFOOD-1)
+    grades with a SMALLER roster (``None`` = the full trio, byte-identical to before;
+    a single-role roster degenerates at the frozen consensus ``len(valid) >= 2`` guard).
 
     UAP-3b (THE MOAT): when ``apply_gate`` is True (default), the per-judge
     **withstands-gate** (:func:`apply_withstands_gate`) runs BETWEEN the trio results
@@ -90,7 +86,6 @@ def build_authored_semantic_stage(
     behaviour (the no-gate baseline the moat exhibit contrasts against). ``http_client``
     is injectable for the validator-output signals' executors (offline tests).
     """
-    from ..pipeline.stages import run_semantic
     from .compliance_council import ComplianceCouncil
     from .judges_dspy import build_trio
     from .withstands import apply_withstands_gate
@@ -147,7 +142,48 @@ def build_authored_semantic_stage(
             "evidence_summary": consensus.get("evidence_summary", {}),
         }
 
+    return _evaluator
+
+
+def build_authored_semantic_stage(
+    *,
+    ontology: Any,
+    assignments: dict[str, Sequence[str]] | None,
+    predictors: dict[str, Callable[..., Any]] | None = None,
+    council: Any = None,
+    gate_mode: bool = False,
+    apply_gate: bool = True,
+    decisions_sink: list[Any] | None = None,
+    http_client: Any | None = None,
+    models: dict[str, str] | None = None,
+    roles: Sequence[str] | None = None,
+):
+    """Return an async semantic stage that grades via the authored DSPy trio.
+
+    The returned callable matches the orchestrator's ``semantic_stage`` contract
+    (``async (PipelineRequest) -> (StageResult, meta)``) and is passed straight to
+    :func:`lithrim_bench.harness.grade.grade_inprocess` via its existing
+    ``semantic_stage=`` param — no signature change downstream. It wraps
+    :func:`build_authored_evaluator` (which carries the trio + THE MOAT withstands-gate
+    + the frozen ``_apply_consensus`` call); every keyword is forwarded unchanged, so
+    the stage behaviour is byte-identical to before the evaluator was factored out.
+    """
+    from ..pipeline.stages import run_semantic
+
+    evaluator = build_authored_evaluator(
+        ontology=ontology,
+        assignments=assignments,
+        predictors=predictors,
+        council=council,
+        gate_mode=gate_mode,
+        apply_gate=apply_gate,
+        decisions_sink=decisions_sink,
+        http_client=http_client,
+        models=models,
+        roles=roles,
+    )
+
     async def _stage(request):
-        return await run_semantic(request, council_evaluate=_evaluator)
+        return await run_semantic(request, council_evaluate=evaluator)
 
     return _stage
