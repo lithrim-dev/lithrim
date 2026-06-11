@@ -11,7 +11,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
-      {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />}
+      {/* {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />} */}
       <div className="tb-crumb">
         <span className="ws-pill"><span className="dot" /> acme-health</span>
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
