@@ -151,9 +151,9 @@ def test_no_assignment_in_process_path_builds_authored_stage_not_default_council
     council). $0/offline: the authored-stage builder + grade_inprocess are stubbed so no
     Azure call fires; we only assert the routing.
 
-    ``build_prompt`` remains physically present (reached only by
-    ``runtime/pipeline/stages.py`` / ``ab_harness`` / the ``test_consensus`` unit) and
-    is deleted in 6b-CLEAN; this test pins that it is OFF the in-process product path."""
+    ``build_prompt`` was DELETED in CE-PACK-6b-CLEAN (the authored DSPy stage is the single
+    live prompt source); this test pins that the in-process path builds the authored stage
+    (never ``semantic_stage=None``, the slot the legacy default council used to fill)."""
     import sys as _sys
 
     import lithrim_bench.runtime.council.authored_stage as authored_mod
@@ -186,7 +186,8 @@ def test_no_assignment_in_process_path_builds_authored_stage_not_default_council
     with pytest.raises(_Sentinel):
         run_eval.run(agent, in_process=True, assignments=None, collections_db=db)
 
-    # the authored stage was built (never None) → build_prompt's default council is OFF path
+    # the authored stage was built (never None) → the deleted build_prompt default council
+    # cannot be reached on the in-process path
     assert captured["semantic_stage"] == "STAGE_SENTINEL"
     assert captured["semantic_stage"] is not None
 

@@ -11,15 +11,17 @@ Modules
 -------
 - ``compliance_council`` — ``ComplianceCouncil`` + the ported ``_apply_consensus``
   consensus engine, the tier/owner/pillar tables, ``extract_verdict_confidence``
-  (None-tolerant), ``build_prompt``. Requires the ``[council]`` extra
+  (None-tolerant). Requires the ``[council]`` extra
   (``openai`` + ``tenacity``); the OpenAI/Azure client is constructed lazily and
-  makes no network call at import time.
-- ``safety_flags`` — the second tables file: ``SafetyFlagDefinition``,
-  ``FailureType``, ``SAFETY_FLAG_TO_FAILURE_TYPE``, ``FAILURE_TYPE_SEVERITY``,
-  ``get_flag_prompt_section``. Pure-pydantic, importable on the offline core
-  (no ``openai``). Imported directly by ``scripts/seed_ontology.py`` — this
-  ``__init__`` deliberately does NOT eagerly import ``compliance_council`` so
-  that path stays openai-free.
+  makes no network call at import time. (The legacy ``build_prompt`` default council — the
+  healthcare prompt builder — was DELETED in CE-PACK-6b-CLEAN; the authored DSPy stage is the
+  single live prompt source, OQ-1, and ``evaluate()`` now serves the ``source_message`` branch
+  only.)
+- ``safety_flags`` was the healthcare flag-definition seed; it RELOCATED to
+  ``packs/healthcare/safety_flags_seed.py`` in CE-PACK-6b-CLEAN (the core council is now
+  domain-agnostic). ``scripts/seed_ontology.py`` reads the seed from the pack BY FILE PATH;
+  this ``__init__`` still deliberately does NOT eagerly import ``compliance_council`` so
+  the seed path stays ``openai``-free.
 - ``llm_provider`` — the salvaged Azure/OpenAI client factory (deployment-id
   substitution reaches Mistral-Large-3 + Llama-4-Maverick).
 - ``phi_redaction`` — ``sanitize_prompt`` (PHI redaction before any LLM call).

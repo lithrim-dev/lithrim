@@ -301,15 +301,14 @@ def test_clean_negative_all_approve(council, judge):
 
 # ── NKA exception lives in the PROMPT layer, not consensus math ─────────────
 
-def test_nka_guidance_present_in_prompt_and_role_prompts(council):
+def test_nka_guidance_present_in_role_prompt(council):
     """NKA/NKDA "no-known-allergies ≠ FABRICATED_ALLERGY" is prompt-resident.
 
-    Unlike the other A3 legs, the NKA exception is not consensus arithmetic — it
-    is carried in ``build_prompt``'s flag examples and the faithfulness_judge role
-    prompt (the v2 owner). Assert both ported faithfully.
+    The NKA exception is not consensus arithmetic — it is carried in the
+    faithfulness_judge role prompt (the v2 owner). With the legacy ``build_prompt``
+    retired (CE-PACK-6b-CLEAN), the role prompt is the single source for this guidance;
+    assert it is carried faithfully.
     """
-    prompt = council.build_prompt({"transcript": "patient denies allergies", "artifact": ""})
-    assert "NKDA" in prompt
     assert "NKDA" in council._role_prompts["faithfulness_judge"] or \
         "NKA" in council._role_prompts["faithfulness_judge"]
 

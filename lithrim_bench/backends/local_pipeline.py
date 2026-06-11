@@ -105,9 +105,10 @@ class LocalPipelineBackend(BackendClient):
             context_kind="transcript",
             context=_build_context(case, artifacts),
             org_id=self.org_id,
-            # agent_metadata.category selects the council's scribe prompt branch
-            # (build_prompt :597-655) — faithful to how the analyze flow judges a
-            # scribe agent; suppresses false positives on legit scribe output.
+            # agent_metadata.category historically selected build_prompt's scribe prompt
+            # branch (deleted in CE-PACK-6b-CLEAN; the authored default path ignores
+            # category). Retained for provenance / parity with how the analyze flow tags a
+            # scribe agent.
             agent_metadata=(
                 {"category": agent_type, "name": f"bench-{agent_type}"} if agent_type else None
             ),

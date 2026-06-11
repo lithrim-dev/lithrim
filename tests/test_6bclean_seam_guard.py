@@ -79,15 +79,16 @@ def _simulate_d4(cur: str) -> str:
 
 
 def test_authorized_build_prompt_deletion_and_raise_pass():
-    """A5 upper bound: the FULL post-D4 state (4 pack carve-outs + the build_prompt
-    deletion + the import deletion + the 6b-CLEAN transcript raise) is admitted."""
+    """A5 upper bound: the FULL post-D4 state (4 pack carve-outs + the build_prompt deletion +
+    the import deletion + the 6b-CLEAN transcript raise) is admitted by the guard. Pre-D4 this
+    is synthesized from the current tree (pre-validating the frozen edit); post-D4 the real tree
+    already carries it, so the guard is asserted on the real state directly."""
     cur = _council_cur_text()
-    simulated = _simulate_d4(cur)
-    # the synthesis actually applied (else the test is vacuous)
-    assert "def build_prompt" not in simulated
-    assert "get_flag_prompt_section" not in simulated
-    assert "6b-CLEAN" in simulated
-    assert_council_carveouts_only(_council_base_lines(), simulated)  # does not raise
+    if "def build_prompt" in cur:  # pre-D4: synthesize the deletion to pre-validate
+        cur = _simulate_d4(cur)
+    assert "def build_prompt" not in cur and "get_flag_prompt_section" not in cur
+    assert "6b-CLEAN" in cur  # the authorized transcript raise
+    assert_council_carveouts_only(_council_base_lines(), cur)  # does not raise
 
 
 def test_unauthorized_deletion_of_consensus_still_fails():
@@ -102,13 +103,21 @@ def test_unauthorized_deletion_of_consensus_still_fails():
 
 
 def test_transcript_raise_without_6bclean_marker_fails():
-    """C4: the transcript-branch raise MUST carry the ``6b-CLEAN`` sentinel — a raise
-    lacking it is a marker-less replace line → the S-BS-124 per-line bar FAILS it."""
+    """C4: the transcript-branch raise MUST carry the ``6b-CLEAN`` sentinel — a raise lacking
+    it is a marker-less replace line → the S-BS-124 per-line bar FAILS it. Robust to both the
+    pre-D4 (``prompt = self.build_prompt(...)``) and post-D4 (the real 6b-CLEAN raise) tree."""
     cur = _council_cur_text()
-    tampered = cur.replace(
-        "            prompt = self.build_prompt(context_payload)",
-        '            raise ValueError("transcript not supported")',  # no 6b-CLEAN marker
-    )
+    bad = '            raise ValueError("transcript not supported")'  # no 6b-CLEAN marker
+    pre = "            prompt = self.build_prompt(context_payload)"
+    if pre in cur:  # pre-D4
+        tampered = cur.replace(pre, bad)
+    else:  # post-D4: swap the real 6b-CLEAN transcript raise for a marker-less one
+        lines = cur.splitlines(keepends=True)
+        hits = [i for i, ln in enumerate(lines) if "6b-CLEAN: evaluate() no longer grades" in ln]
+        assert len(hits) == 1
+        lines[hits[0]] = bad + "\n"
+        tampered = "".join(lines)
+    assert tampered != cur
     with pytest.raises(AssertionError, match="unauthorized"):
         assert_council_carveouts_only(_council_base_lines(), tampered)
 

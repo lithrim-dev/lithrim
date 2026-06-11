@@ -195,8 +195,8 @@ def run(
     ALWAYS the AUTHORED DSPy trio (``build_authored_semantic_stage``) — the single live
     prompt source (CE-PACK-6b-ROUTE / OQ-1). When ``assignments`` is set the judges
     grade with that explicit lens; ``None``/absent defaults each judge to its FULL pack
-    lens (``pack_lenses()[role]`` over ``pack_production_judges()``), NOT the legacy
-    clinical default council (``ComplianceCouncil.build_prompt`` is off this path).
+    lens (``pack_lenses()[role]`` over ``pack_production_judges()``), NOT a legacy
+    clinical default council (``ComplianceCouncil.build_prompt`` was deleted in 6b-CLEAN).
     Ignored on the replay path (no live council) and on the live ``:8002`` path
     (per-judge assignment-injection is WS-2-backend-gated, HARD-GATE-paused).
 
@@ -253,10 +253,9 @@ def run(
         # those drive the lens; absent any (no assignments/models/roles) each judge
         # defaults to its FULL pack lens (`pack_lenses()[role]` over the production
         # roster), so every judge grades at its full authored scope rather than falling
-        # back to the legacy clinical default council. So `semantic_stage` is NEVER None
-        # on this path: `ComplianceCouncil.build_prompt` is no longer routed to here (it
-        # stays physically present, reached only by stages.py/ab_harness/the consensus
-        # unit test, and is deleted in 6b-CLEAN). Lazy import (heavy deps) — the
+        # back to a legacy clinical default council. So `semantic_stage` is NEVER None on
+        # this path: `ComplianceCouncil.build_prompt` was DELETED in 6b-CLEAN (the authored
+        # DSPy stage is the single live prompt source). Lazy import (heavy deps) — the
         # default-deps replay/live paths above never reach it.
         from lithrim_bench.harness.pack import pack_lenses, pack_production_judges
         from lithrim_bench.runtime.council.authored_stage import (
@@ -266,7 +265,7 @@ def run(
         if not (assignments or models or roles):
             # The full-lens default: every production judge grades at its full pack scope
             # (the codes it may raise), the behaviour-honest "no explicit authoring yet"
-            # state — NOT the legacy build_prompt full-taxonomy dump.
+            # state — NOT the deleted build_prompt's full-taxonomy dump.
             lenses = pack_lenses()
             assignments = {
                 role: sorted(lenses[role]) for role in pack_production_judges() if role in lenses

@@ -254,10 +254,11 @@ class PipelineRequest(BaseModel):
     # their own ComplianceCouncil and never set this flag, so they keep the
     # default ``seed=42`` behavior.
     eval_mode: bool = False
-    # Vendored addition (Bench salvage): agent-type context so the council
-    # selects the category-specialised prompt branch (build_prompt :597-655,
-    # e.g. the scribe branch). The cloud sync PipelineRequest never modelled
-    # this; the analyze flow (ObservationWorkflow) passes it via agent_metadata.
+    # Vendored addition (Bench salvage): agent-type context. It historically selected
+    # build_prompt's category-specialised prompt branch (e.g. the scribe branch), but
+    # build_prompt was deleted in CE-PACK-6b-CLEAN and the authored path does not branch on
+    # category — retained for provenance; the analyze flow (ObservationWorkflow) still
+    # passes it via agent_metadata.
     agent_metadata: Optional[Dict[str, Any]] = None
 
 
