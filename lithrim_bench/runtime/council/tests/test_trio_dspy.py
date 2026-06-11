@@ -308,7 +308,7 @@ def test_lens_by_role_covers_the_v2_trio():
     from lithrim_bench.harness.pack import pack_lenses
 
     assert set(LENS_BY_ROLE) == set(V2_ROLES)
-    assert LENS_BY_ROLE == pack_lenses()
+    assert pack_lenses() == LENS_BY_ROLE
     assert LENS_BY_ROLE["risk_judge"] == RISK_JUDGE_LENS
     assert LENS_BY_ROLE["policy_judge"] == POLICY_JUDGE_LENS
     assert LENS_BY_ROLE["faithfulness_judge"] == FAITHFULNESS_JUDGE_LENS
