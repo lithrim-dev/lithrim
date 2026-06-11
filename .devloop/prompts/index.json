@@ -11,7 +11,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE-class (SPEC_PRODUCT_SHELL section8 shell phase; the :5180 visual smoke is load-bearing; user-electable inline vs fresh-critic at close)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md (LOCKED 2026-06-04 -- §2B audit, §3 Stage-1/3, §4 data contracts, §5 R0/R1/R3, §7 phasing)",
         "lithrim_bench/harness/config.py (Agent/EvalProfile/save_agent/load_agent -- the config-plane write-target)",
@@ -35,7 +37,9 @@
       "status": "closed-NON-BLOCKING (86fa1d3..3e89ad5; monitor 7-item audit CLEAN re-verified + HARD-GATE genuinely-fresh-critic (agent a8c77571d1a911d6d) NON-BLOCKING [0 BLOCKING / 3 NB / 2 OQ]; bench-only, $0 offline; PROCEED-WITH-CAVEATS, A8 :5180 smoke OWED). Judge authoring via ontology-assignment shipped: the LAYERED prompt<->ontology bridge (judge_assignment.py; A4 byte-parity all 3 roles vs the LIVE council loader, S-BS-11 prose preserved + faithfulness keeps its 164-line base), GET/PUT /v1/judges + harness/judges.py (shared upsert_with_audit txn, target=judge audit), owner<->emit 422 on LENS_BY_ROLE NOT the stale ontology owner_roles (CITATION-DRIFT -> S-BS-59) + no inert-owner, the JudgeEditor gen-UI $0 assignment->prompt preview (demonstrability). Council-light judge_assignment.py extraction (BFF preview needs no [council]; import-isolation verified). A5 frozen 0-delta (compliance_council + clinical_v1 + data/config/agents + council_roles + the per-judge seam dict). Suites monitor-re-ran: 277/12 default / 94/3 council / 30 BFF / 40 Vitest. §10 ratified.",
       "version": "v1",
       "hardness": "HARD-GATE (the prompt<->ontology bridge touches safety-critical judge prose [S-BS-11] + the owner<->emit invariant #4; the :5180 smoke A8 is load-bearing; fresh-critic the default)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md (LOCKED -- §2A entity model, §3.1 Stage-1 judge creation, §4 /v1/judges contract, §5 R2, §12 OQ-1 ontology-as-source-via-assignment)",
         "lithrim_bench/runtime/council/judges_dspy.py (the BRIDGE site: JudgeSignature.role_key_questions:208 <- load_role_prompt:110; build_trio:313; build_judge_lm:220; the frozen per-judge seam dict :301-305)",
@@ -59,7 +63,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "HARD-GATE (closes the authored->flip wiring S-BS-63 through the grade path adjacent to the frozen consensus seam [A2 byte-0-delta load-bearing]; grows the v1 BFF surface [§10 ratify]; adds run-provenance persistence S-BS-52/56; live/in_process acceptance runs cost-gated; :5180 smoke load-bearing; fresh-critic the default)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §5 R4 (RunPanel + processing) + R6 (POST /v1/eval-pack/run + GET /v1/runs) + §3.3 Stage-3 + §4 BFF/registry + §13 surface context",
         "scripts/run_eval.py:101-156 (run() + the 3-way grade dispatch in_process:125-142/live:143-153/replay:155 -- the S-BS-63 thread-point)",
@@ -84,7 +90,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "HARD-GATE (THE MOAT -- the §2A withstands-gate; D2 inserts a correction stage PRE-consensus ADJACENT to the frozen _apply_consensus [A3 byte-0-delta load-bearing]; the gate can correct an LLM verdict so the labels-true-by-construction guard [must NOT relabel a true case, A5] is a CLAUDE.md core-invariant claim; the moat exhibit [A2] is a by-construction flip; any LLM-critique run is cost-gated; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §2A (Ralph-Loop withstands-gate, lines 63-74) + §2B audit (89/102/107) + build-seq (129/152) + §13 (234 / 268 locus=BOTH / 283)",
         "lithrim_bench/runtime/council/authored_stage.py:83-88 (the pre-consensus insertion point: results=[j.forward(...)] :83 -> council._apply_consensus(results) :87 -> return {consensus, models:results, evidence_summary} :88; the gate inserts BETWEEN :83 and :87, _apply_consensus CALLED-only = A3)",
@@ -108,7 +116,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "HARD-GATE (completes THE MOAT: the LIVE paid attestation of the verdict-flip [labels-true-by-construction + cost-gated], the LLM Ralph-Loop critique [adjacent to the deterministic floor], GroundingCheck first-class entities, + the run-provenance-blob embedding [orchestrator-adjacent, S-BS-72]; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "_note": "UAP-3b-2 = the pre-authorized UAP-3b D-E/D-A SPLIT (deferred-not-dropped; stub written by the UAP-3b executor at close). Carries: (A6) D3 GroundingChecks as first-class config-authored entities (EvalProfile.grounding_checks view over the ontology verification_contracts, run at the post-consensus ground()/composite() locus, distinguished from judge-attached validators; light surface + audit); (D-A) the LLM Ralph-Loop critique PASS (the gate's critique= hook, the richer withstands-ruling, cost-gated; UAP-3b shipped deterministic-only); the LIVE paid moat attestation (the visceral 'watch the verdict change' on the real trio -> discharges S-BS-70 + validates S-BS-73 on-by-default); (S-BS-72) embed the withstands ruling in the SqliteProvenanceStore run-blob (needs an orchestrator seam ABOVE the frozen consensus). Expand via /devloop-expand-driver bench-salvage UAP-3b-2 (re-grep against the UAP-3b modules signals.py/withstands.py/authored_stage.py + grounding.py + grade.py provenance). FROZEN holds: _apply_consensus + the per-judge seam dict + seeds. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
       "created": "2026-06-04",
       "last_re_verified": "2026-06-04 (EXPANDED — all §1 citations re-grepped against HEAD 8bd8ac9: run_eval.py:169/205/237/269-299 [the S-BS-72 pointer + the withstands loop], grade.py:129-170 [the provenance seam], provenance.py:62/76, config.py EvalProfile, withstands.py:78-86 [no critique= param yet], grounding.py registries — all CONFIRMED)",
@@ -124,7 +134,9 @@
       "status": "stub",
       "version": "v0-stub",
       "hardness": "HARD-GATE (the LLM critique is an additional signal adjacent to the deterministic floor — cost-gated gpt-4.1; the gate's critique= hook + the by-construction guard [the critique can down-rank/correct but never relabel]; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "_note": "UAP-3b-3 = the SPLIT-OUT LLM Ralph-Loop critique (UAP-3b D-A, deferred-not-dropped; stub written by the UAP-3b-2 executor at close). UAP-3b/3b-2 shipped the DETERMINISTIC moat (signals + the gate + the audit + the live-SAFE attestation). This adds the critique= hook to apply_withstands_gate (withstands.py:78, currently no critique= param; the gate is shaped to admit it per the docstring :27-29) + a cost-gated gpt-4.1 pass that produces a REASONED withstands-ruling over the SAME deterministic signals (richer why-it-withstands/why-corrected prose), NEVER a relabel, always above the frozen seam, bounded by the same A5 by-construction guard. LOWEST-VALUE/UNCERTAIN per critique-pass-precision-not-floor (self-critique alone doesn't close the gap; the deterministic signals do) — the open research question is whether a SIGNAL-FED critique adds value over the deterministic correction. Expand via /devloop-expand-driver bench-salvage UAP-3b-3. FROZEN holds. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
       "created": "2026-06-05",
       "last_re_verified": "2026-06-05 (stub authored at UAP-3b-2 close; citations to be re-grepped at expand-driver time)",
@@ -139,7 +151,9 @@
       "status": "shipped",
       "version": "v3",
       "hardness": "HARD-GATE (optimize is a PAID labels-true-by-construction claim — the held-out Δ must be HONEST, never manufactured [the run_optimize contract + the WS-6c-DSPy-3b negative-Δ precedent]; bind-back persists an optimized judge ONLY on a positive Δ [S-BS-48]; the BFF surface grows §10; the S-BS-49 fix is adjacent to the frozen judge_metric/seam [A4 0-delta]; live runs cost-gated; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md R5 :206 (POST /v1/judges/{role}/optimize, honest held-out Δ, gated S-BS-49) + :123-130 (the judge-author/optimize surface) + :235 (UAP-4 realizes SPEC_CALIBRATION_TRAINER) + §10 ratify :184/:260",
         "docs/specs/SPEC_CALIBRATION_TRAINER.md (the trainer thesis §1; the lever→re-run→diff loop §4; §4.1 the prompt lever is NON-MONOTONIC; M2 the MVP §6; §9 offline/local/BYOK)",
@@ -181,7 +195,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (D2 edits the orchestrator mapping ADJACENT to the frozen consensus seam -- A3 byte-0-delta load-bearing; D3 constructs a calibration-sensitive by-construction case that must flip on the REAL paid trio -- a labels-true-by-construction claim per CLAUDE.md; release-critical demonstrability loop; live in_process runs cost-gated; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §2A (entity model) + §2B (audit-is-the-product) + §4 (gen-UI registry + BFF) + §13:280/:236 (R10 surface context -- R10 is OUT, split to UAP-5a-assist)",
         "apps/shell/src/genui/JudgeEditor.jsx + registry.js:30 (tool-judge_editor REGISTERED but NOT mounted = S-BS-62) + panes.jsx:162-163/:172 (the agent_editor/run_panel mount pattern) + bff.js:79-89 (getJudges/getJudge/putJudge)",
@@ -204,7 +220,9 @@
       "status": "stub",
       "version": "v1",
       "hardness": "HARD-GATE-class (shell phase; an LLM drafts safety-critical judges/flags -- but the draft is single-shot + the audited PUT path + the owner<->emit/snapshot 422 gates remain authoritative; :5180 smoke load-bearing)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §13 (ADDITIVE conversational-driver surface) + R10 (authoring-assist) + §7 UAP-5a phasing",
         "../zyng/zyng/authoring.py (the REUSE target: LLMClient Protocol:143; ClaudeCliClient:500 local-`claude`-CLI provider; _BRAINS/make_client/auto_client:637 dev-CLI/prod-API factory; StubLLMClient:397 offline; _emit_validated:305 forced-tool+retry)",
@@ -226,7 +244,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (the capstone; introduces an agent LOOP + a new [agent] extra + SSE streaming + a parts-adapter; the OQ-6 loop-locus decision is load-bearing; :5180 smoke + fresh-critic the default)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md §13 (ADDITIVE) + R11 (conversational shell) + §7 UAP-5b phasing + OQ-6 (loop locus, OPEN)",
         "Claude Agent SDK (`claude-agent-sdk`: ClaudeSDKClient multi-turn loop; @tool + create_sdk_mcp_server for in-process tools) — NOT INSTALLED + no [agent] extra (re-grep 2026-06-05) -> D0 GATING spike: prove the BYO-Claude/local-CLI auth (no API key) before building the loop on it",
@@ -249,7 +269,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (grows the UAP-5b spine to the complete multi-turn journey -- more SDK-MCP tools [author_flag/put_ontology, assemble agent, eval-pack batch, run-history/audit reads], longer multi-step orchestration, A-LIVE from a blank agent; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "_note": "UAP-5c = the pre-authorized UAP-5b SPLIT (D-F, deferred-not-dropped; the A-LIVE 'complete the whole journey from scratch by talking' TARGET). UAP-5b shipped the LOOP SPINE + a 3-tool CORE (author_judge/get_judge/run_eval-replay) over POST /v1/chat (SSE) + the parts-adapter + the wired composer + the in-DOM CostModal. This GROWS the tool set + the orchestration to the full Domain->Judge->Flag->Run->Review loop driven from a blank agent: wrap the remaining ops as in-process SDK-MCP tools (author_flag/put_ontology via PUT /v1/ontology, assemble-agent via PUT /v1/agent, eval-pack batch via POST /v1/eval-pack/run, the run-history/audit reads), each a THIN wrapper over the EXISTING audited op (FROZEN -- wrap, never modify), adapted to the existing gen-UI cards. A-SAFE invariants HOLD: the agent proposes a paid run, only the human's in-DOM CostModal confirms it; no relabel, no author-gate bypass, every write audited. Each added tool grows the journey cheaply (the spine is proven). Two non-negotiable carries baked into deliverables: S-BS-82 (the live get_judge break -- the bound _get_judge inherits the Query FieldInfo sentinel; fix the WRAPPER, op stays frozen, add the regression test) + S-BS-81 (A-SAFE safe-by-allowlist -- ADD the allowlist-bounds test as the tool surface widens). Right-sized per the UAP-4/live-reassess lesson: CORE = author_flag + review_runs + get_agent; assemble_agent (WRITE) + eval-pack batch SPLIT to UAP-5c-2 if the spine balloons. Licensing guardrail: BYO-Claude/desktop only. DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only commits.",
       "created": "2026-06-05",
       "expanded": "2026-06-05 (monitor expanded the stub from the LOCKED SPEC §13/R11 + the UAP-5b close-out + the rich index/TASK_PACK _note. ALL citations re-grepped 2026-06-05, 0 DRIFTED / 0 MISSING: the UAP-5b spine apps/bff/agent/{tools:130-154,loop:49/53,adapter:22-59}.py + app.py _build_tool_context:911-959 + _get_judge:942-943 [the S-BS-82 bug confirmed: omits assigned_flags -> inherits get_judge_endpoint:559 Query(None) FieldInfo -> :581 .split crash live]; the FROZEN endpoints the new tools wrap [put_ontology:714 / put_agent:420 / get_agent:410 / eval_pack_run:375 (live:372 paid) / list_runs:821 / get_run_audit:834 / get_audit:758]; registry.js:23-33 KNOWN_TOOLS [9 cards -- every card the new tools need ALREADY exists, no new types]. Backfilled the TASK_PACK UAP-5c entry [deliverables/acceptance/scope_guardrails authored from SPEC + stub, status stub->ready] per the devloop-task-pack-stale-uap-from-spec practice. HARD-GATE.)",
@@ -265,7 +287,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (re-introduces the FIRST agent-reachable paid-capable wrapper [run_eval_pack over the live knob] + the FIRST agent-reachable Agent WRITE [assemble_agent] -> A-SAFE re-proven safe-by-explicit-bound as the surface widens; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "_note": "UAP-5c-2 = the pre-authorized UAP-5c D-F SPLIT. UAP-5c shipped the full journey on a 6-tool surface; this adds run_eval_pack (the eval-pack BATCH, replay/$0, the wrapper hardcodes live=False -- the A-SAFE crux) + assemble_agent (the Domain-assembly WRITE, EDIT-ONE-FACET: a full Agent dict [config.py agent_to_dict] is too much for a conversational tool, so load via get_agent -> modify ONE facet [roster add/remove-judge or ontology bind] -> put_agent; the agent supplies a DELTA, never the full dict -- mirrors author_flag's edit-only discipline). A-SAFE re-proof = run_eval_pack live=False hardcoded + a live=True-dropped negative test + the 8-tool allowlist-bounds; assemble_agent audited + 422-surfaces. Right-sized: if edit-one-facet balloons, run_eval_pack alone is a complete cycle (D-F). SEQUENCING: UAP-5c's A-LIVE is OWED -- recommend attesting it FIRST (live catches what offline misses; S-BS-82 was live-only). DIRTY SHARED BRANCH bench-salvage/ws6c-dspy: pathspec-only.",
       "created": "2026-06-05",
       "last_re_verified": "2026-06-05 (expand-driver: re-grepped put_agent_endpoint:421 + eval_pack_run_endpoint:376 [EvalPackRunRequest.live:372] + get_agent_endpoint:410 + _build_tool_context:911-959 + config.py agent_to_dict:120-135 + tests/test_uap5c_journey.py:159-191 [allowlist-bounds iterate _TOOL_SPECS] + registry.js:23-33 KNOWN_TOOLS; 0 DRIFTED, 0 MISSING)",
@@ -280,7 +304,9 @@
       "status": "closed-NON-BLOCKING (1c1519c..34efd72; PROCEED-WITH-CAVEATS->RESOLVED; monitor 7-item audit CLEAN + HARD-GATE fresh-critic adedbe68 NON-BLOCKING [0/2 NB/1 OQ]; S-BS-87 CLOSED). A-LIVE PASS 2026-06-06 on the post-ASAFE-1 FIXED loop ($0 BYO, monitor-driven): memory coherent (turn-5 domain recall + turn-6 action recall 'config writes this session: one', no amnesia) + no-re-execution (risk_judge audit delta=1 across turns 3-6) + the floor DENIED the agent's built-ins (Read/Bash/ToolSearch) the SAME RUN. Honest capsule onb0_memory_verified_narrated.mp4 (the old onb0_memory_narrated.mp4 INVALIDATED). Evidence RUN_onb0_alive_2026-06-06.json.",
       "version": "v1",
       "hardness": "HARD-GATE (Phase 0 changes the /v1/chat request contract AND the agent loop's message-seeding -> the A-SAFE floor [allowlist-bounds + no-paid-knob + BYO-Claude] must be re-proven as the request surface widens; AND it introduces a genuinely-new risk the prior cycles never had: replaying conversation history must NOT re-execute a prior tool-call or re-spend [no duplicate audited write, no surprise paid call]; SPEC_ONBOARDING_JOURNEY §7 flags Phase 0 as loop-touching -> fresh-critic the default)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_ONBOARDING_JOURNEY.md (LOCKED 2026-06-06 -- §2A the prerequisite [memory is the single load-bearing dependency], §7 Phase 0 [thread history into ChatRequest + replay to the loop; preserve BYO-Claude + the A-SAFE allowlist + the audited-write path], §8 the ChatRequest extension [history: [{role,content}]; the mode field is Phase 1 NOT this cycle], §11 OQ-1 RESOLVED [client-replayed history, NOT a server session_id])",
         "apps/bff/app.py (ChatRequest:231 {message,agent} NO history -- add history: list[ChatTurn]=[]; chat_endpoint:1062 -> run_chat(req.message, ctx):1091 -- thread history)",
@@ -304,7 +330,9 @@
       "version": "v1",
       "priority": "P0",
       "hardness": "HARD-GATE (this IS the A-SAFE floor — a security fix to the core trust invariant that FOUR prior cycles asserted and four fresh critics missed [the stub-vs-real verification gap]; the LIVE tool-layer refusal is the gate-decider; fresh-critic required)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/research/FINDING_S-BS-90_asafe_bypass_2026-06-06.md (the verbatim evidence + diagnosis + the grounded fix)",
         "apps/bff/agent/loop.py (_build_options:55-68 — allowed_tools:61 + permission_mode=bypassPermissions:65 [the false 'A-SAFE' comment] + NO hooks + NO setting_sources; _real_source:71 ClaudeSDKClient streaming)",
@@ -326,7 +354,9 @@
       "status": "closed-NON-BLOCKING (5c54aaf..c05d8b3; PROCEED-WITH-CAVEATS; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic a6b5fbc4bd9b33e42 NON-BLOCKING [0 BLOCKING / 2 NB / 1 OQ]). BYO-Claude is a first-class TOOL-LESS council provider: ClaudeCliLM (dspy.BaseLM over claude -p; --tools '' + neutral --system-prompt + isolation, never bypass/--bare, prompt on stdin) + build_judge_lm provider-aware (Azure byte-identical) + build_trio(models=) + per-judge model threading + global LITHRIM_LLM_PROVIDER=claude-cli. S-BS-92 CLOSED (mechanism). A6 byte-frozen (critic reproduced the AST seam-freeze; only build_judge_lm/build_trio changed; the moat-guard whole-file pin narrowed to a non-vacuous per-symbol freeze in tests/_seam_freeze.py, 1fd4482). no-logprobs->confidence=None (honest). GREEN-BAR CORRECTION: canonical pytest -q = 448 passed / 2 failed / 3 skipped (the 2 are PRE-EXISTING + BYOC-1-independent observation-isolation tests -> S-BS-96), NOT the executor-reported 339/0 subset. Opened S-BS-94 (med, owed USER-RUN paid A-LIVE) + S-BS-95 (low) + S-BS-96 (low). OQ-1 resolved (authored_stage threading = approved D-D='Both').",
       "version": "v1",
       "hardness": "HARD-GATE (a new LLM provider in the council's load-bearing judges + a tool-less-LM A-SAFE property + confidence-without-logprobs; the one intended council change is build_judge_lm, rest byte-frozen; live runs cost-gated). fresh-critic required.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "_note": "BYO-Claude as a first-class provider (judges + generation + conversation). PROVEN live (5 spikes, REPORT_byo_claude_provider_2026-06-06). Seam = build_judge_lm provider-aware + the judge model selector + LITHRIM_LLM_PROVIDER=claude-cli. Completes the airgapped/BYO trust thesis + a model-composition lab. Caveats: no-logprobs + tool-less (ASAFE-1/S-BS-90 -- the BYO-Claude LM must run tool-less, a direct application of the deny-gate finding). Tracks S-BS-92. Concurrent-session authored 2026-06-06 (commit 9f850e3); REGISTERED by the active ONB-0/ASAFE-1 session at close per RECONCILE_BYOC-1_for-active-session_2026-06-06.md.",
       "created": "2026-06-06",
       "last_re_verified": "2026-06-06 (concurrent-session: build_judge_lm:205 + _ROLE_DEPLOYMENT:65 + _build_signature:175 + llm_provider.py + settings.py:30 + app.py:622)",
@@ -341,7 +371,9 @@
       "status": "closed-NON-BLOCKING (c58d7f2..f8bed47; CLEAN; monitor 7-item audit CLEAN re-verified [11 files, BFF/journey/bff.js/genui 0-touch, ONB-0 history contract intact :107, foreign files never swept, 61/61 re-run green, vite build clean] + inline critique NON-BLOCKING [0 BLOCKING / 2 NB / 0 OQ] + independent :5180 re-smoke [A2 clean empty-state + A3 dead-buttons-gone + A4 journey-unchanged CONFIRMED live light; dark executor-verified]). Shell-only across 5 atomic pathspec commits: cb6a9dd markdown (react-markdown@9 + remark-gfm@4; Markdown.jsx NO rehype-raw = HTML inert; hardened links) + b6dff1e cadence (near-bottom autoscroll + jump pill, composer auto-grow cap 200px, dead attach/layers removed) + b7eee95 clean-default (empty-state + suggestions fill composer, preamble behind 'Show example', neutral You/Lithrim, New-eval remount-by-key) + 16ebf0f tests (Markdown.test.jsx NON-VACUOUS sanitization + UX-1 suite; 52->61 green) + f8bed47 bookkeeping. S-BS-89 CLOSED; opened S-BS-93 (low -- persistent fake chrome left by R1 design). No proof capsule (UX-polish, not a capability A-LIVE).",
       "version": "v1",
       "hardness": "NOT a HARD-GATE (shell-only; no spec/API contract, no paid path, no core invariant). Inline critique at close. BUT the :5180 visual smoke (A7) is LOAD-BEARING -- the shell has shipped visible defects past vite build + Vitest (WS-5c).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "apps/shell/src/panes.jsx (CenterPane:80; scripted preamble:173-259 + fake chips:158-159; live render user:269/assistant:277 raw <p whiteSpace:pre-wrap>; composer textarea:305-313 + dead attach/layers:316-317; New-evaluation button NO onClick:29 = S-BS-89 site; chat append:105 / assistant_delta:118 / history map:102 [ONB-0 contract, FROZEN])",
         "apps/shell/src/bff.js (chatStream:122 -- the SSE contract {message,agent,history}, FROZEN this cycle; events assistant_delta|tool_call|tool_result|error|done)",
@@ -365,7 +397,9 @@
       "status": "closed-CLEAN (893d7a7..eff4911; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic a989dc135dc2d4d6a NON-BLOCKING [0 BLOCKING/2 NB/2 OQ]). Judges+agents full guarded CRUD + runnable blank-slate: harness audited delete primitives (delete_with_audit + delete_judge revert + delete_agent + list_agents, action=delete change-only) + BFF DELETE /v1/judges/{role} + DELETE /v1/agent + GET /v1/agents (422 seed-default + 422 last-agent + 404; audited) + the 9th conv tool delete_judge (revert-only; agent-delete HUMAN-ONLY) + shell blank-slate New-eval (runnable agent) + rail agents list. A-SAFE 9-tool bound non-vacuous (2 scratch-perturbation proofs); deny-hook byte-identical; council frozen-seam 0-delta; no run-delete. Green: debuglithrim 460/2/3 (2 pre-existing), plain 347/0/27, vitest 69/69. A7 :5180 light+dark create->switch->delete. Opened S-BS-98 (global judge store -> clean=roster/Dataset/chat not judge-clean) + sharpened S-BS-96 (order-non-deterministic). No proof capsule (CRUD-mechanics).",
       "version": "v1",
       "hardness": "HARD-GATE (new DELETE routes = API-contract change + a config-plane delete primitive + a conversational delete tool = an A-SAFE surface). fresh-critic at close.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "lithrim_bench/harness/judges.py (JudgeConfig:50 / save_judge:75 / load_judge:119 / list_judges:131 -- NO delete; add delete_judge)",
         "lithrim_bench/harness/config.py (save_agent:148 / load_agent:198 / _record:172 -- NO delete_agent/list_agents; add both)",
@@ -390,7 +424,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the ontology + the CORE INVARIANT: labels-true-by-construction + the taxonomy-snapshot contract). fresh-critic at close.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "CLAUDE.md (Core invariant: labels are true by construction; Taxonomy snapshot is the contract -- NON-NEGOTIABLE)",
         "lithrim_bench/harness/ontology.py (FlagDefinition:41-51 fields the create needs; is_reference:116; is_gradeable:111; gradeable_flags:107; from_dict:136; load_ontology:182)",
@@ -415,7 +451,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (a live paid attestation that a deterministic floor CORRECTS a confidently-wrong LLM judge + FLIPS the composite verdict -- labels-true-by-construction; honest-Δ law [a documented loss is a pass, a manufactured win is a FAIL]; fresh-critic at close).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "CLAUDE.md (Core invariant: labels true by construction; the snapshot is the contract -- the new case must be admissible/clean-negative)",
         "lithrim_bench/harness/grounding.py:398 ground / :118-175 PresenceCheck / :426 suppress_decls / :290 _CONTRACT_EXECUTORS (the one presence_check contract); ontology.py:86-92 rescore (severity-driven block_at_or_above=0.5); report.py:81-92 composite",
@@ -439,7 +477,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "HARD-GATE (optimize is a PAID labels-true-by-construction claim; the held-out Δ must be HONEST [2 prior honest losses]; CHANGES the demo-SELECTION adjacent to the FROZEN accept-gate; the live run is cost-gated; fresh-critic at close).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/research/RUN_uap4_optimize_live_2026-06-05.json + critique-bench-salvage-phaseUAP-4-2026-06-05.md (the prior HONEST LOSS: held-out 0.80->0.70, the WRONG_DOSAGE over-fire on the dose-rich clean negative 5074ab5a)",
         "lithrim_bench/runtime/council/judge_optimize.py:129-146 order_positive_first (positives+rest; the 4-cap means cleans unreached -- the selection this cycle CHANGES) + :255-294 compile_judge (selection insertion :282-283; max_bootstrapped_demos=4; the metric :285 is the FROZEN accept-gate, trace->hard-accept) + :333-439 run_optimize",
@@ -463,7 +503,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "HARD-GATE-class (touches build_trio/the council assembly adjacent to the FROZEN _apply_consensus; runs PAID mixed-model councils; ships a new product surface [the importer + the eval-pack CI/CD gate = the premium lithrim-sdk parity]). fresh-critic at close.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "lithrim_bench/packager.py:125-231 (package_case row shape) + picklist.py:45-112 (load_case) + data/config/agents/{ws0_default,s_bs_74_demo}.json (agent+Dataset seed)",
         "lithrim_bench/runtime/council/judges_dspy.py:52 V2_ROLES + :65-69 _ROLE_DEPLOYMENT + :205-253 build_judge_lm + :319-380 build_trio (loops V2_ROLES, NO roles= subset yet -- D2b adds it) + authored_stage.py:55-92 + run_eval.py:179-268,439-441",
@@ -487,7 +529,9 @@
       "status": "closed-NON-BLOCKING (781abc4..820cf88; monitor 7-item audit CLEAN re-verified + HARD-GATE spawned fresh-critic (agent a576212aa4bdcd0d1) CLEAN + 1 OPEN-QUESTION; bench-only, ~$0.26 one run). DSPy judge loop CLOSED + MEASURED for risk_judge: held-out Δ NEGATIVE and honest (precision 0.71->0.44, graded 0.80->0.70) — a valid loop-closure (gate NOT loosened). A1 frozen 0-delta x3 (compliance_council + judges_dspy + judge_metric). My 2 plan-adjustments landed (max_labeled_demos=0 + validate-in-forward). Opened S-BS-48 (bind-back-by-default deferred; do NOT ship these demos) + S-BS-49 (exact-accept gate harvests only silent demos -> positive-exemplar bootstrapping / MIPROv2). OQ-1: JudgeProgram built via build_judge_program() factory (A3 lazy-import, non-blocking).",
       "hardness": "HARD-GATE",
       "hardness_reason": "Closes the DSPy judge loop: compiles a safety-critical judge via BootstrapFewShot on the WS-6c-DSPy-3a calibration corpus and MEASURES compiled-vs-baseline on the held-out split. Lives strictly ABOVE the frozen consensus seam (A1 = compliance_council.py 0-delta), so blast radius is bounded, but the loop-closure measurement is calibration/paper-bearing and it changes how a judge is BUILT. Fresh-critic recommended (focus: A1 frozen-seam re-verify + result-honesty, no tuning-to-win); user MAY elect inline-by-continuation per the DSPy-track precedent.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "lithrim_bench/runtime/council/judge_metric.py (make_judge_metric:249 = the optimizer metric w/ trace-gated hard-accept:271; score_judge:188 = held-out eval; LENS_BY_ROLE:110; pass co_raise_aware=True per S-BS-43)",
         "lithrim_bench/runtime/council/judges_dspy.py (Judge:250 + Judge.forward:284 = FROZEN seam; build_trio:313; build_judge_lm:220 temp=0+logprobs; _build_signature/JudgeSignature:188; load_role_prompt:110; default_taxonomy_context:95 — build additively ABOVE)",
@@ -515,7 +559,9 @@
       "status": "ready",
       "hardness": "HARD-GATE",
       "hardness_reason": "Authors NEW by-construction safety cases + a NEW FABRICATED_CONSENT injector — touches the CLAUDE.md core invariant (labels-true-by-construction; the recipe IS the label). The admissibility lint is the automated gate, but a fresh-critic must confirm the consent recipe self-evidently warrants the label + owner-correctness + nothing soft-passes the invariant. $0/offline lowers blast radius but the core invariant is the repo's reason-for-being. Fresh-critic recommended; user MAY elect inline.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "CLAUDE.md (the core invariant + the 4 admissibility rules)",
         "lithrim_bench/injectors/ (9 existing council-judge injectors; phi_disclosure_pre_verification.py = the policy template; FABRICATED_CONSENT is the net-new gap)",
@@ -543,7 +589,9 @@
       "status": "closed-NON-BLOCKING (4d67c93..39d535d; audit CLEAN incl. security pass + ROUTINE inline critique NON-BLOCKING; S-BS-44 closed, S-BS-45 opened; live A/B 85.7% agree, ~$0.75-1.5; optimizer re-sequenced behind WS-6c-DSPy-3a corpus)",
       "hardness": "routine",
       "hardness_reason": "One-line .strip() gate fix (S-BS-44) + a single live measurement run; no consensus/grade/lens/contract change (A3 re-verified). Paper-bearing + live, so the inline critique focuses on result-honesty (3 caveats, no over-claim beyond n=7) + the frozen-contract re-verify + the S-BS-44 parity proof. Escalate to fresh-critic only on a surprising divergence.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         ".devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-2-2026-06-03.json (the substrate this exercises)",
         ".devloop/sessions/critique-bench-salvage-phaseWS-6c-DSPy-2-2026-06-03.md (S-BS-44 origin + S-BS-43 lower-bound caveat)",
@@ -607,13 +655,13 @@
       "related_docs": [
         "out/paper_v1_n12_canonical.spec.json (sha256 57de4fbf80...)",
         "out/paper_v1_n12_canonical_calibration.ndjson (N=1 baseline)",
-        ".devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md \u00a7Q4-A (S2 widening empirical rule)",
-        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md \u00a710.5 (S-P1-13 dispersion-motivation context)",
+        ".devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md §Q4-A (S2 widening empirical rule)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10.5 (S-P1-13 dispersion-motivation context)",
         "scripts/validate_canonical_12_via_sdk.py (functions to port: _build_context, _grade)",
         "lithrim_bench/picklist.py (case-fixture resolution module)",
         ".devloop/state/STREAM_paper-1-copilot.md"
       ],
-      "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases \u00d7 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule \u22651/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY \u2014 no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper \u00a75.4 reads from this cycle's outputs verbatim.",
+      "_note": "N=5 dispersion measurement on paper_v1_n12_canonical (12 cases × 5 runs = 60 calls, ~$1.80, ~30-45 min). Two specific decisions this cycle resolves mechanically: (1) S2 WRONG_DOSAGE widening per empirical rule ≥1/5 KEEP vs 0/5 WIDEN; (2) S-P1-13 council-non-determinism characterization with explicit close-with-paper-footnote vs stay-open recommendation. MEASUREMENT ONLY — no backend code, no contract changes; any contract update lands in a follow-up cycle (P1-PACK-V2-WIDEN) after this cycle's data is in. Paper §5.4 reads from this cycle's outputs verbatim.",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 1.8,
@@ -621,8 +669,8 @@
       "expected_runtime_min": 40,
       "next_action": "User kicks off in fresh exec session per driver KICKOFF block. Plan-review required for cost confirmation + content_filter retry policy + dispersion-stat computation plan.",
       "decision_rules": {
-        "s2_widening": "If WRONG_DOSAGE fires \u22651/5 in N=5 \u2192 KEEP S2 strict as-is. If 0/5 \u2192 WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
-        "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 \u2014 close-with-paper-footnote if small (paper \u00a78 threats item); stay-open as paper-\u00a75.4 finding if meaningful."
+        "s2_widening": "If WRONG_DOSAGE fires ≥1/5 in N=5 → KEEP S2 strict as-is. If 0/5 → WIDEN to add MEDICATION_NOT_IN_TRANSCRIPT substitute for symmetry with M1. Mechanical, no judgment override.",
+        "s_p1_13_disposition": "Based on observed dispersion magnitude across N=5 — close-with-paper-footnote if small (paper §8 threats item); stay-open as paper-§5.4 finding if meaningful."
       },
       "closed_at": "2026-05-28",
       "executor_verdict": "PROCEED-WITH-CAVEATS",
@@ -633,7 +681,7 @@
         "1e07e94 feat(bench): N=5 dispersion pilot script for paper_v1_n12_canonical",
         "b09b567 analysis(paper-1): N=5 pilot raw outputs + dispersion table",
         "b92ca3d analysis(paper-1): N=5 pilot REPORT + S2 decision + S-P1-13 disposition",
-        "(close-out commit pending \u2014 session log + STREAM + state + index)"
+        "(close-out commit pending — session log + STREAM + state + index)"
       ],
       "report": "docs/research/REPORT_p1_canonical_n5_pilot_2026-05-28.md",
       "session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-N5-PILOT-2026-05-28.json",
@@ -650,9 +698,9 @@
       "cost_actual_usd_driver_blend": 2.2,
       "actual_runtime_min": 22.6,
       "mid_cycle_deviations_approved": [
-        "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver \u00a73.3 mongo path corrected \u2014 CITATION-DRIFT logged",
-        "Hard ledger ceiling raised $2.50 \u2192 $5.00 after smoke revealed $0.057/call (user 'cost is okay')",
-        "New seam ID renumbered S-P1-20 \u2192 S-P1-21 (collision with FHIR-MINI's S-P1-20)"
+        "Live mongo pipeline_runs pre-flight peek (user confirm #3); driver §3.3 mongo path corrected — CITATION-DRIFT logged",
+        "Hard ledger ceiling raised $2.50 → $5.00 after smoke revealed $0.057/call (user 'cost is okay')",
+        "New seam ID renumbered S-P1-20 → S-P1-21 (collision with FHIR-MINI's S-P1-20)"
       ]
     },
     {
@@ -664,9 +712,9 @@
       "status": "closed-PROCEED-WITH-CAVEATS",
       "closed_at": "2026-05-28",
       "closing_commits": "lithrim-bench 2e4a000 (spec + builder + picklist module) + d6f288e (harness Path-T awareness) + lithrim-backend 092404a (EvalCase additive Optional fields) + lithrim-bench 59a4e3d (calibration + REPORT) + close-out commit",
-      "audit_verdict": "CLEAN \u2014 all 9 A* acceptance criteria PASS on live re-verification (spec.json sha256 + Mongo pack _id + case_count + paper_pick_labels all match executor claims verbatim); 5+1 atomic commits per driver \u00a76; backend diff scoped to app/models/eval_case.py only with all new fields Optional. See .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md \u00a71 + \u00a73.",
-      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode; monitor authored the driver \u2014 Q1 spec-vs-impl independence reduced but executor-vs-critique independence preserved since exec was a separate session). Q1 0/1/0 (cosmetic \u2014 pack doc created_by=undefined); Q2 0/0/0 CLEAN (3 case chains S1+S8+C2 trace end-to-end); Q3 0/0/0 CLEAN (backend diff is single file, additive Optional); Q4 0/0/3 (S2 widening disposition / pack created_by gap / substitutes-contract asymmetry between S2 and M1). Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md.",
-      "monitor_recommendation_s2_widening": "HOLD WITH EXECUTOR \u2014 defer to P1-CANONICAL-N5-PILOT close-out; widening S2 now would mask the most visible S-P1-13 dispersion signal the N=5 pilot is designed to surface. Add explicit decision-deferral note to N=5 driver.",
+      "audit_verdict": "CLEAN — all 9 A* acceptance criteria PASS on live re-verification (spec.json sha256 + Mongo pack _id + case_count + paper_pick_labels all match executor claims verbatim); 5+1 atomic commits per driver §6; backend diff scoped to app/models/eval_case.py only with all new fields Optional. See .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md §1 + §3.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode; monitor authored the driver — Q1 spec-vs-impl independence reduced but executor-vs-critique independence preserved since exec was a separate session). Q1 0/1/0 (cosmetic — pack doc created_by=undefined); Q2 0/0/0 CLEAN (3 case chains S1+S8+C2 trace end-to-end); Q3 0/0/0 CLEAN (backend diff is single file, additive Optional); Q4 0/0/3 (S2 widening disposition / pack created_by gap / substitutes-contract asymmetry between S2 and M1). Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.md.",
+      "monitor_recommendation_s2_widening": "HOLD WITH EXECUTOR — defer to P1-CANONICAL-N5-PILOT close-out; widening S2 now would mask the most visible S-P1-13 dispersion signal the N=5 pilot is designed to surface. Add explicit decision-deferral note to N=5 driver.",
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-CANONICAL-PACK-2026-05-28.json",
       "executor_report": "docs/research/REPORT_paper_v1_n12_canonical_pack.md",
@@ -675,7 +723,7 @@
         "S-P1-19"
       ],
       "executor_deviations_observed_not_applied": [
-        "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT \u00a73 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
+        "S2 substitute-widening (add MEDICATION_NOT_IN_TRANSCRIPT to WRONG_DOSAGE substitutes): held off to preserve S-P1-13 dispersion signal as P1-CANONICAL-N5-PILOT's load-bearing motivation; surfaced in REPORT §3 + session-log plan_review.deviations as REJECTED-MID-CYCLE for monitor review"
       ],
       "hardness": "routine",
       "target_repos": [
@@ -684,7 +732,7 @@
       ],
       "related_docs": [
         "docs/research/REPORT_canonical_12_validation_2026-05-28.md (P1-VALIDATE-12 baseline)",
-        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md \u00a710 (C1+C2 closure)",
+        "docs/research/REPORT_s_p1_14_triage_2026-05-28.md §10 (C1+C2 closure)",
         "docs/research/REPORT_paper_v1_n12_canonical_pack.md (this cycle's REPORT)",
         "/tmp/pilot_picklist.json",
         "out/paper_v1_n12_canonical.spec.json (canonical pack manifest, sha256 57de4fbf80...)",
@@ -702,7 +750,7 @@
       "cost_actual_usd": 0.36,
       "expected_runtime_min": 30,
       "actual_runtime_min": 12,
-      "next_action": "monitor: /devloop-audit paper-1-copilot P1-CANONICAL-PACK (walk \u00a74 substitutes table case-by-case, spot-check 3 eval_case docs against spec.json, decide S2 widening question), then draft P1-CANONICAL-N5-PILOT driver"
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-CANONICAL-PACK (walk §4 substitutes table case-by-case, spot-check 3 eval_case docs against spec.json, decide S2 widening question), then draft P1-CANONICAL-N5-PILOT driver"
     },
     {
       "id": "paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-one-validator-three-cases-driver",
@@ -715,22 +763,22 @@
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json",
       "executor_report": "docs/research/REPORT_p1_fhir_mini_2026-05-28.md",
-      "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / \u00a76.5 paper claim NO-GO on FHIR Patient under current architecture",
-      "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) \u2014 case A clean\u2192BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
+      "executor_verdict": "PROCEED-WITH-CAVEATS (cycle delivered all artifacts) / §6.5 paper claim NO-GO on FHIR Patient under current architecture",
+      "executor_actual_pass_count": "harness all-three-pass 1/3 (verdict-match 2/3, flags-match 2/3, no-structural-FP 3/3) — case A clean→BLOCK false-fire, case B structural=WARN-not-BLOCK + wrong attribution, case C right verdict via permissive Path T substitute",
       "executor_seams_opened": [
         "S-P1-20",
         "S-P1-15-fhir-extension"
       ],
       "executor_deviations_approved": [
-        "Plan-review pivot to Option A (MINI-AS-AUDIT) \u2014 use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT \u00a74 instead of fresh Copilot session log.",
-        "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ \u2014 existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
-        "Generate 112 patients (driver \u00a73 plan-review default) \u2014 actual produced 121 records (112 alive + 9 dead per Synthea report)."
+        "Plan-review pivot to Option A (MINI-AS-AUDIT) — use existing mapping 41 (already provisioned, US-Core-pinned, Jute-Copilot prior-art); skip new validator authoring + Copilot session + artifact_profile insert. Forensic REPORT §4 instead of fresh Copilot session log.",
+        "Synthea regen at NEW fixed seed=1 (original CSV cohort seed unrecorded); cohort isolated at data/synthea_2026-05-28/ — existing CSV cohort at /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/ untouched (P1-CANONICAL-PACK depends on it).",
+        "Generate 112 patients (driver §3 plan-review default) — actual produced 121 records (112 alive + 9 dead per Synthea report)."
       ],
       "executor_citation_drift_logged": [
-        "Driver \u00a70: 'db.artifact_profile.countDocuments({}) == 0 \u2014 ZERO validators provisioned' \u2192 actual collection is artifact_profiles (plural) with 17 active docs; fhir_patient already provisioned at mapping 41",
-        "Driver \u00a72.3 schema (target_standard, is_active, metadata) \u2192 actual model has target_format, active, no metadata field",
-        "Driver \u00a76 commit-1: '.edn mapping file' \u2192 etlp-mapper mappings are DB-resident YAML strings, not on-disk .edn files",
-        "Driver \u00a78 first-move: assumed Synthea generator available locally \u2192 had to install v4.0.0 JAR (~$0, ~5 min)"
+        "Driver §0: 'db.artifact_profile.countDocuments({}) == 0 — ZERO validators provisioned' → actual collection is artifact_profiles (plural) with 17 active docs; fhir_patient already provisioned at mapping 41",
+        "Driver §2.3 schema (target_standard, is_active, metadata) → actual model has target_format, active, no metadata field",
+        "Driver §6 commit-1: '.edn mapping file' → etlp-mapper mappings are DB-resident YAML strings, not on-disk .edn files",
+        "Driver §8 first-move: assumed Synthea generator available locally → had to install v4.0.0 JAR (~$0, ~5 min)"
       ],
       "hardness": "routine",
       "target_repos": [
@@ -738,7 +786,7 @@
       ],
       "related_docs": [
         "../lithrim-backend/app/services/artifact_evaluator.py:649-734 (ARTIFACT_TYPE_MAP + _get_artifact_profile)",
-        "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver \u00a72.3)",
+        "../lithrim-backend/app/models/artifact_profile.py (schema corrections vs driver §2.3)",
         "data/synthea_2026-05-28/MANIFEST.txt (Synthea v4.0.0 cohort manifest; seed=1; sha256 ed43c20a...)",
         "data/picklist_fhir_mini.json (3 Path T picklist rows)",
         "out/fhir_patient_mini.jsonl (3 cases)",
@@ -750,15 +798,15 @@
         "docs/research/REPORT_p1_fhir_mini_2026-05-28.md (this cycle's REPORT)",
         ".devloop/sessions/session-paper-1-copilot-phaseP1-FHIR-CONFORMANCE-MINI-2026-05-28.json"
       ],
-      "_note": "Derisk cycle for \u00a76.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver \u00a70 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but \u00a76.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT \u00a75 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
+      "_note": "Derisk cycle for §6.5 paper claim. Pivoted at plan-review to Option A (use existing mapping 41) after pre-flight survey found driver §0 stale. Delivered all artifacts (Synthea install + cohort + loader + cases + harness + REPORT) but §6.5 paper claim does NOT replicate end-to-end on FHIR Patient: council over-fires FABRICATED_HISTORY on all 3 cases including clean baseline (S-P1-20) and backend structural status=WARN-not-BLOCK on FHIR (S-P1-15 extension). REPORT §5 issues explicit criteria-grounded NO-GO on P1-FHIR-CONFORMANCE-FULL. Cycle did its job: derisked $15 + 6 days of FULL spend BEFORE commitment, identified two specific architectural friction sources, queued two small follow-up drivers (PRIORITY-1 backend fix + PRIORITY-2 bench-only stripped-artifact re-test).",
       "created": "2026-05-28",
       "last_re_verified": "2026-05-28",
       "cost_envelope_usd": 0.5,
       "cost_actual_usd": 0.1,
       "expected_runtime_days": 2.5,
       "actual_runtime_hours": 5,
-      "decision_gate": "REPORT \u00a75 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) \u2014 NO-GO TRIGGERED 2026-05-28 (case A clean\u2192BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
-      "next_action": "monitor: /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI \u2014 walk REPORT \u00a75 NO-GO criteria against \u00a73 verbatim evidence blocks; then author (a) P1-FHIR-S-P1-15-EXTENSION driver (backend status-translation fix; ~half day) AND (b) P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (stripped-artifact 3-case re-test, bench-only; ~half day). P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (a) lands."
+      "decision_gate": "REPORT §5 FULL go/no-go: go IF case A passes clean + case B structural BLOCK + case C semantic BLOCK + worst-of composition correct on all 3; no-go IF any of the three case-class predictions fails (signals architectural friction; needs triage before FULL commitment) — NO-GO TRIGGERED 2026-05-28 (case A clean→BLOCK false-fire AND case B structural=WARN-not-BLOCK both fail criteria pre-committed at plan-review).",
+      "next_action": "monitor: /devloop-audit paper-1-copilot P1-FHIR-CONFORMANCE-MINI — walk REPORT §5 NO-GO criteria against §3 verbatim evidence blocks; then author (a) P1-FHIR-S-P1-15-EXTENSION driver (backend status-translation fix; ~half day) AND (b) P1-FHIR-MINI-SEMANTIC-DECOMPOSITION driver (stripped-artifact 3-case re-test, bench-only; ~half day). P1-FHIR-CONFORMANCE-FULL stays NO-GO until at least (a) lands."
     },
     {
       "id": "paper-1-copilot-phaseP1-VALIDATE-12-sdk-canonical-driver",
@@ -769,9 +817,9 @@
       "status": "closed-NON-BLOCKING-FINDINGS-Path-T",
       "closed_at": "2026-05-28",
       "closing_commits": "lithrim-bench 4d76d8a..6d497e8 (3 atomic) + lithrim-sdk 49e8a56 (1 approved mid-cycle deviation for S-P1-12) + close-out commit",
-      "audit_verdict": "(7-item mechanical audit folded into inline critique pass) \u2014 CLEAN: 3 atomic commits per driver \u00a76; deliverables D1-D5 all present per driver \u00a72; both mid-cycle deviations logged with verbatim user authorization; STREAM + state + index edits land per driver \u00a76 close-out.",
-      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode, executor-running-as-monitor; honesty caveat preserved in critique \u00a7Discipline self-check). Q1 0/2/1; Q2 0/0/1; Q3 0/1/0; Q4 0/0/3. Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.md.",
-      "arbitration": "Ambiguity 1 (driver \u00a75 A3 literal 3/12 FAIL vs triage-relaxed 9/12 PASS): USER ELECTED PATH T 2026-05-28 under engineering-velocity tradeoff. Precedent acknowledged: A3-floor re-interpretation at close-out is now a documented possibility; future cycle drivers should phrase A3 to make literal-vs-triage explicit if literal is intended (e.g. 'all_three_pass count >= 9/12 STRICTLY' or 'all_three_pass count + triage-relaxed-promote count >= 9/12'). Path T closing condition: picklist-taxonomy-widening contract becomes an explicit P1-CANONICAL-PACK driver requirement, not implicit.",
+      "audit_verdict": "(7-item mechanical audit folded into inline critique pass) — CLEAN: 3 atomic commits per driver §6; deliverables D1-D5 all present per driver §2; both mid-cycle deviations logged with verbatim user authorization; STREAM + state + index edits land per driver §6 close-out.",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline mode, executor-running-as-monitor; honesty caveat preserved in critique §Discipline self-check). Q1 0/2/1; Q2 0/0/1; Q3 0/1/0; Q4 0/0/3. Critique file: .devloop/sessions/critique-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.md.",
+      "arbitration": "Ambiguity 1 (driver §5 A3 literal 3/12 FAIL vs triage-relaxed 9/12 PASS): USER ELECTED PATH T 2026-05-28 under engineering-velocity tradeoff. Precedent acknowledged: A3-floor re-interpretation at close-out is now a documented possibility; future cycle drivers should phrase A3 to make literal-vs-triage explicit if literal is intended (e.g. 'all_three_pass count >= 9/12 STRICTLY' or 'all_three_pass count + triage-relaxed-promote count >= 9/12'). Path T closing condition: picklist-taxonomy-widening contract becomes an explicit P1-CANONICAL-PACK driver requirement, not implicit.",
       "executor_closed_at": "2026-05-28",
       "executor_session_log": ".devloop/sessions/session-paper-1-copilot-phaseP1-VALIDATE-12-2026-05-28.json",
       "executor_report": "docs/research/REPORT_canonical_12_validation_2026-05-28.md",
@@ -786,7 +834,7 @@
       ],
       "executor_deviations_approved": [
         "SDK timeout bump 30s -> 120s in harness (scripts/validate_canonical_12_via_sdk.py:218)",
-        "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver \u00a74 NO-SDK-changes guardrail"
+        "SDK schema fix at lithrim-sdk/lithrim/models.py:191 (judge_votes: dict -> List[JudgeVote] forward-ref) -- explicit override of driver §4 NO-SDK-changes guardrail"
       ],
       "version": "v1.1",
       "hardness": "routine",
@@ -811,7 +859,7 @@
           "confirmed": 9,
           "drifted": 1,
           "missing": 0,
-          "drift_notes": "Spec path was cited as ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (3 occurrences: \u00a71.5, \u00a71.7, \u00a79). Actual location is lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md \u2014 cross-repo driver lives in the bench repo. Fixed in driver v1.1. Also tightened \u00a71.7 to quote spec \u00a77 A4 verbatim (was a paraphrase). Code citations all CONFIRMED: harness symbols at L74/L96/L121; bench evaluate adapter L84; bench _parse L155; SDK evaluate L593; council v2 trio L463; _compose_council_verdict_v2 L1812; Tier-1 safety floor L2347-2352."
+          "drift_notes": "Spec path was cited as ../lithrim-backend/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md (3 occurrences: §1.5, §1.7, §9). Actual location is lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md — cross-repo driver lives in the bench repo. Fixed in driver v1.1. Also tightened §1.7 to quote spec §7 A4 verbatim (was a paraphrase). Code citations all CONFIRMED: harness symbols at L74/L96/L121; bench evaluate adapter L84; bench _parse L155; SDK evaluate L593; council v2 trio L463; _compose_council_verdict_v2 L1812; Tier-1 safety floor L2347-2352."
         }
       ],
       "predicted_pass_count": "9-11/12 (S7 is paper-documented residual per S-P1-8; C1/C2 are at-risk for structural over-fire per medications_well_formed pathology observed in council_v2_smoke_pack run 6a17562b98b1c3a21b033e65)",
@@ -854,24 +902,24 @@
         "docs/HANDOFF_2026-05-23.md",
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md",
         "out/hl7_adt_v1.jsonl",
-        "../lithrim-backend/app/services/pipeline/models.py (JudgeVote.confidence \u2014 confirms API emits it)"
+        "../lithrim-backend/app/services/pipeline/models.py (JudgeVote.confidence — confirms API emits it)"
       ],
       "created": "2026-05-27",
       "last_re_verified": "2026-05-27",
-      "s_p1_1_verification": "resolved 2026-05-27 \u2014 $0 path unavailable; cost firmly ~$5 + ~30min plumbing; see driver \u00a70 for evidence-tagged diagnosis",
+      "s_p1_1_verification": "resolved 2026-05-27 — $0 path unavailable; cost firmly ~$5 + ~30min plumbing; see driver §0 for evidence-tagged diagnosis",
       "closed_at": "2026-05-27",
       "closing_commits": "32d1bf7..7f6858c (4 atomic) + 4fb93cc (executor close-out)",
       "audit_verdict": "DRIFT (1 substantive, acknowledged via S-P1-4 fold-in; 1 minor process-improvement for future driver template)",
-      "critique_verdict": "NON-BLOCKING FINDINGS (Q1 0/0/0; Q2 0/1/0; Q3 0/0/0; Q4 0/0/3) \u2014 critique file `.devloop/sessions/critique-paper-1-copilot-phaseP1-EXP-0-2026-05-27.md`",
-      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-\u00a75_kickoff_2026-05-27.md",
-      "next_action": "user decides between P1-\u00a75 (recommended; routine; expand 393-word draft) and P1-\u00a72 (HARD GATE; needs S-P1-3 user confirm first)"
+      "critique_verdict": "NON-BLOCKING FINDINGS (Q1 0/0/0; Q2 0/1/0; Q3 0/0/0; Q4 0/0/3) — critique file `.devloop/sessions/critique-paper-1-copilot-phaseP1-EXP-0-2026-05-27.md`",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_kickoff_2026-05-27.md",
+      "next_action": "user decides between P1-§5 (recommended; routine; expand 393-word draft) and P1-§2 (HARD GATE; needs S-P1-3 user confirm first)"
     },
     {
-      "id": "paper-1-copilot-phase-\u00a72-jute-copilot-mechanism-driver",
+      "id": "paper-1-copilot-phase-§2-jute-copilot-mechanism-driver",
       "stream": "paper-1-copilot",
-      "phase": "P1-\u00a72",
+      "phase": "P1-§2",
       "scope": "jute-copilot-mechanism",
-      "file": "paper-1-copilot_phase-\u00a72_jute_copilot_mechanism_driver.md",
+      "file": "paper-1-copilot_phase-§2_jute_copilot_mechanism_driver.md",
       "status": "stub",
       "hardness": "HARD-GATE",
       "hardness_reason": "Full mechanism disclosure (A2) is a one-way decision; spec-adherence pass + user confirmation gate this cycle",
@@ -883,18 +931,18 @@
         "docs/PAPER_FRAMING_DECISIONS_2026-05-26.md (A2 amendment)",
         "../etlp-mapper/src/etlp_mapper/handler/copilot.clj"
       ],
-      "blocked_by_decision": "S-P1-3 \u2014 confirm full disclosure with user before drafting",
+      "blocked_by_decision": "S-P1-3 — confirm full disclosure with user before drafting",
       "created": "2026-05-27",
       "last_re_verified": null,
-      "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-\u00a72"
+      "next_action": "user decision on S-P1-3, then /devloop-expand-driver paper-1-copilot P1-§2"
     },
     {
-      "id": "paper-1-copilot-phaseP1-\u00a75-silent-confident-certification-cycle",
+      "id": "paper-1-copilot-phaseP1-§5-silent-confident-certification-cycle",
       "stream": "paper-1-copilot",
-      "phase": "P1-\u00a75",
+      "phase": "P1-§5",
       "scope": "silent-confident-certification + cross-provider-trio-architectural-correction",
       "file": null,
-      "_note": "No driver file authored \u2014 cycle started as routine \u00a75 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
+      "_note": "No driver file authored — cycle started as routine §5 expansion and grew into broader architectural validation work in-session. Closed without a formal driver document.",
       "status": "shipped",
       "hardness": "routine-grew-to-research",
       "target_repos": [
@@ -908,16 +956,16 @@
       ],
       "created": "2026-05-27",
       "closed_at": "2026-05-27",
-      "closing_commits": "(none yet \u2014 working tree drift; see S-P1-11)",
-      "audit_verdict": "(not yet audited \u2014 pending flush of working-tree drift in 3 atomic commits)",
-      "critique_verdict": "(not yet \u2014 recommend inline critique on \u00a75 + spec content before any further paper sections)",
-      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-\u00a75_close_2026-05-27.md",
+      "closing_commits": "(none yet — working tree drift; see S-P1-11)",
+      "audit_verdict": "(not yet audited — pending flush of working-tree drift in 3 atomic commits)",
+      "critique_verdict": "(not yet — recommend inline critique on §5 + spec content before any further paper sections)",
+      "handoff_brief": ".devloop/sessions/HANDOFF_paper-1-copilot_phaseP1-§5_close_2026-05-27.md",
       "headline_numbers": {
-        "silent_confident_certifications_eliminated": "5/10 \u2192 0/10",
-        "false_positives_on_cleans_eliminated": "2/2 \u2192 0/2",
-        "verdict_match_against_deterministic_labels": "9/12 \u2192 11/12",
-        "confidence_calibration": "36/36 votes @ 1.000 \u2192 gpt-4.1 mean 0.93 (range 0.51\u20131.00); Llama mean 0.95 (range 0.73\u20131.00); Mistral N/A (Azure rejects logprobs)",
-        "residual_limitation": "S7 \u2014 fine-grained HL7 structural defects; LLM-as-judge limitation handled by \u00a76 worst-of structural composition (paper-bearing, documented)"
+        "silent_confident_certifications_eliminated": "5/10 → 0/10",
+        "false_positives_on_cleans_eliminated": "2/2 → 0/2",
+        "verdict_match_against_deterministic_labels": "9/12 → 11/12",
+        "confidence_calibration": "36/36 votes @ 1.000 → gpt-4.1 mean 0.93 (range 0.51–1.00); Llama mean 0.95 (range 0.73–1.00); Mistral N/A (Azure rejects logprobs)",
+        "residual_limitation": "S7 — fine-grained HL7 structural defects; LLM-as-judge limitation handled by §6 worst-of structural composition (paper-bearing, documented)"
       },
       "new_seams_opened": [
         "S-P1-7",
@@ -926,7 +974,7 @@
         "S-P1-10",
         "S-P1-11"
       ],
-      "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc \u2014 recommend P1-\u00a76."
+      "next_action": "PRIORITY-0: flush S-P1-11 working-tree drift in 3 atomic commits (bench fixes / analysis scripts+outputs / docs). Then choose next cycle from 5 options in handoff doc — recommend P1-§6."
     },
     {
       "id": "paper-1-copilot-phaseP1-COUNCIL-V2-cross-provider-integration-driver",
@@ -934,7 +982,7 @@
       "phase": "P1-COUNCIL-V2",
       "scope": "cross-provider-trio-backend-integration",
       "file": "docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md",
-      "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) \u2014 cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
+      "_note": "Spec lives at docs/specs/ (not .devloop/prompts/) — cross-repo driver targeting lithrim-backend. Paste-ready when BRS-2 + BRS-5 close.",
       "status": "ready",
       "hardness": "routine",
       "target_repos": [
@@ -949,7 +997,7 @@
       "blocked_by_decision": "BRS-2 (failure-cluster rekey) + BRS-5 (evidence-span surfacing) must ship first to avoid compliance_workflow.py conflicts",
       "created": "2026-05-27",
       "last_re_verified": "2026-05-27",
-      "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec \u00a74 + kickoff in fresh lithrim-backend exec session."
+      "next_action": "Wait for BRS-2 + BRS-5 close. Then plan-review per spec §4 + kickoff in fresh lithrim-backend exec session."
     },
     {
       "id": "bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-consensus-evidence-gate-driver",
@@ -958,7 +1006,7 @@
       "scope": "consensus-evidence-gate",
       "file": "bench-salvage_phaseCOUNCIL-EVIDENCE-GATE_consensus_evidence_gate_driver.md",
       "status": "halted-rescoped",
-      "close_verdict": "BLOCKED-AND-RE-SCOPE 2026-05-30 \u2014 pre-check P0 falsified the R3(d) fix (SPEC \u00a72b FALSIFIED); 0 commits; root cause is judge calibration, re-routed to P1 as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md + .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30. HARD-GATE fresh-critic waived (no-code halt; monitor independently re-verified raw evidence).",
+      "close_verdict": "BLOCKED-AND-RE-SCOPE 2026-05-30 — pre-check P0 falsified the R3(d) fix (SPEC §2b FALSIFIED); 0 commits; root cause is judge calibration, re-routed to P1 as S-BS-7. Records: docs/research/REPORT_r3d_precheck_falsification_2026-05-30.md + .devloop/sessions/{session,critique}-bench-salvage-phaseCOUNCIL-EVIDENCE-GATE-2026-05-30. HARD-GATE fresh-critic waived (no-code halt; monitor independently re-verified raw evidence).",
       "hardness": "HARD-GATE",
       "hardness_reason": "Changes the council OUTPUT CONTRACT (build_prompt findings-first instruction) and the consensus aggregation that turns flags into a BLOCK vote. Blast radius is every case. Requires a fresh-critic session (cannot close on inline critique) plus user confirmation before the one-way change lands.",
       "target_repos": [
@@ -996,16 +1044,16 @@
       "target_repos": [
         "lithrim-bench"
       ],
-      "scope_note": "Walking-skeleton spine. Grading PROVEN LIVE 2026-05-30 (baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Build persist + harness-side grounding (S-BS-7 presence-check) OFFLINE against the saved baseline \u2014 zero new paid calls. Expand with /devloop-expand-driver bench-salvage WS-0.",
+      "scope_note": "Walking-skeleton spine. Grading PROVEN LIVE 2026-05-30 (baseline out/scribe_v1.live_pipeline_evaluate.<case>.json). Build persist + harness-side grounding (S-BS-7 presence-check) OFFLINE against the saved baseline — zero new paid calls. Expand with /devloop-expand-driver bench-salvage WS-0.",
       "created": "2026-05-30",
       "last_re_verified": "2026-05-30",
       "closed_at": "2026-05-30",
       "closing_commits": "9001a36..0859c8d (6 atomic) + 9d2b721 (session log) + close-out commit (this)",
-      "audit_verdict": "CLEAN \u2014 7/7 mechanical items; re-ran 7 WS-0 + 89 full tests green, ruff clean on new files; A4 zero-paid-call confirmed (suite never invokes grade_live/--live/httpx); nothing pushed. Two non-blocking notes: pre-existing working-tree drift outside the cycle; one ratified+documented mid-cycle deviation (S-BS-9 source-pin).",
-      "critique_verdict": "NON-BLOCKING FINDINGS (inline). Q1 0/2/0 (additive kwargs + correction-schema-as-dict); Q2 0/0/0 (3 behavior chains close: MED-FP suppress, versioned correction record, S-BS-8 skip-log); Q3 0/0/0 (no intrusion); Q4 0/0/4 (open-questions: calibration role-conflation \u2192 WS-4 gate; _rescore thresholds + med-extraction heuristic \u2192 WS-1 ontology contract; S-BS-9 pack-shape). File: .devloop/sessions/critique-bench-salvage-phaseWS-0-2026-05-30.md.",
+      "audit_verdict": "CLEAN — 7/7 mechanical items; re-ran 7 WS-0 + 89 full tests green, ruff clean on new files; A4 zero-paid-call confirmed (suite never invokes grade_live/--live/httpx); nothing pushed. Two non-blocking notes: pre-existing working-tree drift outside the cycle; one ratified+documented mid-cycle deviation (S-BS-9 source-pin).",
+      "critique_verdict": "NON-BLOCKING FINDINGS (inline). Q1 0/2/0 (additive kwargs + correction-schema-as-dict); Q2 0/0/0 (3 behavior chains close: MED-FP suppress, versioned correction record, S-BS-8 skip-log); Q3 0/0/0 (no intrusion); Q4 0/0/4 (open-questions: calibration role-conflation → WS-4 gate; _rescore thresholds + med-extraction heuristic → WS-1 ontology contract; S-BS-9 pack-shape). File: .devloop/sessions/critique-bench-salvage-phaseWS-0-2026-05-30.md.",
       "executor_verdict": "CLEAN",
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-0-2026-05-30.json",
-      "report": "(no standalone REPORT \u2014 session log + critique carry the findings)",
+      "report": "(no standalone REPORT — session log + critique carry the findings)",
       "outputs": [
         "lithrim_bench/harness/{__init__,grade,persist,grounding,correction,report}.py",
         "scripts/run_ws0.py",
@@ -1023,7 +1071,7 @@
       ],
       "cost_actual_usd": 0,
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-1_kickoff_2026-05-30.md",
-      "next_action": "monitor: /devloop-expand-driver bench-salvage WS-1 (SQLite config plane + ontology data model; promote MedPresenceCheck to the first verification_contract; carry critique Q4.1\u2192WS-4, Q4.2/Q4.3\u2192WS-1; ratify S-BS-6; normalize S-BS-9).",
+      "next_action": "monitor: /devloop-expand-driver bench-salvage WS-1 (SQLite config plane + ontology data model; promote MedPresenceCheck to the first verification_contract; carry critique Q4.1→WS-4, Q4.2/Q4.3→WS-1; ratify S-BS-6; normalize S-BS-9).",
       "re_verification_log": [
         {
           "date": "2026-05-30",
@@ -1108,7 +1156,10 @@
         "monitor_audit": "CLEAN — 7/7 mechanical; 107 tests green; hygiene verified (zero ../lithrim-backend files in the bench diff; backend WIP untouched); scope held (9 in-repo files).",
         "fresh_critic_verdict": "NON-BLOCKING FINDINGS — .devloop/sessions/critique-bench-salvage-phaseWS-2-2026-05-31.md (FRESH session, base 3e7f7f7..5ba1bec). S-BS-10 lint gate + 19/4 partition ENFORCED (seed_ontology gradeable_flags_outside_snapshot:160 → SystemExit:307; reference removed from active pre-rescore grounding.py:204); None-injection byte-identical to WS-0/WS-1 (grade.py:79); locked D2 seam stayed strictly additive (no backend/build_prompt edit in range; S-BS-11 prose rewrite NOT pre-empted).",
         "critique_findings": "Q1 0/1/0 (new gradeable_flags/is_gradeable/is_reference predicates vs extending flag/owners_of — intent met); Q4 0/0/3. Most material: Q4.1 = one-directional lint (S-BS-12). Q4.2/Q4.3 = reference-removed vs S-BS-8-null-retained (correct, spec phrasing ambiguous) + lint covers 19 tier codes not the 5 structural (WS-3).",
-        "new_seams": ["S-BS-11 (build_prompt prose; D2 scope locked)", "S-BS-12 (one-directional snapshot lint)"]
+        "new_seams": [
+          "S-BS-11 (build_prompt prose; D2 scope locked)",
+          "S-BS-12 (one-directional snapshot lint)"
+        ]
       },
       "hardness_reason": "First cross-repo cycle since the walking-skeleton pivot — adds Optional council_config + ontology to the backend PipelineRequest contract (blast radius = every :8002 caller). Additive/backward-compatible, but a one-way public-shape change requires a fresh-critic close (NOT inline) + user sign-off before the backend commit lands.",
       "target_repos": [
@@ -1147,7 +1198,12 @@
       "critique_verdict": "NON-BLOCKING FINDINGS (fresh-critic, HARD GATE) — 0 BLOCKING / 6 NON-BLOCKING / 3 OPEN-QUESTION. File: .devloop/sessions/critique-bench-salvage-phaseWS-3-2026-06-01.md. Q4-1 byte-identical→additive wording; Q4-2 S-BS-13 floor replay→WS-4; Q4-3 floor inject-param validation→S-BS-16.",
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-3-2026-06-01.json",
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-4_kickoff_2026-06-01.md",
-      "new_seams": ["S-BS-13", "S-BS-14", "S-BS-15", "S-BS-16"],
+      "new_seams": [
+        "S-BS-13",
+        "S-BS-14",
+        "S-BS-15",
+        "S-BS-16"
+      ],
       "closing_commits": "59a3cba..d6fe96f (5 atomic D0-D4) + close-out commit (this)",
       "hardness": "HARD-GATE",
       "hardness_reason": "New lithrim_bench/verification/ module + new optional deps ([verification] = dspy/httpx) + a harness/grounding contract-surface change (adds the structural-floor executor to _CONTRACT_EXECUTORS, can flip PASS->BLOCK) + live :3031 side-effects via persist. Additive/backward-compatible, but a new-module + contract-surface + live-side-effect cycle requires a fresh-critic close (not inline) + user sign-off.",
@@ -1185,7 +1241,9 @@
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-4a-2026-06-01.json",
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-4b_kickoff_2026-06-01.md",
       "hardness": "routine",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "cost_envelope_usd": 0,
@@ -1202,11 +1260,19 @@
       "status": "stub",
       "hardness": "HARD-GATE",
       "hardness_reason": "Locks a preregistered calibration gate (a public eval contract) + cross-repo (lithrim-backend) /eval-runs/compare; one-way contract decision -> fresh-critic close.",
-      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "created": "2026-06-01",
       "last_re_verified": null,
-      "blocked_by": ["WS-4a"],
-      "gates": ["S-BS-13", "S-BS-16"],
+      "blocked_by": [
+        "WS-4a"
+      ],
+      "gates": [
+        "S-BS-13",
+        "S-BS-16"
+      ],
       "_note": "Rigorous half split from the original WS-4 2026-06-01. Builds on WS-4a's corpus + thin eval-pack. Carries WS-1 Q4.2 (role-aware vs eligible-raiser ownership). GATED on S-BS-13 (floor replay) + S-BS-16 (floor inject-param validation, core-invariant) before any floor-declaring ontology ships through the locked gate.",
       "next_action": "After WS-4a closes: run /devloop-expand-driver bench-salvage WS-4b."
     },
@@ -1220,7 +1286,9 @@
       "superseded_by": "docs/specs/SPEC_PRODUCT_SHELL.md (2026-06-01) — the thin stdlib shell is replaced by the real React/Tauri product-shell PROGRAM (WS-5..WS-5e). Do NOT kick off this driver; a new WS-5 (real shell skeleton) driver gets expanded against the spec. Service topology: docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md.",
       "hardness": "HARD-GATE",
       "hardness_reason": "First UI layer in lithrim-bench (CLAUDE.md: 'Not a UI. CLI+JSONL until phase 4' -- WS-5 is that boundary) + a new plugin-contract surface + a live :8002 side-effect on the acceptance run. Fresh-critic close.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "cost_envelope_usd": 0.3,
@@ -1238,7 +1306,9 @@
       "closed_2026_06_01": "Executed 460b677..00c68b9; audit CLEAN (7/7); inline critique NON-BLOCKING (critique-bench-salvage-phaseWS-5b-2026-06-01.md; 0 BLOCKING / 2 NB / 2 OQ). Faithful ESM port of the 4-act journey + Shell<->Journey switch. One approved app.jsx theme-prop deviation. S-BS-17 deferred (open).",
       "hardness": "HARD-GATE",
       "hardness_reason": "Per SPEC_PRODUCT_SHELL sec.8 each shell-program phase is HARD-GATE-class. UI port; user may elect inline critique as for WS-5 (close-time decision).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_note": "Plain-CSS ESM port of the Claude Design journey prototype into apps/shell/src/journey/ + a Shell<->Journey mode switch. Builds on the WS-5 skeleton (842db03). Monitor re-verified 2026-06-01 against the prototype (/tmp/lithrim_design/x/lithrim-bench/project/{journeydata,journeyrail,journeyapp,jp1-jp4}.jsx) + the shell: ALL journey icons already in icons.jsx; ALL journey CSS classes present (29/30 journey.css + .h-sub styles.css:286); Mark/Wordmark + Icon exported; central task = window.* globals -> ESM imports. Tailwind/shadcn + BFF/vertical + Tauri all OUT of scope (WS-5c / WS-5-BFF). 4 plan-review decisions in the driver sec.3.",
@@ -1254,7 +1324,9 @@
       "closed_2026_06_01": "Executed f19dee4..4549a12; audit CLEAN (7/7; pytest 176/3 re-verified, new-file ruff clean); fresh-critic NON-BLOCKING (0 BLOCKING / 1 NB / 3 OQ, all authorized). v1 surface RATIFIED (SPEC §10); Tauri deferred to WS-5e (SPEC §8). New seam S-BS-18 (React<->BFF binding manual-smoke-only); S-BS-17 now visually live.",
       "hardness": "HARD-GATE",
       "hardness_reason": "Locks the v1 BFF endpoint surface (the judge-capability API, SPEC sec.10) + a live :8002 side-effect on the A3 run. Fresh-critic close recommended (contract/API surface).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_note": "The DE-RISK phase (pays down SPEC sec.9 honest-bet: the shell has been mock-only through WS-5/WS-5b). Prove the React<->Python bridge with ONE real artifact: React -> FastAPI BFF -> run_eval.run() (replay default + one live) -> composite -> ReportTab. Harness surface re-grepped HEAD f6d99af (run_eval.run:101; report.composite:29 + calibration_check:159; corpus.read_corpus:104/project:64; evalpack:81/117). 6 plan-review decisions incl. lock v1 endpoints + DEFER Tauri to WS-5e (rec) + one live-run cost. Tauri sidecar packaging is OUT (WS-5e) unless plan-review elects minimal. First real test bar for the shell.",
@@ -1271,7 +1343,9 @@
       "version": "v1",
       "hardness": "HARD-GATE",
       "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5c introduces TWO contracts — the Tailwind v4/@theme styling-system foundation + the §5b generative-UI tool-<name> component-registry protocol (§6.2). Fresh-critic close recommended; user MAY elect inline as for WS-5/WS-5b.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_registration_note": "WS-5c had NO stub here AND no task-pack entry — it lived only as forward-references (STREAM first-move §1; SPEC_PRODUCT_SHELL §8:129 + §4:58-61 + §10:144; other phases' deferral notes + critique OQs). Authored the TASK_PACK_bench-salvage.json#WS-5c task + this stub + the driver in ONE /devloop-expand-driver reconcile pass 2026-06-01 (deeper than WS-1's index-only reconcile: BOTH pack + index were absent). Task pack #WS-5c is the authoritative source. User elected ONE-CYCLE (all of it) sizing.",
@@ -1291,8 +1365,12 @@
       "audit_verdict": "CLEAN — 7/7 mechanical; monitor re-verified both halves (pytest 181 passed/3 dspy-skipped, BFF 10/10, Vitest 30/30); diff confined to apps/shell/+apps/bff/+tests/test_ws5_bff.py; committed clinical_v1.json byte-unchanged + not in the cycle diff (clobber-safe by construction, PUT writes out/bff/ontology/); nothing pushed; no tags; session log valid.",
       "critique_verdict": "NON-BLOCKING FINDINGS (fresh-critic, HARD GATE) — 0 BLOCKING / 1 NB (stale read-only FlagEditor copy -> FIXED 5518ffb before A7) / 1 NB (putOntology arg-order vs driver, internally consistent) / 2 OPEN-QUESTION (drafts-feed-grading? Shell-host-only S-BS-19 boundary?). File: .devloop/sessions/critique-bench-salvage-phaseWS-5d-2026-06-01.md. The fresh-critic confirmed the PUT clobber-safety + validation gate hold in CODE AND TESTS (not prose); JudgeTab/ConfigTab structurally off the mock; S-BS-26 honest-close accurate.",
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-5d-2026-06-01.json",
-      "new_seams": ["S-BS-26"],
-      "seams_closed": ["S-BS-19 (Shell host; journey-act mounting carried to S-BS-26)"],
+      "new_seams": [
+        "S-BS-26"
+      ],
+      "seams_closed": [
+        "S-BS-19 (Shell host; journey-act mounting carried to S-BS-26)"
+      ],
       "a7_smoke": "PASS (user-attested 2026-06-01; :5180 light/dark × Shell/Journey + the 4 wired tabs)",
       "closed_at": "2026-06-01",
       "hardness": "HARD-GATE",
@@ -1328,7 +1406,9 @@
       "status": "shipped",
       "hardness": "HARD-GATE",
       "hardness_reason": "Backend repo commits (curation cycle). Diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
-      "target_repos": ["lithrim-backend"],
+      "target_repos": [
+        "lithrim-backend"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_note": "WS-6 step a (broken out 2026-06-01, user). CROSS-REPO: fresh executor session ROOTED IN ../lithrim-backend; the .devloop scaffold + session log live in lithrim-bench. Curation cycle — commit EXISTING diagnosed WIP (mvp-ready: 8 modified structural-verdict/severity files + ~12 untracked docs/scripts/tests + transient out/ + test-results/), NOT build. Atomic per-concern commits + gitignore transients + backend tests green first. Strangle-not-fix holds (baseline + preserve). 5 plan-review decisions + the D0 triage manifest. WIP re-grepped 2026-06-01.",
@@ -1343,7 +1423,10 @@
       "status": "ready",
       "hardness": "HARD-GATE",
       "hardness_reason": "Read-only audit (no commits to ../lithrim-backend, no harness code) but it is the GATE per the topology spec: the PORT PLAN is the design contract 6c/6d depend on. Citation discipline (every separability claim file:line'd) is load-bearing; fresh-critic on the separability claims recommended (user's call at close).",
-      "target_repos": ["lithrim-backend", "lithrim-bench"],
+      "target_repos": [
+        "lithrim-backend",
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_note": "WS-6 step b — the consolidation GATE. READ-ONLY audit over ../lithrim-backend (at the WS-6a baseline 493b533) that produces the port plan; changes NO code in either repo. CONFIRMED via re-grep 2026-06-01: the v2 council is Mongo-free (compliance_council.py:453/463/2347/2699/517; stages.py _run_council_and_map:686) so it is cleanly portable; pipeline_runs is ALREADY behind a ProvenanceStore Protocol (provenance.py:25/37); artifact_profiles + eval_packs/eval_cases/eval_run are direct/scattered (+ S3) and need a repository interface introduced (6d). Deliverable = the PORT PLAN doc in lithrim-bench/docs + the session log. Executor session ROOTED IN lithrim-bench. Unblocked by WS-6a's clean tree.",
@@ -1359,7 +1442,9 @@
       "status": "shipped",
       "hardness": "HARD-GATE",
       "hardness_reason": "Ports validated safety-critical IP (council consensus/tier/owner/NKA/llama-veto) into the product runtime; v2-only commits the cross-provider trio. Fresh-critic at close recommended; the diagnose-before-edit port-fidelity diff (A2) is load-bearing. User MAY elect inline.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-01",
       "last_re_verified": "2026-06-01",
       "_note": "WS-6 step c, first BUILD phase. PORT-not-rewrite the v2 council Mongo-free from lithrim-backend@493b533 into lithrim_bench/runtime/council/ (refresh the stale parked package, S-BS-28). v2-only (Q1 ratified; Q2 Azure trio VERIFIED accessible). Consensus IP: _apply_consensus:1853 + _compose_council_verdict_v2:1812 (llama-veto) + _worst_of_verdicts:1799 + tables :176/:201/:212/:279 + extract_verdict_confidence:413 (None-tolerant) + build_prompt:517. SECOND tables file app/models/safety_flags.py:533/543/570/621 (split-tables). Lockstep recompute compliance_workflow.py:2206/:2281. SALVAGE infra llm_provider.py:38/:97/:121. Fix S-BS-30 (production_judges -> risk/policy/faithfulness). Offline consensus oracle + 1 cost-confirmed live Azure smoke. NOT in scope: LangGraph/agents (6c-AGENTIC), DSPy judges (6c-DSPy), persistence (6d), KB (6d-KB), grade-seam re-point. Behind run_eval.run (frozen).",
@@ -1372,8 +1457,13 @@
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-6c-2026-06-01.json",
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-DSPy_kickoff_2026-06-01.md",
       "a5_live_smoke": "PASS (Azure dev resource lithrim-dev-ai via ../lithrim-backend/.env; v2 trio reject 1.0/None/1.0 -> consensus reject@1.0; Mistral confidence=None end-to-end; ~$0.15-0.25 actual vs ~$0.10 envelope, payload-bug overage, user-aware)",
-      "new_seams": ["S-BS-31"],
-      "seams_closed": ["S-BS-30", "S-BS-28"]
+      "new_seams": [
+        "S-BS-31"
+      ],
+      "seams_closed": [
+        "S-BS-30",
+        "S-BS-28"
+      ]
     },
     {
       "id": "bench-salvage-phaseWS-6c-DSPy-judge-rebuild-driver",
@@ -1385,7 +1475,9 @@
       "version": "v1",
       "hardness": "HARD-GATE",
       "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "WS-6 step c-DSPy, the first DSPy-rebuild. Rebuild the council's per-judge prompt-and-parse as DSPy modules (RECOMPOSITION_PLAN §3), each emitting the EXACT per-judge dict seam (runtime/council/__init__.py:45) the WS-6c-ported _apply_consensus:1853 consumes, so the validated consensus IP wraps DSPy judges UNCHANGED (the §6 hybrid). INCREMENTAL (Ratification Q3: one judge first; mixed DSPy/imperative fan-out valid). Score via by-construction recipe=label packs reusing the jute_dspy bench-accept metric pattern (make_bench_metric:200). DSPy lives strictly ABOVE the seam -- a prompt-opt can never weaken a Tier-1 rule. Does NOT change consensus math (A4 byte-identical to tip) and does NOT wire into grade (A6; grade.py/run_eval.py frozen -- that is WS-6c-AGENTIC). S-BS-31 stays inert (no real cases scored). Prior art reference-only (S-BS-27 worktree council_v2.py/council_dspy.py -- do NOT import; emits a non-conforming shape + dropped the IP). NOT in scope: grade-wire/AGENTIC, persistence (6d), KB (6d-KB), backend/etlp edits, LLM auto-harden loop.",
@@ -1409,8 +1501,13 @@
       "a5_live_smoke": "PASS (1 gpt-4.1 call via ../lithrim-backend/.env, $0.0067 vs $0.05 ceiling; DSPy risk_judge -> reject on WRONG_DOSAGE w/ 2 grounded spans -> ported _apply_consensus -> reject, matches recipe=label; D2 logprobs bridge live-validated confidence=0.999999, Mistral None-path pinned offline).",
       "session_log": ".devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-2026-06-02.json",
       "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md",
-      "new_seams": ["S-BS-32", "S-BS-33"],
-      "seams_closed": ["S-BS-27"],
+      "new_seams": [
+        "S-BS-32",
+        "S-BS-33"
+      ],
+      "seams_closed": [
+        "S-BS-27"
+      ],
       "close_out_driver_fixes": "D1 (driver §3 dec1: risk_judge prohibited from FABRICATED_HISTORY per risk_judge.txt:24) + D3 (class ComplianceCouncil :459->:453) + A3-NKA (role-prompt suppression, not a consensus-oracle scenario) corrected in the driver at close."
     },
     {
@@ -1425,13 +1522,22 @@
       "audit_verdict": "CLEAN (addendum re-verified: A4 0-delta 118af7d..HEAD, A7 187/7, scope held 3 files)",
       "critique_verdict": "HARD-GATE genuinely-fresh-critic (6-agent from-source workflow wf_fdb93c9c-776) NON-BLOCKING; test-integrity PRINCIPLED (negative-control non-owner oracle survived, not gamed); A0/A4/A6/A7 PASS, D0 owner-emit clean (risk dropped from MISSING_ALLERGY as inert); 2 should-fix (A5 evidence + D3 in-suite coverage) DISCHARGED by the option-B addendum; the critic's one over-reach (A5 'fabricated') monitor-corrected. File: critique-bench-salvage-phaseWS-6c-AGENTIC-2026-06-02.md",
       "a5_live": "PASS (option B): live v2 trio on proof_case:drop_allergy -> BLOCK/reject, Mistral None tolerated, on-disk fixture tests/fixtures/ws0/a5_live.drop_allergy.json + env-gated real-council grade_inprocess test; 1 paid call ~$0.09-0.20 (29,679 tok).",
-      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-OBS_kickoff_2026-06-02.md",
-      "seams_closed": ["S-BS-31", "S-BS-32", "S-BS-35"],
-      "new_seams": ["S-BS-34"],
+      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md",
+      "seams_closed": [
+        "S-BS-31",
+        "S-BS-32",
+        "S-BS-35"
+      ],
+      "new_seams": [
+        "S-BS-34"
+      ],
       "version": "v1",
       "hardness": "HARD-GATE",
       "hardness_reason": "The cycle where the council FIRST scores real cases through the grade seam; a fidelity miss in the recompose-upgrade or the S-BS-31 fix would score real cases wrong. Fresh-critic is REQUIRED (not user-electable inline) -- the genuinely-fresh-critic independence was deliberately deferred from WS-6c + WS-6c-DSPy to land here. Touches the backend council safety IP (D0 cross-repo).",
-      "target_repos": ["lithrim-bench", "lithrim-backend"],
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "WS-6 step c-AGENTIC, RE-SCOPED to the compliance grade-wire milestone. The §7 AGENTIC headline (recompose compliance_workflow -> async) is ALREADY BUILT as the parked M1 in-process spine (8f9beae: runtime/pipeline/orchestrator.py:187 PipelineOrchestrator.evaluate->PipelineResult + stages.py + backends/local_pipeline.py:42 LocalPipelineBackend, which runs v1 semantic-only). So this phase is NOT a greenfield recompose: D0 resolves S-BS-31 (DECIDED option (a) reassign-by-domain: faithfulness owns MISSING_ALLERGY+VALUE_MISMATCH, policy owns FABRICATED_CONSENT, risk co-owns MISSING_ALLERGY; backend _TIER1_OWNERS:232 + 2 prompt emit-lines, re-port to bench, re-snapshot; closes S-BS-31+S-BS-32); D1 upgrades the spine v1->v2 trio (settings.py:50 default v2; trio :463); D2 verifies the §4/§5 behavior contracts survive (two-phase disposition :859/:1034, fatal/non-fatal RE-DERIVED from the 7 live nodes since §4's check_hipaa_compliance/evaluate_artifacts names are STALE, semaphore :58-60, ::eval:: :1372, gate policy P0-3:767/FAST-PATH:782/regex:722, lockstep _recompute_*:2206/:2281); D3 wires grade_inprocess behind the frozen seam (grade.py grade_replay:40/grade_live:85; run_eval.run:101; report.composite:29 untouched, same PipelineResult shape); D4 diffs in-process v2 verdicts vs the captured :8002 replay baselines (tests/fixtures/ws0/baseline.*.json) incl. proof_case (S-BS-31's codes). The observation_workflow + 6-KPI-agent recompose is SPLIT to WS-6c-OBS (greenfield; not in the grade path). NOT in scope: observation/KPI (WS-6c-OBS), consensus-math edit (the §6 invariant), persistence (6d), KB (6d-KB), DSPy judge changes, §10/report.composite/run_eval signature change, S-BS-33.",
@@ -1448,8 +1554,7 @@
         }
       ],
       "s_bs_31_gate": "RESOLVED-PENDING-IMPL 2026-06-02 (monitor+user): option (a) reassign-by-domain. The decision is recorded; D0 implements it (cross-repo backend fix + re-port). The phase is no longer blocked on the clinical/IP call.",
-      "next_action": "CLOSED 2026-06-02 (the council scores real cases through the grade seam). Genuinely-fresh-critic ran (6-agent workflow), test-integrity PRINCIPLED, A5 completed to milestone evidence standard (option B). Next: /devloop-expand-driver bench-salvage WS-6c-OBS (recompose observation_workflow + 6 KPI agents in-process; greenfield, grade-path-independent) parallel the remaining two judges + 6d/6d-KB + shell WS-5e. Carry: S-BS-34 (ruff exclude, no gate); S-BS-33 -> WS-6d-KB.",
-      "handoff_brief": ".devloop/sessions/HANDOFF_bench-salvage_phaseWS-6c-AGENTIC_kickoff_2026-06-02.md"
+      "next_action": "CLOSED 2026-06-02 (the council scores real cases through the grade seam). Genuinely-fresh-critic ran (6-agent workflow), test-integrity PRINCIPLED, A5 completed to milestone evidence standard (option B). Next: /devloop-expand-driver bench-salvage WS-6c-OBS (recompose observation_workflow + 6 KPI agents in-process; greenfield, grade-path-independent) parallel the remaining two judges + 6d/6d-KB + shell WS-5e. Carry: S-BS-34 (ruff exclude, no gate); S-BS-33 -> WS-6d-KB."
     },
     {
       "id": "bench-salvage-phaseWS-6c-OBS-observation-recompose-driver",
@@ -1463,13 +1568,18 @@
       "audit_verdict": "CLEAN (7/7; A2 200 passed/7 skipped + zero heavy-dep leak re-verified; A3 boundary grep+runtime; scope confined to observation/+pyproject; backend untouched 6720c70)",
       "critique_verdict": "ROUTINE inline + monitor deep-read NON-BLOCKING; the LLM-port fidelity gap CLOSED (3 agents: identical float-constant multiset + AST string-literal parity = scoring math + prompt text preserved; only __init__ dropped per the injectable-LLM refactor). File: critique-bench-salvage-phaseWS-6c-OBS-2026-06-02.md",
       "tier": "A+ (text-path-real; user-elected at plan-review): orchestration + ObservationState/call_kpi contract + pure KPIAggregationAgent + 3 LLM agents real (council llm_provider reuse, offline-stubbed); audio-DSP trio interface-complete + [observation]-gated, bodies deferred (S-BS-36)",
-      "seams_opened": ["S-BS-36", "S-BS-37"],
+      "seams_opened": [
+        "S-BS-36",
+        "S-BS-37"
+      ],
       "seams_closed": [],
       "driver_correction": "DRIFT-2b corrected at close (driver section 1.3 + decision #2 + Hardness): only kpi_aggregation is dep-light; transcription pulls whisper/torch, technical_metrics pulls librosa (monitor's own expand-grep miss; no harm -- A+ gated all heavy deps behind [observation]).",
       "version": "v1",
       "hardness": "ROUTINE",
       "hardness_reason": "Greenfield in-process recompose of plain async agent classes (no Mongo/Azure/LangGraph coupling per the agents map); not safety-critical (KPIs, not compliance verdicts); not in the grade path. Monitor inline critique at close.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "SPLIT from WS-6c-AGENTIC 2026-06-02. Recompose ../lithrim-backend/app/workflows/observation_workflow.py (StateGraph:4; ObservationState:38; run_parallel_analyses:423; 7 agents instantiated :333/391/447/481/503/537/613) -> straight-line async in lithrim_bench/runtime/; hoist agent instantiation; DROP dead evaluation_agent; PARK LiveKit simulation_agent. Genuinely greenfield (grep of the agent classes across lithrim_bench/ = 0 hits). Independent of the compliance grade path.",
@@ -1499,13 +1609,17 @@
       "audit_verdict": "CLEAN -- history rewrite verified clean (git diff f7b9a2d..HEAD = 8 files + log, ZERO paper files; f7b9a2d intact; backend untouched 6720c70); A4 0 hits; A5 205/8; scope held",
       "critique_verdict": "ROUTINE inline + risk-driven deep verification (history rewrite around the locked PAPER_OUTLINE.md) NON-BLOCKING; A3 frozen-contract gate PASSED on debuglithrim (6) + verified PRINCIPLED (NoOp-vs-NoOp control + raw-diff + side-effect guards rule out gaming). File: critique-bench-salvage-phaseWS-6d-2026-06-02.md",
       "milestone": "the in-process grade path is now Mongo-free (first ship-path payment). SqliteProvenanceStore = the S-BS-38 blob tier (full model_dump JSON into PIPELINE_RUNS); MongoProvenanceStore alias retired; opt-in default NoOp; eval-isolation via pipeline_run_id uniqueness.",
-      "seams_opened": ["S-BS-39"],
+      "seams_opened": [
+        "S-BS-39"
+      ],
       "seams_closed": [],
       "contamination_note": "the executor's first commit swept in 3 concurrently-staged paper files; resolved by soft-reset + rebuild from exact original blobs (monitor-verified: paper files re-staged intact, in no WS-6d commit). Lesson -> git-commit-pathspec-dirty-index memory.",
       "version": "v1",
       "hardness": "ROUTINE",
       "hardness_reason": "New store impl behind an existing injected seam; consensus IP + grade-record shape frozen; nothing reads the rows yet (fire-and-forget save). Load-bearing gate = A3 frozen-contract diff. GTM-critical (retire Mongo); user may elect fresh-critic at close, but the contract is the internal ProvenanceStore Protocol not the §10 BFF -> inline default.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-6c-AGENTIC). Authored TASK_PACK#WS-6d + this bundle + the driver in one /devloop-expand-driver pass after 2 user scope decisions (SQLite-only; grade-path-only). User chose the ship-path (WS-6d -> WS-6e/WS-5e) as the roadmap lead. The repository interface (ProvenanceStore Protocol + injectable orchestrator seam, MongoProvenanceStore=NoOp alias 'swap to SQLite later') AND the SQLite backend (harness/collections.py stdlib doc-shim, 4 collections) ALREADY EXIST -- WS-6d wires them: implement SqliteProvenanceStore over the doc-shim, flip the default off the Mongo alias, preserve the eval-isolation invariant (pipeline_run_id unique per run), behind the frozen grade contract.",
@@ -1532,7 +1646,9 @@
       "status": "closed-WITH-CAVEATS 2026-06-04 (verify-and-close, NOT a driver-bounded build: the deliverable landed in the parallel-session journey rework 26e479f; monitor audited + added the missing D4 test 0b1d2d0 + inline critique). A1/A2/A4 met + tested; A5 build+test green (shell 33/33, vite build clean); the :5180 visual smoke is the one OWED gate (user-run). A3 leverage-gate DEVIATED: the journey extended the BFF (/v1/case + a council view on /v1/run-eval + in_process) -- the driver's 'zero backend/BFF/Python' assumption did NOT hold. Opened S-BS-50 (journey hardcodes BFF_URL, bypasses bff.js VITE_BFF_URL indirection) + S-BS-51 (the §10-locked v1 BFF surface grew unratified). Critique critique-bench-salvage-phaseWS-7a-2026-06-04.md.",
       "version": "v1",
       "hardness": "HARD-GATE-class (SPEC §8 shell phases); user-electable inline vs fresh-critic at close; :5180 visual smoke load-bearing regardless",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "created": "2026-06-02",
       "last_re_verified": "2026-06-02",
       "_note": "WS-7 milestone = product feature-completion (the 4-act journey on REAL service calls vs journeyData mock). User pivot 2026-06-02: features against the services first, Tauri packaging deferred to last mile, efficiently leverage lithrim-backend. WS-7a = the Phase-2 Verify beachhead -- PURE UI wiring: the grade chain (bff.js runEval -> /v1/run-eval -> grade_replay/live(:8002)/inprocess) is COMPLETE; the journey is mock only because nobody pointed it at the BFF. journeyData is captured real scores -> wiring = replacing a snapshot with runEval() (default replay $0). Sub-phases: 7a (Verify) -> 7b (Align: floor+KB, folds WS-3b+WS-6d-KB, the headline+paper) -> 7c (pack+SDK bookends).",
@@ -1559,7 +1675,9 @@
       "status": "shipped",
       "version": "v2",
       "hardness": "HARD-GATE-class (touches the A-SAFE conversational surface -- the binding must NOT widen the paid surface; fresh-critic at close).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "apps/bff/agent/loop.py:28-112 (the STATIC _SYSTEM_PROMPT -- never names the active agent; system_prompt=_SYSTEM_PROMPT:112; the frozen deny-hook)",
         "apps/bff/app.py:1130-1365 (_build_tool_context(req_agent): _get_judge agent=req_agent:1186 GOOD; _run_eval_replay(agent):1189 + _get_agent(name):1200 take the LLM param; _review_runs(limit):1295; ToolContext default_agent=req_agent:1365) + :1369-1401 chat_endpoint -> _build_tool_context(req.agent)",
@@ -1581,7 +1699,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE-class (touches the A-SAFE conversational surface -- a NEW focus_artifact tool; the directive must add NO paid path; fresh-critic at close).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "apps/bff/agent/loop.py:1-17 (SSE: tool_result carries {part:{type,state,output}}) + _system_prompt (CHATBIND-1) + the FROZEN _build_options deny-hook/allowlist",
         "apps/bff/agent/tools.py (_TOOL_SPECS + PAID_KEYS; a new $0 focus_artifact tool joins the allowlist)",
@@ -1603,7 +1723,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "ROUTINE-with-care (a live standalone smoke + inline critique; NOT HARD-GATE -- does not touch the A-SAFE conversational gate; escalate to a fresh-critic only if D1 must touch it).",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "apps/bff/app.py:224-228 (RunEvalRequest: live -> :8002 backend; in_process -> the bundled v2 council; replay $0 default) + the run_eval route",
         "lithrim_bench/runtime/council/ (the WS-6c ported v2 council -- Mongo-free, importable, in_process-capable; CONFIRM self-contained, no lithrim-backend)",
@@ -1625,7 +1747,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (a verdict-flipping grounding executor [the moat surface] + an ADDITIVE edit to clinical_v1.json [the ontology-of-record] + the labels-true-by-construction guard [the suppress must NEVER clear a true fabrication, A2/A3] + a user-authorized paid live run with an honest-Δ obligation; offline core fully derisked but the verdict-flip + ontology edit warrant a fresh critic)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_GROUNDING_TOOL_LAYER.md (the authority doc -- Phase 1; §2 the two registries SUPPRESS vs FLOOR, §3 the record_presence taxonomy row, §4 code-based principle [P0 string snomed_core / P1 Hermes], §9 the worked example + FHIR-DocumentReference decode, §10 phased plan)",
         "lithrim_bench/harness/grounding.py (_CONTRACT_EXECUTORS:290 -- ADD record_presence; KbGrounding:178 the adapter to MIRROR; ground():398 per-finding suppress -> rescore flip; PresenceCheck:118)",
@@ -1649,7 +1773,9 @@
       "status": "parked",
       "version": "v1",
       "hardness": "user-authorized paid run (~$0.01; the DESIGN is the load-bearing part) -- routine critique at close, NOT a fresh-critic HARD-GATE (live attestation of an already-proven floor; no code/ontology/verdict-floor change)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "memory live-overfire-context-primed (WHY the naive version loses)",
         "docs/research/PROOF_bench-salvage_S-BS-74_2026-06-08.md (the documented honest-loss + the offline mechanism that holds) + docs/research/RUN_uap5a_a8_live_2026-06-06.json (8a41ef3e live BLOCK->WARN)",
@@ -1670,7 +1796,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches taxonomy_snapshot -- the CLAUDE.md core invariant + the only lithrim-backend coupling point -- and the admissibility path; the move must be byte-behavior-identical [A2] and must NOT silently relax the by-construction gate or breach the frozen council [D-A]; the critic verifies the boundary is real, the move is content-identical, and the consistency gate is non-vacuous)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "docs/specs/SPEC_PLUGIN_ARCHITECTURE.md (3 packs + the Pack manifest [pack_id healthcare, ontology, flags_ref taxonomy_snapshot, tier pro] + Build-sequencing Phase-1 + the Healthcare-realm-as-pack note)",
         "docs/specs/SPEC_EVAL_SCENARIOS.md (D-C per-domain admissibility = the floor IS the by-construction label; SCENARIO-1 un-hardcode the domain)",
@@ -1693,7 +1821,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the FROZEN compliance_council.py -- a PATH-ONLY carve-out at :470 [_ROLE_PROMPTS_DIR], user-authorized 2026-06-09 -- and relocates the safety-critical judge prose [S-BS-11]; the move must be byte-behavior-identical [A2] on BOTH the live council AND the DSPy path; the critic verifies the carve-out is genuinely path-only [consensus engine + roster + owners + KNOWN_TAXONOMY_CODES byte-identical, the diff is exactly 1 line], the boundary is real, and the judges gate is non-vacuous)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         ".devloop/prompts/bench-salvage_phasePACK-1_healthcare-pack-ontology-layer_driver.md (the TEMPLATE + the carve-out precedent) + tests/_seam_freeze.py (the carve-out-guard mechanism: symbol-level freeze + authorized exclusions) + tests/test_pack_layer1a.py (the test shape to mirror)",
         "lithrim_bench/runtime/council/council_roles/*.txt (the 5 role prompts to relocate: risk/policy/faithfulness [live v2 trio] + behavior/source_message [v1, carried])",
@@ -1716,7 +1846,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the MOAT-VISIBLE suppress registry that signals.py [the UAP-3b withstands-gate] reads + the verdict-feeding _run_floor dispatch -- A2/A4 byte-behavior is a labels-true-by-construction claim; introduces the FIRST in-process pack CODE [a trust-surface change]; the relocation must be behavior-identical executor code; the critic re-runs the GROUND-FLOOR-1 16/16 suppress + verifies pack->core dep direction + import-clean + a no-floors pack degrades cleanly)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         ".devloop/prompts/bench-salvage_phasePACK-2_healthcare-pack-judges-layer_driver.md (the pack-resolution + carve-out pattern) + tests/test_pack_layer1a.py / test_pack_layer2.py (the boundary-test shape)",
         "lithrim_bench/harness/grounding.py (_CONTRACT_EXECUTORS:412 suppress registry + _FLOOR_CONTRACT_TYPES:424 + _build_contract:427 + _run_floor:472 the inline dispatcher to refactor + ground:548 + RecordPresence:282 [clinical, relocate] + _decode_artifact_soap:448 [clinical] + PresenceCheck:119 / KbGrounding:179 [generic, STAY])",
@@ -1738,7 +1870,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the by-construction label-generation path -- CLAUDE.md 'labels are true by construction', the injection_recipe IS the label justification; unifies the two pack concepts [packs.py generation recipes + packs/healthcare/ eval-config]; introduces the generator-registration interface; the scribe corpus MUST regenerate byte-identical; the critic verifies the moved injectors/synthesizers are byte-verbatim + the merge non-vacuous + no core->pack dependency leaked)",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         ".devloop/prompts/bench-salvage_phasePACK-3_healthcare-pack-floors-layer_driver.md (the load_pack_floors registration + lazy-merge pattern to MIRROR) + tests/test_pack_layer3.py (the boundary + behavior-identity test shape)",
         "lithrim_bench/packs.py (PackDefinition + PACKS + SCRIBE_PACK:54 -- the class STAYS core, the 5 instances move) + injectors/base.py (DefectInjector/InjectionRecipe/InjectionResult -- the GENERIC by-construction machinery, STAYS) + injectors/__init__.py (SCRIBE_INJECTORS -- drop in 5a)",
@@ -1760,7 +1894,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (touches the by-construction label path across 4 corpora [coding/hl7/scheduling/triage each regenerate byte-identical] + empties the core generation registry + thins packs.py to a resolver; the critic verifies byte-verbatim moves, all 4 corpora byte-identical, active_packs() behavior-0-delta + non-vacuous + fail-clean, generic base 0-delta, no core->pack leak, and the boundary milestone [injectors/=base, synthesizers/empty])",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         ".devloop/prompts/bench-salvage_phasePACK-5a_healthcare-pack-generators-layer_driver.md + critique-bench-salvage-PACK-5a-2026-06-09.md (the PROVEN pattern 5b repeats: load_pack_generators + active_packs() + the package loader + the by-construction byte-identity gate + the citation-drift lesson [re-grep helpers PER-PATTERN incl. ABSOLUTE imports])",
         "lithrim_bench/packs.py (_CORE_PACKS:87 + the 4 non-scribe PackDefinitions :53-91 + active_packs():109 -- 5b moves the 4 instances to the pack, sets _CORE_PACKS={}, keeps PackDefinition + active_packs())",
@@ -1782,7 +1918,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (FIRST substantive edit inside the FROZEN compliance_council.py beyond the PACK-2 path-only carve-out + relaxes the freeze guard that is currently the only thing forbidding arbitrary council edits; the critic verifies the carve-out is value-preserving [resolved == acc4973 literals], behavior 0-delta [consensus oracle], the relaxed guard still non-vacuous [unauthorized-edit + carve-out-revert both fail], the AST-reader re-point correct, 2b + the moat byte-frozen, and the source genuinely reads from the pack [fixture-pack non-vacuity])",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "compliance_council.py:176/201/212 (the 3 tier sets) + :292 (KNOWN_TAXONOMY_CODES union) + :1525 (the discard-unknown-code reader) + the consensus-engine tier readers (~:2063/2183/2205) + judges_dspy.py:43-46,95-107,142 (imports + the prompt taxonomy listing + the DSPy finding-filter)",
         "compliance_council.py:469-470 (_ROLE_PROMPTS_DIR inline-__import__ = the PROVEN carve-out pattern 1b repeats)",
@@ -1804,7 +1942,9 @@
       "status": "shipped",
       "version": "v1",
       "hardness": "HARD-GATE (3rd substantive edit inside the FROZEN compliance_council.py + relaxes the freeze guard again; the critic verifies the carve-out value-preserving [resolved == acc4973 literal == snapshot], behavior 0-delta [consensus oracle], the relaxed guard non-vacuous [unauthorized edit + each carve-out revert fail], the 2 AST-reader re-points correct+complete [re-grep for a 3rd owner-literal reader], roster/LENS/moat byte-frozen, source genuinely reads from the pack [fixture subprocess])",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "compliance_council.py:214-245 (_TIER1_OWNERS, 8 entries, the carve-out target) + :2077 (the consensus one-strike, the ONLY live reader -- membership -> 0-delta) + :196 (the 1b _PACK_TIERS carve-out = the exact pattern to repeat) + :467-498 (the CouncilModel roster -- DEFERRED, infra tangle)",
         "harness/pack.py:99-112 pack_tiers (the accessor template) + :161-194 council_roster (the AST-reader that BREAKS on the _TIER1_OWNERS leg; re-point to the snapshot, keep the roster-name collect)",
@@ -1826,7 +1966,9 @@
       "status": "ready",
       "version": "v1",
       "hardness": "Routine (inline critique at close) -- non-behavioral; HARD per-file guardrail = only cohort_path may change in the 7 committed corpora; escalate to fresh-critic only if a regen drifts a non-path field.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "CLAUDE.md (the labels-true-by-construction invariant -- the corpus rows are the labelled benchmark; only the provenance path may move)",
         "lithrim_bench/synthea_loader.py:69 + lithrim_bench/synthea_fhir_loader.py:71 (the two absolute cohort_path leak sites) + scripts/build_fhir_mini_pack.py:84 (the .resolve().relative_to(REPO_ROOT) precedent to mirror) + lithrim_bench/picklist.py:16 (REPO_ROOT anchor)",
@@ -1845,10 +1987,12 @@
       "phase": "PACK-2c",
       "scope": "council-ROSTER-plus-LENS_BY_ROLE-un-freeze-the-decoupling-endgame-unified",
       "file": "bench-salvage_phasePACK-2c_council-roster-lens-unfreeze_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "HARD GATE -- fresh-critic isolation:worktree required at close. Touches the MOAT (LENS_BY_ROLE via withstands.py) + the FROZEN compliance_council.py (a 4th carve-out); the FIRST un-freeze that is NOT moat-untouched.",
-      "target_repos": ["lithrim-bench"],
+      "target_repos": [
+        "lithrim-bench"
+      ],
       "related_docs": [
         "lithrim_bench/runtime/council/judge_metric.py:110-114 LENS_BY_ROLE + :54-106 component lenses (the LENS half; judge_metric.py is NOT under the freeze guard -- clean non-frozen refactor) + the is->== test at tests/.../test_trio_dspy.py:302-305",
         "lithrim_bench/runtime/council/compliance_council.py:461-492 roster construction (v2 trio :461-486 model=settings.AZURE_* + capability flags + prompt_role; v1 legacy :488-492) + CouncilModel :348-373 (the ROSTER half -- the FROZEN file, identity<->deployment split: pack supplies production_judges identity, core keeps a _ROLE_DEPLOYMENT table)",
@@ -1859,7 +2003,7 @@
       "_note": "PACK-2c = the strangler-fig ENDGAME (council ROSTER + LENS_BY_ROLE un-freeze) -- the last two domain-coupled things in the frozen core. UNIFIED scope (user decision 2026-06-11, over the monitor's split recommendation). ASYMMETRIC RISK: the LENS half is a CLEAN non-frozen refactor (judge_metric.py NOT under the difflib guard -- confirmed) resolving LENS_BY_ROLE from a new snapshot 'lenses' field via pack_lenses() + the is->== test; the ROSTER half touches the FROZEN compliance_council.py = a 4th carve-out with the IDENTITY<->DEPLOYMENT split (pack supplies production_judges identity [already exists], core keeps _ROLE_DEPLOYMENT provider/model/Azure/capability binding -- a pack must NOT carry deployment ids). The DECOUPLING PROOF is the gate: a real 2nd pack packs/story_audit/ with a DIFFERENT judge subset + DIFFERENT lenses must assemble a different roster+lens map under LITHRIM_BENCH_PACK=story_audit with ZERO core edits (subprocess, mirrors layer2b). Domain<->infra boundary: packs SELECT/subset KNOWN deployable identities; a brand-new deployable judge needs core support (OQ-2). 4 OQs for plan-review (v1/v2 identity sourcing [recommend v2-only, v1 legacy-frozen]; deployment boundary; snapshot_taxonomy.py emitting lenses; component-lens-constant disposition) + S-BS-125 both halves (A7). Behavior 0-delta on healthcare (resolved roster+lenses == acc4973; consensus oracle + lens-subset-owners green; the moat reads the resolved lens identically). After 2c + the 2nd-pack run, the core council carries ONLY the domain-agnostic mechanism -- 'completely decoupled' CONFIRMED (not just INFERRED). HARD GATE fresh-critic isolation:worktree. LOCAL is SSOT (no push); pathspec-only on bench-salvage/ws6c-dspy.",
       "created": "2026-06-11",
       "last_re_verified": "2026-06-11 (recon agent + monitor spot-verification at HEAD f4655d8: LENS_BY_ROLE judge_metric.py:110-114 CONFIRMED + judge_metric.py NOT in the freeze guard CONFIRMED [guard covers compliance_council carve-outs + judges_dspy consensus seam + clinical_ontology only]; roster :461-492 welds identity to deployment [model=settings.AZURE_OPENAI_DEPLOYMENT_*] CONFIRMED; production_judges ALREADY the pack identity list CONFIRMED; snapshot has NO lenses field CONFIRMED; withstands.py:144 the moat lens scope-check CONFIRMED; 3 carve-outs + the S-BS-124 per-line guard CONFIRMED; _tiers_fixture + test_pack_layer2b:213-243 subprocess pattern CONFIRMED.)",
-      "next_action": "READY -- hand the kickoff to a fresh executor session. HARD GATE: post plan-review resolving OQ-1..4 + S-BS-125 before 'go'; fresh-critic isolation:worktree at close. The decoupling endgame."
+      "next_action": "CLOSED 2026-06-11 (HARD GATE fresh-critic a0034f63d8cf8a259 PASS [0 BLOCKING / 3 NB / 1 OQ]; build 0c4eab8..6e09c44). The strangler-fig ENDGAME: lens authority + roster identity now pack-resolved; 4th carve-out + identity<->deployment split; story_audit subprocess proves zero-core-edit decoupling -> 'completely decoupled (v2)' CONFIRMED. Behavior 0-delta on healthcare; moat byte-frozen; guard non-vacuous both directions. S-BS-125 RE-SCOPED w/ tripwire; opened S-BS-127 (low). Full close: critique-bench-salvage-phasePACK-2c-2026-06-11.md + session-bench-salvage-phasePACK-2c-2026-06-11.json. The core council is domain-agnostic; the OSS-core / Pro-pack split is REAL."
     }
   ]
 }
