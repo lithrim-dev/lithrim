@@ -299,10 +299,19 @@ def test_faithfulness_lens_owner_consistent_judge_accepted():
 
 
 def test_lens_by_role_covers_the_v2_trio():
+    # PACK-2c: LENS_BY_ROLE resolves FROM the active pack's snapshot ``lenses`` (the
+    # source-of-truth flip), so the pin is VALUE-equality against ``pack_lenses()``,
+    # not literal-identity against the module constants. The per-role constants are
+    # now derived references (``RISK_JUDGE_LENS = LENS_BY_ROLE["risk_judge"]``), so
+    # ``is`` would still hold incidentally — but ``==`` against the resolved pack map
+    # asserts the right invariant after the flip.
+    from lithrim_bench.harness.pack import pack_lenses
+
     assert set(LENS_BY_ROLE) == set(V2_ROLES)
-    assert LENS_BY_ROLE["risk_judge"] is RISK_JUDGE_LENS
-    assert LENS_BY_ROLE["policy_judge"] is POLICY_JUDGE_LENS
-    assert LENS_BY_ROLE["faithfulness_judge"] is FAITHFULNESS_JUDGE_LENS
+    assert LENS_BY_ROLE == pack_lenses()
+    assert LENS_BY_ROLE["risk_judge"] == RISK_JUDGE_LENS
+    assert LENS_BY_ROLE["policy_judge"] == POLICY_JUDGE_LENS
+    assert LENS_BY_ROLE["faithfulness_judge"] == FAITHFULNESS_JUDGE_LENS
 
 
 def test_every_lens_code_is_in_the_taxonomy_snapshot():

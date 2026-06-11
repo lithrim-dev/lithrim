@@ -46,20 +46,27 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
+# Role → lens, so the harness/metric can resolve a lens by judge role. Keys are
+# the V2_ROLES (judges_dspy.V2_ROLES). PACK-2c: the lens authority — the per-role
+# "codes you may raise" that the withstands-gate scope-checks (``withstands.py``
+# ``code not in lens``) — resolves FROM the active pack's taxonomy_snapshot.json
+# ``lenses`` block via ``harness.pack.pack_lenses()``. The inline ``__import__``
+# keeps this module ``openai``/``dspy``-free for the dependency-light core (the
+# same carve-out shape the frozen council uses for ``pack_tiers()`` /
+# ``pack_tier1_owners()``). The snapshot is now the single source of truth; the
+# per-role constants below are DERIVED references, preserved for their importers
+# (signals/withstands/ab_harness/judge_optimize) + the clinical provenance of each
+# lens. Value-equality against ``pack_lenses()`` (not literal-identity) is the pin.
+LENS_BY_ROLE: dict[str, frozenset[str]] = __import__(
+    "lithrim_bench.harness.pack", fromlist=["pack_lenses"]
+).pack_lenses()
+
 # risk_judge's code lens — the "CODES YOU MAY RAISE" in
 # runtime/council/council_roles/risk_judge.txt (clinical-safety scope). NB:
 # FABRICATED_HISTORY / HALLUCINATED_DETAIL are explicitly the BEHAVIOR JUDGE's
 # domain (risk_judge.txt "CODES YOU MAY NOT RAISE"), so a risk_judge that stays
 # SILENT on those cases is correct — they are not in this lens.
-RISK_JUDGE_LENS = frozenset(
-    {
-        "MISSED_ESCALATION",
-        "SEVERITY_ESCALATION",
-        "WRONG_DOSAGE",
-        "MEDICATION_NOT_IN_TRANSCRIPT",
-        "FABRICATED_ALLERGY",
-    }
-)
+RISK_JUDGE_LENS = LENS_BY_ROLE["risk_judge"]
 
 # policy_judge's code lens — the HIPAA / regulatory-compliance scope of
 # runtime/council/council_roles/policy_judge.txt. FABRICATED_CONSENT is named
@@ -70,12 +77,7 @@ RISK_JUDGE_LENS = frozenset(
 # verbatim — so the live policy judge likely UNDER-raises it, a measurable recall
 # gap the A/B surfaces (a judge-prompt-authoring follow-up, NOT a lens error).
 # Both codes are Tier-1 and policy-owned, so the lens is owner-consistent.
-POLICY_JUDGE_LENS = frozenset(
-    {
-        "FABRICATED_CONSENT",
-        "PHI_DISCLOSURE_PRE_VERIFICATION",
-    }
-)
+POLICY_JUDGE_LENS = LENS_BY_ROLE["policy_judge"]
 
 # faithfulness_judge's code lens — the artifact-vs-transcript fidelity scope of
 # runtime/council/council_roles/faithfulness_judge.txt (the ARTIFACT-SPECIFIC
@@ -89,29 +91,7 @@ POLICY_JUDGE_LENS = frozenset(
 # out-of-lens FPs, which is why the per-judge precision is a lower bound (see the
 # module docstring). The remaining codes are Tier-2/Tier-3 with no Tier-1 owner
 # constraint.
-FAITHFULNESS_JUDGE_LENS = frozenset(
-    {
-        "VALUE_MISMATCH",
-        "MISSING_ALLERGY",
-        "HALLUCINATED_DETAIL",
-        "FABRICATED_HISTORY",
-        "MEDICATION_NOT_IN_TRANSCRIPT",
-        "UPCODING_RISK",
-        "WRONG_CODE",
-        "PROTOCOL_STEP_SKIPPED",
-        "INCOMPLETE_DOCUMENTATION",
-        "DURATION_FABRICATION",
-        "NEGATION_REVERSAL",
-    }
-)
-
-# Role → lens, so the harness/metric can resolve a lens by judge role. Keys are
-# the V2_ROLES (judges_dspy.V2_ROLES); values mirror RISK_JUDGE_LENS exactly.
-LENS_BY_ROLE: dict[str, frozenset[str]] = {
-    "risk_judge": RISK_JUDGE_LENS,
-    "policy_judge": POLICY_JUDGE_LENS,
-    "faithfulness_judge": FAITHFULNESS_JUDGE_LENS,
-}
+FAITHFULNESS_JUDGE_LENS = LENS_BY_ROLE["faithfulness_judge"]
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:
