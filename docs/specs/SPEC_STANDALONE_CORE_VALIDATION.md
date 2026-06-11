@@ -129,11 +129,13 @@ The strangler-fig continues; the standalone validation is the *proof* the demarc
 
 ## 5. Acceptance — "standalone CE" goes INFERRED → CONFIRMED when
 
-- A real independent non-clinical pack exists (no `packs/healthcare/` reuse), and
-- `test_standalone_ce.py` is green: a non-clinical case grades end-to-end via the authored path with **healthcare unloaded + `:8002` down + 0 clinical leakage**, and
-- a gated live smoke produces a sane verdict on a BYO provider.
+- **DONE (CE-STANDALONE-1, 2026-06-11).** A real independent non-clinical pack exists with **no `packs/healthcare/` reuse** — `packs/support_ticket_qa/` (`tier: core`; its OWN `ontology.json` + `council_roles/` + `taxonomy_snapshot.json`; A7 grep-verified empty of `packs/healthcare`). It is the OSS sample pack (OQ-2: **yes**, it earns its keep twice).
+- **DONE for the CI legs (CE-STANDALONE-1).** `tests/test_standalone_ce.py` is green: the non-clinical case (`tests/fixtures/standalone/case.support_ticket_qa_fabricated_policy.jsonl`) grades end-to-end via the **authored path** to a `reject` verdict with **the healthcare pack unloaded + `:8002` down + 0 clinical leakage** in the rendered judge prompts, at `$0` via injected predictors (the `test_uap3_grade` pattern). A-STANDALONE-1..5 each pass.
+- **OWED.** A gated live smoke producing a sane verdict on a BYO provider (the real-provider confirmation via `run(in_process=True, assignments=…)`; not CI spend) — still to run.
 
-Honest-Δ: if any leg fails, it pinpoints the residual coupling — that is the *point* of the test.
+Honest-Δ — the two residual couplings this falsification test **pinpointed** (that is the *point* of the test; NEITHER blocks the pack from running, so each is a finding, not an escalation; both are relocation/6b targets, not in CE-STANDALONE-1's scope):
+- **S-BS-129** — the core DSPy `JudgeSignature` (`runtime/council/judges_dspy.py` `_build_signature`, the `:175-200` region) still hard-codes clinical prose ("clinical artifact", "HIPAA / clinical-safety council", "provider/patient conversation", "transcript"). It is OFF the authored render path (A-STANDALONE-1 stays clean) and the `$0` predictor path bypasses it — but the LIVE path sends it to the LLM. Tracked by the non-gating diagnostic in `test_standalone_ce.py`; retire in **6b-CLEAN**.
+- **S-BS-130** — `DEFAULT_PACK = "healthcare"` (`harness/pack.py:46`) makes `council_roster()` read `packs/healthcare/{pack.json,taxonomy_snapshot.json}` for canonical-roster validation even under a non-healthcare active pack. The active DOMAIN is 100% the generic pack (A-STANDALONE-4 permits ONLY that roster metadata and FAILS on any healthcare domain content), but a truly healthcare-free core needs the canonical capability roster sourced from a neutral/core origin, not a Pro domain pack.
 
 ## 6. Open questions
 
