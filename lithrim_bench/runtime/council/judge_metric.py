@@ -57,6 +57,10 @@ from typing import Any
 # per-role constants below are DERIVED references, preserved for their importers
 # (signals/withstands/ab_harness/judge_optimize) + the clinical provenance of each
 # lens. Value-equality against ``pack_lenses()`` (not literal-identity) is the pin.
+# The constants resolve via ``.get(role, frozenset())`` — they are the HEALTHCARE
+# role names, so under a pack whose roster omits a role (e.g. ``story_audit`` has no
+# ``faithfulness_judge``) the constant degrades to an empty lens rather than crashing
+# this module's import. This is what lets ``judge_metric`` load under ANY active pack.
 LENS_BY_ROLE: dict[str, frozenset[str]] = __import__(
     "lithrim_bench.harness.pack", fromlist=["pack_lenses"]
 ).pack_lenses()
@@ -66,7 +70,7 @@ LENS_BY_ROLE: dict[str, frozenset[str]] = __import__(
 # FABRICATED_HISTORY / HALLUCINATED_DETAIL are explicitly the BEHAVIOR JUDGE's
 # domain (risk_judge.txt "CODES YOU MAY NOT RAISE"), so a risk_judge that stays
 # SILENT on those cases is correct — they are not in this lens.
-RISK_JUDGE_LENS = LENS_BY_ROLE["risk_judge"]
+RISK_JUDGE_LENS = LENS_BY_ROLE.get("risk_judge", frozenset())
 
 # policy_judge's code lens — the HIPAA / regulatory-compliance scope of
 # runtime/council/council_roles/policy_judge.txt. FABRICATED_CONSENT is named
@@ -77,7 +81,7 @@ RISK_JUDGE_LENS = LENS_BY_ROLE["risk_judge"]
 # verbatim — so the live policy judge likely UNDER-raises it, a measurable recall
 # gap the A/B surfaces (a judge-prompt-authoring follow-up, NOT a lens error).
 # Both codes are Tier-1 and policy-owned, so the lens is owner-consistent.
-POLICY_JUDGE_LENS = LENS_BY_ROLE["policy_judge"]
+POLICY_JUDGE_LENS = LENS_BY_ROLE.get("policy_judge", frozenset())
 
 # faithfulness_judge's code lens — the artifact-vs-transcript fidelity scope of
 # runtime/council/council_roles/faithfulness_judge.txt (the ARTIFACT-SPECIFIC
@@ -91,7 +95,7 @@ POLICY_JUDGE_LENS = LENS_BY_ROLE["policy_judge"]
 # out-of-lens FPs, which is why the per-judge precision is a lower bound (see the
 # module docstring). The remaining codes are Tier-2/Tier-3 with no Tier-1 owner
 # constraint.
-FAITHFULNESS_JUDGE_LENS = LENS_BY_ROLE["faithfulness_judge"]
+FAITHFULNESS_JUDGE_LENS = LENS_BY_ROLE.get("faithfulness_judge", frozenset())
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:
