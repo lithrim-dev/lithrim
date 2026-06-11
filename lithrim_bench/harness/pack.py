@@ -3,9 +3,10 @@ not a hardcoded clinical path (healthcare-realm-as-pack, layer 1a).
 
 A **pack** is a domain bundle: a manifest (``packs/<id>/pack.json``) that names the
 pack's ontology + taxonomy (flags) + judges. The core resolves the **active pack**
-(default ``healthcare``; override via ``LITHRIM_BENCH_PACK``) and reads the
+(default the neutral ``_core`` pack — CE-PACK-NEUTRAL-DEFAULT; override via
+``LITHRIM_BENCH_PACK`` to a domain pack such as ``healthcare``) and reads the
 ontology/taxonomy paths from its manifest — so the core itself carries no clinical
-content path. ``harness/ontology.py`` and ``taxonomy.py`` resolve their defaults
+content path AND boots standalone with no Pro pack on disk. ``harness/ontology.py`` and ``taxonomy.py`` resolve their defaults
 through here; relocating the clinical realm into ``packs/healthcare/`` is what makes
 the core↔domain boundary grep-verifiable (no ``clinical_v1`` literal in the core).
 
@@ -43,7 +44,7 @@ from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKS_DIR = REPO_ROOT / "packs"
-DEFAULT_PACK = "healthcare"
+DEFAULT_PACK = "_core"
 _COUNCIL_SOURCE = REPO_ROOT / "lithrim_bench" / "runtime" / "council" / "compliance_council.py"
 _COUNCIL_TIER_NAMES = ("TIER_1_NEVER_EVENTS", "TIER_2_HIGH_RISK", "TIER_3_MEDIUM")
 
@@ -59,7 +60,7 @@ class PackConsistencyError(RuntimeError):
 
 
 def active_pack() -> str:
-    """The active pack id. Default ``healthcare``; override via ``LITHRIM_BENCH_PACK``."""
+    """The active pack id. Default the neutral ``_core`` pack; override via ``LITHRIM_BENCH_PACK``."""
     return os.environ.get("LITHRIM_BENCH_PACK") or DEFAULT_PACK
 
 
