@@ -24,6 +24,7 @@ The frozen consensus seam (``_apply_consensus`` + the per-judge seam dict +
 ``git diff`` acceptance check over the full set (recorded in the session log), not
 re-run here (a git-diff-in-pytest would pin against a cycle-specific parent).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -68,7 +69,9 @@ def _recording_predictors(captured: dict, flag: str):
             if _MARKER in role_key_questions:
                 return {
                     "decision": "reject",
-                    "findings": [{"taxonomy_code": flag, "evidence_spans": [{"quote": "x", "turn_ids": []}]}],
+                    "findings": [
+                        {"taxonomy_code": flag, "evidence_spans": [{"quote": "x", "turn_ids": []}]}
+                    ],
                 }
             return {"decision": "approve", "findings": []}
 
@@ -132,3 +135,63 @@ def test_authored_prompt_matches_the_judge_editor_preview():
     # an unassigned role's prompt is the seed base (no marker) — back-compat parity
     assert _MARKER not in cap["policy_judge"]
     assert cap["policy_judge"] == render_role_questions(ont, "policy_judge")
+
+
+class _Sentinel(Exception):
+    """Short-circuits run() right after the grade dispatch built its stage — so the
+    test never makes a paid grade call ($0)."""
+
+
+def test_no_assignment_in_process_path_builds_authored_stage_not_default_council(
+    tmp_path, monkeypatch
+):
+    """D4 (CE-PACK-6b-ROUTE): run_eval's in-process dispatch with NO assignments builds
+    the AUTHORED stage from the FULL PACK LENS — it never falls through to
+    ``semantic_stage=None`` (the legacy ``ComplianceCouncil.build_prompt`` default
+    council). $0/offline: the authored-stage builder + grade_inprocess are stubbed so no
+    Azure call fires; we only assert the routing.
+
+    ``build_prompt`` remains physically present (reached only by
+    ``runtime/pipeline/stages.py`` / ``ab_harness`` / the ``test_consensus`` unit) and
+    is deleted in 6b-CLEAN; this test pins that it is OFF the in-process product path."""
+    import sys as _sys
+
+    import lithrim_bench.runtime.council.authored_stage as authored_mod
+    from lithrim_bench.harness.config import load_agent, seed_config_db
+    from lithrim_bench.harness.pack import pack_lenses, pack_production_judges
+
+    if str(_REPO / "scripts") not in _sys.path:
+        _sys.path.insert(0, str(_REPO / "scripts"))
+    import run_eval
+
+    db = tmp_path / "config.sqlite"
+    seed_config_db(db_path=db)
+    agent = load_agent("ws0_default", db_path=db)
+
+    captured: dict = {}
+
+    def _fake_build_authored_semantic_stage(*, assignments=None, **_kw):
+        captured["assignments"] = assignments
+        return "STAGE_SENTINEL"  # a non-None stage object
+
+    def _fake_grade_inprocess(case, *, semantic_stage=None, **_kw):
+        captured["semantic_stage"] = semantic_stage
+        raise _Sentinel  # stop before any real grade / persistence
+
+    monkeypatch.setattr(
+        authored_mod, "build_authored_semantic_stage", _fake_build_authored_semantic_stage
+    )
+    monkeypatch.setattr(run_eval, "grade_inprocess", _fake_grade_inprocess)
+
+    with pytest.raises(_Sentinel):
+        run_eval.run(agent, in_process=True, assignments=None, collections_db=db)
+
+    # the authored stage was built (never None) → build_prompt's default council is OFF path
+    assert captured["semantic_stage"] == "STAGE_SENTINEL"
+    assert captured["semantic_stage"] is not None
+
+    # and the no-assignment default is the FULL PACK LENS over the production roster
+    lenses = pack_lenses()
+    expected = {role: sorted(lenses[role]) for role in pack_production_judges() if role in lenses}
+    assert captured["assignments"] == expected
+    assert captured["assignments"], "the default lens must be non-empty"
