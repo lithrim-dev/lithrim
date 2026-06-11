@@ -2094,6 +2094,30 @@
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD 4ecbe43 + 2-agent reassessment: _build_signature clinical strings + frozen-guard CONFIRMED; build_prompt entanglement [stages.py/ab_harness/2 tests] CONFIRMED; safety_flags-as-seed-source [seed_ontology imports] CONFIRMED; freeze-guard rejects delete opcode CONFIRMED).",
       "next_action": "READY -- hand the kickoff to a FRESH executor session; plan-review BEFORE any edit; fresh-critic worktree pass at close. The clinical-clean-core endgame."
+    },
+    {
+      "id": "bench-salvage-phaseCE-PACK-6c-retire-source-message-prompt-decide-phi-redaction-driver",
+      "stream": "bench-salvage",
+      "phase": "CE-PACK-6c",
+      "scope": "retire-build_source_message_prompt-decide-phi_redaction-fate-grep-empty-finisher",
+      "file": "bench-salvage_phaseCE-PACK-6c_retire-source-message-prompt-decide-phi-redaction_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic worktree pass required. Deletes from the FROZEN compliance_council.py AGAIN (build_source_message_prompt + its evaluate() source_message branch -- a 5th authorized deletion under the 6b-CLEAN guard mechanism) + reroutes/retires a routable-but-bench-DEAD stage. The MECHANISM (_apply_consensus/withstands) stays byte-frozen vs acc4973. A PURITY FINISHER, NOT a release gate -- the generic-CE program is already release-ready. Fresh-SESSION execution, plan-review BEFORE any edit (resolve Fork A source_message disposition + Fork B phi_redaction + Fork D the honest grep bar).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "compliance_council.py:762 def build_source_message_prompt (FROZEN; the last live clinical prompt-builder) -- only live caller :2183 inside evaluate()'s source_message branch (:2182); also :1085 role-select + :257/261 the CONTEXT_KIND_SOURCE_MESSAGE const + :696/1771 doc-refs",
+        "BENCH-DEAD diagnostic (Fork A): source_message is never set live -- harness/grade.py:73 + backends/local_pipeline.py:105 + models.py:242 default ALL hardcode context_kind=transcript; ws0_default.json:9 notes source_message_judge declared-not-running. Reachability: evaluate(source_message) <- stages.py:982 run_semantic_source_message (:968) <- :999-1000 dispatch <- orchestrator.py:242",
+        "phi_redaction.py:1/59 (sanitize_prompt/redact_text) + compliance_council.py:28 import + settings.py:56-58 HIPAA_* keys = a GENERIC privacy mechanism (keep in core; genericize prose, do NOT rename keys = compat) -- Fork B",
+        "RESIDUAL (tests/test_6bclean_attestation.py::ENUMERATED_RESIDUAL) = the authoritative scope: compliance_council.py (frozen carve-out comments) + phi_redaction/settings + judge_metric.py:29,58,69,75-77,90-91 + judge_assignment.py:55 (provenance COMMENTS) + judges_dspy.py:14,249 (Fork 5 LEAVE)",
+        "tests/_seam_freeze.py: EXTEND the 6b-CLEAN deletion mechanism (the 6b-CLEAN sentinel + _COUNCIL_AUTHORIZED_MARKERS) with a 6c/source_message authorized-deletion marker; non-vacuity both directions (unauthorized _apply_consensus deletion still FAILS). tests/test_6bclean_attestation.py: TIGHTEN ENUMERATED_RESIDUAL (test_enumerated_buckets_are_not_stale fails if a cleared file is left listed)"
+      ],
+      "_note": "CE-PACK-6c = the grep-empty FINISHER opened by 6b-CLEAN (S-BS-131). Remove the LAST live clinical CODE from the core council -- build_source_message_prompt (the source_message prompt builder, bench-DEAD: nothing sets context_kind=source_message) -- and decide phi_redaction's fate (recommended: keep-as-generic-privacy-mechanism, genericize prose, keep config keys). HONEST bar (Fork D, parallel to 6b-CLEAN Fork 1): literal grep -> empty is NOT achievable without renaming load-bearing HIPAA_* config keys + scrubbing FROZEN-file authorized provenance comments -> re-scope A1 to 'no live clinical CODE; documented provenance-comment/config-key residual, pinned by the attestation test'. The MECHANISM stays byte-frozen. SPEC-driven (no task-pack entry; cf. memory devloop-task-pack-stale-uap-from-spec). LOCAL is SSOT. Do NOT autostart -- a deferred purity finisher behind the user's strategic call.",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12 (HEAD ae0854e; monitor expand-driver: build_source_message_prompt def :762 + only-caller :2183 CONFIRMED; source_message bench-DEAD CONFIRMED [grade.py:73/local_pipeline.py:105/models.py:242 all transcript]; phi_redaction as generic mechanism + settings HIPAA_* keys CONFIRMED; ENUMERATED_RESIDUAL buckets CONFIRMED against test_6bclean_attestation.py).",
+      "next_action": "READY -- hand the kickoff to a FRESH executor session; plan-review BEFORE any edit (Forks A/B/D); fresh-critic worktree pass at close. The grep-empty purity finisher. Do NOT autostart -- user's strategic call."
     }
   ]
 }
