@@ -2034,7 +2034,7 @@
       "phase": "CE-PACK-NEUTRAL-DEFAULT",
       "scope": "neutral-core-default-pack-so-the-core-ships-without-healthcare-closes-S-BS-130",
       "file": "bench-salvage_phaseCE-PACK-NEUTRAL-DEFAULT_neutral-core-default-pack_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "Routine (inline critique) -- non-frozen (pack.py + a new _core pack + conftest + tests; NO council file). BUT flips a GLOBAL default -> the suite-0-new gate (A2) is load-bearing + a mandatory D0 HALT-gate (measured: 15 collection errors under a non-healthcare active pack; the conftest-pin bounds it -- if it doesn't, return to monitor). Subagent-executed in the main tree.",
       "target_repos": [
@@ -2048,7 +2048,7 @@
       "_note": "Release-gating CE program cycle: closes S-BS-130 (+ retires S-BS-125 tripwire). Ships a neutral packs/_core/ default pack + flips DEFAULT_PACK healthcare->_core so the core boots WITHOUT healthcare. Bounding mechanism = a session conftest pinning LITHRIM_BENCH_PACK=healthcare for the existing suite (measured: 15 collection errors otherwise); the shipped default is _core, proven by a healthcare-absent test. Monitor-spawned subagent executes in the main tree, pathspec-scoped; D0 is a HALT-gate. Non-frozen. LOCAL is SSOT.",
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD b21820e: DEFAULT_PACK pack.py:46 + active_pack :63 + council_roster reads pack_tier1_owners(DEFAULT_PACK) :242 CONFIRMED; blast radius MEASURED = 15 collection errors under a non-healthcare active pack).",
-      "next_action": "READY -- monitor spawns a subagent to execute (main tree); D0 HALT-gate first; monitor audits at close."
+      "next_action": "CLOSED CLEAN 2026-06-12 (build 0b70d61..60859e6; monitor 7-item + inline critique CLEAN; subagent-executed, D0 HALT-gate honored). Neutral packs/_core/ default pack + DEFAULT_PACK flip; the core boots + grades with healthcare ABSENT (tests/test_neutral_default.py: zero packs/healthcare/ reads); roster identity byte-stable (monitor-verified); suite 0-new via the conftest pin. CLOSED S-BS-130 + RESOLVED S-BS-125 (tripwire retired). No core council edit. Full close: critique-bench-salvage-CE-PACK-NEUTRAL-DEFAULT-2026-06-12.md."
     }
   ]
 }
