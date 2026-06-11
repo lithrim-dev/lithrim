@@ -73,6 +73,39 @@ def test_seed_config_db_builds_committed_agent(tmp_path):
     assert agent.eval_profile.tools == ("presence_check",)
 
 
+# ── S-BS-128: persisted ontology_path survives a pack relocation ──────────────
+
+
+def test_ontology_abspath_self_heals_relocated_path():
+    """S-BS-128 — a persisted ``ontology_path`` that predates a pack relocation
+    (the pre-PACK-1 ``data/ontology/clinical_v1.json``, now absent) falls back to the
+    active pack's ontology, so a pre-PACK-1 agent still resolves instead of crashing."""
+    agent = Agent(
+        name="stale_path",
+        eval_profile=EvalProfile(
+            judges=("risk_judge",),
+            council_config={},
+            ontology_ref="clinical/1",
+            ontology_path="data/ontology/clinical_v1.json",  # pre-PACK-1 location, now absent
+            tools=(),
+            kb_bindings={},
+            severity_map_ref="",
+        ),
+        dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=str(BASELINE)),
+    )
+    assert not (REPO_ROOT / "data" / "ontology" / "clinical_v1.json").exists()
+    resolved = agent.ontology_abspath()
+    assert resolved == ONTOLOGY_SEED  # = packs/healthcare/ontology.json
+    assert resolved.exists()
+
+
+def test_ontology_abspath_prefers_existing_literal_path():
+    """S-BS-128 — a valid literal path is used as-is (no fallback; byte-unchanged for
+    every current agent)."""
+    agent = _agent_over_fixtures()  # ontology_path = the real pack ontology, exists
+    assert agent.ontology_abspath() == ONTOLOGY_SEED
+
+
 def test_config_driven_run_reproduces_ws0(tmp_path):
     """A1 — run_eval, driven only by a config Agent, reproduces the WS-0 result.
 

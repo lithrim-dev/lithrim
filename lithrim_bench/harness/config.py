@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -83,7 +84,26 @@ class Agent:
 
     def ontology_abspath(self) -> Path:
         p = Path(self.eval_profile.ontology_path)
-        return p if p.is_absolute() else REPO_ROOT / p
+        abspath = p if p.is_absolute() else REPO_ROOT / p
+        if abspath.exists():
+            return abspath
+        # S-BS-128: a persisted ontology_path can predate a pack relocation (an agent
+        # seeded before the clinical ontology moved into its pack). Self-heal by resolving
+        # via the ACTIVE pack so a relocated literal path still loads; warn so the
+        # substitution is never silent. A valid literal path above is returned as-is
+        # (byte-unchanged for every current agent). The core names no relocated path
+        # itself (the literal lives only in stale runtime config) — see test_pack_layer1a.
+        from lithrim_bench.harness.pack import pack_ontology_path
+
+        pack_onto = pack_ontology_path()
+        if pack_onto.exists():
+            print(
+                f"WARNING: ontology_path {abspath} not found; resolving via the active "
+                f"pack -> {pack_onto} (S-BS-128 self-heal).",
+                file=sys.stderr,
+            )
+            return pack_onto
+        return abspath  # nothing to fall back to -> the caller raises the original error
 
     def source_abspath(self) -> Path:
         p = Path(self.dataset.source)
