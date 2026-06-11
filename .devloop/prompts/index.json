@@ -2004,6 +2004,29 @@
       "created": "2026-06-11",
       "last_re_verified": "2026-06-11 (recon agent + monitor spot-verification at HEAD f4655d8: LENS_BY_ROLE judge_metric.py:110-114 CONFIRMED + judge_metric.py NOT in the freeze guard CONFIRMED [guard covers compliance_council carve-outs + judges_dspy consensus seam + clinical_ontology only]; roster :461-492 welds identity to deployment [model=settings.AZURE_OPENAI_DEPLOYMENT_*] CONFIRMED; production_judges ALREADY the pack identity list CONFIRMED; snapshot has NO lenses field CONFIRMED; withstands.py:144 the moat lens scope-check CONFIRMED; 3 carve-outs + the S-BS-124 per-line guard CONFIRMED; _tiers_fixture + test_pack_layer2b:213-243 subprocess pattern CONFIRMED.)",
       "next_action": "CLOSED 2026-06-11 (HARD GATE fresh-critic a0034f63d8cf8a259 PASS [0 BLOCKING / 3 NB / 1 OQ]; build 0c4eab8..6e09c44). The strangler-fig ENDGAME: lens authority + roster identity now pack-resolved; 4th carve-out + identity<->deployment split; story_audit subprocess proves zero-core-edit decoupling -> 'completely decoupled (v2)' CONFIRMED. Behavior 0-delta on healthcare; moat byte-frozen; guard non-vacuous both directions. S-BS-125 RE-SCOPED w/ tripwire; opened S-BS-127 (low). Full close: critique-bench-salvage-phasePACK-2c-2026-06-11.md + session-bench-salvage-phasePACK-2c-2026-06-11.json. The core council is domain-agnostic; the OSS-core / Pro-pack split is REAL."
+    },
+    {
+      "id": "bench-salvage-phaseCE-STANDALONE-1-generic-pack-walking-skeleton-driver",
+      "stream": "bench-salvage",
+      "phase": "CE-STANDALONE-1",
+      "scope": "generic-non-clinical-pack-plus-headless-standalone-E2E-the-demonstrable-CE-proof",
+      "file": "bench-salvage_phaseCE-STANDALONE-1_generic-pack-walking-skeleton_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "Routine (inline critique) -- non-frozen (a new pack + a test; NO core council edit). But the demonstrable-CE proof: A-STANDALONE-1 (0 clinical leakage) + A-STANDALONE-4 (healthcare unloaded) must be airtight. ANY core change needed to run a non-clinical pack = escalate (undiscovered coupling).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_STANDALONE_CORE_VALIDATION.md (the demarcation §0 + the audit evidence §2 + design §3 + sequencing §4)",
+        "lithrim_bench/harness/pack.py:61-196 (the accessors a pack satisfies) + lithrim_bench/harness/ontology.py:144-178 (the ontology.json required schema)",
+        "scripts/run_eval.py:172-302 (:257 authored path selected by assignments) + runtime/council/judge_assignment.py:46-101 render_role_questions (the 0-leakage clean path) + judges_dspy.py:205-256 build_judge_lm (provider seam) + authored_stage.py build_authored_semantic_stage",
+        "tests/test_pack_layer2c.py:143-243 (the LITHRIM_BENCH_PACK=<pack> subprocess proof to mirror) + runtime/council/tests/test_trio_dspy.py (the mock-LM double for $0 CI) + packs/healthcare + packs/story_audit (manifest shapes; story_audit REUSES healthcare council_roles/ontology = the gap this closes)"
+      ],
+      "_note": "CE-STANDALONE-1 = the FIRST cycle of the generic-CE program (memory generic-ce-demarcation). Builds a genuinely INDEPENDENT non-clinical pack (own ontology/taxonomy_snapshot/council_roles + a tiny case; tier:core OSS sample, OQ-2) + a headless E2E tests/test_standalone_ce.py: grade a non-clinical case via the AUTHORED path (render_role_questions -- 0 clinical leakage, experiment-proven), healthcare UNLOADED, :8002 down, a verdict. Falsifies the decoupling (PACK-2c swapped DATA but reused healthcare PROMPTS+ontology) + becomes the regression guard for the build_prompt retire (6b). Non-frozen, touches NO core council file. Uses the authored path EXPLICITLY via assignments (6b-ROUTE / authored-only-default has NOT landed). $0 CI via mock LM; live smoke env-gated. Judges reuse risk/policy/faithfulness role NAMES (subset known deployable identities, OQ-2). LOCAL is SSOT (no push); pathspec-only on bench-salvage/ws6c-dspy.",
+      "created": "2026-06-11",
+      "last_re_verified": "2026-06-11 (monitor spot-verify at HEAD a4f6548: ontology schema ontology.py:144-178 CONFIRMED; run_eval :257 authored-path-by-assignments CONFIRMED; render_role_questions 0-leakage CONFIRMED by the $0 experiment; pack accessors pack.py:61-196 CONFIRMED; story_audit/_tiers_fixture/_nondeployable_fixture all REUSE healthcare council_roles+ontology CONFIRMED [the gap]; test_pack_layer2c subprocess pattern CONFIRMED.)",
+      "next_action": "READY -- hand the kickoff to a fresh executor session. First cycle of the generic-CE program; CE-PACK-6b-ROUTE (authored-only) then 6b-CLEAN (frozen delete) follow."
     }
   ]
 }
