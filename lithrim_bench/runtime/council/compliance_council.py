@@ -458,7 +458,15 @@ class ComplianceCouncil:
                 # (_chat_completion_with_retry logprobs gating per spec section
                 # 3.3) and the per-judge confidence extraction
                 # (extract_verdict_confidence returns None for Mistral).
-                models = (
+                # PACK-2c carve-out: the roster IDENTITY (which judges run) resolves from the
+                # active pack's `production_judges`; the per-role DEPLOYMENT binding (provider /
+                # Azure model id / capability flags) stays in CORE — infra is not domain content
+                # and must not live in a pack. The CouncilModel deployment literals below are
+                # byte-preserved from acc4973; only the SELECTION (which identities run, and in
+                # what order) moves to the pack. `_ROLE_DEPLOYMENT` is a LOCAL (not a module-level
+                # symbol) on purpose: a new top-level symbol would be a difflib `insert` the
+                # freeze guard forbids — every authorized council change is an in-place `replace`.
+                _ROLE_DEPLOYMENT_ALL = (
                     CouncilModel(
                         name="risk_judge",
                         provider="openai",
@@ -483,7 +491,10 @@ class ComplianceCouncil:
                         supports_response_format_json=True,
                         prompt_role="faithfulness_judge",
                     ),
-                )
+                )  # _ROLE_DEPLOYMENT_ALL: the core deployable trio (PACK-2c)
+                _ROLE_DEPLOYMENT = {_m.name: _m for _m in _ROLE_DEPLOYMENT_ALL}  # _ROLE_DEPLOYMENT keyed by role name (PACK-2c)
+                _pack_judges = __import__("lithrim_bench.harness.pack", fromlist=["pack_production_judges"]).pack_production_judges()  # PACK-2c carve-out: roster identity from the active pack
+                models = tuple(_ROLE_DEPLOYMENT[_r] for _r in _pack_judges)  # _ROLE_DEPLOYMENT binds each pack identity to its core deployment (KeyError = fail-clean: judge not in core deployable set)
             else:
                 models = (
                     CouncilModel(name="policy_judge", provider="openai", model=council_model),

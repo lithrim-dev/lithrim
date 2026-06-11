@@ -141,14 +141,19 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
         )
 
 
-# PACK-1b/2b (layer 1b/2b): the council's clinical DATA un-froze — first the taxonomy, then the
-# Tier-1 owner-map. The 3 tier-set LITERALS (TIER_1_NEVER_EVENTS/TIER_2_HIGH_RISK/TIER_3_MEDIUM,
-# PACK-1b) and the ``_TIER1_OWNERS`` map (PACK-2b) now resolve from the active pack's snapshot via
-# inline ``__import__``s of ``harness.pack.pack_tiers()`` / ``pack_tier1_owners()`` — the
-# source-of-truth flip (the council reads its codes + owners FROM the pack; the values are 0-delta).
-# So the FROZEN council carries THREE authorized carve-outs vs ``acc4973``: the PACK-2
-# ``_ROLE_PROMPTS_DIR`` line, the PACK-1b taxonomy block, AND the PACK-2b owner-map block. The
-# guard admits exactly these, byte-freezing all else.
+# PACK-1b/2b/2c: the council's clinical DATA + roster IDENTITY un-froze in stages — the taxonomy
+# (1b), the Tier-1 owner-map (2b), then the roster identity (2c). The 3 tier-set LITERALS
+# (TIER_1_NEVER_EVENTS/TIER_2_HIGH_RISK/TIER_3_MEDIUM, PACK-1b), the ``_TIER1_OWNERS`` map (PACK-2b),
+# and the v2 roster (PACK-2c) now resolve from the active pack's snapshot via inline ``__import__``s
+# of ``harness.pack.pack_tiers()`` / ``pack_tier1_owners()`` / ``pack_production_judges()`` — the
+# source-of-truth flip (the council reads its codes + owners + roster identity FROM the pack; the
+# values are 0-delta). PACK-2c is the identity↔deployment SPLIT: the pack carries WHICH judges run
+# (``pack_production_judges()``), the CORE keeps HOW each runs (``_ROLE_DEPLOYMENT`` — provider /
+# Azure model id / capability flags; infra ∉ a domain pack). The CouncilModel deployment literals
+# are byte-preserved, so ``council_roster()``'s AST name-collect is untouched. So the FROZEN council
+# carries FOUR authorized carve-outs vs ``acc4973``: the PACK-2 ``_ROLE_PROMPTS_DIR`` line, the
+# PACK-1b taxonomy block, the PACK-2b owner-map block, AND the PACK-2c roster block. The guard
+# admits exactly these, byte-freezing all else.
 _COUNCIL_AUTHORIZED_MARKERS = (
     "_ROLE_PROMPTS_DIR",     # PACK-2 prompts-dir carve-out
     "TIER_1_NEVER_EVENTS",   # PACK-1b taxonomy carve-out
@@ -158,6 +163,8 @@ _COUNCIL_AUTHORIZED_MARKERS = (
     "pack_tiers",
     "_TIER1_OWNERS",         # PACK-2b owner-map carve-out
     "pack_tier1_owners",
+    "_ROLE_DEPLOYMENT",      # PACK-2c roster carve-out (core deployment table; matches _ROLE_DEPLOYMENT_ALL too)
+    "pack_production_judges",
 )
 # The exact carve-out CALL signatures that must be present (revert-detection). Reverting
 # any carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
@@ -165,18 +172,22 @@ _COUNCIL_REQUIRED_CARVEOUTS = (
     '__import__("lithrim_bench.harness.pack", fromlist=["pack_tiers"]).pack_tiers()',
     '__import__("lithrim_bench.harness.pack", fromlist=["pack_prompts_path"]).pack_prompts_path()',
     '__import__("lithrim_bench.harness.pack", fromlist=["pack_tier1_owners"]).pack_tier1_owners()',
+    '__import__("lithrim_bench.harness.pack", fromlist=["pack_production_judges"]).pack_production_judges()',
 )
 
 
 def assert_compliance_council_carveouts_only(repo: Path) -> None:
-    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT three AUTHORIZED
+    """``compliance_council.py`` is byte-identical to ``acc4973`` EXCEPT four AUTHORIZED
     carve-outs: the PACK-2 ``_ROLE_PROMPTS_DIR`` line (role prompts → the pack), the PACK-1b
-    taxonomy block (the 3 tier sets → ``pack_tiers()``), and the PACK-2b owner-map block
-    (``_TIER1_OWNERS`` → ``pack_tier1_owners()``) — the clinical-DATA source-of-truth flips.
+    taxonomy block (the 3 tier sets → ``pack_tiers()``), the PACK-2b owner-map block
+    (``_TIER1_OWNERS`` → ``pack_tier1_owners()``) — the clinical-DATA source-of-truth flips —
+    and the PACK-2c roster block (the v2 roster IDENTITY → ``pack_production_judges()``, the
+    identity↔deployment split: the per-role ``CouncilModel`` DEPLOYMENT literals stay byte-frozen
+    in core, only the SELECTION moves to the pack).
 
-    Everything else — the consensus engine, the ``CouncilModel`` roster (``:467-498``),
-    ``LENS_BY_ROLE``, the ``KNOWN_TAXONOMY_CODES`` union line (unchanged), ``_apply_consensus``,
-    ``_load_role_prompts`` — stays FROZEN. The carve-outs are class-/module-level statements,
+    Everything else — the consensus engine, the ``CouncilModel`` deployment literals, the v1
+    legacy roster, ``LENS_BY_ROLE``'s readers, the ``KNOWN_TAXONOMY_CODES`` union line (unchanged),
+    ``_apply_consensus``, ``_load_role_prompts`` — stays FROZEN. The carve-outs are class-/module-level statements,
     so the top-level-symbol freeze (used for ``judges_dspy``) is too coarse; a ``difflib``
     line-diff is used instead.
 
