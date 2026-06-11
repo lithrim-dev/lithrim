@@ -96,13 +96,18 @@ The clinical residue in core splits into two relocations, very different in risk
 - **Move:** make `get_flag_prompt_section()` build the taxonomy section from the **active pack's ontology** (not the core literal); delete `SAFETY_FLAG_DEFINITIONS` + the hardcoded clinical escalation line (`safety_flags.py:642`) — relocate that rule into the healthcare role prompts/ontology. `safety_flags.py` is **NOT under the freeze guard** → a clean refactor (the 2c-lens-half shape). Value-preserving: the emitted section for healthcare must be equivalent to today's.
 - Removes **23 clinical flag defs + the escalation rule** from core.
 
-**Layer 6b — the clinical `build_prompt` council → healthcare pack (the deep one, FROZEN, its own HARD-GATE cycle).**
-- `compliance_council.py:517-787` `build_prompt` is ~270 lines of clinical prompt-assembly LOGIC (HIPAA framing + `agent_category` branches scheduling/coding/intake/scribe) inside the FROZEN file. This is the LEGACY/default council path; the product direction is the authored path (UAP).
-- **Move (relocation, not carve-out):** the clinical default-council prompt builder becomes a **healthcare-pack artifact** — relocate `build_prompt` (and its clinical scaffold) into `packs/healthcare/` as the pack's council-prompt provider; the core council retains only the **generic authored-path assembly** (`render_role_questions` from the active pack's ontology + role prompts) + the domain-agnostic mechanism. A core council with no pack prompt-builder uses the generic authored path.
-- **This is the deepest cut to date** — it relocates LOGIC out of the trust anchor, not a data lookup. It needs: its own HARD-GATE cycle, a fresh-critic worktree pass, a re-pinned baseline (the default-council `ws0_default` verdict must be reproduced through the relocated pack builder), and a decision on whether `build_prompt` is relocated-as-is or **retired** in favor of the authored path with the clinical nuance folded into healthcare's role prompts/ontology.
-- **OQ-1 (the only real open question):** relocate `build_prompt` verbatim into the pack (preserve the legacy default council exactly, just pack-homed) **vs.** retire it and fold its clinical evaluation nuance into the healthcare pack's role prompts + ontology (authored-path-only core). Monitor lean: **relocate-verbatim first** (value-preserving, re-pin the baseline), then optionally retire once the authored path demonstrably covers the nuance.
+**Layer 6b — RETIRE the clinical `build_prompt` council; the authored path is the single live prompt source (OQ-1 RESOLVED 2026-06-11, user).**
 
-After 6a + 6b: `grep lithrim_bench/runtime/council/` for clinical content → empty; the core council is the generic CE.
+Decision: **retire**, not relocate-verbatim. Rationale (user): no users / no legacy to preserve, and a hardcoded `build_prompt` is a **second, conflicting source of prompt truth** that would silently ignore UI-authored prompt edits (the product authors prompts via the ontology + role prompts = the authored path). One live prompt source is the only coherent model. Bonus: the authored path gives each judge *only its assigned lens*; `get_flag_prompt_section()` dumps the entire taxonomy to every judge — so retiring is a focus/quality gain, not a compromise.
+
+Phased so the product concern is solved WITHOUT frozen-council surgery first:
+
+- **6b-ROUTE (non-frozen, immediate, solves the product concern).** Make the in-process grade dispatch (`scripts/run_eval.py` / the grade path — NOT frozen) ALWAYS use the authored path: when an agent carries no explicit assignments, default each judge's assignment to its **pack lens** (`pack_lenses()[role]`) and run `build_trio`/`render_role_questions`. The default `build_prompt` council becomes **dead code** (still physically in the frozen file, but unreachable). Re-pin the `ws0_default` baseline on the authored path (a behavior change to the reference verdict, justified by no-legacy). After this, UI prompt edits are the only thing that moves the prompt — the product model is coherent.
+- **6b-CLEAN (FROZEN, later HARD-GATE cycle, for grep-clean).** Physically remove `build_prompt` (+ its `get_flag_prompt_section` import) from the frozen `compliance_council.py` and delete `safety_flags.py` (subsumes 6a — once nothing live reads it). This is the frozen-file edit; fresh-critic worktree. End state: `grep lithrim_bench/runtime/council/` for clinical content → empty; the core council is the generic CE.
+
+- **Deferred deeper layer (noted, not scoped here):** even the authored path's BASE is a static `council_roles/<role>.txt` (`load_role_prompt`). FULLY UI-editable prompts need the **ontology as the single prompt source** (full `.txt` retirement — `render_role_questions` flags it as deferred: the ontology doesn't yet carry the full safety prose / codes-you-may-not-raise / HL7 exceptions). Retiring `build_prompt` is necessary but not sufficient for that; tracked as a follow-on, not in 6b.
+
+After 6b-ROUTE the live path is authored-only (product-correct); after 6b-CLEAN the core is clinical-clean (CE-pure).
 
 ### 3.4 Deliverable D (follow-on, not in the first cut) — BYO-vector tool (G3 / KB-VENDOR-1)
 
@@ -114,11 +119,13 @@ Once the engine is proven standalone, add a **connect-your-own-vector-store** va
 
 The strangler-fig continues; the standalone validation is the *proof* the demarcation holds, run after the relocations.
 
-1. **CE-PACK-6a — `safety_flags` flag-defs → pack ontology** (Deliverable C / Layer 6a). Cheap, non-frozen, data already in the pack. Removes the 23 clinical defs + escalation rule from core. Value-preserving (equivalent emitted section for healthcare).
-2. **CE-STANDALONE-1 — the falsification test** (Deliverables A + B). Build the independent non-clinical pack + the headless E2E (authored path, healthcare unloaded, `:8002` down, 0 clinical leakage, a verdict). This can land in parallel with / right after 6a, since the authored path is already clean — it *proves* the core is generic and becomes the regression guard for 6b.
-3. **CE-PACK-6b — the clinical `build_prompt` council → healthcare pack** (Deliverable C / Layer 6b). The deep, FROZEN, HARD-GATE cycle: relocate the legacy clinical default-council prompt builder into `packs/healthcare/`, re-pin the baseline, fresh-critic worktree. Resolves OQ-1 (relocate-verbatim vs retire). **After this, the core council greps clinical-clean.**
+1. **CE-STANDALONE-1 — the demonstrable proof** (Deliverables A + B). Build the independent non-clinical pack + the headless E2E (authored path, healthcare unloaded, `:8002` down, 0 clinical leakage, a verdict). The authored path is already clean, so this lands first — it *demonstrates the standalone CE* and becomes the regression guard for the retire.
+2. **CE-PACK-6b-ROUTE — authored-path-only live grade** (non-frozen). Default no-assignment agents to their pack lens; `build_prompt` becomes dead code; re-pin `ws0_default` on the authored path. Solves the product concern (UI-authored prompts are the only live source). Immediate, no frozen surgery.
+3. **CE-PACK-6b-CLEAN — remove `build_prompt` + `safety_flags.py` from the frozen core** (FROZEN, HARD-GATE, fresh-critic worktree). Subsumes 6a. End state: core greps clinical-clean = the generic CE.
 4. **CE-STANDALONE-2 (follow-on)** — Deliverable D — BYO-vector (KB-VENDOR-1 minimal).
 5. **ChatBind / Agentic Protocol — AFTER.** It drives the (now-proven-standalone) engine; it is not part of *validating* the boundary. Sequence per `SPEC_PLUGIN_ARCHITECTURE` (`frontend` kind, post-CHATBIND-2).
+
+> Note: Layer 6a (relocate `safety_flags` → pack ontology) is **subsumed by 6b-CLEAN** under the retire decision — once the authored path is the only live path, nothing reads `get_flag_prompt_section()`, so `safety_flags.py` is deleted outright rather than relocated. The pack ontology already carries the flag prose (CONFIRMED §3.3).
 
 ## 5. Acceptance — "standalone CE" goes INFERRED → CONFIRMED when
 
@@ -130,7 +137,7 @@ Honest-Δ: if any leg fails, it pinpoints the residual coupling — that is the 
 
 ## 6. Open questions
 
-- **OQ-1 (6b disposition — the one real call):** relocate `build_prompt` **verbatim** into the healthcare pack (preserve the legacy default council exactly, re-pin the baseline) vs **retire** it (authored-path-only core; fold its clinical nuance into healthcare's role prompts + ontology). Monitor lean: relocate-verbatim first, retire later if the authored path demonstrably covers the nuance. (The demarcation direction itself is LOCKED §0 — this is only *how* 6b lands.)
+- **OQ-1 — RESOLVED 2026-06-11 (user): RETIRE `build_prompt`** (not relocate-verbatim). No users / no legacy; a hardcoded prompt builder conflicts with UI-authored prompt edits (two sources of prompt truth). The authored path is the single live prompt source. Phased: 6b-ROUTE (non-frozen, immediate) → 6b-CLEAN (frozen, grep-clean). See §3.3.
 - **OQ-2:** does the non-clinical pack ship as a committed `tier: core` **sample pack** (doubling as the freemium redacted-sample hook in `SPEC_PLUGIN_ARCHITECTURE`)? Likely yes — it earns its keep twice (validation fixture + OSS sample).
 - **OQ-3:** mock-LM vs a real `$0`-replay for the CI grade (A-STANDALONE-2) — keep CI free while still exercising the full assembly.
 
