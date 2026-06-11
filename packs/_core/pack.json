@@ -1,0 +1,10 @@
+{
+  "pack_id": "_core",
+  "version": "0.1.0",
+  "tier": "core",
+  "domain": "generic",
+  "ontology": "packs/_core/ontology.json",
+  "flags_ref": "packs/_core/taxonomy_snapshot.json",
+  "council_roles": "packs/_core/council_roles",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}
