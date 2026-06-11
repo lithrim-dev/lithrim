@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-09",
+  "updated": "2026-06-11",
   "bundles": [
     {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
@@ -1816,6 +1816,28 @@
       "created": "2026-06-10",
       "last_re_verified": "2026-06-10 (authored from a live code-scan reassessment [agent a39572611af5948e2] + monitor spot-verification at HEAD 92f1689: _TIER1_OWNERS:214-245 [8 entries, the only live reader :2077 membership] CONFIRMED; snapshot tier1_owners == _TIER1_OWNERS code-for-code CONFIRMED; the post-1b guard structure _seam_freeze.py:150-218 CONFIRMED; council_roster:188-189 + seed_ontology:207 literal_eval CONFIRMED [break on un-freeze]; snapshot_taxonomy reads the upstream backend CONFIRMED [no change]; the moat reads only LENS_BY_ROLE CONFIRMED. Stale-citation corrections: _TIER1_OWNERS :214 not :232, consensus :2077 not :2095, roster :467-498 not :485-516.)",
       "next_action": "SHIPPED 2026-06-11 (CLOSED PROCEED-WITH-CAVEATS; build 833cfc8..d996cf7, 6 atomic pathspec-only, NOT pushed -- LOCAL is SSOT; HARD-GATE fresh-critic acd21d7a9dc830223 NON-BLOCKING [0/0/1] -- the cleanest of the endgame). _TIER1_OWNERS (8 entries) resolves FROM the active pack's taxonomy_snapshot tier1_owners via pack_tier1_owners() + the inline-__import__ carve-out (:239); behavior 0-delta (critic 4-way-verified resolved == acc4973 == snapshot == load_taxonomy; the :2071 one-strike membership unchanged; oracle + lens-subset-owners green). OWNER-MAP ONLY (the reassessment narrowed the owners+roster lean: the CouncilModel roster is an infra tangle DEFERRED; LENS_BY_ROLE DEFERRED). The executor SELF-CAUGHT + fixed a regression (9813e2c, critic-REPRODUCED): council_roster() reads canonical DEFAULT_PACK (validation identity), the carve-out follows active (the flip). EXACTLY 3 carve-out hunks vs acc4973; roster/_apply_consensus/LENS/moat/ontology byte-frozen. Monitor 7-item CLEAN. Closed S-BS-124 (guard residual, per-line hardening critic-proven non-vacuous); opened S-BS-125 (low, the council_roster/council_known_codes asymmetry -- 2 halves at 2c per OQ-1). Green both envs 0-new-at-parent. WITH 1b + 2b THE FROZEN COUNCIL READS ALL ITS CLINICAL DATA FROM THE PACK -- the clinical-data un-freeze is COMPLETE. Full close: critique-bench-salvage-PACK-2b-2026-06-11.md + session-bench-salvage-phasePACK-2b-2026-06-11.json + HANDOFF_bench-salvage_pack-2b-closed_2026-06-11.md. NEXT = the user's call (a natural stopping point); optional non-clinical-data follow-ons = a 2c (roster un-freeze infra-aware [inherits both S-BS-125 halves] | pack-resolve LENS_BY_ROLE | cleanups | the owner-gated push)."
+    },
+    {
+      "id": "bench-salvage-phasePACK-CLEANUP-corpus-path-portability-driver",
+      "stream": "bench-salvage",
+      "phase": "PACK-CLEANUP",
+      "scope": "corpus-path-portability-S-BS-117-plus-track-proof_case-S-BS-119",
+      "file": "bench-salvage_phasePACK-CLEANUP_corpus-path-portability_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "Routine (inline critique at close) -- non-behavioral; HARD per-file guardrail = only cohort_path may change in the 7 committed corpora; escalate to fresh-critic only if a regen drifts a non-path field.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "CLAUDE.md (the labels-true-by-construction invariant -- the corpus rows are the labelled benchmark; only the provenance path may move)",
+        "lithrim_bench/synthea_loader.py:69 + lithrim_bench/synthea_fhir_loader.py:71 (the two absolute cohort_path leak sites) + scripts/build_fhir_mini_pack.py:84 (the .resolve().relative_to(REPO_ROOT) precedent to mirror) + lithrim_bench/picklist.py:16 (REPO_ROOT anchor)",
+        "lithrim_bench/encounter_spec.py:81 (SyntheaProvenance.cohort_path field) + lithrim_bench/packager.py:198 (serialization into the corpus row)",
+        "tests/test_uap4_corpus_superset.py:94 test_committed_corpus_matches_a_fresh_generator_run (the S-BS-117 determinism guard) + .gitignore (~:20 the proof_case ignore) + scripts/generate_proof_case.py (deterministic regen entrypoint)",
+        "the 7 committed corpora: examples/{coding_v1,scheduling_v1,triage_v1,hl7_adt_v1,judge_calib_v1,uap5a_flip_demo,proof_case}.jsonl (123 absolute-path leaks total)"
+      ],
+      "_note": "Arc-closeout cleanup after the healthcare-realm-as-pack relocation (PACK-1..5b/1b/2b all landed). Retires the recurring test-portability tax (S-BS-117 absolute cohort_path in 7 committed corpora -> fresh-critic worktrees/CI fail; S-BS-119 examples/proof_case.jsonl gitignored -> 3 readers fail on fresh clones). D1 = loaders serialize cohort_path repo-relative when under REPO_ROOT (mirror build_fhir_mini_pack.py:84), absolute fallback if out-of-tree. D2 = bring the 7 committed corpora into the relative representation (regen where a clean deterministic entrypoint exists: judge_calib/uap5a_flip/proof_case; in-place field-normalization for the 4 agent corpora whose entrypoints are ambiguous) under a HARD per-file guardrail: only cohort_path changes, every other field byte-identical. D3 = un-gitignore + git-track proof_case.jsonl (44K synthetic). Docstring-scrub DROPPED (monitor ground-truthed the backends/runtime scribe refs are accurate, not stale; the only stale docstring S-BS-122 already closed). NOT PACK-2c: no council touch; S-BS-125 stays 2c-coupled. Non-behavioral, no label change. LOCAL is SSOT (no push); pathspec-only commits on bench-salvage/ws6c-dspy (foreign staged files in the dirty index -- memory git-commit-pathspec-dirty-index).",
+      "created": "2026-06-11",
+      "last_re_verified": "2026-06-11 (monitor live code-scan at HEAD 13a6cb9: cohort_path absolute in 7 examples/*.jsonl [grep -rl '/Users/aregee'] CONFIRMED [123 leaks]; synthea_loader.py:69 str(cohort_dir) + synthea_fhir_loader.py:71 str(self.fhir_dir) CONFIRMED absolute; build_fhir_mini_pack.py:84 relative_to(REPO_ROOT) precedent CONFIRMED; proof_case.jsonl gitignored at .gitignore:20 + read by test_ground_floor1/test_uap3b2_provenance/test_uap3b_withstands CONFIRMED; Synthea data data/synthea_sample_data_csv_latest PRESENT [regen feasible]; backends/runtime scribe docstrings ground-truthed ACCURATE [scrub dropped].)",
+      "next_action": "READY -- hand the kickoff to a fresh executor session. First cleanup cycle of the arc-closeout; PACK-2c (roster un-freeze) queued next per the user's 'low hanging clean first, then target 2c'."
     }
   ]
 }

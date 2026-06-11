@@ -1,0 +1,123 @@
+{
+  "session_id": "session-bench-salvage-PACK-CLEANUP-2026-06-11",
+  "stream": "bench-salvage",
+  "phase": "PACK-CLEANUP",
+  "driver_bundle_id": "bench-salvage-phasePACK-CLEANUP-corpus-path-portability-driver",
+  "started_at": "2026-06-11T00:00:00Z",
+  "ended_at": "2026-06-11T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-11T00:00:00Z",
+    "user_approved_at": "2026-06-11T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Normalize tests/fixtures/uap4/judge_calib_v1_pre_widen.jsonl cohort_path in lockstep (load-bearing, not in driver §2): test_uap4_corpus_superset::test_pre_existing_rows_are_byte_identical canonical-compares it byte-for-byte against the normalized judge_calib_v1; without the lockstep edit that guard breaks.",
+        "evidence": "tests/test_uap4_corpus_superset.py:63-66 (_canon over full row incl. synthea_provenance.cohort_path); fixture had 47 absolute cohort_path values.",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Leave tests/fixtures/ws0/case.bench_scribe_v1_inject_condition_1bd0f10dc7b5.jsonl absolute (out of scope; A1 grep is scoped to examples/*.jsonl) and flag it as a residual seam S-BS-126.",
+        "evidence": "git grep confirmed cohort_path is never dereferenced as a filesystem path anywhere (open/Path/exists/read/glob on cohort_path -> empty); test_ws0 just json.loads the line.",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Helper must use os.path.abspath, NOT Path.resolve: data/synthea_sample_data_csv_latest is a symlink to a dir OUTSIDE the repo, so resolve() escapes REPO_ROOT and forces the absolute fallback. abspath preserves the cohort's own terminal symlink name, matching what the committed corpora carry. (Adjusted from the plan-review's resolve()-mirroring-build_fhir_mini_pack wording; surfaced on first helper smoke-test.)",
+        "evidence": "ls -ld data/synthea_sample_data_csv_latest -> symlink to /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest; resolve().is_relative_to(REPO_ROOT)=False, abspath under?=True -> data/synthea_sample_data_csv_latest.",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "In-place-all-7 normalization (no regen of committed corpora); A2's tmp_path regen with the fixed loader is the D1 proof. Helper home = encounter_spec.py. Env = debuglithrim. 0-new vs 13a6cb9 (pre-existing S-BS-96 fails don't count). Pathspec-scoped commits (dirty index has foreign staged files).",
+        "evidence": "User 'GO' message 2026-06-11.",
+        "decided_at": "2026-06-11T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "c5ace29",
+      "repo": "lithrim-bench",
+      "title": "fix(provenance): serialize cohort_path repo-relative in the Synthea loaders (S-BS-117)",
+      "summary": "Shared _repo_relative(p) helper in encounter_spec.py (abspath-based, symlink-name-preserving, absolute fallback for out-of-tree); both loaders use it instead of str(cohort_dir)."
+    },
+    {
+      "hash": "93f4451",
+      "repo": "lithrim-bench",
+      "title": "chore(corpus): normalize committed corpora cohort_path absolute->relative (S-BS-117)",
+      "summary": "In-place byte-exact prefix replace in 6 tracked examples corpora (132 values) + the lockstep pre_widen fixture (47); only cohort_path changed per the A4 field-level guardrail."
+    },
+    {
+      "hash": "14d3aac",
+      "repo": "lithrim-bench",
+      "title": "chore(fixtures): track examples/proof_case.jsonl so CI/fresh-clones have it (S-BS-119)",
+      "summary": "Removed the .gitignore block and tracked the normalized 7-row synthetic proof_case fixture (the 3 readers stay green)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — no committed corpus carries a machine-absolute path",
+      "verdict": "PASS",
+      "evidence": "grep -rl '/Users/' examples/*.jsonl -> empty; git grep -n '/Users/' -- 'examples/*.jsonl' -> empty."
+    },
+    {
+      "criterion": "A2 — test_committed_corpus_matches_a_fresh_generator_run passes for the right reason (gen output == committed, both relative)",
+      "verdict": "PASS",
+      "evidence": "pytest tests/test_uap4_corpus_superset.py -> 6 passed in 7.95s. D1 proof: a temp regen with the fixed loader diffed from the still-absolute committed judge_calib in cohort_path and NOTHING else (83/83 rows, same order, 0 non-cohort_path diffs); after D2 the committed file equals that regen byte-for-byte."
+    },
+    {
+      "criterion": "A3 — proof_case.jsonl no longer ignored, tracked, and the 3 readers pass",
+      "verdict": "PASS",
+      "evidence": "git check-ignore examples/proof_case.jsonl -> empty; git ls-files examples/proof_case.jsonl -> tracked; pytest tests/test_ground_floor1.py tests/test_uap3b2_provenance.py tests/test_uap3b_withstands.py -> 22 passed in 3.07s."
+    },
+    {
+      "criterion": "A4 — per-corpus diff guardrail: only cohort_path changed",
+      "verdict": "PASS",
+      "evidence": "Per-file case_id-keyed canonical compare (cohort_path blanked) vs the pre-change version: all 8 files (7 corpora + pre_widen) show rows= unchanged, order=True, nonpath_diffs=[]; cohort_path '/Users/.../data/synthea_sample_data_csv_latest' -> 'data/synthea_sample_data_csv_latest'. Every /Users occurrence was a full cohort_path value (verified by exact-string count == row count per file)."
+    },
+    {
+      "criterion": "A5 — full suite 0-new failures vs parent 13a6cb9; ruff clean on touched files",
+      "verdict": "PASS",
+      "evidence": "pytest (debuglithrim) @ HEAD: 2 failed, 602 passed, 3 skipped. The 2 failures are the documented pre-existing S-BS-96 observation-pipeline heavy-deps guards (test_default_run_pulls_no_heavy_deps, test_importing_observation_does_not_load_compliance_modules; openai/torch in sys.modules), causally independent of the 12-file diff and matching the stream's recorded debuglithrim baseline (PACK-5b OQ-1: 'only S-BS-96's 2 observation guards fail -> 0-new'). ruff check on the 3 touched py files -> All checks passed. ruff format --check 'would reformat' is 100% pre-existing (parent 13a6cb9 versions already non-compliant; ruff format --diff hunks are blank-after-docstring + pd.read_csv reflows + the age expr, NONE touching my added lines) -> left untouched per the §4 no-drive-by-formatting guardrail."
+    },
+    {
+      "criterion": "A6 — admissibility lint passes on the normalized corpora",
+      "verdict": "PASS",
+      "evidence": "python scripts/lint_golden_against_taxonomy.py --golden <f> for all 7 examples corpora -> 'OK: every expected_safety_flags code resolves to the snapshotted taxonomy, and every Tier-1 flag is paired with a reject verdict or rationalized set-value.'"
+    }
+  ],
+
+  "diagnostic_stats": {
+    "absolute_path_leaks_removed_examples": "139 (132 in 6 tracked corpora + 7 in proof_case); driver §5 said 123 but its own §2 per-file listing sums to 139 — corrected here",
+    "absolute_path_leaks_removed_total_including_pre_widen_fixture": "186 (139 examples + 47 pre_widen)",
+    "files_normalized": "8 (7 examples corpora + 1 frozen pre_widen test fixture)",
+    "full_suite": "602 passed / 2 pre-existing-S-BS-96 fails / 3 skipped (debuglithrim)",
+    "out_of_scope_leaks_left_untouched": "non-corpus historical/script leaks remain (.devloop/prompts/*, docs/*, journeys/onboarding.narrate.json, scripts/build_onboarding_narrated.py, scripts/record_flow.py) + the ws0 test fixture (S-BS-126)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-126",
+      "title": "ws0 test fixture carries a machine-absolute cohort_path (residual portability leak outside examples/)",
+      "severity": "low",
+      "fix_location": "tests/fixtures/ws0/case.bench_scribe_v1_inject_condition_1bd0f10dc7b5.jsonl",
+      "impact": "INERT today — cohort_path is never dereferenced as a filesystem path anywhere (git grep for open/Path/exists/read/glob on cohort_path returns empty; test_ws0/test_ws1 only json.loads the line as a captured /v1/pipeline/evaluate input). Left untouched per the approved scope cut (A1 grep is scoped to examples/*.jsonl). A trivial one-line string-replace closes it if the monitor wants zero residual machine paths in tracked fixtures.",
+      "confidence": "CONFIRMED",
+      "evidence": "git grep -n 'cohort_path' -- '*.py' | grep -iE 'open\\(|Path\\(|exists|read|glob|listdir|is_dir' -> empty; tests/test_ws0.py:40 returns json.loads(CASE.read_text().splitlines()[0])."
+    }
+  ],
+
+  "seams_closed": ["S-BS-117", "S-BS-119"],
+
+  "verdict": "CLEAN",
+
+  "report": "Retired the corpus-path-portability tax. D1: a shared _repo_relative() helper in encounter_spec.py now serializes cohort_path repo-relative when the cohort is under REPO_ROOT (absolute fallback otherwise); both Synthea loaders use it. The one real surprise — the canonical cohort dir data/synthea_sample_data_csv_latest is a symlink to a dir OUTSIDE the repo, so the helper must use os.path.abspath (not Path.resolve, which follows the symlink and escapes REPO_ROOT) to preserve the terminal symlink name the corpora carry; this corrects the plan-review's resolve()-mirroring wording. D2: in-place byte-exact normalization of all 7 examples corpora (139 values) + the lockstep pre_widen fixture (47) — the A4 field-level guardrail confirmed ONLY cohort_path moved in every file. D3: tracked the now-normalized synthetic proof_case.jsonl. All A1-A6 PASS; full suite 602 passed with only the 2 documented pre-existing S-BS-96 observation guards failing (0-new vs 13a6cb9). Non-behavioral, no council file touched. On audit, the monitor should check: (1) the abspath-vs-resolve symlink reasoning in the D1 commit body and encounter_spec.py docstring; (2) that ruff format --check residual is genuinely pre-existing (it is — confirmed against parent) and was correctly left per §4; (3) the new seam S-BS-126 (inert ws0 fixture leak). The 3 monitor-owned artifacts (index.json, app.jsx, the driver/handoff/journeys) were left untouched in the index per the pathspec-scoped commit discipline.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage PACK-CLEANUP next, then inline critique (routine cycle); close S-BS-117 + S-BS-119, register S-BS-126; fold the monitor docs (driver + index.json + STREAM update + S-BS-126) into one close-out commit."
+}
