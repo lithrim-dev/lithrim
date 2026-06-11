@@ -2027,6 +2027,28 @@
       "created": "2026-06-11",
       "last_re_verified": "2026-06-11 (monitor spot-verify at HEAD a4f6548: ontology schema ontology.py:144-178 CONFIRMED; run_eval :257 authored-path-by-assignments CONFIRMED; render_role_questions 0-leakage CONFIRMED by the $0 experiment; pack accessors pack.py:61-196 CONFIRMED; story_audit/_tiers_fixture/_nondeployable_fixture all REUSE healthcare council_roles+ontology CONFIRMED [the gap]; test_pack_layer2c subprocess pattern CONFIRMED.)",
       "next_action": "CLOSED CLEAN (PROCEED-WITH-CAVEATS) 2026-06-12 (build fe1d170..e2f9b8e; monitor 7-item CLEAN + inline critique CLEAN; A1-A7 green, monitor re-ran 6/6). Demonstrable standalone generic-CE: packs/support_ticket_qa/ (tier:core, zero healthcare reuse) + tests/test_standalone_ce.py (authored path, healthcare DOMAIN unloaded [A4 audit-hook non-vacuous], :8002 down, 0 leakage, reject verdict). Surfaced S-BS-129 (core JudgeSignature clinical prose -> 6b-CLEAN) + S-BS-130 (DEFAULT_PACK=healthcare blocks shipping core without the pack -> new CE-PACK-NEUTRAL-DEFAULT layer). Live smoke OWED. Full close: critique-bench-salvage-CE-STANDALONE-1-2026-06-12.md."
+    },
+    {
+      "id": "bench-salvage-phaseCE-PACK-NEUTRAL-DEFAULT-neutral-core-default-pack-driver",
+      "stream": "bench-salvage",
+      "phase": "CE-PACK-NEUTRAL-DEFAULT",
+      "scope": "neutral-core-default-pack-so-the-core-ships-without-healthcare-closes-S-BS-130",
+      "file": "bench-salvage_phaseCE-PACK-NEUTRAL-DEFAULT_neutral-core-default-pack_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "Routine (inline critique) -- non-frozen (pack.py + a new _core pack + conftest + tests; NO council file). BUT flips a GLOBAL default -> the suite-0-new gate (A2) is load-bearing + a mandatory D0 HALT-gate (measured: 15 collection errors under a non-healthcare active pack; the conftest-pin bounds it -- if it doesn't, return to monitor). Subagent-executed in the main tree.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "lithrim_bench/harness/pack.py:46 DEFAULT_PACK + :62-63 active_pack + :222-242 council_roster (reads pack_tier1_owners(DEFAULT_PACK) = the S-BS-130 read)",
+        "packs/support_ticket_qa/ (the independent-pack template) + harness/ontology.py:144-178 (ontology schema)",
+        "tests/test_standalone_ce.py:271-287 (A-STANDALONE-4 to tighten to zero-healthcare-reads) + tests/conftest.py (the bounding pin) + tests/verification/test_{dosage_floor,toolbox}.py (the healthcare-default reliance)"
+      ],
+      "_note": "Release-gating CE program cycle: closes S-BS-130 (+ retires S-BS-125 tripwire). Ships a neutral packs/_core/ default pack + flips DEFAULT_PACK healthcare->_core so the core boots WITHOUT healthcare. Bounding mechanism = a session conftest pinning LITHRIM_BENCH_PACK=healthcare for the existing suite (measured: 15 collection errors otherwise); the shipped default is _core, proven by a healthcare-absent test. Monitor-spawned subagent executes in the main tree, pathspec-scoped; D0 is a HALT-gate. Non-frozen. LOCAL is SSOT.",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12 (HEAD b21820e: DEFAULT_PACK pack.py:46 + active_pack :63 + council_roster reads pack_tier1_owners(DEFAULT_PACK) :242 CONFIRMED; blast radius MEASURED = 15 collection errors under a non-healthcare active pack).",
+      "next_action": "READY -- monitor spawns a subagent to execute (main tree); D0 HALT-gate first; monitor audits at close."
     }
   ]
 }
