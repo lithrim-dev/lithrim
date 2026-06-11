@@ -1,0 +1,10 @@
+{
+  "pack_id": "_nondeployable_fixture",
+  "version": "0.0.0",
+  "tier": "fixture",
+  "domain": "fixture",
+  "ontology": "packs/healthcare/ontology.json",
+  "flags_ref": "packs/_nondeployable_fixture/taxonomy_snapshot.json",
+  "council_roles": "packs/healthcare/council_roles",
+  "judges": ["risk_judge", "behavior_judge"]
+}

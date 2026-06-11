@@ -1,0 +1,42 @@
+{
+  "snapshot_metadata": {
+    "source": "PACK-2c second-pack decoupling proof (tests/test_pack_layer2c.py)",
+    "note": "A minimal SECOND real pack — NOT a sentinel-only fixture. Its production_judges (a strict subset of the core deployable trio), tier1_owners, and lenses are DIFFERENT from healthcare's, proving the FROZEN council resolves its roster IDENTITY + lens AUTHORITY entirely from the active pack: under LITHRIM_BENCH_PACK=story_audit the council assembles a 2-judge roster [risk_judge, policy_judge] and judge_metric.LENS_BY_ROLE becomes these story-domain lenses, with ZERO core edits (the A-DECOUPLE gate). The CORE keeps the per-role DEPLOYMENT binding (_ROLE_DEPLOYMENT) — a pack carries WHICH judges run, not HOW. Inert in normal use (pack discovery is active-pack-only). Reuses healthcare's ontology + council_roles prompts (sanctioned by the PACK-2c driver)."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "FABRICATED_QUOTE",
+      "FABRICATED_SOURCE"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "UNVERIFIED_CLAIM",
+      "MISLEADING_FRAMING"
+    ],
+    "TIER_3_MEDIUM": [
+      "TONE_DRIFT"
+    ]
+  },
+  "tier1_owners": {
+    "FABRICATED_QUOTE": [
+      "risk_judge"
+    ],
+    "FABRICATED_SOURCE": [
+      "policy_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "FABRICATED_QUOTE",
+      "UNVERIFIED_CLAIM"
+    ],
+    "policy_judge": [
+      "FABRICATED_SOURCE",
+      "MISLEADING_FRAMING"
+    ]
+  },
+  "declared_but_not_running": []
+}
