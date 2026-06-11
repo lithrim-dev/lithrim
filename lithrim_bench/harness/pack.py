@@ -134,6 +134,38 @@ def pack_tier1_owners(pack: str | None = None) -> dict[str, frozenset[str]]:
     return {code: frozenset(owners) for code, owners in snap["tier1_owners"].items()}
 
 
+def pack_lenses(pack: str | None = None) -> dict[str, frozenset[str]]:
+    """The active (or named) pack's per-role lens authority (``role -> {codes the role may
+    assert}``), read straight from the snapshot ``lenses``.
+
+    This is the PACK-2c source-of-truth flip for the MOAT authority — the lens twin of
+    :func:`pack_tier1_owners`: ``judge_metric.LENS_BY_ROLE`` resolves from HERE (a
+    ``judge_metric.py`` inline ``__import__``) instead of carrying hardcoded ``frozenset``
+    literals, so the per-role "codes you may raise" the withstands-gate scope-checks
+    (``withstands.py`` ``code not in lens``) lives in ``packs/<id>/taxonomy_snapshot.json``.
+    Ungated and stdlib-only ON PURPOSE for the SAME reason as :func:`pack_tier1_owners`:
+    ``judge_metric`` is imported by ``signals``/``withstands`` on the dependency-light core,
+    so a gated/heavy path would pull in deps it must not — a direct snapshot read stays
+    ``openai``-free."""
+    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    return {role: frozenset(codes) for role, codes in snap["lenses"].items()}
+
+
+def pack_production_judges(pack: str | None = None) -> list[str]:
+    """The active (or named) pack's roster IDENTITY — the ordered list of judges that run,
+    read straight from the snapshot ``production_judges``.
+
+    This is the PACK-2c source-of-truth flip for the roster: the FROZEN council builds its v2
+    roster by iterating THIS list (``compliance_council.py`` inline ``__import__`` carve-out)
+    and binding each identity to its CORE-side deployment (provider/model/Azure id/capability
+    flags stay in core — infra ∉ a domain pack), instead of inlining the role NAMES in the
+    ``CouncilModel(...)`` constructors. Order is load-bearing (it is the roster order). Ungated
+    and stdlib-only ON PURPOSE — the council imports this during its OWN module import, so any
+    gated/heavy path would re-enter; a direct snapshot read stays acyclic and ``openai``-free."""
+    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    return list(snap["production_judges"])
+
+
 def pack_taxonomy_codes(pack: str | None = None) -> frozenset[str]:
     """The active (or named) pack's full taxonomy code set (the TIER_1|2|3 union)."""
     return frozenset().union(*pack_tiers(pack).values())

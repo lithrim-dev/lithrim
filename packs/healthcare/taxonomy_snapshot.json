@@ -74,6 +74,32 @@
     "policy_judge",
     "faithfulness_judge"
   ],
+  "lenses": {
+    "risk_judge": [
+      "MISSED_ESCALATION",
+      "SEVERITY_ESCALATION",
+      "WRONG_DOSAGE",
+      "MEDICATION_NOT_IN_TRANSCRIPT",
+      "FABRICATED_ALLERGY"
+    ],
+    "policy_judge": [
+      "FABRICATED_CONSENT",
+      "PHI_DISCLOSURE_PRE_VERIFICATION"
+    ],
+    "faithfulness_judge": [
+      "VALUE_MISMATCH",
+      "MISSING_ALLERGY",
+      "HALLUCINATED_DETAIL",
+      "FABRICATED_HISTORY",
+      "MEDICATION_NOT_IN_TRANSCRIPT",
+      "UPCODING_RISK",
+      "WRONG_CODE",
+      "PROTOCOL_STEP_SKIPPED",
+      "INCOMPLETE_DOCUMENTATION",
+      "DURATION_FABRICATION",
+      "NEGATION_REVERSAL"
+    ]
+  },
   "declared_but_not_running": [
     "behavior_judge",
     "source_message_judge"

@@ -114,17 +114,21 @@ def main() -> None:
         declared_owners - set(snapshot["production_judges"])
     )
 
-    # Preserve the bench-curated structural-floor codes. These are NOT derived
-    # from compliance_council.py (the council has no structural taxonomy); they
-    # are a bench augmentation for the WS-3a structural FLOOR. Carry them over
-    # from the existing snapshot so refreshing the council fields never silently
-    # drops them.
+    # Preserve the bench-curated fields. These are NOT derived from
+    # compliance_council.py and must be carried over from the existing snapshot
+    # so refreshing the council fields never silently drops them:
+    #   * structural_codes / structural_codes_note — the WS-3a structural FLOOR
+    #     augmentation (the council has no structural taxonomy).
+    #   * lenses — the PACK-2c per-role lens authority. Post-2c the live
+    #     judge_metric.LENS_BY_ROLE reads this block FROM the snapshot, so it
+    #     cannot be re-derived here (that would read the file being written);
+    #     it is bench-curated, carried over exactly like structural_codes.
     if args.out.exists():
         try:
             prior = json.loads(args.out.read_text())
         except (json.JSONDecodeError, OSError):
             prior = {}
-        for key in ("structural_codes", "structural_codes_note"):
+        for key in ("lenses", "structural_codes", "structural_codes_note"):
             if key in prior:
                 snapshot[key] = prior[key]
 
