@@ -1,0 +1,91 @@
+{
+  "session_id": "session-bench-salvage-phaseCE-PACK-6b-ROUTE-2026-06-12",
+  "stream": "bench-salvage",
+  "phase": "CE-PACK-6b-ROUTE",
+  "driver_bundle_id": "bench-salvage-phaseCE-PACK-6b-ROUTE-authored-path-only-live-grade-driver",
+  "started_at": "2026-06-12T00:55:00Z",
+  "ended_at": "2026-06-12T01:25:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-12T00:58:00Z",
+    "user_approved_at": "2026-06-12T00:58:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "HEAD at session start was 5d576dc (the driver-authoring commit), one commit ahead of the driver's cited baseline 2742d32; 2742d32 is the direct ancestor and the only delta 2742d32..5d576dc is the driver doc + index (no code), so the 0-new baseline is effectively current code. No re-grep needed.",
+        "evidence": "git diff 2742d32..HEAD --stat => only .devloop/prompts/*.md + index.json",
+        "decided_at": "2026-06-12T00:56:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Default-assignment choice = FULL PACK LENS (not assignments=None), per the driver §2 D1 recommendation, validated behavior-honest by D0 (0-new) and the unaffected test_uap3_grade 'unassigned' semantics.",
+        "evidence": "driver §2 D1 'default to the full pack lens (recommended)'; D0 0-new measurement",
+        "decided_at": "2026-06-12T01:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "2b1f43d",
+      "repo": "lithrim-bench",
+      "title": "refactor(run_eval): authored path is the only in-process grade — default judges to their pack lens (6b-ROUTE D1/D2)",
+      "summary": "run_eval in_process dispatch always builds build_authored_semantic_stage; no-assignment => full pack lens; semantic_stage never None; build_prompt off product path. Docstrings/comments de-back-compatted."
+    },
+    {
+      "hash": "113c156",
+      "repo": "lithrim-bench",
+      "title": "test(ce): prove build_prompt is off the product grade path + ws0_default replay note (D0/D3/D4)",
+      "summary": "D4 $0 stubbed-seam test pins the no-assignment in_process path builds the authored stage from the full pack lens (never None). D3 ws0 sibling README note: baseline is the historical default-council verdict, replay-only, not regenerated."
+    },
+    {
+      "hash": "c6ecd30",
+      "repo": "lithrim-bench",
+      "title": "docs: 6b-ROUTE done — in-process grade is authored-only; build_prompt legacy/off-path (D5)",
+      "summary": "SPEC §3.3/§4 mark CE-PACK-6b-ROUTE DONE with the full-lens decision + evidence; CLAUDE.md one-line note."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 — no-assignment in_process => authored stage (never semantic_stage=None); build_prompt not reached on that path",
+      "verdict": "PASS",
+      "evidence": "scripts/run_eval.py: dispatch unconditionally builds build_authored_semantic_stage; no-assignment branch sets assignments={role: sorted(pack_lenses()[role]) for role in pack_production_judges()}. Guard test tests/test_uap3_grade.py::test_no_assignment_in_process_path_builds_authored_stage_not_default_council PASSES (captured semantic_stage == 'STAGE_SENTINEL' (non-None); captured assignments == the full-lens map)."
+    },
+    {
+      "criterion": "A2 — full suite 0-new vs 2742d32; ruff clean; default-path test deterministic ($0)",
+      "verdict": "PASS",
+      "evidence": "PYENV_VERSION=debuglithrim python -m pytest -q => 628 passed, 2 failed (pre-existing S-BS-96 observation guards: test_importing_observation_does_not_load_compliance_modules + test_default_run_pulls_no_heavy_deps; both PASS in isolation: '2 passed in 0.02s'), 3 skipped. Baseline at 2742d32-equivalent = 627 passed + same 2 failed; +1 is the new D4 test. ruff check scripts/run_eval.py tests/test_uap3_grade.py => All checks passed. D4 test uses stubbed build_authored_semantic_stage + grade_inprocess (no Azure, $0)."
+    },
+    {
+      "criterion": "A3 — standalone + neutral_default + uap3_grade authored-path tests stay green",
+      "verdict": "PASS",
+      "evidence": "tests/test_uap3_grade.py => 3 passed (incl. the 2 pre-existing authored-flip + preview-parity tests, unchanged); tests/test_standalone_ce.py + tests/test_neutral_default.py green within the 628-pass full run. The authored path itself is unchanged; only the DEFAULT routing changed."
+    },
+    {
+      "criterion": "A4 — docs updated; run_eval back-compat default-council comments corrected",
+      "verdict": "PASS",
+      "evidence": "SPEC_STANDALONE_CORE_VALIDATION.md §3.3 6b-ROUTE bullet + §4 sequencing item 2 marked DONE; CLAUDE.md taxonomy-snapshot section carries the CE-PACK-6b-ROUTE one-liner. run_eval docstring (assignments/models/roles) + the dispatch comment + the main() assignments comment rewritten from 'default council (back-compat)' to authored-by-default."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "baseline_pass_count": "627 passed + 2 pre-existing fail (S-BS-96 guards)",
+    "post_change_pass_count": "628 passed + same 2 pre-existing fail",
+    "new_failures": "0",
+    "default_assignment_choice": "full pack lens {role: sorted(pack_lenses()[role]) for role in pack_production_judges() if role in lenses}",
+    "frozen_files_touched": "0 (compliance_council.py / judges_dspy.py / safety_flags.py / stages.py / ab_harness / test_consensus.py all untouched)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "CE-PACK-6b-ROUTE landed clean. D0 HALT-gate measured 0-new breakage: rerouting run_eval's in-process dispatch to ALWAYS use the authored path (no-assignment => full pack lens) breaks no test, because no test drives run_eval's no-assignment in_process dispatch and asserts a default-council verdict (the in_process-touching tests either mock run() or construct build_authored_semantic_stage directly with explicit assignments). Chose the full pack lens default (driver-recommended, behavior-honest); the test_uap3_grade 'unassigned => approve' semantics are untouched because that test bypasses run_eval. 3 atomic pathspec-scoped commits (2b1f43d / 113c156 / c6ecd30). build_prompt is now dead code on the product path; it stays physically present (reached only by stages.py/ab_harness/test_consensus) for 6b-CLEAN to delete. The ws0_default replay baseline is kept as the historical default-council verdict (replay-only, never re-graded), with a sibling README note. No frozen-council edit. Foreign files (apps/shell/src/app.jsx, journeys/*.json, the demo HANDOFF) untouched across all 3 commits.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage CE-PACK-6b-ROUTE; the next cycle is CE-PACK-6b-CLEAN (FROZEN, HARD-GATE, fresh-critic worktree — physically delete build_prompt + safety_flags.py + genericize _build_signature/S-BS-129)."
+}

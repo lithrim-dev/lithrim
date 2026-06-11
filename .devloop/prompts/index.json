@@ -2056,7 +2056,7 @@
       "phase": "CE-PACK-6b-ROUTE",
       "scope": "in-process-grade-dispatch-authored-path-only-build_prompt-dead-on-product-path",
       "file": "bench-salvage_phaseCE-PACK-6b-ROUTE_authored-path-only-live-grade_driver.md",
-      "status": "ready",
+      "status": "shipped",
       "version": "v1",
       "hardness": "Routine (inline critique) -- non-frozen (reroute scripts/run_eval.py dispatch; build_prompt NOT deleted [that's 6b-CLEAN]). Suite-0-new gate + D0 HALT-gate load-bearing (a default-grade-path routing change). Subagent-executed, main tree.",
       "target_repos": [
@@ -2070,7 +2070,7 @@
       "_note": "6b-ROUTE = make the in-process grade dispatch ALWAYS authored (no-assignment -> default each judge to pack_lenses()[role]); build_prompt becomes DEAD on the product path (NOT deleted -- 6b-CLEAN does that, it's FROZEN). Solves the product concern: UI-authored prompts are the only live prompt source (a hardcoded build_prompt would silently ignore UI edits). D0 measures the breakage (HALT-gate if wide). The ws0_default re-pin is LIGHT: replay reads the baseline unaffected, nothing grades it live in CI; don't regenerate via a fragile/paid live run. pipeline/ab_harness/test_consensus stay (6b-CLEAN). Subagent-executed; monitor audits. LOCAL is SSOT.",
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD 2742d32: run_eval:256-273 dispatch CONFIRMED; build_prompt:2459 reached via default council + stages.py/ab_harness/test_consensus:311 CONFIRMED; build_authored_semantic_stage(assignments=None) works CONFIRMED).",
-      "next_action": "READY -- monitor spawns a subagent (main tree); D0 HALT-gate first; monitor audits at close. Then 6b-CLEAN (FROZEN HARD-GATE)."
+      "next_action": "CLOSED CLEAN 2026-06-12 (build 2b1f43d..c6ecd30; monitor 7-item + inline critique CLEAN; subagent-executed, D0 0-new). The in-process product grade is now AUTHORED-PATH-ONLY (no-assignment -> full pack-lens default); build_prompt is dead code on the product path (NOT deleted -- 6b-CLEAN does that, FROZEN). UI-authored prompts are the single live prompt source. No frozen council touched; 628 passed 0-new. Full close: critique-bench-salvage-CE-PACK-6b-ROUTE-2026-06-12.md."
     }
   ]
 }
