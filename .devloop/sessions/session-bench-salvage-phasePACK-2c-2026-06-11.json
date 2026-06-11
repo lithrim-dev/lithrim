@@ -1,0 +1,82 @@
+{
+  "session_id": "session-bench-salvage-phasePACK-2c-2026-06-11",
+  "stream": "bench-salvage",
+  "phase": "PACK-2c",
+  "driver_bundle_id": "bench-salvage-phasePACK-2c-council-roster-lens-unfreeze-driver",
+  "started_at": "2026-06-11T00:00:00Z",
+  "ended_at": "2026-06-11T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-11T00:00:00Z",
+    "user_approved_at": "2026-06-11T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "A8 added (negative test: a non-deployable pack judge fails-clean at construction); A3 also asserts canonical-roster subset-validation accepts story_audit; A2 pins identity+order NOT env-resolved model strings; S-BS-125 lands RE-SCOPED with tripwire (not closed); decoupling claim documented v2-scoped (v1 frozen-legacy); difflib replace-opcode verified empirically before D6 commit.",
+        "evidence": "user message: 'Proceed with the plan plus these acceptance addenda ... Go.'",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D5 (pack_production_judges) committed in commit 1 with D2 (pack_lenses) rather than a separate commit — both are pure same-file accessor additions; splitting a single file across commits needs interactive hunk staging. One logical unit.",
+        "evidence": "commit 0c4eab8 — lithrim_bench/harness/pack.py both accessors",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "D3 follow-up fix: derived lens constants made pack-agnostic via .get(role, frozenset()). Discovered via the D9/A3 story_audit test — the hard-reference LENS_BY_ROLE['faithfulness_judge'] KeyError'd judge_metric import under any pack omitting that role. Required for the decouple; refines OQ-4.",
+        "evidence": "commit 70c3530; KeyError: 'faithfulness_judge' at judge_metric.py before the fix",
+        "decided_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver §1 recon under-enumerated TWO whole-file frozen-seam pins of judge_metric.py (cited only test_trio_dspy.py:302-305): test_uap3b_withstands.py::test_frozen_seam_zero_delta and test_uap3b2_provenance.py::test_frozen_seam_zero_delta, both with the comment 'judge_metric.py stays whole-file-frozen (the lenses are 2b)'. The PACK-2c lens un-freeze necessarily relaxes them (byte-identity -> equivalence pin), exactly as BYOC-1 relaxed judges_dspy.py and PACK-2 relaxed compliance_council.py in these same files. Same class as S-BS-123. Relaxed in-cycle; surfaced for the monitor's driver re-grep.",
+        "evidence": "tests/test_uap3b_withstands.py:227-229 + tests/test_uap3b2_provenance.py:73-75 (pre-edit) both listed lithrim_bench/runtime/council/judge_metric.py in `frozen`; commit 6cc36e0",
+        "decided_at": "2026-06-11T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {"hash": "0c4eab8c8de223e0b3a9616ab78dcf651c79075e", "repo": "lithrim-bench", "title": "feat(pack): pack_lenses() + pack_production_judges() + snapshot lenses field (PACK-2c D1/D2/D5)", "summary": "The lens-authority + roster-identity source-of-truth: snapshot `lenses` block + the two ungated stdlib-only accessors + snapshot_taxonomy.py `lenses` carry-over (OQ-3)."},
+    {"hash": "019dd3a432fff224194afbd222a9090cb0fd36cf", "repo": "lithrim-bench", "title": "refactor(council): resolve LENS_BY_ROLE from the pack (PACK-2c D3/D4)", "summary": "judge_metric.LENS_BY_ROLE resolves from pack_lenses() via inline __import__ (openai/dspy-free); derived constants preserved; the `is`->`==` value-equality test edit."},
+    {"hash": "a981755f441eed52b1fdb6fa4c7281bc4cdd266f", "repo": "lithrim-bench", "title": "refactor(council): un-freeze the v2 roster — identity from pack, deployment in core (PACK-2c D6/D7)", "summary": "The 4th carve-out: v2 roster IDENTITY from pack_production_judges(); the CouncilModel DEPLOYMENT literals byte-frozen in core (_ROLE_DEPLOYMENT, local); KeyError fail-clean; freeze guard authorizes the 4th carve-out atomically."},
+    {"hash": "70c3530e5c2a9645852e150e6d34a4d0ec785254", "repo": "lithrim-bench", "title": "fix(council): pack-agnostic derived lens constants (PACK-2c D3 follow-up)", "summary": "RISK/POLICY/FAITHFULNESS_JUDGE_LENS via .get(role, frozenset()) so judge_metric loads under any pack (discovered via the story_audit decouple test)."},
+    {"hash": "c389134f2dc40a8ea3b3903e85acb4c9b43e2968", "repo": "lithrim-bench", "title": "test(pack): story_audit second-pack decoupling proof + A8 fail-clean (PACK-2c D8/D9)", "summary": "packs/story_audit/ (2nd real pack, 2-judge subset + different lenses) + packs/_nondeployable_fixture/ (A8) + tests/test_pack_layer2c.py (12 tests, A1-A8)."},
+    {"hash": "29497e2d734ccb0fbfe33dd0df80a9841a3a7c03", "repo": "lithrim-bench", "title": "docs(pack): SPEC layer-2c LANDED + CLAUDE.md roster/lens runtime note (PACK-2c D10)", "summary": "SPEC_PLUGIN_ARCHITECTURE layer-2c LANDED entry + CLAUDE.md taxonomy-contract update (production_judges roster identity + lenses authority + deployment-stays-core)."},
+    {"hash": "6cc36e09c0a0ed7b88fb85d5589888c5955b96ba", "repo": "lithrim-bench", "title": "test(council): relax the UAP-3b frozen-seam pins for the PACK-2c lens un-freeze (CITATION-DRIFT)", "summary": "Drops judge_metric.py from the whole-file `frozen` list in the two test_frozen_seam_zero_delta tests (byte-identity -> equivalence pin); removes the now-unused subprocess import."},
+    {"hash": "67ad5e04e8736a514962d0cab10745fff319b16c", "repo": "lithrim-bench", "title": "style(council): satisfy ruff SIM300 on the D4 lens equality assert (PACK-2c)", "summary": "pack_lenses() == LENS_BY_ROLE (semantics unchanged) — the D4 line was lint-clean-required."}
+  ],
+
+  "acceptance": [
+    {"criterion": "A1 — under healthcare, resolved LENS_BY_ROLE == acc4973 lens values (per-role frozenset)", "verdict": "PASS", "evidence": "test_pack_layer2c.py::test_lens_by_role_equals_the_acc4973_values_under_healthcare + ::test_pack_lenses_accessor_follows_the_named_pack green; pack_lenses('healthcare') == _ACC4973_LENSES."},
+    {"criterion": "A2 — under healthcare v2, resolved roster == acc4973 roster (identity+order, NOT env model strings)", "verdict": "PASS", "evidence": "test_pack_layer2c.py::test_imported_council_roster_is_acc4973_identity_and_order green: [(risk,openai,T,T,risk),(policy,mistral,F,T,policy),(faithfulness,meta,T,T,faithfulness)]."},
+    {"criterion": "A3 — LITHRIM_BENCH_PACK=story_audit (subprocess) -> roster == subset AND LENS_BY_ROLE == story_audit lenses, zero core edits; canonical-roster subset-validation accepts story_audit", "verdict": "PASS", "evidence": "test_council_follows_story_audit_roster_and_lens_subprocess (roster==[risk,policy], lenses==story's) + test_council_roster_is_canonical_and_subset_validates_story_audit green."},
+    {"criterion": "A4 — moat untouched: test_consensus.py + lens<=owners (test_trio_dspy.py) green; withstands-gate on healthcare unchanged", "verdict": "PASS", "evidence": "test_consensus.py + test_trio_dspy.py (38 tests) green; signals.py/withstands.py byte-untouched (read the pack-resolved lens by-value)."},
+    {"criterion": "A5 — exactly 4 authorized carve-outs; guard green AND non-vacuous (smuggled non-marker line in roster hunk FAILS; revert FAILS)", "verdict": "PASS", "evidence": "test_freeze_guard_passes_on_the_real_tree_with_four_carveouts + test_freeze_guard_fails_on_reverting_the_roster_carveout + test_freeze_guard_fails_on_a_smuggled_line_in_the_roster_hunk green."},
+    {"criterion": "A6 — full suite 0-new vs parent (debuglithrim); ruff clean on touched files", "verdict": "PASS", "evidence": "parent 7eeaee0 = 2 failures (S-BS-96 observation guards); HEAD = the SAME 2 + 0 new; 614 passed. ruff check clean on all touched non-frozen files. Frozen council ruff-exempt by precedent (96 pre-existing errors at parent)."},
+    {"criterion": "A7 — S-BS-125 both halves resolved (closed or re-scoped with rationale)", "verdict": "PASS", "evidence": "RE-SCOPED (per user directive): (a) council_roster() stays canonical (core capability universe; story_audit subset-validates correctly) (b) council_known_codes() stays active (per-pack code universe) — two readers, two questions; principled-by-design; the brand-new-judge-outside-roster case is the tripwire the deployment boundary makes fail-clean. Pinned by test_pack_layer2c subset-validation tests."},
+    {"criterion": "A8 (addendum) — a pack with a non-deployable judge fails-clean at construction", "verdict": "PASS", "evidence": "test_council_fails_clean_on_a_nondeployable_pack_judge_subprocess green: _nondeployable_fixture (production_judges names behavior_judge) -> KeyError naming behavior_judge at construction, returncode != 0."}
+  ],
+
+  "diagnostic_stats": {
+    "carve_out_hunk_count": "3 -> 4 (prompts-dir + tiers + owners + roster); empirically all 5 changed hunks vs acc4973 are difflib `replace`",
+    "lens_codes_relocated_to_snapshot": "18 (risk 5 + policy 2 + faithfulness 11)",
+    "roster_identity_relocated": "production_judges (3 for healthcare) now drive the v2 roster; deployment stays core",
+    "new_ruff_errors_in_frozen_council": "0 (96 -> 96)",
+    "full_suite": "614 passed / 2 failed (both pre-existing S-BS-96) / 3 skipped",
+    "commits": "8 (6 planned D1-D10 mapping + 1 D3 follow-up fix + 1 CITATION-DRIFT relaxation; SIM300 style folded as a 9th micro-commit)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PACK-2c landed the strangler-fig endgame: the frozen council's v2 ROSTER IDENTITY now resolves from the pack's production_judges (pack_production_judges(), the 4th authorized carve-out — an identity<->deployment split, deployment literals byte-frozen in core), and judge_metric.LENS_BY_ROLE resolves from the pack's new `lenses` block (pack_lenses(), a clean non-frozen refactor). Behavior is 0-delta on healthcare (roster identity+order + lens values == acc4973; consensus oracle + lens<=owners green) and the A-DECOUPLE gate is proven: a 2nd real pack (story_audit) drives a different 2-judge roster + different lenses with zero core edits, and a non-deployable pack judge fails-clean (KeyError at construction, A8). TWO caveats the monitor must process: (1) a CITATION-DRIFT — the driver's recon under-enumerated two whole-file frozen-seam pins of judge_metric.py (test_uap3b_withstands + test_uap3b2_provenance test_frozen_seam_zero_delta), relaxed in-cycle exactly as BYOC-1/PACK-2 relaxed their pins (S-BS-123 class); (2) S-BS-125 lands RE-SCOPED-not-closed with its tripwire per user directive. A6 = 0-new vs parent (the only 2 failures are the pre-existing S-BS-96 observation guards). HARD GATE: a fresh-critic worktree pass is required at close (user has the kickoff). First-audit check: confirm the 4 carve-outs in compliance_council.py + the difflib replace-opcode non-vacuity, and the CITATION-DRIFT relaxation is value-equivalence-preserving.",
+
+  "next_session_hint": "monitor: spawn the fresh-critic (isolation: worktree) HARD-GATE pass; then run /devloop-audit bench-salvage PACK-2c. Roll the CITATION-DRIFT (judge_metric.py frozen-seam pins) into the driver re-grep on close-out."
+}
