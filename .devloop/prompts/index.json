@@ -2049,6 +2049,28 @@
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD b21820e: DEFAULT_PACK pack.py:46 + active_pack :63 + council_roster reads pack_tier1_owners(DEFAULT_PACK) :242 CONFIRMED; blast radius MEASURED = 15 collection errors under a non-healthcare active pack).",
       "next_action": "CLOSED CLEAN 2026-06-12 (build 0b70d61..60859e6; monitor 7-item + inline critique CLEAN; subagent-executed, D0 HALT-gate honored). Neutral packs/_core/ default pack + DEFAULT_PACK flip; the core boots + grades with healthcare ABSENT (tests/test_neutral_default.py: zero packs/healthcare/ reads); roster identity byte-stable (monitor-verified); suite 0-new via the conftest pin. CLOSED S-BS-130 + RESOLVED S-BS-125 (tripwire retired). No core council edit. Full close: critique-bench-salvage-CE-PACK-NEUTRAL-DEFAULT-2026-06-12.md."
+    },
+    {
+      "id": "bench-salvage-phaseCE-PACK-6b-ROUTE-authored-path-only-live-grade-driver",
+      "stream": "bench-salvage",
+      "phase": "CE-PACK-6b-ROUTE",
+      "scope": "in-process-grade-dispatch-authored-path-only-build_prompt-dead-on-product-path",
+      "file": "bench-salvage_phaseCE-PACK-6b-ROUTE_authored-path-only-live-grade_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "Routine (inline critique) -- non-frozen (reroute scripts/run_eval.py dispatch; build_prompt NOT deleted [that's 6b-CLEAN]). Suite-0-new gate + D0 HALT-gate load-bearing (a default-grade-path routing change). Subagent-executed, main tree.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "scripts/run_eval.py:256-273 (the dispatch: semantic_stage=None unless assignments/models/roles) -- the reroute site + authored_stage.py:41 build_authored_semantic_stage(assignments=None works) + harness/pack.py pack_lenses/pack_production_judges (default-assignment source)",
+        "compliance_council.py:2459 build_prompt call (reached via the default council; ALSO via stages.py/ab_harness/test_consensus:311 = OUT of scope, 6b-CLEAN) + tests/test_uap3_grade.py:80-91 (authored-marker FLIP precedent, constructs the stage directly = unaffected)",
+        "tests/fixtures/ws0/baseline.*.json (replay baseline, unaffected) + RUN_ce_standalone1_live_smoke_2026-06-12.md + RUN_ws0_default_post2c_in_process_2026-06-11.md (the authored verdict differs from the old default-council baseline)"
+      ],
+      "_note": "6b-ROUTE = make the in-process grade dispatch ALWAYS authored (no-assignment -> default each judge to pack_lenses()[role]); build_prompt becomes DEAD on the product path (NOT deleted -- 6b-CLEAN does that, it's FROZEN). Solves the product concern: UI-authored prompts are the only live prompt source (a hardcoded build_prompt would silently ignore UI edits). D0 measures the breakage (HALT-gate if wide). The ws0_default re-pin is LIGHT: replay reads the baseline unaffected, nothing grades it live in CI; don't regenerate via a fragile/paid live run. pipeline/ab_harness/test_consensus stay (6b-CLEAN). Subagent-executed; monitor audits. LOCAL is SSOT.",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12 (HEAD 2742d32: run_eval:256-273 dispatch CONFIRMED; build_prompt:2459 reached via default council + stages.py/ab_harness/test_consensus:311 CONFIRMED; build_authored_semantic_stage(assignments=None) works CONFIRMED).",
+      "next_action": "READY -- monitor spawns a subagent (main tree); D0 HALT-gate first; monitor audits at close. Then 6b-CLEAN (FROZEN HARD-GATE)."
     }
   ]
 }
