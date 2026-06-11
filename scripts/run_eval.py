@@ -191,28 +191,26 @@ def run(
     they can never diverge.
 
     ``assignments`` (UAP-3 R4 / S-BS-63): role → assigned flag codes, the persisted
-    judge authoring (``harness.judges.load_judge``). When set on the ``in_process``
-    path the in-process council is built as the AUTHORED DSPy trio
-    (``build_authored_semantic_stage``), so an authored judge re-votes with its
-    authored lens — the authoring becomes consequential. ``None``/absent → the default
-    in-process council (back-compat). Ignored on the replay path (no live council) and
-    on the live ``:8002`` path (per-judge assignment-injection is WS-2-backend-gated,
-    HARD-GATE-paused; S-BS-63 closes for in_process only this cycle).
+    judge authoring (``harness.judges.load_judge``). The ``in_process`` council is
+    ALWAYS the AUTHORED DSPy trio (``build_authored_semantic_stage``) — the single live
+    prompt source (CE-PACK-6b-ROUTE / OQ-1). When ``assignments`` is set the judges
+    grade with that explicit lens; ``None``/absent defaults each judge to its FULL pack
+    lens (``pack_lenses()[role]`` over ``pack_production_judges()``), NOT the legacy
+    clinical default council (``ComplianceCouncil.build_prompt`` is off this path).
+    Ignored on the replay path (no live council) and on the live ``:8002`` path
+    (per-judge assignment-injection is WS-2-backend-gated, HARD-GATE-paused).
 
     ``models`` (BYOC-1): role → provider/model selector (e.g.
     ``{"risk_judge": "byo-claude"}``), the persisted judge ``model`` binding. Threaded
     into the authored in_process trio (``build_authored_semantic_stage`` →
     ``build_trio(models=)``) so a role can run on the tool-less BYO-Claude LM while the
-    rest stay Azure — the model-composition council. A ``model`` selector alone (no flag
-    assignments) still builds the authored trio (the seed-base lens). ``None``/absent →
-    the default all-Azure council (back-compat). Like ``assignments``, ignored on
-    replay/live.
+    rest stay Azure — the model-composition council. ``None``/absent → all-Azure over
+    the full-lens-default authored trio. Like ``assignments``, ignored on replay/live.
 
     ``roles`` (DOGFOOD-1 D2b): an ordered subset of ``V2_ROLES`` selecting a SMALLER
     roster for the judge-set ladder. Threaded into the authored in_process trio
-    (``build_authored_semantic_stage`` → ``build_trio(roles=)``); a ``roles`` selector
-    alone (no assignments/models) still builds the authored trio. ``None``/absent → the
-    full trio (back-compat). A single-role roster degenerates at the frozen consensus
+    (``build_authored_semantic_stage`` → ``build_trio(roles=)``). ``None``/absent → the
+    full trio. A single-role roster degenerates at the frozen consensus
     (``len(valid) >= 2``); use 2 or 3. Ignored on replay/live.
 
     ``collections_db`` (UAP-3 R6 / S-BS-52): the doc-shim DB run-provenance persists
@@ -248,29 +246,44 @@ def run(
         sys.stderr.write(
             "WARNING: --in-process runs the in-process v2 council (real paid Azure calls).\n"
         )
-        # UAP-3 / S-BS-63: when the agent's judges carry authored assignments, build
-        # the in-process council as the AUTHORED DSPy trio so the council votes with
-        # the authored lens (the static→live close). Lazy import (heavy deps) — the
-        # default-deps replay/live paths above never reach it. No assignments → the
-        # default in-process council (back-compat).
-        semantic_stage = None
-        if assignments or models or roles:
-            from lithrim_bench.runtime.council.authored_stage import (
-                build_authored_semantic_stage,
-            )
+        # UAP-3 / S-BS-63: the in-process council is ALWAYS built as the AUTHORED DSPy
+        # trio so the council votes with the ontology + role-prompt (authored) lens —
+        # the single live source of prompt truth the UI edits (CE-PACK-6b-ROUTE / OQ-1,
+        # `generic-ce-demarcation`). When the agent carries explicit per-role assignments
+        # those drive the lens; absent any (no assignments/models/roles) each judge
+        # defaults to its FULL pack lens (`pack_lenses()[role]` over the production
+        # roster), so every judge grades at its full authored scope rather than falling
+        # back to the legacy clinical default council. So `semantic_stage` is NEVER None
+        # on this path: `ComplianceCouncil.build_prompt` is no longer routed to here (it
+        # stays physically present, reached only by stages.py/ab_harness/the consensus
+        # unit test, and is deleted in 6b-CLEAN). Lazy import (heavy deps) — the
+        # default-deps replay/live paths above never reach it.
+        from lithrim_bench.harness.pack import pack_lenses, pack_production_judges
+        from lithrim_bench.runtime.council.authored_stage import (
+            build_authored_semantic_stage,
+        )
 
-            # UAP-3b: the authored trio grades THROUGH the pre-consensus withstands-gate
-            # (apply_gate default True); the gate's per-judge decisions land in
-            # ``withstands_sink`` so they can be audited + emit RLVR correction records
-            # after grade (below). No assignments AND no models => no authored stage =>
-            # no gate. BYOC-1: ``models`` selects a per-role provider (the mixed council).
-            semantic_stage = build_authored_semantic_stage(
-                ontology=ontology,
-                assignments=assignments,
-                models=models,
-                roles=roles,
-                decisions_sink=withstands_sink,
-            )
+        if not (assignments or models or roles):
+            # The full-lens default: every production judge grades at its full pack scope
+            # (the codes it may raise), the behaviour-honest "no explicit authoring yet"
+            # state — NOT the legacy build_prompt full-taxonomy dump.
+            lenses = pack_lenses()
+            assignments = {
+                role: sorted(lenses[role]) for role in pack_production_judges() if role in lenses
+            }
+
+        # UAP-3b: the authored trio grades THROUGH the pre-consensus withstands-gate
+        # (apply_gate default True); the gate's per-judge decisions land in
+        # ``withstands_sink`` so they can be audited + emit RLVR correction records
+        # after grade (below). BYOC-1: ``models`` selects a per-role provider (the
+        # mixed council).
+        semantic_stage = build_authored_semantic_stage(
+            ontology=ontology,
+            assignments=assignments,
+            models=models,
+            roles=roles,
+            decisions_sink=withstands_sink,
+        )
         result = grade_inprocess(
             case,
             semantic_stage=semantic_stage,
@@ -453,7 +466,8 @@ def main() -> int:
 
     # S-BS-63: thread any persisted judge authoring (role → assigned flag codes) into
     # the in-process grade so an authored judge re-votes with its authored lens. Empty
-    # before any PUT /v1/judges → the default council (back-compat).
+    # before any PUT /v1/judges → run() defaults each judge to its full pack lens (the
+    # authored path is the only in-process grade; CE-PACK-6b-ROUTE).
     assignments = {
         role: jc.assigned_flags
         for role, jc in list_judges(db_path=db_path).items()
