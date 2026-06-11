@@ -9,7 +9,6 @@ the [bff] extra.
 """
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -68,19 +67,15 @@ def test_frozen_seam_zero_delta():
     # PACK-2: compliance_council.py is no longer whole-file-pinned — the live council
     # globs the role prompts itself, so relocating council_roles/ into the pack required
     # an AUTHORIZED path-only carve-out of its _ROLE_PROMPTS_DIR; and council_roles/ itself
-    # relocated. Both are asserted by the carve-out guards below. judge_metric.py stays
-    # whole-file-frozen (the lenses are 2b).
-    frozen = [
-        "lithrim_bench/runtime/council/judge_metric.py",
-    ]
-    out = subprocess.run(
-        ["git", "diff", "acc4973", "HEAD", "--", *frozen],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert out.stdout == "", f"frozen seam drifted:\n{out.stdout[:2000]}"
+    # relocated. Both are asserted by the carve-out guards below.
+    # PACK-2c: judge_metric.py is no longer whole-file-pinned either — the lens un-freeze
+    # (``LENS_BY_ROLE`` resolves from the active pack's ``lenses`` via ``pack_lenses()``;
+    # judge_metric is NOT under any freeze guard) relocates the lens AUTHORITY into the
+    # snapshot. The lens VALUES stay 0-delta, pinned by the EQUIVALENCE pin
+    # (``tests/test_pack_layer2c.py`` A1 + ``test_trio_dspy.py``) — byte-identity is REPLACED
+    # by value-equivalence, the same relaxation BYOC-1 applied to judges_dspy.py and PACK-2 to
+    # compliance_council.py. The frozen-seam asserts below stay (the consensus seam, the council
+    # carve-outs, the relocated role prompts, the seeds, the clinical ontology).
     assert_judges_dspy_consensus_seam_frozen(REPO_ROOT)
     assert_compliance_council_carveouts_only(REPO_ROOT)
     assert_council_roles_relocated_only(REPO_ROOT)
