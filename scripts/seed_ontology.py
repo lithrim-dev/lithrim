@@ -62,8 +62,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-COUNCIL_DIR = REPO_ROOT / "lithrim_bench" / "runtime" / "council"
-SAFETY_FLAGS_PY = COUNCIL_DIR / "safety_flags.py"
+# CE-PACK-6b-CLEAN D2-a: the safety-flag seed relocated OUT of the core into the pack
+# (the core ``safety_flags.py`` is deleted in this cycle with build_prompt). The seed is
+# now read BY FILE PATH from its pack home (the pack-code-by-path convention).
+SAFETY_FLAGS_SEED_PY = REPO_ROOT / "packs" / "healthcare" / "safety_flags_seed.py"
 ROLE_DIR = REPO_ROOT / "packs" / "healthcare" / "council_roles"  # PACK-2: relocated into the pack
 OUT_PATH = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 SNAPSHOT_PATH = REPO_ROOT / "packs" / "healthcare" / "taxonomy_snapshot.json"
@@ -220,10 +222,25 @@ def parse_questions(role_file: Path) -> list[tuple[int, str]]:
     return out
 
 
+def _load_safety_flags_seed():
+    """Load the pack-resident healthcare safety-flag seed BY FILE PATH — the
+    pack-code-by-path convention (cf. ``harness.pack.load_pack_floors``). Pydantic-only
+    (no ``openai``); the seed relocated OUT of the core in CE-PACK-6b-CLEAN (D2-a)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "healthcare_safety_flags_seed", SAFETY_FLAGS_SEED_PY
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load the safety-flag seed from {SAFETY_FLAGS_SEED_PY}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def build_seed() -> dict:
-    # 1) flags from the light safety_flags module (pydantic-only import is safe).
-    sys.path.insert(0, str(REPO_ROOT))
-    from lithrim_bench.runtime.council import safety_flags as sf  # noqa: E402
+    # 1) flags from the pack-resident safety-flag seed (pydantic-only import is safe).
+    sf = _load_safety_flags_seed()
 
     tier_of, owners = parse_tiers_and_owners()
 
@@ -261,6 +278,10 @@ def build_seed() -> dict:
         "verification_contracts": [MED_PRESENCE_CONTRACT, RECORD_PRESENCE_CONTRACT],
         "_provenance": {
             "seeded_by": "scripts/seed_ontology.py",
+            # D2-a: the AUTHORING-ORIGIN record. The seed relocated to
+            # packs/healthcare/safety_flags_seed.py in CE-PACK-6b-CLEAN; this literal is
+            # kept VERBATIM so the regenerated ontology stays byte-frozen vs the moat
+            # baseline (assert_clinical_ontology_seam_frozen) — it is NOT a live import path.
             "flag_source": "lithrim_bench/runtime/council/safety_flags.py:SAFETY_FLAG_DEFINITIONS",
             "tier_source": "lithrim_bench/runtime/council/compliance_council.py:TIER_1/2/3",
             "owner_source": "lithrim_bench/runtime/council/compliance_council.py:_TIER1_OWNERS",
