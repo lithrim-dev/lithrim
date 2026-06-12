@@ -216,11 +216,18 @@ def build_judge_lm(role: str, **overrides: Any):
     litellm kwargs, so they never reach the byte-unchanged Azure construction below.
     ``dspy`` imported lazily.
     """
+    from lithrim_bench.harness.plugins import resolve_provider_id
+
     from .byo_claude_lm import BYO_CLAUDE_MODEL_VALUES
 
     selector = str(overrides.get("model") or overrides.get("provider") or "").strip().lower()
     global_provider = str(getattr(settings, "LITHRIM_LLM_PROVIDER", "") or "").strip().lower()
-    if selector in BYO_CLAUDE_MODEL_VALUES or global_provider in BYO_CLAUDE_MODEL_VALUES:
+    # Plugin Phase-1 (D4): the BYOC-1 provider selection now routes through the unified plugin
+    # registry. ``resolve_provider_id`` is byte-identical to the prior inline set-membership
+    # (``selector in BYO_CLAUDE_MODEL_VALUES or global_provider in …``) — ``byo_values`` is
+    # threaded in so ``plugins`` stays dspy-free. The per-role DEPLOYMENT binding below stays
+    # CORE (``_ROLE_DEPLOYMENT`` — PACK-2c, infra ∉ a domain pack); only the SELECTION is folded.
+    if resolve_provider_id(selector, global_provider, byo_values=BYO_CLAUDE_MODEL_VALUES) == "byo_claude":
         from .byo_claude_lm import build_claude_cli_lm
 
         for _selector_key in ("model", "provider", "logprobs"):
