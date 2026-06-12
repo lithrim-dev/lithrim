@@ -202,9 +202,7 @@ class KbGrounding(VerificationContract):
 
     contract_type = "kb_grounding"
 
-    def __init__(
-        self, decl: VerificationContractDecl, *, http_client: Any | None = None
-    ) -> None:
+    def __init__(self, decl: VerificationContractDecl, *, http_client: Any | None = None) -> None:
         self.flag_code = decl.flag_code
         self.question = decl.question
         self.version = decl.version
@@ -397,6 +395,83 @@ def floor_contract_types() -> set[str]:
     return set(floor_executors())
 
 
+# Contracts that compose over an out-of-process service (the manifest ``transport`` field):
+# the kb_grounding suppress executor (over :8002) + the JUTE structural floors (over :3031).
+# Everything else — presence_check + the pack's pure-stdlib executors — is ``in_process``.
+_SERVICE_CONTRACT_TYPES = _HTTP_CONTRACT_TYPES | {"structural_jute", "jute_gen"}
+
+
+def _contract_transport(contract_type: str) -> str:
+    return "service" if contract_type in _SERVICE_CONTRACT_TYPES else "in_process"
+
+
+def contract_plugins() -> list[Any]:
+    """Declare the contract registry (core ∪ the active pack) as ``kind: contract`` plugins — the
+    Plugin Phase-1 declaration layer over the EXISTING merge (D3).
+
+    **Behavior-identical:** this ENUMERATES :func:`suppress_executors` / :func:`floor_executors`;
+    it does NOT change dispatch (``_build_contract`` / ``_run_floor`` / the moat-visible
+    ``suppress_executors()`` read in ``runtime/council/signals.py`` are untouched). The pack-floors
+    fold already made the merge open/closed (a pack ships executors via its ``floors`` module with
+    zero engine edits); this adds the declared ``kind/tier/transport`` over it. Core executors are
+    ``tier: core``; pack-contributed executors inherit the active pack's tier (so healthcare's
+    clinical ``record_presence`` / ``dosage_grounding`` are ``tier: pro``). ``PluginManifest`` +
+    ``pack`` are imported lazily so ``import grounding`` keeps its existing import surface."""
+    from lithrim_bench.harness import pack as _pack
+    from lithrim_bench.harness.plugins import PluginManifest
+
+    active = _active_pack()
+    pack_tier = _pack._manifest(active).get("tier", "core")
+    pack_suppress, pack_floors = _pack_registries(active)
+
+    out: list[PluginManifest] = []
+    for ctype in _CONTRACT_EXECUTORS:
+        out.append(
+            PluginManifest(
+                id=ctype,
+                kind="contract",
+                tier="core",
+                transport=_contract_transport(ctype),
+                implements="grounding.suppress",
+                contract_types=[ctype],
+            )
+        )
+    for ctype in _core_floor_executors():
+        out.append(
+            PluginManifest(
+                id=ctype,
+                kind="contract",
+                tier="core",
+                transport=_contract_transport(ctype),
+                implements="grounding.floor",
+                contract_types=[ctype],
+            )
+        )
+    for ctype in pack_suppress:
+        out.append(
+            PluginManifest(
+                id=ctype,
+                kind="contract",
+                tier=pack_tier,
+                transport=_contract_transport(ctype),
+                implements="grounding.suppress",
+                contract_types=[ctype],
+            )
+        )
+    for ctype in pack_floors:
+        out.append(
+            PluginManifest(
+                id=ctype,
+                kind="contract",
+                tier=pack_tier,
+                transport=_contract_transport(ctype),
+                implements="grounding.floor",
+                contract_types=[ctype],
+            )
+        )
+    return out
+
+
 def _build_contract(
     decl: VerificationContractDecl, *, http_client: Any | None = None
 ) -> VerificationContract:
@@ -506,8 +581,7 @@ def ground(
     if unknown:
         raise ValueError(f"no executor registered for contract_type {unknown[0].contract_type!r}")
     contracts = {
-        decl.flag_code: _build_contract(decl, http_client=http_client)
-        for decl in suppress_decls
+        decl.flag_code: _build_contract(decl, http_client=http_client) for decl in suppress_decls
     }
     semantic_evidence = {
         ev.get("violation_code"): ev for ev in (result.get("semantic") or {}).get("evidence", [])
