@@ -252,6 +252,20 @@ def test_a4_fixture_contract_inherits_pack_tier():
     assert out.stdout.strip().splitlines()[-1] == "pro"
 
 
+def test_s_bs_133_pack_declared_service_transport_is_tagged_service():
+    """S-BS-133: a pack's ``floors`` module may declare ``SERVICE_CONTRACT_TYPES``; then
+    ``contract_plugins()`` tags that contract ``transport=service`` instead of the core default
+    ``in_process``. ``_plugin_fixture`` declares ``fixture_suppress`` as service-transport.
+    (Declarative metadata only — dispatch is unchanged; no pack ships a real service floor yet.)"""
+    out = _subproc(
+        "from lithrim_bench.harness import grounding as G; "
+        "t={p.id:p.transport for p in G.contract_plugins()}['fixture_suppress']; print(t)",
+        pack=_FIXTURE_PACK,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == "service"
+
+
 # ─────────────────────────── A5 — frozen seams + the moat ───────────────────────────
 
 

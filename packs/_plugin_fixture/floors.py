@@ -31,3 +31,8 @@ class FixtureSuppress:
 
 SUPPRESS_EXECUTORS = {"fixture_suppress": FixtureSuppress}
 FLOOR_EXECUTORS: dict[str, Any] = {}
+# S-BS-133: declare fixture_suppress as a SERVICE-transport contract so the test can prove a pack's
+# service floor is tagged ``transport=service`` in ``contract_plugins()``. The executor itself still
+# runs in-process — the manifest ``transport`` is declarative metadata (dispatch is gated by
+# ``grounding._HTTP_CONTRACT_TYPES``, unchanged). A real pack with a service-backed floor sets this.
+SERVICE_CONTRACT_TYPES = {"fixture_suppress"}

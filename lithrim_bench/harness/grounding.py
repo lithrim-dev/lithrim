@@ -401,8 +401,25 @@ def floor_contract_types() -> set[str]:
 _SERVICE_CONTRACT_TYPES = _HTTP_CONTRACT_TYPES | {"structural_jute", "jute_gen"}
 
 
-def _contract_transport(contract_type: str) -> str:
-    return "service" if contract_type in _SERVICE_CONTRACT_TYPES else "in_process"
+def _contract_transport(contract_type: str, extra_service_types: frozenset[str] = frozenset()) -> str:
+    return "service" if contract_type in (_SERVICE_CONTRACT_TYPES | extra_service_types) else "in_process"
+
+
+@lru_cache(maxsize=8)
+def _pack_service_contract_types(pack: str) -> frozenset[str]:
+    """The active pack's declared service-transport contract_types — its ``floors`` module's
+    optional ``SERVICE_CONTRACT_TYPES`` (default empty). So a pack that ships a service-transport
+    floor (one that composes over an out-of-process service) is declared ``transport=service``
+    in :func:`contract_plugins`, not the core default ``in_process`` (S-BS-133). No pack declares
+    any today → behavior-identical now; this is the forward-looking hook the manifest ``transport``
+    field + provenance need. The field is **declarative metadata** — dispatch is unchanged (gated
+    by ``_HTTP_CONTRACT_TYPES``, not this)."""
+    from . import pack as _pack
+
+    module = _pack.load_pack_floors(pack)
+    if module is None:
+        return frozenset()
+    return frozenset(getattr(module, "SERVICE_CONTRACT_TYPES", ()) or ())
 
 
 def contract_plugins() -> list[Any]:
@@ -423,6 +440,7 @@ def contract_plugins() -> list[Any]:
     active = _active_pack()
     pack_tier = _pack._manifest(active).get("tier", "core")
     pack_suppress, pack_floors = _pack_registries(active)
+    pack_service = _pack_service_contract_types(active)  # S-BS-133: pack-declared service transports
 
     out: list[PluginManifest] = []
     for ctype in _CONTRACT_EXECUTORS:
@@ -453,7 +471,7 @@ def contract_plugins() -> list[Any]:
                 id=ctype,
                 kind="contract",
                 tier=pack_tier,
-                transport=_contract_transport(ctype),
+                transport=_contract_transport(ctype, pack_service),
                 implements="grounding.suppress",
                 contract_types=[ctype],
             )
@@ -464,7 +482,7 @@ def contract_plugins() -> list[Any]:
                 id=ctype,
                 kind="contract",
                 tier=pack_tier,
-                transport=_contract_transport(ctype),
+                transport=_contract_transport(ctype, pack_service),
                 implements="grounding.floor",
                 contract_types=[ctype],
             )
