@@ -3,6 +3,35 @@
   "updated": "2026-06-12",
   "bundles": [
     {
+      "id": "bench-salvage-phasePACK-DIST-1-extract-healthcare-to-external-pack",
+      "stream": "bench-salvage",
+      "phase": "PACK-DIST-1",
+      "scope": "extract the healthcare realm to an externally-loaded pack so the CE (OSS core) repo is release-clean: the pack-discovery seam (entry points + LITHRIM_BENCH_PACKS_DIR) + relocate packs/healthcare + clinical corpora/seeds out of the CE repo + keep both suites green + the CE-clean proof",
+      "file": "bench-salvage_phasePACK-DIST-1_extract-healthcare-to-external-pack_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Structural + cross-repo: a pack-discovery seam (above the frozen seam) + physically moving the ENTIRE clinical realm OUT of the CE repo into a NEW sibling git repo + a CE-clean proof. The `git rm` of healthcare feels irreversible (git history retains it; LOCAL SSOT), the test-suite reshapes, and the frozen council carve-outs must keep resolving healthcare via the new discovery behavior-identically. Fresh-critic close (focus: external-load A1, the CE-clean sweep A2 non-vacuous, behavior-identical council A3, fail-closed A4, moat byte-identity A5).",
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-pack-healthcare (NEW sibling repo this cycle creates)"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_PLUGIN_ARCHITECTURE.md (OQ-3 RESOLVED = separate distribution: the locked Pro bits are NOT present in the OSS repo; Phase-3 = the distribution layer this realizes the separation half of)",
+        "docs/specs/SPEC_STANDALONE_CORE_VALIDATION.md (the CE-clean contract — the core boots+grades standalone with no Pro pack)",
+        "lithrim_bench/harness/pack.py (the SINGLE discovery chokepoint: PACKS_DIR:46, active_pack:62, _resolve:75, _manifest:78 — resolve-by-id, no enumerate-all; route through a new _pack_root helper)",
+        "pyproject.toml:83 ([tool.setuptools.packages.find] include=['lithrim_bench*'] — packs/ is ALREADY excluded from the wheel; add the entry-points group)",
+        "lithrim_bench/runtime/council/compliance_council.py:195,238,445,495 (the FROZEN carve-out __import__ reads of pack_tiers/pack_tier1_owners/pack_prompts_path/pack_production_judges — must resolve healthcare via the seam behavior-identically)",
+        "tests/_seam_freeze.py (the 3 frozen guards + assert_seed_ontology_path_relocated_only = the clinical agent seeds to relocate) + tests/conftest.py:17 + runtime/council/tests/conftest.py (the healthcare pins) + tests/test_pack_layer3.py (the closed-carve-out sweep to extend over the clean tree)",
+        "examples/*.jsonl (the clinical corpora: scribe/coding/hl7_adt/scheduling/triage/judge_calib/imported_demo/proof_case — relocate to the pack) + packs/{_tiers_fixture,_plugin_fixture}/pack.json (REUSE packs/healthcare/ontology.json — must decouple)",
+        ".devloop/sessions/HANDOFF_bench-salvage_plugin-phase1-DONE_2026-06-12.md (PLUGIN-1 — the interface this ships on)"
+      ],
+      "_note": "PACK-DIST-1 = DISTRIBUTION not decoupling. The decoupling shipped (PACK-1..2c + PLUGIN-1: domain-agnostic core, tier load-bearing, path-loaded packs); what remains for a CE RELEASE is PHYSICAL separation so the public bits contain no Pro content (OQ-3). User direction 2026-06-12: 'if I want to release CE I can't ship healthpacks in this repo' — so separation is now a PRECONDITION, not a deferral (corrects the earlier 'build HPACK in-repo first' lean). D1 the discovery seam (entry points + LITHRIM_BENCH_PACKS_DIR + in-repo fallback; one chokepoint, stdlib, non-breaking). D2 create ../lithrim-pack-healthcare/ (git init + minimal pyproject + entry point) + relocate packs/healthcare + clinical examples/*.jsonl + clinical seeds; CE removes them. D3 decouple the 2 fixtures from the healthcare ontology + keep the CE suite green (F3: skip-when-absent + dev-install vs move-to-pack). D4 the CE-clean proof (no healthcare path in the tree; external load works; council behavior-identical; moat byte-frozen). D5 docs + the CE-release README. FORKS F1-F6: discovery mechanism / pack-repo shape / the clinical-test home (the fork-heavy one) / the exhaustive what-moves manifest (the plan's centerpiece) / CE-clean+release procedure / git-history strategy. ESCAPE HATCH: minimum = seam + relocate-pack-so-CE-tree-clean + skip-when-absent + CE-clean proof; defer the clean test-MOVE + pyproject polish + history-preserving subtree-split to PACK-DIST-2. DO NOT git rm healthcare until the seam proves external load. OUT: HPACK (built in the pack repo AFTER this; has its own CE/Pro split — the tool-kind interface is a separate CE cycle), Phase-3 registry/fetch/spawn, license enforcement. FROZEN: the moat + council carve-outs (resolve healthcare via the seam, behavior-identical). LOCAL SSOT (the new sibling repo is a local git init, NOT a push); pathspec-scoped on the dirty shared branch.",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12",
+      "next_action": "User kicks off in a FRESH executor session per the driver KICKOFF block (the user explicitly wants this done in a single fresh session). PLAN-REVIEW required (the F4 what-moves/what-stays manifest is the centerpiece; rule F1-F6 + the escape hatch). DO NOT git rm healthcare until the seam proves external discovery loads it. HARD GATE: fresh-critic worktree close before the structural commits are accepted."
+    },
+    {
       "id": "bench-salvage-phasePLUGIN-1-plugin-registry-unification-tier-gate",
       "stream": "bench-salvage",
       "phase": "PLUGIN-1",
