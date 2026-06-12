@@ -16,6 +16,12 @@ import pytest
 os.environ.setdefault("OPENAI_API_KEY", "test-offline-key")
 os.environ.setdefault("LITHRIM_LLM_PROVIDER", "openai")  # no Azure validation offline
 os.environ.setdefault("COMPLIANCE_COUNCIL_VERSION", "v2")
+# S-BS-134: pin the active pack so the council's taxonomy/owners/roster resolve to healthcare's
+# v2 set when these tests run BY BARE PATH. The repo-root ``tests/conftest.py`` sets the same pin,
+# but it is not an ancestor of this dir — so ``pytest lithrim_bench/runtime/council/tests/…`` ran
+# under the neutral ``_core`` default and the consensus oracle's healthcare expectations failed
+# (12/20). ``setdefault`` so the full-suite run + any explicit override still win.
+os.environ.setdefault("LITHRIM_BENCH_PACK", "healthcare")
 
 
 @pytest.fixture(scope="module")
