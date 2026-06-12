@@ -83,6 +83,7 @@ _RELOCATED_FUNCS = {
         "test_run_override_and_no_override_diverge_only_by_the_draft",
     },
     "test_crud_delete": {"test_delete_agent_guards_404_and_audit", "test_get_agents_lists_the_seeds"},
+    "test_judgeset_roster": {"test_committed_ladder_applies_same_assignments_to_every_set"},
     "test_flag_crud": {
         "test_author_flag_flip_to_gradeable_is_refused_via_the_tool",
         "test_create_existing_flag_409",
