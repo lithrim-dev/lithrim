@@ -7,6 +7,10 @@ pattern), so the authorization can never silently pass an unauthorized edit:
   * council carve-out guard — the authorized build_prompt deletion + transcript-branch
     raise PASS; an unauthorized deletion (``_apply_consensus``) and a raise WITHOUT the
     ``6b-CLEAN`` sentinel FAIL.
+  * council carve-out guard, CE-PACK-6c — the authorized ``build_source_message_prompt``
+    deletion + the ``CE-PACK-6c`` source_message raise PASS; deleting an UN-authorized
+    method (``_format_kb_citations``) and a source_message raise WITHOUT the ``CE-PACK-6c``
+    sentinel FAIL (the deletion auth is keyed to the SPECIFIC marker, not 'any deletion').
   * judges_dspy seam guard — genericizing ``_build_signature`` PASSES (excluded); editing
     a frozen symbol (``evaluate_dspy``) FAILS.
   * clinical-ontology guard — a flags / ``_provenance.flag_source`` edit FAILS (this is
@@ -117,6 +121,49 @@ def test_transcript_raise_without_6bclean_marker_fails():
         assert len(hits) == 1
         lines[hits[0]] = bad + "\n"
         tampered = "".join(lines)
+    assert tampered != cur
+    with pytest.raises(AssertionError, match="unauthorized"):
+        assert_council_carveouts_only(_council_base_lines(), tampered)
+
+
+# ── council carve-out guard, CE-PACK-6c (build_source_message_prompt) ────────
+
+
+def test_authorized_source_message_deletion_and_raise_pass():
+    """A4/A5 upper bound (CE-PACK-6c): the real post-6c tree — ``build_source_message_prompt``
+    DELETED + the ``CE-PACK-6c`` source_message raise — is admitted by the guard (it also
+    still carries the 6b-CLEAN build_prompt deletion + the transcript raise, untouched)."""
+    cur = _council_cur_text()
+    assert "def build_source_message_prompt" not in cur
+    assert "CE-PACK-6c" in cur  # the authorized source_message raise
+    assert "6b-CLEAN" in cur  # the 6b transcript raise is still present (untouched)
+    assert_council_carveouts_only(_council_base_lines(), cur)  # does not raise
+
+
+def test_unauthorized_method_deletion_still_fails():
+    """C4 (CE-PACK-6c): deleting an UN-authorized method (``_format_kb_citations``, an inert
+    source_message helper that is NOT on the authorized-deletion list) carries no marker → the
+    guard FAILS. Proves the deletion auth is keyed to the SPECIFIC marker (``def build_prompt`` /
+    ``def build_source_message_prompt``), not 'any deletion' — so retiring the leftover retrieval
+    helpers is a deliberate future decision, not something this authorization waved through."""
+    cur = _council_cur_text()
+    lines = cur.splitlines(keepends=True)
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("    def _format_kb_citations("))
+    tampered = "".join(lines[:idx] + lines[idx + 15 :])  # drop 15 lines of the method (no marker)
+    with pytest.raises(AssertionError, match="unauthorized"):
+        assert_council_carveouts_only(_council_base_lines(), tampered)
+
+
+def test_source_message_raise_without_6c_marker_fails():
+    """C4 (CE-PACK-6c): the source_message-branch raise MUST carry the ``CE-PACK-6c`` sentinel —
+    a raise lacking it is a marker-less replace line → the S-BS-124 per-line bar FAILS it (so the
+    branch body can't be swapped for arbitrary code under cover of the authorized hunk)."""
+    cur = _council_cur_text()
+    lines = cur.splitlines(keepends=True)
+    hits = [i for i, ln in enumerate(lines) if "CE-PACK-6c: evaluate() no longer builds" in ln]
+    assert len(hits) == 1
+    lines[hits[0]] = '            raise ValueError("source_message not supported")\n'  # no marker
+    tampered = "".join(lines)
     assert tampered != cur
     with pytest.raises(AssertionError, match="unauthorized"):
         assert_council_carveouts_only(_council_base_lines(), tampered)
