@@ -5,6 +5,10 @@
 > **Last re-verified against code:** 2026-06-12 (every citation below re-grepped live on HEAD `c372ec1`).
 > **Spec:** `docs/specs/SPEC_PLUGIN_ARCHITECTURE.md` (LOCKED 2026-06-11; §1 KINDS, §2 transports, §4 tiering, §Data Contracts manifests, §Requirements P0, §Test Plan, §Build-sequencing Phase-1). OQ-1..3 RESOLVED.
 
+> **⚠️ Post-close citation-drift reconciliation (PLUGIN-1 CLOSED 2026-06-12, NON-BLOCKING).** Two claims in this driver were corrected at plan-review + verified at close — read the body with these in mind:
+> - **D-1 (tier set):** the live manifests use **`{core, pro, fixture, demo}`**, not just `{core, pro}` (D1 below). The schema must admit all four; **only `pro` is license-gated** (`core`/`fixture`/`demo` always load).
+> - **D-2 (moat pin):** the verifiable moat pin vs `acc4973` is **`_apply_consensus` + `extract_verdict_confidence`** (byte-identical — `d1b7956e`/`ed867bce`). **`signals.py`/`withstands.py` POST-DATE `acc4973`** (they landed `8cb388b`/`d9a5bb0`), so the §0/§5/§7 phrase "byte-identical vs acc4973" is ill-defined for them — the honest check is **0-diff vs parent** (both untouched this cycle). See `critique-bench-salvage-PLUGIN-1-2026-06-12.md`.
+
 ---
 
 ## KICKOFF (paste into a fresh executor session in `lithrim-bench`)
