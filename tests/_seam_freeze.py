@@ -97,33 +97,6 @@ def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
     _assert_judges_dspy_seam_frozen(base_src, cur_src)
 
 
-def assert_seed_ontology_path_relocated_only(repo: Path, seed_rel: str) -> None:
-    """An agent seed is byte-frozen vs ``acc4973`` EXCEPT its
-    ``eval_profile.ontology_path``, which relocated ``data/ontology/clinical_v1.json``
-    → ``packs/healthcare/ontology.json`` (PACK-1 A5 re-scope: the seeds get a
-    behavior-preserving, path-only update — every other field stays frozen)."""
-    base = json.loads(
-        subprocess.run(
-            ["git", "show", f"{_SEAM_BASELINE}:{seed_rel}"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    )
-    cur = json.loads((repo / seed_rel).read_text())
-    assert base["eval_profile"]["ontology_path"] == _CLINICAL_ONTOLOGY_BASELINE_REL, (
-        f"{seed_rel}: baseline ontology_path was not the pre-move clinical path"
-    )
-    assert cur["eval_profile"]["ontology_path"] == _CLINICAL_ONTOLOGY_REL, (
-        f"{seed_rel}: working ontology_path is not the relocated pack path"
-    )
-    base["eval_profile"]["ontology_path"] = cur["eval_profile"]["ontology_path"]
-    assert cur == base, (
-        f"{seed_rel} drifted beyond ontology_path (the seed update must be path-only)"
-    )
-
-
 def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     """The consensus/owner seam in ``clinical_v1.json`` — flags, tiers, owners,
     questions, severity_map, versions — is byte-identical to ``acc4973``; only the

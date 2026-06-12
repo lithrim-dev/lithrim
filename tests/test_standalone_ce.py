@@ -267,8 +267,9 @@ def test_a4_healthcare_domain_unloaded(grade_out):
     metadata files it used to read under ``DEFAULT_PACK='healthcare'`` are gone. This is the strict
     form of the gate, now achievable: **S-BS-130 closed.**
 
-    Non-vacuous: ``story_audit`` (which reuses healthcare's ontology + council_roles) would put
-    those DOMAIN paths in ``healthcare_reads`` and FAIL the zero-reads check."""
+    Non-vacuous: the audit hook records EVERY ``packs/healthcare/`` open across boot+grade, so the
+    same run under ``LITHRIM_BENCH_PACK=healthcare`` (the suite's pinned default) populates
+    ``healthcare_reads`` — support_ticket_qa reading ZERO is therefore a genuine decouple signal."""
     assert grade_out["active_pack"] == PACK
     assert f"/packs/{PACK}/" in grade_out["prompts_dir"]
     assert f"/packs/{PACK}/" in grade_out["ontology_path"]

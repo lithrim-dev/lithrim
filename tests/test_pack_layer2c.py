@@ -154,7 +154,7 @@ def test_council_roster_is_canonical_and_subset_validates_story_audit():
     assert set(_STORY_ROSTER) < pack.council_roster()
     pack.assert_judges_known(
         _STORY_ROSTER,
-        prompt_stems=_ROSTER_5,  # story_audit reuses healthcare's 5 council_roles prompts
+        prompt_stems=_ROSTER_5,  # a 5-stem roster (the pure-function check; not read off disk)
         pack=_STORY_PACK,
     )
 

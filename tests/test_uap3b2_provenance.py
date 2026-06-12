@@ -22,7 +22,6 @@ from ._seam_freeze import (
     assert_compliance_council_carveouts_only,
     assert_council_roles_relocated_only,
     assert_judges_dspy_consensus_seam_frozen,
-    assert_seed_ontology_path_relocated_only,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -79,10 +78,9 @@ def test_frozen_seam_zero_delta():
     assert_judges_dspy_consensus_seam_frozen(REPO_ROOT)
     assert_compliance_council_carveouts_only(REPO_ROOT)
     assert_council_roles_relocated_only(REPO_ROOT)
-    # PACK-1: ws0_default.json is no longer whole-file-pinned — the healthcare-pack
-    # relocation gives it a behavior-preserving, path-ONLY ontology_path update; every
-    # other field stays byte-frozen vs acc4973 (asserted precisely here).
-    assert_seed_ontology_path_relocated_only(REPO_ROOT, "data/config/agents/ws0_default.json")
+    # PACK-DIST-1: ws0_default.json is now the neutral blank-slate default agent (0 clinical
+    # strings; ontology_path → packs/_core); the clinical scribe-replay agent relocated to the
+    # external healthcare pack repo, so the old healthcare-ontology_path seed pin is retired.
     # clinical_v1.json's consensus/owner seam stays frozen; only verification_contracts
     # may grow additively (GROUND-FLOOR-1's record_presence contract).
     assert_clinical_ontology_seam_frozen(REPO_ROOT)
