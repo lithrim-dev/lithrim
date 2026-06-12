@@ -47,6 +47,10 @@ def test_example_fields_projects_row_to_signature_inputs():
     assert fields["expected_safety_flags"] == ["WRONG_DOSAGE"]
 
 
+@pytest.mark.skipif(
+    not CORPUS.exists(),
+    reason="PACK-DIST-1: judge_calib corpus relocated to the external lithrim-pack-healthcare repo",
+)
 def test_load_corpus_and_lens_filter_match_widened_split():
     # UAP-4/S-BS-49: the corpus widened 47→83 (+36 positives, all pinned to the
     # calibration/trainset split). The `test` held-out split is FROZEN at the v1 30
@@ -101,6 +105,10 @@ def test_order_positive_first_surfaces_positives_preserving_order():
     assert [r["case_id"] for r in order_positive_first([pos_2, pos_1], lens=lens)] == ["p2", "p1"]
 
 
+@pytest.mark.skipif(
+    not CORPUS.exists(),
+    reason="PACK-DIST-1: judge_calib corpus relocated to the external lithrim-pack-healthcare repo",
+)
 def test_order_positive_first_on_the_corpus_has_positives_to_surface():
     # the widened calibration split actually carries in-lens positives for the
     # default optimize role, so coverage-aware selection has something to surface.

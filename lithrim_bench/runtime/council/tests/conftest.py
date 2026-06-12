@@ -21,7 +21,15 @@ os.environ.setdefault("COMPLIANCE_COUNCIL_VERSION", "v2")
 # but it is not an ancestor of this dir — so ``pytest lithrim_bench/runtime/council/tests/…`` ran
 # under the neutral ``_core`` default and the consensus oracle's healthcare expectations failed
 # (12/20). ``setdefault`` so the full-suite run + any explicit override still win.
-os.environ.setdefault("LITHRIM_BENCH_PACK", "healthcare")
+# PACK-DIST-1: pin only when healthcare is discoverable (it is now an external pack); a bare CE
+# checkout stays on the neutral _core default and these council oracle tests skip-when-absent.
+try:
+    from lithrim_bench.harness import pack as _pd_pack
+
+    _pd_pack._pack_root("healthcare")
+    os.environ.setdefault("LITHRIM_BENCH_PACK", "healthcare")
+except FileNotFoundError:
+    pass
 
 
 @pytest.fixture(scope="module")

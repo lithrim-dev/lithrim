@@ -107,7 +107,16 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     whole-file-pinning it was overly broad. This mirrors the BYOC-1 provider-binder
     carve-out: the moat seam stays provably frozen, only the authorized surface may
     evolve — and even there, existing contracts may not be edited or removed (purely
-    additive)."""
+    additive).
+
+    PACK-DIST-1: the healthcare ontology relocated to the external pack, so the CURRENT side
+    resolves through the discovery SEAM (``pack.pack_ontology_path('healthcare')``) instead of a
+    hardcoded ``repo / packs/healthcare/ontology.json`` — it reads the ACTIVE-pack ontology
+    wherever it now lives (in-repo, LITHRIM_BENCH_PACKS_DIR, or installed). Raises
+    ``FileNotFoundError`` in a bare CE checkout (healthcare nowhere); its callers carry
+    ``requires_healthcare_pack`` so they skip-when-absent."""
+    from lithrim_bench.harness import pack as _pack
+
     base = json.loads(
         subprocess.run(
             ["git", "show", f"{_SEAM_BASELINE}:{_CLINICAL_ONTOLOGY_BASELINE_REL}"],
@@ -117,7 +126,7 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
             check=True,
         ).stdout
     )
-    cur = json.loads((repo / _CLINICAL_ONTOLOGY_REL).read_text())
+    cur = json.loads(_pack.pack_ontology_path("healthcare").read_text())
     _assert_clinical_ontology_frozen(base, cur)
 
 
@@ -283,7 +292,15 @@ def assert_council_carveouts_only(base_lines: list[str], cur_text: str) -> None:
 def assert_council_roles_relocated_only(repo: Path) -> None:
     """The 5 council role prompts are byte-identical to ``acc4973``'s pre-move copies —
     the PACK-2 relocation (D2/A4) is a content-preserving MOVE (git R100). Compares each
-    file at its new pack home to the frozen baseline at the old core path."""
+    file at its CURRENT pack home to the frozen baseline at the old core path.
+
+    PACK-DIST-1: the prompts relocated to the external pack, so the CURRENT side resolves
+    through the discovery SEAM (``pack.pack_prompts_path('healthcare')``) — wherever the active
+    healthcare pack now lives. Raises ``FileNotFoundError`` in a bare CE checkout; callers carry
+    ``requires_healthcare_pack``."""
+    from lithrim_bench.harness import pack as _pack
+
+    prompts_dir = _pack.pack_prompts_path("healthcare")
     for name in _COUNCIL_ROLE_FILES:
         base = subprocess.run(
             ["git", "show", f"{_SEAM_BASELINE}:{_COUNCIL_ROLES_OLD_DIR}/{name}.txt"],
@@ -292,7 +309,7 @@ def assert_council_roles_relocated_only(repo: Path) -> None:
             text=True,
             check=True,
         ).stdout
-        cur = (repo / _COUNCIL_ROLES_NEW_DIR / f"{name}.txt").read_text()
+        cur = (prompts_dir / f"{name}.txt").read_text()
         assert cur == base, (
             f"{name}.txt drifted vs {_SEAM_BASELINE} (the relocation must be content-identical)"
         )
