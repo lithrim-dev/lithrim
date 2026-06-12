@@ -759,114 +759,6 @@ class ComplianceCouncil:
         lines.append("")
         return "\n".join(lines)
 
-    def build_source_message_prompt(self, context_payload: Dict[str, Any]) -> str:
-        """Build prompt for context_kind=source_message (Lane 2 HIE batch gate).
-
-        context_payload shape expected:
-          - call_context.source_message: str | dict — raw/parsed source payload
-          - call_context.source_format: str — "fhir" | "hl7v2" | "csv" | "other"
-          - artifacts: [{type, content, target_system}] — one artifact to judge
-          - target_profile (optional): str — e.g. "US Core Patient|5.0.1"
-        """
-        call_context = context_payload.get("call_context") or {}
-        source_message = call_context.get("source_message") or call_context.get("transcript") or ""
-        source_format = call_context.get("source_format") or "unknown"
-        target_profile = context_payload.get("target_profile") or call_context.get("target_profile")
-
-        # Stringify source_message for the prompt.
-        if isinstance(source_message, (dict, list)):
-            source_block = json.dumps(source_message, default=str, indent=2)
-        else:
-            source_block = str(source_message)
-
-        artifacts = context_payload.get("artifacts") or []
-        artifact_blocks = []
-        for idx, art in enumerate(artifacts):
-            content = art.get("content", "")
-            if isinstance(content, (dict, list)):
-                content = json.dumps(content, default=str, indent=2)
-            artifact_blocks.append(
-                f"ARTIFACT {idx} (type={art.get('type', 'unknown')}, "
-                f"target={art.get('target_system', 'unknown')}):\n{content}"
-            )
-        artifact_section = "\n\n".join(artifact_blocks) if artifact_blocks else "(no artifact provided)"
-
-        profile_hint = (
-            f"\nTARGET PROFILE (declared): {target_profile}\n"
-            if target_profile
-            else "\n(no target profile declared — perform generic conformance checks only)\n"
-        )
-
-        return (
-            "YOU ARE A STRICT SOURCE-MESSAGE FIDELITY AUDITOR (Lane 2 HIE batch gate).\n\n"
-            "ABSOLUTE RULES (DO NOT VIOLATE):\n"
-            "- Evaluate ONLY whether the ARTIFACT faithfully encodes the SOURCE.\n"
-            "- You are NOT evaluating HIPAA identity verification, PHI flow, or clinical escalation.\n"
-            "- There is no transcript, no live conversation, no patient/agent turn — only data payloads.\n"
-            "- A finding without direct evidence quotes from SOURCE and/or ARTIFACT is INVALID and will be discarded.\n\n"
-            "A VIOLATION EXISTS ONLY IF AT LEAST ONE IS TRUE:\n"
-            "1. ARTIFACT contains clinical content (diagnosis, dose, allergy, finding) not present in SOURCE.\n"
-            "2. A coded value in ARTIFACT is syntactically malformed, or semantically contradicts SOURCE.\n"
-            "3. ARTIFACT violates the declared TARGET PROFILE (missing required field, wrong data type).\n"
-            "4. ARTIFACT inverts the polarity of a source assertion (e.g. NKDA → active allergy).\n"
-            "5. ARTIFACT is unparseable / malformed for its declared type (not valid JSON / HL7 / CSV).\n\n"
-            "DO NOT FLAG:\n"
-            "- System-generated metadata (UUIDs, server timestamps, resource.meta.lastUpdated).\n"
-            "- Deterministic code normalization performed by the declared transformer.\n"
-            "- Stylistic differences (whitespace, field ordering, JSON key order).\n\n"
-            "STEP 1 — FIDELITY ANALYSIS (MANDATORY):\n"
-            "Before any decision, determine:\n"
-            "  - source_parsed: true | false (could you parse the source?)\n"
-            "  - artifact_parsed: true | false (could you parse the artifact?)\n"
-            "  - content_mapped: list of {source_field, artifact_field, match: true|false|transformed}\n\n"
-            f"{self._format_kb_citations(context_payload.get('retrieval') or {})}\n"
-            "STEP 2 — FINDINGS-FIRST EVALUATION:\n"
-            "For EACH divergence, create a finding with:\n"
-            "  - taxonomy_code: one of the codes from the TAXONOMY below\n"
-            "  - evidence_spans: 1–3 quotes from SOURCE and/or ARTIFACT demonstrating the mismatch\n"
-            "  - reasoning: why this constitutes a violation\n\n"
-            "STEP 3 — DECISION RULES:\n"
-            "- 0 findings → decision = 'approve'\n"
-            "- Tier-1 violation (WRONG_DOSAGE, NEGATION_REVERSAL, MISSING_ALLERGY, FABRICATED_HISTORY,\n"
-            "  or unparseable artifact) → decision = 'reject'\n"
-            "- Tier-2 violation (HALLUCINATED_DETAIL, WRONG_CODE, UPCODING_RISK) with clear source-vs-artifact\n"
-            "  mismatch → decision = 'reject'\n"
-            "- Tier-3 concern (INCOMPLETE_DOCUMENTATION, DURATION_FABRICATION) or ambiguous → 'needs_review'\n\n"
-            "OUTPUT JSON (STRICT — NO EXTRA TEXT):\n"
-            "{\n"
-            '  "fidelity": {\n'
-            '    "source_parsed": true|false,\n'
-            '    "artifact_parsed": true|false,\n'
-            '    "content_mapped": []\n'
-            "  },\n"
-            '  "findings": [\n'
-            "    {\n"
-            '      "taxonomy_code": "WRONG_CODE",\n'
-            '      "evidence_spans": [\n'
-            '        {"quote": "exact text from source or artifact", "turn_ids": []}\n'
-            "      ],\n"
-            '      "reasoning": "why this is a violation"\n'
-            "    }\n"
-            "  ],\n"
-            '  "decision": "approve|reject|needs_review",\n'
-            '  "confidence": 0.0,\n'
-            '  "summary": "concise factual explanation",\n'
-            '  "violations_found": ["taxonomy_code_1"],\n'
-            '  "citations_used": [],\n'
-            '  "rationale": "short reasoning"\n'
-            "}\n\n"
-            f"{self._SOURCE_MESSAGE_TAXONOMY}\n"
-            f"{self._SOURCE_MESSAGE_FEWSHOT}\n"
-            f"SOURCE FORMAT: {source_format}\n"
-            f"{profile_hint}\n"
-            "--- SOURCE MESSAGE ---\n"
-            f"{source_block}\n"
-            "--- END SOURCE ---\n\n"
-            "--- ARTIFACT(S) PRODUCED FROM SOURCE ---\n"
-            f"{artifact_section}\n"
-            "--- END ARTIFACTS ---\n"
-        )
-
     def _prepare_full_analysis_payload(self, context_payload: Dict[str, Any]) -> str:
         """Prepare compact payload with FULL transcript for regulatory analysis."""
         # FULL TRANSCRIPT - Critical for detecting procedural violations
@@ -2180,7 +2072,7 @@ class ComplianceCouncil:
             }
 
         if context_kind == CONTEXT_KIND_SOURCE_MESSAGE:
-            prompt = self.build_source_message_prompt(context_payload)
+            raise ValueError(f"CE-PACK-6c: evaluate() no longer builds prompts (the authored stage is the single live prompt source); context_kind={context_kind!r}")
         else:
             raise ValueError(f"6b-CLEAN: evaluate() no longer grades transcripts (the authored stage is the single live prompt source); context_kind={context_kind!r} is source_message-only")
 

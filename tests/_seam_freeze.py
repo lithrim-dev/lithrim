@@ -192,6 +192,7 @@ _COUNCIL_AUTHORIZED_MARKERS = (
     "_ROLE_DEPLOYMENT",      # PACK-2c roster carve-out (core deployment table; matches _ROLE_DEPLOYMENT_ALL too)
     "pack_production_judges",
     "6b-CLEAN",              # CE-PACK-6b-CLEAN: the transcript-branch raise sentinel (see below)
+    "CE-PACK-6c",            # CE-PACK-6c: the source_message-branch raise sentinel (see below)
 )
 # CE-PACK-6b-CLEAN: the FROZEN council sheds its last clinical residue. ``build_prompt`` (the
 # legacy clinical default-council prompt builder) + its ``safety_flags`` import are DELETED, and
@@ -201,9 +202,16 @@ _COUNCIL_AUTHORIZED_MARKERS = (
 #      below (an unauthorized deletion — e.g. ``_apply_consensus`` — carries none, so it FAILS);
 #  (b) the transcript-branch ``replace`` carries the cycle sentinel ``6b-CLEAN`` on its raise line
 #      (a normal authorized replace under the S-BS-124 per-line bar — no extra line can ride along).
+# CE-PACK-6c extends this with the source_message clinical prompt builder. ``evaluate()``'s
+# source_message branch reroutes to the authored stage (stages.run_semantic_source_message),
+# so ``build_source_message_prompt`` is bench-dead and DELETED; the branch body becomes a
+# ``CE-PACK-6c``-marked raise (a normal authorized replace under the per-line bar). An
+# unauthorized method deletion (e.g. ``_format_kb_citations``, ``_apply_consensus``) carries
+# none of these markers, so it still FAILS — the auth is keyed to the SPECIFIC marker.
 _COUNCIL_AUTHORIZED_DELETION_MARKERS = (
-    "def build_prompt",           # the build_prompt method block (compliance_council.py:517-788)
-    "from .safety_flags import",  # its get_flag_prompt_section import (compliance_council.py:27)
+    "def build_prompt",                 # the build_prompt method block (compliance_council.py:517-788)
+    "from .safety_flags import",        # its get_flag_prompt_section import (compliance_council.py:27)
+    "def build_source_message_prompt",  # CE-PACK-6c: the source_message clinical prompt builder
 )
 # The exact carve-out CALL signatures that must be present (revert-detection). Reverting
 # any carve-out removes its line, so the lower-bound assertion below FAILS — non-vacuous.
