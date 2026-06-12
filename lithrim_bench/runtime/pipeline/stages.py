@@ -652,10 +652,10 @@ async def _build_source_message_payload(
     ``request.context`` is the raw or parsed source (FHIR bundle dict,
     HL7v2 pipe-delimited string, CSV row, etc.). No transcript semantics.
 
-    Returns ``(payload, retrieval_meta)``. The Lane 2 judge prompt
-    (build_source_message_prompt) does not yet consume ``retrieval``;
-    we inject it so pipeline_runs provenance captures which schema /
-    code KBs were queried. A future cycle extends the judge to consume.
+    Returns ``(payload, retrieval_meta)``. The authored judge does not yet
+    consume ``retrieval``; we inject it so pipeline_runs provenance captures
+    which schema / code KBs were queried. A future cycle extends the judge
+    to consume.
     """
     # Source format hint — used by the judge prompt for parse-strategy hints.
     source_format = "unknown"
@@ -911,13 +911,14 @@ def _run_council_and_map(
 
 
 def _default_authored_evaluator() -> CouncilEvaluator:
-    """The default ``context_kind=transcript`` council evaluator — the AUTHORED DSPy
+    """The default council evaluator (both ``context_kind`` values) — the AUTHORED DSPy
     trio over the ACTIVE PACK, each production judge at its FULL pack lens.
 
-    CE-PACK-6b-CLEAN D1: when no evaluator is injected (the orchestrator default /
-    ``LocalPipelineBackend`` / ``run_local_scribe``), the default transcript grade runs
-    the authored path — the single live prompt source (OQ-1) — so the legacy
-    ``ComplianceCouncil.build_prompt`` default council is never reached. Mirrors the
+    CE-PACK-6b-CLEAN D1 / CE-PACK-6c: when no evaluator is injected (the orchestrator
+    default / ``LocalPipelineBackend`` / ``run_local_scribe``), the default transcript
+    AND source_message grades run the authored path — the single live prompt source
+    (OQ-1) — so neither the legacy ``ComplianceCouncil.build_prompt`` default council nor
+    ``build_source_message_prompt`` is reached. Mirrors the
     6b-ROUTE pattern in ``scripts/run_eval.py`` (no-assignment → ``pack_lenses()[role]``
     over ``pack_production_judges()``). Heavy deps (``dspy`` via ``build_trio``, the
     pack ontology) are imported lazily here so the default-deps core stays import-clean.
@@ -949,8 +950,8 @@ async def run_semantic_transcript(
     production judge at its full pack lens (:func:`_default_authored_evaluator`) — so
     the legacy ``ComplianceCouncil.build_prompt`` default council is never reached
     (CE-PACK-6b-CLEAN D1). The ``context_kind=source_message`` path
-    (:func:`run_semantic_source_message`) is unchanged and still routes through
-    ``ComplianceCouncil.evaluate`` → ``build_source_message_prompt``.
+    (:func:`run_semantic_source_message`) reroutes the same way (CE-PACK-6c) — the
+    authored stage is the single live prompt source for both context kinds.
     """
     if council_evaluate is None:
         council_evaluate = _default_authored_evaluator()
@@ -972,9 +973,15 @@ async def run_semantic_source_message(
 ) -> Tuple[StageResult, Dict[str, Any]]:
     """Run the compliance council for ``context_kind=source_message`` (Lane 2).
 
-    Uses the source_message judge prompt family (SPEC §3.2). Evaluates the
+    When no evaluator is injected, the council grades via the AUTHORED stage — each
+    production judge at its full pack lens (:func:`_default_authored_evaluator`) — so
+    the legacy ``ComplianceCouncil.build_source_message_prompt`` clinical prompt is
+    never reached (CE-PACK-6c, mirroring the 6b-CLEAN transcript reroute). The authored
+    stage is the single live prompt source for both context kinds. Evaluates the
     artifact for fidelity to the source payload; no transcript semantics.
     """
+    if council_evaluate is None:
+        council_evaluate = _default_authored_evaluator()
     payload, retrieval = await _build_source_message_payload(request)
     runner = _run_council_and_map(
         request=request,

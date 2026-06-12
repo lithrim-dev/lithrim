@@ -1,12 +1,11 @@
-"""CE-PACK-6b-CLEAN D1/C1 — the transcript stage reroutes to the AUTHORED council.
+"""CE-PACK-6b-CLEAN D1 / CE-PACK-6c — the semantic stages reroute to the AUTHORED council.
 
-When no evaluator is injected, :func:`stages.run_semantic_transcript` builds the
-authored evaluator (:func:`stages._default_authored_evaluator`) — the single live
-prompt source (OQ-1) — so the legacy ``ComplianceCouncil.build_prompt`` default
-council is never reached on the in-process transcript grade. The ``source_message``
-path is unchanged (C1): it still routes through ``ComplianceCouncil.evaluate`` →
-``build_source_message_prompt`` with ``council_evaluate=None`` and never builds the
-authored default. ``$0``: the council fan-out + retrieval are stubbed; this pins the
+When no evaluator is injected, :func:`stages.run_semantic_transcript` AND
+:func:`stages.run_semantic_source_message` build the authored evaluator
+(:func:`stages._default_authored_evaluator`) — the single live prompt source (OQ-1) —
+so neither the legacy ``ComplianceCouncil.build_prompt`` default council (transcript)
+nor ``build_source_message_prompt`` (source_message, deleted in 6c) is reached on the
+in-process grade. ``$0``: the council fan-out + retrieval are stubbed; this pins the
 ROUTING only (no Azure, no network).
 """
 
@@ -90,16 +89,14 @@ def test_transcript_injected_evaluator_skips_authored_default(monkeypatch):
     assert captured["council_evaluate"] is injected
 
 
-def test_source_message_does_not_reroute(monkeypatch):
-    """C1: the source_message path keeps ``council_evaluate=None`` (→
-    ``ComplianceCouncil.evaluate`` → ``build_source_message_prompt``) and must NEVER
-    build the authored default."""
+def test_source_message_reroutes_to_authored(monkeypatch):
+    """CE-PACK-6c: the source_message path reroutes to the AUTHORED evaluator the same way
+    transcript does — no injected evaluator → ``_default_authored_evaluator`` is built and
+    passed down, so ``ComplianceCouncil.evaluate`` → ``build_source_message_prompt`` (now
+    deleted) is never reached."""
+    sentinel = object()
     captured: dict = {}
-    monkeypatch.setattr(
-        stages,
-        "_default_authored_evaluator",
-        lambda: pytest.fail("source_message must not use the authored default (C1)"),
-    )
+    monkeypatch.setattr(stages, "_default_authored_evaluator", lambda: sentinel)
 
     async def _stub_sm_payload(_request):
         return ({}, None)
@@ -109,5 +106,5 @@ def test_source_message_does_not_reroute(monkeypatch):
 
     asyncio.run(stages.run_semantic_source_message(_req("source_message")))
 
-    assert captured["council_evaluate"] is None
+    assert captured["council_evaluate"] is sentinel
     assert captured["context_kind"] == stages.CONTEXT_KIND_SOURCE_MESSAGE
