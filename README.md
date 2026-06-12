@@ -7,6 +7,38 @@ This repo serves two purposes from one engine:
 1. **Paper benchmark** — produces the synthetic, by-construction-labeled clinical artifact verification cases consumed by the Lithrim research paper (*A Deterministic Structural Floor Under LLM-as-Judge*). See `docs/PAPER_OUTLINE.md`.
 2. **Lithrim Bench (developer product)** — the same engine, exposed to AI-agent developers signing up on Lithrim, so they can generate targeted golden cases for their own scribe / coding / triage / intake / scheduling agents and benchmark them. See `docs/LITHRIM_BENCH_PRODUCT_SPEC.md`.
 
+## Open-core: this repo is the OSS Core — domain packs load from OUTSIDE it (PACK-DIST-1)
+
+**This repo is the genuinely domain-agnostic CE / OSS core.** It ships NO clinical content. The
+engine (council orchestration, the grounding-floor mechanism, the SQLite config plane, `run_eval`,
+the eval-pack gate, all of JUTE, BYOK) + a neutral default pack (`packs/_core/`) + a non-clinical
+sample pack (`packs/support_ticket_qa/`) are everything the core needs to boot and grade standalone.
+
+A **domain** is a *pack* — a manifest (`pack.json`) bundling an ontology + taxonomy + council role
+prompts + grounding floors + dataset generators. The full **clinical `healthcare` pack is Pro and
+distributed separately** in its own repo (`../lithrim-pack-healthcare`), NOT in these OSS bits
+(SPEC_PLUGIN_ARCHITECTURE OQ-3). The core loads it from outside via the pack-discovery seam
+(`lithrim_bench/harness/pack.py`), which resolves a pack id in order:
+
+1. an installed **entry point** in the `lithrim_bench.packs` group (the idiomatic pip path);
+2. **`LITHRIM_BENCH_PACKS_DIR`** — `os.pathsep`-joined external dirs (the dev / airgap path);
+3. the in-repo `packs/` (the CE sample packs + fixtures).
+
+```bash
+# load the external healthcare pack (dev / airgap):
+LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare LITHRIM_BENCH_PACK=healthcare python -m pytest
+# …or pip-install it (registers the entry point):
+pip install -e ../lithrim-pack-healthcare && LITHRIM_BENCH_PACK=healthcare …
+```
+
+With no pack on the path the core stays on the neutral `_core` default and grades fine — a Pro pack
+the operator can't reach is **absent**, not stubbed (fail-closed). To add your own domain, write a
+pack repo with a `pack.json` + the entry point and point the env var at it — **zero engine edits**.
+
+> **The rest of this README documents the engine through the *clinical* lens** (the paper's domain).
+> Those specifics now live in the `healthcare` pack; read them as "what a fully-built domain pack
+> looks like," not as content shipped in this repo.
+
 ## Core idea
 
 The **Synthea-derived clinical encounter** is the single source of truth. Every modality — transcript, SOAP note, FHIR resource, HL7 v2 message, agent artifact — is a *projection* of that encounter. A defect is a typed mutation applied to a named projection, with `pre_value` / `post_value` recorded. **The label is true by construction.**
