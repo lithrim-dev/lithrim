@@ -232,6 +232,15 @@ class PipelineProvenance(BaseModel):
     # / context_kind=none) or on pre-existing docs. Lets downstream eval rollups
     # compute council_error_rate and exclude WARN-on-error from accuracy.
     council_error: Optional[bool] = None
+    # Plugin Phase-1 (D5): the loaded-plugin set + active pack/tier, recorded per run so an
+    # audit can answer "which Core/Pro plugins were active for this eval" (SPEC §Data Contracts:
+    # the load-time gate records the loaded set in the provenance blob). Default-safe:
+    # loaded_plugins defaults to [] and active_pack/pack_tier to None, so older docs AND the
+    # replay/live blobs (persisted as raw dicts, never re-parsed through this model) read cleanly
+    # through Pydantic v2 — the Cycle-16 additive-field precedent (artifact_type etc.).
+    loaded_plugins: list[dict[str, Any]] = Field(default_factory=list)
+    active_pack: str | None = None
+    pack_tier: str | None = None
 
 
 class PipelineRequest(BaseModel):

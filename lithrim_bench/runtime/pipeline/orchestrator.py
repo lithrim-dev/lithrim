@@ -333,6 +333,16 @@ class PipelineOrchestrator:
             else None
         )
 
+        # Plugin Phase-1 (D5): record the loaded-plugin set (active pack + tier + the gated
+        # core∪pack contract/provider plugins) for this run. Default-safe — any failure degrades
+        # to an empty snapshot rather than breaking the already-completed grade.
+        try:
+            from lithrim_bench.harness import plugins as _plugins
+
+            _plugin_snapshot = _plugins.provenance_snapshot()
+        except Exception:
+            _plugin_snapshot = {"plugins": [], "active_pack": None, "pack_tier": None}
+
         provenance = PipelineProvenance(
             pipeline_run_id=str(uuid.uuid4()),
             org_id=request.org_id,
@@ -346,6 +356,9 @@ class PipelineOrchestrator:
             retrieval_stats=semantic_meta.get("retrieval_stats", {}),
             tool_calls=None,
             cost_tokens=cost_tokens,
+            loaded_plugins=_plugin_snapshot["plugins"],
+            active_pack=_plugin_snapshot["active_pack"],
+            pack_tier=_plugin_snapshot["pack_tier"],
             # Cycle 16: persist final orchestration summary so the audit-view
             # denormaliser doesn't have to re-derive verdict / findings from
             # stage_results. ``unioned_findings`` is the same list passed to
