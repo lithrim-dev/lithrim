@@ -1,4 +1,7 @@
-"""PHI redaction utilities for external LLM usage."""
+"""PII/PHI redaction utilities for external LLM calls — a domain-agnostic privacy
+mechanism (kept in core, CE-PACK-6c Fork B; the ``HIPAA_*`` settings are the policy
+knobs but the redaction itself is generic and used outside the council, e.g. by the
+observation agents)."""
 
 from __future__ import annotations
 
@@ -52,7 +55,7 @@ def _enforce_provider_policy(provider: str) -> None:
     normalized = _normalize_provider(provider)
     if normalized not in _eligible_providers():
         raise ValueError(
-            f"Provider '{provider}' is not HIPAA-eligible under current settings."
+            f"Provider '{provider}' is not in the configured eligible-provider set."
         )
 
 
@@ -67,7 +70,7 @@ def redact_text(text: str) -> str:
 
 
 def sanitize_prompt(prompt: str, provider: str) -> str:
-    """Enforce HIPAA provider policy and redact PHI in prompt text."""
+    """Enforce the provider eligibility policy and redact PII/PHI in prompt text."""
     _enforce_provider_policy(provider)
     if settings.HIPAA_REQUIRE_PHI_REDACTION:
         return redact_text(prompt)
@@ -75,7 +78,7 @@ def sanitize_prompt(prompt: str, provider: str) -> str:
 
 
 def sanitize_messages(messages: Sequence[object], provider: str) -> Sequence[object]:
-    """Enforce HIPAA provider policy and redact PHI in message content."""
+    """Enforce the provider eligibility policy and redact PII/PHI in message content."""
     _enforce_provider_policy(provider)
     if not settings.HIPAA_REQUIRE_PHI_REDACTION:
         return messages
