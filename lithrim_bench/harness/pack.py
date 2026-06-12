@@ -33,6 +33,7 @@ that infra roster + the ``judge_metric.LENS_BY_ROLE`` lenses is a later, separat
 from __future__ import annotations
 
 import ast
+import importlib.metadata
 import importlib.util
 import json
 import os
@@ -47,6 +48,16 @@ PACKS_DIR = REPO_ROOT / "packs"
 DEFAULT_PACK = "_core"
 _COUNCIL_SOURCE = REPO_ROOT / "lithrim_bench" / "runtime" / "council" / "compliance_council.py"
 _COUNCIL_TIER_NAMES = ("TIER_1_NEVER_EVENTS", "TIER_2_HIGH_RISK", "TIER_3_MEDIUM")
+
+# PACK-DIST-1: the external pack discovery seam. A pack id resolves to a ROOT dir (the dir
+# holding its ``pack.json``) by SEARCHING, in order: (1) an installed entry point in the
+# ``lithrim_bench.packs`` group (the pip-installable / idiomatic path — a Pro pack ships as
+# its own wheel, NOT inside the OSS core), (2) ``LITHRIM_BENCH_PACKS_DIR`` (one or more
+# external dirs, ``os.pathsep``-joined — the dev / airgap path), (3) the in-repo ``packs/``
+# (the final fallback — the CE sample packs + fixtures). This is what lets the clinical
+# ``healthcare`` realm live OUTSIDE this repo while the core still loads it. Stdlib-only.
+_PACK_EP_GROUP = "lithrim_bench.packs"
+_PACKS_DIR_ENV = "LITHRIM_BENCH_PACKS_DIR"
 
 
 class PackConsistencyError(RuntimeError):
@@ -74,17 +85,78 @@ def active_pack() -> str:
     return os.environ.get("LITHRIM_BENCH_PACK") or DEFAULT_PACK
 
 
+def _external_pack_dirs() -> list[Path]:
+    """The ``LITHRIM_BENCH_PACKS_DIR`` search dirs (``os.pathsep``-joined), in order; empty
+    when unset. Each dir is expected to contain ``<pack_id>/pack.json`` subdirs."""
+    raw = os.environ.get(_PACKS_DIR_ENV, "")
+    return [Path(d) for d in raw.split(os.pathsep) if d]
+
+
+def _entry_point_root(ep: importlib.metadata.EntryPoint) -> Path | None:
+    """The on-disk root dir of an installed pack entry point (the dir holding its ``pack.json``),
+    or ``None`` if it cannot be resolved. The entry point names a trivial importable module/package
+    whose dir IS the pack payload; importing it is cheap (it must NOT pull the floors/generators,
+    which load lazily by path)."""
+    try:
+        module = ep.load()
+    except Exception:
+        return None
+    file = getattr(module, "__file__", None)
+    return Path(file).resolve().parent if file else None
+
+
+@lru_cache(maxsize=8)
+def _pack_root(pack: str) -> Path:
+    """Resolve a pack id to its ROOT dir (the dir holding ``pack.json``) via the PACK-DIST-1
+    discovery search: installed entry point → ``LITHRIM_BENCH_PACKS_DIR`` → in-repo ``packs/``.
+    Fail-closed (``FileNotFoundError``) when the pack is discoverable nowhere — never a silent
+    fallback (A4). Cached per resolved id (one root per pack per process)."""
+    # (1) installed entry points (a separately-distributed Pro pack wheel).
+    try:
+        eps = importlib.metadata.entry_points(group=_PACK_EP_GROUP)
+    except TypeError:  # pragma: no cover - <3.10 SelectableGroups shape
+        eps = importlib.metadata.entry_points().get(_PACK_EP_GROUP, [])
+    for ep in eps:
+        if ep.name == pack:
+            root = _entry_point_root(ep)
+            if root is not None and (root / "pack.json").exists():
+                return root
+    # (2) LITHRIM_BENCH_PACKS_DIR external dirs (dev / airgap).
+    for base in _external_pack_dirs():
+        cand = base / pack
+        if (cand / "pack.json").exists():
+            return cand
+    # (3) in-repo packs/ (CE sample packs + fixtures).
+    cand = PACKS_DIR / pack
+    if (cand / "pack.json").exists():
+        return cand
+    raise FileNotFoundError(
+        f"pack {pack!r} not found via entry points, {_PACKS_DIR_ENV}, or {PACKS_DIR}"
+    )
+
+
 @lru_cache(maxsize=8)
 def _manifest(pack: str) -> dict:
-    path = PACKS_DIR / pack / "pack.json"
-    if not path.exists():
-        raise FileNotFoundError(f"pack manifest not found: {path}")
-    return json.loads(path.read_text())
+    return json.loads((_pack_root(pack) / "pack.json").read_text())
 
 
-def _resolve(ref: str) -> Path:
+def _resolve_ref(pack: str, ref: str) -> Path:
+    """Resolve a manifest ref (``ontology`` / ``flags_ref`` / ``council_roles`` / ``floors`` /
+    ``generators``) for ``pack``. A bare/pack-root-relative ref (the PACK-DIST-1 form, e.g.
+    ``ontology.json``) resolves against the pack's discovered ROOT — so the pack is relocatable
+    (in-repo OR external). A legacy ``packs/<id>/...`` REPO_ROOT-relative ref still resolves
+    against REPO_ROOT (back-compat for any cross-pack reuse); an absolute ref is taken as-is."""
     p = Path(ref)
-    return p if p.is_absolute() else REPO_ROOT / p
+    if p.is_absolute():
+        return p
+    if ref.startswith("packs/"):
+        return REPO_ROOT / p
+    return _pack_root(pack) / p
+
+
+def _pack_ref(pack: str, key: str) -> Path:
+    """The resolved path of a REQUIRED manifest ref (``key`` must be present)."""
+    return _resolve_ref(pack, _manifest(pack)[key])
 
 
 @lru_cache(maxsize=1)
@@ -126,7 +198,7 @@ def pack_tiers(pack: str | None = None) -> dict[str, frozenset[str]]:
     the consistency gate (or :mod:`lithrim_bench.taxonomy`, which resolves a *gated* path at
     its module import) from here would re-enter; reading the snapshot directly keeps it
     acyclic and ``import lithrim_bench.harness.pack`` heavy-dep-free (no ``openai``)."""
-    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    snap = json.loads(_pack_ref(pack or active_pack(), "flags_ref").read_text())
     return {name: frozenset(snap["tiers"][name]) for name in _COUNCIL_TIER_NAMES}
 
 
@@ -141,7 +213,7 @@ def pack_tier1_owners(pack: str | None = None) -> dict[str, frozenset[str]]:
     ON PURPOSE for the SAME reason as :func:`pack_tiers`: the council imports this during its OWN
     module import, so any gated/heavy path would re-enter; a direct snapshot read stays acyclic
     and ``import lithrim_bench.harness.pack`` heavy-dep-free (no ``openai``)."""
-    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    snap = json.loads(_pack_ref(pack or active_pack(), "flags_ref").read_text())
     return {code: frozenset(owners) for code, owners in snap["tier1_owners"].items()}
 
 
@@ -158,7 +230,7 @@ def pack_lenses(pack: str | None = None) -> dict[str, frozenset[str]]:
     ``judge_metric`` is imported by ``signals``/``withstands`` on the dependency-light core,
     so a gated/heavy path would pull in deps it must not — a direct snapshot read stays
     ``openai``-free."""
-    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    snap = json.loads(_pack_ref(pack or active_pack(), "flags_ref").read_text())
     return {role: frozenset(codes) for role, codes in snap["lenses"].items()}
 
 
@@ -173,7 +245,7 @@ def pack_production_judges(pack: str | None = None) -> list[str]:
     ``CouncilModel(...)`` constructors. Order is load-bearing (it is the roster order). Ungated
     and stdlib-only ON PURPOSE — the council imports this during its OWN module import, so any
     gated/heavy path would re-enter; a direct snapshot read stays acyclic and ``openai``-free."""
-    snap = json.loads(_resolve(_manifest(pack or active_pack())["flags_ref"]).read_text())
+    snap = json.loads(_pack_ref(pack or active_pack(), "flags_ref").read_text())
     return list(snap["production_judges"])
 
 
@@ -232,7 +304,7 @@ def pack_ontology_path(pack: str | None = None) -> Path:
     pack = pack or active_pack()
     assert_pack_licensed(pack)
     assert_pack_council_consistent(pack)
-    return _resolve(_manifest(pack)["ontology"])
+    return _pack_ref(pack, "ontology")
 
 
 def pack_taxonomy_path(pack: str | None = None) -> Path:
@@ -240,7 +312,7 @@ def pack_taxonomy_path(pack: str | None = None) -> Path:
     pack = pack or active_pack()
     assert_pack_licensed(pack)
     assert_pack_council_consistent(pack)
-    return _resolve(_manifest(pack)["flags_ref"])
+    return _pack_ref(pack, "flags_ref")
 
 
 # ─────────────────────────── the judges layer (PACK-2) ───────────────────────────
@@ -324,7 +396,7 @@ def assert_pack_judges_consistent(pack: str) -> None:
     roster, and that no relocated prompt is for a non-roster role (cached; runs once per
     pack on first prompts resolution). The bridge that lets the council stay frozen while
     its role prompts live in the pack."""
-    prompts_dir = _resolve(_manifest(pack)["council_roles"])
+    prompts_dir = _pack_ref(pack, "council_roles")
     stems = [p.stem for p in prompts_dir.glob("*.txt")]
     assert_judges_known(_manifest(pack)["judges"], stems, pack=pack)
 
@@ -334,7 +406,7 @@ def pack_prompts_path(pack: str | None = None) -> Path:
     pack = pack or active_pack()
     assert_pack_licensed(pack)
     assert_pack_judges_consistent(pack)
-    return _resolve(_manifest(pack)["council_roles"])
+    return _pack_ref(pack, "council_roles")
 
 
 # ─────────────────────────── the floors layer (PACK-3) ───────────────────────────
@@ -368,7 +440,7 @@ def _load_pack_floors(pack: str) -> ModuleType | None:
     ref = _manifest(pack).get("floors")
     if not ref:
         return None
-    path = _resolve(ref)
+    path = _resolve_ref(pack, ref)
     spec = importlib.util.spec_from_file_location(f"lithrim_bench_pack_{pack}_floors", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load pack floors module for {pack!r} from {path}")
@@ -414,7 +486,7 @@ def _load_pack_generators(pack: str) -> ModuleType | None:
     ref = _manifest(pack).get("generators")
     if not ref:
         return None
-    path = _resolve(ref)
+    path = _resolve_ref(pack, ref)
     mod_name = f"lithrim_bench_pack_{pack}_generators"
     spec = importlib.util.spec_from_file_location(
         mod_name, path, submodule_search_locations=[str(path.parent)]
