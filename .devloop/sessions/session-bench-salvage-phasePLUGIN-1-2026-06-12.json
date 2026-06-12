@@ -1,0 +1,89 @@
+{
+  "session_id": "session-bench-salvage-phasePLUGIN-1-2026-06-12",
+  "stream": "bench-salvage",
+  "phase": "PLUGIN-1",
+  "driver_bundle_id": "bench-salvage-phasePLUGIN-1-plugin-registry-unification-tier-gate",
+  "started_at": "2026-06-12T14:00:00Z",
+  "ended_at": "2026-06-12T17:30:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-12T14:40:00Z",
+    "user_approved_at": "2026-06-12T15:10:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "D-1: tier has FOUR values in the live manifests (core x2, pro, fixture x2, demo), not the spec/driver's {core, pro}. Schema admits all four; only `pro` is license-gated.",
+        "evidence": "grep -h '\"tier\"' packs/*/pack.json | sort | uniq -c  ->  core x2, demo, fixture x2, pro. Independently re-verified by the monitor.",
+        "decided_at": "2026-06-12T15:10:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "D-2: signals.py/withstands.py did NOT exist at acc4973 (net-new at 8cb388b/d9a5bb0), so 'byte-identical vs acc4973' is ill-defined for them. Honest moat pin = 0-diff vs the PLUGIN-1 parent + the AST-identity of _apply_consensus/extract_verdict_confidence vs acc4973.",
+        "evidence": "git cat-file -e acc4973:.../signals.py -> ABSENT. The monitor independently re-verified and corrected the original vacuous (empty-string) _apply_consensus sha; the real AST pins are d1b7956e/ed867bce (reproduced this cycle).",
+        "decided_at": "2026-06-12T15:10:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D-3: if the D4 escape hatch fired, the split would keep D3 in-cycle (declaration-only over an already-working merge is lower-risk than the driver's D3+D4 split assumption) and split ONLY D4 -> PLUGIN-2. The escape hatch did NOT fire; full D1-D7 landed.",
+        "evidence": "Monitor ruling: 'D-3's keep-D3-split-only-D4 is better than my driver's D3+D4 assumption - adopt it.'",
+        "decided_at": "2026-06-12T15:10:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "R-GUARD (binding): the license gate is placed ONLY on pack_ontology_path/pack_taxonomy_path/pack_prompts_path; NEVER on pack_tiers/pack_tier1_owners/pack_lenses/pack_production_judges (the frozen-council inline-__import__ carve-out targets). AST-verified.",
+        "evidence": "Monitor binding guardrail; verified by an AST check that assert_pack_licensed appears in exactly the 3 *_path resolvers and none of the 4 council accessors.",
+        "decided_at": "2026-06-12T15:10:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {"hash": "ef2e61c", "repo": "lithrim-bench", "title": "feat(plugins): the plugin/pack manifest schema + License gate model (D1)", "summary": "Net-new harness/plugins.py: PluginManifest/PackManifest (pydantic, extra=forbid), License (permit-all default, LITHRIM_BENCH_LICENSE), provider_plugins + resolve_provider_id, provenance_snapshot. stdlib+pydantic-only."},
+    {"hash": "f1fe448", "repo": "lithrim-bench", "title": "feat(plugins): the load-time tier gate - permit-all default, pro-under-deny absent (D2)", "summary": "pack.py: PackLicenseError + assert_pack_licensed chained into the 3 *_path resolvers ONLY (R-GUARD). Byte-identical under permit-all; pro raises under deny; openai-free."},
+    {"hash": "c22540a", "repo": "lithrim-bench", "title": "refactor(grounding): declare the contract registry as kind:contract plugins (D3)", "summary": "contract_plugins() enumerates the existing core-pack merge as kind:contract manifests (declaration-only; dispatch + the signals.py moat read untouched). _SERVICE_CONTRACT_TYPES for transport."},
+    {"hash": "b6c2db3", "repo": "lithrim-bench", "title": "refactor(council): route the judge provider selection through the plugin registry (D4)", "summary": "build_judge_lm consults plugins.resolve_provider_id (byte-identical BYOC-1 routing). _ROLE_DEPLOYMENT read-through (core). AST-verified ONLY build_judge_lm's body changed -> the consensus seam stays green. Escape hatch NOT needed."},
+    {"hash": "7e9ac26", "repo": "lithrim-bench", "title": "feat(provenance): record the loaded-plugin set on PipelineProvenance (D5)", "summary": "models.py: loaded_plugins/active_pack/pack_tier (default-safe). orchestrator.py: populate from provenance_snapshot() (try/except degrade). Auto-persists via model_dump. 0-new ruff."},
+    {"hash": "3c4883d", "repo": "lithrim-bench", "title": "test(plugins): parity + gate non-vacuity + open/closed + frozen-seam (D6)", "summary": "tests/test_plugin_phase1.py (17 tests) + the discovery-inert packs/_plugin_fixture (tier:pro + a net-new floors.py executor). A1-A5 all proven."},
+    {"hash": "1915057", "repo": "lithrim-bench", "title": "docs(plugins): Phase-1 CODE cycle DONE; frontend kind still deferred (D7)", "summary": "SPEC_PLUGIN_ARCHITECTURE.md landing note + status DONE; CLAUDE.md plugin-registry section."}
+  ],
+
+  "acceptance": [
+    {"criterion": "A1 - parity (byte-identical by default)", "verdict": "PASS", "evidence": "test_a1_* (3 tests): under healthcare the merged suppress_executors()={presence_check,kb_grounding,record_presence} / floor_executors()={structural_jute,jute_gen,dosage_grounding} value-equal the EXPLICIT expected snapshot (R1); contract_plugins() ids == suppress ∪ floor (no drift). consensus oracle (test_consensus.py) green unchanged."},
+    {"criterion": "A2 - the gate is non-vacuous", "verdict": "PASS", "evidence": "test_a2_* (5 subprocess/unit tests): _plugin_fixture (pro) under LITHRIM_BENCH_LICENSE=deny-all -> harness import fails closed with PackLicenseError (ABSENT, not stubbed); _core loads under deny-all; permit-all default loads the pro pack; gate keyed to pro only; License grammar."},
+    {"criterion": "A3 - provenance records the set", "verdict": "PASS", "evidence": "test_a3_* (3 tests): provenance_snapshot() under healthcare records active_pack=healthcare, pack_tier=pro, kinds={pack,contract,provider}; a denylisted pro plugin (record_presence) is ABSENT from the snapshot (per-plugin skip, R2); the PipelineProvenance fields round-trip through model_dump and are default-safe for old/replay docs."},
+    {"criterion": "A4 - open/closed", "verdict": "PASS", "evidence": "test_a4_* (2 subprocess tests): under LITHRIM_BENCH_PACK=_plugin_fixture, fixture_suppress is picked up by grounding.suppress_executors() AND contract_plugins() (tier=pro, inherited) via the manifest's floors path ALONE. The D6 commit (3c4883d) touches only the test + the fixture pack; grounding.py/judges_dspy.py/the council are NOT in its diff -> zero engine edits."},
+    {"criterion": "A5 - frozen seams green + moat frozen", "verdict": "PASS", "evidence": "assert_judges_dspy_consensus_seam_frozen / assert_compliance_council_carveouts_only / assert_clinical_ontology_seam_frozen all PASS. _apply_consensus IDENTICAL vs acc4973 (sha d1b7956e), extract_verdict_confidence IDENTICAL (sha ed867bce) - matches the monitor's pins. signals.py/withstands.py 0-diff vs the PLUGIN-1 parent (D-2 honest pin)."},
+    {"criterion": "A6 - clean bar", "verdict": "PASS", "evidence": "ruff: new files (plugins.py, test_plugin_phase1.py, floors.py) + the 3 lightly-edited harness/council files clean (exit 0); models.py 116->116, orchestrator.py 25->25 (0-new; pre-existing UP debt, my lines modern-syntax). Full suite @HEAD: 664 passed / 2 failed / 2 skipped vs parent 647/2/2 -> +17 passed (my D6 tests), 0-NEW failures (the same S-BS-96 observation pollution pair; identical names; PASS in isolation at HEAD)."},
+    {"criterion": "A7 - the boundary is one auditable field", "verdict": "PASS", "evidence": "tier is read at load via assert_pack_licensed (no longer inert - the pre-cycle grep for pack-tier reads found only the unrelated flag-tier). The Core/Pro line is the single manifest `tier` field, grep-auditable across packs/*/pack.json + the kind:contract/provider declarations."}
+  ],
+
+  "diagnostic_stats": {
+    "plugins_registered_per_kind_healthcare": "pack=1, contract=6, provider=2 (total 9)",
+    "fold_loc": "D1 plugins.py +210 (net-new); D2 pack.py +43/-3; D3 grounding.py +79/-5; D4 judges_dspy.py +8/-1; D5 models.py +9, orchestrator.py +13; D6 +375 (test 315 + fixture 60); D7 docs +7/-1",
+    "escape_hatch_taken": "NO - full D1-D7 landed green; D4's BYOC-1 parity (12 tests) green before AND after; AST-verified only build_judge_lm's body changed",
+    "scope_vs_parent": "12 files, 744 insertions / 10 deletions, 0 foreign files",
+    "forks_resolved": "F1 separate plugins.py + validate-the-6-JSONs (no plugins:[] array); F2 License.permits + assert_pack_licensed on the *_path resolvers; F3 build_judge_lm-only body edit, no new top-level symbol; F4 declaration-only contract fold; F5 rich-but-default-safe provenance"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-132",
+      "title": "pack-contributed floor transport is assumed in_process (the _SERVICE_CONTRACT_TYPES hardcode)",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/grounding.py (_SERVICE_CONTRACT_TYPES / _contract_transport)",
+      "impact": "The contract-plugin transport tag is derived from a core-known service set {kb_grounding, structural_jute, jute_gen}; a FUTURE pack shipping a service-transport floor would be mis-tagged transport=in_process in the manifest/provenance metadata. Declarative only - does NOT affect grading. No such pack exists in Phase-1 (healthcare's floors are genuinely in_process). When a pro pack ships a service contract, the pack should declare its own transport (Phase-2).",
+      "confidence": "CONFIRMED",
+      "evidence": "grounding.py: _SERVICE_CONTRACT_TYPES = _HTTP_CONTRACT_TYPES | {'structural_jute','jute_gen'}; pack-contributed executors fall through _contract_transport to 'in_process'."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "Full Plugin Phase-1 registry-unification landed across 7 atomic, pathspec-scoped commits (ef2e61c..1915057): the unified plugins.py manifest/registry (D1), the load-time tier gate (D2, permit-all default, pro-under-deny ABSENT, R-GUARD strictly above the frozen-council seam), the declaration-only contract fold (D3, dispatch + the signals.py moat read untouched), the byte-identical provider routing via resolve_provider_id (D4 - the escape hatch was NOT needed; AST-verified only build_judge_lm's body changed), provenance recording (D5, default-safe), the 17-test parity proof + the discovery-inert _plugin_fixture pack (D6), and docs (D7). All A1-A7 PASS. The moat is frozen (the 3 seam guards green; _apply_consensus d1b7956e + extract_verdict_confidence ed867bce identical vs acc4973 - exactly the monitor's pins; signals/withstands 0-diff vs parent). Clean bar: ruff 0-new on all touched files; full suite +17 passed / 0-NEW failures vs parent (the 2 failures are the pre-existing S-BS-96 observation pollution pair, pass in isolation). Two driver citation-drifts (D-1 four tier values; D-2 signals/withstands post-date acc4973) were caught at plan-review and independently re-verified by the monitor. ON AUDIT, check first: (1) the A4 open/closed no-engine-edit proof (the D6 commit diff has no engine file); (2) the moat AST-identity (d1b7956e/ed867bce); (3) R-GUARD (gate absent from the 4 council accessors). One behavioral note (not a bug): under a deny license the gate fires at HARNESS IMPORT (ontology.py:42's module-level pack_ontology_path()), so the harness import itself fails closed - the strongest 'absent'. This is a HARD GATE phase: a fresh-critic worktree pass is required before /devloop-close-phase.",
+
+  "next_session_hint": "monitor: this is a HARD GATE - route a fresh-critic worktree pass (KICKOFF_CRITIC.md) to independently reproduce A1 value-equality, A2 gate-absent-under-deny, A4 open/closed no-engine-edit, A5 moat byte-identity + the 3 seam guards; then /devloop-close-phase."
+}
