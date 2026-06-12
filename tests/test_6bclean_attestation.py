@@ -1,12 +1,16 @@
-"""CE-PACK-6b-CLEAN — the demarcation attestation (re-scoped A1 per Fork 1).
+"""CE-PACK-6c — the demarcation attestation (extends CE-PACK-6b-CLEAN's re-scoped A1).
 
-The ``build_prompt`` + ``safety_flags`` + ``_build_signature`` clinical residue is GONE
-from the core council (A2/A3). The remaining clinical needles in ``runtime/council/`` are
-**not** zero — this is NOT a grep-clean claim. They are ENUMERATED here and attributed to
-documented out-of-scope buckets; the literal "grep → empty" goal is deferred to the **6c
-seam** (relocate ``build_source_message_prompt``; decide ``phi_redaction``'s fate) — see
-``docs/specs/SPEC_STANDALONE_CORE_VALIDATION.md`` §4. This test PINS the residual so the
-demarcation cannot silently regress (a new clinical needle in an unlisted core file fails).
+The last LIVE clinical CODE is GONE from the core council: ``build_prompt`` +
+``safety_flags`` + ``_build_signature`` (6b-CLEAN) and now ``build_source_message_prompt``
+(6c — the source_message stage reroutes to the authored stage, so ``evaluate()`` builds no
+prompt). The remaining clinical needles in ``runtime/council/`` are **not** zero — this is
+NOT a grep-clean claim, and was never achievable while the FROZEN carve-out/provenance
+comments + the load-bearing ``HIPAA_*`` config keys stay (CE-PACK-6c Fork D, the honest
+bar). They are ENUMERATED here and attributed to documented buckets — all now PASSIVE
+(comments / config-key names / a dead-after-raise role-select / inert retrieval helpers),
+no live clinical code. ``test_no_live_clinical_code`` pins the positive bar; the
+enumeration pins that the demarcation cannot silently regress (a new clinical needle in an
+unlisted core file fails). See ``docs/specs/SPEC_STANDALONE_CORE_VALIDATION.md`` §4.
 """
 
 from __future__ import annotations
@@ -25,16 +29,19 @@ NEEDLES = re.compile(
 # clinical needle, each a DOCUMENTED disposition. (Test files under ``tests/`` exercise the
 # healthcare pack's behaviour and are a separate, expected bucket — not pinned here.)
 ENUMERATED_RESIDUAL = {
-    # build_source_message_prompt + the source_message evaluate branch + retrieval (§4 OUT OF
-    # SCOPE this cycle → the 6c seam) AND the PACK-1b/2b carve-out provenance COMMENTS
-    # (authorized; the council's clinical DATA provenance) AND the :1932 frozen-file comment.
+    # CE-PACK-6c: build_source_message_prompt is DELETED + the evaluate source_message branch
+    # raises (no live clinical CODE). The surviving needles are all PASSIVE: the PACK-1b/2b
+    # carve-out provenance COMMENTS (authorized; the council's clinical DATA provenance), the
+    # frozen-file doc-comments, the dead-after-raise _invoke_openai source_message role-select
+    # (monitor-ruled LEAVE — no clinical-needle CODE), and the inert _format_kb_citations helpers.
     "compliance_council.py",
-    # the HIPAA / PHI-redaction privacy MECHANISM (the 6c seam decides keep-as-generic vs relocate).
+    # CE-PACK-6c Fork B: the PII/PHI-redaction privacy MECHANISM is KEPT-AS-GENERIC in core (prose
+    # genericized); the HIPAA_* config-key names + the MRN "patient id" regex keep a needle.
     "phi_redaction.py",
-    "settings.py",  # the HIPAA_* PHI-redaction settings (read by phi_redaction.py) — same 6c seam.
-    # withstands-lens provenance COMMENTS naming clinical flag codes (FABRICATED_ALLERGY, …).
+    "settings.py",  # the HIPAA_* PHI-redaction config keys (read by phi_redaction.py) — kept (compat).
+    # withstands-lens provenance COMMENTS naming clinical flag codes (FABRICATED_ALLERGY, …) — Fork C: LEAVE.
     "judge_metric.py",
-    "judge_assignment.py",  # a single allergy-fabrication provenance comment.
+    "judge_assignment.py",  # a single allergy-fabrication provenance comment — Fork C: LEAVE.
     # the module docstring (:14) + a build_judge_lm comment (:249, the BYOC-1 seam) — Fork 5: LEAVE.
     "judges_dspy.py",
 }
@@ -87,3 +94,36 @@ def test_enumerated_buckets_are_not_stale():
             f"enumerated residual file is now clinical-clean (remove from the list to tighten "
             f"the bar): {name}"
         )
+
+
+def test_no_live_clinical_code():
+    """CE-PACK-6c A1/A2 (the positive bar): no live clinical PROMPT-BUILDER remains in the core
+    council. Neither ``def build_source_message_prompt`` nor ``def build_prompt`` is defined in
+    any council module, and ``evaluate()`` builds no prompt (no live ``self.build_*_prompt(``
+    call). This is the honest 6c bar — 'no live clinical CODE', distinct from literal grep-empty
+    (the enumerated residual above is all PASSIVE: comments / config keys / dead-after-raise code).
+    Non-vacuous: it would FAIL the instant the builder or a live call to it is re-introduced."""
+    for py in COUNCIL.rglob("*.py"):
+        src = py.read_text()
+        assert "def build_source_message_prompt" not in src, (
+            f"build_source_message_prompt resurfaced in {py.name}"
+        )
+        assert "def build_prompt" not in src, f"build_prompt resurfaced in {py.name}"
+        assert "self.build_source_message_prompt(" not in src, (
+            f"a live call to build_source_message_prompt resurfaced in {py.name}"
+        )
+        assert "self.build_prompt(" not in src, f"a live call to build_prompt resurfaced in {py.name}"
+    # Positive: evaluate()'s source_message branch actively raises (it builds no prompt).
+    cc = (COUNCIL / "compliance_council.py").read_text()
+    assert "CE-PACK-6c: evaluate() no longer builds prompts" in cc, (
+        "evaluate()'s source_message branch must raise the CE-PACK-6c sentinel (no prompt built)"
+    )
+
+
+def test_phi_redaction_mechanism_works():
+    """CE-PACK-6c A3 (Fork B): phi_redaction is KEPT-AS-GENERIC in core — after genericizing its
+    prose, ``redact_text`` + ``sanitize_prompt`` still redact PII/PHI (the mechanism is intact)."""
+    from lithrim_bench.runtime.council.phi_redaction import redact_text, sanitize_prompt
+
+    assert redact_text("SSN 123-45-6789 email a@b.com") == "SSN [REDACTED_SSN] email [REDACTED_EMAIL]"
+    assert sanitize_prompt("contact 123-45-6789", "openai") == "contact [REDACTED_SSN]"
