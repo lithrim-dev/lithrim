@@ -3,6 +3,34 @@
   "updated": "2026-06-12",
   "bundles": [
     {
+      "id": "bench-salvage-phasePLUGIN-1-plugin-registry-unification-tier-gate",
+      "stream": "bench-salvage",
+      "phase": "PLUGIN-1",
+      "scope": "full-plugin-phase-1-registry-unification: the manifest schema + the load-time tier gate + fold contract/provider/pack onto one manifest + provenance recording + a frozen-seam parity proof",
+      "file": "bench-salvage_phasePLUGIN-1_plugin-registry-unification-tier-gate_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "A NEW architecture surface (a unified plugin manifest + registry + the load-time tier gate) + the provider-seam fold (build_judge_lm/build_trio, seam-exempt) + a frozen-seam PARITY proof (grading byte-identical under the permit-all default). Lives mostly ABOVE the frozen seams, but the contract-merge accessor (suppress_executors, moat-visible via signals.py:183) and the judges_dspy provider binder are frozen-ADJACENT. Fresh-critic close (focus: parity by value-equality, gate ABSENT-under-deny non-vacuity, the open/closed no-engine-edit test, the moat byte-identity vs acc4973).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_PLUGIN_ARCHITECTURE.md (LOCKED 2026-06-11; the CONTRACT -- the 6 KINDS, the 2 transports, the tier:core|pro gate, the Data-Contracts manifests :65-94, Requirements P0 :100-103, the Phase-1 build-sequencing :138, Success Metrics :182)",
+        "lithrim_bench/harness/pack.py (the existing manifest-driven pack registry: active_pack:62, _manifest:67 = the natural gate slot; the pack.json `tier` is present but INERT -- nobody reads it)",
+        "lithrim_bench/harness/grounding.py (the contract registry: _CONTRACT_EXECUTORS:297, _HTTP_CONTRACT_TYPES:301 = the transport hint, the core+pack merge accessors suppress_executors:379 / floor_executors:388, _build_contract:400)",
+        "lithrim_bench/runtime/council/judges_dspy.py (the provider: _ROLE_DEPLOYMENT:65 FROZEN core deployment table, build_judge_lm:205 SEAM-EXEMPT reads it at :236)",
+        "lithrim_bench/runtime/pipeline/{models.py:176 PipelineProvenance, orchestrator.py:336 construction, provenance.py:62 SqliteProvenanceStore.save model_dump} (the loaded-set records as an ADDITIVE field, auto-persists)",
+        "tests/_seam_freeze.py (assert_judges_dspy_consensus_seam_frozen:85 -- build_judge_lm/build_trio EXEMPT, _ROLE_DEPLOYMENT FROZEN; assert_compliance_council_carveouts_only:226; assert_clinical_ontology_seam_frozen:127)",
+        "tests/test_pack_layer{1a,1b,2,2b,2c,3,5a,5b}.py (the parity-proof precedent: subprocess-with-fixture-pack non-vacuity)",
+        ".devloop/sessions/HANDOFF_bench-salvage_generic-ce-DONE_2026-06-12.md (the program this builds on)"
+      ],
+      "_note": "PLUGIN-1 = the FULL Plugin Phase-1 registry-unification in ONE cycle (user election 2026-06-12, over the minimal tier-gate cut). The content-relocation half already SHIPPED (PACK-1..2c + the generic-CE demarcation program: the core council is domain-agnostic, the clinical realm is the healthcare pack). What remains = formalize the THREE ad-hoc registries onto ONE plugin manifest + make `tier` LOAD-BEARING. Deliverables: D1 the plugin/pack manifest schema (kind/tier/transport/implements, NEW lithrim_bench/harness/plugins.py, stdlib/pydantic-core only) + D2 the load-time tier gate (permit-all default -> byte-identical; tier:pro under license=deny ABSENT not stubbed, fail-closed per S-BS-90) + D3 fold the contract registry (declare _CONTRACT_EXECUTORS+pack-floors as kind:contract, transport from _HTTP_CONTRACT_TYPES, behavior-identical merge) + D4 fold the provider (declare Azure/BYO-Claude kind:provider; build_judge_lm exempt consults the registry; _ROLE_DEPLOYMENT byte-frozen read-through; binding stays CORE per PACK-2c) + D5 provenance recording (additive PipelineProvenance field) + D6 parity/gate-non-vacuity/open-closed/frozen-seam tests (tests/test_plugin_phase1.py) + D7 docs. FORKS for plan-review: F1 manifest shape (typed entries vs plugins:[] block) / F2 the license object + gate slot / F3 the _ROLE_DEPLOYMENT freeze (read-through, no top-level insert) / F4 contract-fold depth (declaration-only vs re-route dispatch -- lean declaration-only, the merge already works) / F5 the provenance field shape. ESCAPE HATCH: if the full unification cannot land green-at-each-step, ship D1+D2+D5+D6 (the boundary made real) and split D3/D4 -> PLUGIN-2 to land WITH HPACK (the SPEC's 'minimal Phase-1 unblocks HPACK'); do NOT force a red intermediate. OUT: the frontend kind (post-CHATBIND-2, needs the runtime trigger channel), HPACK contracts (Phase 2), registry/fetch/spawn + license ENFORCEMENT + VPC (Phase 3), ANY grading-behavior change, moving _ROLE_DEPLOYMENT into a domain pack. FROZEN: the consensus seam + _apply_consensus + signals/withstands byte-identical vs acc4973. LOCAL is SSOT (no push); pathspec-only on the dirty shared branch bench-salvage/ws6c-dspy. Count-inflation: judge 0-new vs parent, not absolute (the executor env over-reports).",
+      "created": "2026-06-12",
+      "last_re_verified": "2026-06-12",
+      "next_action": "User kicks off in a fresh executor session per the driver KICKOFF block. PLAN-REVIEW required (rule forks F1-F5 with diagnose-before-edit evidence; esp. F3 the _ROLE_DEPLOYMENT freeze + F4 the contract-fold depth + the green-at-each-step escape hatch). HARD GATE: fresh-critic worktree close before commits land."
+    },
+    {
       "id": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
       "stream": "bench-salvage",
       "phase": "UAP-1",
