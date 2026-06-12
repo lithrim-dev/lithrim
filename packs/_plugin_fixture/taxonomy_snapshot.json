@@ -1,0 +1,16 @@
+{
+  "snapshot_metadata": {
+    "source": "PLUGIN-1 D6 non-vacuity fixture (tests/test_plugin_phase1.py)",
+    "note": "A discovery-INERT tier:pro pack with SENTINEL codes + a NET-NEW floors.py suppress executor (fixture_suppress). Proves (A2) the load-time tier gate is non-vacuous — under LITHRIM_BENCH_PACK=_plugin_fixture + LITHRIM_BENCH_LICENSE=deny-all the pack does NOT load (PackLicenseError; absent, not stubbed) — and (A4) open/closed — under the permit-all default its fixture_suppress registers in grounding.suppress_executors()/contract_plugins() with ZERO engine edits. INERT in normal use: pack discovery is active-pack-only, so nothing loads this pack unless LITHRIM_BENCH_PACK selects it."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": ["FIXTURE_SENTINEL_T1"],
+    "TIER_2_HIGH_RISK": ["FIXTURE_SENTINEL_T2"],
+    "TIER_3_MEDIUM": ["FIXTURE_SENTINEL_T3"]
+  },
+  "tier1_owners": {
+    "FIXTURE_SENTINEL_T1": ["FIXTURE_SENTINEL_OWNER"]
+  },
+  "production_judges": ["risk_judge", "policy_judge", "faithfulness_judge"],
+  "declared_but_not_running": []
+}

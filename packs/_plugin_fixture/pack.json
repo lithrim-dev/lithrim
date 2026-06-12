@@ -1,0 +1,11 @@
+{
+  "pack_id": "_plugin_fixture",
+  "version": "0.0.0",
+  "tier": "pro",
+  "domain": "fixture",
+  "ontology": "packs/healthcare/ontology.json",
+  "flags_ref": "packs/_plugin_fixture/taxonomy_snapshot.json",
+  "council_roles": "packs/healthcare/council_roles",
+  "floors": "packs/_plugin_fixture/floors.py",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}
