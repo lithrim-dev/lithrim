@@ -59,6 +59,16 @@ class PackConsistencyError(RuntimeError):
     """
 
 
+class PackLicenseError(RuntimeError):
+    """A ``tier: pro`` pack is resolved under a license that does not permit it.
+
+    Fail-closed (Plugin Phase-1, D2): a Pro pack the operator is not entitled to does NOT
+    load — it is *absent*, not stubbed (the S-BS-90 deny-hook posture). The Phase-1 default
+    is permit-all (``LITHRIM_BENCH_LICENSE`` unset), so this never fires for an existing pack
+    and grading is byte-identical; the deny path is the gate's non-vacuity lever.
+    """
+
+
 def active_pack() -> str:
     """The active pack id. Default the neutral ``_core`` pack; override via ``LITHRIM_BENCH_PACK``."""
     return os.environ.get("LITHRIM_BENCH_PACK") or DEFAULT_PACK
@@ -190,16 +200,45 @@ def assert_pack_council_consistent(pack: str) -> None:
     assert_codes_known(_pack_taxonomy_codes(pack), pack=pack)
 
 
+def assert_pack_licensed(pack: str, license=None) -> None:
+    """Fail-closed iff ``pack`` is ``tier: pro`` and the license denies it — the Plugin Phase-1
+    load-time gate (D2). The Phase-1 default is permit-all (:func:`plugins.default_license`,
+    ``LITHRIM_BENCH_LICENSE`` unset), so this never fires for an existing pack and grading is
+    byte-identical; under a deny license a Pro pack does NOT load (raises :class:`PackLicenseError`).
+
+    **R-GUARD (load-bearing):** called ONLY from the ontology/taxonomy/prompts ``*_path``
+    resolvers — ABOVE the frozen-council seam — and NEVER from :func:`pack_tiers` /
+    :func:`pack_tier1_owners` / :func:`pack_lenses` / :func:`pack_production_judges`, which the
+    FROZEN council resolves via inline ``__import__`` during its OWN module import and which are
+    deliberately ungated + stdlib-only (gating them would re-enter the council's import). Denial
+    still fails closed correctly: the council importing tier *data* is harmless; the grade raises
+    here when it resolves the denied pack's ontology/prompts. ``plugins`` is imported LAZILY so
+    ``import harness.pack`` stays dependency-light (no ``openai``)."""
+    from lithrim_bench.harness import plugins
+
+    tier = _manifest(pack).get("tier", "core")
+    if not plugins.is_gated(tier):
+        return
+    lic = license or plugins.default_license()
+    if not lic.permits(pack):
+        raise PackLicenseError(
+            f"pack {pack!r} (tier={tier!r}) is not permitted by the active license "
+            "(LITHRIM_BENCH_LICENSE); it does not load — fail-closed, not stubbed."
+        )
+
+
 def pack_ontology_path(pack: str | None = None) -> Path:
-    """The active (or named) pack's ontology JSON path, gated for council-consistency."""
+    """The active (or named) pack's ontology JSON path, gated for license + council-consistency."""
     pack = pack or active_pack()
+    assert_pack_licensed(pack)
     assert_pack_council_consistent(pack)
     return _resolve(_manifest(pack)["ontology"])
 
 
 def pack_taxonomy_path(pack: str | None = None) -> Path:
-    """The active (or named) pack's taxonomy-snapshot path, gated for council-consistency."""
+    """The active (or named) pack's taxonomy-snapshot path, gated for license + council-consistency."""
     pack = pack or active_pack()
+    assert_pack_licensed(pack)
     assert_pack_council_consistent(pack)
     return _resolve(_manifest(pack)["flags_ref"])
 
@@ -291,8 +330,9 @@ def assert_pack_judges_consistent(pack: str) -> None:
 
 
 def pack_prompts_path(pack: str | None = None) -> Path:
-    """The active (or named) pack's council-role-prompts dir, gated for judge-consistency."""
+    """The active (or named) pack's council-role-prompts dir, gated for license + judge-consistency."""
     pack = pack or active_pack()
+    assert_pack_licensed(pack)
     assert_pack_judges_consistent(pack)
     return _resolve(_manifest(pack)["council_roles"])
 
