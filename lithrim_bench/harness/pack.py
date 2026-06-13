@@ -135,6 +135,47 @@ def _pack_root(pack: str) -> Path:
     )
 
 
+def discover_packs() -> list[dict]:
+    """Every DISCOVERABLE pack — the union of installed entry points, ``LITHRIM_BENCH_PACKS_DIR``
+    dirs, and the in-repo ``packs/`` — deduped by id (first-wins, matching ``_pack_root``'s
+    resolution order). Each entry: ``{id, tier, domain, version, source}``. 'Installing a pack'
+    in the product == making it discoverable here (pip-install the wheel, or point PACKS_DIR at
+    it). Unfiltered — callers pick the selectable domains (e.g. tier in {core, pro}, non-fixture)."""
+    seen: dict[str, dict] = {}
+
+    def _add(pack_id: str, root: Path, source: str) -> None:
+        if pack_id in seen or not (root / "pack.json").is_file():
+            return
+        try:
+            m = json.loads((root / "pack.json").read_text())
+        except (OSError, ValueError):
+            return
+        seen[pack_id] = {
+            "id": pack_id,
+            "tier": m.get("tier", "core"),
+            "domain": m.get("domain"),
+            "version": m.get("version"),
+            "source": source,
+        }
+
+    try:
+        eps = importlib.metadata.entry_points(group=_PACK_EP_GROUP)
+    except TypeError:  # pragma: no cover - <3.10 SelectableGroups shape
+        eps = importlib.metadata.entry_points().get(_PACK_EP_GROUP, [])
+    for ep in eps:
+        root = _entry_point_root(ep)
+        if root is not None:
+            _add(ep.name, root, "entry_point")
+    for base in _external_pack_dirs():
+        if base.is_dir():
+            for cand in sorted(base.iterdir()):
+                _add(cand.name, cand, "packs_dir")
+    if PACKS_DIR.is_dir():
+        for cand in sorted(PACKS_DIR.iterdir()):
+            _add(cand.name, cand, "in_repo")
+    return sorted(seen.values(), key=lambda p: p["id"])
+
+
 @lru_cache(maxsize=8)
 def _manifest(pack: str) -> dict:
     return json.loads((_pack_root(pack) / "pack.json").read_text())

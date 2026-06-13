@@ -616,6 +616,7 @@ def agent_template_endpoint() -> dict:
 class CreateWorkspaceRequest(BaseModel):
     name: str
     pack: str = "_core"
+    packs_dir: str | None = None  # override the discovery dir for this workspace's pack (else inherit)
     actor: str = "you@local"
     owner: str | None = None
 
@@ -648,11 +649,27 @@ def create_workspace_endpoint(req: CreateWorkspaceRequest) -> dict:
     only the default workspace carries the seeded ws0_default."""
     try:
         ws = workspace.create_workspace(
-            req.name, pack=req.pack, actor=req.actor, owner=req.owner, seed=False
+            req.name, pack=req.pack, actor=req.actor, owner=req.owner,
+            packs_dir=req.packs_dir, seed=False,
         )
     except (ValueError, FileExistsError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"workspace": ws.to_public()}
+
+
+@app.get("/v1/packs")
+def list_packs_endpoint() -> dict:
+    """The discoverable DOMAIN packs a workspace can pin (tier core|pro, non-fixture) + the
+    active workspace's pack. 'Install a pack' = make it discoverable (pip-install the wheel or
+    point LITHRIM_BENCH_PACKS_DIR at it); it then appears here for selection."""
+    from lithrim_bench.harness import pack as pack_mod
+
+    packs = [
+        p
+        for p in pack_mod.discover_packs()
+        if p["tier"] in ("core", "pro") and p.get("domain") != "fixture"
+    ]
+    return {"packs": packs, "active": workspace.get_active_workspace().pack}
 
 
 @app.delete("/v1/agent")

@@ -146,3 +146,26 @@ def test_grade_subprocess_binds_the_workspace_pack(ws_root, monkeypatch):
     assert captured["env"]["LITHRIM_BENCH_PACKS_DIR"] == "/ext/packs"
     assert "--in-process" in captured["cmd"]
     assert "/ont.json" in captured["cmd"] and "/cfg.sqlite" in captured["cmd"]
+
+
+def test_discover_packs_and_selectable_filter(ws_root):
+    """P3: discoverable packs are what a workspace can pin; GET /v1/packs shows the selectable
+    DOMAINS (tier core|pro, non-fixture) — 'install a pack' = make it discoverable."""
+    from lithrim_bench.harness.pack import discover_packs
+
+    ids = {p["id"] for p in discover_packs()}
+    assert {"_core", "support_ticket_qa"} <= ids  # in-repo CE domains
+    assert "_tiers_fixture" in ids  # discover is UNfiltered (the endpoint filters)
+
+    pytest.importorskip("fastapi", reason="needs the [bff] extra")
+    _bff = REPO_ROOT / "apps" / "bff"
+    if str(_bff) not in sys.path:
+        sys.path.insert(0, str(_bff))
+    import app as bff
+    from fastapi.testclient import TestClient
+
+    body = TestClient(bff.app).get("/v1/packs").json()
+    sel = {p["id"] for p in body["packs"]}
+    assert {"_core", "support_ticket_qa"} <= sel
+    assert "_tiers_fixture" not in sel and "story_audit" not in sel  # fixtures + demo filtered
+    assert body["active"] == "_core"
