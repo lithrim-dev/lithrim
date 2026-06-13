@@ -377,9 +377,11 @@ def run_eval_endpoint(
     ws = workspace.get_active_workspace()
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
-    # can't rebind it per-workspace. The default _core workspace (and replay) grade in-process:
-    # the common CE path, fast, and the one the $0 predictor-injection tests drive directly.
-    if (live or in_process) and (ws.packs_dir or ws.pack != workspace.DEFAULT_PACK):
+    # can't rebind it per-workspace. REPLAY is included: its ground() needs the pack's grounding
+    # executors (e.g. healthcare's record_presence / snomed_subsumption), which the _core-bound
+    # in-process BFF lacks (it would 500 on an unknown contract_type). Only the default _core
+    # workspace grades in-process — the common CE path, fast, and the $0 predictor-injection tests.
+    if ws.packs_dir or ws.pack != workspace.DEFAULT_PACK:
         try:
             record = _grade_via_subprocess(
                 agent_name=req.agent, config_db=db_path, ontology_path=ontology_path,
