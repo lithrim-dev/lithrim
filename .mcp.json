@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "zyng": {
-      "command": "/Users/aregee/Workspace/github.com/zyng/.venv/bin/python",
-      "args": ["/Users/aregee/Workspace/github.com/zyng/mcp_server/server.py"]
-    }
-  }
-}
