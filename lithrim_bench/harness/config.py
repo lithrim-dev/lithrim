@@ -71,6 +71,11 @@ class EvalProfile:
     council_config: dict[str, Any]
     ontology_ref: str
     ontology_path: str
+    # TOOL-1: ``tools`` / ``kb_bindings`` are LEGACY-INERT — they round-trip into the audited
+    # config blob but have NO grade-time consumer. The live tool plane is the plugin registry
+    # (``harness/plugins.py`` ``kind: tool`` — declaration + the CE/Pro ``tier`` gate) bound to a
+    # flag via the ontology's ``verification_contracts`` (the executed criterion). Retiring /
+    # repurposing these two is a deferred audit-blob migration; kept as-is here for back-compat.
     tools: tuple[str, ...]
     kb_bindings: dict[str, Any]
     severity_map_ref: str

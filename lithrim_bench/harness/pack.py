@@ -206,13 +206,15 @@ def pack_cases(pack: str, *, limit: int = 200) -> list[dict]:
                     cid = row.get("case_id")
                     if not cid:
                         continue
-                    out.append({
-                        "case_id": cid,
-                        "source": str(jf),
-                        "corpus": jf.stem,
-                        "expected_safety_flags": row.get("expected_safety_flags") or [],
-                        "clean_negative": bool(row.get("clean_negative")),
-                    })
+                    out.append(
+                        {
+                            "case_id": cid,
+                            "source": str(jf),
+                            "corpus": jf.stem,
+                            "expected_safety_flags": row.get("expected_safety_flags") or [],
+                            "clean_negative": bool(row.get("clean_negative")),
+                        }
+                    )
                     if len(out) >= limit:
                         return out
         except (OSError, ValueError):
@@ -590,3 +592,34 @@ def _load_pack_generators(pack: str) -> ModuleType | None:
     sys.modules[mod_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+# ─────────────────────────── the tool registry (TOOL-1) ───────────────────────────
+# A pack contributes TOOLS (configurable connector/capability declarations — MCP servers, API
+# connectors, KB-query/terminology endpoints) DATA-ONLY via its manifest ``tools`` ref: a
+# ``tools.json`` holding a JSON list of plugin-manifest dicts. Unlike ``floors``/``generators``
+# (CODE modules), tools are pure DECLARATIONS — no import, no execution here. ``harness/plugins.py``
+# ``tool_plugins()`` validates them into ``kind: tool`` ``PluginManifest`` entries + tier-gates
+# them; a tool is USED by a flag's ``verification_contract`` criterion (TOOL-2). Loaded by FILE
+# PATH from the manifest (relocatable, exactly like the other refs). A pack with no ``tools``
+# declaration degrades cleanly to ``None``.
+
+
+def load_pack_tools(pack: str | None = None) -> tuple[dict, ...] | None:
+    """Read the active (or named) pack's ``tools.json`` (a list of tool-manifest dicts), or
+    ``None`` if the pack declares no ``tools`` (cached per pack per process). DATA only — the
+    declarations are validated + tier-gated by ``harness/plugins.py`` ``tool_plugins()``."""
+    return _load_pack_tools(pack or active_pack())
+
+
+@lru_cache(maxsize=8)
+def _load_pack_tools(pack: str) -> tuple[dict, ...] | None:
+    """The cached loader, keyed on the RESOLVED pack id. Returns an immutable tuple so callers
+    can't mutate the cached declarations (``tool_plugins`` copies each dict before validating)."""
+    ref = _manifest(pack).get("tools")
+    if not ref:
+        return None
+    raw = json.loads(_resolve_ref(pack, ref).read_text())
+    if not isinstance(raw, list):
+        raise ValueError(f"pack {pack!r} tools.json must be a JSON list, got {type(raw).__name__}")
+    return tuple(raw)

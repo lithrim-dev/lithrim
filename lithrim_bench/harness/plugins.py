@@ -9,7 +9,10 @@ manifest (``SPEC_PLUGIN_ARCHITECTURE`` Phase-1 — a **pure refactor, no new fea
   merge — enumerated as ``kind: contract`` plugins by :func:`grounding.contract_plugins`);
 - the **provider** registry (``runtime/council/judges_dspy.py`` ``build_judge_lm`` — Azure +
   BYO-Claude declared here as ``kind: provider`` plugins; the per-role deployment *binding*
-  stays in core, PACK-2c — infra ∉ a domain pack).
+  stays in core, PACK-2c — infra ∉ a domain pack);
+- the **tool** registry (TOOL-1 — configurable connector/capability declarations: the JUTE
+  connector + a pack's ``tools.json``, enumerated as ``kind: tool`` plugins by
+  :func:`tool_plugins`; declaration-only — execution stays in ``verification``/``grounding``).
 
 It is kept **stdlib + pydantic-core only** (no ``openai``/``dspy``/``httpx``) so the
 dependency-light core importers (``signals``/``withstands``/``judge_metric``) are unaffected —
@@ -80,6 +83,7 @@ class PackManifest(BaseModel):
     council_roles: str
     floors: str | None = None
     generators: str | None = None
+    tools: str | None = None  # TOOL-1: ref to a ``tools.json`` (the pack's kind:tool declarations)
     judges: list[str] = Field(default_factory=list)
 
 
@@ -177,11 +181,65 @@ def resolve_provider_id(selector: str, global_provider: str, *, byo_values: froz
     return "azure_openai"
 
 
+# ── the tool registry (TOOL-1) — connectors/capabilities as kind:tool plugins ──────────────
+# A ``kind: tool`` plugin DECLARES a configurable capability the eval can reach — an MCP server,
+# an HTTP/API connector, a KB-query endpoint, a terminology service, or an in-process builtin —
+# with its ``transport`` (in_process | service), a ``service`` config blob, and its ``tier``. The
+# ``implements`` slot names the sub-kind (``tool.mcp_server`` / ``tool.api_connector`` /
+# ``tool.kb_query`` / ``tool.terminology`` / ``tool.builtin``), mirroring how a contract uses
+# ``grounding.suppress`` / ``grounding.floor``. Like every other kind this is DECLARATION-ONLY:
+# the registry records + tier-gates tools; EXECUTION stays in ``verification/tools.py`` +
+# ``harness/grounding.py`` (a tool is USED by a flag's ``verification_contract`` criterion). The
+# CE/Pro split is the single ``tier`` field — core tools (the JUTE connector) always load; a pack's
+# tools inherit the pack tier (so the healthcare KB/terminology tools come out ``pro``), gated by
+# the same License. "Configure any MCP / custom / API tool" = a manifest entry (this core tuple or
+# a pack ``tools.json``), ZERO engine edits (the open/closed property — TOOL-2 ships the Pro tools).
+#
+# NOTE (namespace): the legacy ``verification/spec.py`` ``TOOL_*`` ids ({in_row, kb_rag, record_rag,
+# structural_jute, jute_gen, dosage_grounding}) and the grounding ``contract_type`` keys overlap but
+# are NOT yet unified with the ``kind: tool`` id space — a deliberate deferral (a hard merge would
+# touch the ``contract_type`` keys ontologies reference). TOOL-1 declares the connector capabilities;
+# the existing contract executors stay enumerated as ``kind: contract``.
+_CORE_TOOL_PLUGINS: tuple[PluginManifest, ...] = (
+    PluginManifest(
+        id="etlp_jute",
+        kind="tool",
+        tier="core",
+        transport="service",
+        implements="tool.api_connector",
+        service={"default_base_url": "http://localhost:3031"},
+    ),
+)
+
+
+def tool_plugins() -> list[PluginManifest]:
+    """The tool registry (core ∪ the active pack) as ``kind: tool`` plugins — the TOOL-1
+    declaration layer. Core tools are the static :data:`_CORE_TOOL_PLUGINS` (the JUTE connector,
+    all-Core); a pack contributes tools DATA-ONLY via its manifest ``tools`` ref (a ``tools.json``
+    list of manifest dicts), each forced to ``kind='tool'`` and defaulting to the pack's tier.
+    Mirrors :func:`provider_plugins` (static core) ⊕ the pack-floors fold in
+    :func:`grounding.contract_plugins` (pack-contributed). ``pack`` is imported lazily so this
+    module stays dependency-light."""
+    out: list[PluginManifest] = list(_CORE_TOOL_PLUGINS)
+    from lithrim_bench.harness import pack as _pack
+
+    active = _pack.active_pack()
+    pack_tier = _pack._manifest(active).get("tier", "core")
+    for raw in _pack.load_pack_tools(active) or ():
+        out.append(
+            PluginManifest.model_validate(
+                {**raw, "kind": "tool", "tier": raw.get("tier", pack_tier)}
+            )
+        )
+    return out
+
+
 def provenance_snapshot(license: License | None = None) -> dict[str, Any]:
     """The loaded-plugin set for run-provenance (D5): the active pack (``kind: pack``) + its
-    contract plugins (``kind: contract``, core ∪ pack) + the provider plugins, each filtered by
-    ``license`` (default permit-all). Returns a plain dict; default-safe (callers default the
-    provenance field to ``[]``/``None`` on replay/no-op stores).
+    contract plugins (``kind: contract``, core ∪ pack) + the provider plugins + the tool plugins
+    (``kind: tool``, core ∪ pack — TOOL-1), each filtered by ``license`` (default permit-all).
+    Returns a plain dict; default-safe (callers default the provenance field to ``[]``/``None``
+    on replay/no-op stores).
 
     ``pack`` + ``grounding`` are imported LAZILY (both stdlib at import) so this module stays
     dependency-light for the core importers."""
@@ -201,6 +259,7 @@ def provenance_snapshot(license: License | None = None) -> dict[str, Any]:
         ),
         *grounding.contract_plugins(),
         *provider_plugins(),
+        *tool_plugins(),
     ]
     permitted = [p for p in plugins if not is_gated(p.tier) or license.permits(p.id)]
     return {

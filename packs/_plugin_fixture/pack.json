@@ -7,5 +7,6 @@
   "flags_ref": "taxonomy_snapshot.json",
   "council_roles": "council_roles",
   "floors": "floors.py",
+  "tools": "tools.json",
   "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
 }

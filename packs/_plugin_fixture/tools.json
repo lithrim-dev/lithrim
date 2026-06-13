@@ -1,0 +1,9 @@
+[
+  {
+    "id": "fixture_tool",
+    "transport": "service",
+    "version": "0.0.0",
+    "implements": "tool.mcp_server",
+    "service": {"command": "echo", "args": ["fixture-mcp"]}
+  }
+]

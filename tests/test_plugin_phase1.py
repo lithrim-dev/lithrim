@@ -171,10 +171,15 @@ def test_a3_provenance_snapshot_records_pack_and_plugins():
     snap = P.provenance_snapshot()
     assert snap["active_pack"] == "healthcare" and snap["pack_tier"] == "pro"
     ids = {p["id"] for p in snap["plugins"]}
-    assert {"healthcare", "azure_openai", "byo_claude"} <= ids  # pack + providers
+    assert {
+        "healthcare",
+        "azure_openai",
+        "byo_claude",
+        "etlp_jute",
+    } <= ids  # pack + providers + tool
     assert ids >= _EXPECTED_SUPPRESS and ids >= _EXPECTED_FLOOR  # the contracts
     kinds = {p["kind"] for p in snap["plugins"]}
-    assert kinds == {"pack", "contract", "provider"}
+    assert kinds == {"pack", "contract", "provider", "tool"}  # TOOL-1 folds in kind:tool
 
 
 def test_a3_denied_plugin_is_absent_from_the_snapshot():
@@ -264,6 +269,70 @@ def test_s_bs_133_pack_declared_service_transport_is_tagged_service():
     )
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip().splitlines()[-1] == "service"
+
+
+# ─────────────────────────── TOOL-1 — the kind:tool plane ───────────────────────────
+
+
+def test_tool1_core_tool_declared():
+    """TOOL-1: the JUTE connector is declared as a core ``kind: tool`` plugin (the API-connector
+    exemplar — always present, never gated; the CE 'configure any API connector' anchor)."""
+    tools = {p.id: (p.kind, p.tier, p.transport, p.implements) for p in P.tool_plugins()}
+    assert tools.get("etlp_jute") == ("tool", "core", "service", "tool.api_connector")
+
+
+def test_tool1_provenance_records_the_tool_kind():
+    """TOOL-1: ``provenance_snapshot()`` now enumerates ``kind: tool`` (the fold is appended into
+    the snapshot + license-filtered like every other kind)."""
+    snap = P.provenance_snapshot()
+    assert "tool" in {p["kind"] for p in snap["plugins"]}
+    assert "etlp_jute" in {p["id"] for p in snap["plugins"]}
+
+
+def test_tool1_open_closed_pack_tool_via_manifest():
+    """TOOL-1 open/closed: a NET-NEW pack tool (``fixture_tool``, declared in the fixture pack's
+    ``tools.json``) is picked up by ``tool_plugins()`` + ``provenance_snapshot()`` through the
+    manifest ``tools`` ref ALONE — ZERO engine edits. Subprocess so the fixture pack is active."""
+    out = _subproc(
+        "from lithrim_bench.harness import plugins as P; "
+        "ids={p.id for p in P.tool_plugins()}; "
+        "assert 'fixture_tool' in ids, sorted(ids); "
+        "snap={p['id'] for p in P.provenance_snapshot()['plugins']}; "
+        "assert 'fixture_tool' in snap, sorted(snap); "
+        "print('PICKED_UP')",
+        pack=_FIXTURE_PACK,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == "PICKED_UP"
+
+
+def test_tool1_pack_tool_inherits_pack_tier():
+    """TOOL-1: the fixture tool inherits the fixture pack's tier (pro) — the Core/Pro line flows
+    from the single ``tier`` field for a pack-contributed tool too."""
+    out = _subproc(
+        "from lithrim_bench.harness import plugins as P; "
+        "t={p.id: p.tier for p in P.tool_plugins()}['fixture_tool']; print(t)",
+        pack=_FIXTURE_PACK,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == "pro"
+
+
+def test_tool1_pro_tool_skipped_under_denylist():
+    """TOOL-1 gate non-vacuity: under ``denylist:fixture_tool`` the fixture PACK still loads
+    (permitted) but the pro ``fixture_tool`` is ABSENT from the provenance set — the per-plugin
+    skip; the tool plane is tier-gated exactly like contracts/packs. The core ``etlp_jute`` stays."""
+    out = _subproc(
+        "from lithrim_bench.harness import plugins as P; "
+        "ids={p['id'] for p in P.provenance_snapshot()['plugins']}; "
+        "assert 'fixture_tool' not in ids, sorted(ids); "
+        "assert '_plugin_fixture' in ids and 'etlp_jute' in ids, sorted(ids); "
+        "print('SKIPPED')",
+        pack=_FIXTURE_PACK,
+        license="denylist:fixture_tool",
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == "SKIPPED"
 
 
 # ─────────────────────────── A5 — frozen seams + the moat ───────────────────────────
