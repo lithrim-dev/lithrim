@@ -22,6 +22,7 @@ from .jute_dspy import (
     verdict_for,
 )
 from .jute_gen import JuteGenValidatorTool
+from .mcp_client import McpError, McpStdioClient
 from .mutation import (
     field_mutants,
     generate_mutants,
@@ -78,6 +79,8 @@ __all__ = [
     "FakeRecordRagTool",
     "JuteGenValidatorTool",
     "EtlpJuteClient",
+    "McpStdioClient",
+    "McpError",
     "GOLDEN_US_CORE_PATIENT_VALIDATOR",
     "US_CORE_PATIENT_RULES",
     "score_template",
