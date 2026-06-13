@@ -44,6 +44,6 @@ describe("WorkspaceSwitcher", () => {
     const input = screen.getByPlaceholderText("workspace name");
     fireEvent.change(input, { target: { value: "team-x" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(onCreate).toHaveBeenCalledWith("team-x");
+    expect(onCreate).toHaveBeenCalledWith("team-x", "_core"); // name + the picked domain pack
   });
 });

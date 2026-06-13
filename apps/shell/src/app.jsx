@@ -13,6 +13,8 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [pack, setPack] = useState("_core");
+  const [packs, setPacks] = useState([]);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -22,10 +24,16 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  useEffect(() => {
+    if (!creating) return; // load the installable/discoverable packs when the create form opens
+    import("./bff.js").then(({ listPacks }) =>
+      listPacks().then((r) => setPacks(r.packs || [])).catch(() => {}),
+    );
+  }, [creating]);
   const submit = async () => {
     const n = name.trim();
     if (!n) return;
-    await onCreate(n);
+    await onCreate(n, pack);
     setName(""); setCreating(false); setOpen(false);
   };
   const menuStyle = {
@@ -60,17 +68,27 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
           ))}
           <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
           {creating ? (
-            <div style={{ display: "flex", gap: 6, padding: "2px 4px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 4px" }}>
               <input autoFocus value={name} placeholder="workspace name"
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") submit();
                   if (e.key === "Escape") { setCreating(false); setName(""); }
                 }}
-                style={{ flex: 1, minWidth: 0, padding: "6px 8px", fontSize: 12.5, borderRadius: 6,
+                style={{ padding: "6px 8px", fontSize: 12.5, borderRadius: 6,
                   border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" }} />
-              <button onClick={submit}
-                style={{ ...item(false), width: "auto", color: "var(--accent)", fontWeight: 600 }}>Create</button>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select value={pack} onChange={(e) => setPack(e.target.value)}
+                  title="The domain pack this workspace grades under"
+                  style={{ flex: 1, minWidth: 0, padding: "6px 8px", fontSize: 12, borderRadius: 6,
+                    border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" }}>
+                  {(packs.length ? packs : [{ id: "_core", domain: "generic" }]).map((p) => (
+                    <option key={p.id} value={p.id}>{p.id}{p.domain ? ` · ${p.domain}` : ""}</option>
+                  ))}
+                </select>
+                <button onClick={submit}
+                  style={{ ...item(false), width: "auto", color: "var(--accent)", fontWeight: 600 }}>Create</button>
+              </div>
             </div>
           ) : (
             <button style={{ ...item(false), color: "var(--muted)" }} onClick={() => setCreating(true)}>

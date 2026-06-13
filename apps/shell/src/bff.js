@@ -75,6 +75,9 @@ export const listAgents = () => call("/v1/agents");
    A workspace owns its config DB / runs / audit / ontology + a pinned domain pack.
    Switching repoints all of it server-side; the shell reloads agents to reflect it. */
 export const listWorkspaces = () => call("/v1/workspaces");
+/* GET /v1/packs — the discoverable domain packs a workspace can pin (P3: 'install a pack'
+   = make it discoverable, then it shows up here for selection). */
+export const listPacks = () => call("/v1/packs");
 export const switchWorkspace = (name) =>
   call("/v1/workspace", { method: "POST", body: { name } });
 export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =>
