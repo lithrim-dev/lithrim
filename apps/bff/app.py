@@ -73,7 +73,11 @@ for _p in (str(REPO_ROOT), str(_SCRIPTS)):
 import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors tests/test_ws4a.py)
 import seed_ontology  # noqa: E402  (scripts/ — import-only: snapshot lint for the PUT gate)
 
-from lithrim_bench.harness import corpus, evalpack  # noqa: E402
+from lithrim_bench.harness import (  # noqa: E402
+    corpus,
+    evalpack,
+    workspace,  # noqa: E402
+)
 from lithrim_bench.harness.audit import (  # noqa: E402
     Actor,
     AuditLog,
@@ -81,9 +85,8 @@ from lithrim_bench.harness.audit import (  # noqa: E402
     Target,
     make_actor,
 )
-from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS  # noqa: E402
+from lithrim_bench.harness.collections import PIPELINE_RUNS  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
-    DEFAULT_CONFIG_DB,
     agent_from_dict,
     agent_to_dict,
     delete_agent,
@@ -144,13 +147,14 @@ _KNOWN_VALIDATORS = (
 
 
 def get_config_db() -> Path:
-    """The SQLite config plane the BFF resolves agents from. Override in tests."""
-    return Path(DEFAULT_CONFIG_DB)
+    """The SQLite config plane the BFF resolves agents from — scoped to the ACTIVE
+    workspace (switching the workspace switches agents/judges/flags/audit). Override in tests."""
+    return workspace.get_active_workspace().config_db
 
 
 def get_out_dir() -> Path | None:
-    """Where run_eval persists its blob/sqlite (None -> run_eval default). Override in tests."""
-    return None
+    """Where run_eval persists its blob/sqlite — the active workspace's out dir. Override in tests."""
+    return workspace.get_active_workspace().out_dir
 
 
 def get_calib_corpus_path() -> Path:
@@ -161,8 +165,9 @@ def get_calib_corpus_path() -> Path:
 
 
 def get_ontology_workdir() -> Path:
-    """Where PUT /v1/ontology persists working copies (never the committed seed). Override in tests."""
-    return DEFAULT_ONTOLOGY_WORKDIR
+    """Where PUT /v1/ontology persists working copies — the active workspace's ontology
+    dir (never the committed seed). Override in tests."""
+    return workspace.get_active_workspace().ontology_dir
 
 
 def get_examples_dir() -> Path:
@@ -206,9 +211,9 @@ def _resolve_run_backend(req: RunEvalRequest) -> tuple[bool, bool]:
 
 
 def get_collections_db() -> Path:
-    """The doc-shim DB the BFF reads run-provenance blobs from (PIPELINE_RUNS).
-    Override in tests so the run-audit read is hermetic."""
-    return Path(DEFAULT_COLLECTIONS_DB)
+    """The doc-shim DB run-provenance blobs persist to / read from (PIPELINE_RUNS) —
+    the active workspace's. Override in tests so the run-audit read is hermetic."""
+    return workspace.get_active_workspace().collections_db
 
 
 def get_actor() -> Actor:
@@ -543,6 +548,48 @@ def list_agents_endpoint(db_path: Path = Depends(get_config_db)) -> dict:
     if not db_path.exists():
         seed_config_db(db_path=db_path)
     return {"agents": list_agents(db_path=db_path)}
+
+
+# ── workspaces: the switchable domain-setup boundary (the multitenancy primitive) ──
+
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str
+    pack: str = "_core"
+    actor: str = "you@local"
+    owner: str | None = None
+
+
+class SwitchWorkspaceRequest(BaseModel):
+    name: str
+
+
+@app.get("/v1/workspaces")
+def list_workspaces_endpoint() -> dict:
+    """Every workspace + the active one. Switching a workspace repoints agents / judges /
+    flags / audit / runs / ontology AND the pinned domain pack."""
+    return workspace.workspaces_public()
+
+
+@app.post("/v1/workspace")
+def switch_workspace_endpoint(req: SwitchWorkspaceRequest) -> dict:
+    """Switch the active workspace — all subsequent reads/writes resolve under it."""
+    try:
+        ws = workspace.set_active_workspace(req.name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"active": ws.name, "workspace": ws.to_public()}
+
+
+@app.post("/v1/workspaces")
+def create_workspace_endpoint(req: CreateWorkspaceRequest) -> dict:
+    """Create a workspace — its own config DB (seeded with the blank default agent),
+    runs, ontology, and pinned pack."""
+    try:
+        ws = workspace.create_workspace(req.name, pack=req.pack, actor=req.actor, owner=req.owner)
+    except (ValueError, FileExistsError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"workspace": ws.to_public()}
 
 
 @app.delete("/v1/agent")
