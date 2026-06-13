@@ -237,7 +237,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
         {showExample && (
           <>
             <span className="chip"><span className="d" style={{ background: "var(--accent)" }} /> Run in progress</span>
-            <span className="chip">2,400 samples</span>
+            <span className="chip">sample case</span>
           </>
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>

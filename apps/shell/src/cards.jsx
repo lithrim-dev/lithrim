@@ -7,7 +7,7 @@ import { Icon } from "./icons.jsx";
 
 /* ---- Domain config widget ---- */
 export function ConfigCard({ onOpen }) {
-  const [samples, setSamples] = useState(2400);
+  const [samples, setSamples] = useState(100);
   const [metrics, setMetrics] = useState({ Faithfulness: true, Safety: true, Structural: true, Completeness: false });
   const toggle = (k) => setMetrics((m) => ({ ...m, [k]: !m[k] }));
   return (
@@ -30,9 +30,9 @@ export function ConfigCard({ onOpen }) {
           </div>
         </div>
         <div className="field" style={{ marginBottom: 14 }}>
-          <span className="flbl">Sample size — {samples.toLocaleString()} of 2,400</span>
+          <span className="flbl">Sample size — {samples.toLocaleString()}</span>
           <div className="range-row">
-            <input className="slider" type="range" min="100" max="2400" step="100"
+            <input className="slider" type="range" min="10" max="500" step="10"
               value={samples} onChange={(e) => setSamples(+e.target.value)} />
             <span className="val">{samples.toLocaleString()}</span>
           </div>

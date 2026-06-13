@@ -268,11 +268,11 @@ describe("CenterPane / Shell — UX-1: clean default + cadence + New-eval (S-BS-
     // ...and NONE of the scripted preamble / fake header chips (A2)
     expect(screen.queryByText(/Scribe Agent v4/)).toBeNull();
     expect(screen.queryByText("Jordan")).toBeNull();
-    expect(screen.queryByText(/2,400 samples/)).toBeNull();
+    expect(screen.queryByText(/sample case/)).toBeNull();
 
     // opt-in reveals the canned showcase (preamble + the fake header chips)
     fireEvent.click(screen.getByText(/Show example conversation/i));
-    expect(screen.getByText(/2,400 samples/)).toBeInTheDocument();
+    expect(screen.getByText(/sample case/)).toBeInTheDocument();
     expect(screen.getAllByText(/Example agent/).length).toBeGreaterThan(0);
   });
 
