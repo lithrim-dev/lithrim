@@ -602,6 +602,14 @@ def list_agents_endpoint(db_path: Path = Depends(get_config_db)) -> dict:
     return {"agents": list_agents(db_path=db_path)}
 
 
+@app.get("/v1/agent/template")
+def agent_template_endpoint() -> dict:
+    """The committed blank-slate agent template (data/config/agents/ws0_default.json) — the
+    source a fresh agent clones from, independent of the active workspace (fresh workspaces
+    start with NO agents, so the clone source can't be the workspace's own DB)."""
+    return json.loads((REPO_ROOT / "data" / "config" / "agents" / "ws0_default.json").read_text())
+
+
 # ── workspaces: the switchable domain-setup boundary (the multitenancy primitive) ──
 
 
@@ -635,10 +643,13 @@ def switch_workspace_endpoint(req: SwitchWorkspaceRequest) -> dict:
 
 @app.post("/v1/workspaces")
 def create_workspace_endpoint(req: CreateWorkspaceRequest) -> dict:
-    """Create a workspace — its own config DB (seeded with the blank default agent),
-    runs, ontology, and pinned pack."""
+    """Create a workspace — its own EMPTY config DB, runs, ontology, and pinned pack. A
+    fresh workspace starts blank ('create your first agent') so its isolation is obvious;
+    only the default workspace carries the seeded ws0_default."""
     try:
-        ws = workspace.create_workspace(req.name, pack=req.pack, actor=req.actor, owner=req.owner)
+        ws = workspace.create_workspace(
+            req.name, pack=req.pack, actor=req.actor, owner=req.owner, seed=False
+        )
     except (ValueError, FileExistsError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"workspace": ws.to_public()}

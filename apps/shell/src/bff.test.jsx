@@ -99,8 +99,8 @@ describe("CRUD-1 bff.js config-plane client", () => {
         .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "ok", name: "eval-2" }), text: async () => "" }),
     );
     await createAgent("eval-2");
-    // 1) it reads the seed default
-    expect(fetch).toHaveBeenNthCalledWith(1, "/v1/agent?name=ws0_default", expect.anything());
+    // 1) it reads the committed blank-slate template (workspace-independent)
+    expect(fetch).toHaveBeenNthCalledWith(1, "/v1/agent/template", expect.anything());
     // 2) it PUTs a blank-but-runnable agent: empty judges/tools, the cloned ontology + Dataset
     const [url, opts] = fetch.mock.calls[1];
     expect(url).toContain("/v1/agent?rationale=");

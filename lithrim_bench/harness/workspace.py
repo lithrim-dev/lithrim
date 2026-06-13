@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from lithrim_bench.harness.config import seed_config_db
+from lithrim_bench.harness.config import init_config_db, seed_config_db
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKSPACES_DIR = Path(
@@ -135,15 +135,21 @@ def create_workspace(
         name=name, pack=pack, actor=actor, owner=owner, packs_dir=packs_dir, created_at=_now()
     )
     _write(ws)
-    if seed:  # build its config DB from the committed agent seeds (the blank ws0_default)
+    if seed:  # the default workspace: build its config DB from the committed seeds (ws0_default)
         seed_config_db(db_path=ws.config_db)
+    else:  # a fresh workspace starts EMPTY (own schema, no agents) — "create your first agent"
+        init_config_db(db_path=ws.config_db)
     return ws
 
 
 def ensure_default_workspace() -> Workspace:
-    """Idempotently materialize the ``default`` workspace (the clean CE starting point)."""
+    """Idempotently materialize the ``default`` workspace (the clean CE starting point —
+    the ONE workspace seeded with the blank ws0_default; fresh user workspaces start empty)."""
     if (WORKSPACES_DIR / DEFAULT_WORKSPACE / "workspace.json").is_file():
-        return _read(DEFAULT_WORKSPACE)
+        ws = _read(DEFAULT_WORKSPACE)
+        if not ws.config_db.exists():  # dir exists but the config DB was wiped → re-seed
+            seed_config_db(db_path=ws.config_db)
+        return ws
     return create_workspace(DEFAULT_WORKSPACE, pack=DEFAULT_PACK)
 
 

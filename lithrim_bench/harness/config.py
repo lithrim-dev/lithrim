@@ -51,6 +51,20 @@ CREATE TABLE IF NOT EXISTS agents (
 """
 
 
+def init_config_db(db_path: str | Path = DEFAULT_CONFIG_DB) -> None:
+    """Create an EMPTY config DB (the agents schema, no rows). A fresh workspace starts
+    blank so its isolation is visible ('create your first agent'); the existing-but-empty
+    DB also stops the BFF's seed-if-missing guards from re-seeding it. Idempotent."""
+    db_path = Path(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(_SCHEMA)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @dataclass(frozen=True)
 class EvalProfile:
     judges: tuple[str, ...]

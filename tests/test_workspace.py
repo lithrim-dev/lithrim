@@ -96,6 +96,26 @@ def test_bff_workspace_endpoints(ws_root):
     assert c.post("/v1/workspaces", json={"name": "default"}).status_code == 400
 
 
+def test_fresh_workspace_starts_empty_default_keeps_ws0(ws_root):
+    """A created workspace is EMPTY ('create your first agent') — only the default carries
+    the seeded ws0_default. The committed template stays available as the clone source."""
+    pytest.importorskip("fastapi", reason="needs the [bff] extra")
+    _bff = REPO_ROOT / "apps" / "bff"
+    if str(_bff) not in sys.path:
+        sys.path.insert(0, str(_bff))
+    import app as bff
+    from fastapi.testclient import TestClient
+
+    c = TestClient(bff.app)
+    assert c.get("/v1/agents").json()["agents"] == ["ws0_default"]  # the default workspace
+    c.post("/v1/workspaces", json={"name": "fresh", "pack": "_core"})
+    c.post("/v1/workspace", json={"name": "fresh"})
+    assert c.get("/v1/agents").json()["agents"] == []  # EMPTY — the isolation is visible
+    assert c.get("/v1/agent/template").json()["name"] == "ws0_default"  # clone source still there
+    c.post("/v1/workspace", json={"name": "default"})
+    assert c.get("/v1/agents").json()["agents"] == ["ws0_default"]  # default unchanged
+
+
 def test_grade_subprocess_binds_the_workspace_pack(ws_root, monkeypatch):
     """PACK-WS: the council-bound grade spawns run_eval with LITHRIM_BENCH_PACK=<workspace
     pack> + its packs_dir (so the frozen council binds the workspace's domain), and parses

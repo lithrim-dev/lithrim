@@ -80,13 +80,18 @@ export const switchWorkspace = (name) =>
 export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =>
   call("/v1/workspaces", { method: "POST", body: { name, pack, actor } });
 
+/* GET /v1/agent/template — the committed blank-slate template (ws0_default.json), the
+   clone source for a fresh agent. Independent of the active workspace, since a freshly
+   created workspace starts with NO agents. */
+export const getAgentTemplate = () => call("/v1/agent/template");
+
 /* PUT a blank-slate but RUNNABLE agent: authoring-blank (no judges/tools/kb) yet it
-   clones the seed default's committed ontology + Dataset so create → author a judge →
+   clones the committed template's ontology + Dataset so create → author a judge →
    RUN → see it grade works immediately from clean (the Dataset is BOUND, not empty, so
    run_eval can load a case). The judge-config store is global, so a fresh agent shares
    whatever lenses exist; "blank" here is the agent's roster + a clean chat. */
 export async function createAgent(name, { actor } = {}) {
-  const seed = await getAgent("ws0_default");
+  const seed = await getAgentTemplate();
   const ep = seed.eval_profile || {};
   const agent = {
     name,
