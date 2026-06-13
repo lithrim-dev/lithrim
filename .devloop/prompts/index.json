@@ -1,7 +1,34 @@
 {
   "version": "1",
-  "updated": "2026-06-12",
+  "updated": "2026-06-13",
   "bundles": [
+    {
+      "id": "bench-salvage-phaseCE-PRODUCT-1-ce-core-usable-workspace-pack-loop",
+      "stream": "bench-salvage",
+      "phase": "CE-PRODUCT-1",
+      "scope": "make the CE (OSS core) usable as a standalone product + clean of healthcare, then prove the pack-loaded loop end-to-end: P1 purge healthcare from the live shell + reset BFF default state; P2 the WORKSPACE multitenancy primitive (switchable per-tenant config/runs/audit/ontology DBs + a pinned pack + an owner AUTH-seam; grade-under-pack via subprocess; fresh workspaces empty); P3 install-a-pack (GET /v1/packs) -> create a pack-bound agent -> load the pack's cases -> evaluate; + status bar wired to live /v1/meta + last demo numbers neutralized.",
+      "file": "(INLINE -- no exec driver; built directly in the main session, like WS-5; git history 627fbbe..eaa19d4 is the audit trail)",
+      "status": "shipped — CLOSED 2026-06-13 (INLINE product cycle; 627fbbe..eaa19d4, 10 commits, parent 5ee6fa4; tested + user-eyeballed live; LOCAL SSOT, NOT pushed). PROVEN end-to-end: a healthcare workspace -> a healthcare_default agent -> graded under healthcare's council via subprocess -> verdict approve, 3 votes (risk PASS/policy WARN/faithfulness PASS); 145 cases listable. Moat untouched (non-_core grades in a subprocess to respect the frozen-at-import council; compliance_council.py byte-identical, R-GUARD honored). 0 new seams. Registered into the ledger at reconcile time (2026-06-13) — a session-log + this bundle are the audit trail; deliberately NO formal driver/critique (the CE-product track ran inline).",
+      "version": "v1",
+      "hardness": "INLINE-NO-GATE",
+      "hardness_reason": "A product/FE + BFF + harness usability cycle that does NOT touch the frozen moat: P2c grades non-_core workspaces in a SUBPROCESS precisely BECAUSE the frozen council binds its pack at import, so the in-process council/moat is never re-bound; compliance_council.py is byte-identical and the R-GUARD license gate is never skipped (the codes-subset-of-KNOWN gate fires for real at grade time in the pack-bound subprocess). No fresh-critic worktree pass was run — it ran inline, user-eyeballed live, and is moat-inert by construction.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "lithrim_bench/harness/workspace.py (NEW — the workspace model + resolvers + the owner AUTH-seam slot)",
+        "lithrim_bench/harness/pack.py (discover_packs + pack_corpora_dir/pack_cases + pack_ontology_path check_consistency flag)",
+        "apps/bff/app.py (workspace store resolvers + /v1/workspaces + /v1/workspace + _grade_via_subprocess + /v1/packs + /v1/agent/template pack-aware + /v1/packs/{pack}/cases + /v1/meta)",
+        "scripts/run_eval.py (--ontology-path/--collections-db/--emit-json + the __GRADE_JSON__ subprocess contract)",
+        "apps/shell/src/{app.jsx,bff.js,data.jsx,cards.jsx,panes.jsx,genui/*} (clean shell + WorkspaceSwitcher + pack picker + live-meta status bar)",
+        ".devloop/sessions/HANDOFF_bench-salvage_phaseCE-PRODUCT-1-closed_2026-06-13.md",
+        "memory ce-workspace-multitenancy-program.md (the authoritative narrative)"
+      ],
+      "_note": "CE-PRODUCT-1 = the first CE-product usability cycle, built INLINE on the user's direct commission (not via the .devloop exec-driver loop). It realizes the deployment thesis: TWO primitives — pack=installable unit (PACK-DIST-1 discovery) + workspace=tenant boundary — yield 3 tiers from ONE core (local CE / custom on-prem / Lithrim Cloud); the workspace.json owner slot is the persisted AUTH seam (ignored locally -> the only local-vs-cloud diff); the PLUGIN-1 tier/License gate is the entitlement control point. Registered into the ledger 2026-06-13 to close the audit-trail gap (the prior streams.json current_phase was stale at PLUGIN-1 and had never even advanced to PACK-DIST-1).",
+      "created": "2026-06-13",
+      "last_re_verified": "2026-06-13",
+      "next_action": "CLOSED (INLINE) 2026-06-13. NEXT = the user's strategic call (do NOT autostart): (a) HPACK in the pack repo (../lithrim-pack-healthcare) — SNOMED terminology floor + vector/KB querying + the SNOMED MCP tool + the product narrative; (b) PACK-DIST-2 — the deferred CE polish + S-BS-135..139; (c) CHATBIND-2 — chat-drives-the-3rd-pane (also the deferred frontend plugin kind); (d) the owner-gated push (LOCAL SSOT — user keeping LOCAL, explicitly fine). Leftovers (memory-only, not seams): the optional FE case-picker; the pre-existing app.test.jsx ModeSwitch fail."
+    },
     {
       "id": "bench-salvage-phasePACK-DIST-1-extract-healthcare-to-external-pack",
       "stream": "bench-salvage",
