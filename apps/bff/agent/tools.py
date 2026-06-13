@@ -229,8 +229,27 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
     ctx.emit(verdict_part(record))
     ctx.emit_run(record)  # CHATBIND-2 (D4): lift this $0 replay into the shell's runResult
     composite = record.get("composite") or {}
+    # Surface the grounding corrections so the agent can REASON about them (and narrate
+    # which tool suppressed which false positive) — not just the top-line verdict. The
+    # grounded_adjustments are tool-verified suppressions (a confident council finding
+    # disproved by a deterministic floor, e.g. SNOMED subsumption over Hermes).
+    adj = composite.get("grounded_adjustments") or []
+    sup = (
+        "; ".join(
+            f"{a.get('flag')} suppressed by {a.get('contract')} — {(a.get('reason') or '').strip()[:120]}"
+            for a in adj
+        )
+        or "none"
+    )
+    active = [
+        f.get("flag_code")
+        for f in (composite.get("active_findings") or [])
+        if isinstance(f, dict) and f.get("flag_code")
+    ]
     return _text(
         f"Ran a $0 REPLAY eval for {agent!r}: verdict={composite.get('verdict', '—')}. "
+        f"Grounded suppressions (tool-corrected false positives): {sup}. "
+        f"Active findings that still stand: {active or 'none'}. "
         f"(A live/in-process PAID run is the human's call — confirm it in the cost modal.)"
     )
 
