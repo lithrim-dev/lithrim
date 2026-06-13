@@ -24,6 +24,7 @@
 │   ├── KICKOFF_MONITOR.md         paste-ready: take over the monitor role
 │   ├── KICKOFF_EXECUTOR.md        paste-ready: take over an executor cycle
 │   ├── KICKOFF_CRITIC.md          paste-ready: take over a critic pass
+│   ├── LOOP_MONITOR.md            paste-ready: self-paced monitor-advance loop (rung 0)
 │   └── <stream>_phase<N>_<scope>_driver.md   per-cycle driver bundles
 ├── sessions/
 │   ├── session-<stream>-phase<N>-YYYY-MM-DD.json    executor session log
