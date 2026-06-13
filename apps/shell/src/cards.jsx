@@ -22,11 +22,11 @@ export function ConfigCard({ onOpen }) {
         <div className="field-grid" style={{ marginBottom: 13 }}>
           <div className="field">
             <span className="flbl">Domain</span>
-            <div className="select"><span>Clinical scribe</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
+            <div className="select"><span>Support tickets</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
           </div>
           <div className="field">
             <span className="flbl">Dataset</span>
-            <div className="select"><span className="fa-mono">scribe_transcripts.jsonl</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
+            <div className="select"><span className="fa-mono">tickets.jsonl</span><span className="chev"><Icon name="chevD" size={14} /></span></div>
           </div>
         </div>
         <div className="field" style={{ marginBottom: 14 }}>

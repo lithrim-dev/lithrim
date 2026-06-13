@@ -313,7 +313,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="je-actor">Your handle (audit who)</Label>
             <Input id="je-actor" value={actor} onChange={(e) => setActor(e.target.value)}
-              placeholder="sme@acme-health" />
+              placeholder="you@example.com" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="je-why">Rationale (audit why)</Label>

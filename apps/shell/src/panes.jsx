@@ -86,10 +86,10 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
         </div>
       </div>
       <div className="rail-foot">
-        <div className="avatar">JR</div>
+        <div className="avatar">L</div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="who">Jordan Reyes</div>
-          <div className="org">acme-health · Pro</div>
+          <div className="who">You</div>
+          <div className="org">Local workspace</div>
         </div>
         <button className="icon-btn"><Icon name="dots" size={16} /></button>
       </div>
@@ -232,7 +232,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     <main className="center">
       <div className="center-hd">
         <div style={{ minWidth: 0 }}>
-          <div className="h-title">{showExample ? "Scribe Agent v4" : "New evaluation"}</div>
+          <div className="h-title">{showExample ? "Example agent" : "New evaluation"}</div>
         </div>
         {showExample && (
           <>
@@ -267,16 +267,16 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Welcome back. We're configuring an evaluation for <strong>Scribe Agent v4</strong>. Four of six steps are done — let's confirm the domain, then kick off the full run.</p>
+              <p>Welcome back. We're configuring an evaluation for <strong>your agent</strong>. Let's confirm the domain, then kick off a run.</p>
               <ConfigCard onOpen={() => onOpenArtifact("config")} />
             </div>
           </div>
 
           <div className="msg user">
-            <div className="av user">JR</div>
+            <div className="av user">L</div>
             <div className="content">
-              <div className="name">Jordan</div>
-              <p>Looks right. Bump it to the full <code className="inl">2,400</code> samples and keep the safety checks on — fabricated allergies are the one we keep failing.</p>
+              <div className="name">You</div>
+              <p>Looks right. Bump it to the full sample set and keep the safety checks on — let's see where the agent slips.</p>
             </div>
           </div>
 
@@ -337,7 +337,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Everything checks out. Running all 2,400 will take about <strong>6 minutes</strong>; I'll stream verdicts into the report as they land.</p>
+              <p>Everything checks out. Running the full set takes a few minutes; I'll stream verdicts into the report as they land.</p>
               {renderTool({ type: "tool-run_panel", state: "output-available" })}
               <div className="msg-actions">
                 <button className="btn btn-primary" disabled={runStatus === "loading"}
@@ -365,8 +365,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               </p>
               <div className="es-prompts">
                 {[
-                  "Create a risk judge for clinical scribe notes",
-                  "Add a safety flag for fabricated allergies",
+                  "Create a risk judge for your agent's answers",
+                  "Add a safety flag for fabricated claims",
                   "Run a $0 replay on the current config",
                 ].map((p) => (
                   <button key={p} className="es-prompt" onClick={() => fillPrompt(p)}>

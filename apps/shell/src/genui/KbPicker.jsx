@@ -1,10 +1,10 @@
 /* KbPicker.jsx — generative-UI input component (tool-kb_picker, SPEC §5b).
 
-   Picks the KB bindings for EvalProfile.kb_bindings. The grounding KB is the
-   Pinecone hipaa-compliancev2 index (namespace-based); rerank is settled OFF for
-   these structured/clinical KBs (kb-grounding-corpus memory). No KB-list endpoint
-   exists yet, so the available namespaces are representative — the widget's job is
-   to collect the binding selection + return it via onResult(). No persistence.
+   Picks the KB bindings for EvalProfile.kb_bindings. The grounding KB is an
+   external vector index (namespace-based); rerank is settled OFF for these
+   structured KBs. No KB-list endpoint exists yet, so the available namespaces
+   are representative — the widget's job is to collect the binding selection +
+   return it via onResult(). No persistence.
 
    Built on shadcn primitives + the @theme token bridge. */
 import { useState } from "react";
@@ -18,16 +18,16 @@ import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
 const NAMESPACES = [
-  { id: "hipaa-privacy", label: "HIPAA · privacy rule", on: true },
-  { id: "hipaa-security", label: "HIPAA · security rule", on: true },
-  { id: "consent-litigation", label: "Consent litigation (Saucedo)", on: false },
-  { id: "med-formulary", label: "Medication formulary", on: false },
+  { id: "policy-docs", label: "Policy docs", on: true },
+  { id: "style-guide", label: "Style guide", on: true },
+  { id: "product-faq", label: "Product FAQ", on: false },
+  { id: "past-tickets", label: "Resolved tickets", on: false },
 ];
 
-export default function KbPicker({ index = "hipaa-compliancev2", onResult }) {
+export default function KbPicker({ index = "knowledge-base", onResult }) {
   const [bindings, setBindings] = useState(NAMESPACES);
   const [topK, setTopK] = useState("5");
-  const [rerank, setRerank] = useState(false); // settled OFF for structured/clinical KBs
+  const [rerank, setRerank] = useState(false); // settled OFF for structured KBs
   const [returned, setReturned] = useState(false);
 
   const toggle = (id, v) => setBindings((bs) => bs.map((b) => (b.id === id ? { ...b, on: v } : b)));

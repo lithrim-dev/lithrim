@@ -3,8 +3,8 @@
    Authors a verification contract in the WS-3a structural-floor shape
    (claim → tool-query → verdict). Mirrors the ontology verification_contracts entry:
        { contract_type, flag_code, question, params, version }
-   clinical_v1 ships ONE seeded contract (med-presence-check/v1) and is otherwise
-   floor-less, so this widget authors net-new — no seeded example to clone (expected).
+   The active pack may ship seeded contracts or be floor-less; this widget authors
+   net-new — no seeded example to clone (expected).
 
    Collects input + returns the contract via onResult(); no persistence (WS-5d wires
    any write). Built on shadcn primitives + the @theme token bridge; the Preview opens
@@ -35,7 +35,7 @@ export default function ContractBuilder({ onResult }) {
   const [contractType, setContractType] = useState("presence_check");
   const [flagCode, setFlagCode] = useState("");
   const [question, setQuestion] = useState("");
-  const [paramsText, setParamsText] = useState('{\n  "med_source": "patient_profile.active_medications"\n}');
+  const [paramsText, setParamsText] = useState('{\n  "source": "response.claims"\n}');
   const [version, setVersion] = useState("");
   const [returned, setReturned] = useState(false);
 
@@ -113,7 +113,7 @@ export default function ContractBuilder({ onResult }) {
           </DialogContent>
         </Dialog>
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          {returned ? "added to setup ✓" : "net-new (clinical_v1 is floor-less)"}
+          {returned ? "added to setup ✓" : "net-new contract"}
         </span>
         <Button className="ml-auto" size="sm" onClick={apply} disabled={!valid}>Add contract</Button>
       </CardFooter>

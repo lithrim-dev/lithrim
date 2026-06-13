@@ -312,8 +312,8 @@ function ConfigTab({ agent = "ws0_default" }) {
 
 // The correction-corpus / flywheel view — GET /v1/corpus (corpus-row/1). Each row is
 // a logged grounding correction (suppress | floor) with before→after verdict + the
-// contract + owner roles + a rollout pointer. clinical_v1 is suppress-only and the
-// corpus may be empty until a run writes corrections — empty-state, never a crash.
+// contract + owner roles + a rollout pointer. The corpus may be empty until a
+// run writes corrections — empty-state, never a crash.
 function CorpusTab() {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [rows, setRows] = useState([]);
@@ -440,7 +440,7 @@ function CaseTab({ agent = "ws0_default" }) {
       </div>
       {kase.artifact_text ? (
         <div className="art-sec">
-          <div className="art-h2">Note <span className="cnt">the scribe artifact (readable)</span></div>
+          <div className="art-h2">Note <span className="cnt">the artifact (readable)</span></div>
           <pre style={_PRE}>{kase.artifact_text}</pre>
         </div>
       ) : null}
@@ -461,7 +461,7 @@ function CaseTab({ agent = "ws0_default" }) {
       </div>
       {conditions.length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Patient record <span className="cnt">{conditions.length} condition(s)</span></div>
+          <div className="art-h2">Record <span className="cnt">{conditions.length} condition(s)</span></div>
           <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", lineHeight: 1.7 }}>
             {conditions.slice(0, 30).map((c, i) => <div key={i}>· {c}</div>)}
           </div>
@@ -474,7 +474,7 @@ function CaseTab({ agent = "ws0_default" }) {
 export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
     case: ["Source case", "transcript + artifact · what the council grades"],
-    report: ["Evaluation report", "scribe-agent-v4 · run #218"],
+    report: ["Evaluation report", "the latest run"],
     judges: ["Judge council", "per-case realized votes"],
     config: ["Config editor", "ontology · read-only"],
     corpus: ["Correction corpus", "tool-grounded flywheel"],

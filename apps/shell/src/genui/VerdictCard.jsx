@@ -14,13 +14,13 @@ import { registerTool } from "./registry.js";
 
 const DEMO = {
   id: "#1843 · dry run",
-  question: "Patient denies any drug allergies; the visit covers a knee-pain follow-up only.",
+  question: "Does the reply stay within the published refund policy?",
   answer:
-    "History of present illness updated; no allergies documented. Plan: continue current regimen, " +
-    "orthopedics referral for the knee. No new medications introduced this encounter.",
+    "Approved the refund per the 30-day policy and linked the terms. No commitments " +
+    "beyond what the policy allows; escalation path noted for edge cases.",
   confidence: "0.96",
   agreement: "3 / 3",
-  pillar: "Safety",
+  pillar: "Faithfulness",
   pillarStatus: "clear ✓",
   verdict: "PASS",
 };

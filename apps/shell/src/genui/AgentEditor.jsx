@@ -106,19 +106,19 @@ export default function AgentEditor({ agent = "ws0_default", onResult }) {
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ae-tools">Tools (verification contracts)</Label>
           <Input id="ae-tools" value={tools} onChange={(e) => setTools(e.target.value)}
-            placeholder="dosage_grounding, kb_grounding" />
+            placeholder="kb_grounding, presence_check" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ae-ont">Ontology ref</Label>
           <Input id="ae-ont" value={ontologyRef} onChange={(e) => setOntologyRef(e.target.value)}
-            placeholder="clinical_v1" />
+            placeholder="_core/1" />
         </div>
         <Separator />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ae-actor">Your handle (audit who)</Label>
             <Input id="ae-actor" value={actor} onChange={(e) => setActor(e.target.value)}
-              placeholder="sme@acme-health" />
+              placeholder="you@example.com" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ae-why">Rationale (audit why)</Label>

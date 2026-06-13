@@ -106,7 +106,7 @@ describe("KbPicker (tool-kb_picker)", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
     const r = onResult.mock.calls[0][0];
     expect(r.kb_bindings.length).toBeGreaterThan(0);
-    expect(r.kb_bindings[0]).toMatchObject({ index: "hipaa-compliancev2" });
-    expect(r.rerank).toBe(false); // off for structured/clinical KBs
+    expect(r.kb_bindings[0]).toMatchObject({ index: "knowledge-base" });
+    expect(r.rerank).toBe(false); // off for structured KBs
   });
 });

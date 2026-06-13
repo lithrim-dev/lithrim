@@ -273,7 +273,7 @@ describe("CenterPane / Shell — UX-1: clean default + cadence + New-eval (S-BS-
     // opt-in reveals the canned showcase (preamble + the fake header chips)
     fireEvent.click(screen.getByText(/Show example conversation/i));
     expect(screen.getByText(/2,400 samples/)).toBeInTheDocument();
-    expect(screen.getAllByText(/Scribe Agent v4/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Example agent/).length).toBeGreaterThan(0);
   });
 
   it("live turns use a neutral identity (You), never the scripted Jordan", async () => {

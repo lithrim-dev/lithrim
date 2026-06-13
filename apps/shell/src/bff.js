@@ -40,7 +40,7 @@ export const getOntology = (agent = "ws0_default") =>
 
 /* GET /v1/case — the SOURCE INPUT the council grades (CHATBIND-3): transcript + artifact
    (generic shape — JSON or free text, varies by domain) + the by-construction planted label
-   (expected_safety_flags + injection_recipe) + patient conditions. $0 read. */
+   (expected_safety_flags + injection_recipe) + record conditions. $0 read. */
 export const getCase = (agent = "ws0_default") =>
   call(`/v1/case?agent=${encodeURIComponent(agent)}`);
 
