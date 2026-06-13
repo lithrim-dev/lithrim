@@ -1,0 +1,51 @@
+{
+  "session_id": "session-bench-salvage-phaseTOOL-1-2026-06-13",
+  "stream": "bench-salvage",
+  "phase": "TOOL-1",
+  "driver_bundle_id": "bench-salvage-phaseTOOL-1-kind-tool-plane-registry-fold",
+  "started_at": "2026-06-13T00:00",
+  "ended_at": "2026-06-13T00:00",
+  "executor": "inline-main-session",
+  "target_repos": ["lithrim-bench"],
+  "record_kind": "INLINE-WITH-FRESH-CRITIC",
+  "record_note": "Built inline in the main session on the user's 'go' (a plan-review checkpoint was presented + approved before any edit). NOT via the .devloop exec-driver loop, but a HARD-GATE fresh-critic worktree pass WAS run at close (the agreed discipline, like PLUGIN-1) and returned CLEAN. git history (487b7e1) is the audit trail.",
+  "plan_review": {
+    "posted_at": "2026-06-13T00:00",
+    "user_approved_at": "2026-06-13T00:00",
+    "deviations": "One scope adjustment surfaced honestly at close: the EvalProfile.tools/kb_bindings retire/repurpose was DEFERRED (it touches the audited config blob — a migration), kept with a LEGACY-INERT comment instead. The verification/spec.py TOOL_* <-> grounding contract_type namespace merge was also deferred (touches contract_type keys ontologies reference). Both noted to the user."
+  },
+  "commits": [
+    {"hash": "487b7e1", "repo": "lithrim-bench", "title": "feat(plugins): fold kind:tool into the registry — the configurable tool/connector plane (TOOL-1)", "deliverable": "plugins.py: PackManifest.tools field + _CORE_TOOL_PLUGINS (etlp_jute) + tool_plugins() + appended into provenance_snapshot. pack.py: load_pack_tools() (reads a pack's tools.json DATA, cached). _plugin_fixture: tools.json (fixture_tool) — the open/closed proof. tests: TOOL-1 section (5 tests) + test_a3 updated for the tool kind. config.py: EvalProfile.tools/kb_bindings documented LEGACY-INERT. SPEC_PLUGIN_ARCHITECTURE.md + CLAUDE.md: the TOOL-1 note."}
+  ],
+  "acceptance": [
+    {"criterion": "A1 — kind:tool folded into the registry", "status": "MET", "evidence": "tool_plugins() enumerates _CORE_TOOL_PLUGINS (etlp_jute) plus pack tools; provenance_snapshot() kinds now includes 'tool'; test_a3 updated + green."},
+    {"criterion": "A2 — open/closed (zero engine edits)", "status": "MET", "evidence": "a NET-NEW fixture_tool registers via packs/_plugin_fixture/tools.json + the manifest tools ref ALONE; critic confirmed zero engine references to fixture_tool; git diff --stat = only the 8 declared files."},
+    {"criterion": "A3 — CE/Pro tier gate non-vacuous", "status": "MET", "evidence": "under denylist:fixture_tool the pro fixture_tool is ABSENT from provenance while _plugin_fixture + etlp_jute (core) stay; under permit-all it is present at inherited tier=pro; critic reproduced both directions live."},
+    {"criterion": "A4 — moat byte-identical", "status": "MET", "evidence": "compliance_council.py 0-diff vs parent; _apply_consensus/extract_verdict_confidence AST-identical vs acc4973; signals.py/withstands.py 0-diff; R-GUARD honored (gate not on the 4 council accessors; tool_plugins/load_pack_tools don't gate); critic-reproduced."},
+    {"criterion": "A5 — plugins.py stays stdlib+pydantic-only", "status": "MET", "evidence": "no openai/dspy/httpx imported; critic confirmed import pulls none into sys.modules."},
+    {"criterion": "0-new green bar + ruff clean", "status": "MET", "evidence": "dev: 503 passed, 0 failed, 50 skipped. Critic (bare worktree, no Azure creds): HEAD vs parent = +5 passed (the 5 TOOL-1 tests), same pre-existing 8 failures/5 errors (Azure deployment env). ruff check + format clean on all touched files."},
+    {"criterion": "Fresh-critic worktree pass (HARD-GATE close discipline)", "status": "MET", "evidence": "CLEAN — all 7 adversarial checks PASS, 1 NIT (the '503' figure is env-specific; '0-new' is exact). Nothing blocking/non-blocking."}
+  ],
+  "diagnostic_stats": {
+    "commits": 1,
+    "commit": "487b7e1",
+    "parent_sha": "6468ee5",
+    "files_changed": 8,
+    "new_files": ["packs/_plugin_fixture/tools.json"],
+    "test_section": "tests/test_plugin_phase1.py TOOL-1 section (5 tests) + test_a3 updated; 23 passed in the file",
+    "frozen_council_lines_touched_this_cycle": 0,
+    "moat_status": "byte-identical (compliance_council.py untouched; R-GUARD honored)",
+    "fresh_critic_verdict": "CLEAN (7/7 PASS, 1 NIT)",
+    "pushed": false,
+    "local_ssot": true
+  },
+  "seams_opened": [],
+  "seams_closed": [],
+  "deferred": [
+    "EvalProfile.tools/kb_bindings retire/repurpose (touches the audited config blob — a migration).",
+    "The verification/spec.py TOOL_* <-> grounding contract_type namespace merge (touches contract_type keys ontologies reference)."
+  ],
+  "verdict": "CLOSED",
+  "report": "TOOL-1 — fold the kind:tool plane into the unified plugin registry: the consistent, CE/Pro-gated interface for configuring any MCP server / API connector / KB-query / terminology / custom tool, with zero engine edits (the open/closed property). The tool kind was declared in the Kind literal since PLUGIN-1 but unpopulated; TOOL-1 folds it in (mirroring the contract/provider folds): plugins.tool_plugins() (a core static tuple — the etlp_jute :3031 connector — plus a pack's tools.json DATA ref via pack.load_pack_tools()) enumerates kind:tool into provenance_snapshot(), tier-gated like every kind. MCP is the standard; transport:service for external MCP/HTTP, in_process for SDK-MCP agent tools; the sub-kind rides the existing implements string; connector config rides service:dict (secrets via env). Declaration-only — a tool is USED by a flag's verification_contract criterion; execution stays in verification/grounding. 'Configure any MCP/custom/API tool' = a manifest entry, zero engine edits — proven by a net-new fixture_tool registering via the manifest alone + the per-plugin skip under denylist. Moat byte-identical (declaration-only/additive; compliance_council.py untouched; R-GUARD honored). 503 passed in dev / 0-new; ruff clean. Built inline on the user's go; a HARD-GATE fresh-critic worktree pass returned CLEAN (7/7 PASS, 1 NIT). Commit 487b7e1, parent 6468ee5, LOCAL SSOT (not pushed). Registered into the ledger 2026-06-13.",
+  "next_session_hint": "NEXT = TOOL-2 — the 2 Pro tools built to this interface IN the pack repo (../lithrim-pack-healthcare): KB-over-:8002 (reuse KbRagTool over /v1/kb/{ns}/search, the hipaa-compliancev2 index) + Hermes/SNOMED over its native stdio MCP server (hermes --db snomed.db mcp; the com.eldrix.hermes.mcp 29-tool surface incl. subsumed_by/expression_subsumes), each a kind:tool manifest (in the pack's tools.json) + a kind:contract executor binding a flag — Hermes → FABRICATED_HISTORY via SNOMED-code subsumption (upgrade record_presence's match: snomed_core → snomed_code). The one net-new CORE piece = a generic MCP-stdio-client VerificationTool (the configure-any-MCP execution half, domain-agnostic). Hermes prereq: the runnable hermes binary/uberjar (user-run). Resume via HANDOFF_bench-salvage_phaseTOOL-2_kickoff_2026-06-13.md."
+}

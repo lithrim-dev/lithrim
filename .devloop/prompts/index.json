@@ -3,6 +3,32 @@
   "updated": "2026-06-13",
   "bundles": [
     {
+      "id": "bench-salvage-phaseTOOL-1-kind-tool-plane-registry-fold",
+      "stream": "bench-salvage",
+      "phase": "TOOL-1",
+      "scope": "fold the kind:tool plane into the unified plugin registry: a consistent, CE/Pro-gated interface for configuring any MCP server / API connector / KB-query / terminology / custom tool, with zero engine edits (the open/closed property). The execution + the 2 Pro tools (KB, Hermes) are TOOL-2.",
+      "file": "(built inline in the main session on user 'go'; git history 487b7e1 is the audit trail; a HARD-GATE fresh-critic worktree pass at close)",
+      "status": "shipped — CLOSED CLEAN 2026-06-13 (commit 487b7e1, parent 6468ee5; LOCAL SSOT, NOT pushed). plugins.tool_plugins() (a core static tuple — the etlp_jute :3031 connector — plus a pack's tools.json DATA ref via pack.load_pack_tools()) enumerates kind:tool into provenance_snapshot(), tier-gated (a pro tool ABSENT under deny). MCP is the tool-transport standard; transport:service (external MCP/HTTP) | in_process (SDK-MCP); implements names the sub-kind (tool.mcp_server/api_connector/kb_query/terminology/builtin); service:dict holds connector config (secrets via env). DECLARATION-ONLY — a tool is USED by a flag's verification_contract criterion. Open/closed proven (a net-new fixture_tool via packs/_plugin_fixture/tools.json alone); per-plugin skip under denylist:fixture_tool = the gate non-vacuity. HARD-GATE fresh-critic worktree pass CLEAN (7/7 checks PASS, 1 NIT): moat byte-identical (compliance_council.py untouched, R-GUARD honored), open/closed real (fixture_tool zero engine refs), gate non-vacuous, declaration-only honest, 0-new (HEAD vs parent = +5 passed = the 5 TOOL-1 tests).",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Touches the plugin registry (the CE/Pro boundary mechanism) — additive/declaration-only and moat-inert by construction, but a fresh-critic worktree pass is warranted (like PLUGIN-1). The critic verified the moat byte-freeze, R-GUARD, open/closed, and the gate non-vacuity independently.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "lithrim_bench/harness/plugins.py (tool_plugins() + _CORE_TOOL_PLUGINS + PackManifest.tools)",
+        "lithrim_bench/harness/pack.py (load_pack_tools())",
+        "packs/_plugin_fixture/tools.json (the open/closed fixture tool)",
+        "tests/test_plugin_phase1.py (the TOOL-1 section + test_a3 updated)",
+        "docs/specs/SPEC_PLUGIN_ARCHITECTURE.md (the TOOL-1 LANDED note) + CLAUDE.md",
+        "memory tool-plane-kind-tool.md (the authoritative narrative + the TOOL-2 plan)"
+      ],
+      "_note": "TOOL-1 = the consistent tool/connector DECLARATION interface (the user's 'configure any MCP/custom/API tool behind a consistent interface' ask). MCP is the standard. The execution half (a generic MCP-stdio-client) + the 2 Pro tools (KB-over-:8002 + Hermes/SNOMED over its native stdio MCP server) are TOOL-2, built in the pack repo. Registered into the ledger 2026-06-13.",
+      "created": "2026-06-13",
+      "last_re_verified": "2026-06-13",
+      "next_action": "CLOSED CLEAN 2026-06-13 (fresh-critic worktree CLEAN). NEXT = TOOL-2 — the 2 Pro tools built to this interface IN the pack repo (../lithrim-pack-healthcare): KB-over-:8002 (reuse KbRagTool) + Hermes/SNOMED over its native stdio MCP server (hermes --db snomed.db mcp; subsumed_by), each a kind:tool manifest + a kind:contract executor binding a flag (Hermes → FABRICATED_HISTORY snomed_code subsumption). The one net-new CORE piece = a generic MCP-stdio-client VerificationTool (the configure-any-MCP execution half)."
+    },
+    {
       "id": "bench-salvage-phaseCE-PRODUCT-1-ce-core-usable-workspace-pack-loop",
       "stream": "bench-salvage",
       "phase": "CE-PRODUCT-1",
