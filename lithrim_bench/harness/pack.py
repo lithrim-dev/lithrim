@@ -176,6 +176,50 @@ def discover_packs() -> list[dict]:
     return sorted(seen.values(), key=lambda p: p["id"])
 
 
+def pack_corpora_dir(pack: str) -> Path | None:
+    """The dir holding a pack's by-construction case corpora (``*.jsonl``), or ``None``.
+    Convention (until a manifest ``corpora`` field formalizes it): ``<pack_root>/examples``,
+    then the sibling ``<pack_root>/../examples`` (the external-pack-repo layout)."""
+    root = _pack_root(pack)
+    for cand in (root / "examples", root.parent / "examples"):
+        if cand.is_dir() and any(cand.glob("*.jsonl")):
+            return cand
+    return None
+
+
+def pack_cases(pack: str, *, limit: int = 200) -> list[dict]:
+    """The pack's by-construction cases, flattened across its corpora. Each:
+    ``{case_id, source (abs jsonl), corpus, expected_safety_flags, clean_negative}``. Empty
+    when the pack ships no corpora dir."""
+    cdir = pack_corpora_dir(pack)
+    if cdir is None:
+        return []
+    out: list[dict] = []
+    for jf in sorted(cdir.glob("*.jsonl")):
+        try:
+            with jf.open() as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    cid = row.get("case_id")
+                    if not cid:
+                        continue
+                    out.append({
+                        "case_id": cid,
+                        "source": str(jf),
+                        "corpus": jf.stem,
+                        "expected_safety_flags": row.get("expected_safety_flags") or [],
+                        "clean_negative": bool(row.get("clean_negative")),
+                    })
+                    if len(out) >= limit:
+                        return out
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 @lru_cache(maxsize=8)
 def _manifest(pack: str) -> dict:
     return json.loads((_pack_root(pack) / "pack.json").read_text())
@@ -340,11 +384,17 @@ def assert_pack_licensed(pack: str, license=None) -> None:
         )
 
 
-def pack_ontology_path(pack: str | None = None) -> Path:
-    """The active (or named) pack's ontology JSON path, gated for license + council-consistency."""
+def pack_ontology_path(pack: str | None = None, *, check_consistency: bool = True) -> Path:
+    """The active (or named) pack's ontology JSON path, gated for license + (optionally)
+    council-consistency. ``check_consistency=False`` skips the codes-⊆-KNOWN gate — for
+    resolving a NON-active pack's ontology PATH (e.g. the BFF building a pack-bound agent
+    template while a different pack is active); the gate still fires for real at GRADE time,
+    where the subprocess binds that pack so its codes match the council. The license gate
+    (R-GUARD: on the ``*_path`` resolvers) is never skipped."""
     pack = pack or active_pack()
     assert_pack_licensed(pack)
-    assert_pack_council_consistent(pack)
+    if check_consistency:
+        assert_pack_council_consistent(pack)
     return _pack_ref(pack, "ontology")
 
 

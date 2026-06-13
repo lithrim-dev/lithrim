@@ -602,12 +602,55 @@ def list_agents_endpoint(db_path: Path = Depends(get_config_db)) -> dict:
     return {"agents": list_agents(db_path=db_path)}
 
 
+def _committed_template() -> dict:
+    return json.loads((REPO_ROOT / "data" / "config" / "agents" / "ws0_default.json").read_text())
+
+
+def _pack_agent_template(pack: str) -> dict:
+    """Synthesize a blank-slate agent BOUND to a pack — its ontology + a first corpus case, so
+    a created agent grades that pack's domain (the council binds the pack at grade time). The
+    ontology path resolves UNCHECKED (a different pack is active in this process; the codes gate
+    fires for real in the grade subprocess that binds this pack)."""
+    from lithrim_bench.harness import pack as pack_mod
+
+    ont = pack_mod.pack_ontology_path(pack, check_consistency=False)
+    domain = json.loads(ont.read_text()).get("domain", pack)
+    ref = f"{domain}/1"
+    cases = pack_mod.pack_cases(pack)
+    case = next((c for c in cases if c.get("clean_negative")), cases[0] if cases else None)
+    dataset = (
+        {"case_id": case["case_id"], "source": case["source"], "baseline": None, "mode": "in_process"}
+        if case
+        else {"case_id": "", "source": "", "baseline": None, "mode": "in_process"}
+    )
+    return {
+        "name": f"{pack}_default",
+        "eval_profile": {
+            "judges": ["risk_judge", "policy_judge", "faithfulness_judge"],
+            "council_config": {"compliance_council_version": "v2", "disposition": "in-process-v2"},
+            "ontology_ref": ref,
+            "ontology_path": str(ont),
+            "tools": [],
+            "kb_bindings": {},
+            "severity_map_ref": f"ontology:{ref}",
+        },
+        "dataset": dataset,
+    }
+
+
 @app.get("/v1/agent/template")
 def agent_template_endpoint() -> dict:
-    """The committed blank-slate agent template (data/config/agents/ws0_default.json) — the
-    source a fresh agent clones from, independent of the active workspace (fresh workspaces
-    start with NO agents, so the clone source can't be the workspace's own DB)."""
-    return json.loads((REPO_ROOT / "data" / "config" / "agents" / "ws0_default.json").read_text())
+    """The blank-slate agent template a fresh agent clones from. PACK-AWARE: for a workspace
+    pinning a non-_core pack it binds to THAT pack's ontology + a first case (so the agent
+    grades the right domain); else the committed ws0_default (_core). Independent of the
+    (possibly empty) active workspace DB."""
+    pack = workspace.get_active_workspace().pack
+    if pack and pack != "_core":
+        try:
+            return _pack_agent_template(pack)
+        except (FileNotFoundError, KeyError, ValueError, OSError):
+            pass  # pack not discoverable here / no ontology → fall back to the blank
+    return _committed_template()
 
 
 # ── workspaces: the switchable domain-setup boundary (the multitenancy primitive) ──
@@ -670,6 +713,19 @@ def list_packs_endpoint() -> dict:
         if p["tier"] in ("core", "pro") and p.get("domain") != "fixture"
     ]
     return {"packs": packs, "active": workspace.get_active_workspace().pack}
+
+
+@app.get("/v1/packs/{pack}/cases")
+def pack_cases_endpoint(pack: str) -> dict:
+    """A pack's by-construction cases — what a workspace's agent can evaluate (case_id, corpus,
+    expected_safety_flags, clean_negative). Empty if the pack ships no corpora / isn't discoverable."""
+    from lithrim_bench.harness import pack as pack_mod
+
+    try:
+        cases = pack_mod.pack_cases(pack)
+    except FileNotFoundError:
+        cases = []
+    return {"pack": pack, "cases": cases}
 
 
 @app.delete("/v1/agent")

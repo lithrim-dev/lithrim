@@ -169,3 +169,36 @@ def test_discover_packs_and_selectable_filter(ws_root):
     assert {"_core", "support_ticket_qa"} <= sel
     assert "_tiers_fixture" not in sel and "story_audit" not in sel  # fixtures + demo filtered
     assert body["active"] == "_core"
+
+
+def test_pack_bound_agent_template_and_cases(ws_root, monkeypatch):
+    """P3-c: a workspace pinning a discoverable pack gets an agent template bound to THAT pack's
+    ontology + a case, and the pack's cases are listable; the default _core workspace falls back
+    to the committed blank. Needs the healthcare pack checked out (skip-when-absent)."""
+    sib = REPO_ROOT.parent / "lithrim-pack-healthcare"
+    if not (sib / "healthcare" / "pack.json").is_file():
+        pytest.skip("healthcare pack not checked out")
+    monkeypatch.setenv("LITHRIM_BENCH_PACKS_DIR", str(sib))
+    from lithrim_bench.harness import pack as pack_mod
+
+    pack_mod._pack_root.cache_clear()
+
+    pytest.importorskip("fastapi", reason="needs the [bff] extra")
+    _bff = REPO_ROOT / "apps" / "bff"
+    if str(_bff) not in sys.path:
+        sys.path.insert(0, str(_bff))
+    import app as bff
+    from fastapi.testclient import TestClient
+
+    c = TestClient(bff.app)
+    c.post("/v1/workspaces", json={"name": "clinical", "pack": "healthcare"})
+    c.post("/v1/workspace", json={"name": "clinical"})
+    t = c.get("/v1/agent/template").json()
+    assert t["name"] == "healthcare_default"
+    assert "healthcare" in t["eval_profile"]["ontology_path"]  # bound to the PACK ontology
+    assert t["dataset"]["case_id"]  # a seed case from the pack's corpora
+    cases = c.get("/v1/packs/healthcare/cases").json()["cases"]
+    assert len(cases) > 0 and all("case_id" in x for x in cases)
+
+    c.post("/v1/workspace", json={"name": "default"})  # _core → the committed blank
+    assert c.get("/v1/agent/template").json()["name"] == "ws0_default"
