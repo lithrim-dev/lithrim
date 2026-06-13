@@ -136,7 +136,9 @@ def test_broad_domain_sweep_residual_is_the_closed_carveout():
 def test_pack_floors_register_the_clinical_executors():
     mod = pack.load_pack_floors()
     assert mod is not None
-    assert set(mod.SUPPRESS_EXECUTORS) == {"record_presence"}
+    # TOOL-2 added snomed_subsumption (code-based record-presence over the Hermes MCP terminology
+    # server) alongside the original snomed_core record_presence.
+    assert set(mod.SUPPRESS_EXECUTORS) == {"record_presence", "snomed_subsumption"}
     assert set(mod.FLOOR_EXECUTORS) == {"dosage_grounding"}
     # merged into the engine's registries (core-generic ∪ pack)
     assert "record_presence" in grounding.suppress_executors()

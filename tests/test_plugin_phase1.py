@@ -55,7 +55,7 @@ _FIXTURE_PACK = "_plugin_fixture"
 
 # The EXPLICIT expected registry snapshot under the healthcare pack (the suite's active pack via
 # conftest). Value-equality against this — not "no exception" — is what makes A1 non-vacuous (R1).
-_EXPECTED_SUPPRESS = {"presence_check", "kb_grounding", "record_presence"}
+_EXPECTED_SUPPRESS = {"presence_check", "kb_grounding", "record_presence", "snomed_subsumption"}
 _EXPECTED_FLOOR = {"structural_jute", "jute_gen", "dosage_grounding"}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
@@ -64,6 +64,9 @@ _EXPECTED_CONTRACT_PLUGINS = {
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "record_presence": ("contract", "pro", "in_process", "grounding.suppress"),
     "dosage_grounding": ("contract", "pro", "in_process", "grounding.floor"),
+    # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology
+    # MCP server — pack-tier (pro), service-transport (the pack's SERVICE_CONTRACT_TYPES).
+    "snomed_subsumption": ("contract", "pro", "service", "grounding.suppress"),
 }
 
 
