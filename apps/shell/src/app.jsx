@@ -134,20 +134,35 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
   );
 }
 
-function StatusBar() {
+// Live status bar — wired to GET /v1/meta (the active workspace's real state), not demo numbers.
+function StatusBar({ activeWs }) {
+  const [meta, setMeta] = useState(null);
+  const [connected, setConnected] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      import("./bff.js").then(({ getMeta }) =>
+        getMeta()
+          .then((m) => alive && (setMeta(m), setConnected(true)))
+          .catch(() => alive && setConnected(false)),
+      );
+    load();
+    const t = setInterval(load, 4000); // reflect workspace switches / new agents / new runs
+    return () => { alive = false; clearInterval(t); };
+  }, [activeWs]);
+  const plural = (n, s) => `${n} ${s}${n === 1 ? "" : "s"}`;
   return (
     <div className="statusbar">
-      <span className="si"><span className="d" style={{ background: "var(--teal)" }} /> Connected</span>
-      <span className="si run-prog">
-        Run #218
-        <span className="pbar"><i style={{ width: "62%" }} /></span>
-        1,488 / 2,400
+      <span className="si">
+        <span className="d" style={{ background: connected ? "var(--teal)" : "var(--amber)" }} />
+        {connected ? "Connected" : "Connecting…"}
       </span>
-      <span className="si">judge council: 3 active</span>
+      {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
+      {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
+      {meta && <span className="si">judge council: {meta.judges}</span>}
       <div className="right">
-        <span className="si">κ 0.88</span>
-        <span className="si">acc 92.4%</span>
-        <span className="si">v0.9.4</span>
+        {meta && <span className="si">{plural(meta.runs, "run")}</span>}
+        {meta && <span className="si">v{meta.version}</span>}
       </div>
     </div>
   );
@@ -334,7 +349,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
             />
           )}
         </div>
-        <StatusBar />
+        <StatusBar activeWs={activeWs} />
       </div>
     </div>
   );

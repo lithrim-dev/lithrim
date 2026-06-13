@@ -728,6 +728,36 @@ def pack_cases_endpoint(pack: str) -> dict:
     return {"pack": pack, "cases": cases}
 
 
+@app.get("/v1/meta")
+def meta_endpoint(
+    db_path: Path = Depends(get_config_db),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """The live status-bar meta — the ACTUAL state of the active workspace (no demo numbers):
+    workspace + pinned pack, agent count, the pack's council size, run count, the core version."""
+    from lithrim_bench import __version__
+    from lithrim_bench.harness import pack as pack_mod
+
+    ws = workspace.get_active_workspace()
+    try:
+        judges = len(pack_mod.pack_production_judges(ws.pack))
+    except (FileNotFoundError, KeyError, ValueError, OSError):
+        judges = 0
+    try:
+        runs = len(PIPELINE_RUNS.list_all(db_path=collections_db, limit=500))
+    except (OSError, ValueError, KeyError):
+        runs = 0
+    return {
+        "connected": True,
+        "workspace": ws.name,
+        "pack": ws.pack,
+        "agents": len(list_agents(db_path=db_path)),
+        "judges": judges,
+        "runs": runs,
+        "version": __version__,
+    }
+
+
 @app.delete("/v1/agent")
 def delete_agent_endpoint(
     name: str = Query(..., description="The agent to delete"),

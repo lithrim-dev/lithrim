@@ -78,6 +78,8 @@ export const listWorkspaces = () => call("/v1/workspaces");
 /* GET /v1/packs — the discoverable domain packs a workspace can pin (P3: 'install a pack'
    = make it discoverable, then it shows up here for selection). */
 export const listPacks = () => call("/v1/packs");
+/* GET /v1/meta — the live status-bar state (workspace/pack/agents/judges/runs/version). */
+export const getMeta = () => call("/v1/meta");
 export const switchWorkspace = (name) =>
   call("/v1/workspace", { method: "POST", body: { name } });
 export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =>
