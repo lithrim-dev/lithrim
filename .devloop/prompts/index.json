@@ -3,6 +3,33 @@
   "updated": "2026-06-13",
   "bundles": [
     {
+      "id": "bench-salvage-phaseTOOL-2-pro-tools-kb-hermes-snomed-grounding",
+      "stream": "bench-salvage",
+      "phase": "TOOL-2",
+      "scope": "the 2 Pro tools built to the TOOL-1 interface (in the pack repo) + the SNOMED-subsumption grounding flip: a generic core MCP-stdio client (the execution half), the hermes_snomed + kb_hipaa tool declarations (tier:pro), and a code-based record-presence executor that suppresses a FABRICATED_HISTORY false-positive via Hermes subsumed_by where string-match cannot.",
+      "file": "(built inline in the main session on user 'go'; git history dba90df/eb406ca/6eaffe4/9b1b319 is the audit trail; a fresh-critic pass at close, CLEAN)",
+      "status": "shipped — CLOSED CLEAN 2026-06-13 (4 commits, 2 repos, LOCAL NOT pushed; fresh-critic CLEAN 7/7 PASS, 2 INFO/no-action). CORE dba90df verification/mcp_client.py McpStdioClient (generic stdlib subprocess+json MCP-stdio JSON-RPC client; no reusable MCP client existed — the Agent SDK only HOSTS; injectable transport for hermetic tests; domain-agnostic, PACK-3 broad-sweep enforces it). PACK eb406ca healthcare/tools.json (hermes_snomed tool.terminology + kb_hipaa tool.kb_query; both tier:pro, configurable, ABSENT under deny). PACK 6eaffe4 the snomed_subsumption suppress executor + the by-construction proof (Type 2 diabetes vs Diabetes mellitus: record_presence/snomed_core WRONGLY flags, snomed_subsumption SUPPRESSES via subsumed_by; conservative). CE 9b1b319 parity-test pins. KEY moat-safety: registered-but-unbound → live grading byte-identical (the ontology still binds FABRICATED_HISTORY to record_presence; ground()/withstands only dispatch ontology-declared contracts). Moat byte-frozen vs acc4973 (critic-reproduced). 509 passed 0-new; ruff clean; hermetic.",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Moat-adjacent: a suppress executor can clear a finding pre-consensus (the withstands-gate reads suppress_executors()). The fresh-critic verified hardest that (a) live grading is unchanged (registered-but-unbound; ontology still uses record_presence) and (b) the moat is byte-frozen — both hold. The executor is conservative (suppress only when every item resolves AND is subsumed; never clears a true fabrication / by silence).",
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-pack-healthcare"
+      ],
+      "related_docs": [
+        "lithrim_bench/verification/mcp_client.py (McpStdioClient — the generic MCP execution primitive)",
+        "../lithrim-pack-healthcare/healthcare/tools.json (hermes_snomed + kb_hipaa declarations)",
+        "../lithrim-pack-healthcare/healthcare/floors.py (SnomedSubsumptionGrounding + _terminology_client/_resolve_code/_grounded_by_code)",
+        "../lithrim-pack-healthcare/tests/test_snomed_grounding.py (the by-construction grounding-flip proof)",
+        "tests/test_plugin_phase1.py + tests/test_pack_layer3.py (CE parity pins)",
+        "memory tool-plane-kind-tool.md (the authoritative narrative + the Hermes MCP details)"
+      ],
+      "_note": "TOOL-2 = the Pro tools made real + the headline grounding flip (labels-true-by-construction + a tool-grounded floor correcting a confidently-wrong judge). The clinical subsumption logic lives in the PACK; the generic MCP transport in CORE (boundary-clean). The live FABRICATED_HISTORY binding stays record_presence (additive); flipping it to snomed_subsumption is the user's calibration step. Hermes prereq for a LIVE run: the runnable hermes binary/uberjar (user-run). Registered into the ledger 2026-06-13.",
+      "created": "2026-06-13",
+      "last_re_verified": "2026-06-13",
+      "next_action": "CLOSED CLEAN 2026-06-13 (fresh-critic CLEAN). NEXT = the user's main flow: pick N cases → evaluate → calibrate council → flags-that-query-tools (bind snomed_subsumption / kb_hipaa to a live flag — the calibration decision) → custom criteria → promote to an Eval Pack. A LIVE Hermes grounding demo needs the runnable hermes binary/uberjar (user-run, never autostarted)."
+    },
+    {
       "id": "bench-salvage-phaseTOOL-1-kind-tool-plane-registry-fold",
       "stream": "bench-salvage",
       "phase": "TOOL-1",

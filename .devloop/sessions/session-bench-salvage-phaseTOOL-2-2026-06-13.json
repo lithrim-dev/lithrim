@@ -1,0 +1,54 @@
+{
+  "session_id": "session-bench-salvage-phaseTOOL-2-2026-06-13",
+  "stream": "bench-salvage",
+  "phase": "TOOL-2",
+  "driver_bundle_id": "bench-salvage-phaseTOOL-2-pro-tools-kb-hermes-snomed-grounding",
+  "started_at": "2026-06-13T00:00",
+  "ended_at": "2026-06-13T00:00",
+  "executor": "inline-main-session",
+  "target_repos": ["lithrim-bench", "lithrim-pack-healthcare"],
+  "record_kind": "INLINE-WITH-FRESH-CRITIC",
+  "record_note": "Built inline in the main session on the user's go (plan presented + approved across turns). A fresh-critic pass at close returned CLEAN. git history (dba90df/eb406ca/6eaffe4/9b1b319) is the audit trail. Spans two repos: CORE lithrim-bench + PACK lithrim-pack-healthcare (both LOCAL, not pushed).",
+  "plan_review": {
+    "posted_at": "2026-06-13T00:00",
+    "user_approved_at": "2026-06-13T00:00",
+    "deviations": "The decomposition (generic MCP execution primitive in CORE/CE; the clinical declarations + grounding binding in PACK/Pro) was presented + approved. The live FABRICATED_HISTORY binding was kept as record_presence (additive — flipping it is a calibration decision), surfaced to the user."
+  },
+  "commits": [
+    {"hash": "dba90df", "repo": "lithrim-bench", "title": "feat(verification): McpStdioClient — the generic MCP-stdio execution primitive (TOOL-2a)", "deliverable": "verification/mcp_client.py — a minimal, domain-agnostic MCP (Model Context Protocol) client over a stdio JSON-RPC 2.0 transport (subprocess+json, no new dep): spawn an MCP server (command/args from a tool manifest's service block), initialize handshake, then tools/call. Injectable transport for hermetic tests. No reusable MCP client existed (the Agent SDK only HOSTS create_sdk_mcp_server). Domain-neutral (the PACK-3 broad-domain sweep enforces it). 6 hermetic tests."},
+    {"hash": "eb406ca", "repo": "lithrim-pack-healthcare", "title": "feat(tools): declare the hermes_snomed + kb_hipaa Pro tools (TOOL-2b)", "deliverable": "healthcare/tools.json declares the 2 Pro tools as kind:tool plugins to the TOOL-1 interface: hermes_snomed (tool.terminology; service.mcp hermes --db snomed.db mcp; the com.eldrix.hermes native stdio MCP server, 29 tools incl. subsumed_by) + kb_hipaa (tool.kb_query; :8002 /v1/kb/{ns}/search over the Pinecone hipaa-compliancev2 index via the core KbRagTool). pack.json gains a tools ref. Verified live: both register tier:pro (configurable via their service blocks), ABSENT under deny, core etlp_jute stays."},
+    {"hash": "6eaffe4", "repo": "lithrim-pack-healthcare", "title": "feat(floors): snomed_subsumption — code-based record-presence over Hermes MCP (TOOL-2)", "deliverable": "The grounding flip: SnomedSubsumptionGrounding (contract_type snomed_subsumption) resolves the artifact PMH items + record conditions to SNOMED codes via the Hermes MCP server (the core McpStdioClient -> search), then clears each item iff its concept is == or subsumed-by (is-a) a record concept (subsumed_by). Suppresses a clinically-valid specificity/carry-forward FP (Type 2 diabetes documented against a record listing the general Diabetes mellitus) where record_presence's snomed_core string match wrongly flags it. Conservative (suppress only when every item resolves AND is subsumed). Registered in SUPPRESS_EXECUTORS + SERVICE_CONTRACT_TYPES. tests/test_snomed_grounding.py: the by-construction proof (5 tests). The live FABRICATED_HISTORY binding is UNCHANGED (additive)."},
+    {"hash": "9b1b319", "repo": "lithrim-bench", "title": "test(plugins): admit the pack's snomed_subsumption suppress executor (TOOL-2)", "deliverable": "The CE parity pins that enumerate the healthcare merge: test_plugin_phase1 _EXPECTED_SUPPRESS / _EXPECTED_CONTRACT_PLUGINS (snomed_subsumption = contract/pro/service/grounding.suppress) + test_pack_layer3's floors-register assertion. Test-only; no engine/council change."}
+  ],
+  "acceptance": [
+    {"criterion": "The grounding flip is REAL", "status": "MET", "evidence": "the by-construction proof: record_presence/snomed_core leaves the specificity FP standing (disproved=False); snomed_subsumption suppresses it (disproved=True) via Hermes subsumed_by(44054006, 73211009)=True; an unrelated condition (hypertension) correctly stands. 5 tests green; critic-reproduced."},
+    {"criterion": "Both Pro tools exposed + configurable + tier-gated", "status": "MET", "evidence": "hermes_snomed + kb_hipaa register tier:pro in provenance (configurable via their service blocks: hermes command/db; KB index/namespace), ABSENT under a denying license; core etlp_jute stays."},
+    {"criterion": "The Hermes MCP is reachable", "status": "MET", "evidence": "McpStdioClient speaks the com.eldrix.hermes.mcp wire shape (initialize handshake + tools/call decode), proven against a fake; live-able via hermes --db snomed.db mcp (user-run)."},
+    {"criterion": "Conservative (never clears a true fabrication / by silence)", "status": "MET", "evidence": "4 exit paths, only one suppresses (every item resolved AND subsumed); non-SOAP / empty PMH / any ungrounded -> the finding stands; critic probed the empty-oracle edge -> stands."},
+    {"criterion": "Live grading byte-identical (the key moat-safety claim)", "status": "MET", "evidence": "the executor is registered-but-unbound — the ontology's FABRICATED_HISTORY still binds record_presence (unchanged, not in the commit); ground()/the withstands-gate dispatch only ontology-declared contracts, so snomed_subsumption is never run on a live case. Critic verified hardest."},
+    {"criterion": "Moat byte-frozen", "status": "MET", "evidence": "compliance_council/signals/withstands/grounding 0-diff in the cycle window; _apply_consensus/extract_verdict_confidence AST-identical vs acc4973; critic-reproduced."},
+    {"criterion": "McpStdioClient domain-agnostic", "status": "MET", "evidence": "the PACK-3 broad-domain sweep passes; grep of mcp_client.py for hermes/snomed/clinical -> empty (the clinical specifics live in the PACK floors.py)."},
+    {"criterion": "0-new green bar + hermetic + ruff", "status": "MET", "evidence": "509 passed, 0 failed (the +11 are TOOL-1+TOOL-2's own tests); the pack proof injects a fake Hermes (no real process / no network); ruff clean."}
+  ],
+  "diagnostic_stats": {
+    "commits": 4,
+    "repos": ["lithrim-bench (dba90df, 9b1b319)", "lithrim-pack-healthcare (eb406ca, 6eaffe4)"],
+    "new_files": ["lithrim_bench/verification/mcp_client.py", "tests/verification/test_mcp_client.py", "healthcare/tools.json", "tests/test_snomed_grounding.py"],
+    "frozen_council_lines_touched_this_cycle": 0,
+    "moat_status": "byte-identical (compliance_council/signals/withstands 0-diff in-cycle; consensus fns AST-identical vs acc4973)",
+    "live_grading": "byte-identical (snomed_subsumption registered-but-unbound; ontology FABRICATED_HISTORY still record_presence)",
+    "fresh_critic_verdict": "CLEAN (7/7 PASS, 2 INFO/no-action)",
+    "hermes_prereq": "the runnable hermes binary/uberjar for a LIVE run (hermes --db snomed.db mcp; user-run)",
+    "pushed": false,
+    "local_ssot": true
+  },
+  "seams_opened": [],
+  "seams_closed": [],
+  "info_findings": [
+    "The critic-prompt's check-3 moat instruction was mis-stated (the acc4973..HEAD compliance_council.py diff is non-empty due to the pre-existing CE-PACK-6b-CLEAN frozen deletions); the cycle-scoped check (6468ee5..HEAD) is empty + consensus fns AST-identical vs acc4973. Moat intact.",
+    "ruff format reflowed a few pre-existing long lines in healthcare/floors.py (InRowTool/DosageGroundingTool/_DOSE_RE) alongside the new executor — cosmetic, behavior-identical (the pack proof tests confirm no regression)."
+  ],
+  "verdict": "CLOSED",
+  "report": "TOOL-2 — the 2 Pro tools (KB + Hermes/SNOMED) built to the TOOL-1 interface + the SNOMED-subsumption grounding flip. The core McpStdioClient (a generic, domain-agnostic, stdlib MCP-stdio execution primitive — the 'call any MCP tool' half) + the pack's hermes_snomed/kb_hipaa tool declarations (tier:pro, configurable) + the snomed_subsumption suppress executor (code-based record-presence over the Hermes MCP). The by-construction proof: a note documenting Type 2 diabetes against a record listing the general Diabetes mellitus — record_presence's snomed_core string match WRONGLY flags it as fabricated, snomed_subsumption CORRECTLY suppresses it via Hermes subsumed_by (44054006 is-a 73211009); a genuinely unrelated condition correctly stands. The headline thesis made concrete — labels-true-by-construction + a tool-grounded floor correcting a confidently-wrong judge (the moat). The executor is registered-but-unbound, so live grading is byte-identical (additive; flipping the live FABRICATED_HISTORY binding to snomed_code is the user's calibration step). Moat byte-frozen; McpStdioClient domain-agnostic (boundary-sweep-enforced); 509 passed 0-new; ruff clean; hermetic. Fresh-critic CLEAN (7/7 PASS, 2 INFO/no-action). 4 commits across 2 repos, LOCAL (not pushed).",
+  "next_session_hint": "NEXT = the user's main flow now that the tooling is in place: pick N cases → evaluate → calibrate the council → flags-that-query-tools (bind snomed_subsumption / kb_hipaa to a live flag — the calibration decision that flips the live FABRICATED_HISTORY from snomed_core to snomed_code) → enable custom criteria → promote a chosen set to an Eval Pack. A LIVE Hermes grounding demo needs the runnable hermes binary/uberjar (hermes --db snomed.db mcp; user-run, never autostarted). Resume via HANDOFF_bench-salvage_phaseTOOL-2_kickoff_2026-06-13.md."
+}
