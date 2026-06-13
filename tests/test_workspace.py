@@ -94,3 +94,35 @@ def test_bff_workspace_endpoints(ws_root):
     assert c.get("/v1/workspaces").json()["active"] == "w2"
     assert c.post("/v1/workspace", json={"name": "ghost"}).status_code == 404
     assert c.post("/v1/workspaces", json={"name": "default"}).status_code == 400
+
+
+def test_grade_subprocess_binds_the_workspace_pack(ws_root, monkeypatch):
+    """PACK-WS: the council-bound grade spawns run_eval with LITHRIM_BENCH_PACK=<workspace
+    pack> + its packs_dir (so the frozen council binds the workspace's domain), and parses
+    the __GRADE_JSON__ record back. Mocked subprocess — no real grade."""
+    pytest.importorskip("fastapi", reason="needs the [bff] extra")
+    _bff = REPO_ROOT / "apps" / "bff"
+    if str(_bff) not in sys.path:
+        sys.path.insert(0, str(_bff))
+    import app as bff
+
+    captured = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = 'log noise\n__GRADE_JSON__{"verdict": "PASS", "n": 1}\ntrailing'
+        stderr = ""
+
+    monkeypatch.setattr(
+        bff.subprocess, "run", lambda cmd, **kw: (captured.update(cmd=cmd, env=kw.get("env")), _Proc())[1]
+    )
+    ws = W.create_workspace("hc", pack="healthcare", packs_dir="/ext/packs")
+    rec = bff._grade_via_subprocess(
+        agent_name="ws0_default", config_db="/cfg.sqlite", ontology_path="/ont.json",
+        collections_db="/coll.sqlite", out_dir="/out", live=False, in_process=True, ws=ws,
+    )
+    assert rec == {"verdict": "PASS", "n": 1}  # parsed past the noise + trailing lines
+    assert captured["env"]["LITHRIM_BENCH_PACK"] == "healthcare"
+    assert captured["env"]["LITHRIM_BENCH_PACKS_DIR"] == "/ext/packs"
+    assert "--in-process" in captured["cmd"]
+    assert "/ont.json" in captured["cmd"] and "/cfg.sqlite" in captured["cmd"]

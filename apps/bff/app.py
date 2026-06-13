@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -301,6 +302,43 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+_RUN_EVAL_SCRIPT = REPO_ROOT / "scripts" / "run_eval.py"
+
+
+def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
+                          live, in_process, ws) -> dict:
+    """Run the council-bound grade in a subprocess under the active workspace's pack
+    (PACK-WS). The frozen council binds its pack at IMPORT, so a live BFF can't rebind it
+    per-workspace — each grade gets a fresh process with LITHRIM_BENCH_PACK set instead, and
+    the BFF process never imports the council (it stays pack-agnostic — the multi-tenant
+    shape). assignments + models re-derive from the config DB inside run_eval.main()."""
+    env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
+    if ws.packs_dir:
+        env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    cmd = [sys.executable, str(_RUN_EVAL_SCRIPT), "--agent", agent_name,
+           "--config-db", str(config_db), "--emit-json"]
+    if live:
+        cmd.append("--live")
+    if in_process:
+        cmd.append("--in-process")
+    if ontology_path:
+        cmd += ["--ontology-path", str(ontology_path)]
+    if collections_db:
+        cmd += ["--collections-db", str(collections_db)]
+    if out_dir:
+        cmd += ["--out-dir", str(out_dir)]
+    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"grade subprocess failed (pack={ws.pack}): {proc.stderr.strip()[-1500:]}",
+        )
+    for line in proc.stdout.splitlines():
+        if line.startswith("__GRADE_JSON__"):
+            return json.loads(line[len("__GRADE_JSON__"):])
+    raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
+
+
 @app.post("/v1/run-eval")
 def run_eval_endpoint(
     req: RunEvalRequest,
@@ -336,19 +374,33 @@ def run_eval_endpoint(
     # LAUNCH-PREP D1: resolve the council backend from the request + LITHRIM_COUNCIL_BACKEND
     # so a non-replay run defaults to the bundled in-process council (no :8002/Mongo).
     live, in_process = _resolve_run_backend(req)
-    try:
-        record = run_eval.run(
-            agent,
-            live=live,
-            in_process=in_process,
-            out_dir=out_dir,
-            ontology_path=ontology_path,
-            assignments=assignments or None,
-            models=models or None,
-            collections_db=collections_db,
-        )
-    except SystemExit as exc:  # run_eval raises this when the case is missing
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ws = workspace.get_active_workspace()
+    # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
+    # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
+    # can't rebind it per-workspace. The default _core workspace (and replay) grade in-process:
+    # the common CE path, fast, and the one the $0 predictor-injection tests drive directly.
+    if (live or in_process) and (ws.packs_dir or ws.pack != workspace.DEFAULT_PACK):
+        try:
+            record = _grade_via_subprocess(
+                agent_name=req.agent, config_db=db_path, ontology_path=ontology_path,
+                collections_db=collections_db, out_dir=out_dir, live=live, in_process=in_process, ws=ws,
+            )
+        except SystemExit as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        try:
+            record = run_eval.run(
+                agent,
+                live=live,
+                in_process=in_process,
+                out_dir=out_dir,
+                ontology_path=ontology_path,
+                assignments=assignments or None,
+                models=models or None,
+                collections_db=collections_db,
+            )
+        except SystemExit as exc:  # run_eval raises this when the case is missing
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])

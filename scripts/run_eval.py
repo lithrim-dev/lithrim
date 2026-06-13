@@ -454,6 +454,23 @@ def main() -> int:
         help="opt into the in-process v2 council (PAID Azure trio; no :8002/Celery)",
     )
     parser.add_argument("--out-dir", default=None)
+    parser.add_argument(
+        "--ontology-path",
+        default=None,
+        help="resolved ontology path (BFF draft→grade); None → the agent's committed seed",
+    )
+    parser.add_argument(
+        "--collections-db",
+        default=None,
+        help="run-provenance doc-shim DB (workspace-scoped); None → the default",
+    )
+    parser.add_argument(
+        "--emit-json",
+        action="store_true",
+        help="print the eval record as a __GRADE_JSON__-prefixed line (the BFF subprocess "
+        "grade contract: PACK-WS runs the grade in a subprocess bound to the workspace's "
+        "LITHRIM_BENCH_PACK, since the frozen council binds its pack at import)",
+    )
     args = parser.parse_args()
 
     db_path = Path(args.config_db)
@@ -463,24 +480,29 @@ def main() -> int:
         seed_config_db(db_path=db_path)
     agent = load_agent(args.agent, db_path=db_path)
 
-    # S-BS-63: thread any persisted judge authoring (role → assigned flag codes) into
-    # the in-process grade so an authored judge re-votes with its authored lens. Empty
-    # before any PUT /v1/judges → run() defaults each judge to its full pack lens (the
-    # authored path is the only in-process grade; CE-PACK-6b-ROUTE).
-    assignments = {
-        role: jc.assigned_flags
-        for role, jc in list_judges(db_path=db_path).items()
-        if jc.assigned_flags
-    }
+    # S-BS-63 / BYOC-1: thread any persisted judge authoring (role → assigned flag codes,
+    # role → model) into the in-process grade so an authored judge re-votes with its
+    # authored lens + provider. Empty before any PUT /v1/judges → run() defaults each judge
+    # to its full pack lens / Azure (the authored path is the only in-process grade).
+    judges_cfg = list_judges(db_path=db_path)
+    assignments = {role: jc.assigned_flags for role, jc in judges_cfg.items() if jc.assigned_flags}
+    models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
 
     record = run(
         agent,
         live=args.live,
         in_process=args.in_process,
         out_dir=args.out_dir,
+        ontology_path=args.ontology_path,
         assignments=assignments or None,
+        models=models or None,
+        collections_db=args.collections_db,
     )
-    _print(agent, record, live=args.live)
+    if args.emit_json:
+        record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
+        print("__GRADE_JSON__" + json.dumps(record))
+    else:
+        _print(agent, record, live=args.live)
     return 0
 
 
