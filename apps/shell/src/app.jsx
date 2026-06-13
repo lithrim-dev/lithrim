@@ -1,5 +1,5 @@
 /* app.jsx — shell composition, resizable panes, theme, status bar (ported verbatim). */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
@@ -7,13 +7,90 @@ import { ModeSwitch } from "./components/ModeSwitch.jsx";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode }) {
+// The workspace switcher (the ws-pill → a domain-setup picker). Switching a workspace
+// repoints the whole config plane + the pinned pack; "New" creates one (its own config DB).
+export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setCreating(false); }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const submit = async () => {
+    const n = name.trim();
+    if (!n) return;
+    await onCreate(n);
+    setName(""); setCreating(false); setOpen(false);
+  };
+  const menuStyle = {
+    position: "absolute", top: "calc(100% + 6px)", left: 0, minWidth: 228, zIndex: 60,
+    background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10,
+    boxShadow: "var(--shadow-pop)", padding: 6,
+  };
+  const item = (on) => ({
+    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+    padding: "7px 9px", borderRadius: 7, fontSize: 12.5, cursor: "pointer", border: "none",
+    background: on ? "var(--surface-muted)" : "transparent", color: "var(--ink)",
+  });
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button className="ws-pill" title="Switch workspace" onClick={() => setOpen((o) => !o)}
+        style={{ cursor: "pointer", border: "none" }}>
+        <span className="dot" /> {active} <I name="chevD" size={11} />
+      </button>
+      {open && (
+        <div style={menuStyle}>
+          <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase",
+            letterSpacing: 0.5, padding: "4px 9px 6px" }}>Workspaces</div>
+          {workspaces.map((w) => (
+            <button key={w.name} style={item(w.name === active)}
+              onClick={() => { setOpen(false); if (w.name !== active) onSwitch(w.name); }}>
+              <span className="dot" />
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap" }}>{w.name}</span>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)" }}>{w.pack}</span>
+              {w.name === active && <I name="check" size={12} />}
+            </button>
+          ))}
+          <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
+          {creating ? (
+            <div style={{ display: "flex", gap: 6, padding: "2px 4px" }}>
+              <input autoFocus value={name} placeholder="workspace name"
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submit();
+                  if (e.key === "Escape") { setCreating(false); setName(""); }
+                }}
+                style={{ flex: 1, minWidth: 0, padding: "6px 8px", fontSize: 12.5, borderRadius: 6,
+                  border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" }} />
+              <button onClick={submit}
+                style={{ ...item(false), width: "auto", color: "var(--accent)", fontWeight: 600 }}>Create</button>
+            </div>
+          ) : (
+            <button style={{ ...item(false), color: "var(--muted)" }} onClick={() => setCreating(true)}>
+              <I name="plus" size={12} /> New workspace
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode, workspaces, activeWs, onSwitchWorkspace, onCreateWorkspace }) {
   return (
     <div className="titlebar">
       <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
       {/* {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />} */}
       <div className="tb-crumb">
-        <span className="ws-pill"><span className="dot" /> default</span>
+        <WorkspaceSwitcher active={activeWs} workspaces={workspaces}
+          onSwitch={onSwitchWorkspace} onCreate={onCreateWorkspace} />
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
         <span className="crumb-txt">Evaluations <span className="crumb-sep">/</span> <b>New evaluation</b></span>
       </div>
@@ -78,6 +155,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
   // also create + switch to a fresh runnable blank agent.
   const [sessionKey, setSessionKey] = useState(0);
+  // P2: the active workspace (the switchable domain setup) + its switcher.
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWs, setActiveWs] = useState("default");
 
   // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
   // render its composite in the ReportTab. replay is the $0 default; live is one paid call.
@@ -112,6 +192,45 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     }
   };
   useEffect(() => { refreshAgents(); }, []);
+
+  // P2: load the workspaces for the switcher on mount.
+  const refreshWorkspaces = async () => {
+    try {
+      const { listWorkspaces } = await import("./bff.js");
+      const out = await listWorkspaces();
+      setWorkspaces(out.workspaces || []);
+      setActiveWs(out.active || "default");
+    } catch { /* offline-safe */ }
+  };
+  useEffect(() => { refreshWorkspaces(); }, []);
+
+  // Switching a workspace repoints the whole config plane server-side — reload the agents,
+  // reset the active agent, and clear the run so the UI reflects the new domain.
+  const reloadForWorkspace = async () => {
+    const left = await refreshAgents();
+    setActiveAgent(left[0] || "ws0_default");
+    setRunResult(null); setRunStatus("idle"); setRunError(null);
+    setSessionKey((k) => k + 1);
+  };
+  const onSwitchWorkspace = async (name) => {
+    if (name === activeWs) return;
+    try {
+      const { switchWorkspace } = await import("./bff.js");
+      await switchWorkspace(name);
+    } catch (err) { console.error("Switch workspace failed", err); return; }
+    setActiveWs(name);
+    await reloadForWorkspace();
+  };
+  const onCreateWorkspace = async (name, pack = "_core") => {
+    try {
+      const { createWorkspace, switchWorkspace } = await import("./bff.js");
+      await createWorkspace({ name, pack });
+      await switchWorkspace(name);
+    } catch (err) { console.error("Create workspace failed", err); return; }
+    setActiveWs(name);
+    await refreshWorkspaces();
+    await reloadForWorkspace();
+  };
 
   // The blank-slate create: clear the chat IMMEDIATELY (UX-1's instant remount reset),
   // then create a fresh RUNNABLE empty agent (eval-N) + switch to it when the BFF responds.
@@ -175,7 +294,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       <div className="win">
         <TopBar theme={theme} setTheme={setTheme} artifactOpen={open}
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
-          onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode} />
+          onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode}
+          workspaces={workspaces} activeWs={activeWs}
+          onSwitchWorkspace={onSwitchWorkspace} onCreateWorkspace={onCreateWorkspace} />
         <div className="body">
           <LeftRail width={leftW} agents={agents} activeAgent={activeAgent}
             onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval} />

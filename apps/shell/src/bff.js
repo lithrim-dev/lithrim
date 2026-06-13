@@ -71,6 +71,15 @@ export const putAgent = (agent, { actor, rationale = "" } = {}) =>
 /* GET /v1/agents — the config-plane agent names (the rail switcher). */
 export const listAgents = () => call("/v1/agents");
 
+/* ── workspaces: the switchable domain-setup boundary (the multitenancy primitive) ──
+   A workspace owns its config DB / runs / audit / ontology + a pinned domain pack.
+   Switching repoints all of it server-side; the shell reloads agents to reflect it. */
+export const listWorkspaces = () => call("/v1/workspaces");
+export const switchWorkspace = (name) =>
+  call("/v1/workspace", { method: "POST", body: { name } });
+export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =>
+  call("/v1/workspaces", { method: "POST", body: { name, pack, actor } });
+
 /* PUT a blank-slate but RUNNABLE agent: authoring-blank (no judges/tools/kb) yet it
    clones the seed default's committed ontology + Dataset so create → author a judge →
    RUN → see it grade works immediately from clean (the Dataset is BOUND, not empty, so
