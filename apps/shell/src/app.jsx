@@ -182,7 +182,12 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // CRUD-1 (D4): the active config-plane agent + the rail's agent list (GET /v1/agents).
   // The selected agent threads into the chat (CenterPane) + the run (doRun) — no more
   // hardcoded ws0_default.
-  const [activeAgent, setActiveAgent] = useState("ws0_default");
+  // Default ws0_default; honor a ?agent= deep-link (mirrors root.jsx's ?demo) so a sales/demo
+  // capture can land directly on a specific agent — no rail click, so no CenterPane remount race.
+  const [activeAgent, setActiveAgent] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("agent") || "ws0_default"; }
+    catch { return "ws0_default"; }
+  });
   const [agents, setAgents] = useState([]);
   // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
   // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
