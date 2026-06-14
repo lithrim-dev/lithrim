@@ -629,7 +629,16 @@ def ground(
         ev = semantic_evidence.get(code)
         if ev is not None:
             enriched["_evidence_spans"] = ev.get("spans")
-        verdict = contract.check(enriched, case)
+        try:
+            verdict = contract.check(enriched, case)
+        except Exception as exc:  # noqa: BLE001
+            # A service-transport suppress executor (one composing over an out-of-process tool
+            # or service) can raise if that service is unreachable. Never clear by silence: the
+            # finding STANDS and the grade does NOT abort — the unavailability is recorded for
+            # audit. This matches the executor's own conservative "inconclusive ⇒ stands" on
+            # the disproved=False branch; the pure-stdlib executors never reach this path.
+            active.append({**finding, "_grounding_error": f"{type(exc).__name__}: {exc}"})
+            continue
         if verdict.disproved:
             suppressed.append({"finding": finding, "verdict": verdict, "contract": contract})
         else:
