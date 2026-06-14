@@ -119,25 +119,26 @@ MED_PRESENCE_CONTRACT = {
     },
 }
 
-# GROUND-FLOOR-1: the record-grounded suppress contract — the S-BS-7 presence-check
-# generalized from the transcript to the patient record. The executor (grounding.py
-# RecordPresence, contract_type="record_presence") grounds the artifact's documented
-# PMH against patient_profile.conditions; a fully-grounded history SUPPRESSES a false
-# FABRICATED_HISTORY, a genuinely injected condition leaves it to stand. P0 match is
-# the snomed_core STRING set-membership — sound only because the synthetic bench mints
-# note PMH and conditions from identical FSN strings; code-based resolution is
-# TERMINOLOGY-1. artifact_decode is informational (the plaintext FHIR DocumentReference
-# decode is in the executor).
-RECORD_PRESENCE_CONTRACT = {
+# TERMINOLOGY-1 (TOOL-2): the FABRICATED_HISTORY grounding contract evolved from the
+# GROUND-FLOOR-1 record_presence (snomed_core STRING set-membership) to snomed_subsumption —
+# code-based grounding over the Hermes SNOMED MCP server. The executor (healthcare/floors.py
+# SnomedSubsumptionGrounding, contract_type="snomed_subsumption") resolves each documented PMH
+# item AND each record condition to a SNOMED concept and clears the item iff it is == or
+# subsumed-by (is-a) a record concept, so a clinically-valid SPECIFICITY (note "Type 2 diabetes"
+# vs record general "Diabetes mellitus") is correctly grounded where the string match wrongly
+# flagged it. This literal mirrors the live pack ontology so a future re-seed reproduces the
+# supersession (record_presence -> snomed_subsumption). NOTE: this script is independently
+# PACK-DIST-2-stale (OUT_PATH/SAFETY_FLAGS_SEED_PY/SNAPSHOT_PATH still point at the relocated
+# in-repo packs/healthcare/); re-point before any re-seed.
+FABRICATED_HISTORY_CONTRACT = {
     "flag_code": "FABRICATED_HISTORY",
     "question": "Is each documented history item grounded in the patient record?",
-    "contract_type": "record_presence",
-    "version": "record-presence/v1",
+    "contract_type": "snomed_subsumption",
+    "version": "snomed-subsumption/v1",
     "params": {
         "oracle_path": "patient_profile.conditions",
         "extractor": "soap_pmh_items",
-        "match": "snomed_core",
-        "artifact_decode": "fhir_documentreference",
+        "tool": "hermes_snomed",
     },
 }
 
@@ -275,7 +276,7 @@ def build_seed() -> dict:
         "severity_map": SEVERITY_MAP,
         "flags": flags,
         "questions": questions,
-        "verification_contracts": [MED_PRESENCE_CONTRACT, RECORD_PRESENCE_CONTRACT],
+        "verification_contracts": [MED_PRESENCE_CONTRACT, FABRICATED_HISTORY_CONTRACT],
         "_provenance": {
             "seeded_by": "scripts/seed_ontology.py",
             # D2-a: the AUTHORING-ORIGIN record. The seed relocated to
