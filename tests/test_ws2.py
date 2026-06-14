@@ -20,10 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from lithrim_bench.harness import grounding
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile
 from lithrim_bench.harness.grade import build_request_body
-from lithrim_bench.harness.ontology import load_ontology
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import seed_ontology  # noqa: E402
@@ -36,14 +34,6 @@ CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 BASELINE = FIXTURES / f"baseline.{CASE_ID}.json"
 CASE = FIXTURES / f"case.{CASE_ID}.jsonl"
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
-
-# The 4 fork flags — known but out-of-snapshot (S-BS-10 reference partition).
-REFERENCE_FLAGS = {
-    "FABRICATED_CONSENT_SCOPE",
-    "MALAFFI_CODE_PROPAGATION",
-    "MISSING_DUAL_CODING",
-    "WRONG_PATIENT_INFO",
-}
 
 
 def _load_run_eval():
@@ -77,7 +67,9 @@ def test_replay_without_baseline_fails_clean_not_typeerror(tmp_path):
     SystemExit (-> BFF 400), NOT Path(None) -> TypeError -> 500. Non-vacuous: pre-fix the
     Path(None) call raised TypeError, so this SystemExit/match assertion fails."""
     run_eval = _load_run_eval()
-    house = house_agent(name="sbs108_no_baseline")  # neutral _core — the SystemExit is domain-agnostic
+    house = house_agent(
+        name="sbs108_no_baseline"
+    )  # neutral _core — the SystemExit is domain-agnostic
     agent = Agent(
         name="sbs108_no_baseline",
         eval_profile=house.eval_profile,
@@ -90,36 +82,6 @@ def test_replay_without_baseline_fails_clean_not_typeerror(tmp_path):
 # ── A1: S-BS-10 gradeable/reference partition + lint gate ─────────────────────
 
 
-def test_ontology_partitions_gradeable_and_reference():
-    """A1 — 19 gradeable (in-snapshot, tiered) vs 4 reference (out-of-snapshot)."""
-    ont = load_ontology(ONTOLOGY_SEED)
-    gradeable = {f.flag for f in ont.gradeable_flags()}
-    reference = {f.flag for f in ont.flags if not f.gradeable}
-
-    assert len(gradeable) == 19
-    assert reference == REFERENCE_FLAGS
-    # gradeable <-> tiered; reference <-> untiered
-    assert all(ont.flag(c).tier for c in gradeable)
-    assert all(ont.flag(c).tier is None for c in reference)
-    # query helpers agree
-    assert ont.is_gradeable("FABRICATED_HISTORY") is True
-    assert ont.is_reference("FABRICATED_HISTORY") is False
-    assert ont.is_reference("WRONG_PATIENT_INFO") is True
-    assert ont.is_gradeable("WRONG_PATIENT_INFO") is False
-    # an unknown code is neither gradeable nor reference
-    assert ont.is_gradeable("NOT_A_REAL_CODE") is False
-    assert ont.is_reference("NOT_A_REAL_CODE") is False
-
-
-def test_seed_gradeable_set_matches_snapshot():
-    """A1 — the committed seed is consistent: every gradeable flag is in-snapshot."""
-    seed = seed_ontology.build_seed()
-    snapshot_codes = seed_ontology.load_snapshot_codes()
-    assert len(snapshot_codes) == 19
-    # no gradeable flag falls outside the snapshot — the live lint passes
-    assert seed_ontology.gradeable_flags_outside_snapshot(seed["flags"], snapshot_codes) == []
-
-
 def test_lint_fails_on_gradeable_outside_snapshot():
     """A1 — the lint FAILS (non-empty offenders) when a gradeable flag is unblessed."""
     flags = [
@@ -130,28 +92,6 @@ def test_lint_fails_on_gradeable_outside_snapshot():
     snapshot_codes = {"WRONG_DOSAGE", "MISSING_ALLERGY"}
     offenders = seed_ontology.gradeable_flags_outside_snapshot(flags, snapshot_codes)
     assert offenders == ["INVENTED_OFFENDER"]
-
-
-def test_reference_finding_is_skip_logged_never_scored():
-    """A1 — a lone reference (out-of-snapshot) HIGH finding does NOT drive BLOCK."""
-    ont = load_ontology(ONTOLOGY_SEED)
-    result = {"findings": [{"code": "WRONG_PATIENT_INFO", "severity": "HIGH"}], "verdict": "BLOCK"}
-    grounded = grounding.ground(result, {"transcript": ""}, ontology=ont)
-
-    assert [f["code"] for f in grounded.skipped_non_gradeable] == ["WRONG_PATIENT_INFO"]
-    assert grounded.active == []  # reference finding removed from the scored set
-    assert grounded.verdict == "PASS"  # the HIGH would have BLOCKed if it were scored
-
-
-def test_gradeable_finding_still_scores():
-    """A1 — a gradeable HIGH finding still drives BLOCK (reference-skip is targeted)."""
-    ont = load_ontology(ONTOLOGY_SEED)
-    result = {"findings": [{"code": "FABRICATED_HISTORY", "severity": "HIGH"}], "verdict": "BLOCK"}
-    grounded = grounding.ground(result, {"transcript": ""}, ontology=ont)
-
-    assert grounded.skipped_non_gradeable == []
-    assert [f["code"] for f in grounded.active] == ["FABRICATED_HISTORY"]
-    assert grounded.verdict == "BLOCK"
 
 
 # ── A4: harness injects the Agent's stored council_config + ontology ──────────

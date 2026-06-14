@@ -43,22 +43,26 @@ from agent.tools import (  # noqa: E402
     PAID_KEYS,
     assemble_agent_handler,
     author_flag_handler,
-    author_judge_handler,
-    get_agent_handler,
-    get_judge_handler,
     review_runs_handler,
     run_eval_handler,
     run_eval_pack_handler,
 )
 
 AGENT = "uap5c_test"
-# An existing flag in the seed ontology — author_flag EDITS tier/gradeable (never creates).
-EXISTING_FLAG = "DURATION_FABRICATION"
 # Built-in SDK tool names the allowlist must NEVER contain (bypassPermissions would
 # auto-approve them) — the S-BS-81 guard.
 BUILTIN_TOOLS = {
-    "Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch",
-    "Glob", "Grep", "NotebookEdit", "Task", "MultiEdit",
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "WebFetch",
+    "WebSearch",
+    "Glob",
+    "Grep",
+    "NotebookEdit",
+    "Task",
+    "MultiEdit",
 }
 
 
@@ -96,32 +100,6 @@ def env(tmp_path, monkeypatch):
         bff.app.dependency_overrides.clear()
 
 
-def test_full_journey_domain_judge_flag_run_review_is_audited(env):
-    """A1+A2+A3+A4: drive the five legs in order; each tool emits its EXISTING card and
-    each writing tool lands an audited record; nothing un-audited."""
-    ctx, client = env
-    steps = [
-        (get_agent_handler, {"name": AGENT}, "tool-agent_editor"),
-        (get_judge_handler, {"role": "risk_judge"}, "tool-judge_editor"),  # S-BS-82 path
-        (author_flag_handler, {"flag_code": EXISTING_FLAG, "tier": "TIER_2", "rationale": "tighten"}, "tool-flag_editor"),
-        (author_judge_handler, {"role": "risk_judge", "assigned_flags": ["WRONG_DOSAGE"], "rationale": "via chat"}, "tool-judge_editor"),
-        (run_eval_handler, {"agent": AGENT}, "tool-verdict_card"),
-        (review_runs_handler, {}, "tool-audit_log"),
-    ]
-    for handler, args, expect_type in steps:
-        before = len(ctx.parts)
-        res = asyncio.run(handler(ctx, args))
-        assert not res.get("is_error"), (handler.__name__, res)
-        assert len(ctx.parts) == before + 1, handler.__name__
-        assert ctx.parts[-1]["type"] == expect_type
-        assert ctx.parts[-1]["state"] == "output-available"
-    # A2 — the conversation IS the audit log: BOTH the flag edit and the judge write,
-    # attributed to the SME, surface in the config-change stream.
-    recs = client.get("/v1/audit").json()["records"]
-    targets = {r["target"]["type"] for r in recs if r["actor"]["id"] == "test-sme"}
-    assert {"ontology", "judge"} <= targets, targets
-
-
 def test_review_runs_threads_the_latest_run_id_to_the_audit_card(env):
     """A3 (Review): after a $0 replay, review_runs lists it and passes its run_id to the
     audit_log card so AuditView can load that run's provenance."""
@@ -139,9 +117,7 @@ def test_author_flag_unknown_flag_is_surfaced_not_bypassed(env):
     """A3 + A-SAFE: editing a non-existent flag is rejected; the tool surfaces it, emits
     NO card, and nothing is persisted (no silent un-audited write)."""
     ctx, client = env
-    res = asyncio.run(
-        author_flag_handler(ctx, {"flag_code": "NOPE_NOT_A_FLAG", "tier": "TIER_1"})
-    )
+    res = asyncio.run(author_flag_handler(ctx, {"flag_code": "NOPE_NOT_A_FLAG", "tier": "TIER_1"}))
     assert res.get("is_error") is True
     assert "existing flag" in res["content"][0]["text"].lower()
     assert ctx.parts == []  # no card on a rejected write
@@ -204,8 +180,13 @@ def test_split_and_crud_tools_grow_the_set_to_nine_with_no_paid_knob():
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
     assert len(names) == 16, names
     assert {
-        "run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag",
-        "show_case", "propose_live_run",
+        "run_eval_pack",
+        "assemble_agent",
+        "delete_judge",
+        "create_flag",
+        "delete_flag",
+        "show_case",
+        "propose_live_run",
     } <= set(names)
     by_name = {name: schema for _h, name, _d, schema in agent_tools._TOOL_SPECS}
     for tool in ("run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag"):
@@ -227,7 +208,8 @@ def test_run_eval_pack_drops_an_injected_live_knob(env, monkeypatch):
     monkeypatch.setattr(bff, "eval_pack_run_endpoint", _spy)
     asyncio.run(
         run_eval_pack_handler(
-            ctx, {"pack_id": "p", "agents": [AGENT], "live": True, "confirm": True, "in_process": True}
+            ctx,
+            {"pack_id": "p", "agents": [AGENT], "live": True, "confirm": True, "in_process": True},
         )
     )
     assert captured["live"] is False  # the injected paid knob was DROPPED at the bound op
@@ -247,7 +229,9 @@ def test_run_eval_pack_threads_workdir_on_the_non_core_subprocess_path(env, monk
     )
     seen = {}
 
-    def _spy(*, agent_name, config_db, ontology_path, collections_db, out_dir, live, in_process, ws):
+    def _spy(
+        *, agent_name, config_db, ontology_path, collections_db, out_dir, live, in_process, ws
+    ):
         seen["ontology_path"] = ontology_path  # reached ONLY if workdir resolved (no Depends leak)
         raise SystemExit("captured after the subprocess routing resolved the ontology path")
 
@@ -271,7 +255,8 @@ def test_run_eval_pack_handler_never_forwards_a_paid_knob(env):
     ctx.run_eval_pack = _spy
     asyncio.run(
         run_eval_pack_handler(
-            ctx, {"pack_id": "p", "agents": [AGENT], "in_process": True, "live": True, "confirm": True}
+            ctx,
+            {"pack_id": "p", "agents": [AGENT], "in_process": True, "live": True, "confirm": True},
         )
     )
     assert seen == {"pack_id": "p", "agents": [AGENT], "extra": {}}
@@ -299,7 +284,8 @@ def test_assemble_agent_roster_edit_is_an_audited_agent_write(env):
     ctx, client = env
     res = asyncio.run(
         assemble_agent_handler(
-            ctx, {"name": AGENT, "remove_judge": "faithfulness_judge", "rationale": "drop for the test"}
+            ctx,
+            {"name": AGENT, "remove_judge": "faithfulness_judge", "rationale": "drop for the test"},
         )
     )
     assert not res.get("is_error"), res

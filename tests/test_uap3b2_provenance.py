@@ -7,6 +7,7 @@ injected per-role predictors (no Azure call) + an injected ``SqliteProvenanceSto
 (a tmp doc-shim DB). The frozen + guard + BFF-projection tests run on default deps /
 the [bff] extra.
 """
+
 from __future__ import annotations
 
 import sys
@@ -25,13 +26,6 @@ from ._seam_freeze import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-
-# the exhibit FP: a Tier-1 code OUTSIDE risk_judge's lens, sole-owned by policy_judge.
-_FP_CODE = "PHI_DISCLOSURE_PRE_VERIFICATION"
-_FP_ROLE = "risk_judge"
-_CLEAN_CASE_ID = "bench_scribe_v1_clean_negative_aaecd73c3bcf"
-_CLEAN_CASE_SRC = REPO_ROOT / "examples" / "proof_case.jsonl"
 
 
 def _seam(role: str, decision: str, codes: list[str]) -> dict:
@@ -102,83 +96,6 @@ def test_gate_cannot_relabel_true_case():
     assert decisions[0].decision == "withstand"
 
 
-# ─────────────────────────── S-BS-72 blob embed (dspy/openai-gated) ─────────────────
-
-
-def _fp_predictors(roles):
-    def make(role):
-        def _p(*, role_key_questions: str = "", **_kw):
-            if role == _FP_ROLE:
-                return {
-                    "decision": "reject",
-                    "findings": [
-                        {"taxonomy_code": _FP_CODE, "evidence_spans": [{"quote": "x", "turn_ids": []}]}
-                    ],
-                }
-            return {"decision": "approve", "findings": []}
-
-        return _p
-
-    return {role: make(role) for role in roles}
-
-
-def test_S_BS_72_provenance_blob_carries_withstands_ruling(tmp_path):
-    """A2 — a graded in_process run's SqliteProvenanceStore blob carries the per-judge
-    withstands ruling ``{role, signals_weighed, decision, what_failed}``, so
-    ``GET /v1/runs/{id}/audit`` (stream-2) shows it. $0: injected predictors (no Azure)
-    + an injected tmp store. The real grade_inprocess saves the blob; run_eval's
-    post-save embed patches it; find_by_id reads it back."""
-    pytest.importorskip("dspy")
-    pytest.importorskip("openai")
-    from lithrim_bench.harness.collections import PIPELINE_RUNS
-    from lithrim_bench.harness.grade import grade_inprocess
-    from lithrim_bench.picklist import load_case
-    from lithrim_bench.runtime.council.authored_stage import build_authored_semantic_stage
-    from lithrim_bench.runtime.council.judges_dspy import V2_ROLES
-    from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
-
-    if str(REPO_ROOT / "scripts") not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    import run_eval
-
-    db = tmp_path / "coll.sqlite"
-    ont = load_ontology()
-    case = load_case(_CLEAN_CASE_ID, source=str(_CLEAN_CASE_SRC))
-    assert case is not None
-
-    sink: list = []
-    stage = build_authored_semantic_stage(
-        ontology=ont,
-        assignments=None,
-        predictors=_fp_predictors(V2_ROLES),
-        apply_gate=True,
-        decisions_sink=sink,
-    )
-    result = grade_inprocess(
-        case, semantic_stage=stage, provenance_store=SqliteProvenanceStore(db_path=db)
-    )
-    run_id = (result.get("provenance") or {}).get("pipeline_run_id")
-    assert run_id, "in_process run must carry a pipeline_run_id"
-    assert sink, "the gate must have run pre-consensus (non-empty sink)"
-
-    # before the embed the blob has no withstands ruling (the orchestrator save is FP-blind).
-    pre = PIPELINE_RUNS.get(run_id, db_path=db)
-    assert pre is not None and "withstands_decisions" not in pre
-
-    run_eval._embed_withstands_in_blob(run_id, sink, in_process=True, collections_db=db)
-
-    blob = PIPELINE_RUNS.get(run_id, db_path=db)
-    assert blob is not None
-    rulings = blob["withstands_decisions"]
-    assert len(rulings) == len(sink)
-    risk_ruling = next(r for r in rulings if r["role"] == _FP_ROLE)
-    assert set(risk_ruling) == {"role", "signals_weighed", "decision", "what_failed"}
-    assert set(risk_ruling["signals_weighed"]) == {"ontology_rules", "validator_outputs"}
-    assert risk_ruling["decision"] == "corrected"  # the out-of-lens FP was corrected
-    # the row id + fk are preserved across the re-insert (same doc round-trips).
-    assert blob.get("pipeline_run_id") == run_id
-
-
 # ─────────────────────────── BFF projection ([bff] extra) ───────────────────────────
 
 
@@ -194,7 +111,12 @@ def test_run_audit_report_projects_withstands():
         "verdict": "approve",
         "stage_results": {"semantic": {"judge_votes": []}},
         "withstands_decisions": [
-            {"role": "risk_judge", "signals_weighed": {}, "decision": "corrected", "what_failed": []}
+            {
+                "role": "risk_judge",
+                "signals_weighed": {},
+                "decision": "corrected",
+                "what_failed": [],
+            }
         ],
     }
     report = bff._run_audit_report(doc, "run-x")

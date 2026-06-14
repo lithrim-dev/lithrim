@@ -21,16 +21,12 @@ Layers, by import weight:
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
 import pytest
 
-from lithrim_bench.harness import grounding
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
-from lithrim_bench.harness.judges import JudgeConfig, save_judge
-from lithrim_bench.harness.ontology import load_ontology
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
@@ -218,122 +214,6 @@ def env(tmp_path):
         bff.app.dependency_overrides.clear()
 
 
-def _create_ref(ctx, code=REF_CODE, **over):
-    args = {
-        "flag_code": code,
-        "category": "fidelity",
-        "definition": "a locally-authored reference flag",
-        "when_to_use": "demo",
-        "when_NOT_to_use": "never score it",
-        "rationale": "FLAG-1 test",
-        **over,
-    }
-    return asyncio.run(agent_tools.create_flag_handler(ctx, args))
-
-
-def _seed_body() -> dict:
-    return json.loads(ONTOLOGY_SEED.read_text())
-
-
-def test_reference_create_round_trips_and_is_audited(env):
-    """A1 — a brand-new gradeable=false flag is created via the audited path, appears in the
-    working copy as a reference flag, and the create is in the §2B audit stream."""
-    bff, ctx, client, db, workdir, examples = env
-    out = _create_ref(ctx)
-    assert not out.get("is_error"), out
-    assert any(p["type"] == "tool-flag_editor" for p in ctx.parts)  # existing card, no new type
-
-    ont = client.get("/v1/ontology", params={"agent": AGENT}).json()
-    match = next((f for f in ont["flags"] if f["flag"] == REF_CODE), None)
-    assert match is not None
-    assert match["gradeable"] is False and match["tier"] is None and match["owner_roles"] == []
-
-    loaded = load_ontology(workdir / f"{AGENT}.json")
-    assert loaded.is_reference(REF_CODE) is True and loaded.is_gradeable(REF_CODE) is False
-
-    recs = client.get("/v1/audit", params={"target_type": "ontology"}).json()["records"]
-    afters = [r for r in recs if (r.get("after") or {})]
-    assert any(REF_CODE in [f["flag"] for f in (r["after"].get("flags") or [])] for r in afters)
-
-
-def test_reference_create_is_skip_logged_never_scored(env):
-    """A1 — a HIGH finding coded with the new reference flag is skip-logged and removed from
-    the scored set (it would BLOCK if it were gradeable). The non-gradeable guarantee."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    ont = load_ontology(workdir / f"{AGENT}.json")
-
-    result = {"findings": [{"code": REF_CODE, "severity": "HIGH"}], "verdict": "BLOCK"}
-    grounded = grounding.ground(result, {"transcript": ""}, ontology=ont)
-    assert [f["code"] for f in grounded.skipped_non_gradeable] == [REF_CODE]
-    assert grounded.active == []  # never scored
-    assert grounded.verdict == "PASS"  # the HIGH would have BLOCKed if scored
-
-
-def test_create_hardcodes_gradeable_false_nonvacuous(env):
-    """A-SAFE (the hardcode, NON-VACUOUS): create persists gradeable=False. This is the
-    guard for the _create_flag hardcode — flipping it to True would make the create a
-    gradeable-out-of-snapshot flag, which _validate_ontology REFUSES (422), so this very
-    'create succeeds + gradeable False' assertion would start FAILING."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    ont = client.get("/v1/ontology", params={"agent": AGENT}).json()
-    match = next(f for f in ont["flags"] if f["flag"] == REF_CODE)
-    assert match["gradeable"] is False
-
-
-def test_create_existing_flag_409(env):
-    """create != edit: a second create of the same code is a 409 (edit it via author_flag)."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    again = _create_ref(ctx)
-    assert again.get("is_error") is True
-    assert "already exists" in again["content"][0]["text"]
-
-
-def test_gradeable_from_clean_is_refused_nonvacuous(env):
-    """A2 — THE load-bearing honest gate. Flipping a created reference flag to gradeable=true
-    (an out-of-snapshot code) is REFUSED (422) with the re-snapshot message. NON-VACUOUS: an
-    in-snapshot gradeable code is accepted (200), so the refusal targets only unblessed codes."""
-    bff, ctx, client, db, workdir, examples = env
-
-    # the refusal: a new out-of-snapshot code marked gradeable -> 422 + the cross-repo message
-    body = _seed_body()
-    body["flags"].append(
-        {
-            "flag": REF_CODE,
-            "category": "fidelity",
-            "definition": "x",
-            "when_to_use": "x",
-            "when_NOT_to_use": "x",
-            "owner_roles": [],
-            "tier": "TIER_1",
-            "gradeable": True,  # gradeable + out-of-snapshot -> must 422
-        }
-    )
-    r = client.put("/v1/ontology", params={"agent": AGENT}, json=body)
-    assert r.status_code == 422
-    assert "re-snapshot" in r.text and REF_CODE in r.text  # names the path + the offender
-
-    # NON-VACUOUS: the committed seed (its gradeable codes ARE in-snapshot) is accepted
-    ok = client.put("/v1/ontology", params={"agent": AGENT}, json=_seed_body())
-    assert ok.status_code == 200
-
-
-def test_author_flag_flip_to_gradeable_is_refused_via_the_tool(env):
-    """A2 (via the conversational surface): author_flag flipping the reference code to
-    gradeable=true surfaces the snapshot refusal — the agent cannot re-grade from clean."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    out = asyncio.run(
-        agent_tools.author_flag_handler(
-            ctx, {"flag_code": REF_CODE, "gradeable": True, "rationale": "try to score it"}
-        )
-    )
-    assert out.get("is_error") is True
-    assert "re-snapshot" in out["content"][0]["text"]
-
-
 def test_delete_guard_404_unknown(env):
     bff, ctx, client, db, workdir, examples = env
     assert client.delete("/v1/ontology/flags/NOPE", params={"agent": AGENT}).status_code == 404
@@ -345,50 +225,6 @@ def test_delete_guard_refuses_gradeable_in_snapshot(env):
     bff, ctx, client, db, workdir, examples = env
     r = client.delete(f"/v1/ontology/flags/{GRADEABLE_SEED_CODE}", params={"agent": AGENT})
     assert r.status_code == 422 and "re-snapshot" in r.text
-
-
-def test_delete_guard_refuses_judge_assigned(env):
-    """A3 / GUARD 2 (NON-VACUOUS): a reference flag a persisted (global) judge assigns is
-    refused (422) — an orphan guard. Removing it would orphan the judge's lens."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    save_judge(JudgeConfig("risk_judge", "", (REF_CODE,), ()), db_path=db)
-    r = client.delete(f"/v1/ontology/flags/{REF_CODE}", params={"agent": AGENT})
-    assert r.status_code == 422 and "assign it" in r.text and "risk_judge" in r.text
-
-
-def test_delete_guard_refuses_case_emitted(env):
-    """A3 / GUARD 3 (NON-VACUOUS): a reference flag a committed case emits is refused (422) —
-    a corpus orphan that would break the golden lint. Removing it would orphan the case."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    (examples / "case.jsonl").write_text(
-        json.dumps({"case_id": "CASE_X", "expected_safety_flags": [REF_CODE]}) + "\n"
-    )
-    r = client.delete(f"/v1/ontology/flags/{REF_CODE}", params={"agent": AGENT})
-    assert r.status_code == 422 and "CASE_X" in r.text
-
-
-def test_delete_allows_unused_reference_and_audits(env):
-    """A3 — an UNUSED reference flag deletes (200) with an action=delete / target=flag audit
-    record (before=<the flag>, after=None); the flag is gone from the working copy."""
-    bff, ctx, client, db, workdir, examples = env
-    assert not _create_ref(ctx).get("is_error")
-    r = client.delete(
-        f"/v1/ontology/flags/{REF_CODE}",
-        params={"agent": AGENT, "rationale": "cleanup"},
-        headers={"X-Actor": "sme"},
-    )
-    assert r.status_code == 200 and r.json()["status"] == "deleted"
-
-    ont = client.get("/v1/ontology", params={"agent": AGENT}).json()
-    assert REF_CODE not in [f["flag"] for f in ont["flags"]]
-
-    recs = client.get("/v1/audit", params={"target_type": "flag"}).json()["records"]
-    dels = [r for r in recs if r["action"] == "delete" and r["target"]["id"] == REF_CODE]
-    assert len(dels) == 1
-    assert dels[0]["before"] is not None and dels[0]["after"] is None
-    assert dels[0]["actor"]["id"] == "sme"
 
 
 def test_agent_reachable_delete_is_bounded_by_the_endpoint_guards(env):

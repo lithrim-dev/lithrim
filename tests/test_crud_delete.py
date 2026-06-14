@@ -81,7 +81,10 @@ def test_delete_judge_reverts_to_default_and_audits(tmp_path):
         actor="sme",
     )
     assert load_judge("risk_judge", db_path=db) is not None
-    assert delete_judge("risk_judge", db_path=db, audit_log=log, actor="sme", rationale="revert") is True
+    assert (
+        delete_judge("risk_judge", db_path=db, audit_log=log, actor="sme", rationale="revert")
+        is True
+    )
     assert load_judge("risk_judge", db_path=db) is None  # reverted to default (row gone)
     deletes = _deletes(log)
     assert len(deletes) == 1
@@ -184,10 +187,14 @@ def test_delete_judge_handler_reverts_and_emits_the_judge_card():
         return {"status": "reverted", "role": role, "removed": True, "actor": {"id": "sme"}}
 
     ctx = _stub_ctx(fake)
-    out = asyncio.run(agent_tools.delete_judge_handler(ctx, {"role": "risk_judge", "rationale": "r"}))
+    out = asyncio.run(
+        agent_tools.delete_judge_handler(ctx, {"role": "risk_judge", "rationale": "r"})
+    )
     assert "is_error" not in out
     assert seen == {"role": "risk_judge", "rationale": "r"}
-    assert any(p.get("type") == "tool-judge_editor" for p in ctx.parts)  # existing card, no new type
+    assert any(
+        p.get("type") == "tool-judge_editor" for p in ctx.parts
+    )  # existing card, no new type
 
 
 def test_delete_judge_handler_surfaces_an_error_without_crashing():
@@ -224,28 +231,6 @@ def _route_deletes(client):
     return [(r["target"]["type"], r["target"]["id"]) for r in recs if r["action"] == "delete"]
 
 
-def test_get_agents_lists_the_seeds(client):
-    # The canonical seeds are present. Asserted as a SUBSET (not exact set) so legitimate
-    # seed additions (e.g. DOGFOOD-1's imported_* demo cases) don't make this brittle.
-    assert {"ws0_default", "uap5a_flip_demo", "s_bs_74_demo"} <= set(
-        client.get("/v1/agents").json()["agents"]
-    )
-
-
-def test_delete_agent_guards_404_and_audit(client):
-    assert client.delete("/v1/agent", params={"name": "ghost"}).status_code == 404
-    # the seed default is refused (422)
-    r = client.delete("/v1/agent", params={"name": "ws0_default"})
-    assert r.status_code == 422 and "seed default" in r.json()["detail"]
-    # a real non-default agent deletes + is audited
-    r = client.delete(
-        "/v1/agent", params={"name": "uap5a_flip_demo", "rationale": "cleanup"}, headers={"X-Actor": "sme"}
-    )
-    assert r.status_code == 200 and r.json()["status"] == "deleted"
-    assert "uap5a_flip_demo" not in client.get("/v1/agents").json()["agents"]
-    assert ("agent", "uap5a_flip_demo") in _route_deletes(client)
-
-
 def test_delete_agent_refuses_the_last_agent_in_isolation(tmp_path):
     """The last-agent guard, exercised independently of the ws0_default seed-default guard:
     a config DB with a SINGLE non-default agent still refuses (422 'last remaining')."""
@@ -260,8 +245,12 @@ def test_delete_agent_refuses_the_last_agent_in_isolation(tmp_path):
 
 
 def test_delete_judge_route_reverts_idempotent_and_404(client):
-    client.put("/v1/judges/risk_judge", json={"assigned_flags": [], "validator_refs": [], "model": ""})
-    r = client.delete("/v1/judges/risk_judge", params={"rationale": "revert"}, headers={"X-Actor": "sme"})
+    client.put(
+        "/v1/judges/risk_judge", json={"assigned_flags": [], "validator_refs": [], "model": ""}
+    )
+    r = client.delete(
+        "/v1/judges/risk_judge", params={"rationale": "revert"}, headers={"X-Actor": "sme"}
+    )
     assert r.status_code == 200 and r.json()["removed"] is True
     # idempotent: already default -> still 200, removed=false (no second audit row)
     r = client.delete("/v1/judges/risk_judge")

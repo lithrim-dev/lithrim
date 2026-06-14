@@ -20,7 +20,6 @@ from lithrim_bench.harness.config import save_agent
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tests._house_fixture import HOUSE_CASE_ID as CASE_ID  # noqa: E402
 from tests._house_fixture import HOUSE_RUN_ID as BASELINE_RUN_ID  # noqa: E402
 from tests._house_fixture import house_agent  # noqa: E402
 
@@ -97,7 +96,9 @@ def test_runs_lists_the_persisted_replay_run(client):
 def test_run_id_round_trips_to_audit(client):
     """A3 — a listed run_id round-trips to GET /v1/runs/{id}/audit (no 404 for a
     persisted run); the report projects the per-judge votes + verdict."""
-    rid = client.post("/v1/run-eval", json={"agent": _AGENT, "live": False}).json()["pipeline_run_id"]
+    rid = client.post("/v1/run-eval", json={"agent": _AGENT, "live": False}).json()[
+        "pipeline_run_id"
+    ]
     rep = client.get(f"/v1/runs/{rid}/audit")
     assert rep.status_code == 200
     body = rep.json()
@@ -121,7 +122,9 @@ def test_replay_run_id_is_idempotent_in_history(client):
 def test_eval_pack_run_batches_and_surfaces_run_ids(client):
     """A5 — POST /v1/eval-pack/run runs a pack via build_pack and returns the frozen
     pack + run ids; the batch's runs persist to run-history."""
-    res = client.post("/v1/eval-pack/run", json={"pack_id": "uap3", "agents": [_AGENT], "live": False})
+    res = client.post(
+        "/v1/eval-pack/run", json={"pack_id": "uap3", "agents": [_AGENT], "live": False}
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["pack"]["schema_version"] == "evalpack/1"
@@ -133,39 +136,7 @@ def test_eval_pack_run_batches_and_surfaces_run_ids(client):
 
 
 def test_eval_pack_unknown_agent_is_404(client):
-    assert client.post("/v1/eval-pack/run", json={"pack_id": "x", "agents": ["nope"]}).status_code == 404
-
-
-# ── S-BS-63: the authored assignment is threaded into the grade ───────────────
-
-
-def test_authored_assignment_threads_into_the_grade(client, db_path, monkeypatch):
-    """A1 wiring (A3) — authoring a judge (PUT /v1/judges) makes the BFF pass that
-    role's assigned flags to run_eval.run, so the in-process council is built with the
-    authored lens. We capture the kwarg (no paid trio) — the verdict-flip itself is
-    proven $0/offline in test_uap3_grade.py."""
-    client.put(
-        "/v1/judges/risk_judge",
-        json={"model": "", "assigned_flags": ["WRONG_DOSAGE"], "validator_refs": []},
+    assert (
+        client.post("/v1/eval-pack/run", json={"pack_id": "x", "agents": ["nope"]}).status_code
+        == 404
     )
-
-    captured: dict = {}
-
-    def _fake_run(agent, **kwargs):
-        captured.update(kwargs)
-        return {
-            "case_id": CASE_ID,
-            "result": {"provenance": {"pipeline_run_id": "fake"}, "semantic": {"judge_votes": []}},
-            "composite": {"verdict": "reject"},
-            "calibration": {"ece": 0.0, "n_with_confidence": 0, "caveat": None},
-            "provenance": {
-                "grade_path": "in_process",
-                "expected_compliance_verdict": "reject",
-                "expected_safety_flags": ["WRONG_DOSAGE"],
-            },
-            "grounded": {},
-        }
-
-    monkeypatch.setattr(bff.run_eval, "run", _fake_run)
-    client.post("/v1/run-eval", json={"agent": _AGENT, "in_process": True})
-    assert captured["assignments"] == {"risk_judge": ("WRONG_DOSAGE",)}

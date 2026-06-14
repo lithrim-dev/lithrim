@@ -66,25 +66,3 @@ def test_single_judge_roster_degenerates_at_frozen_consensus():
     consensus = ComplianceCouncil()._apply_consensus(results)
     assert consensus["reason"] == "insufficient_valid_models"
     assert consensus["decision"] == "needs_review"
-
-
-def test_committed_ladder_applies_same_assignments_to_every_set():
-    from lithrim_bench.harness.judge_sets import load_judge_sets
-
-    sets = load_judge_sets("dogfood_v1")
-    labels = {s["label"] for s in sets}
-    assert {
-        "all_azure",
-        "claude_risk",
-        "all_claude",
-        "roster_2_risk_policy",
-        "roster_3_full",
-    } <= labels
-    # Gate-on-for-all: every set carries the SAME (non-empty) assignments → all run the
-    # authored trio, so `models`/`roles` are the only variables.
-    assignments = [tuple(sorted((s["assignments"] or {}).items())) for s in sets]
-    assert all(a == assignments[0] and a for a in assignments)
-    # Only the full/2-judge rosters are present — no degenerate single-judge rung.
-    rosters = {tuple(s["roles"]) if s["roles"] else None for s in sets}
-    assert (("risk_judge", "policy_judge") in rosters) and (None in rosters)
-    assert not any(s["roles"] and len(s["roles"]) == 1 for s in sets)

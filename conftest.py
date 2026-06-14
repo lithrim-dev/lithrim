@@ -1,22 +1,25 @@
-"""Root conftest — the PACK-DIST-1 clinical skip-when-absent demarcation for the WHOLE suite.
+"""Root conftest — the PACK-DIST clinical skip-when-absent demarcation for the WHOLE suite.
 
 After PACK-DIST-1 the clinical realm (the ``healthcare`` pack + the by-construction
 ``examples/*.jsonl`` corpora + the clinical demo seeds) lives in the external
-``lithrim-pack-healthcare`` repo, NOT in this CE tree. The suite therefore runs in two modes,
-and tests that need relocated content are skipped HERE, in one auditable place (a root conftest
-so it reaches every subtree — ``tests/`` AND the vendored ``lithrim_bench/runtime/*/tests/``):
+``lithrim-pack-healthcare`` repo, NOT in this CE tree. After PACK-DIST-2 the RELOCATED-class
+demarcation is fully retired — every whole clinical-only module and every MIXED module's
+clinical (RELOCATED) func physically MOVED into the pack repo's ``tests/`` (as a whole module
+or a ``tests/test_<module>_relocated.py``), so there is nothing in the CE tree left to
+skip-on-relocation. What remains here is the ONE bare-CE demarcation, in one auditable place
+(a root conftest so it reaches every subtree — ``tests/`` AND ``lithrim_bench/runtime/*/tests/``):
 
 - **dev / CI** — ``healthcare`` is discoverable (``LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare``
-  or the pack pip-installed). The suite pins ``healthcare`` (the subtree conftests) and runs as
-  before; only tests that read a now-REMOVED CE path (``RELOCATED``) skip — that content moved to
-  the pack repo and its in-CE test home (reading the pack) is a PACK-DIST-2 follow-on.
+  or the pack pip-installed). The suite pins ``healthcare`` (the subtree conftests) and runs
+  everything; the clinical tests live in the pack repo.
 - **bare CE** — ``healthcare`` is nowhere. The neutral ``_core`` pack is active; every test that
   grades / pins THROUGH the healthcare pack (``NEEDS_PACK``) skips, and the genuinely
   domain-agnostic proofs (``test_standalone_ce`` / ``test_neutral_default`` / ``test_pack_dist`` +
   the generic unit + interface tests) stay GREEN — proving the core is standalone-domain-agnostic.
 
-Two skip triggers + two ignore-collect sets (for modules whose module-level reads fail at
-collection). The lists ARE the enumeration of what relocated.
+One skip trigger (``_NEEDS_PACK_FUNCS``) + one ignore-collect set (``_IGNORE_MODULES_WHEN_BARE_CE``,
+for bare-CE modules whose module-level pack reads fail at collection). The lists ARE the
+enumeration of what needs the pack.
 """
 
 from __future__ import annotations
@@ -27,16 +30,6 @@ import pytest
 
 from lithrim_bench.harness import pack as _pack
 
-_REPO_ROOT = Path(__file__).resolve().parent
-
-
-def _clinical_content_present() -> bool:
-    """True only when the FULL clinical CE content is on disk (the pre-extraction state) — the
-    healthcare pack dir AND the by-construction corpora. False once PACK-DIST-1 removes them."""
-    return (_REPO_ROOT / "packs" / "healthcare" / "pack.json").exists() and (
-        _REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
-    ).exists()
-
 
 def _healthcare_discoverable() -> bool:
     try:
@@ -46,16 +39,17 @@ def _healthcare_discoverable() -> bool:
         return False
 
 
-# PACK-DIST-2 D5: every whole clinical-only test module MOVED to the pack repo
-# (``../lithrim-pack-healthcare/tests/``), so ``_IGNORE_MODULES_WHEN_RELOCATED`` is now EMPTY —
-# there is no in-CE module left to skip-collect on relocation. The MIXED modules keep their
-# generic + NEEDS_PACK funcs in CE; the RELOCATED funcs of the NAMED MIXED modules (test_audit,
-# test_pack_layer1a/2/3/5a/5b, test_uap3b_withstands, test_ws5_bff) were EXTRACTED into the pack
-# (``tests/test_<module>_relocated.py``) and deleted from CE, so they drop out of ``_RELOCATED_FUNCS``
-# below. The remaining ``_RELOCATED_FUNCS`` entries are the UNLISTED MIXED modules whose extraction
-# is a PACK-DIST-2 follow-on (still skip in CE until extracted). ``_IGNORE_MODULES_WHEN_BARE_CE`` +
-# ``_NEEDS_PACK_FUNCS`` (the bare-CE demarcation) are KEPT so a bare CE checkout stays green on _core.
-_IGNORE_MODULES_WHEN_RELOCATED: set[str] = set()
+# PACK-DIST-2 (cleanup batch C1): the RELOCATED-class demarcation is now FULLY RETIRED. Every whole
+# clinical-only test module MOVED to the pack repo (``../lithrim-pack-healthcare/tests/``) in batch 2,
+# and every MIXED module's RELOCATED funcs were EXTRACTED into the pack
+# (``tests/test_<module>_relocated.py``) and deleted from the CE module — the named batch-2 set
+# (test_audit, test_pack_layer1a/2/3/5a/5b, test_uap3b_withstands, test_ws5_bff) PLUS the final 8
+# unlisted MIXED modules in C1 (test_crud_delete, test_judgeset_roster, test_flag_crud, test_uap3_bff,
+# test_uap3b2_provenance, test_uap5b_chat, test_uap5c_journey, test_ws2). So there is no in-CE module
+# or func left to skip-on-relocation: ``_IGNORE_MODULES_WHEN_RELOCATED`` + ``_RELOCATED_FUNCS`` + the
+# ``_clinical_content_present``/relocated branch are GONE. The MIXED modules keep only their generic +
+# NEEDS_PACK funcs. ``_IGNORE_MODULES_WHEN_BARE_CE`` + ``_NEEDS_PACK_FUNCS`` (the bare-CE demarcation)
+# are KEPT byte-unchanged so a bare CE checkout stays green on the neutral _core pack.
 # Whole modules that load the pack's GENERATORS/floors at import (``load_pack_generators()`` etc.)
 # — green in dev, but ``None`` at module import in a bare CE checkout → skip-collect when the pack
 # is not discoverable (their in-pack-repo home is PACK-DIST-2).
@@ -74,41 +68,6 @@ _IGNORE_MODULES_WHEN_BARE_CE = {
     "test_structural_backend",
     "test_dosage_floor",
     "test_toolbox",
-}
-# RELOCATED — the function reads a CE path that moved to the pack repo → skip whenever absent from
-# CE (i.e. always, post-extraction; both dev and bare-CE). Mixed modules: only these funcs skip.
-#
-# PACK-DIST-2 D5 (batch 2): the named MIXED modules were EXTRACTED — their RELOCATED funcs moved to
-# ``../lithrim-pack-healthcare/tests/test_<module>_relocated.py`` and are GONE from the CE module
-# (test_audit, test_pack_layer1a/2/3/5a/5b [genericized-on-move for 1a/2], test_uap3b_withstands,
-# test_ws5_bff), and the whole clinical-only modules (test_ws0/test_ws1/etc.) were MOVED — so their
-# entries are deleted from this ledger. The REMAINING entries below are the unlisted MIXED modules
-# whose RELOCATED funcs are NOT YET extracted (deferred to a PACK-DIST-2 follow-on / the critic);
-# they still read a now-gone CE path, so they keep skipping in CE until extracted.
-_RELOCATED_FUNCS = {
-    "test_crud_delete": {"test_delete_agent_guards_404_and_audit", "test_get_agents_lists_the_seeds"},
-    "test_judgeset_roster": {"test_committed_ladder_applies_same_assignments_to_every_set"},
-    "test_flag_crud": {
-        "test_author_flag_flip_to_gradeable_is_refused_via_the_tool",
-        "test_create_existing_flag_409",
-        "test_create_hardcodes_gradeable_false_nonvacuous",
-        "test_delete_allows_unused_reference_and_audits",
-        "test_delete_guard_refuses_case_emitted",
-        "test_delete_guard_refuses_judge_assigned",
-        "test_gradeable_from_clean_is_refused_nonvacuous",
-        "test_reference_create_is_skip_logged_never_scored",
-        "test_reference_create_round_trips_and_is_audited",
-    },
-    "test_uap3_bff": {"test_authored_assignment_threads_into_the_grade"},
-    "test_uap3b2_provenance": {"test_S_BS_72_provenance_blob_carries_withstands_ruling"},
-    "test_uap5b_chat": {"test_author_judge_tool_makes_an_audited_write"},
-    "test_uap5c_journey": {"test_full_journey_domain_judge_flag_run_review_is_audited"},
-    "test_ws2": {
-        "test_gradeable_finding_still_scores",
-        "test_ontology_partitions_gradeable_and_reference",
-        "test_reference_finding_is_skip_logged_never_scored",
-        "test_seed_gradeable_set_matches_snapshot",
-    },
 }
 # NEEDS_PACK — the function grades / pins THROUGH the loaded healthcare pack via discovery → green
 # in dev (pack discoverable), skip in a bare CE checkout (active pack is the neutral _core).
@@ -276,22 +235,15 @@ _NEEDS_PACK_FUNCS = {
 
 def pytest_ignore_collect(collection_path, config):
     stem = Path(str(collection_path)).stem
-    if not _clinical_content_present() and stem in _IGNORE_MODULES_WHEN_RELOCATED:
-        return True
     if not _healthcare_discoverable() and stem in _IGNORE_MODULES_WHEN_BARE_CE:
         return True
     return None
 
 
 def pytest_collection_modifyitems(config, items):
-    relocated = not _clinical_content_present()
     bare_ce = not _healthcare_discoverable()
-    if not relocated and not bare_ce:
-        return  # full clinical content present + pack discoverable — run everything
-    skip_relocated = pytest.mark.skip(
-        reason="PACK-DIST-1: clinical content relocated to the external lithrim-pack-healthcare "
-        "repo (its in-CE test home reading the pack is a PACK-DIST-2 follow-on)"
-    )
+    if not bare_ce:
+        return  # the pack is discoverable — run everything
     skip_bare_ce = pytest.mark.skip(
         reason="PACK-DIST-1: healthcare pack not discoverable (bare CE checkout) — set "
         "LITHRIM_BENCH_PACKS_DIR or install lithrim-pack-healthcare"
@@ -299,7 +251,5 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         stem = Path(str(item.fspath)).stem
         name = item.originalname or item.name
-        if relocated and name in _RELOCATED_FUNCS.get(stem, ()):
-            item.add_marker(skip_relocated)
-        elif bare_ce and name in _NEEDS_PACK_FUNCS.get(stem, ()):
+        if name in _NEEDS_PACK_FUNCS.get(stem, ()):
             item.add_marker(skip_bare_ce)

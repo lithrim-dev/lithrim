@@ -81,33 +81,6 @@ def env(tmp_path, monkeypatch):
         bff.app.dependency_overrides.clear()
 
 
-def test_author_judge_tool_makes_an_audited_write(env):
-    """A2 + A3 + A4: the author_judge tool drives the audited PUT /v1/judges write, emits
-    the judge_editor card part, and GET /v1/audit shows the record (the conversation IS
-    the audit log)."""
-    ctx, client = env
-    res = asyncio.run(
-        author_judge_handler(
-            ctx,
-            {"role": "risk_judge", "assigned_flags": ["WRONG_DOSAGE"], "rationale": "via chat"},
-        )
-    )
-    assert not res.get("is_error")
-    # A4 — the EXISTING gen-UI parts shape, no new card type.
-    assert ctx.parts == [
-        {
-            "type": "tool-judge_editor",
-            "state": "output-available",
-            "output": {"role": "risk_judge", "agent": AGENT},
-        }
-    ]
-    # A2 — the write is audited and surfaces through GET /v1/audit.
-    records = client.get("/v1/audit", params={"target_type": "judge"}).json()["records"]
-    assert any(
-        r["actor"]["id"] == "test-sme" and r["target"]["id"] == "risk_judge" for r in records
-    )
-
-
 def test_run_eval_tool_is_replay_only_and_renders_the_verdict_card(env):
     """A1 + A4 + A-SAFE: run_eval drives a real $0 REPLAY grade and renders the verdict
     card; the schema carries NO paid knob."""
