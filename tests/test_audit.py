@@ -7,7 +7,6 @@ the append-only/immutable AuditLog) and scripts/run_eval.run(ontology_path=…)
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -26,8 +25,6 @@ from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 from tests._house_fixture import house_agent  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-# the clinical seed the RELOCATED draft-override funcs read directly (they skip when absent).
-ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 
 # scripts/ on path so run_eval imports the same way the BFF does.
 _SCRIPTS = REPO_ROOT / "scripts"
@@ -218,29 +215,11 @@ def test_run_no_override_grades_the_committed_seed(tmp_path):
     assert rec["composite"]["stage_verdict"] == "BLOCK"
 
 
-def test_run_ontology_path_override_grades_the_draft(tmp_path):
-    # A raised block threshold in a working-copy draft flips the verdict off BLOCK —
-    # "edit the flag → see it grade" (S-BS-26b) — without touching the committed seed.
-    seed_bytes = ONTOLOGY_SEED.read_bytes()
-    draft = json.loads(ONTOLOGY_SEED.read_text())
-    draft["severity_map"]["block_at_or_above"] = 99.0
-    wc = tmp_path / "draft.json"
-    wc.write_text(json.dumps(draft))
-
-    rec = run_eval.run(_agent(), out_dir=tmp_path / "b", ontology_path=wc)
-    assert rec["composite"]["stage_verdict"] != "BLOCK"  # the draft graded
-    assert rec["composite"]["verdict"] != "reject"
-    assert ONTOLOGY_SEED.read_bytes() == seed_bytes  # the committed seed never moved
-
-
-def test_run_override_and_no_override_diverge_only_by_the_draft(tmp_path):
-    base = run_eval.run(_agent(), out_dir=tmp_path / "base")
-    draft = json.loads(ONTOLOGY_SEED.read_text())
-    draft["severity_map"]["block_at_or_above"] = 99.0
-    wc = tmp_path / "d.json"
-    wc.write_text(json.dumps(draft))
-    drafted = run_eval.run(_agent(), out_dir=tmp_path / "draft", ontology_path=wc)
-    assert base["composite"]["verdict"] != drafted["composite"]["verdict"]
+# PACK-DIST-2 D5: the draft-override funcs that read the committed clinical ontology seed bytes
+# directly (test_run_ontology_path_override_grades_the_draft +
+# test_run_override_and_no_override_diverge_only_by_the_draft) relocated to the pack repo
+# (tests/test_audit_relocated.py); the generic AuditRecord/AuditLog funcs + the neutral _core
+# house-agent run func stay here.
 
 
 if __name__ == "__main__":

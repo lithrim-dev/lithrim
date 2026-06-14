@@ -23,11 +23,7 @@ baselines, generated from the pre-move code with a frozen ``generated_at``).
 from __future__ import annotations
 
 import ast
-import subprocess
-import sys
 from pathlib import Path
-
-import pytest
 
 from lithrim_bench.harness import pack
 
@@ -98,14 +94,9 @@ def test_engine_carries_no_agent_type_generator_code():
     assert hits == [], "the engine still carries agent-type generator code:\n" + "\n".join(hits)
 
 
-def test_agent_type_generators_live_in_the_pack():
-    """…AND they are PRESENT under the pack — relocation, not deletion (fails if a generator
-    was silently dropped rather than moved home)."""
-    present = {n for n in _AGENT_CODE_NEEDLES if _grep(PACK_GEN, (n,))}
-    missing = sorted(set(_AGENT_CODE_NEEDLES) - present)
-    assert missing == [], "agent-type generator code missing from the pack (dropped?):\n" + "\n".join(
-        missing
-    )
+# PACK-DIST-2 D5: test_agent_type_generators_live_in_the_pack relocated to the pack repo
+# (tests/test_pack_layer5b_relocated.py) — it reads the pack's relocated generators/ dir. The
+# generic engine-boundary funcs + the NEEDS_PACK active_packs func stay here.
 
 
 def test_core_injectors_dir_is_base_only():
@@ -159,40 +150,7 @@ def test_core_never_imports_top_level_packs():
     )
 
 
-# ───────────── A2 — by-construction byte-identity × 4 (the HARD-GATE crux) ─────────────
-@pytest.mark.skipif(
-    not COHORT.exists(),
-    reason="Synthea cohort absent (offline CI); the by-construction byte-identity gate is "
-    "cohort-gated (CLAUDE.md: tests run without the CSV)",
-)
-@pytest.mark.parametrize("pack_id", _CORPORA)
-def test_corpus_regenerates_byte_identical(pack_id: str, tmp_path: Path):
-    """Regenerating each of the four non-scribe corpora AFTER the relocation reproduces its
-    committed C1 baseline (examples/<pack>.jsonl) byte-for-byte — the recipe (the label) moved
-    home unchanged. ``generate_pack.py --generated-at`` freezes the wall-clock so this is a
-    true byte diff; one gate per corpus (4 gates, not 1)."""
-    out = tmp_path / f"{pack_id}.jsonl"
-    baseline = EXAMPLES / f"{pack_id}.jsonl"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "generate_pack.py"),
-            "--pack",
-            pack_id,
-            "--size",
-            "12",
-            "--seed",
-            "42",
-            "--generated-at",
-            FROZEN_TS,
-            "--out",
-            str(out),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert out.read_text() == baseline.read_text(), (
-        f"the {pack_id} corpus changed after the relocation — a label drifted; the move must be "
-        "byte-identical (CLAUDE.md: labels are true by construction)"
-    )
+# PACK-DIST-2 D5: the by-construction byte-identity regen func (test_corpus_regenerates_byte_identical)
+# relocated to the pack repo (tests/test_pack_layer5b_relocated.py) — it subprocesses
+# scripts/generate_pack.py over the Synthea cohort, both of which moved to the pack; there it
+# guard-skips when the cohort is absent.

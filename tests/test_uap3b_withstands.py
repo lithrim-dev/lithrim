@@ -43,8 +43,9 @@ _REPO = Path(__file__).resolve().parents[1]
 # the exhibit FP: a Tier-1 code OUTSIDE risk_judge's lens, sole-owned by policy_judge.
 _FP_CODE = "PHI_DISCLOSURE_PRE_VERIFICATION"
 _FP_ROLE = "risk_judge"
-_CLEAN_CASE_ID = "bench_scribe_v1_clean_negative_aaecd73c3bcf"
-_CLEAN_CASE_SRC = _REPO / "examples" / "proof_case.jsonl"
+# PACK-DIST-2 D5: the clean-negative corpus (_CLEAN_CASE_ID/_CLEAN_CASE_SRC = examples/proof_case.jsonl)
+# moved to the pack with the MOAT exhibit (tests/test_uap3b_withstands_relocated.py); the funcs that
+# remain here build their cases inline, so the gone-path constants are no longer referenced.
 
 
 def _seam(role: str, decision: str, codes: list[str]) -> dict:
@@ -243,77 +244,11 @@ def test_frozen_seam_zero_delta():
 # ─────────────────────────── full-pipeline exhibit (dspy/openai-gated) ──────────────
 
 
-def _fp_predictors(V2_ROLES):
-    """Per-role predictors: risk_judge confidently raises the out-of-lens PHI FP;
-    the others approve. Pure dict-returning callables — no dspy, no network."""
-
-    def make(role):
-        def _p(*, role_key_questions: str = "", **_kw):
-            if role == _FP_ROLE:
-                return {
-                    "decision": "reject",
-                    "findings": [
-                        {"taxonomy_code": _FP_CODE, "evidence_spans": [{"quote": "Thursday 2pm", "turn_ids": []}]}
-                    ],
-                }
-            return {"decision": "approve", "findings": []}
-
-        return _p
-
-    return {role: make(role) for role in V2_ROLES}
-
-
-def test_MOAT_EXHIBIT_gate_flips_composite_and_ground_alone_does_not():
-    """A2 (THE MOAT, the load-bearing acceptance) — the SAME clean-negative case +
-    SAME confidently-wrong predictor, graded twice:
-
-      * gate OFF (the pre-UAP-3b path): the out-of-lens PHI FP flows through →
-        ``ground()`` has no contract for it → it stays a lone MEDIUM → composite REJECT.
-      * gate ON: the ontology-rule signal rejects the FP PRE-consensus → composite
-        APPROVE = the by-construction truth restored.
-
-    Only the gate flag differs, so the reject→approve flip is GATE-ATTRIBUTABLE (the
-    double-assertion). $0 offline via injected predictors."""
-    pytest.importorskip("dspy")
-    pytest.importorskip("openai")
-    from lithrim_bench.harness.grade import grade_inprocess
-    from lithrim_bench.harness.grounding import ground
-    from lithrim_bench.harness.report import composite
-    from lithrim_bench.picklist import load_case
-    from lithrim_bench.runtime.council.authored_stage import build_authored_semantic_stage
-    from lithrim_bench.runtime.council.judges_dspy import V2_ROLES
-
-    ont = load_ontology()
-    case = load_case(_CLEAN_CASE_ID, source=str(_CLEAN_CASE_SRC))
-    assert case is not None and case.get("expected_compliance_verdict") == "approve"
-
-    # gate OFF — the FP drives the composite to reject (ground() alone cannot correct it).
-    stage_off = build_authored_semantic_stage(
-        ontology=ont, assignments=None, predictors=_fp_predictors(V2_ROLES), apply_gate=False
-    )
-    res_off = grade_inprocess(case, semantic_stage=stage_off)
-    comp_off = composite(ground(res_off, case, ontology=ont))
-    assert comp_off["verdict"] == "reject", "baseline must reject (the FP flows through)"
-    assert _FP_CODE in comp_off["active_findings"]
-
-    # gate ON — the gate rejects the FP pre-consensus → the composite flips to approve.
-    sink: list = []
-    stage_on = build_authored_semantic_stage(
-        ontology=ont,
-        assignments=None,
-        predictors=_fp_predictors(V2_ROLES),
-        apply_gate=True,
-        decisions_sink=sink,
-    )
-    res_on = grade_inprocess(case, semantic_stage=stage_on)
-    comp_on = composite(ground(res_on, case, ontology=ont))
-    assert comp_on["verdict"] == "approve", "THE FLIP — the gate corrected the wrong judge"
-    assert _FP_CODE not in comp_on["active_findings"]
-
-    # the gate ran pre-consensus and recorded the correction.
-    risk_dec = next(d for d in sink if d.role == _FP_ROLE)
-    assert risk_dec.decision == "corrected"
-    assert risk_dec.what_failed[0]["mode"] == "ontology_rule_out_of_lens"
+# PACK-DIST-2 D5: the MOAT exhibit (test_MOAT_EXHIBIT_gate_flips_composite_and_ground_alone_does_not)
+# + its _fp_predictors helper read the relocated clean-negative corpus (examples/proof_case.jsonl) +
+# grade through the committed clinical ontology → relocated to the pack repo
+# (tests/test_uap3b_withstands_relocated.py). The signals-bus / withstands / frozen-seam NEEDS_PACK
+# funcs (which build cases inline) stay here.
 
 
 def test_consensus_decision_flips_with_validator_disprove():

@@ -17,7 +17,6 @@ from pathlib import Path
 import pytest
 
 from lithrim_bench.harness import pack
-from lithrim_bench.runtime.council import judge_assignment
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -92,13 +91,11 @@ def test_pack_prompts_path_resolves_to_the_pack():
     ]
 
 
-def test_council_light_reader_resolves_through_the_pack():
-    """The above-seam ``judge_assignment`` reader points at the pack (the $0 preview
-    path, runnable in the no-openai core env)."""
-    assert pack.pack_prompts_path() == judge_assignment._ROLE_PROMPTS_DIR
-    assert "packs/healthcare" in judge_assignment._ROLE_PROMPTS_DIR.as_posix()
-    # it actually reads a prompt from the new home
-    assert judge_assignment.load_role_prompt("risk_judge").strip() != ""
+# PACK-DIST-2 D5: test_council_light_reader_resolves_through_the_pack relocated (GENERICIZED) to the
+# pack repo (tests/test_pack_layer2_relocated.py) — it asserted the literal 'packs/healthcare' in the
+# resolved prompts dir, STALE once the pack lives outside the CE tree; the pack version asserts
+# resolution to pack._pack_root('healthcare')/'council_roles' instead. The generic boundary funcs +
+# NEEDS_PACK funcs stay.
 
 
 def test_frozen_council_reader_resolves_through_the_pack_textually():

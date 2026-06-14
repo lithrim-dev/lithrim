@@ -21,26 +21,15 @@ enumerated carve-out for the irreducible generic residual.
 
 from __future__ import annotations
 
-import copy
-import json
 from pathlib import Path
 
-import pytest
-
 from lithrim_bench.harness import grounding, pack
-from lithrim_bench.harness.ontology import from_dict, load_ontology
-from lithrim_bench.runtime.council.signals import build_judge_signals
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENGINE_DIRS = (
     REPO_ROOT / "lithrim_bench" / "harness",
     REPO_ROOT / "lithrim_bench" / "verification",
 )
-PACK_FLOORS = REPO_ROOT / "packs" / "healthcare" / "floors.py"
-CALIB = REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
-
-CLEAN_ID = "bench_scribe_v1_clean_negative_aaecd73c3bcf"
-VIOL_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 # The CLINICAL executor CODE that relocated. These are unambiguous executor code (class /
 # def / extractor & match-strategy literals) — not domain words that legitimately recur in
@@ -109,16 +98,6 @@ def test_engine_carries_no_clinical_executor_code():
     assert hits == [], "the engine still carries clinical executor code:\n" + "\n".join(hits)
 
 
-def test_clinical_executors_live_in_the_pack():
-    """…AND the clinical executors are PRESENT under the pack — relocation, not deletion.
-    (Fails if a clinical executor was silently dropped rather than moved home.)"""
-    present = {n for n in _CLINICAL_CODE_NEEDLES if _grep(PACK_FLOORS, (n,))}
-    missing = sorted(set(_CLINICAL_CODE_NEEDLES) - present)
-    assert missing == [], "clinical executor code missing from the pack (dropped?):\n" + "\n".join(
-        missing
-    )
-
-
 def test_broad_domain_sweep_residual_is_the_closed_carveout():
     """A blanket domain-word sweep over the engine is over-broad; document the residual as a
     CLOSED, enumerated carve-out (not a vague 'grep minus patterns'). Non-vacuous: the sweep
@@ -160,73 +139,8 @@ def test_no_floors_pack_degrades_to_the_generic_engine(monkeypatch):
     assert pack.load_pack_floors("anything") is None
 
 
-def test_unknown_contract_type_fails_closed():
-    """ground()'s partition guard still raises on a contract_type no executor (core OR pack)
-    handles — the fail-closed core invariant survives the registry refactor."""
-    data = json.loads((REPO_ROOT / "packs" / "healthcare" / "ontology.json").read_text())
-    data["verification_contracts"].append(
-        {
-            "contract_type": "NOPE_not_an_executor",
-            "flag_code": "FABRICATED_HISTORY",
-            "question": "?",
-            "version": "v0",
-            "params": {},
-        }
-    )
-    ont = from_dict(data)
-    with pytest.raises(ValueError, match="no executor registered"):
-        grounding.ground({"verdict": "PASS", "findings": []}, {}, ontology=ont)
-
-
-# ───────────────────────── A2 / A4 — byte-behavior + moat-visible ─────────────────────────
-def _load_case(cid: str) -> dict:
-    for line in CALIB.read_text().splitlines():
-        if line.strip() and (json.loads(line).get("case_id") or json.loads(line).get("id")) == cid:
-            return json.loads(line)
-    raise AssertionError(f"case {cid} not in {CALIB}")
-
-
-def _fab_result() -> dict:
-    return {
-        "verdict": "BLOCK",
-        "findings": [
-            {"code": "FABRICATED_HISTORY", "severity": "HIGH", "detail": "PMH fabricated"}
-        ],
-    }
-
-
-def test_ground_byte_behavior_identical_on_the_demo_pair():
-    """A2: ground() — flowing through the PACK-merged registry — still suppresses the false
-    FABRICATED_HISTORY on the clean case (BLOCK→PASS) and lets it STAND on the injected case
-    (BLOCK→BLOCK). The executors moved home; the behavior did not change."""
-    ont = load_ontology()
-    g_clean = grounding.ground(_fab_result(), _load_case(CLEAN_ID), ontology=ont)
-    assert g_clean.original_verdict == "BLOCK" and g_clean.verdict == "PASS"
-    assert {s["finding"]["code"] for s in g_clean.suppressed} == {"FABRICATED_HISTORY"}
-
-    g_viol = grounding.ground(_fab_result(), _load_case(VIOL_ID), ontology=ont)
-    assert g_viol.verdict == "BLOCK" and g_viol.suppressed == []
-
-
-def test_moat_sees_the_pack_record_presence_and_unregister_loses_it(monkeypatch):
-    """A4: the withstands-gate (signals.py) reads the pack-merged suppress registry, so the
-    pack's record_presence runs pre-consensus — suppressing the false FABRICATED_HISTORY on
-    the clean case, standing on the injected case. NON-VACUOUS: drop the pack registry and the
-    record_presence validator signal disappears (proves it is pack-sourced, not core)."""
-    ont = load_ontology()
-    seam = {"findings": [{"taxonomy_code": "FABRICATED_HISTORY", "evidence_spans": []}]}
-
-    for cid, expect_disproved in [(CLEAN_ID, True), (VIOL_ID, False)]:
-        sig = build_judge_signals(
-            copy.deepcopy(seam), role="faithfulness_judge", ontology=ont, case=_load_case(cid)
-        )
-        rp = [v for v in sig.validator_outputs if v.contract_type == "record_presence"]
-        assert len(rp) == 1, f"{cid}: the moat did not see the pack's record_presence"
-        assert rp[0].disproved is expect_disproved
-
-    # unregister the pack floors → the moat loses the record_presence signal entirely.
-    monkeypatch.setattr(grounding, "_pack_registries", lambda _pack: ({}, {}))
-    sig = build_judge_signals(
-        copy.deepcopy(seam), role="faithfulness_judge", ontology=ont, case=_load_case(CLEAN_ID)
-    )
-    assert [v for v in sig.validator_outputs if v.contract_type == "record_presence"] == []
+# PACK-DIST-2 D5: the funcs that read the pack's floors/ontology/demo-pair corpus directly
+# (test_clinical_executors_live_in_the_pack + test_unknown_contract_type_fails_closed +
+# test_ground_byte_behavior_identical_on_the_demo_pair + test_moat_sees_the_pack_record_presence_…)
+# relocated to the pack repo (tests/test_pack_layer3_relocated.py). The generic engine-boundary
+# funcs + the NEEDS_PACK registration func (test_pack_floors_register_the_clinical_executors) stay.

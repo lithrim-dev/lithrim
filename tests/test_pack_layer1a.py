@@ -19,8 +19,8 @@ from pathlib import Path
 import pytest
 
 from lithrim_bench.harness import pack
-from lithrim_bench.harness.ontology import DEFAULT_ONTOLOGY_PATH, load_ontology
-from lithrim_bench.taxonomy import _SNAPSHOT_PATH, load_taxonomy
+from lithrim_bench.harness.ontology import load_ontology
+from lithrim_bench.taxonomy import load_taxonomy
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,12 +83,10 @@ def test_active_pack_defaults_to_healthcare():
     assert pack.pack_taxonomy_path().exists()
 
 
-def test_core_defaults_resolve_through_the_pack():
-    """The two relocated load sites resolve via the pack, not a hardcoded path."""
-    assert pack.pack_ontology_path() == DEFAULT_ONTOLOGY_PATH
-    assert pack.pack_taxonomy_path() == _SNAPSHOT_PATH
-    assert "packs/healthcare" in DEFAULT_ONTOLOGY_PATH.as_posix()
-    assert "packs/healthcare" in _SNAPSHOT_PATH.as_posix()
+# PACK-DIST-2 D5: test_core_defaults_resolve_through_the_pack relocated (GENERICIZED) to the pack
+# repo (tests/test_pack_layer1a_relocated.py) — it asserted the literal 'packs/healthcare' in the
+# resolved paths, STALE once the pack lives outside the CE tree; the pack version asserts resolution
+# to pack._pack_root('healthcare')/… instead. The generic boundary funcs + NEEDS_PACK funcs stay.
 
 
 # ─────────────────────────── A2 — byte-behavior identity ───────────────────────────

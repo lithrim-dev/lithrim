@@ -167,16 +167,14 @@ def _seed_body() -> dict:
     return json.loads(ONTOLOGY_SEED.read_text())
 
 
-def test_put_ontology_accepts_and_round_trips(client):
-    """A3 — a valid PUT lands on the working copy; a subsequent GET reflects the edit."""
-    ont = _seed_body()
-    ont["severity_map"]["block_at_or_above"] = 0.75  # a benign, valid edit
-    res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont)
-    assert res.status_code == 200
-    assert "working_copy" in res.json()
-
-    got = client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()
-    assert got["severity_map"]["block_at_or_above"] == 0.75  # the working copy is served
+# PACK-DIST-2 D5: the funcs that read the committed clinical ontology seed bytes directly
+# (test_put_ontology_accepts_and_round_trips + _rejects_snapshot_violation +
+# _never_clobbers_the_committed_seed + the draft→grade loop + the audit-record write +
+# the judge PUT round-trip/422/lens-gate funcs) relocated to the pack repo
+# (tests/test_ws5_bff_relocated.py). The generic plumbing funcs (the house_client votes round-trip,
+# the KB-proxy funcs, the agent/judge CRUD funcs that never read the seed) + the NEEDS_PACK funcs
+# (test_run_eval_replay_…, test_ontology_read, test_put_ontology_rejects_malformed,
+# test_judges_list_returns_the_v2_trio) stay here.
 
 
 def test_put_ontology_rejects_malformed(client):
@@ -187,35 +185,6 @@ def test_put_ontology_rejects_malformed(client):
     assert (
         client.get("/v1/ontology", params={"agent": "ws5_bff_test"}).json()["domain"] == "clinical"
     )
-
-
-def test_put_ontology_rejects_snapshot_violation(client):
-    """A3 — a gradeable flag outside the taxonomy snapshot is rejected loudly (S-BS-10/12)."""
-    ont = _seed_body()
-    ont["flags"].append(
-        {
-            "flag": "NOT_IN_SNAPSHOT_CODE",
-            "category": "fidelity",
-            "definition": "x",
-            "when_to_use": "x",
-            "when_NOT_to_use": "x",
-            "owner_roles": [],
-            "tier": "TIER_1",
-            "gradeable": True,  # gradeable + not in the snapshot → must 422
-        }
-    )
-    res = client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont)
-    assert res.status_code == 422
-    assert "NOT_IN_SNAPSHOT_CODE" in res.text
-
-
-def test_put_ontology_never_clobbers_the_committed_seed(client):
-    """A3 — the committed clinical_v1.json is byte-unchanged after a PUT (clobber-safety)."""
-    before = ONTOLOGY_SEED.read_bytes()
-    ont = _seed_body()
-    ont["severity_map"]["warn_above"] = 0.123
-    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=ont).status_code == 200
-    assert ONTOLOGY_SEED.read_bytes() == before  # the seed on disk did not move
 
 
 # ── WS-7b: GET /v1/kb/{namespace}/search — additive KB-grounding proxy ────────
@@ -340,94 +309,10 @@ def test_unknown_agent_get_is_404(client):
     assert client.get("/v1/agent", params={"name": "nope"}).status_code == 404
 
 
-# ── UAP-1 R3: the draft→grade loop (the A2 headline) ─────────────────────────
-
-
-def test_draft_ontology_grades_not_the_committed_seed(client):
-    """A2 — a verdict-relevant PUT /v1/ontology draft, then POST /v1/run-eval, grades
-    against the DRAFT (working copy), not the committed seed; clinical_v1.json is
-    byte-unchanged. 'Edit the flag → see it grade.'"""
-    seed_before = ONTOLOGY_SEED.read_bytes()
-    # baseline: the committed seed blocks (reject)
-    base = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
-    assert base["composite"]["verdict"] == "reject"
-    assert base["ontology_source"] == "committed"
-
-    # draft: raise the block threshold above the active weight → BLOCK no longer fires
-    draft = _seed_body()
-    draft["severity_map"]["block_at_or_above"] = 99.0
-    assert (
-        client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=draft).status_code == 200
-    )
-
-    drafted = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
-    assert drafted["ontology_source"] == "draft"
-    assert drafted["composite"]["stage_verdict"] != "BLOCK"  # the draft graded
-    assert drafted["composite"]["verdict"] != "reject"
-    assert ONTOLOGY_SEED.read_bytes() == seed_before  # the committed seed never moved
-
-
-def test_draft_re_edit_regrades_not_the_stale_cache(client, tmp_path):
-    """S-BS-58 — editing the SAME draft and re-running reflects the new edit, not a
-    cached stale ontology. The @lru_cache(path) bug made a long-running BFF reuse the
-    first-loaded ontology on the 2nd+ edit of a draft (path unchanged), so iterative
-    'edit → see it grade' silently no-op'd. A2 covered committed→draft; this covers
-    draft→edit-same-draft (one path)."""
-    import os
-
-    # first draft: raise the threshold above the active weight → the case no longer blocks
-    d1 = _seed_body()
-    d1["severity_map"]["block_at_or_above"] = 99.0
-    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=d1).status_code == 200
-    r1 = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
-    assert r1["ontology_source"] == "draft"
-    assert r1["composite"]["verdict"] != "reject"  # the high-threshold draft graded
-
-    # re-edit the SAME draft back down so it blocks again; force a later mtime so the
-    # cache bust is deterministic regardless of filesystem mtime resolution
-    d2 = _seed_body()
-    d2["severity_map"]["block_at_or_above"] = 0.5
-    assert client.put("/v1/ontology", params={"agent": "ws5_bff_test"}, json=d2).status_code == 200
-    wc = tmp_path / "ont" / "ws5_bff_test.json"
-    st = wc.stat()
-    os.utime(wc, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
-    r2 = client.post("/v1/run-eval", json={"agent": "ws5_bff_test"}).json()
-    assert r2["composite"]["verdict"] == "reject"  # the re-edit took effect, not stale-cached
-
-
-# ── UAP-1 R0: the audit streams ──────────────────────────────────────────────
-
-
-def test_config_writes_emit_appended_audit_records(client):
-    """A3 — every config write emits an immutable, actor-attributed record; a second
-    write APPENDS (no overwrite); GET /v1/audit lists them."""
-    assert client.get("/v1/audit").json()["records"] == []
-
-    ag = client.get("/v1/agent", params={"name": "ws5_bff_test"}).json()
-    client.put(
-        "/v1/agent", params={"rationale": "first edit"}, headers={"X-Actor": "sme@one"}, json=ag
-    )
-    ont = _seed_body()
-    ont["severity_map"]["warn_above"] = 0.111
-    client.put(
-        "/v1/ontology",
-        params={"agent": "ws5_bff_test", "rationale": "tweak"},
-        headers={"X-Actor": "sme@two"},
-        json=ont,
-    )
-
-    records = client.get("/v1/audit").json()["records"]
-    assert len(records) == 2  # both writes recorded
-    assert {r["target"]["type"] for r in records} == {"agent", "ontology"}
-    assert records[0]["actor"] == {"type": "user", "id": "sme@one"}
-    assert records[0]["why"]["rationale"] == "first edit"
-
-    # a SECOND agent write appends a third row (append-only, never overwrite)
-    client.put(
-        "/v1/agent", params={"rationale": "second edit"}, headers={"X-Actor": "sme@one"}, json=ag
-    )
-    assert len(client.get("/v1/audit").json()["records"]) == 3
-    assert len(client.get("/v1/audit", params={"target_type": "agent"}).json()["records"]) == 2
+# PACK-DIST-2 D5: the draft→grade loop funcs (test_draft_ontology_grades_not_the_committed_seed +
+# test_draft_re_edit_regrades_not_the_stale_cache) + the audit-record write
+# (test_config_writes_emit_appended_audit_records) read/grade the committed clinical seed bytes
+# directly → relocated to the pack repo (tests/test_ws5_bff_relocated.py).
 
 
 def test_product_write_with_no_actor_is_attributed_not_silent(client):
@@ -536,35 +421,9 @@ def test_judge_preview_diverges_with_an_assignment(client):
     assert j["preview_flags"] == ["WRONG_DOSAGE", "FABRICATED_ALLERGY"]
 
 
-def test_judge_put_round_trips_and_audits(client):
-    """A1 + A3 — PUT assigns a lens + binds a model → GET reflects it + the saved
-    assignment now renders into the prompt; the write emits an actor-attributed,
-    immutable audit record (target.type='judge')."""
-    res = client.put(
-        "/v1/judges/risk_judge",
-        params={"rationale": "assign dosage lens"},
-        headers={"X-Actor": "sme@acme"},
-        json={
-            "model": "AZURE_OPENAI_DEPLOYMENT_COUNCIL",
-            "assigned_flags": ["WRONG_DOSAGE"],
-            "validator_refs": ["dosage_grounding"],
-        },
-    )
-    assert res.status_code == 200, res.text
-
-    j = client.get("/v1/judges/risk_judge", params={"agent": _AGENT}).json()
-    assert j["authored"] is True
-    assert j["assigned_flags"] == ["WRONG_DOSAGE"]
-    assert j["model"] == "AZURE_OPENAI_DEPLOYMENT_COUNCIL"
-    assert j["validator_refs"] == ["dosage_grounding"]
-    assert "WRONG_DOSAGE" in j["rendered_prompt"]  # the saved assignment renders
-
-    recs = client.get("/v1/audit", params={"target_type": "judge"}).json()["records"]
-    assert len(recs) == 1
-    assert recs[0]["actor"] == {"type": "user", "id": "sme@acme"}
-    assert recs[0]["target"] == {"type": "judge", "id": "risk_judge"}
-    assert recs[0]["why"]["rationale"] == "assign dosage lens"
-    assert recs[0]["after"]["assigned_flags"] == ["WRONG_DOSAGE"]
+# PACK-DIST-2 D5: test_judge_put_round_trips_and_audits relocated to the pack repo
+# (tests/test_ws5_bff_relocated.py) — its assignment renders the clinical lens (WRONG_DOSAGE) into
+# the prompt over the committed clinical seed.
 
 
 def test_judge_put_422_on_owner_emit_violation(client):
@@ -575,15 +434,8 @@ def test_judge_put_422_on_owner_emit_violation(client):
     assert "owner↔emit" in res.json()["detail"]
 
 
-def test_judge_put_422_on_unknown_validator(client):
-    """A1 — validators are execute-only references from the persisted toolbox; an
-    unknown ref is rejected (a judge never authors/invents a validator)."""
-    res = client.put(
-        "/v1/judges/risk_judge",
-        json={"assigned_flags": ["WRONG_DOSAGE"], "validator_refs": ["totally_made_up"]},
-    )
-    assert res.status_code == 422
-    assert "validator" in res.json()["detail"]
+# PACK-DIST-2 D5: test_judge_put_422_on_unknown_validator relocated to the pack repo
+# (tests/test_ws5_bff_relocated.py) — it assigns the clinical WRONG_DOSAGE lens.
 
 
 def test_judge_unknown_role_is_404(client):
@@ -592,19 +444,6 @@ def test_judge_unknown_role_is_404(client):
     assert client.put("/v1/judges/behavior_judge", json={"assigned_flags": []}).status_code == 404
 
 
-def test_gate_authority_is_lens_not_stale_ontology_owner_roles(client):
-    """The CITATION-DRIFT guard (Finding 1): the owner↔emit gate uses LENS_BY_ROLE
-    (the v2 owned+emitted authority, owner-consistent vs _TIER1_OWNERS), NOT the
-    ontology's owner_roles — which are stale v1 roles (behavior/source_message, NO
-    faithfulness_judge). So faithfulness_judge CAN be assigned MISSING_ALLERGY /
-    VALUE_MISMATCH (its v2 Tier-1 codes) even though the committed ontology's
-    owner_roles for those codes never list it. Gating on the stale owner_roles would
-    have wrongly 422'd this correct assignment."""
-    res = client.put(
-        "/v1/judges/faithfulness_judge",
-        headers={"X-Actor": "sme@acme"},
-        json={"assigned_flags": ["MISSING_ALLERGY", "VALUE_MISMATCH"]},
-    )
-    assert res.status_code == 200, res.text
-    j = client.get("/v1/judges/faithfulness_judge", params={"agent": _AGENT}).json()
-    assert set(j["assigned_flags"]) == {"MISSING_ALLERGY", "VALUE_MISMATCH"}
+# PACK-DIST-2 D5: test_gate_authority_is_lens_not_stale_ontology_owner_roles relocated to the pack
+# repo (tests/test_ws5_bff_relocated.py) — it assigns clinical Tier-1 codes (MISSING_ALLERGY /
+# VALUE_MISMATCH) over the committed clinical seed.

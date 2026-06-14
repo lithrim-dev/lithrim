@@ -29,8 +29,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 from lithrim_bench.harness import pack
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -73,14 +71,9 @@ def test_engine_carries_no_scribe_generator_code():
     assert hits == [], "the engine still carries scribe generator code:\n" + "\n".join(hits)
 
 
-def test_scribe_generators_live_in_the_pack():
-    """…AND the scribe generators are PRESENT under the pack — relocation, not deletion.
-    (Fails if a scribe generator was silently dropped rather than moved home.)"""
-    present = {n for n in _SCRIBE_CODE_NEEDLES if _grep(PACK_GEN, (n,))}
-    missing = sorted(set(_SCRIBE_CODE_NEEDLES) - present)
-    assert missing == [], "scribe generator code missing from the pack (dropped?):\n" + "\n".join(
-        missing
-    )
+# PACK-DIST-2 D5: test_scribe_generators_live_in_the_pack relocated to the pack repo
+# (tests/test_pack_layer5a_relocated.py) — it reads the pack's relocated generators/ dir. The
+# generic engine-boundary funcs + the NEEDS_PACK active_packs funcs stay here.
 
 
 def test_core_never_imports_top_level_packs():
@@ -172,26 +165,7 @@ def test_import_lithrim_bench_packs_heavy_dep_free():
     assert proc.stdout.strip() == "[]"
 
 
-# ──────────── A2 — by-construction byte-identity (the HARD-GATE crux) ────────────
-@pytest.mark.skipif(
-    not COHORT.exists(),
-    reason="Synthea cohort absent (offline CI); by-construction byte-identity is a "
-    "cohort-gated acceptance step (CLAUDE.md: tests run without the CSV)",
-)
-def test_judge_calib_regenerates_byte_identical(tmp_path):
-    """Regenerating the tracked judge-calibration corpus AFTER the scribe relocation reproduces
-    ``examples/judge_calib_v1.jsonl`` byte-for-byte — the recipe (the label) moved home
-    unchanged. generate_judge_calib freezes the wall-clock timestamp, so this is a true byte
-    diff; its scribe positives/clean/multi rows exercise the relocated synth + inject path."""
-    out = tmp_path / "judge_calib.jsonl"
-    committed = REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
-    proc = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / "generate_judge_calib.py"), "--out", str(out)],
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert out.read_text() == committed.read_text(), (
-        "the judge-calibration corpus changed after the relocation — a scribe label drifted; "
-        "the move must be byte-identical (CLAUDE.md: labels are true by construction)"
-    )
+# PACK-DIST-2 D5: the by-construction byte-identity regen func (test_judge_calib_regenerates_byte_identical)
+# relocated to the pack repo (tests/test_pack_layer5a_relocated.py) — it subprocesses
+# scripts/generate_judge_calib.py over the Synthea cohort, both of which moved to the pack; there it
+# guard-skips when the cohort is absent.

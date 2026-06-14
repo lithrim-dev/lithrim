@@ -46,16 +46,16 @@ def _healthcare_discoverable() -> bool:
         return False
 
 
-# Whole modules whose every test needs relocated clinical content (incl. two with module-level
-# corpus reads that fail at COLLECTION) — skip-collect when the content is gone from CE.
-_IGNORE_MODULES_WHEN_RELOCATED = {
-    "test_judge_calib_corpus",
-    "test_uap4_corpus_superset",
-    "test_uap5a_flip_demo",
-    "test_uap5a_projection",
-    "test_s_bs_74_live_correction",
-    "test_ground_floor1",
-}
+# PACK-DIST-2 D5: every whole clinical-only test module MOVED to the pack repo
+# (``../lithrim-pack-healthcare/tests/``), so ``_IGNORE_MODULES_WHEN_RELOCATED`` is now EMPTY —
+# there is no in-CE module left to skip-collect on relocation. The MIXED modules keep their
+# generic + NEEDS_PACK funcs in CE; the RELOCATED funcs of the NAMED MIXED modules (test_audit,
+# test_pack_layer1a/2/3/5a/5b, test_uap3b_withstands, test_ws5_bff) were EXTRACTED into the pack
+# (``tests/test_<module>_relocated.py``) and deleted from CE, so they drop out of ``_RELOCATED_FUNCS``
+# below. The remaining ``_RELOCATED_FUNCS`` entries are the UNLISTED MIXED modules whose extraction
+# is a PACK-DIST-2 follow-on (still skip in CE until extracted). ``_IGNORE_MODULES_WHEN_BARE_CE`` +
+# ``_NEEDS_PACK_FUNCS`` (the bare-CE demarcation) are KEPT so a bare CE checkout stays green on _core.
+_IGNORE_MODULES_WHEN_RELOCATED: set[str] = set()
 # Whole modules that load the pack's GENERATORS/floors at import (``load_pack_generators()`` etc.)
 # — green in dev, but ``None`` at module import in a bare CE checkout → skip-collect when the pack
 # is not discoverable (their in-pack-repo home is PACK-DIST-2).
@@ -77,11 +77,15 @@ _IGNORE_MODULES_WHEN_BARE_CE = {
 }
 # RELOCATED — the function reads a CE path that moved to the pack repo → skip whenever absent from
 # CE (i.e. always, post-extraction; both dev and bare-CE). Mixed modules: only these funcs skip.
+#
+# PACK-DIST-2 D5 (batch 2): the named MIXED modules were EXTRACTED — their RELOCATED funcs moved to
+# ``../lithrim-pack-healthcare/tests/test_<module>_relocated.py`` and are GONE from the CE module
+# (test_audit, test_pack_layer1a/2/3/5a/5b [genericized-on-move for 1a/2], test_uap3b_withstands,
+# test_ws5_bff), and the whole clinical-only modules (test_ws0/test_ws1/etc.) were MOVED — so their
+# entries are deleted from this ledger. The REMAINING entries below are the unlisted MIXED modules
+# whose RELOCATED funcs are NOT YET extracted (deferred to a PACK-DIST-2 follow-on / the critic);
+# they still read a now-gone CE path, so they keep skipping in CE until extracted.
 _RELOCATED_FUNCS = {
-    "test_audit": {
-        "test_run_ontology_path_override_grades_the_draft",
-        "test_run_override_and_no_override_diverge_only_by_the_draft",
-    },
     "test_crud_delete": {"test_delete_agent_guards_404_and_audit", "test_get_agents_lists_the_seeds"},
     "test_judgeset_roster": {"test_committed_ladder_applies_same_assignments_to_every_set"},
     "test_flag_crud": {
@@ -95,50 +99,15 @@ _RELOCATED_FUNCS = {
         "test_reference_create_is_skip_logged_never_scored",
         "test_reference_create_round_trips_and_is_audited",
     },
-    "test_pack_layer1a": {"test_core_defaults_resolve_through_the_pack"},
-    "test_pack_layer2": {"test_council_light_reader_resolves_through_the_pack"},
-    "test_pack_layer3": {
-        "test_clinical_executors_live_in_the_pack",
-        "test_ground_byte_behavior_identical_on_the_demo_pair",
-        "test_moat_sees_the_pack_record_presence_and_unregister_loses_it",
-        "test_unknown_contract_type_fails_closed",
-    },
-    "test_pack_layer5a": {
-        "test_judge_calib_regenerates_byte_identical",
-        "test_scribe_generators_live_in_the_pack",
-    },
-    "test_pack_layer5b": {
-        "test_agent_type_generators_live_in_the_pack",
-        "test_corpus_regenerates_byte_identical",
-    },
     "test_uap3_bff": {"test_authored_assignment_threads_into_the_grade"},
     "test_uap3b2_provenance": {"test_S_BS_72_provenance_blob_carries_withstands_ruling"},
-    "test_uap3b_withstands": {"test_MOAT_EXHIBIT_gate_flips_composite_and_ground_alone_does_not"},
     "test_uap5b_chat": {"test_author_judge_tool_makes_an_audited_write"},
     "test_uap5c_journey": {"test_full_journey_domain_judge_flag_run_review_is_audited"},
-    "test_ws1": {
-        "test_load_ontology_busts_cache_when_the_draft_changes",
-        "test_ontology_abspath_prefers_existing_literal_path",
-        "test_ontology_abspath_self_heals_relocated_path",
-        "test_ontology_is_single_source_for_contracts_and_severity",
-        "test_presence_check_honours_declared_params",
-    },
     "test_ws2": {
         "test_gradeable_finding_still_scores",
         "test_ontology_partitions_gradeable_and_reference",
         "test_reference_finding_is_skip_logged_never_scored",
         "test_seed_gradeable_set_matches_snapshot",
-    },
-    "test_ws5_bff": {
-        "test_config_writes_emit_appended_audit_records",
-        "test_draft_ontology_grades_not_the_committed_seed",
-        "test_draft_re_edit_regrades_not_the_stale_cache",
-        "test_gate_authority_is_lens_not_stale_ontology_owner_roles",
-        "test_judge_put_422_on_unknown_validator",
-        "test_judge_put_round_trips_and_audits",
-        "test_put_ontology_accepts_and_round_trips",
-        "test_put_ontology_never_clobbers_the_committed_seed",
-        "test_put_ontology_rejects_snapshot_violation",
     },
 }
 # NEEDS_PACK — the function grades / pins THROUGH the loaded healthcare pack via discovery → green
@@ -167,6 +136,9 @@ _NEEDS_PACK_FUNCS = {
         "test_tier2_corroborated_two_judges_rejects",
         "test_tier2_single_judge_needs_review",
     },
+    # PACK-DIST-2 D5 (batch-1 fold): the route-revert func seeds the BFF config DB, whose seed path
+    # loads the healthcare pack ontology → bare-CE FileNotFoundError; it NEEDS the pack (dev-green).
+    "test_crud_delete": {"test_delete_judge_route_reverts_idempotent_and_404"},
     "test_flag_crud": {"test_delete_guard_refuses_gradeable_in_snapshot"},
     "test_grade_wire": {"test_inprocess_reproduces_baseline_semantic_and_composite_verdict"},
     "test_judge_bridge": {
