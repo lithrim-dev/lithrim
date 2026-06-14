@@ -494,8 +494,9 @@ async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any])
     # active agent's DRAFT ontology — the conversational "step 5: add grounding contracts" move.
     # $0, no PAID_KEY. The splice (replace-by-flag-code else append) + the FROZEN audited PUT live in
     # the bound ctx.put_grounding_contract; a 404 (unknown flag) / 422 (malformed) is surfaced, never
-    # bypassed. question/version default exactly as ContractBuilder.jsx does.
-    flag_code = str(args.get("flag_code") or "")
+    # bypassed. question/version default exactly as ContractBuilder.jsx does. ``flag`` is accepted as
+    # an alias for ``flag_code`` (the model often reaches for the shorter name — don't make it fumble).
+    flag_code = str(args.get("flag_code") or args.get("flag") or "")
     contract_type = str(args.get("contract_type") or "")
     params = args.get("params") if isinstance(args.get("params"), dict) else {}
     question = str(args.get("question") or f"Does the grounding floor verify {flag_code}?")

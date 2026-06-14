@@ -41,6 +41,7 @@ from agent.tools import (  # noqa: E402
     _ARTIFACT_TABS,
     FOCUS_ARTIFACT_SCHEMA,
     PAID_KEYS,
+    add_grounding_contract_handler,
     focus_artifact_handler,
     run_eval_handler,
 )
@@ -84,6 +85,32 @@ def ctx(tmp_path):
 
 
 # ── A1 — focus_artifact emits a valid directive per tab; invalid is rejected ──
+
+
+def test_add_grounding_contract_accepts_flag_alias():
+    """GROUND-CHAT-1 robustness: the model often passes `flag` instead of the schema's `flag_code`
+    (it did once live). The handler accepts `flag` as an alias so the conversational add doesn't
+    fumble — `flag` maps to flag_code and the audited write proceeds (here over a stub ctx, $0)."""
+    captured: dict = {}
+
+    class _Ctx:
+        default_agent = "demo"
+
+        def put_grounding_contract(self, **kw):
+            captured.update(kw)
+            return {"version": kw.get("version"), "replaced": False}
+
+        def emit(self, _part):
+            pass
+
+    res = asyncio.run(
+        add_grounding_contract_handler(
+            _Ctx(),
+            {"flag": "FABRICATED_HISTORY", "contract_type": "snomed_subsumption", "params": {}},
+        )
+    )
+    assert captured["flag_code"] == "FABRICATED_HISTORY"  # `flag` was accepted as the alias
+    assert not res.get("is_error")
 
 
 def test_focus_artifact_emits_a_directive_for_each_tab(ctx):
