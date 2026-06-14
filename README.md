@@ -25,11 +25,17 @@ distributed separately** in its own repo (`../lithrim-pack-healthcare`), NOT in 
 3. the in-repo `packs/` (the CE sample packs + fixtures).
 
 ```bash
-# load the external healthcare pack (dev / airgap):
+# THE canonical dev / CI invocation — load the external healthcare pack AND pin it active:
 LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare LITHRIM_BENCH_PACK=healthcare python -m pytest
 # …or pip-install it (registers the entry point):
 pip install -e ../lithrim-pack-healthcare && LITHRIM_BENCH_PACK=healthcare …
 ```
+
+> **Both env vars are load-bearing.** `LITHRIM_BENCH_PACKS_DIR` alone (without `LITHRIM_BENCH_PACK`)
+> only makes the pack *discoverable* — the active pack stays on the neutral `_core` default, so the
+> frozen council binds `_core`'s taxonomy codes at import and the 12 healthcare test modules fail
+> collection with `PackConsistencyError` (clinical codes not in the active council). That is
+> fail-closed-correct, not a bug: pin `LITHRIM_BENCH_PACK=healthcare` to grade through the clinical pack.
 
 With no pack on the path the core stays on the neutral `_core` default and grades fine — a Pro pack
 the operator can't reach is **absent**, not stubbed (fail-closed). To add your own domain, write a

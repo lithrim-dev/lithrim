@@ -65,6 +65,12 @@ def _run_subprocess(script: str, pack: str) -> dict:
 
     env = dict(os.environ)
     env["LITHRIM_BENCH_PACK"] = pack
+    # S-BS-139: make the grade subprocess hermetic. The FROZEN ComplianceCouncil builds an OpenAI
+    # client *object* at construction (no network), which needs a key + an openai provider. setdefault
+    # (not assignment) so a real live-smoke env still wins; this stops the subprocess from depending
+    # on the council conftest's leaked defaults / suite order / a repo-root ``.env``.
+    env.setdefault("OPENAI_API_KEY", "test-offline-key")
+    env.setdefault("LITHRIM_LLM_PROVIDER", "openai")
     proc = subprocess.run(
         [sys.executable, "-c", script],
         cwd=REPO_ROOT,
