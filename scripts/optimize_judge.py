@@ -2,18 +2,21 @@
 """Cost-gated live runner for the DSPy judge optimizer (WS-6c-DSPy-3b).
 
 Optimizes ONE judge (default ``risk_judge``) with ``BootstrapFewShot`` on the
-calibration split of ``examples/judge_calib_v1.jsonl`` and measures the compiled-
-vs-baseline held-out Δ on the test split. PAID — makes Azure calls only when
-``--confirm-cost`` is passed. Reaches Azure directly via the council ``settings`` /
-``dspy.LM`` (the user owns ``../lithrim-backend/.env``), NOT the :8002 service; no
-service is autostarted.
+calibration split of the corpus passed via ``--corpus`` (required; the clinical
+``judge_calib_v1.jsonl`` corpus relocated out of this repo per PACK-DIST-1 —
+point ``--corpus`` at it in the pack repo, e.g.
+``../lithrim-pack-healthcare/examples/judge_calib_v1.jsonl``) and measures the
+compiled-vs-baseline held-out Δ on the test split. PAID — makes Azure calls only
+when ``--confirm-cost`` is passed. Reaches Azure directly via the council
+``settings`` / ``dspy.LM`` (the user owns ``../lithrim-backend/.env``), NOT the
+:8002 service; no service is autostarted.
 
 Protocol (the standing cost-confirm rule):
 
     # 1. smoke — 2 cases/split, report per-call cost, NO full run:
-    python scripts/optimize_judge.py --smoke --confirm-cost
+    python scripts/optimize_judge.py --corpus <path> --smoke --confirm-cost
     # 2. after an explicit cost-go, the full run (ONE run, $3 ceiling):
-    python scripts/optimize_judge.py --confirm-cost
+    python scripts/optimize_judge.py --corpus <path> --confirm-cost
 
 Run under the council interpreter (the [council] extra + dspy):
 
@@ -63,7 +66,7 @@ def _print_table(result: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--role", default="risk_judge")
-    parser.add_argument("--corpus", default="examples/judge_calib_v1.jsonl")
+    parser.add_argument("--corpus", required=True)
     parser.add_argument("--confirm-cost", action="store_true")
     parser.add_argument(
         "--smoke",

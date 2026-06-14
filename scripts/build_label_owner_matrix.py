@@ -11,7 +11,13 @@ either reassigned, the production config widened, or the case excluded.
 Usage:
     python scripts/build_label_owner_matrix.py \
         --golden /path/to/eval_golden.jsonl \
+        [--snapshot /path/to/taxonomy_snapshot.json] \
         [--out docs/label_owner_matrix.md]
+
+``--snapshot`` defaults to the active pack's snapshot (resolved via the pack
+discovery seam — set ``LITHRIM_BENCH_PACKS_DIR`` / ``LITHRIM_BENCH_PACK`` for an
+external pack). With no pack discoverable, resolution fail-closes — there is no
+in-repo default to fall back to (the clinical realm relocated out per PACK-DIST-1).
 """
 from __future__ import annotations
 
@@ -23,20 +29,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from lithrim_bench.harness.pack import pack_taxonomy_path
 from lithrim_bench.taxonomy import load_taxonomy
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--golden", required=True, type=Path)
-    ap.add_argument(
-        "--snapshot",
-        default=Path(__file__).resolve().parent.parent
-        / "packs"
-        / "healthcare"
-        / "taxonomy_snapshot.json",
-        type=Path,
-    )
+    ap.add_argument("--snapshot", default=None, type=Path)
     ap.add_argument(
         "--out",
         default=Path(__file__).resolve().parent.parent / "docs" / "label_owner_matrix.md",
@@ -44,7 +44,8 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    taxonomy = load_taxonomy(args.snapshot)
+    snapshot = args.snapshot or pack_taxonomy_path()
+    taxonomy = load_taxonomy(snapshot)
 
     code_to_cases: dict[str, list[str]] = defaultdict(list)
     with args.golden.open() as f:
@@ -61,7 +62,7 @@ def main() -> int:
     lines.append("# Label -> Owner Matrix")
     lines.append("")
     lines.append(f"- Golden set: `{args.golden}`")
-    lines.append(f"- Taxonomy snapshot: `{args.snapshot}`")
+    lines.append(f"- Taxonomy snapshot: `{snapshot}`")
     lines.append(f"- Production judges: {sorted(taxonomy.production_judges)}")
     lines.append(f"- Declared but not running: {sorted(taxonomy.declared_but_not_running)}")
     lines.append("")

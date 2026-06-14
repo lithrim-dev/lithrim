@@ -1,4 +1,4 @@
-"""Refresh packs/healthcare/taxonomy_snapshot.json from a lithrim-backend checkout.
+"""Refresh the active pack's taxonomy_snapshot.json from a lithrim-backend checkout.
 
 Run when compliance_council.py changes upstream. The snapshot is the
 contract between this repo and the backend; never hand-edit it.
@@ -7,10 +7,17 @@ Council fields (tiers/owners) are re-derived from compliance_council.py.
 The bench-curated ``structural_codes`` block is NOT council-derived and is
 preserved verbatim from the existing snapshot on refresh.
 
+``--out`` defaults to the ``healthcare`` pack's snapshot, resolved via the pack
+discovery seam (set ``LITHRIM_BENCH_PACKS_DIR`` to the external pack repo, e.g.
+``../lithrim-pack-healthcare``). With no pack discoverable, resolution
+fail-closes — there is no in-repo default to silently write into (the clinical
+realm relocated out per PACK-DIST-1).
+
 Usage:
+    LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare \
     python scripts/snapshot_taxonomy.py \
         --backend-path /path/to/lithrim-backend \
-        [--out packs/healthcare/taxonomy_snapshot.json]
+        [--out /path/to/taxonomy_snapshot.json]
 """
 from __future__ import annotations
 
@@ -71,15 +78,17 @@ def _derive_production_judges(council) -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend-path", required=True, type=Path)
-    ap.add_argument(
-        "--out",
-        default=Path(__file__).resolve().parent.parent
-        / "packs"
-        / "healthcare"
-        / "taxonomy_snapshot.json",
-        type=Path,
-    )
+    ap.add_argument("--out", default=None, type=Path)
     args = ap.parse_args()
+
+    # Resolve the write target via the pack discovery seam so the snapshot lands
+    # in the active ``healthcare`` pack (in-repo, or external via
+    # LITHRIM_BENCH_PACKS_DIR). No in-repo default — fail-closed if undiscoverable.
+    if args.out is None:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from lithrim_bench.harness.pack import pack_taxonomy_path
+
+        args.out = pack_taxonomy_path("healthcare")
 
     # S-BS-30: the snapshot documents the *running* production trio, which under
     # the ratified v2-only decision is the cross-provider v2 trio. Force v2 +

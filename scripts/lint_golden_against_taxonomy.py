@@ -11,7 +11,13 @@ exits non-zero if any case fails.
 Usage:
     python scripts/lint_golden_against_taxonomy.py \
         --golden /path/to/eval_golden.jsonl \
-        [--snapshot packs/healthcare/taxonomy_snapshot.json]
+        [--snapshot /path/to/taxonomy_snapshot.json]
+
+``--snapshot`` defaults to the active pack's snapshot (resolved via the pack
+discovery seam — set ``LITHRIM_BENCH_PACKS_DIR`` / ``LITHRIM_BENCH_PACK`` for an
+external pack). With no pack discoverable, resolution fail-closes with a
+FileNotFoundError/PackConsistencyError — there is no in-repo default to fall
+back to (the clinical realm relocated out per PACK-DIST-1).
 """
 from __future__ import annotations
 
@@ -23,23 +29,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from lithrim_bench.harness.pack import pack_taxonomy_path
 from lithrim_bench.taxonomy import load_taxonomy
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--golden", required=True, type=Path)
-    ap.add_argument(
-        "--snapshot",
-        default=Path(__file__).resolve().parent.parent
-        / "packs"
-        / "healthcare"
-        / "taxonomy_snapshot.json",
-        type=Path,
-    )
+    ap.add_argument("--snapshot", default=None, type=Path)
     args = ap.parse_args()
 
-    taxonomy = load_taxonomy(args.snapshot)
+    snapshot = args.snapshot or pack_taxonomy_path()
+    taxonomy = load_taxonomy(snapshot)
     known = taxonomy.known_codes | taxonomy.structural_codes
 
     bad_cases: list[tuple[str, str, str]] = []
@@ -78,7 +79,7 @@ def main() -> int:
                         )
 
     print(f"lint_golden_against_taxonomy: {total} cases scanned in {args.golden}")
-    print(f"  taxonomy snapshot: {args.snapshot}")
+    print(f"  taxonomy snapshot: {snapshot}")
     print(f"  excluded (not scored): {excluded}")
     print(f"  scored: {total - excluded}")
     print(f"  unique codes seen: {len(code_use)}")
