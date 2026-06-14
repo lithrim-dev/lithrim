@@ -328,7 +328,7 @@
       "id": "WS-5",
       "phase": "WS-5",
       "title": "WS-5 \u2014 frontend shell + one plugin UI (bring-in-data journey)",
-      "status": "done — skeleton (FE-first re-cut 2026-06-01)",
+      "status": "done \u2014 skeleton (FE-first re-cut 2026-06-01)",
       "blocked_by": [],
       "close_note": "WS-5 skeleton DONE 2026-06-01 (apps/shell/, commit 842db03; close-out d3ddd47). Inline critique returned BLOCKING DRIFT (100% mock data; BFF + run_eval vertical + Tauri absent) -> resolved by amending SPEC_PRODUCT_SHELL.md sec.8 to FRONT-END-FIRST: WS-5 = skeleton; the prove-the-stack half -> new WS-5-BFF; WS-5d re-cut build->wire. Children: WS-5b (journey, ready) / WS-5c (generative-UI + Tailwind foundation) / WS-5-BFF / WS-5d / WS-5e. Opened S-BS-17 (demo-domain split). Critique: .devloop/sessions/critique-bench-salvage-phaseWS-5-2026-06-01.md.",
       "priority": "P1",
@@ -336,11 +336,11 @@
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver (SUPERSEDED — thin stdlib driver; the real shell skeleton was built directly + closed 2026-06-01)",
+      "prompt_bundle": "bench-salvage-phaseWS-5-frontend-shell-plugin-driver (SUPERSEDED \u2014 thin stdlib driver; the real shell skeleton was built directly + closed 2026-06-01)",
       "rescope_note": "RE-SCOPED 2026-06-01 to the PRODUCT SHELL PROGRAM (user direction). Authoritative phasing in docs/specs/SPEC_PRODUCT_SHELL.md sec.8: WS-5 = the REAL 3-pane React/Tauri/Tailwind shell skeleton + FastAPI BFF Tauri-sidecar + ONE vertical (eval-report artifact over the WS-4a vertical); WS-5b conversational journey; WS-5c generative-UI components; WS-5d artifacts pane; WS-5e Tauri packaging + VPC. Service topology: docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md (strangler-fig, Mongo-out, sequencing B).",
       "deliverables": [
         "WS-5 (this phase): the real 3-pane shell skeleton (React/Vite + Tauri v2 + Tailwind/brand + the FastAPI BFF Tauri-sidecar) with ONE vertical end-to-end (eval-report artifact over the WS-4a vertical via run_eval.run; replay default + one live run). Per SPEC_PRODUCT_SHELL.md sec.8.",
-        "WS-5b..WS-5e: conversational journey / generative-UI components / artifacts pane / Tauri+VPC packaging — per SPEC_PRODUCT_SHELL.md sec.8 (each gets its own driver)."
+        "WS-5b..WS-5e: conversational journey / generative-UI components / artifacts pane / Tauri+VPC packaging \u2014 per SPEC_PRODUCT_SHELL.md sec.8 (each gets its own driver)."
       ],
       "acceptance": [
         "Per SPEC_PRODUCT_SHELL.md acceptance for the WS-5 skeleton phase: shell loads the plugin; the vertical renders (replay) + one live run; frontend deps isolated (Python default install unchanged). Later phases carry their own acceptance."
@@ -352,8 +352,8 @@
     {
       "id": "WS-5b",
       "phase": "WS-5b",
-      "title": "WS-5b — conversational journey layer (4-act activation; port jp1-jp4)",
-      "status": "done — closed 2026-06-01",
+      "title": "WS-5b \u2014 conversational journey layer (4-act activation; port jp1-jp4)",
+      "status": "done \u2014 closed 2026-06-01",
       "close_note": "Executed 460b677..00c68b9 + close-out. Audit CLEAN (7/7; vite build 42 modules, diff confined to apps/shell/, zero new deps, no Tailwind/network/Tauri/tests). Inline critique NON-BLOCKING (critique-bench-salvage-phaseWS-5b-2026-06-01.md; 0 BLOCKING / 2 NB / 2 OQ). Faithful ESM port of the 4-act journey (jp1-jp4 + chrome + journeyData + JourneyApp) + root.jsx Shell<->Journey switch (shared theme). One approved deviation: additive app.jsx theme-prop for A3. S-BS-17 (demo-domain split) deferred, stays OPEN. Session log session-bench-salvage-phaseWS-5b-2026-06-01.json.",
       "blocked_by": [],
       "priority": "P1",
@@ -365,28 +365,28 @@
       "spec_ref": "docs/specs/SPEC_PRODUCT_SHELL.md sec.2.1 (the 4-phase journey) + sec.8 (amended FE-first; WS-5b row); docs/design/JOURNEY_brief.md",
       "note": "Plain-CSS ESM port of the Claude Design journey prototype (/tmp/lithrim_design/x/lithrim-bench/project/{journeydata,journeyrail,journeyapp,jp1-jp4}.jsx) into apps/shell/src/journey/ + a Shell<->Journey mode switch. Monitor pre-verified 2026-06-01: ALL journey icons already in icons.jsx; ALL journey CSS classes present (29/30 in journey.css, .h-sub in styles.css:286); brand Mark/Wordmark + Icon already exported. Central task = window.* globals -> ESM imports. Tailwind/shadcn stay deferred to WS-5c.",
       "deliverables": [
-        "apps/shell/src/journey/journeyData.js — ESM port of journeydata.jsx (ACTS/PILLARS/AGENT_TYPES/PACK/EXCHANGE/SCENARIOS/ALIGN/JUTE/SDK_LINES/PRO_FEATURES; drop Object.assign(window)).",
-        "apps/shell/src/journey/chrome.jsx — LeftRailJ/TopBarJ/StatusBarJ/PhaseFoot + shared AgentMsg (lifted from jp1).",
-        "apps/shell/src/journey/jp1.jsx..jp4.jsx — Center{n} + Artifact{n} per act (jp2 ScribeExchange+WAVE hero reveal; jp3 JuteBlock + before/after hero).",
-        "apps/shell/src/journey/JourneyApp.jsx — composition + phase state machine + runVerify/runCalib + resize + keyboard nav (drop the prototype ReactDOM.render).",
-        "apps/shell/src/root.jsx (new) + main.jsx — Shell<->Journey mode switch; main.jsx mounts RootApp + imports journey.css.",
-        "apps/shell/README.md — Status & next update (journey landed; WS-5c next)."
+        "apps/shell/src/journey/journeyData.js \u2014 ESM port of journeydata.jsx (ACTS/PILLARS/AGENT_TYPES/PACK/EXCHANGE/SCENARIOS/ALIGN/JUTE/SDK_LINES/PRO_FEATURES; drop Object.assign(window)).",
+        "apps/shell/src/journey/chrome.jsx \u2014 LeftRailJ/TopBarJ/StatusBarJ/PhaseFoot + shared AgentMsg (lifted from jp1).",
+        "apps/shell/src/journey/jp1.jsx..jp4.jsx \u2014 Center{n} + Artifact{n} per act (jp2 ScribeExchange+WAVE hero reveal; jp3 JuteBlock + before/after hero).",
+        "apps/shell/src/journey/JourneyApp.jsx \u2014 composition + phase state machine + runVerify/runCalib + resize + keyboard nav (drop the prototype ReactDOM.render).",
+        "apps/shell/src/root.jsx (new) + main.jsx \u2014 Shell<->Journey mode switch; main.jsx mounts RootApp + imports journey.css.",
+        "apps/shell/README.md \u2014 Status & next update (journey landed; WS-5c next)."
       ],
       "acceptance": [
-        "A1. vite build clean (npm run build) — the WS-5 build-verified bar (no tests this cycle; first test bar = WS-5-BFF).",
+        "A1. vite build clean (npm run build) \u2014 the WS-5 build-verified bar (no tests this cycle; first test bar = WS-5-BFF).",
         "A2. All four acts render at :5180; rail-click + keyboard left/right nav; Act 2 Verify staggered 4-pillar reveal -> PASS 8.6; Act 3 Re-run pack flips agreement 0.62->0.91 + per-scenario before/after.",
         "A3. Shell<->Journey switch toggles <App/> <-> <JourneyApp/> with no reload, sharing chrome + theme.",
         "A4. Diff confined to apps/shell/; no new npm deps; no Tailwind/shadcn; no network/BFF code."
       ],
       "scope_guardrails_not_in_scope": [
         "NO BFF / run_eval / network / live data (journey runs on journeyData.js; the bridge is WS-5-BFF).",
-        "NO Tailwind/shadcn (WS-5c, decision 2026-06-01) — plain-CSS port only.",
+        "NO Tailwind/shadcn (WS-5c, decision 2026-06-01) \u2014 plain-CSS port only.",
         "NO Tauri (WS-5-BFF/WS-5e); NO generative-UI tool<->component protocol (WS-5c); NO test infra (manual smoke; tests at WS-5-BFF).",
         "NO rewriting chrome CSS/styles.css; NO new icons (icons.jsx already complete); NO converging the shell skeleton customer-support mock to clinical beyond the switch (S-BS-17 = plan-review decision)."
       ],
       "plan_review_decisions": [
         "Shell<->Journey switch mechanism + default mode (rec: minimal titlebar/dev toggle, default Journey).",
-        "S-BS-17 demo-domain split — port journey clinical as-is + defer shell reconcile (rec) vs converge now.",
+        "S-BS-17 demo-domain split \u2014 port journey clinical as-is + defer shell reconcile (rec) vs converge now.",
         "AgentMsg/shared-parts placement (rec: chrome.jsx).",
         "journey/ file layout + naming."
       ],
@@ -397,9 +397,9 @@
     {
       "id": "WS-5-BFF",
       "phase": "WS-5-BFF",
-      "title": "WS-5-BFF — FastAPI BFF + React<->Python bridge + minimal Tauri + ONE real run_eval vertical",
-      "status": "done — closed 2026-06-01",
-      "close_note": "Executed f19dee4..4549a12 + close-out. Audit CLEAN (7/7); fresh-critic NON-BLOCKING (critique-bench-salvage-phaseWS-5-BFF-2026-06-01.md; 0 BLOCKING / 1 NB / 3 OQ). The de-risk paid down: real clinical composite through apps/bff/ FastAPI BFF; live verdict == replay; S-BS-7 holds on live data; first behavioral test (BFF smoke; suite 176/3). v1 surface RATIFIED (SPEC §10: run-eval[report-folded]/corpus/ontology-read/health; PUT deferred WS-5c/d); Tauri deferred WS-5e (SPEC §8). 3 approved deviations. New seam S-BS-18; S-BS-17 visually live.",
+      "title": "WS-5-BFF \u2014 FastAPI BFF + React<->Python bridge + minimal Tauri + ONE real run_eval vertical",
+      "status": "done \u2014 closed 2026-06-01",
+      "close_note": "Executed f19dee4..4549a12 + close-out. Audit CLEAN (7/7); fresh-critic NON-BLOCKING (critique-bench-salvage-phaseWS-5-BFF-2026-06-01.md; 0 BLOCKING / 1 NB / 3 OQ). The de-risk paid down: real clinical composite through apps/bff/ FastAPI BFF; live verdict == replay; S-BS-7 holds on live data; first behavioral test (BFF smoke; suite 176/3). v1 surface RATIFIED (SPEC \u00a710: run-eval[report-folded]/corpus/ontology-read/health; PUT deferred WS-5c/d); Tauri deferred WS-5e (SPEC \u00a78). 3 approved deviations. New seam S-BS-18; S-BS-17 visually live.",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
@@ -407,13 +407,13 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseWS-5-BFF-driver",
-      "origin": "NEW 2026-06-01 — the displaced 'prove the whole stack + the bridge' half of the original WS-5, carved out by the WS-5 critique + the SPEC sec.8 FE-first re-cut. Parallelizable with WS-5c. Driver authored 2026-06-01.",
+      "origin": "NEW 2026-06-01 \u2014 the displaced 'prove the whole stack + the bridge' half of the original WS-5, carved out by the WS-5 critique + the SPEC sec.8 FE-first re-cut. Parallelizable with WS-5c. Driver authored 2026-06-01.",
       "harness_surface_regrepped_HEAD_f6d99af": "BFF wraps: run_eval.run() scripts/run_eval.py:101 (replay default; --live opt-in :111); report.composite:29 + calibration_check:159; corpus.read_corpus:104/project:64; evalpack.build_pack:81/load_pack:117. Eval-report consumer = apps/shell/src/artifact.jsx ReportTab:5 (currently mock TILES/FAILURE_MODES).",
       "plan_review_decisions": [
         "BFF location + dep isolation (rec apps/bff/ + [bff] optional extra; default pip install unchanged).",
-        "Lock the v1 endpoint surface (SPEC sec.10: run-eval / report / corpus / ontology) — the judge-capability API v1.",
+        "Lock the v1 endpoint surface (SPEC sec.10: run-eval / report / corpus / ontology) \u2014 the judge-capability API v1.",
         "React->BFF targeting (rec VITE_BFF_URL + vite dev proxy).",
-        "Tauri sidecar NOW (minimal) vs DEFER to WS-5e (rec DEFER — prove the bridge in dev first; Tauri is a packaging long-pole).",
+        "Tauri sidecar NOW (minimal) vs DEFER to WS-5e (rec DEFER \u2014 prove the bridge in dev first; Tauri is a packaging long-pole).",
         "The ONE live run cost confirmation (services up; replay is the default demo path).",
         "S-BS-17 within Shell mode (real composite is clinical; Shell chrome is customer-support mock)."
       ],
@@ -421,10 +421,10 @@
         "Local FastAPI BFF (SPEC sec.5) bundled as a Tauri sidecar + the React<->Python bridge over localhost HTTP.",
         "Minimal Tauri shell hosting the sidecar.",
         "ONE vertical end-to-end: the eval-report artifact in pane 3 over the WS-4a vertical (run_eval.run; replay default + one live run).",
-        "A BFF round-trip smoke test (the shell shipped zero tests — the first test bar lands here)."
+        "A BFF round-trip smoke test (the shell shipped zero tests \u2014 the first test bar lands here)."
       ],
       "acceptance": [
-        "The shell renders a REAL eval-report from run_eval.run (replay) + one live run, through the BFF — not mock data.",
+        "The shell renders a REAL eval-report from run_eval.run (replay) + one live run, through the BFF \u2014 not mock data.",
         "BFF round-trip smoke test passes; Python default install unchanged (frontend/BFF deps isolated)."
       ],
       "scope_guardrails_not_in_scope": [
@@ -437,7 +437,7 @@
     {
       "id": "WS-5c",
       "phase": "WS-5c",
-      "title": "WS-5c — generative-UI components + Tailwind v4/@theme/shadcn foundation + mode-switch integration + first React<->BFF test + S-BS-17 reconcile",
+      "title": "WS-5c \u2014 generative-UI components + Tailwind v4/@theme/shadcn foundation + mode-switch integration + first React<->BFF test + S-BS-17 reconcile",
       "status": "ready",
       "blocked_by": [],
       "priority": "P1",
@@ -448,57 +448,57 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseWS-5c-generative-ui-foundation-driver",
-      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5c was the named-but-unregistered next shell phase (forward-referenced in STREAM first-move §1 + SPEC_PRODUCT_SHELL §8 row :129 + §4 :58-61 Tailwind decision + §10 :144 PUT-deferral; never a pack task or index stub). Registered here as the authoritative source; user elected ONE-CYCLE (all of it) sizing 2026-06-01. WS-5/WS-5b/WS-5-BFF all DONE — this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF GET reads).",
+      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5c was the named-but-unregistered next shell phase (forward-referenced in STREAM first-move \u00a71 + SPEC_PRODUCT_SHELL \u00a78 row :129 + \u00a74 :58-61 Tailwind decision + \u00a710 :144 PUT-deferral; never a pack task or index stub). Registered here as the authoritative source; user elected ONE-CYCLE (all of it) sizing 2026-06-01. WS-5/WS-5b/WS-5-BFF all DONE \u2014 this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF GET reads).",
       "shell_surface_regrepped_2026_06_01": "apps/shell/ Vite6+React18, NO Tailwind/shadcn yet (package.json:12-19 react+vite only; styles.css :root:5-34 + [data-theme=dark]:36-58 are the brand token source). Inline cards = cards.jsx ConfigCard:7 / VerdictCard:60 / CalibrationChart:94, rendered in panes.jsx CenterPane:68 (:95/:112/:121). Mode-switch = root.jsx ModeSwitch:16 (fixed-position floating overlay :22) / RootApp:51 default 'journey'. BFF bridge = bff.js runEval:23/getCorpus:26/getOntology:27 (GET reads; vite proxy /v1->:8787 vite.config.js:12-13). Real-composite render = artifact.jsx ReportTab:22 + ArtifactPane:197 (tabs :220-223). Demo-domain mock (S-BS-17) = data.jsx THREADS:3 'Support Agent v4' / STEPS:12 'Customer support' / CONFIG_YAML:50 'customer_support' + app.jsx:14 'acme-support'. BFF ontology read-only (app.py ontology_endpoint:125; PUT deferred comment:15). NO JS test infra (package.json no test script). Tailwind @theme pattern reference = ../v0-lithrim-landing-page/app/globals.css:1 (@import 'tailwindcss') + :57 (@theme inline { --color-* : var(--*) }).",
       "deliverables": [
-        "D0 Tailwind v4 + @theme token bridge + shadcn foundation (SPEC §4:58-61 / §129 decision): apps/shell/package.json (+ tailwindcss@4, @tailwindcss/vite, cva/clsx/tailwind-merge, shadcn Radix primitives — dev-deps, frontend-isolated) + vite.config.js (@tailwindcss/vite plugin) + NEW apps/shell/src/theme.css (@import 'tailwindcss' + @theme inline bridging the EXISTING styles.css :root/[data-theme=dark] tokens so brand holds across both systems; @custom-variant dark -> [data-theme='dark']) + main.jsx import + components.json + src/lib/utils.js (cn). INCREMENTAL — existing chrome CSS NOT rewritten into utilities.",
-        "D1 generative-UI component registry (SPEC §5b:87-89 / §6.2): NEW apps/shell/src/genui/registry.js — the tool-<name> -> React component map + renderTool(part) resolving part.state==='output-available' (assistant-ui makeAssistantToolUI / AI SDK message-parts pattern). The 5 §5b tools: tool-flag_editor, tool-contract_builder, tool-kb_picker, tool-verdict_card, tool-calibration_chart.",
-        "D2 input components: NEW src/genui/FlagEditor.jsx (flag/severity-map editor over ontology flags/tiers/owners + severity_map; reads via bff.js getOntology:27 GET — read-only, returns edited config into conversation/state), ContractBuilder.jsx (verification-contract builder claim->tool-query->verdict, the WS-3a floor-contract shape), KbPicker.jsx (EvalProfile.kb_bindings picker).",
+        "D0 Tailwind v4 + @theme token bridge + shadcn foundation (SPEC \u00a74:58-61 / \u00a7129 decision): apps/shell/package.json (+ tailwindcss@4, @tailwindcss/vite, cva/clsx/tailwind-merge, shadcn Radix primitives \u2014 dev-deps, frontend-isolated) + vite.config.js (@tailwindcss/vite plugin) + NEW apps/shell/src/theme.css (@import 'tailwindcss' + @theme inline bridging the EXISTING styles.css :root/[data-theme=dark] tokens so brand holds across both systems; @custom-variant dark -> [data-theme='dark']) + main.jsx import + components.json + src/lib/utils.js (cn). INCREMENTAL \u2014 existing chrome CSS NOT rewritten into utilities.",
+        "D1 generative-UI component registry (SPEC \u00a75b:87-89 / \u00a76.2): NEW apps/shell/src/genui/registry.js \u2014 the tool-<name> -> React component map + renderTool(part) resolving part.state==='output-available' (assistant-ui makeAssistantToolUI / AI SDK message-parts pattern). The 5 \u00a75b tools: tool-flag_editor, tool-contract_builder, tool-kb_picker, tool-verdict_card, tool-calibration_chart.",
+        "D2 input components: NEW src/genui/FlagEditor.jsx (flag/severity-map editor over ontology flags/tiers/owners + severity_map; reads via bff.js getOntology:27 GET \u2014 read-only, returns edited config into conversation/state), ContractBuilder.jsx (verification-contract builder claim->tool-query->verdict, the WS-3a floor-contract shape), KbPicker.jsx (EvalProfile.kb_bindings picker).",
         "D3 datapoint cards on the foundation: promote cards.jsx VerdictCard:60 + CalibrationChart:94 into the registry as tool-verdict_card / tool-calibration_chart (re-home on Tailwind/shadcn; ConfigCard:7 stays inline summary or folds to tool-flag_editor).",
         "D4 integrate the mode-switch into the chrome (WS-5b NB): move root.jsx ModeSwitch:16 out of the fixed-position floating overlay (:22) into the titlebar/chrome (app.jsx TopBar:9 / journey chrome TopBarJ); Shell<->Journey still toggles sharing theme.",
-        "D5 S-BS-17 demo-domain reconcile (plan-review decision): converge shell mock (data.jsx THREADS:3/STEPS:12/CONFIG_YAML:50 + app.jsx:14) with journey + harness clinical_v1 — clinical/Scribe vs neutral — since this is the 'shell mock is next touched' moment. Close or re-disposition S-BS-17.",
+        "D5 S-BS-17 demo-domain reconcile (plan-review decision): converge shell mock (data.jsx THREADS:3/STEPS:12/CONFIG_YAML:50 + app.jsx:14) with journey + harness clinical_v1 \u2014 clinical/Scribe vs neutral \u2014 since this is the 'shell mock is next touched' moment. Close or re-disposition S-BS-17.",
         "D6 S-BS-18 first React<->BFF binding test: stand up shell JS test infra (Vitest + React Testing Library; package.json test script) + a component test for bff.js->artifact.jsx ReportTab:22 binding (the shell's first JS test; Python BFF smoke test_ws5_bff.py already exists, the React side does not).",
         "D7 component tests for the new genui components (render + return-result) + apps/shell/README.md status update."
       ],
       "acceptance": [
-        "A1 Tailwind v4 + @theme bridge builds clean (npm run build); brand tokens resolve through BOTH the bespoke :root CSS and @theme (existing chrome visually unchanged — build clean + manual parity); Python default install (pydantic+pandas) unchanged (frontend deps isolated).",
-        "A2 the tool-<name> registry renders each of the 5 §5b components from a typed tool-part; an unknown tool degrades gracefully (component test).",
-        "A3 FlagEditor/ContractBuilder/KbPicker collect input + return a result object; ontology read via GET /v1/ontology only (NO PUT — write deferred WS-5d).",
+        "A1 Tailwind v4 + @theme bridge builds clean (npm run build); brand tokens resolve through BOTH the bespoke :root CSS and @theme (existing chrome visually unchanged \u2014 build clean + manual parity); Python default install (pydantic+pandas) unchanged (frontend deps isolated).",
+        "A2 the tool-<name> registry renders each of the 5 \u00a75b components from a typed tool-part; an unknown tool degrades gracefully (component test).",
+        "A3 FlagEditor/ContractBuilder/KbPicker collect input + return a result object; ontology read via GET /v1/ontology only (NO PUT \u2014 write deferred WS-5d).",
         "A4 mode-switch integrated into the chrome (no longer a fixed floating overlay); Shell<->Journey toggles sharing theme.",
         "A5 S-BS-17 reconciled per plan-review (shell/journey/harness demo-domain agree, or explicitly recorded neutral); seam closed or re-dispositioned.",
-        "A6 S-BS-18 — shell JS test infra exists; bff.js->ReportTab binding test passes; npm test green.",
+        "A6 S-BS-18 \u2014 shell JS test infra exists; bff.js->ReportTab binding test passes; npm test green.",
         "A7 vite build clean; diff confined to apps/shell/ (+ shadcn copy-ins); NO apps/bff/, lithrim_bench/, or ../lithrim-backend edits; no new Python deps."
       ],
       "diagnostic_stats_reported": [
-        "shadcn primitives introduced (count + names) — reported, not a gate.",
-        "Tailwind utility adoption is incremental (existing chrome CSS NOT rewritten) — reported, not a gate."
+        "shadcn primitives introduced (count + names) \u2014 reported, not a gate.",
+        "Tailwind utility adoption is incremental (existing chrome CSS NOT rewritten) \u2014 reported, not a gate."
       ],
       "scope_guardrails_not_in_scope": [
-        "PUT /v1/ontology write-wiring / ontology-editor persistence -> WS-5d (SPEC §8:131 + §10:144); WS-5c reads ontology only (GET).",
+        "PUT /v1/ontology write-wiring / ontology-editor persistence -> WS-5d (SPEC \u00a78:131 + \u00a710:144); WS-5c reads ontology only (GET).",
         "Wiring judge-council + config artifact tabs to the BFF (artifact.jsx JudgeTab/ConfigTab stay mock) -> WS-5d.",
         "Corpus/flywheel view (GET /v1/corpus render) -> WS-5d.",
         "Tauri / sidecar / installers / VPC / offline-license -> WS-5e.",
-        "LLM-driven conversation — scripted-default holds (SPEC §5c); no LLM host this phase.",
-        "Rewriting existing chrome CSS into Tailwind utilities (SPEC §4: incremental adoption, NOT a rewrite).",
+        "LLM-driven conversation \u2014 scripted-default holds (SPEC \u00a75c); no LLM host this phase.",
+        "Rewriting existing chrome CSS into Tailwind utilities (SPEC \u00a74: incremental adoption, NOT a rewrite).",
         "Any lithrim_bench/harness, apps/bff/, or ../lithrim-backend edit; backend :8002 config injection (WS-2)."
       ],
       "plan_review_decisions": [
-        "S-BS-17 demo-domain: converge shell mock to clinical/Scribe (matches JOURNEY_brief + harness clinical_v1) vs keep neutral customer-support demo (rec: decide here — the shell mock is being touched).",
-        "shadcn scope: which primitives to copy in (button/slider/dialog/select…) — keep minimal, only what the 3 input components + datapoint cards need.",
+        "S-BS-17 demo-domain: converge shell mock to clinical/Scribe (matches JOURNEY_brief + harness clinical_v1) vs keep neutral customer-support demo (rec: decide here \u2014 the shell mock is being touched).",
+        "shadcn scope: which primitives to copy in (button/slider/dialog/select\u2026) \u2014 keep minimal, only what the 3 input components + datapoint cards need.",
         "Mode-switch chrome placement (titlebar segmented control vs left-rail) + whether it stays a dev/demo toggle or starts gating real first-run activation.",
-        "genui/ file layout + the registry's tool-part shape (assistant-ui vs AI SDK message-parts) — pick one pattern.",
+        "genui/ file layout + the registry's tool-part shape (assistant-ui vs AI SDK message-parts) \u2014 pick one pattern.",
         "JS test runner = Vitest + React Testing Library (confirm; first shell test infra)."
       ],
       "hardness": "HARD-GATE",
-      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5c introduces TWO contracts — the Tailwind v4/@theme styling-system foundation + the §5b generative-UI tool-<name> component-registry protocol (§6.2). Fresh-critic close recommended; user MAY elect inline as for WS-5/WS-5b (close-time decision).",
+      "hardness_reason": "Per SPEC \u00a78 every shell phase is HARD-GATE-class; WS-5c introduces TWO contracts \u2014 the Tailwind v4/@theme styling-system foundation + the \u00a75b generative-UI tool-<name> component-registry protocol (\u00a76.2). Fresh-critic close recommended; user MAY elect inline as for WS-5/WS-5b (close-time decision).",
       "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5c-generative-ui-foundation-driver, ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. S-BS-17 + shadcn scope) before 'go'."
     },
     {
       "id": "WS-5d",
       "phase": "WS-5d",
-      "title": "WS-5d — artifacts pane wired (judge-council + config/ontology tabs to the BFF) + corpus/flywheel view + deferred PUT /v1/ontology + S-BS-19 scripted-host wiring + datapoint prop-convention lock",
-      "status": "done — closed 2026-06-01",
-      "close_note": "DONE — closed 2026-06-01 (38e4071..b065f14 + 5518ffb fresh-critic copy-fix + close-out). Audit CLEAN 7/7 (monitor re-verified pytest 181/3 + BFF 10/10 + Vitest 30/30; PUT clobber-safe by construction — committed clinical_v1.json byte-unchanged + not in cycle diff); fresh-critic NON-BLOCKING (0 BLOCKING / 1 NB stale-read-only-label->fixed 5518ffb / 1 NB putOntology arg-order / 2 OQ). A7 :5180 visual smoke PASS (user-attested). S-BS-19 closed for the Shell host (CenterPane mounts the 3 input tool-parts; flat-spread prop lock); new seam S-BS-26 (journey-act mount owed + drafts-don't-feed-grading). WS-6a carry (b) confidence float|null DISCHARGED.",
+      "title": "WS-5d \u2014 artifacts pane wired (judge-council + config/ontology tabs to the BFF) + corpus/flywheel view + deferred PUT /v1/ontology + S-BS-19 scripted-host wiring + datapoint prop-convention lock",
+      "status": "done \u2014 closed 2026-06-01",
+      "close_note": "DONE \u2014 closed 2026-06-01 (38e4071..b065f14 + 5518ffb fresh-critic copy-fix + close-out). Audit CLEAN 7/7 (monitor re-verified pytest 181/3 + BFF 10/10 + Vitest 30/30; PUT clobber-safe by construction \u2014 committed clinical_v1.json byte-unchanged + not in cycle diff); fresh-critic NON-BLOCKING (0 BLOCKING / 1 NB stale-read-only-label->fixed 5518ffb / 1 NB putOntology arg-order / 2 OQ). A7 :5180 visual smoke PASS (user-attested). S-BS-19 closed for the Shell host (CenterPane mounts the 3 input tool-parts; flat-spread prop lock); new seam S-BS-26 (journey-act mount owed + drafts-don't-feed-grading). WS-6a carry (b) confidence float|null DISCHARGED.",
       "blocked_by": [],
       "priority": "P1",
       "estimated_llm_cost_usd": 0,
@@ -508,25 +508,25 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseWS-5d-artifacts-wired-driver",
-      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5d had NO task-pack entry AND no index stub — it lived only as forward-references (STREAM first-move §1 WS-5d row + WS-5c next_action/close-note + SPEC_PRODUCT_SHELL §8:131 + §10:144 PUT-deferral + the WS-5d handoff brief). Registered here as the authoritative source in ONE /devloop-expand-driver reconcile pass (same BOTH-absent pattern as WS-5c). WS-5/WS-5b/WS-5-BFF/WS-5c all DONE — this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF). The lead shell phase per SPEC §8 FE-first re-cut: WS-5d shifts from 'build' to 'wire'.",
-      "shell_surface_regrepped_2026_06_01_HEAD_e960234": "apps/bff/app.py: run_eval_endpoint:94 (per-judge record source) / corpus_endpoint:119 (GET /v1/corpus live) / ontology_endpoint:125 (GET, read-only) + PUT-deferred docstring:15-17 (the seam WS-5d fills). apps/shell/src/artifact.jsx: ReportTab:22 (real-BFF wiring template) / JudgeTab:130 (mock JUDGES) / ConfigTab:167 (mock CONFIG_YAML) / ArtifactPane:197 + tab strip:220-223 (report/judges/config — corpus adds a 4th). apps/shell/src/bff.js: runEval:23 / getCorpus:26 / getOntology:27 (GET; putOntology to add). apps/shell/src/data.jsx: JUDGES:35 / CONFIG_YAML:50 (the mock the tabs replace). apps/shell/src/genui/registry.js renderTool(part,handlers):56 (threads onResult); FlagEditor.jsx apply:86-98 (onResult-only, no PUT) + getOntology:49; ContractBuilder.jsx onResult:34/:54; KbPicker.jsx onResult:27/:42; VerdictCard.jsx:22 {data} vs CalibrationChart.jsx:10 {points,ece,brier} (the inconsistent datapoint prop convention — S-BS-19 lock). apps/shell/src/panes.jsx CenterPane:69 mounts 2 datapoint cards (:113/:122) but NO input tool-parts; journey/JourneyApp.jsx:26 mounts none either (grep-confirmed). lithrim_bench/harness/corpus.py read_corpus:104/project:64 (corpus-row/1 shape); scripts/run_eval.py run:101 (ontology committed-JSON send ~:118); config.py Agent.ontology_abspath:70 (PUT target path).",
+      "origin": "NEW 2026-06-01 (monitor authored at /devloop-expand-driver time): WS-5d had NO task-pack entry AND no index stub \u2014 it lived only as forward-references (STREAM first-move \u00a71 WS-5d row + WS-5c next_action/close-note + SPEC_PRODUCT_SHELL \u00a78:131 + \u00a710:144 PUT-deferral + the WS-5d handoff brief). Registered here as the authoritative source in ONE /devloop-expand-driver reconcile pass (same BOTH-absent pattern as WS-5c). WS-5/WS-5b/WS-5-BFF/WS-5c all DONE \u2014 this is the lead next shell phase. Independent of WS-2's paused backend (composes over the existing BFF). The lead shell phase per SPEC \u00a78 FE-first re-cut: WS-5d shifts from 'build' to 'wire'.",
+      "shell_surface_regrepped_2026_06_01_HEAD_e960234": "apps/bff/app.py: run_eval_endpoint:94 (per-judge record source) / corpus_endpoint:119 (GET /v1/corpus live) / ontology_endpoint:125 (GET, read-only) + PUT-deferred docstring:15-17 (the seam WS-5d fills). apps/shell/src/artifact.jsx: ReportTab:22 (real-BFF wiring template) / JudgeTab:130 (mock JUDGES) / ConfigTab:167 (mock CONFIG_YAML) / ArtifactPane:197 + tab strip:220-223 (report/judges/config \u2014 corpus adds a 4th). apps/shell/src/bff.js: runEval:23 / getCorpus:26 / getOntology:27 (GET; putOntology to add). apps/shell/src/data.jsx: JUDGES:35 / CONFIG_YAML:50 (the mock the tabs replace). apps/shell/src/genui/registry.js renderTool(part,handlers):56 (threads onResult); FlagEditor.jsx apply:86-98 (onResult-only, no PUT) + getOntology:49; ContractBuilder.jsx onResult:34/:54; KbPicker.jsx onResult:27/:42; VerdictCard.jsx:22 {data} vs CalibrationChart.jsx:10 {points,ece,brier} (the inconsistent datapoint prop convention \u2014 S-BS-19 lock). apps/shell/src/panes.jsx CenterPane:69 mounts 2 datapoint cards (:113/:122) but NO input tool-parts; journey/JourneyApp.jsx:26 mounts none either (grep-confirmed). lithrim_bench/harness/corpus.py read_corpus:104/project:64 (corpus-row/1 shape); scripts/run_eval.py run:101 (ontology committed-JSON send ~:118); config.py Agent.ontology_abspath:70 (PUT target path).",
       "deliverables": [
-        "D0 BFF judge-council source (SPEC §3/§8:131): surface real per-judge council data for the JudgeTab — fold the per-judge breakdown into POST /v1/run-eval (run_eval_endpoint:94, the WS-5-BFF ReportTab-over-/v1/run-eval pattern) OR a derived GET /v1/judges off the eval-profile council_config (plan-review #1). Additive to the locked v1 surface; replay default $0.",
-        "D1 BFF PUT /v1/ontology (SPEC §10:144 deferred write): add the write surface to apps/bff/app.py (replaces the PUT-deferred docstring:15-17). Clobber-safe — write to an agent-scoped working copy / out-dir, NEVER overwrite the committed data/ontology/clinical_v1.json seed. Validate the write via the ontology-load path (Ontology.from_dict/load_ontology) + the S-BS-10/S-BS-12 snapshot lint + CLAUDE.md core invariant (a gradeable flag outside taxonomy_snapshot.json is REJECTED loudly); import-only use of lithrim_bench/scripts.seed_ontology. + apps/shell/src/bff.js putOntology writer.",
-        "D2 Shell wire JudgeTab + ConfigTab off mock (SPEC §8:131): artifact.jsx JudgeTab:130 renders real judge-council (D0) not JUDGES:35; ConfigTab:167 renders real ontology from GET /v1/ontology not CONFIG_YAML:50 (the §3 ontology-config-editor view; loading/empty/error states like ReportTab:22; data threaded via ArtifactPane:197 props).",
-        "D3 Shell corpus/flywheel artifact view (SPEC §3/§8:131): add a 4th 'corpus' tab to ArtifactPane:197 (titles:198-202 + tab strip:220-223) rendering getCorpus:26 → corpus.read_corpus:104 rows in the corpus-row/1 shape; empty-state handled (clinical_v1 suppress-only/may be empty — no crash).",
+        "D0 BFF judge-council source (SPEC \u00a73/\u00a78:131): surface real per-judge council data for the JudgeTab \u2014 fold the per-judge breakdown into POST /v1/run-eval (run_eval_endpoint:94, the WS-5-BFF ReportTab-over-/v1/run-eval pattern) OR a derived GET /v1/judges off the eval-profile council_config (plan-review #1). Additive to the locked v1 surface; replay default $0.",
+        "D1 BFF PUT /v1/ontology (SPEC \u00a710:144 deferred write): add the write surface to apps/bff/app.py (replaces the PUT-deferred docstring:15-17). Clobber-safe \u2014 write to an agent-scoped working copy / out-dir, NEVER overwrite the committed data/ontology/clinical_v1.json seed. Validate the write via the ontology-load path (Ontology.from_dict/load_ontology) + the S-BS-10/S-BS-12 snapshot lint + CLAUDE.md core invariant (a gradeable flag outside taxonomy_snapshot.json is REJECTED loudly); import-only use of lithrim_bench/scripts.seed_ontology. + apps/shell/src/bff.js putOntology writer.",
+        "D2 Shell wire JudgeTab + ConfigTab off mock (SPEC \u00a78:131): artifact.jsx JudgeTab:130 renders real judge-council (D0) not JUDGES:35; ConfigTab:167 renders real ontology from GET /v1/ontology not CONFIG_YAML:50 (the \u00a73 ontology-config-editor view; loading/empty/error states like ReportTab:22; data threaded via ArtifactPane:197 props).",
+        "D3 Shell corpus/flywheel artifact view (SPEC \u00a73/\u00a78:131): add a 4th 'corpus' tab to ArtifactPane:197 (titles:198-202 + tab strip:220-223) rendering getCorpus:26 \u2192 corpus.read_corpus:104 rows in the corpus-row/1 shape; empty-state handled (clinical_v1 suppress-only/may be empty \u2014 no crash).",
         "D4 Shell FlagEditor persistence: wire FlagEditor.jsx apply:86-98 (onResult-only today) to putOntology (D1) so the editor is read-write (was GET-only in WS-5c); surface the PUT accept/reject in the footer; keep onResult for the config-plane return (D5).",
-        "D5 S-BS-19 scripted-host wiring + prop lock: wire panes.jsx CenterPane:69 (and/or journey/* per plan-review #3) to emit INPUT tool-parts mounting FlagEditor/ContractBuilder/KbPicker (today only the 2 datapoint cards mount, :113/:122); thread each onResult into config-plane/UI state; LOCK the datapoint part.output prop convention to ONE shape (VerdictCard:22 {data} vs CalibrationChart:10 {points,ece,brier} — fresh-critic Ambiguity-2) + conform both cards + the registry test.",
+        "D5 S-BS-19 scripted-host wiring + prop lock: wire panes.jsx CenterPane:69 (and/or journey/* per plan-review #3) to emit INPUT tool-parts mounting FlagEditor/ContractBuilder/KbPicker (today only the 2 datapoint cards mount, :113/:122); thread each onResult into config-plane/UI state; LOCK the datapoint part.output prop convention to ONE shape (VerdictCard:22 {data} vs CalibrationChart:10 {points,ece,brier} \u2014 fresh-critic Ambiguity-2) + conform both cards + the registry test.",
         "D6 tests + docs: extend apps/bff tests/test_ws5_bff.py (PUT accept + reject-on-snapshot-violation + no-clobber + judge-council surface); React binding tests (JudgeTab/ConfigTab real-data render, corpus tab populated+empty, FlagEditor persist calls putOntology, locked datapoint prop shape); apps/shell/README.md status update."
       ],
       "acceptance": [
-        "A1 JudgeTab renders real judge-council data (D0) + ConfigTab renders real ontology (GET /v1/ontology) — neither reads data.jsx JUDGES/CONFIG_YAML for live content.",
+        "A1 JudgeTab renders real judge-council data (D0) + ConfigTab renders real ontology (GET /v1/ontology) \u2014 neither reads data.jsx JUDGES/CONFIG_YAML for live content.",
         "A2 a corpus artifact tab renders GET /v1/corpus rows (corpus-row/1) + a clean empty-state (no crash).",
-        "A3 PUT /v1/ontology lands additively, writes a NON-committed working copy (clinical_v1.json byte-unchanged after a PUT), validates the write (snapshot-violating/malformed → 4xx), and the FlagEditor persist round-trips (PUT then GET reflects the edit).",
+        "A3 PUT /v1/ontology lands additively, writes a NON-committed working copy (clinical_v1.json byte-unchanged after a PUT), validates the write (snapshot-violating/malformed \u2192 4xx), and the FlagEditor persist round-trips (PUT then GET reflects the edit).",
         "A4 S-BS-19 closed: a scripted host mounts the 3 input tool-parts; each onResult threads into config-plane/UI state; the datapoint part.output prop convention is locked to one shape (both cards conform).",
         "A5 npm run build clean + npm test green + pytest apps/bff green.",
         "A6 diff confined to apps/shell/ + apps/bff/; NO lithrim_bench/ / scripts/ / ../lithrim-backend edits; Python default install unchanged ([bff] extra only).",
-        "A7 the :5180 visual-parity smoke (standing per-shell-phase human-eyeball gate, OWED since WS-5c): light/dark × Shell/Journey unchanged + the 4 wired tabs render — USER-RUN under no-autostart; recorded, not auto-PASSed."
+        "A7 the :5180 visual-parity smoke (standing per-shell-phase human-eyeball gate, OWED since WS-5c): light/dark \u00d7 Shell/Journey unchanged + the 4 wired tabs render \u2014 USER-RUN under no-autostart; recorded, not auto-PASSed."
       ],
       "diagnostic_stats_reported": [
         "Corpus size + suppress/floor action split rendered in the corpus tab (reported, not a gate; clinical_v1 suppress-only/may be empty).",
@@ -534,29 +534,29 @@
       ],
       "scope_guardrails_not_in_scope": [
         "Tauri / sidecar packaging / installers / VPC / offline-license + the deferred Tauri sidecar (WS-5e).",
-        "Radix Select/Slider popover/drag E2E (S-BS-20) → WS-5e (Playwright; jsdom can't).",
-        "The eval-pack loop + LOCKED calibration gate + /eval-runs/compare (WS-4b) — the corpus view READS the corpus, does not preregister/lock a gate.",
-        "LLM-driven conversation — scripted-default (§5c); no LLM host.",
+        "Radix Select/Slider popover/drag E2E (S-BS-20) \u2192 WS-5e (Playwright; jsdom can't).",
+        "The eval-pack loop + LOCKED calibration gate + /eval-runs/compare (WS-4b) \u2014 the corpus view READS the corpus, does not preregister/lock a gate.",
+        "LLM-driven conversation \u2014 scripted-default (\u00a75c); no LLM host.",
         "Backend :8002 config injection / any ../lithrim-backend edit (WS-2, HARD-GATE-paused).",
-        "Rewriting bespoke chrome CSS into Tailwind utilities (SPEC §4 incremental; styles.css/journey.css stay — the WS-5c invariant).",
-        "Any lithrim_bench/harness, scripts/, or ../lithrim-backend edit (the BFF + widgets compose import-only; if the PUT needs a harness change, halt — likely the working-copy path belongs in the BFF).",
+        "Rewriting bespoke chrome CSS into Tailwind utilities (SPEC \u00a74 incremental; styles.css/journey.css stay \u2014 the WS-5c invariant).",
+        "Any lithrim_bench/harness, scripts/, or ../lithrim-backend edit (the BFF + widgets compose import-only; if the PUT needs a harness change, halt \u2014 likely the working-copy path belongs in the BFF).",
         "Drive-by formatting / dependency bumps / 'while I was here' edits."
       ],
       "plan_review_decisions": [
         "Judge-council data source: fold per-judge breakdown into /v1/run-eval (rec) vs a derived GET /v1/judges off council_config (realized votes vs configured roster).",
-        "PUT /v1/ontology clobber-safety + validation depth: working copy / out-dir (rec — never overwrite the committed seed) + snapshot-lint + core-invariant reject (rec) vs schema-only.",
-        "S-BS-19 host placement: Shell CenterPane vs journey acts vs both; onResult → local state vs a Zustand store (SPEC §4 names Zustand).",
-        "Datapoint part.output prop convention lock: {data} vs spread vs {output} wrapper — pick one, conform both cards + registry.",
+        "PUT /v1/ontology clobber-safety + validation depth: working copy / out-dir (rec \u2014 never overwrite the committed seed) + snapshot-lint + core-invariant reject (rec) vs schema-only.",
+        "S-BS-19 host placement: Shell CenterPane vs journey acts vs both; onResult \u2192 local state vs a Zustand store (SPEC \u00a74 names Zustand).",
+        "Datapoint part.output prop convention lock: {data} vs spread vs {output} wrapper \u2014 pick one, conform both cards + registry.",
         "Corpus view placement: 4th artifact tab (rec) vs center datapoint card; confirm whether a live run is needed for a non-empty corpus demo or the committed out/ws4a/corpus.ndjson suffices (replay/$0 default holds)."
       ],
       "hardness": "HARD-GATE",
-      "hardness_reason": "Per SPEC §8 every shell phase is HARD-GATE-class; WS-5d lands the deferred PUT /v1/ontology — a WRITE on the locked v1 BFF API (§10:144). The WS-5-BFF fresh-critic ratified the READ surface; the write needs its own fresh-critic pass + the clobber-safety/validation gate is load-bearing. User MAY elect inline (WS-5/WS-5b precedent — UI wiring). The WS-5c :5180 visual-parity smoke (A7) is the one gate build-green + unit-tests-green cannot cover.",
+      "hardness_reason": "Per SPEC \u00a78 every shell phase is HARD-GATE-class; WS-5d lands the deferred PUT /v1/ontology \u2014 a WRITE on the locked v1 BFF API (\u00a710:144). The WS-5-BFF fresh-critic ratified the READ surface; the write needs its own fresh-critic pass + the clobber-safety/validation gate is load-bearing. User MAY elect inline (WS-5/WS-5b precedent \u2014 UI wiring). The WS-5c :5180 visual-parity smoke (A7) is the one gate build-green + unit-tests-green cannot cover.",
       "next_action": "Driver authored 2026-06-01 (bench-salvage-phaseWS-5d-artifacts-wired-driver, ready). Kick off in a fresh executor session; plan-review resolves the 5 decisions (esp. PUT clobber-safety + the prop-convention lock) before 'go'. Run /devloop-kickoff bench-salvage WS-5d."
     },
     {
       "id": "WS-6a",
       "phase": "WS-6a",
-      "title": "WS-6a — backend baseline: curate + commit the pending ../lithrim-backend WIP",
+      "title": "WS-6a \u2014 backend baseline: curate + commit the pending ../lithrim-backend WIP",
       "status": "ready",
       "blocked_by": [],
       "priority": "P2",
@@ -565,8 +565,8 @@
         "lithrim-backend"
       ],
       "prompt_bundle": "bench-salvage-phaseWS-6a-backend-baseline-driver",
-      "origin": "NEW 2026-06-01 (user): WS-6 broken into WS-6a…e; folded the ../lithrim-backend baseline in as step a (can't audit/strangle a dirty tree). Curation cycle — commit existing diagnosed WIP, not build. Strangle-not-fix holds (baseline + preserve, not invest).",
-      "wip_snapshot_regrepped_2026_06_01": "../lithrim-backend branch mvp-ready: 8 modified (app/routes/pipeline.py, app/services/artifact_evaluator.py, app/services/pipeline/{models,orchestrator,stages}.py, scripts/phase4_pilot/cached_uscore_condition_validator.json, tests/eval_packs/council_v2_smoke.jsonl, tests/services/test_artifact_evaluator_severity.py — INFERRED the structural-verdict/severity remediation, S-P1-15-adjacent) + ~12 untracked (docs specs/audits/handoffs/research; scripts migrations/analysis; 2 new tests) + transient out/ + test-results/.",
+      "origin": "NEW 2026-06-01 (user): WS-6 broken into WS-6a\u2026e; folded the ../lithrim-backend baseline in as step a (can't audit/strangle a dirty tree). Curation cycle \u2014 commit existing diagnosed WIP, not build. Strangle-not-fix holds (baseline + preserve, not invest).",
+      "wip_snapshot_regrepped_2026_06_01": "../lithrim-backend branch mvp-ready: 8 modified (app/routes/pipeline.py, app/services/artifact_evaluator.py, app/services/pipeline/{models,orchestrator,stages}.py, scripts/phase4_pilot/cached_uscore_condition_validator.json, tests/eval_packs/council_v2_smoke.jsonl, tests/services/test_artifact_evaluator_severity.py \u2014 INFERRED the structural-verdict/severity remediation, S-P1-15-adjacent) + ~12 untracked (docs specs/audits/handoffs/research; scripts migrations/analysis; 2 new tests) + transient out/ + test-results/.",
       "deliverables": [
         "D0 triage manifest (path -> commit-group / gitignore / stash / remove; diagnose-before-edit).",
         "D1 backend tests green BEFORE commit (if structural-verdict WIP incomplete -> surface/checkpoint/stash; do NOT build to finish).",
@@ -586,23 +586,23 @@
         "NO new backend features / NO finishing half-done WIP beyond minimal-green (surface, don't build).",
         "NO de-Mongo / strangle / council-port (WS-6c/d).",
         "NO lithrim-bench code edits (only the session log); NO etlp-mapper edits.",
-        "Don't 'fix' pre-existing backend issues found while reading — log as seams."
+        "Don't 'fix' pre-existing backend issues found while reading \u2014 log as seams."
       ],
       "plan_review_decisions": [
         "Commit grouping + file->commit mapping (the fix(structural-verdict) boundary).",
         "gitignore set (out/, test-results/).",
         "Stray bench-docs disposition (keep/remove/gitignore).",
-        "Structural-verdict completeness — commit / checkpoint / stash / minimal-green (strangle-tension: don't over-invest).",
+        "Structural-verdict completeness \u2014 commit / checkpoint / stash / minimal-green (strangle-tension: don't over-invest).",
         "Branch = mvp-ready (confirm, not main)."
       ],
       "hardness": "HARD-GATE",
-      "hardness_reason": "Backend repo commits (STREAM WS-2 note: backend commits need their own fresh-critic). BUT a curation cycle — diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
+      "hardness_reason": "Backend repo commits (STREAM WS-2 note: backend commits need their own fresh-critic). BUT a curation cycle \u2014 diagnose-before-edit (D0 manifest) is the load-bearing discipline; inline critique likely suffices (user's call at close).",
       "next_action": "Driver authored 2026-06-01 (ready). Kick off in a fresh executor session ROOTED IN ../lithrim-backend; plan-review resolves the 5 decisions + the D0 triage manifest before 'go'."
     },
     {
       "id": "WS-6b",
       "phase": "WS-6b",
-      "title": "WS-6b — consolidation audit (the GATE): map the v2-council Mongo-coupling + persistence surface; produce the port plan",
+      "title": "WS-6b \u2014 consolidation audit (the GATE): map the v2-council Mongo-coupling + persistence surface; produce the port plan",
       "status": "ready",
       "blocked_by": [],
       "priority": "P2",
@@ -613,10 +613,10 @@
       ],
       "prompt_bundle": "bench-salvage-phaseWS-6b-consolidation-audit-driver",
       "origin": "BOTH-ABSENT reconcile 2026-06-01 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d). Sourced from SPEC_PRODUCT_SERVICE_TOPOLOGY.md WS-6 table lines 38/47 + the WS-6a handoff. Read-only audit; unblocked by WS-6a's clean ../lithrim-backend tree (2f04a40..493b533).",
-      "audit_surfaces_regrepped_2026_06_01": "v2 council Mongo-free CONFIRMED (compliance_council.py:453 class ComplianceCouncil; v2 branches :463/:2347/:2699; build_prompt:517 — zero get_database/db[/motor; stages.py _run_council_and_map:686 also Mongo-free). pipeline_runs ALREADY behind a repository interface (provenance.py:25 ProvenanceStore Protocol / :37 MongoProvenanceStore / :22 COLLECTION_NAME pipeline_runs / :46-60 get_database+insert_one / :90 find_one / :119 compliance_report). artifact_profiles direct db[] (routes/artifact_profiles.py:39/93/122/146/183; indexes main.py:127-128). eval_packs/eval_cases/eval_run scattered (eval_pack_catalog.py:17; eval_runner_tasks.py:623; eval_external_results_task.py:221 db eval_run) + S3 (eval_runner_tasks.py:208/218). Mongo entry app/database.py:3/20-21/32; config MONGODB_URL/DB_NAME config.py:16-17 (db velto); COMPLIANCE_COUNCIL_VERSION config.py:211.",
+      "audit_surfaces_regrepped_2026_06_01": "v2 council Mongo-free CONFIRMED (compliance_council.py:453 class ComplianceCouncil; v2 branches :463/:2347/:2699; build_prompt:517 \u2014 zero get_database/db[/motor; stages.py _run_council_and_map:686 also Mongo-free). pipeline_runs ALREADY behind a repository interface (provenance.py:25 ProvenanceStore Protocol / :37 MongoProvenanceStore / :22 COLLECTION_NAME pipeline_runs / :46-60 get_database+insert_one / :90 find_one / :119 compliance_report). artifact_profiles direct db[] (routes/artifact_profiles.py:39/93/122/146/183; indexes main.py:127-128). eval_packs/eval_cases/eval_run scattered (eval_pack_catalog.py:17; eval_runner_tasks.py:623; eval_external_results_task.py:221 db eval_run) + S3 (eval_runner_tasks.py:208/218). Mongo entry app/database.py:3/20-21/32; config MONGODB_URL/DB_NAME config.py:16-17 (db velto); COMPLIANCE_COUNCIL_VERSION config.py:211.",
       "deliverables": [
         "D0 v2-council Mongo-coupling confirmation: read the v2 branches (compliance_council.py:463/2347/2699 + build_prompt:517) + the orchestrator call (stages.py:686); resolve INFERRED->CONFIRMED (council takes data in / returns verdicts, no Mongo) or surface hidden coupling; enumerate v2-vs-v1 deltas to preserve (cross-provider trio + llama-veto-approve + calibration + NKA patches + prompt deltas). Cite file:lines + tag.",
-        "D1 persistence-surface map per collection: pipeline_runs (provenance.py ProvenanceStore Protocol — already abstracted), artifact_profiles (routes/artifact_profiles.py — direct db[]), eval_packs/eval_cases/eval_run (eval.py/eval_runner_tasks.py — scattered + S3), compliance_report (provenance.py:119). For each: read sites, write sites, indexes, shape, interface-or-not.",
+        "D1 persistence-surface map per collection: pipeline_runs (provenance.py ProvenanceStore Protocol \u2014 already abstracted), artifact_profiles (routes/artifact_profiles.py \u2014 direct db[]), eval_packs/eval_cases/eval_run (eval.py/eval_runner_tasks.py \u2014 scattered + S3), compliance_report (provenance.py:119). For each: read sites, write sites, indexes, shape, interface-or-not.",
         "D2 the PORT PLAN doc (lithrim-bench/docs): what moves in-process (council PORT-not-rewrite behind the frozen SPEC section-10 contract); what needs a repository interface (pipeline_runs has ProvenanceStore -> add SqliteProvenanceStore in 6d; artifact_profiles + eval_* need one introduced); phased order 6c->6d->6e; the S3 eval dependency + its desktop/VPC story; risks incl. S-BS-24 (suite not a green gate).",
         "D3 session log + the citation-tagged audit findings (lithrim-bench/.devloop/sessions/)."
       ],
@@ -632,11 +632,11 @@
         "the enumerated v2-vs-v1 council deltas (for the 6c PORT-not-rewrite scope)."
       ],
       "scope_guardrails_not_in_scope": [
-        "NO code changes in EITHER repo — read-only audit + a plan doc (porting=6c; persistence swap=6d; ETLP sidecar=6e).",
-        "NO actual ProvenanceStore/Sqlite implementation (6d) — only map the interface + what the new impl must satisfy.",
+        "NO code changes in EITHER repo \u2014 read-only audit + a plan doc (porting=6c; persistence swap=6d; ETLP sidecar=6e).",
+        "NO actual ProvenanceStore/Sqlite implementation (6d) \u2014 only map the interface + what the new impl must satisfy.",
         "NO de-Mongo of the legacy hosted backend (Mongo retired from the PRODUCT path only).",
         "NO etlp-mapper edits; NO lithrim_bench harness code edits.",
-        "Don't fix pre-existing backend issues found while reading — log as seams."
+        "Don't fix pre-existing backend issues found while reading \u2014 log as seams."
       ],
       "plan_review_decisions": [
         "Plan doc location/name (docs/specs/PORT_PLAN_v2_council_consolidation.md vs docs/research vs append-to-topology-spec).",
@@ -662,8 +662,8 @@
       "repos": [
         "lithrim-bench"
       ],
-      "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver (umbrella — superseded by the WS-6a…e breakdown)",
-      "breakdown_2026_06_01": "Broken into WS-6a…e (user; topology spec phased breakdown). This WS-6 entry = the program umbrella. WS-6a = backend baseline (curate+commit the ../lithrim-backend WIP; READY, bundle bench-salvage-phaseWS-6a-backend-baseline-driver); WS-6b = consolidation audit (GATE, read-only); WS-6c = port v2 council Mongo-free (PORT not rewrite, behind the frozen run_eval/§10 contract); WS-6d = persistence swap (Mongo out); WS-6e = ETLP JVM sidecar (coord WS-5e). The frozen-contract rule keeps the track parallel-safe with WS-5c.",
+      "prompt_bundle": "bench-salvage-phaseWS-6-compartmentalize-local-driver (umbrella \u2014 superseded by the WS-6a\u2026e breakdown)",
+      "breakdown_2026_06_01": "Broken into WS-6a\u2026e (user; topology spec phased breakdown). This WS-6 entry = the program umbrella. WS-6a = backend baseline (curate+commit the ../lithrim-backend WIP; READY, bundle bench-salvage-phaseWS-6a-backend-baseline-driver); WS-6b = consolidation audit (GATE, read-only); WS-6c = port v2 council Mongo-free (PORT not rewrite, behind the frozen run_eval/\u00a710 contract); WS-6d = persistence swap (Mongo out); WS-6e = ETLP JVM sidecar (coord WS-5e). The frozen-contract rule keeps the track parallel-safe with WS-5c.",
       "rescope_note": "REFRAMED 2026-06-01 as the PYTHON-LAYER CONSOLIDATION track (strangler-fig completion) per docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md. Now a PARALLEL track (sequencing B), not strictly after WS-5: port the validated v2 council Mongo-free (extends the M1 v1 in-process salvage -> v2; PORT, do not rewrite the calibration/NKA/prompt IP) + swap persistence Mongo->SQLite/PG behind a repository interface; ETLP stays a JVM-sidecar service. FIRST STEP / GATE: audit ../lithrim-backend (v2-council Mongo-coupling surface + the persistence surface to swap) BEFORE porting. The blocked_by WS-5 below is no longer strict (parallel).",
       "deliverables": [
         "Swap the live :8002 grade for the in-process M1 council (LocalPipelineBackend) behind the same harness interface; local vector for pinecone; offline/licensed packaging.",
@@ -684,7 +684,9 @@
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseWS-6c-council-port-driver",
       "origin": "BOTH-ABSENT reconcile 2026-06-01 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b). Sourced from RECOMPOSITION_PLAN_ws6.md sec5/sec6/Ratification + the WS-6b ratification.",
       "port_ip_regrepped_2026_06_01_493b533": "compliance_council.py @493b533: _worst_of_verdicts:1799, _compose_council_verdict_v2:1812 (llama-veto), _apply_consensus:1853 (TIER_1 check :2050), tables TIER_1:176/TIER_2:201/TIER_3:212/KNOWN_TAXONOMY_CODES:279, extract_verdict_confidence:413 (None for Mistral), class ComplianceCouncil:453, build_prompt:517, Mongo-free CONFIRMED. SECOND tables app/models/safety_flags.py: FailureType:533, SAFETY_FLAG_TO_FAILURE_TYPE:543, FAILURE_TYPE_SEVERITY:570, get_flag_prompt_section:621. Lockstep recompute compliance_workflow.py:2206/:2281. SALVAGE llm_provider.py: _resolve_model:38/get_sync:97/get_async:121. Parked mirror lithrim_bench/runtime/council/ is a full STALE package -- refresh from 493b533 (S-BS-28).",
@@ -730,19 +732,21 @@
     {
       "id": "WS-6c-DSPy",
       "phase": "WS-6c-DSPy",
-      "title": "WS-6c-DSPy -- rebuild the per-judge layer on DSPy, wrapping the ported v2 consensus (the §6 hybrid)",
+      "title": "WS-6c-DSPy -- rebuild the per-judge layer on DSPy, wrapping the ported v2 consensus (the \u00a76 hybrid)",
       "status": "ready",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseWS-6c-DSPy-judge-rebuild-driver",
-      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c). Authored TASK_PACK#WS-6c-DSPy + the bundle + the driver in one /devloop-expand-driver pass. Sourced from RECOMPOSITION_PLAN_ws6.md §3/§6/§7 + §Ratification Q3 + the WS-6c handoff (HANDOFF_bench-salvage_phaseWS-6c-DSPy_kickoff_2026-06-01.md).",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c). Authored TASK_PACK#WS-6c-DSPy + the bundle + the driver in one /devloop-expand-driver pass. Sourced from RECOMPOSITION_PLAN_ws6.md \u00a73/\u00a76/\u00a77 + \u00a7Ratification Q3 + the WS-6c handoff (HANDOFF_bench-salvage_phaseWS-6c-DSPy_kickoff_2026-06-01.md).",
       "seam_regrepped_2026_06_02_ws6c_tip": "The per-judge dict seam DSPy must emit is documented at runtime/council/__init__.py:38-54 ({model, decision, confidence:float|None, findings:[{taxonomy_code,evidence_spans}], errors:[]}); built imperatively today at compliance_council.py:1550(model)/:1556(findings)/:1567(errors) inside evaluate():2400 (judge loop :2489 via _invoke_model:1406); CONSUMED UNCHANGED by _apply_consensus:1853 (reads decision:1986, findings/taxonomy_code/evidence_spans:1899/1911/1914, confidence:1979, errors:1578, model:1985). Ported consensus to KEEP byte-identical: _compose_council_verdict_v2:1812 (llama-veto), _worst_of_verdicts:1799, extract_verdict_confidence:413 (None-tolerant), _TIER1_OWNERS:232. v2 trio built INLINE at __init__:463 (no JUDGES_V2 constant; only a comment at :381). Bench-accept oracle pattern to REUSE: verification/jute_dspy.py make_bench_metric:200/score_template:130/build_generator:333 (lazy `import dspy` :309/:351). Prior art REFERENCE-ONLY (do NOT import; S-BS-27): .claude/worktrees/agent-adefc36309f77ed1b/experiments/dspy_council_smoke/{council_v2.py,council_dspy.py} -- emits a NON-CONFORMING simplified shape ({decision,violations:[str],confidence,reason,error}) + dropped the consensus IP (council_dspy.py:17-21). Extras present: pyproject.toml verification=[dspy>=3.2,httpx]:24, council=[openai,tenacity]:42, testpaths includes runtime/council/tests:57. Frozen seam (A6 untouched): grade.py grade_replay:40/grade_live:85, run_eval.run:101, report.composite:29.",
       "deliverables": [
         "D0 runtime/council/judges_dspy.py (NEW): a findings-first dspy.Signature + a Judge dspy.Module (one Predict per role, bound to its Azure deployment via the salvaged llm_provider factory) whose forward returns the EXACT per-judge dict seam ({model, decision, confidence:float|None, findings:[{taxonomy_code,evidence_spans}], errors:[]}); per-judge try/except -> errors[]; confidence None-tolerant (never coerce); dspy import lazy/guarded. INCREMENTAL (Q3): ONE judge first, the other two pluggable behind the same signature (mixed DSPy/imperative fan-out is valid).",
         "D1 runtime/council/judge_metric.py (NEW or folded): the bench-accept metric for judges -- score findings vs a by-construction case's expected_safety_flags (recipe=label) -> precision/recall + a hard-accept (0-FP on cleans, the judge analogue of jute's 0-FP). Mirrors jute_dspy.make_bench_metric/score_template. The bench is the acceptance oracle for judge-prompt authoring.",
-        "D2 the §6 hybrid wiring (in judges_dspy.py, NOT a new grade entrypoint): fan out the DSPy judge(s), collect the per-judge dict list, call the PORTED _apply_consensus UNCHANGED; prove same fixtured per-judge dicts -> identical verdict imperative-vs-DSPy. No edit to compliance_council.py consensus functions.",
+        "D2 the \u00a76 hybrid wiring (in judges_dspy.py, NOT a new grade entrypoint): fan out the DSPy judge(s), collect the per-judge dict list, call the PORTED _apply_consensus UNCHANGED; prove same fixtured per-judge dicts -> identical verdict imperative-vs-DSPy. No edit to compliance_council.py consensus functions.",
         "D3 runtime/council/tests/ (offline; importorskip dspy; mock LM/injected predictor): (a) seam shape exact incl. confidence=None round-trip + errors[] on a simulated failure; (b) DSPy judges + ported _apply_consensus reproduce the WS-6c oracle verdicts; (c) judge_metric runs offline vs a recipe=label case; (d) consensus IP unchanged (existing test_consensus.py stays green).",
         "D4 .devloop/sessions/session-bench-salvage-phaseWS-6c-DSPy-...json: session log incl. the seam-conformance proof (key-by-key vs _apply_consensus reads), the rebuilt-judge pack score, the consensus-unchanged diff (zero logic delta vs WS-6c tip), and the live-smoke verdict + cost."
       ],
@@ -752,7 +756,7 @@
         "A3 DSPy judges + the ported _apply_consensus reproduce the WS-6c offline oracle verdicts (Tier-1 one-strike, Tier-2 2+, PHI-FP, NKA, llama-veto, artifact-BLOCK, None-confidence) on fixtured judge outputs",
         "A4 the ported consensus IP is UNCHANGED -- _apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables byte-identical to the WS-6c tip (diff-vs-tip = zero logic delta in the session log); DSPy strictly above the seam",
         "A5 determinism preserved -- the DSPy judge honors the per-(case,judge) reproducibility contract (temperature=0 + cache + seed per plan-review #5); a fixtured/replay case is byte-deterministic",
-        "A6 no contract change -- grade.py/run_eval.run/report.composite/§10 untouched; the DSPy judges are importable + tested but NOT wired into the grade seam (WS-6c-AGENTIC); S-BS-31 stays inert",
+        "A6 no contract change -- grade.py/run_eval.run/report.composite/\u00a710 untouched; the DSPy judges are importable + tested but NOT wired into the grade seam (WS-6c-AGENTIC); S-BS-31 stays inert",
         "A7 default install unchanged -- the DSPy judge path gated behind [verification](dspy)+[council](openai); pytest -q green on default deps with dspy tests importorskip-skipping; ruff clean",
         "A8 scope held -- no AGENTIC/persistence/KB/consensus-math/backend/etlp edits; the throwaway worktree code referenced not imported"
       ],
@@ -763,13 +767,13 @@
         "which judge was rebuilt first + the plan for the remaining two"
       ],
       "scope_guardrails_not_in_scope": [
-        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables stay byte-identical to the WS-6c tip; DSPy strictly ABOVE the seam -- the §6 invariant: a prompt-opt must never weaken a Tier-1 rule)",
+        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables stay byte-identical to the WS-6c tip; DSPy strictly ABOVE the seam -- the \u00a76 invariant: a prompt-opt must never weaken a Tier-1 rule)",
         "NO harness grade-seam wire / in-process grade (grade.py/run_eval.py untouched; the in-process grade path is WS-6c-AGENTIC). The DSPy judges are importable + tested, not wired into grade",
         "NO LangGraph recompose / agents recompose (WS-6c-AGENTIC)",
         "NO S-BS-31 resolution (orphaned-Tier-1-owner reassign-vs-corroboration is a backend-IP/clinical call that GATES WS-6c-AGENTIC; inert here since the judges grade no real cases through the seam; do NOT hand-edit _TIER1_OWNERS)",
         "NO persistence swap / repository interface / Mongo (WS-6d); NO KB/RAG/pinecone/ONNX (WS-6d-KB)",
         "NO importing the throwaway worktree DSPy code (S-BS-27 reference-only; re-author clean -- it emits a non-conforming seam + dropped the consensus IP)",
-        "NO LLM auto-hardening loop beyond the bench-accept gate (WS-3a §7: land the GATE, not the fallible auto-harden)",
+        "NO LLM auto-hardening loop beyond the bench-accept gate (WS-3a \u00a77: land the GATE, not the fallible auto-harden)",
         "NO taxonomy re-snapshot / hand-edit (done at WS-6c); no ../lithrim-backend or etlp-mapper edits"
       ],
       "plan_review_decisions": [
@@ -781,7 +785,7 @@
         "6 Live-smoke scope + cost -- exactly ONE cost-confirmed live Azure smoke (confirm the envelope before the call)"
       ],
       "hardness": "HARD-GATE",
-      "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the §6 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing and an independent read of the judge prompts earns its keep. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
+      "hardness_reason": "Establishes the DSPy-judge<->ported-consensus contract (the \u00a76 hybrid seam) that WS-6c-AGENTIC builds on, and authors prompt text feeding safety-critical judges. Lower blast radius than WS-6c (no consensus-math change, no grade-wire), but the seam-conformance (A1) + consensus-unchanged (A4) proofs are load-bearing and an independent read of the judge prompts earns its keep. Fresh-critic at close recommended; user MAY elect inline (precedent: WS-6c).",
       "next_action": "Driver authored 2026-06-02 (ready; both-absent reconcile). Run /devloop-kickoff bench-salvage WS-6c-DSPy; fresh executor session ROOTED IN lithrim-bench (everything in-repo; no ../lithrim-backend read this cycle). Plan-review resolves the 6 decisions (incl. which judge first + optimizer-vs-gate + the live-smoke cost) before 'go'. Parallel-safe with WS-6c-AGENTIC (S-BS-31-gated) + the shell track."
     },
     {
@@ -792,16 +796,19 @@
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench", "lithrim-backend"],
+      "repos": [
+        "lithrim-bench",
+        "lithrim-backend"
+      ],
       "prompt_bundle": "bench-salvage-phaseWS-6c-AGENTIC-compliance-grade-wire-driver",
-      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c/WS-6c-DSPy). Authored TASK_PACK#WS-6c-AGENTIC + the bundle + the driver in one /devloop-expand-driver pass, AFTER (a) the S-BS-31 clinical/IP decision (monitor+user: option (a) reassign-by-domain) and (b) a code-faithful RE-SCOPE: the §7 AGENTIC headline (recompose compliance_workflow -> async) is ALREADY BUILT as the parked M1 in-process spine (8f9beae: runtime/pipeline/orchestrator.py:187 + stages.py + backends/local_pipeline.py:42). So this phase is the grade-wire MILESTONE, not a greenfield recompose; the observation/KPI recompose is split to WS-6c-OBS. Sourced from RECOMPOSITION_PLAN_ws6.md §4/§5/§6/§7/§8 + the WS-6c-DSPy handoff + the S-BS-31 teeup.",
-      "regrepped_2026_06_02": "S-BS-31 fix site (backend SSOT, mvp-ready): ../lithrim-backend/app/services/compliance_council.py _TIER1_OWNERS:232 (MISSING_ALLERGY:234 {behavior,source_message}; FABRICATED_CONSENT:241 {behavior,source_message}; VALUE_MISMATCH:249 {behavior}); escalation logic :2050-2110 (single-judge one-strike requires owner-membership :2082-2102, else tier1_off_domain_single_judge downgrade); v2 trio risk/policy/faithfulness :474-495; faithfulness_judge.txt:14 already emits MISSING_ALLERGY (VALUE_MISMATCH not named, concept at :44-50); policy_judge.txt:12 names consent scope (FABRICATED_CONSENT code not). Bench mirror byte-faithful at runtime/council/compliance_council.py:232; v2 selector settings.py:50 (default v2); v2 trio built compliance_council.py:463. EXISTING in-process spine: runtime/pipeline/orchestrator.py:187 PipelineOrchestrator.evaluate->PipelineResult; stages.py:28 imports the ported council; backends/local_pipeline.py:42 LocalPipelineBackend (M1: forces v1, structural/artifact skipped, NoOpProvenanceStore, retrieval stub). Grade seam (frozen): harness/grade.py grade_replay:40/grade_live:85/:8002-POST:121; scripts/run_eval.py run:101 (live vs replay only, in-process NOT wired); harness/report.py composite:29. Replay baselines: tests/fixtures/ws0/baseline.*.json. Backend workflow reference: compliance_workflow.py 7 nodes (retrieve_context/run_safety_prescreening/run_confidence_gate/run_council:859/extract_evidence:1034/store_report:1286/handle_error:1514); two-phase disposition prelim ~:955 + recompute ~:1211; gate policy P0-3:767/FAST-PATH:782/regex:722; ::eval:: context_hash:1372; lockstep _recompute_consensus_from_council:2206/_recompute_final_verdict:2281; semaphore :58-60. DRIFT: §4 contract-2 node names check_hipaa_compliance/evaluate_artifacts DO NOT EXIST -- re-derive fatal/non-fatal from the 7 live nodes.",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-5c/WS-5d/WS-6b/WS-6c/WS-6c-DSPy). Authored TASK_PACK#WS-6c-AGENTIC + the bundle + the driver in one /devloop-expand-driver pass, AFTER (a) the S-BS-31 clinical/IP decision (monitor+user: option (a) reassign-by-domain) and (b) a code-faithful RE-SCOPE: the \u00a77 AGENTIC headline (recompose compliance_workflow -> async) is ALREADY BUILT as the parked M1 in-process spine (8f9beae: runtime/pipeline/orchestrator.py:187 + stages.py + backends/local_pipeline.py:42). So this phase is the grade-wire MILESTONE, not a greenfield recompose; the observation/KPI recompose is split to WS-6c-OBS. Sourced from RECOMPOSITION_PLAN_ws6.md \u00a74/\u00a75/\u00a76/\u00a77/\u00a78 + the WS-6c-DSPy handoff + the S-BS-31 teeup.",
+      "regrepped_2026_06_02": "S-BS-31 fix site (backend SSOT, mvp-ready): ../lithrim-backend/app/services/compliance_council.py _TIER1_OWNERS:232 (MISSING_ALLERGY:234 {behavior,source_message}; FABRICATED_CONSENT:241 {behavior,source_message}; VALUE_MISMATCH:249 {behavior}); escalation logic :2050-2110 (single-judge one-strike requires owner-membership :2082-2102, else tier1_off_domain_single_judge downgrade); v2 trio risk/policy/faithfulness :474-495; faithfulness_judge.txt:14 already emits MISSING_ALLERGY (VALUE_MISMATCH not named, concept at :44-50); policy_judge.txt:12 names consent scope (FABRICATED_CONSENT code not). Bench mirror byte-faithful at runtime/council/compliance_council.py:232; v2 selector settings.py:50 (default v2); v2 trio built compliance_council.py:463. EXISTING in-process spine: runtime/pipeline/orchestrator.py:187 PipelineOrchestrator.evaluate->PipelineResult; stages.py:28 imports the ported council; backends/local_pipeline.py:42 LocalPipelineBackend (M1: forces v1, structural/artifact skipped, NoOpProvenanceStore, retrieval stub). Grade seam (frozen): harness/grade.py grade_replay:40/grade_live:85/:8002-POST:121; scripts/run_eval.py run:101 (live vs replay only, in-process NOT wired); harness/report.py composite:29. Replay baselines: tests/fixtures/ws0/baseline.*.json. Backend workflow reference: compliance_workflow.py 7 nodes (retrieve_context/run_safety_prescreening/run_confidence_gate/run_council:859/extract_evidence:1034/store_report:1286/handle_error:1514); two-phase disposition prelim ~:955 + recompute ~:1211; gate policy P0-3:767/FAST-PATH:782/regex:722; ::eval:: context_hash:1372; lockstep _recompute_consensus_from_council:2206/_recompute_final_verdict:2281; semaphore :58-60. DRIFT: \u00a74 contract-2 node names check_hipaa_compliance/evaluate_artifacts DO NOT EXIST -- re-derive fatal/non-fatal from the 7 live nodes.",
       "s_bs_31_decision": "DECIDED 2026-06-02 (monitor+user): option (a) reassign-by-domain. faithfulness_judge owns MISSING_ALLERGY + VALUE_MISMATCH; policy_judge owns FABRICATED_CONSENT; risk_judge co-owns MISSING_ALLERGY (patient-safety, mirrors FABRICATED_ALLERGY). Restores single-judge Tier-1 one-strike under v2. Principled: faithfulness_judge.txt already emits MISSING_ALLERGY (the v1->v2 behavior->faithfulness succession), consent is policy's domain. Lands in backend _TIER1_OWNERS:232 + 2 prompt emit-lines, re-ports to bench, re-snapshots taxonomy. Closes S-BS-31; S-BS-32 resolves with it.",
       "deliverables": [
         "D0 S-BS-31 fix (cross-repo, two commits): (1) ../lithrim-backend/app/services/compliance_council.py:232 _TIER1_OWNERS add v2-trio owners (MISSING_ALLERGY += faithfulness_judge + risk_judge; VALUE_MISMATCH += faithfulness_judge; FABRICATED_CONSENT += policy_judge) + faithfulness_judge.txt add VALUE_MISMATCH emit-line + policy_judge.txt add FABRICATED_CONSENT emit-line; (2) re-port byte-faithfully to lithrim_bench/runtime/council/compliance_council.py:232 + council_roles/; re-snapshot taxonomy_snapshot.json via snapshot_taxonomy.py (no hand-edit). Closes S-BS-31 + S-BS-32.",
         "D1 backends/local_pipeline.py:42: drive the v2 Azure trio (stop forcing v1; settings default v2), supply AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3 + _LLAMA_4_MAVERICK; un-skip structural/artifact per plan-review #1. orchestrator.py:187/stages.py: only the changes the v2 trio + un-skipped stages need; NO consensus-math edit.",
-        "D2 verify the §4/§5 behavior contracts survive in the existing recompose (orchestrator.py/stages.py vs the backend compliance_workflow.py reference): two-phase disposition (:859 prelim / :1034 recompute), fatal/non-fatal map RE-DERIVED from the 7 live nodes (the §4 names are stale), concurrency semaphore (:58-60), ::eval:: isolation (:1372), gate safety policy (P0-3:767/FAST-PATH:782/regex:722), lockstep _recompute_* (:2206/:2281) mirrors _apply_consensus incl. None-tolerance.",
-        "D3 wire the in-process council into the grade seam: harness/grade.py add grade_inprocess (sibling to grade_replay:40/grade_live:85) returning the SAME PipelineResult shape; scripts/run_eval.py:101 add the in-process path selector. report.composite + run_eval.run signature + §10 BFF UNTOUCHED.",
+        "D2 verify the \u00a74/\u00a75 behavior contracts survive in the existing recompose (orchestrator.py/stages.py vs the backend compliance_workflow.py reference): two-phase disposition (:859 prelim / :1034 recompute), fatal/non-fatal map RE-DERIVED from the 7 live nodes (the \u00a74 names are stale), concurrency semaphore (:58-60), ::eval:: isolation (:1372), gate safety policy (P0-3:767/FAST-PATH:782/regex:722), lockstep _recompute_* (:2206/:2281) mirrors _apply_consensus incl. None-tolerance.",
+        "D3 wire the in-process council into the grade seam: harness/grade.py add grade_inprocess (sibling to grade_replay:40/grade_live:85) returning the SAME PipelineResult shape; scripts/run_eval.py:101 add the in-process path selector. report.composite + run_eval.run signature + \u00a710 BFF UNTOUCHED.",
         "D4 regression oracle: diff in-process v2 verdicts vs the captured :8002 replay baselines (tests/fixtures/ws0/baseline.*.json) over the by-construction packs incl. examples/proof_case.jsonl (now exercising S-BS-31's MISSING_ALLERGY+VALUE_MISMATCH); reproduce verdict+findings+confidence; document legitimate v1->v2 deltas.",
         "D5 .devloop/sessions/session-bench-salvage-phaseWS-6c-AGENTIC-2026-06-02.json: S-BS-31 before/after + S-BS-32 green + v2 in-process verdict on proof_case + contract diff-vs-baseline + grade-wire proof + one live Azure smoke verdict + cost."
       ],
@@ -812,20 +819,20 @@
         "A3 grade-wired: run_eval.run scores a case through the in-process v2 council and the record flows through ground->composite unchanged; PipelineResult shape identical to grade_live/grade_replay. First time the council scores real cases through the harness; verified end-to-end on one case.",
         "A4 consensus unchanged: git diff over the ported consensus functions/tables vs the WS-6c-DSPy tip = zero logic delta (only _TIER1_OWNERS data + path/config changes); recorded in the session log.",
         "A5 one live smoke: exactly ONE cost-confirmed live Azure v2-trio call; in-process verdict on one case matches the offline/replay expectation (verdict + per-judge confidences + cost); Mistral confidence=None tolerated end-to-end.",
-        "A6 scope held: no observation/KPI recompose (WS-6c-OBS); no persistence/KB; no consensus-math edit; no §10/report.composite/run_eval.run signature change; orchestrator/stages EXTENDED not rewritten; only backend edit is D0 _TIER1_OWNERS + 2 prompt files.",
+        "A6 scope held: no observation/KPI recompose (WS-6c-OBS); no persistence/KB; no consensus-math edit; no \u00a710/report.composite/run_eval.run signature change; orchestrator/stages EXTENDED not rewritten; only backend edit is D0 _TIER1_OWNERS + 2 prompt files.",
         "A7 default install: pytest -q green on default deps (dspy importorskip-skips); ruff clean."
       ],
       "diagnostic_stats_reported": [
         "in-process v2 verdict distribution vs the captured :8002 replay baselines (v1->v2 delta summary) -- reported, not a gate",
         "per-judge confidences + the live-smoke cost -- reported, not a gate",
-        "proof_case score (recipe=label) under the in-process v2 path -- reported, not a gate (calibration is report-only per §8 risk 6)"
+        "proof_case score (recipe=label) under the in-process v2 path -- reported, not a gate (calibration is report-only per \u00a78 risk 6)"
       ],
       "scope_guardrails_not_in_scope": [
         "NO observation_workflow / 6-KPI-agent recompose -- that is WS-6c-OBS (greenfield; not in the compliance grade path)",
-        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables byte-identical to the WS-6c-DSPy tip; the §6 invariant). D0 edits _TIER1_OWNERS DATA, not the consensus functions",
+        "NO change to the ported consensus IP (_apply_consensus/_compose_council_verdict_v2/_worst_of_verdicts/extract_verdict_confidence/tables byte-identical to the WS-6c-DSPy tip; the \u00a76 invariant). D0 edits _TIER1_OWNERS DATA, not the consensus functions",
         "NO persistence swap / repository interface / Mongo (WS-6d); NO KB/RAG/Pinecone/ONNX (WS-6d-KB); provenance stays NoOpProvenanceStore",
-        "NO DSPy judge changes (WS-6c-DSPy track); the grade-wire is judge-impl-agnostic (the §6 hybrid wraps DSPy/imperative identically)",
-        "NO §10 BFF / report.composite / run_eval.run signature change -- wire the in-process path BEHIND the frozen seam, same PipelineResult shape",
+        "NO DSPy judge changes (WS-6c-DSPy track); the grade-wire is judge-impl-agnostic (the \u00a76 hybrid wraps DSPy/imperative identically)",
+        "NO \u00a710 BFF / report.composite / run_eval.run signature change -- wire the in-process path BEHIND the frozen seam, same PipelineResult shape",
         "NO S-BS-33 resolution (citations_used seam-doc gap stays inert until KB lands, WS-6d-KB)",
         "S-BS-24 is NOT a green gate (backend not-slow suite RED pre-existing); orchestrator/stages EXTEND not rewrite"
       ],
@@ -833,7 +840,7 @@
         "1 Un-skip scope (D1): drive v2 semantic-only first (structural/artifact stay skipped; fastest to 'council scores real cases') vs un-skip structural (etlp-mapper :3031) + artifact this cycle (default: semantic-only-v2 first)",
         "2 Grade-wire mechanism (D3): run_eval.py --in-process flag returning the same record (default, smallest) vs a backend-selector abstraction over grade_live/replay/inprocess",
         "3 Replay-baseline coverage (D4): which captured :8002 baselines are the regression set + how to treat legitimate v1->v2 deltas (document-and-accept vs re-capture v2 baselines)",
-        "4 Contract-2 re-derivation (D2): confirm the fatal/non-fatal node map read off the live 7 nodes (the §4 names are stale)",
+        "4 Contract-2 re-derivation (D2): confirm the fatal/non-fatal node map read off the live 7 nodes (the \u00a74 names are stale)",
         "5 Live-smoke scope + cost (D5): exactly ONE cost-confirmed live Azure v2-trio call (confirm the envelope; WS-6c-DSPy was $0.0067, WS-6c trio ~$0.15-0.25); offline/replay-first",
         "6 Persistence posture: NoOpProvenanceStore stays this cycle (real repo interface is WS-6d) while the ::eval:: isolation contract is honored in-memory"
       ],
@@ -846,12 +853,16 @@
       "phase": "WS-6c-OBS",
       "title": "WS-6c-OBS -- recompose observation_workflow + the 6 KPI agents in-process (split out of WS-6c-AGENTIC)",
       "status": "queued",
-      "blocked_by": ["WS-6c-AGENTIC"],
+      "blocked_by": [
+        "WS-6c-AGENTIC"
+      ],
       "priority": "P2",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "(stub -- author via /devloop-expand-driver bench-salvage WS-6c-OBS)",
-      "origin": "SPLIT from WS-6c-AGENTIC 2026-06-02 (monitor+user). The code-faithful re-scope showed the observation/KPI side is genuinely greenfield (grep TranscriptionAgent|SentimentAgent|SafetyAgent|KPIAggregation|run_parallel_analyses across lithrim_bench/ = 0 hits) and is NOT in the compliance grade path, so it does not belong in the council-scores-real-cases milestone. Sourced from RECOMPOSITION_PLAN_ws6.md §4 (agents) + §7 (AGENTIC row's observation half) + Ratification Q4.",
+      "origin": "SPLIT from WS-6c-AGENTIC 2026-06-02 (monitor+user). The code-faithful re-scope showed the observation/KPI side is genuinely greenfield (grep TranscriptionAgent|SentimentAgent|SafetyAgent|KPIAggregation|run_parallel_analyses across lithrim_bench/ = 0 hits) and is NOT in the compliance grade path, so it does not belong in the council-scores-real-cases milestone. Sourced from RECOMPOSITION_PLAN_ws6.md \u00a74 (agents) + \u00a77 (AGENTIC row's observation half) + Ratification Q4.",
       "regrepped_2026_06_02": "Backend source to recompose-from: ../lithrim-backend/app/workflows/observation_workflow.py (StateGraph:4; ObservationState:38; run_parallel_analyses:423 asyncio.gather ~:570; 7 agents instantiated per-call: TranscriptionAgent:333/AudioAnalysisAgent:391/IntentQualityAgent:447/SentimentAgent:481/SafetyAgent:503/TechnicalMetricsAgent:537/KPIAggregationAgent:613; conversation_item.find_one:355; Mongo write ~:858). ../lithrim-backend/app/agents/ dirs: audio_analysis/intent_quality/kpi_aggregation/safety/sentiment/technical_metrics/transcription (the 6 KPI + transcription ingest), evaluation_agent (DEAD: only self-refs CONFIRMED -> DROP), simulation_agent (LiveKit, separate real-time flow CONFIRMED -> PARK). NOTE the '6 KPI agents' framing = 7 instantiated (transcription + 6 KPI); confirm the recompose set at plan-review.",
       "deliverables": [
         "Recompose observation_workflow (StateGraph) -> straight-line async fn(s) in lithrim_bench/runtime/ (the asyncio.gather fan-out stays; conditional edges -> if/await; error sink -> try/except).",
@@ -879,15 +890,17 @@
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseWS-6d-persistence-sqlite-driver",
-      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-6c-AGENTIC). Authored TASK_PACK#WS-6d + the bundle + the driver in one /devloop-expand-driver pass, AFTER 2 user scope decisions (SQLite-only; grade-path-only). User chose the ship-path (WS-6d retire-Mongo -> WS-6e/WS-5e packaging) as the roadmap lead. Sourced from RECOMPOSITION_PLAN_ws6.md §2 (ProvenanceStore salvage) + §4 (Mongo-drop + eval-isolation contract #4) + §7 (WS-6d row) + SPEC_PRODUCT_SERVICE_TOPOLOGY.md (frozen-contract rule).",
+      "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub; same pattern as WS-6c-AGENTIC). Authored TASK_PACK#WS-6d + the bundle + the driver in one /devloop-expand-driver pass, AFTER 2 user scope decisions (SQLite-only; grade-path-only). User chose the ship-path (WS-6d retire-Mongo -> WS-6e/WS-5e packaging) as the roadmap lead. Sourced from RECOMPOSITION_PLAN_ws6.md \u00a72 (ProvenanceStore salvage) + \u00a74 (Mongo-drop + eval-isolation contract #4) + \u00a77 (WS-6d row) + SPEC_PRODUCT_SERVICE_TOPOLOGY.md (frozen-contract rule).",
       "regrepped_2026_06_02": "The repository INTERFACE already exists: runtime/pipeline/provenance.py ProvenanceStore:6 (async save) + NoOpProvenanceStore:11 + MongoProvenanceStore=NoOpProvenanceStore:16 ('swap to a SQLite store later'); orchestrator.py:201 (store param) / :217 (default) / :334 (PipelineProvenance build) / :361 (single save call, fire-and-forget). The SQLite BACKEND already exists: harness/collections.py DocShimCollection:35 (insert idempotent-upsert :59 / get :82 / find_by_fk :91; stdlib sqlite3, zero-dep) + 4 collections :105-110 (COMPLIANCE_REPORT :110 id_field=report_id fk=case_id). PipelineProvenance models.py:176 (pipeline_run_id [fresh uuid4 per evaluate, orchestrator.py:335] / org_id / request_hash / kb_retrievals / cost_tokens / verdict / gate_decision / findings / council_error). Backend Protocol template ../lithrim-backend/app/services/pipeline/provenance.py:25 (save:28 / find_by_id:30 / find_compliance_report_by_run_id:32) -- reference-only. Eval-isolation: bench has NO ::eval::/eval_run_id/context_hash threaded today (MOOT under NoOp, test_grade_wire.py:16); pipeline_run_id uniqueness satisfies the re-runs-dont-collide invariant for free. Frozen seam: grade.py grade_inprocess / run_eval.py run:101 / report.py composite:29.",
       "decisions_made": "2026-06-02 (monitor + user): (1) SQLite-ONLY this cycle (over the stdlib harness/collections.py doc-shim, zero new dep; PG/Aurora a later drop-in behind the same Protocol -- VPC tier). (2) GRADE-PATH ONLY (wire SqliteProvenanceStore into the orchestrator save(provenance) seam; NO OBS call_kpi persistence -- no persist site + no consumer, S-BS-36).",
       "deliverables": [
         "D1 runtime/pipeline/provenance.py: add SqliteProvenanceStore(ProvenanceStore) -- save() serializes PipelineProvenance (model_dump json) + idempotent-upserts via the harness doc-shim keyed on pipeline_run_id, fail-soft (fire-and-forget); extend the Protocol with find_by_id(pipeline_run_id)->Optional[dict] (NoOp returns None); RETIRE the MongoProvenanceStore=NoOpProvenanceStore alias. Stdlib sqlite3 only, no new dep.",
         "D2 runtime/pipeline/orchestrator.py:217 + scripts/run_eval.py/harness/grade.py: repoint the default off the retired Mongo alias (flip to Sqlite default OR grade-path opt-in per plan-review #1); :201/:334/:361 unchanged; run_eval.run signature unchanged (frozen contract; additive keyword knob only).",
-        "D3 the store: find_by_id round-trips a saved provenance (the §7 'route reads through find_by_id'); preserve the eval-isolation invariant (re-runs -> distinct non-colliding rows; same pipeline_run_id -> upsert one row); kb_retrievals persists as the 4-field summary (no expansion).",
+        "D3 the store: find_by_id round-trips a saved provenance (the \u00a77 'route reads through find_by_id'); preserve the eval-isolation invariant (re-runs -> distinct non-colliding rows; same pipeline_run_id -> upsert one row); kb_retrievals persists as the 4-field summary (no expansion).",
         "D4 tests (offline, stdlib-sqlite tmp_path): round-trip save->find_by_id; idempotent upsert; eval-isolation (2 runs -> 2 rows); FROZEN-CONTRACT diff (PipelineResult/grade record identical with SqliteProvenanceStore vs Null store); default-deps clean.",
         "D5 .devloop/sessions/session-bench-salvage-phaseWS-6d-2026-06-02.json: store impl + wiring decision + round-trip/idempotent/eval-isolation evidence + frozen-contract diff + Mongo-name-retired note + default-deps green/ruff-clean."
       ],
@@ -906,7 +919,7 @@
         "NO PostgreSQL/Aurora impl (SQLite-only; PG is a later drop-in behind the same Protocol -- VPC tier). No asyncpg/psycopg, no [vpc] extra.",
         "NO OBS call_kpi persistence (grade-path only; observation stays in-memory -- no persist site/consumer, S-BS-36).",
         "NO KB/RAG (WS-6d-KB); kb_retrievals persists as the existing 4-field summary, no retrieval impl.",
-        "NO frozen-contract change (run_eval.run / report.composite / PipelineResult / §10 BFF untouched; persistence behind the save seam).",
+        "NO frozen-contract change (run_eval.run / report.composite / PipelineResult / \u00a710 BFF untouched; persistence behind the save seam).",
         "NO consensus/council/grade-seam edit (ported IP + grade_inprocess byte-frozen).",
         "NO ../lithrim-backend edit (backend provenance.py is the read-only template).",
         "NO new dependency (stdlib sqlite3 only).",
@@ -916,10 +929,10 @@
         "1 Default store: flip orchestrator default NoOp->Sqlite (persist by default) vs Null default + grade-path opt-in (tests hermetic). Lean: opt-in from the grade path + NoOp default for bare construction.",
         "2 Eval-isolation key: pipeline_run_id (already unique per evaluate) as row key vs an explicit eval_run_id for grouping. Lean: pipeline_run_id; optional eval_run_id fk only if 'all runs for eval X' is needed.",
         "3 Store location: in runtime/pipeline/provenance.py (doc-shim import is stdlib) vs a new runtime/services/provenance_sqlite.py. Lean: in place.",
-        "4 Collection target: existing COMPLIANCE_REPORT shim (report_id/case_id -- needs a pipeline_run_id->report_id map; provenance has no case_id) vs a sibling PIPELINE_RUNS DocShimCollection(id_field=pipeline_run_id, fk=org_id) matching the §7 pipeline_runs reads. Lean: add PIPELINE_RUNS."
+        "4 Collection target: existing COMPLIANCE_REPORT shim (report_id/case_id -- needs a pipeline_run_id->report_id map; provenance has no case_id) vs a sibling PIPELINE_RUNS DocShimCollection(id_field=pipeline_run_id, fk=org_id) matching the \u00a77 pipeline_runs reads. Lean: add PIPELINE_RUNS."
       ],
       "hardness": "ROUTINE",
-      "hardness_reason": "A new store impl behind an EXISTING injected seam; the consensus IP + grade-record shape are frozen and untouched, and nothing downstream reads the persisted rows yet (grade path returns PipelineResult in-memory; save is fire-and-forget). The load-bearing gate is A3 (frozen-contract diff -- grade record identical with persistence on/off), mechanically verifiable. On the GTM critical path (retire Mongo -> offline/VPC product); user MAY elect a fresh-critic at close (as for WS-6c-OBS), but the contract is the internal ProvenanceStore Protocol, not the §10 public BFF -> inline critique default.",
+      "hardness_reason": "A new store impl behind an EXISTING injected seam; the consensus IP + grade-record shape are frozen and untouched, and nothing downstream reads the persisted rows yet (grade path returns PipelineResult in-memory; save is fire-and-forget). The load-bearing gate is A3 (frozen-contract diff -- grade record identical with persistence on/off), mechanically verifiable. On the GTM critical path (retire Mongo -> offline/VPC product); user MAY elect a fresh-critic at close (as for WS-6c-OBS), but the contract is the internal ProvenanceStore Protocol, not the \u00a710 public BFF -> inline critique default.",
       "next_action": "Driver authored 2026-06-02 (both-absent reconcile; 2 scope decisions made: SQLite-only + grade-path-only). Run /devloop-kickoff bench-salvage WS-6d; fresh executor session ROOTED IN lithrim-bench (bench-only -- backend provenance.py is read-only template). Plan-review resolves the 4 decisions before 'go'."
     },
     {
@@ -930,11 +943,13 @@
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseWS-7a-journey-verify-live-driver",
       "milestone": "WS-7 = product feature-completion: make the 4-act journey (the pitch) run on REAL service calls instead of journeyData mock. Sub-phases: WS-7a (Phase-2 Verify, this) -> WS-7b (Phase-3 Align: structural floor + KB integration -- the headline + paper; folds WS-3b + WS-6d-KB) -> WS-7c (Phase-1 pack + Phase-4 SDK bookends). Packaging (Tauri WS-5e/6e) deferred to the genuine last mile (user 2026-06-02: features against the services first).",
       "origin": "BOTH-ABSENT reconcile 2026-06-02 (no task-pack entry + no stub). User direction: pivot from the WS-6 recompose track to product feature-completion -- get the real product/pitch live + paper, salvaging from lithrim-backend, deferring Tauri. Grounded on the verified leverage: the grade chain (runEval -> /v1/run-eval -> grade_replay/live/inprocess) is COMPLETE and composes over :8002 / the salvaged council; the journey is mock only because nobody pointed it at the BFF.",
-      "regrepped_2026_06_02": "LEVERAGE (all exist, reuse): apps/shell/src/bff.js runEval({agent,live=false}):23 (POST /v1/run-eval, replay=$0); apps/bff/app.py /v1/run-eval:115 (run_eval.run -> record composite/calibration/provenance) + _council_view:27 (judge_votes); harness/grade.py grade_replay:40 / grade_live:85 (POST :8002 /v1/pipeline/evaluate :119) / grade_inprocess. WIRE (mock today): JourneyApp.jsx runVerify:55 (mock animation; verify/revealed state :35-36; phase-2 props :77-78); jp2.jsx Center2:47 (Verify button) + Artifact2:80 (pillar-badge reveal, pb-score:114; imports JUDGES/RUN from journeyData:5). journeyData.js = captured REAL scores (:125 BLOCK·WRONG_DOSAGE; :133-139 by-construction pair) -> keep as idle/fallback. RENDER PATTERN to lift: artifact.jsx ReportTab:34 (composite verdict/tiles + BFF-down empty-state :42). Frozen: NO backend/:8002 edit, NO new BFF endpoint, NO new Python.",
+      "regrepped_2026_06_02": "LEVERAGE (all exist, reuse): apps/shell/src/bff.js runEval({agent,live=false}):23 (POST /v1/run-eval, replay=$0); apps/bff/app.py /v1/run-eval:115 (run_eval.run -> record composite/calibration/provenance) + _council_view:27 (judge_votes); harness/grade.py grade_replay:40 / grade_live:85 (POST :8002 /v1/pipeline/evaluate :119) / grade_inprocess. WIRE (mock today): JourneyApp.jsx runVerify:55 (mock animation; verify/revealed state :35-36; phase-2 props :77-78); jp2.jsx Center2:47 (Verify button) + Artifact2:80 (pillar-badge reveal, pb-score:114; imports JUDGES/RUN from journeyData:5). journeyData.js = captured REAL scores (:125 BLOCK\u00b7WRONG_DOSAGE; :133-139 by-construction pair) -> keep as idle/fallback. RENDER PATTERN to lift: artifact.jsx ReportTab:34 (composite verdict/tiles + BFF-down empty-state :42). Frozen: NO backend/:8002 edit, NO new BFF endpoint, NO new Python.",
       "deliverables": [
         "D1 JourneyApp.jsx runVerify:55: replace the mock animation with a runEval({live}) call (default live=false=$0 replay), set the record into state, drive the existing staggered reveal from the REAL composite/judge-votes; add a replay/live toggle; handle running/error.",
         "D2 jp2.jsx Artifact2:80/Center2:47: render the pillar-badges from the live composite (judge_votes -> per-judge pillar + composite verdict/score) on the wired path; journeyData stays the idle/empty-state fallback; keep the pillar-badge CSS/markup.",
@@ -943,7 +958,7 @@
         "D5 :5180 visual-parity smoke (user-run, load-bearing per WS-5c/5d) + .devloop/sessions/session-bench-salvage-phaseWS-7a-2026-06-02.json (wiring + leverage proof [zero backend/BFF/Python diff] + test evidence + smoke attestation)."
       ],
       "acceptance": [
-        "A1 the pitch is real: Journey Phase-2 Verify drives a real grade via runEval (POST /v1/run-eval) and renders the real composite (3 judge votes + verdict, e.g. BLOCK·WRONG_DOSAGE) in the staggered reveal -- not journeyData mock. Verify at :5180 + the test.",
+        "A1 the pitch is real: Journey Phase-2 Verify drives a real grade via runEval (POST /v1/run-eval) and renders the real composite (3 judge votes + verdict, e.g. BLOCK\u00b7WRONG_DOSAGE) in the staggered reveal -- not journeyData mock. Verify at :5180 + the test.",
         "A2 $0 default, live on demand: replay (live=false) is the default ($0, captured :8002 scores); a live toggle exercises grade_live(:8002)/grade_inprocess (cost-confirmed if run).",
         "A3 leverage held (the governing gate): ZERO ../lithrim-backend diff, ZERO new BFF endpoint, ZERO new Python -- git diff confined to apps/shell/; the grade is the existing runEval/run-eval/grade chain.",
         "A4 graceful degradation: BFF-down -> empty/CTA state (the artifact.jsx pattern) + journeyData idle fallback, no crash.",
@@ -966,9 +981,9 @@
         "1 Default grade path: replay (live=false, $0, captured real scores) default + live toggle (lean) vs live-by-default. Confirm the one-call cost envelope if live is run.",
         "2 Pillar mapping: 3 judge_votes (risk/policy/faithfulness) + composite verdict/score -> the journey pillar-reveal; confirm the mapping (3 judges + composite as the 4th vs the 4 PILLARS ids) against jp2's badge shape.",
         "3 Choreography: preserve the staggered reveal (feed real data) -- lean -- vs render-all-at-once.",
-        "4 Hardness inline vs fresh-critic (per SPEC §8 HARD-GATE-class); the :5180 visual smoke is load-bearing regardless."
+        "4 Hardness inline vs fresh-critic (per SPEC \u00a78 HARD-GATE-class); the :5180 visual smoke is load-bearing regardless."
       ],
-      "hardness": "HARD-GATE-class (per SPEC §8 shell phases); user-electable inline vs fresh-critic at close",
+      "hardness": "HARD-GATE-class (per SPEC \u00a78 shell phases); user-electable inline vs fresh-critic at close",
       "hardness_reason": "Low risk surface (UI wiring over a proven grade chain, no backend), so inline is defensible; but the FIRST live journey act (the pitch becoming real) + frontend visual fidelity is where the WS-5c/5d fresh-critic earned its keep. The :5180 visual-parity smoke is the load-bearing gate regardless of the inline/fresh-critic choice.",
       "next_action": "Driver authored 2026-06-02 (both-absent reconcile; WS-7 milestone = journey-live; this = the Phase-2 beachhead, zero backend/BFF/Python -- pure leverage). Run /devloop-kickoff bench-salvage WS-7a; fresh executor session ROOTED IN lithrim-bench (frontend, apps/shell). Plan-review resolves the 4 decisions before 'go'. Use explicit-pathspec commits (concurrent tree)."
     },
@@ -980,7 +995,9 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-1-config-plane-write-path-driver",
       "milestone": "UAP-1..4 = the LOCKED unified authoring+processing product (docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md, reframed WS-7; the 4-act journey FROZEN as a demo inside it). UAP-1 (R1+R3+R0, this) -> UAP-2 (JudgeEditor + /v1/judges via ontology-assignment, R2) -> UAP-3 (RunPanel + processing/eval-pack/history, R4/R6) -> UAP-3b (signals + withstands-gate, section 2A) -> UAP-4 (optimize/calibration in-UI, R5; gated S-BS-49).",
       "origin": "Backfilled 2026-06-04 into the task pack from the LOCKED SPEC + the index.json stub (user election: author the driver from the SPEC now). The pack predated the 2026-06-04 reframe -- its newest prior entry was WS-7a under the SUPERSEDED journey-on-real-calls framing, and its seam list ends at S-BS-8 while the live registry (STREAM_bench-salvage.md) runs to S-BS-51. UAP-1 = the smallest change that makes authored config actually run, sidestepping every open dependency (no judge-creation/optimize yet; OQ-1..5 resolved at lock).",
@@ -1045,7 +1062,9 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-2-judge-authoring-driver",
       "milestone": "UAP-1..4 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) DONE (6bdf975..a7edd25). UAP-2 (R2, this) -> UAP-3 (RunPanel + processing/eval-pack/run-history, R4/R6) -> UAP-3b (signals + withstands-gate, section 2A -- the moat) -> UAP-4 (optimize/calibration in-UI, R5; gated S-BS-49). UAP-2's prompt<->ontology bridge is also the static->live close for JUDGES: an authored lens re-runs on the in-process council (no WS-2 :8002 backend needed).",
       "origin": "Authored 2026-06-04 from the LOCKED SPEC section 3.1/section 12 + re-grepped judge-layer citations (the pack predated the reframe; UAP-2 backfilled, memory devloop-task-pack-stale-uap-from-spec). User chose 'Build UAP-2 (judge authoring)' as the next move toward a usable product (2026-06-04).",
@@ -1102,7 +1121,9 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-3-processing-run-history-driver",
       "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) DONE. UAP-3 (R4+R6, this) -> UAP-3b (signals + withstands-gate, section 2A -- the moat) -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5a/5b (conversational-driver surface, SPEC section 13; after the moat). UAP-3 closes the A8-smoke-found S-BS-63 (authoring a judge does NOT yet change the live verdict) -- the loop that makes authoring feel real.",
       "origin": "Authored 2026-06-04 from the LOCKED SPEC section 5 R4/R6 + the UAP-3 handoff (no prior stub; pack backfilled, memory devloop-task-pack-stale-uap-from-spec). Folds in the A8-smoke seams S-BS-63 (authored->grade wiring) + S-BS-52/56 (run-history/ids). User chose 'move with UAP-3' (2026-06-04).",
@@ -1157,7 +1178,9 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-3b-withstands-gate-driver",
       "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) + UAP-3 (R4/R6) + UAP-5a (in-UI authoring loop) DONE. UAP-3b (section 2A, this) = THE MOAT: the signals + per-judge withstands-gate orchestration -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5b (R11 conversational shell). UAP-3b is what S-BS-70 (UAP-5a's failed live-flip) points at -- a genuine 'watch the verdict change' needs a DETERMINISTIC signal correcting a confidently-wrong LLM judge, which is exactly this gate.",
       "origin": "Authored 2026-06-04 from the LOCKED SPEC section 2A (Ralph-Loop withstands-gate, lines 63-74) + section 2B + section 13 (locus=BOTH, line 268) + the UAP-5a close + the S-BS-70 finding (no prior stub; pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose 'UAP-3b' at the post-UAP-5a fork (2026-06-04).",
@@ -1212,7 +1235,9 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-3b-2-groundingcheck-entity-llm-critique-driver",
       "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1+UAP-2+UAP-3+UAP-5a+UAP-3b (THE MOAT, offline/$0) DONE. UAP-3b-2 (this) = complete the moat: the LIVE paid attestation (S-BS-70 visceral demo + S-BS-73 validation) + the withstands ruling in the run-provenance blob (S-BS-72) + GroundingChecks as first-class config-authored entities (the deferred UAP-3b A6). The LLM Ralph-Loop critique splits -> UAP-3b-3. -> UAP-4 (optimize, R5; S-BS-49) -> UAP-5b (R11 conversational shell).",
       "origin": "Monitor expanded the UAP-3b-close stub into a full driver 2026-06-04 from the LOCKED SPEC section 2A/2B + the UAP-3b close + the S-BS-70/72/73 seams (pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose 'lets do 3b 2' at the post-UAP-3b fork. LED with the LIVE attestation + S-BS-72 + A6; SPLIT the LLM critique -> UAP-3b-3 (monitor lean per critique-pass-precision-not-floor).",
@@ -1259,37 +1284,39 @@
     {
       "id": "UAP-4",
       "phase": "UAP-4",
-      "title": "UAP-4 -- the calibration-trainer OPTIMIZE loop delivered LIVE FROM THE UI (R5): the optimize->honest-Δ loop embedded in JudgeEditor + the S-BS-49 win-attempt (lead lever corpus-widening); the bind/re-run round-trip SPLIT -> UAP-4-opt (right-sized after a live :5180 reassessment)",
+      "title": "UAP-4 -- the calibration-trainer OPTIMIZE loop delivered LIVE FROM THE UI (R5): the optimize->honest-\u0394 loop embedded in JudgeEditor + the S-BS-49 win-attempt (lead lever corpus-widening); the bind/re-run round-trip SPLIT -> UAP-4-opt (right-sized after a live :5180 reassessment)",
       "status": "done",
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-4-optimize-calibration-loop-driver",
-      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1+UAP-2+UAP-3+UAP-5a+UAP-3b+UAP-3b-2 (the MOAT, proven+operational+live-safe) DONE. UAP-4 (R5, this) = the third leg of author->process->OPTIMIZE: surface the EXISTING DSPy judge-optimizer in the UI with an HONEST held-out Δ (the calibration trainer, 'a trainer not a demo') + attempt the S-BS-49 fix so 'optimize' actually improves. -> UAP-5b (R11 conversational shell, the capstone). Realizes SPEC_CALIBRATION_TRAINER.md.",
-      "origin": "Monitor authored 2026-06-05 from the LOCKED SPEC R5 (:206) + SPEC_CALIBRATION_TRAINER + the existing judge_optimize engine (WS-6c-DSPy-3b) + the negative-Δ honest finding (pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose UAP-4 at the post-UAP-3b-2 fork. LED with the honest-Δ UI [the guaranteed deliverable]; the S-BS-49 fix is GRADED + may split -> UAP-4-opt.",
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1+UAP-2+UAP-3+UAP-5a+UAP-3b+UAP-3b-2 (the MOAT, proven+operational+live-safe) DONE. UAP-4 (R5, this) = the third leg of author->process->OPTIMIZE: surface the EXISTING DSPy judge-optimizer in the UI with an HONEST held-out \u0394 (the calibration trainer, 'a trainer not a demo') + attempt the S-BS-49 fix so 'optimize' actually improves. -> UAP-5b (R11 conversational shell, the capstone). Realizes SPEC_CALIBRATION_TRAINER.md.",
+      "origin": "Monitor authored 2026-06-05 from the LOCKED SPEC R5 (:206) + SPEC_CALIBRATION_TRAINER + the existing judge_optimize engine (WS-6c-DSPy-3b) + the negative-\u0394 honest finding (pack backfilled per memory devloop-task-pack-stale-uap-from-spec). User chose UAP-4 at the post-UAP-3b-2 fork. LED with the honest-\u0394 UI [the guaranteed deliverable]; the S-BS-49 fix is GRADED + may split -> UAP-4-opt.",
       "regrepped_2026_06_05": "judge_optimize.py:288 run_optimize(role,*,corpus_path,confirm_cost,out_dir,limit,max_bootstrapped_demos=4,max_labeled_demos=0) -> {role,n_train,n_heldout,baseline,optimized,delta} (refuses without confirm_cost; splits calibration->trainset/test->heldout by role_relevant/LENS_BY_ROLE) + _serialize_demos; compile_judge:218 (BootstrapFewShot); evaluate_program:175; build_judge_program:121 (the lazy compilable view, separate from the frozen Judge). app.py:424 (UAP-2 judge block) GET/PUT /v1/judges:505/528/563 + the cost-confirm pattern POST /v1/run-eval:226. registry.js:27 tool-calibration_chart + :30 tool-judge_editor; JudgeEditor.jsx:32. examples/judge_calib_v1.jsonl (47, splits 17/30). The /optimize route is NET-NEW. S-BS-48 (bind-back-don't-ship-negative) + S-BS-49 (exact-accept gate harvests only silent demos) in STREAM.",
       "deliverables": [
-        "D1 BFF apps/bff/app.py: POST /v1/judges/{role}/optimize (cost-gated, in the :424 judge block) over run_optimize(confirm_cost=True) -> {role,n_train,n_heldout,baseline,optimized,delta}. §10 ratify the route (D-C). Add an optimize client to apps/shell/src/bff.js (routed through BASE/VITE_BFF_URL, S-BS-50). NO bind/persist endpoint this cycle (-> UAP-4-opt).",
-        "D2 SHELL apps/shell/src/genui/JudgeEditor.jsx (Decision R4 -- EMBED in JudgeEditor, ONE continuous surface, live-confirmed the rich home: model/ASSIGN-LENS/ATTACH-VALIDATORS/REFINEMENT-Qs/$0-PROMPT-PREVIEW/Save): an Optimize button -> an IN-DOM cost-confirm modal (S-BS-69, NOT window.confirm()) -> optimizeJudge(role,{agent}) via the new bff.js client -> render the HONEST held-out Δ (precision/recall before->after, WIN-OR-LOSS) in a NET-NEW small render (D-G: inline, or a new tool-optimize_delta in registry.js). A negative/zero Δ renders AS a LOSS, NEVER hidden (an honest note 'optimize did not improve this judge'). THIS IS NOT tool-calibration_chart (live-confirmed: that is a RELIABILITY diagram ece/brier, not a Δ). NO bind/re-run controls this cycle (-> UAP-4-opt; the existing Run-evaluation card renders the verdict-change once a positive Δ exists).",
-        "D3 S-BS-49 WIN-ATTEMPT (the optimizer-quality core; GRADED + SPLITTABLE per D-E) lithrim_bench/runtime/council/judge_optimize.py (additive): coverage-aware demo selection -- admit >=1 positive exemplar (not only the already-perfect silent cases) + the LEAD lever CORPUS-WIDENING -- more positives-per-code via an additive lint-GREEN append to examples/judge_calib_v1.jsonl (scripts/generate_judge_calib.py; D-H names the reach + the S-BS-46 cohort cap, logged-not-padded; NEVER edit/relabel existing rows). Measure the held-out Δ (cost-gated). GRADED: lifts the Δ -> ship it (the live loop shows a real WIN; bind-to-apply is UAP-4-opt); else HALT-TO-SURFACE (the honest-loss loop ships; S-BS-49 stays open with the measured result). NEVER loosen the accept-gate. FROZEN: do NOT touch judge_metric.py (make_judge_metric/LENS_BY_ROLE) -- additive in judge_optimize.py.",
-        "D4 TESTS tests/test_uap4_*.py: (a) /optimize returns the Δ shape (offline/$0, mocked run_optimize); (b) the coverage-aware demo selection picks a positive exemplar when one exists (offline, on the corpus); (c) the widened corpus is admissible (the lint passes; positives-per-code increased); (d) frozen seam 0-delta. apps/shell/src/genui/*.test.jsx: the JudgeEditor optimize surface renders the honest Δ (win AND loss paths) + the loss path shows the honest note. The live optimize run (D3 measurement + the A-LIVE attestation) is cost-gated user-run, NOT an automated test.",
-        "D5 DOCS docs/specs/SPEC_PRODUCT_SHELL.md §10 ratify POST /v1/judges/{role}/optimize (S-BS-51 lesson) + note the S-BS-49 disposition (improved/halt-to-surfaced + the measured Δ + corpus positives-per-code before->after) + the A-LIVE attestation result. REGISTER the UAP-4-opt stub (the bind/re-run round-trip: JudgeConfig.compiled_demos + the bind endpoint + the authored_stage demo-load + bind->re-run->verdict-change; gated on a positive Δ; S-BS-48) in index.json + TASK_PACK. + .devloop/sessions/session-bench-salvage-phaseUAP-4-2026-06-05.json."
+        "D1 BFF apps/bff/app.py: POST /v1/judges/{role}/optimize (cost-gated, in the :424 judge block) over run_optimize(confirm_cost=True) -> {role,n_train,n_heldout,baseline,optimized,delta}. \u00a710 ratify the route (D-C). Add an optimize client to apps/shell/src/bff.js (routed through BASE/VITE_BFF_URL, S-BS-50). NO bind/persist endpoint this cycle (-> UAP-4-opt).",
+        "D2 SHELL apps/shell/src/genui/JudgeEditor.jsx (Decision R4 -- EMBED in JudgeEditor, ONE continuous surface, live-confirmed the rich home: model/ASSIGN-LENS/ATTACH-VALIDATORS/REFINEMENT-Qs/$0-PROMPT-PREVIEW/Save): an Optimize button -> an IN-DOM cost-confirm modal (S-BS-69, NOT window.confirm()) -> optimizeJudge(role,{agent}) via the new bff.js client -> render the HONEST held-out \u0394 (precision/recall before->after, WIN-OR-LOSS) in a NET-NEW small render (D-G: inline, or a new tool-optimize_delta in registry.js). A negative/zero \u0394 renders AS a LOSS, NEVER hidden (an honest note 'optimize did not improve this judge'). THIS IS NOT tool-calibration_chart (live-confirmed: that is a RELIABILITY diagram ece/brier, not a \u0394). NO bind/re-run controls this cycle (-> UAP-4-opt; the existing Run-evaluation card renders the verdict-change once a positive \u0394 exists).",
+        "D3 S-BS-49 WIN-ATTEMPT (the optimizer-quality core; GRADED + SPLITTABLE per D-E) lithrim_bench/runtime/council/judge_optimize.py (additive): coverage-aware demo selection -- admit >=1 positive exemplar (not only the already-perfect silent cases) + the LEAD lever CORPUS-WIDENING -- more positives-per-code via an additive lint-GREEN append to examples/judge_calib_v1.jsonl (scripts/generate_judge_calib.py; D-H names the reach + the S-BS-46 cohort cap, logged-not-padded; NEVER edit/relabel existing rows). Measure the held-out \u0394 (cost-gated). GRADED: lifts the \u0394 -> ship it (the live loop shows a real WIN; bind-to-apply is UAP-4-opt); else HALT-TO-SURFACE (the honest-loss loop ships; S-BS-49 stays open with the measured result). NEVER loosen the accept-gate. FROZEN: do NOT touch judge_metric.py (make_judge_metric/LENS_BY_ROLE) -- additive in judge_optimize.py.",
+        "D4 TESTS tests/test_uap4_*.py: (a) /optimize returns the \u0394 shape (offline/$0, mocked run_optimize); (b) the coverage-aware demo selection picks a positive exemplar when one exists (offline, on the corpus); (c) the widened corpus is admissible (the lint passes; positives-per-code increased); (d) frozen seam 0-delta. apps/shell/src/genui/*.test.jsx: the JudgeEditor optimize surface renders the honest \u0394 (win AND loss paths) + the loss path shows the honest note. The live optimize run (D3 measurement + the A-LIVE attestation) is cost-gated user-run, NOT an automated test.",
+        "D5 DOCS docs/specs/SPEC_PRODUCT_SHELL.md \u00a710 ratify POST /v1/judges/{role}/optimize (S-BS-51 lesson) + note the S-BS-49 disposition (improved/halt-to-surfaced + the measured \u0394 + corpus positives-per-code before->after) + the A-LIVE attestation result. REGISTER the UAP-4-opt stub (the bind/re-run round-trip: JudgeConfig.compiled_demos + the bind endpoint + the authored_stage demo-load + bind->re-run->verdict-change; gated on a positive \u0394; S-BS-48) in index.json + TASK_PACK. + .devloop/sessions/session-bench-salvage-phaseUAP-4-2026-06-05.json."
       ],
       "acceptance": [
-        "A1 the live optimize->honest-Δ loop in the UI (Decision R2/R4): inside JudgeEditor, optimize (cost-gated, in-DOM modal) -> the held-out Δ renders (win-or-loss) in the NET-NEW Δ render. The 'edit -> did the number move?' loop is reachable + one continuous surface. (No bind/re-run this cycle -> UAP-4-opt.)",
-        "A2 HONEST Δ (load-bearing, Decision R1): the UI surfaces the MEASURED held-out Δ truthfully -- a negative/zero Δ renders as a LOSS, NOT hidden (an honest note). The gate is NEVER loosened (a manufactured win = FAIL). The Δ render is NET-NEW (not the calibration_chart reliability diagram).",
-        "A3 S-BS-49 WIN-ATTEMPT (GRADED, name the outcome honestly): coverage-aware demo selection + corpus-widening attempted + measured (cost-gated); PASS-improved = the Δ lifts -> ship it (the live loop shows a real WIN; bind-to-apply is UAP-4-opt); PASS-honest/HALT-TO-SURFACE = no lift -> the honest-loss loop ships, S-BS-49 stays open with the measured result. (Or D3 split -> UAP-4-opt per D-E.)",
+        "A1 the live optimize->honest-\u0394 loop in the UI (Decision R2/R4): inside JudgeEditor, optimize (cost-gated, in-DOM modal) -> the held-out \u0394 renders (win-or-loss) in the NET-NEW \u0394 render. The 'edit -> did the number move?' loop is reachable + one continuous surface. (No bind/re-run this cycle -> UAP-4-opt.)",
+        "A2 HONEST \u0394 (load-bearing, Decision R1): the UI surfaces the MEASURED held-out \u0394 truthfully -- a negative/zero \u0394 renders as a LOSS, NOT hidden (an honest note). The gate is NEVER loosened (a manufactured win = FAIL). The \u0394 render is NET-NEW (not the calibration_chart reliability diagram).",
+        "A3 S-BS-49 WIN-ATTEMPT (GRADED, name the outcome honestly): coverage-aware demo selection + corpus-widening attempted + measured (cost-gated); PASS-improved = the \u0394 lifts -> ship it (the live loop shows a real WIN; bind-to-apply is UAP-4-opt); PASS-honest/HALT-TO-SURFACE = no lift -> the honest-loss loop ships, S-BS-49 stays open with the measured result. (Or D3 split -> UAP-4-opt per D-E.)",
         "A4 frozen seam 0-delta: git diff over _apply_consensus + judges_dspy.py + judge_metric.py + authored_stage.py + committed seeds == 0 lines (all optimizer work is in judge_optimize.py + an additive corpus append; the round-trip that would touch authored_stage/judges.py is DEFERRED -> UAP-4-opt).",
         "A5 green bar: ruff-clean changed files; default + debuglithrim + council + BFF + Vitest re-run; default-deps import-clean; pathspec-only; any paid run cost-confirmed; the widened corpus passes the admissibility lint.",
-        "A-LIVE (BLOCKING, USER-RUN, Decision R3 -- NOT OWED-deferred like prior cycles): the live :5180 end-to-end attestation -- with the BFF up + in-process Azure, the user drives the optimize->honest-Δ loop from the browser. The executor delivers it FULLY DRIVEABLE (in-DOM modal so automation/Chrome-MCP can drive it per browser-mcp-confirm-blocks-renderer); the monitor schedules the user-run attestation at close. Record the attested path + the real Δ + which path fired (a WIN if D3 lifted, else the honest-loss; both are successful deliveries)."
+        "A-LIVE (BLOCKING, USER-RUN, Decision R3 -- NOT OWED-deferred like prior cycles): the live :5180 end-to-end attestation -- with the BFF up + in-process Azure, the user drives the optimize->honest-\u0394 loop from the browser. The executor delivers it FULLY DRIVEABLE (in-DOM modal so automation/Chrome-MCP can drive it per browser-mcp-confirm-blocks-renderer); the monitor schedules the user-run attestation at close. Record the attested path + the real \u0394 + which path fired (a WIN if D3 lifted, else the honest-loss; both are successful deliveries)."
       ],
       "diagnostic_stats_reported": [
-        "the actual held-out Δ (precision/recall/graded before->after) -- illustrative; the loop-closure is a MEASURED Δ (win-or-not), NOT a positive number",
+        "the actual held-out \u0394 (precision/recall/graded before->after) -- illustrative; the loop-closure is a MEASURED \u0394 (win-or-not), NOT a positive number",
         "the optimize cost actually spent -- reported; the gate is cost-confirmed not a number"
       ],
       "scope_guardrails_not_in_scope": [
-        "The bind/re-run ROUND-TRIP backend -> UAP-4-opt (the R2 right-size after the live look): JudgeConfig.compiled_demos (harness/judges.py), the positive-Δ-gated bind endpoint, the authored_stage.py demo-load (bind_compiled_demos move), and bind->re-run->verdict-change. Gated on a positive Δ; the Run-evaluation card already renders the verdict so it is cheap later. Do NOT build it this cycle (it can't be demonstrated live + would be speculative).",
+        "The bind/re-run ROUND-TRIP backend -> UAP-4-opt (the R2 right-size after the live look): JudgeConfig.compiled_demos (harness/judges.py), the positive-\u0394-gated bind endpoint, the authored_stage.py demo-load (bind_compiled_demos move), and bind->re-run->verdict-change. Gated on a positive \u0394; the Run-evaluation card already renders the verdict so it is cheap later. Do NOT build it this cycle (it can't be demonstrated live + would be speculative).",
         "The floor/KB ship (Stage 3, gated S-BS-13/16/41) -- separate; clinical_v1 stays floor-less.",
         "The conversational shell / chat / SSE (R11) -> UAP-5b.",
         "The broader calibration-trainer multi-lever (SPEC_CALIBRATION_TRAINER M2 add-a-floor / M4 NL->contract) -- UAP-4 is the JUDGE-optimize lever (R5).",
@@ -1300,25 +1327,25 @@
         "Drive-by formatting / dep bumps."
       ],
       "plan_review_decisions": [
-        "RESOLVED 2026-06-05 (a LIVE :5180 reassessment the user requested, then AskUserQuestion -- build to these, do NOT re-litigate): R1 HONEST-Δ win-or-loss (a loss renders AS a loss; the experience does not depend on a win) / R2 RIGHT-SIZED -- ship optimize->honest-Δ; the bind/re-run ROUND-TRIP backend is SPLIT -> UAP-4-opt (it can't be shown live until optimize wins + the re-run surface already exists; do NOT build JudgeConfig.compiled_demos / the bind endpoint / the authored_stage demo-load this cycle) / R3 the live :5180 attestation is a BLOCKING in-cycle USER-RUN gate (A-LIVE, NOT OWED-deferred) / R4 optimize EMBEDS in JudgeEditor (one continuous surface) / D3 IS IN (attempt the S-BS-49 win, led by corpus-widening). [The live look found: the re-run surface already exists; calibration_chart is a reliability diagram not a Δ; optimize's Δ is negative today -> the round-trip can't fire live -> SPLIT. Supersedes the v2 full-round-trip cut.]",
+        "RESOLVED 2026-06-05 (a LIVE :5180 reassessment the user requested, then AskUserQuestion -- build to these, do NOT re-litigate): R1 HONEST-\u0394 win-or-loss (a loss renders AS a loss; the experience does not depend on a win) / R2 RIGHT-SIZED -- ship optimize->honest-\u0394; the bind/re-run ROUND-TRIP backend is SPLIT -> UAP-4-opt (it can't be shown live until optimize wins + the re-run surface already exists; do NOT build JudgeConfig.compiled_demos / the bind endpoint / the authored_stage demo-load this cycle) / R3 the live :5180 attestation is a BLOCKING in-cycle USER-RUN gate (A-LIVE, NOT OWED-deferred) / R4 optimize EMBEDS in JudgeEditor (one continuous surface) / D3 IS IN (attempt the S-BS-49 win, led by corpus-widening). [The live look found: the re-run surface already exists; calibration_chart is a reliability diagram not a \u0394; optimize's \u0394 is negative today -> the round-trip can't fire live -> SPLIT. Supersedes the v2 full-round-trip cut.]",
         "D-B cost posture: run_optimize is PAID (baseline + 2 held-out evals + the bootstrap compile; ~$0.26/run per DSPy-3b). The A-LIVE attestation adds >=1 live optimize run; D3's measurement adds >=1 per re-measurement. Name the envelope (<= a few runs; cost-confirm each, in-DOM modal S-BS-69); the offline/$0 default = a mocked-run_optimize test path. HALT-AND-ASK before any paid run.",
-        "D-C §10 ratify POST /v1/judges/{role}/optimize (don't grow the BFF surface unratified -- the S-BS-51 lesson).",
-        "D-G the Δ-render form: inline in JudgeEditor (simplest, one surface) vs a new tool-optimize_delta gen-UI part in registry.js (the gen-UI convention). Monitor lean: inline (smallest; avoids a new registered tool). Either way it is NET-NEW, explicitly not calibration_chart.",
+        "D-C \u00a710 ratify POST /v1/judges/{role}/optimize (don't grow the BFF surface unratified -- the S-BS-51 lesson).",
+        "D-G the \u0394-render form: inline in JudgeEditor (simplest, one surface) vs a new tool-optimize_delta gen-UI part in registry.js (the gen-UI convention). Monitor lean: inline (smallest; avoids a new registered tool). Either way it is NET-NEW, explicitly not calibration_chart.",
         "D-H the corpus-widening reach: how many positives-per-code can be added admissibly given the S-BS-46 Synthea cohort cap (a larger cohort? a value-mismatch-rich base set?). Log shortfalls; never pad/relabel. Name the codes you can lift vs. the ones that stay under-sampled.",
-        "D-E SPLIT D3: if the S-BS-49 fix is still too uncertain/large after corpus-widening, split it too -> UAP-4-opt and ship UAP-4 = the honest-Δ surface (D1/D2). The honest-Δ surface is irreducible."
+        "D-E SPLIT D3: if the S-BS-49 fix is still too uncertain/large after corpus-widening, split it too -> UAP-4-opt and ship UAP-4 = the honest-\u0394 surface (D1/D2). The honest-\u0394 surface is irreducible."
       ],
       "hardness": "HARD-GATE (R5, the calibration trainer); fresh-critic required at close.",
-      "hardness_reason": "'optimize' is a PAID, labels-true-by-construction claim on a real judge -- the held-out Δ must be HONEST (a manufactured win = FAIL; the gate is never loosened -- the run_optimize contract + the WS-6c-DSPy-3b negative-Δ precedent); the S-BS-49 win-attempt touches the optimizer adjacent to the frozen judge_metric/seam (A4 byte-0-delta load-bearing) AND widens the by-construction corpus (the CLAUDE.md 'labels true by construction' invariant -- admissibility lint is load-bearing); the BFF surface grows §10; and the live :5180 attestation is now a BLOCKING in-cycle gate. Live optimize runs are cost-gated.",
-      "next_action": "Driver v3 RIGHT-SIZED 2026-06-05 (bench-salvage_phaseUAP-4_optimize-calibration-loop_driver.md, status ready; a live :5180 reassessment the user requested found the v2 full-round-trip was over-engineering ahead of an unfireable path -> ship optimize->honest-Δ + attempt D3, SPLIT the round-trip -> UAP-4-opt). Run /devloop-kickoff bench-salvage UAP-4; fresh executor session ROOTED IN lithrim-bench. RESOLVED (build to them): R1 honest-Δ win-or-loss / R2 RIGHT-SIZED (do NOT build the round-trip backend) / R3 the live :5180 attestation is BLOCKING in-cycle USER-RUN / R4 embed in JudgeEditor / D3 IN (lead: corpus-widening). Plan-review resolves D-B/D-C/D-G/D-H/D-E before 'go'. Do NOT manufacture an optimize win; do NOT build the round-trip backend. Pathspec-only commits (shared branch)."
+      "hardness_reason": "'optimize' is a PAID, labels-true-by-construction claim on a real judge -- the held-out \u0394 must be HONEST (a manufactured win = FAIL; the gate is never loosened -- the run_optimize contract + the WS-6c-DSPy-3b negative-\u0394 precedent); the S-BS-49 win-attempt touches the optimizer adjacent to the frozen judge_metric/seam (A4 byte-0-delta load-bearing) AND widens the by-construction corpus (the CLAUDE.md 'labels true by construction' invariant -- admissibility lint is load-bearing); the BFF surface grows \u00a710; and the live :5180 attestation is now a BLOCKING in-cycle gate. Live optimize runs are cost-gated.",
+      "next_action": "Driver v3 RIGHT-SIZED 2026-06-05 (bench-salvage_phaseUAP-4_optimize-calibration-loop_driver.md, status ready; a live :5180 reassessment the user requested found the v2 full-round-trip was over-engineering ahead of an unfireable path -> ship optimize->honest-\u0394 + attempt D3, SPLIT the round-trip -> UAP-4-opt). Run /devloop-kickoff bench-salvage UAP-4; fresh executor session ROOTED IN lithrim-bench. RESOLVED (build to them): R1 honest-\u0394 win-or-loss / R2 RIGHT-SIZED (do NOT build the round-trip backend) / R3 the live :5180 attestation is BLOCKING in-cycle USER-RUN / R4 embed in JudgeEditor / D3 IN (lead: corpus-widening). Plan-review resolves D-B/D-C/D-G/D-H/D-E before 'go'. Do NOT manufacture an optimize win; do NOT build the round-trip backend. Pathspec-only commits (shared branch)."
     },
     {
       "id": "UAP-4-opt",
       "phase": "UAP-4-opt",
-      "title": "UAP-4-opt -- the optimize bind->re-run round-trip (SPLIT from UAP-4 R2 right-size): JudgeConfig.compiled_demos + a positive-Δ-gated bind endpoint + the authored_stage demo-load + bind->re-run->verdict-CHANGE in the existing Run card (the visceral S-BS-70 finale). GATED ON A POSITIVE held-out Δ -- today the Δ is a loss (S-BS-49).",
+      "title": "UAP-4-opt -- the optimize bind->re-run round-trip (SPLIT from UAP-4 R2 right-size): JudgeConfig.compiled_demos + a positive-\u0394-gated bind endpoint + the authored_stage demo-load + bind->re-run->verdict-CHANGE in the existing Run card (the visceral S-BS-70 finale). GATED ON A POSITIVE held-out \u0394 -- today the \u0394 is a loss (S-BS-49).",
       "status": "stub",
       "blocked_by": [
         "UAP-4",
-        "a positive held-out Δ from /optimize (S-BS-49/S-BS-48)"
+        "a positive held-out \u0394 from /optimize (S-BS-49/S-BS-48)"
       ],
       "priority": "P2",
       "target": "executor",
@@ -1326,7 +1353,7 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseUAP-4-opt-bind-rerun-roundtrip-driver",
-      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-4 shipped the demonstrable-live optimize->honest-Δ loop; UAP-4-opt is the deferred bind/re-run backend, cheap to add once optimize WINS (the Run surface already renders the verdict). Completes S-BS-70's visceral live finale. RE-OPENS the FROZEN authored_stage/judges_dspy set deliberately -- HARD-GATE, fresh-critic."
+      "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-4 shipped the demonstrable-live optimize->honest-\u0394 loop; UAP-4-opt is the deferred bind/re-run backend, cheap to add once optimize WINS (the Run surface already renders the verdict). Completes S-BS-70's visceral live finale. RE-OPENS the FROZEN authored_stage/judges_dspy set deliberately -- HARD-GATE, fresh-critic."
     },
     {
       "id": "UAP-5a",
@@ -1336,15 +1363,40 @@
       "blocked_by": [],
       "priority": "P0",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-5a-authoring-loop-driver",
       "milestone": "UAP-1..5 = the LOCKED unified authoring+processing product. UAP-1 (R0/R1/R3) + UAP-2 (R2) + UAP-3 (R4/R6) DONE. UAP-5a (this; RE-CUT 2026-06-04 = the deterministic in-UI authoring loop, pulled forward per user) -> UAP-5a-assist (R10 LLM describe->card) -> UAP-3b (signals + withstands-gate, the moat, section 2A) -> UAP-4 (optimize, R5; gated S-BS-49) -> UAP-5b (R11 conversational shell, the capstone).",
       "origin": "Authored 2026-06-04 from the LOCKED SPEC section 2A/2B/4/13 + the UAP-3 close + the A8-smoke findings S-BS-62/66; the R10-split + construct-live-flip-case scope decided by the user; pack backfilled per memory devloop-task-pack-stale-uap-from-spec.",
       "regrepped_2026_06_04": "JudgeEditor.jsx + registry.js:30 (tool-judge_editor REGISTERED, NOT mounted = S-BS-62); panes.jsx:162-163/:172 (mount pattern); bff.js:79-89 (getJudges/getJudge/putJudge); stages.py:564-600 _judge_votes_from_models + :739/745/747/837-839 (injected-branch _model_lookup={} = the S-BS-66 fix site); lithrim_bench/injectors/ (NO wrong_dosage injector); tests/test_uap3_grade.py (flip-via-injected-predictors $0 pattern).",
-      "deliverables": ["D1 (S-BS-62) apps/shell/src/panes.jsx: mount tool-judge_editor in CenterPane (mirror agent_editor/run_panel) -> the $0 assignment->prompt->questions preview reachable in-UI.", "D2 (S-BS-66, A3-0-delta) stages.py injected branch: populate _model_lookup from the trio seam dicts + carry role/decision/findings(/reason) so the authored in_process per-judge audit (council.votes + /v1/runs/{id}/audit) is legible. NEVER touch _apply_consensus/seam-dict/seeds.", "D3 (A4 the visceral finale) lithrim_bench/injectors/ + a NEW demo case + NEW agent (additive): a by-construction case the REAL in_process trio approves unassigned + flips to reject when a flag is authored to its owner (base lens misses, assigned lens catches); verified on the real trio (cost-gated) + reproduced offline/$0 via injected predictors.", "D4 tests: Vitest (JudgeEditor mounts in CenterPane + the $0 preview) + tests/test_uap5a_*.py (S-BS-66 non-empty projection regression; the flip offline; A3 frozen-set wc -l=0).", "D5 docs: note S-BS-62/66 closed + the demo agent/case (no SHELL section 10 surface change expected -- reuses /v1/judges + /v1/run-eval)."],
-      "acceptance": ["A1 JudgeEditor mounted (S-BS-62): renders in CenterPane + the $0 preview works in-UI (no model call); Vitest green; the :5180 smoke is the A8-class gate (user-run).", "A2 legible authored audit (S-BS-66): a live in_process authored run's votes carry NON-EMPTY role/decision/model/findings (Mistral None confidence still tolerated).", "A3 frozen seam: git diff over compliance_council + judges_dspy + judge_metric + committed seeds = 0 lines.", "A4 live flip: the demo case grades non-reject unassigned + reject when the flag is authored, on the REAL in_process trio (cost-confirmed) AND reproduced offline/$0 via injected predictors.", "A5 green bar: ruff + default + debuglithrim + council + BFF + Vitest; default-deps import-clean; pathspec-only commits."],
-      "scope_guardrails_not_in_scope": ["R10 author-assist / any LLM-in-the-loop / the zyng provider -> UAP-5a-assist (the split-out fast-follow). UAP-5a is deterministic + LLM-free.", "R11 conversational shell / full chat / agent loop / SSE -> UAP-5b (a CmdK entry point to the JudgeEditor is the most that may be in scope).", "withstands-gate / signals / GroundingCheck orchestration -> UAP-3b (the moat).", "optimize/calibration-in-UI -> UAP-4 (S-BS-49). Re-snapshot owner_roles -> S-BS-59.", "FROZEN: _apply_consensus + the per-judge seam dict + committed seeds (clinical_v1, ws0_default agent, council_roles); D3 adds a NEW agent additively, never mutates the seed."],
-      "plan_review_decisions": ["1 D2 fix mechanism: how role/decision/model/findings/reason flow on the injected branch (populate _model_lookup + read off the seam dict; reason synthesized-from-findings vs empty); confirm A3-0-delta.", "2 D3 flip-case: which flag + injector; how base-misses-but-assigned-catches is ensured (the by-construction near-miss); the additive demo agent/case files.", "3 D3 cost posture: the in_process verification-run envelope (cost-confirm each paid run; offline/$0 is the structural default).", "4 D1 scope: CenterPane mount only vs also a CmdK entry (full chat = UAP-5b)."],
+      "deliverables": [
+        "D1 (S-BS-62) apps/shell/src/panes.jsx: mount tool-judge_editor in CenterPane (mirror agent_editor/run_panel) -> the $0 assignment->prompt->questions preview reachable in-UI.",
+        "D2 (S-BS-66, A3-0-delta) stages.py injected branch: populate _model_lookup from the trio seam dicts + carry role/decision/findings(/reason) so the authored in_process per-judge audit (council.votes + /v1/runs/{id}/audit) is legible. NEVER touch _apply_consensus/seam-dict/seeds.",
+        "D3 (A4 the visceral finale) lithrim_bench/injectors/ + a NEW demo case + NEW agent (additive): a by-construction case the REAL in_process trio approves unassigned + flips to reject when a flag is authored to its owner (base lens misses, assigned lens catches); verified on the real trio (cost-gated) + reproduced offline/$0 via injected predictors.",
+        "D4 tests: Vitest (JudgeEditor mounts in CenterPane + the $0 preview) + tests/test_uap5a_*.py (S-BS-66 non-empty projection regression; the flip offline; A3 frozen-set wc -l=0).",
+        "D5 docs: note S-BS-62/66 closed + the demo agent/case (no SHELL section 10 surface change expected -- reuses /v1/judges + /v1/run-eval)."
+      ],
+      "acceptance": [
+        "A1 JudgeEditor mounted (S-BS-62): renders in CenterPane + the $0 preview works in-UI (no model call); Vitest green; the :5180 smoke is the A8-class gate (user-run).",
+        "A2 legible authored audit (S-BS-66): a live in_process authored run's votes carry NON-EMPTY role/decision/model/findings (Mistral None confidence still tolerated).",
+        "A3 frozen seam: git diff over compliance_council + judges_dspy + judge_metric + committed seeds = 0 lines.",
+        "A4 live flip: the demo case grades non-reject unassigned + reject when the flag is authored, on the REAL in_process trio (cost-confirmed) AND reproduced offline/$0 via injected predictors.",
+        "A5 green bar: ruff + default + debuglithrim + council + BFF + Vitest; default-deps import-clean; pathspec-only commits."
+      ],
+      "scope_guardrails_not_in_scope": [
+        "R10 author-assist / any LLM-in-the-loop / the zyng provider -> UAP-5a-assist (the split-out fast-follow). UAP-5a is deterministic + LLM-free.",
+        "R11 conversational shell / full chat / agent loop / SSE -> UAP-5b (a CmdK entry point to the JudgeEditor is the most that may be in scope).",
+        "withstands-gate / signals / GroundingCheck orchestration -> UAP-3b (the moat).",
+        "optimize/calibration-in-UI -> UAP-4 (S-BS-49). Re-snapshot owner_roles -> S-BS-59.",
+        "FROZEN: _apply_consensus + the per-judge seam dict + committed seeds (clinical_v1, ws0_default agent, council_roles); D3 adds a NEW agent additively, never mutates the seed."
+      ],
+      "plan_review_decisions": [
+        "1 D2 fix mechanism: how role/decision/model/findings/reason flow on the injected branch (populate _model_lookup + read off the seam dict; reason synthesized-from-findings vs empty); confirm A3-0-delta.",
+        "2 D3 flip-case: which flag + injector; how base-misses-but-assigned-catches is ensured (the by-construction near-miss); the additive demo agent/case files.",
+        "3 D3 cost posture: the in_process verification-run envelope (cost-confirm each paid run; offline/$0 is the structural default).",
+        "4 D1 scope: CenterPane mount only vs also a CmdK entry (full chat = UAP-5b)."
+      ],
       "hardness": "HARD-GATE; fresh-critic the default at close (/devloop-critique bench-salvage UAP-5a).",
       "hardness_reason": "D2 edits the orchestrator mapping ADJACENT to the frozen consensus seam (A3 byte-0-delta load-bearing); D3 constructs a calibration-sensitive by-construction case that must flip on the REAL paid trio (a labels-true-by-construction claim per CLAUDE.md); release-critical demonstrability loop; live in_process runs cost-gated.",
       "next_action": "Driver authored 2026-06-04 (bench-salvage_phaseUAP-5a_authoring-loop_driver.md, status ready). Run /devloop-kickoff bench-salvage UAP-5a; fresh executor session ROOTED IN lithrim-bench. Plan-review resolves the 4 decisions before 'go'. Pathspec-only commits (shared branch bench-salvage/ws6c-dspy; never bare-commit)."
@@ -1354,10 +1406,14 @@
       "phase": "UAP-5a-assist",
       "title": "UAP-5a-assist -- authoring-assist (R10): NL describe -> a forced-tool emit() schema-valid draft (vendored LLMClient a la zyng) -> the EXISTING gen-UI card -> the audited PUT. SPLIT OUT of UAP-5a 2026-06-04; the LLM-in-the-loop fast-follow after the deterministic authoring-loop core.",
       "status": "stub",
-      "blocked_by": ["UAP-5a"],
+      "blocked_by": [
+        "UAP-5a"
+      ],
       "priority": "P1",
       "target": "monitor (expand) then executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-5a-authoring-assist-driver",
       "milestone": "R10 Tier-1 of the conversational surface (SPEC section 13); rides on the mounted JudgeEditor (UAP-5a) + the audited PUT path; before UAP-5b (R11 the capstone).",
       "origin": "SPLIT OUT of UAP-5a 2026-06-04 (user) so the deterministic authoring-loop core ships LLM-free first; this is the fast-follow.",
@@ -1372,7 +1428,9 @@
       "blocked_by": [],
       "priority": "P1",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-5b-conversational-shell-driver",
       "milestone": "R11 Tier-2 of the conversational surface (SPEC section 13) -- the capstone, after UAP-3b/UAP-4 (the full tool surface the loop drives now exists). The conversation IS the audit log (R0).",
       "origin": "Monitor expanded 2026-06-05 from the LOCKED SPEC section13/R11 + the index stub + 3 decisions RESOLVED with the user (OQ-6 = Python-Agent-SDK-in-BFF / SCOPE = spine + 2-3 core tools, full journey -> UAP-5c / PROVIDER = BYO local-CLI, paid confirm-gated). Right-sized per the UAP-4 anti-over-engineering lesson.",
@@ -1426,15 +1484,19 @@
       "title": "UAP-5c -- the FULL Domain->Judge->Flag->Run->Review-from-scratch conversational journey over the complete tool set (the UAP-5b D-F split; the A-LIVE 'complete the whole journey by talking' TARGET).",
       "status": "done",
       "closed": "2026-06-05 PROCEED-WITH-CAVEATS (a4e313d..9227b87, parent 9cac025; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic ac63797ec49ec01ac NON-BLOCKING [0/1/1]). 3 journey tools (get_agent/author_flag/review_runs) grown over the spine; S-BS-82 + S-BS-81 CLOSED; A-SAFE cleanest-possible (D-F split -> no agent-reachable paid op); opened S-BS-83 (author_flag EDIT-ONLY). OWED: the A-LIVE :5180 user-run. SPLIT -> UAP-5c-2 (assemble_agent + eval-pack batch).",
-      "blocked_by": ["UAP-5b"],
+      "blocked_by": [
+        "UAP-5b"
+      ],
       "priority": "P2",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-5c-full-journey-from-scratch-driver",
       "milestone": "Grows the UAP-5b loop SPINE (POST /v1/chat SSE + the 3-tool CORE author_judge/get_judge/run_eval-replay + the parts-adapter + the in-DOM CostModal) to the full multi-turn journey from a blank agent: wrap the remaining EXISTING audited ops as in-process SDK-MCP tools (author_flag/put_ontology, assemble-agent, eval-pack batch, run-history/audit reads), each adapted to the existing gen-UI cards.",
       "origin": "Stub authored 2026-06-05 by the UAP-5b executor at close (the pre-authorized D-F SPLIT, deferred-not-dropped). A-SAFE invariants HOLD: the agent proposes a paid run, only the human's in-DOM CostModal confirms; no relabel, no author-gate bypass, every write audited. Each added tool grows the journey cheaply (the spine is proven).",
       "hardness": "HARD-GATE; fresh-critic required at close.",
-      "prompt_bundle_status": "ready (expanded 2026-06-05 by /devloop-expand-driver; deliverables/acceptance/scope backfilled from the LOCKED SPEC §13/R11 + the UAP-5b close-out per the devloop-task-pack-stale-uap-from-spec practice).",
+      "prompt_bundle_status": "ready (expanded 2026-06-05 by /devloop-expand-driver; deliverables/acceptance/scope backfilled from the LOCKED SPEC \u00a713/R11 + the UAP-5b close-out per the devloop-task-pack-stale-uap-from-spec practice).",
       "regrepped_2026_06_05": "apps/bff/agent/tools.py:130-154 _TOOL_SPECS (3 CORE author_judge/get_judge/run_eval) + RUN_EVAL_SCHEMA:40 + PAID_KEYS:43; loop.py:49 allowed=[mcp__lithrim__<name>] + :53 permission_mode=bypassPermissions + :28-36 _SYSTEM_PROMPT + :55 max_turns=8; adapter.py:22-59 judge_part/verdict_part (NB-3 best-effort). app.py:911-959 _build_tool_context + :942-943 _get_judge [S-BS-82 CONFIRMED: omits assigned_flags -> inherits get_judge_endpoint:559 Query(None) FieldInfo -> :581 .split crash live; _author_judge/_run_eval_replay avoid it by passing params explicitly] + :962 POST /v1/chat. FROZEN endpoints the NEW tools wrap (all present): put_ontology_endpoint:714 / put_agent_endpoint:420 / get_agent_endpoint:410 / eval_pack_run_endpoint:375 (EvalPackRunRequest.live:372 = a paid knob) / list_runs_endpoint:821 / get_run_audit_endpoint:834 / get_audit_endpoint:758. registry.js:23-33 KNOWN_TOOLS (9 cards -- every card the new tools need ALREADY exists: flag_editor/agent_editor/audit_log/run_panel -> NO new card types). 0 DRIFTED, 0 MISSING.",
       "deliverables": [
         "D1 (do FIRST) FIX S-BS-82 the live get_judge break: bind _get_judge (app.py:943) with assigned_flags=None so it does not inherit the Query(None) FieldInfo sentinel (get_judge_endpoint:559) -> the :581 .split crash; KEEP get_judge_endpoint byte-identical (the fix is the WRAPPER, the op stays FROZEN -> A6 0-delta); GENERALIZE -- every binding closure + every new wrapper passes all Query/Header params explicitly when calling an endpoint as a plain function; ADD the regression test the offline 8/8 missed (the bound get_judge returns a summary, not an exception).",
@@ -1443,7 +1505,7 @@
         "D4 parts-adapter extension (adapter.py): a part-builder for each new tool-result -> an EXISTING KNOWN_TOOLS card (NO new types) -- author_flag->tool-flag_editor, get_agent/assemble_agent->tool-agent_editor, review_runs->tool-audit_log/tool-run_panel; flat-spread output (S-BS-19). Optional NB-3: harden verdict_part:31-59 so agreement/confidence don't default to '--' when the replay record carries votes.",
         "D5 grow the agent loop (loop.py): extend _SYSTEM_PROMPT:28-36 to name the new tools + the Domain->Judge->Flag->Run->Review order + the paid-is-the-human's invariant; consider max_turns:55 (bump ONLY if the A-LIVE attestation shows truncation -- a diagnostic, not a gate). D-E/NB-2: thread an optional model into author_judge (today model='' is hardcoded app.py:932 so a conversationally-authored judge is model-unbound) or stay unbound + flag forward.",
         "D6 tests (offline/$0 via the stub source): extend tests/test_uap5b_chat.py (or a new test_uap5c_journey.py) -- drive the full journey get_agent->author_flag->author_judge->run_eval(replay)->review_runs asserting (a) each config-writing tool -> an audited record at GET /v1/audit, (b) each parts-adapter shape resolves to a real KNOWN_TOOLS card, (c) S-BS-81 allowlist bound, (d) S-BS-82 regression, (e) A-SAFE no paid knob in ANY schema + no built-in tool + eval-pack live hardcoded False, (f) import-isolation. Vitest: the chat pane renders the new tool-parts. The A-LIVE full-journey slice is a cost-gated USER-RUN, NOT an automated test.",
-        "D7 docs + A-LIVE: SPEC_PRODUCT_SHELL §10 + SPEC_UNIFIED_AUTHORING_PRODUCT §13 note the GROWN tool set under POST /v1/chat (the S-BS-51 ratify-don't-grow discipline); mark S-BS-82 + S-BS-81 CLOSED at close-out; session log. A-LIVE (BLOCKING, USER-RUN): the full from-scratch journey on :5180, built fully driveable (in-DOM modal, Chrome-MCP-driveable)."
+        "D7 docs + A-LIVE: SPEC_PRODUCT_SHELL \u00a710 + SPEC_UNIFIED_AUTHORING_PRODUCT \u00a713 note the GROWN tool set under POST /v1/chat (the S-BS-51 ratify-don't-grow discipline); mark S-BS-82 + S-BS-81 CLOSED at close-out; session log. A-LIVE (BLOCKING, USER-RUN): the full from-scratch journey on :5180, built fully driveable (in-DOM modal, Chrome-MCP-driveable)."
       ],
       "acceptance": [
         "A1 the FULL journey works end-to-end: talk in the shell -> SSE -> the agent drives Domain->Flag->Judge->Run->Review, each step rendering its EXISTING gen-UI card inline in CenterPane (the :5180 smoke is A-LIVE, user-run).",
@@ -1475,11 +1537,15 @@
       "phase": "UAP-5c-2",
       "title": "UAP-5c-2 -- complete the tool set (the UAP-5c D-F split): run_eval_pack [the eval-pack BATCH, replay/$0, live hardcoded False] + assemble_agent [the Domain-assembly WRITE, EDIT-ONE-FACET].",
       "status": "done",
-      "closed": "2026-06-05 PROCEED-WITH-CAVEATS (3578905..1ff7ea8, parent b2a8c92; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic af82bf4b57ab6c3af NON-BLOCKING [0/2/1]). Both split tools shipped → the complete 8-tool surface; run_eval_pack hardcodes live=False (critic-verified NON-VACUOUS); assemble_agent edit-one-facet + audited; A-SAFE re-proven safe-by-explicit-bound; A6 byte-frozen. Opened S-BS-84 (low, roster-remove no revalidation) + NB-1. OWED: the UAP-5c-2 A-LIVE :5180 user-run.",
-      "blocked_by": ["UAP-5c"],
+      "closed": "2026-06-05 PROCEED-WITH-CAVEATS (3578905..1ff7ea8, parent b2a8c92; monitor 7-item audit CLEAN + HARD-GATE genuinely-fresh-critic af82bf4b57ab6c3af NON-BLOCKING [0/2/1]). Both split tools shipped \u2192 the complete 8-tool surface; run_eval_pack hardcodes live=False (critic-verified NON-VACUOUS); assemble_agent edit-one-facet + audited; A-SAFE re-proven safe-by-explicit-bound; A6 byte-frozen. Opened S-BS-84 (low, roster-remove no revalidation) + NB-1. OWED: the UAP-5c-2 A-LIVE :5180 user-run.",
+      "blocked_by": [
+        "UAP-5c"
+      ],
       "priority": "P2",
       "target": "executor",
-      "repos": ["lithrim-bench"],
+      "repos": [
+        "lithrim-bench"
+      ],
       "prompt_bundle": "bench-salvage-phaseUAP-5c-2-complete-tool-set-driver",
       "milestone": "Finishes the conversational tool set: the eval-pack batch (run_eval_pack) + an edit-one-facet Agent write (assemble_agent), re-proving A-SAFE as the surface widens to the FIRST agent-reachable paid-capable wrapper + the FIRST agent-reachable Agent WRITE.",
       "origin": "Authored 2026-06-05 by the monitor at UAP-5c close (the pre-authorized D-F split). Right-sized per live-reassess: assemble_agent is EDIT-ONE-FACET (a full Agent dict per config.py agent_to_dict is too much for a conversational tool); run_eval_pack hardcodes live=False (the A-SAFE crux).",
@@ -1490,7 +1556,7 @@
         "D2 assemble_agent (EDIT-ONE-FACET Domain write; D-A picks the facet): ASSEMBLE_AGENT_SCHEMA for ONE facet [monitor candidate = roster add/remove-judge, or ontology_ref bind] + assemble_agent_handler; _build_tool_context._assemble_agent -> get_agent-load the current dict -> apply the single-facet delta -> put_agent_endpoint(agent=merged, rationale, db_path, default_actor, x_actor) [audited; 422 surfaced]. NEVER accept a full agent dict from the model. Pass every Query/Header explicitly (the S-BS-82 rule).",
         "D3 parts-adapter + loop: adapter.py assemble_agent->tool-agent_editor, run_eval_pack->tool-audit_log/run_panel (pure-read Review; NO new card types); loop.py _SYSTEM_PROMPT names the 2 new tools + that run_eval_pack is replay/$0; the allowed list auto-extends from _TOOL_SPECS; max_turns stays 12.",
         "D4 the A-SAFE re-proof + journey tests (offline/$0 via the stub): the allowlist-bounds + no-paid-knob tests now cover 8 tools; THE live=True negative test -- inject live=True/confirm into run_eval_pack args, assert the bound op receives live=False; assemble_agent audited write (GET /v1/audit target_type=agent) + a malformed/unknown facet 422-surfaces (no card, nothing audited); the batch round-trips (run_ids -> review_runs/GET /v1/runs). Vitest: the new parts render via the existing registry.",
-        "D5 docs + A-LIVE: SPEC_PRODUCT_SHELL §10 + SPEC_UNIFIED_AUTHORING_PRODUCT §13 note the 8-tool surface; session log. A-LIVE (BLOCKING, USER-RUN): the batch + agent-edit on :5180 ($0); recommend the OWED UAP-5c A-LIVE be attested FIRST (live catches what offline misses)."
+        "D5 docs + A-LIVE: SPEC_PRODUCT_SHELL \u00a710 + SPEC_UNIFIED_AUTHORING_PRODUCT \u00a713 note the 8-tool surface; session log. A-LIVE (BLOCKING, USER-RUN): the batch + agent-edit on :5180 ($0); recommend the OWED UAP-5c A-LIVE be attested FIRST (live catches what offline misses)."
       ],
       "acceptance": [
         "A1 the journey extends end-to-end: talk -> run_eval_pack batch (the Review card renders the outcomes) + (if in scope) assemble_agent roster edit (the agent_editor card renders). :5180 = A-LIVE.",
@@ -1523,9 +1589,9 @@
         "lithrim-bench"
       ],
       "prompt_bundle": "bench-salvage-phaseONB-0-conversational-memory-driver",
-      "milestone": "ONB / UAP-6 (the onboarding/teaching journey) + de-risk gap #1 (SME-authorable bounded context, PLATFORM_THESIS §4-5). Phase 0 = the memory foundation that unblocks ONB Phases 1-4.",
-      "origin": "SPEC_ONBOARDING_JOURNEY.md §2A/§7/§8/§11 (LOCKED 2026-06-06) + S-BS-87 (CONFIRMED in code, docs/research/REPORT_live_journey_dryrun_2026-06-06.md) + the 2026-06-06 pitch-derisk handoff. Authored from the LOCKED SPEC (no prior stub) per the established UAP pattern (memory devloop-task-pack-stale-uap-from-spec).",
-      "hardness": "HARD-GATE (the /v1/chat request contract + the loop's message-seeding change -> the A-SAFE floor [allowlist-bounds + no-paid-knob + BYO-Claude] re-proven as the surface widens; the genuinely-new no-re-execution/no-re-spend negative; SPEC §7 flags Phase 0 as loop-touching -> fresh-critic the default).",
+      "milestone": "ONB / UAP-6 (the onboarding/teaching journey) + de-risk gap #1 (SME-authorable bounded context, PLATFORM_THESIS \u00a74-5). Phase 0 = the memory foundation that unblocks ONB Phases 1-4.",
+      "origin": "SPEC_ONBOARDING_JOURNEY.md \u00a72A/\u00a77/\u00a78/\u00a711 (LOCKED 2026-06-06) + S-BS-87 (CONFIRMED in code, docs/research/REPORT_live_journey_dryrun_2026-06-06.md) + the 2026-06-06 pitch-derisk handoff. Authored from the LOCKED SPEC (no prior stub) per the established UAP pattern (memory devloop-task-pack-stale-uap-from-spec).",
+      "hardness": "HARD-GATE (the /v1/chat request contract + the loop's message-seeding change -> the A-SAFE floor [allowlist-bounds + no-paid-knob + BYO-Claude] re-proven as the surface widens; the genuinely-new no-re-execution/no-re-spend negative; SPEC \u00a77 flags Phase 0 as loop-touching -> fresh-critic the default).",
       "regrepped_2026_06_06": "ALL CONFIRMED (0 drifted, 0 missing) vs HEAD e8c52e1: app.py ChatRequest:231 {message,agent}, chat_endpoint:1062 -> run_chat(req.message,ctx):1091; loop.py _real_source:71 / client.query:77 / fresh ClaudeSDKClient:76 / run_chat:82 / source Callable:86 / max_turns=12:67 (within one message); bff.js chatStream:122 / body:126; panes.jsx chat:90 [{role,text,parts}] / send:96 / append:101 / chatStream:110-111; tests/test_uap5b_chat.py:184/:198/:220/:253; panes.chat.test.jsx.",
       "deliverables": [
         "D1: ChatRequest gains history: list[ChatTurn]=[] (ChatTurn={role:Literal[user,assistant],content:str}); default empty = back-compat; text-only, NO paid field (app.py:231).",
@@ -1533,7 +1599,7 @@
         "D3 (the core, D-A): loop.run_chat + _real_source accept+replay history into the fresh ClaudeSDKClient WITHOUT re-executing tools/re-spending -- recommended default = a transcript-preamble fold on the query/system-prompt; a native SDK multi-message seed only if VERIFIED no tool re-invocation. source Callable signature widens. SDK stays lazy (A5).",
         "D4: bff.js chatStream({message,agent,actor,history}) puts history in the body; panes.jsx send() snapshots the prior `chat` turns as history=chat.map(m=>({role,content:m.text||''})) before the optimistic append.",
         "D5 (A-SAFE re-proof, $0): history threads to the source; back-compat (no-history still yields the 4 events); THE NO-RE-EXECUTION NEGATIVE (a history mentioning a prior tool-call => zero new audited writes / no paid call); text-only (no paid knob); tool set stays exactly 8; Vitest: 2nd send carries history.",
-        "D6: docs (SPEC_PRODUCT_SHELL §10 /v1/chat contract; mark SPEC_ONBOARDING_JOURNEY Phase 0) + session log. A-LIVE: a >=6-turn :5180 coherence run ($0)."
+        "D6: docs (SPEC_PRODUCT_SHELL \u00a710 /v1/chat contract; mark SPEC_ONBOARDING_JOURNEY Phase 0) + session log. A-LIVE: a >=6-turn :5180 coherence run ($0)."
       ],
       "acceptance": [
         "A1 memory coherence across >=6 turns on :5180 (the S-BS-87 'no config writes this session' failure does NOT recur) [A-LIVE].",
@@ -1589,6 +1655,19 @@
         "FROZEN except build_judge_lm: _apply_consensus + JudgeSignature + judge_metric + seeds + existing BFF ops"
       ],
       "next_action": "READY -- /devloop-kickoff bench-salvage BYOC-1. See the driver for D-A..D-F."
+    },
+    {
+      "id": "PACK-DIST-2",
+      "status": "ready \u2014 driver authored 2026-06-14 (queued; HARD-GATE)",
+      "title": "PACK-DIST-2 \u2014 finish the CE/pack clinical split (D1-D7; subtree-split gated to PACK-DIST-3)",
+      "driver": ".devloop/prompts/bench-salvage_phasePACK-DIST-2_finish-ce-pack-clinical-split_driver.md",
+      "seams": [
+        "S-BS-135",
+        "S-BS-136",
+        "S-BS-137",
+        "S-BS-138",
+        "S-BS-139"
+      ]
     }
   ],
   "seams": [

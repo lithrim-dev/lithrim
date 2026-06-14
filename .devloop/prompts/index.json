@@ -3,6 +3,33 @@
   "updated": "2026-06-14",
   "bundles": [
     {
+      "id": "bench-salvage-phasePACK-DIST-2-finish-ce-pack-clinical-split-driver",
+      "stream": "bench-salvage",
+      "phase": "PACK-DIST-2",
+      "scope": "Finish the CE/pack clinical split (PACK-DIST-1 made the clinical realm physically external; this makes CE genuinely clinical-free on scripts+tests+fixtures + the pack repo self-contained/CI-green). D1 re-point the 3 generic admissibility scripts off gone paths (S-BS-135) \u00b7 D2 lock the canonical invocation + standalone-CE hermeticity (S-BS-138/139) \u00b7 D3 genericize the ws0 house-fixture to a neutral _core fixture behind one chokepoint across ~18 plumbing tests (S-BS-137) \u00b7 D4 move the ~17 clinical scripts into the pack repo \u00b7 D5 relocate the RELOCATED-class clinical tests + shrink the conftest ledger IN LOCKSTEP (S-BS-136) \u00b7 D6 pack-repo CI + Makefile \u00b7 D7 clinical-docs residual triage. The history-preserving subtree split is GATED OUT to PACK-DIST-3.",
+      "file": ".devloop/prompts/bench-salvage_phasePACK-DIST-2_finish-ce-pack-clinical-split_driver.md",
+      "status": "AUTHORED \u2014 driver ready, QUEUED for execution (NOT started). Scoped via the pack-dist-2-scope workflow (wpdecwvhk, ground-truthed against both repos). Order: D1+D2+D3 (no pack-repo dep, parallel) -> D4 (move scripts) -> D5 (move tests + shrink ledger, lockstep, after D3+D4) -> D6 (pack CI, after D4+D5) -> D7 (docs, anytime). The subtree-split is correctly carved to a gated PACK-DIST-3 (rename-replay + the pack's 5 orphan TOOL-2 commits + the moat hash-attestation risk make it archaeology, not load-bearing).",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "Spans TWO repos (lithrim-bench CE <-> ../lithrim-pack-healthcare) and touches the CE/pack discovery boundary + the root conftest demarcation ledger \u2014 the auditable SSOT of the 'CE is genuinely clinical-free' invariant that gates the OSS-core release. Getting it wrong silently grades the wrong pack (active_pack defaults to _core), aborts collection (the latent test_ground_floor1 None-deref), or leaves dead/over-shrunk skip-markers. Sits adjacent to the byte-frozen moat (compliance_council/_apply_consensus/signals withstands vs acc4973) though it must NOT edit it (the optional assert_codes_known hint must avoid the council inline-__import__ carve-out targets). Fresh-critic gate warranted before D5's ledger surgery + D3's fixture authoring; verify in two pytest modes (bare CE + dev-discoverable) + a scrubbed-env hermeticity check.",
+      "target_repos": [
+        "lithrim-bench",
+        "lithrim-pack-healthcare"
+      ],
+      "related_docs": [
+        ".devloop/prompts/bench-salvage_phasePACK-DIST-2_finish-ce-pack-clinical-split_driver.md (THE driver)",
+        "conftest.py (the root demarcation ledger \u2014 the move+shrink must be exact against it)",
+        "lithrim_bench/harness/pack.py (the discovery seam + the moat-safe carve-out boundary)",
+        "tests/fixtures/standalone/case._core_fabricated_claim.jsonl (the proven neutral fixture pattern for D3)",
+        "scope workflow wpdecwvhk (the per-area file lists + risks)",
+        "seams S-BS-135..139"
+      ],
+      "_note": "AUTHORED in a monitor planning session (no inline build). The executor pastes the KICKOFF block into a fresh session, posts plan-review, then implements in gated batches. PACK-DIST-3 (the subtree split) is the deferred follow-on.",
+      "created": "2026-06-14",
+      "last_re_verified": "2026-06-14",
+      "next_action": "Hand the driver's KICKOFF block to a fresh EXECUTOR session. Recommend batches: D1+D2+D3 -> re-gate -> D4+D5 -> re-gate -> D6+D7. HARD-GATE fresh-critic (the GROUND-FLIP close-gate, mechanism-anchored) before closing."
+    },
+    {
       "id": "bench-salvage-phaseGROUND-FLIP-live-binding-conversational-grounding-kb",
       "stream": "bench-salvage",
       "phase": "GROUND-FLIP",
