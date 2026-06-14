@@ -125,6 +125,10 @@ ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
     "question": str,
     "version": str,
 }
+# KB-CONTEXT-1 — the honest CONTEXT AID ($0/read-only): retrieve the relevant HIPAA-KB section(s)
+# for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
+# clears on these flags, so this is retrieval-only — informative, never a clear). No PAID_KEY.
+KB_CONTEXT_SCHEMA: dict[str, Any] = {"query": str, "namespace": str, "top_k": int}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -162,6 +166,8 @@ class ToolContext:
       (GROUND-CHAT-1: splice/replace the verification_contracts entry for flag_code in the DRAFT
       ontology, then PUT via the FROZEN audited op; 404 unknown flag / 422 malformed — surfaced.
       An audited $0 config write — the conversational "add grounding contracts" move.)
+    - ``kb_context(query, namespace, top_k) -> dict``  (KB-CONTEXT-1: read-only KB RETRIEVAL — the
+      honest "show the relevant HIPAA section" context aid; returns chunks, NEVER changes a verdict.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -177,6 +183,7 @@ class ToolContext:
     create_flag: Callable[..., dict]
     delete_flag: Callable[..., dict]
     put_grounding_contract: Callable[..., dict]
+    kb_context: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
@@ -514,6 +521,36 @@ async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any])
     )
 
 
+async def kb_context_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # KB-CONTEXT-1 ($0/read-only): retrieve the relevant KB section(s) for a topic/finding and SHOW
+    # them — the honest CONTEXT AID. It NEVER changes a verdict (retrieval-only; kb_grounding-as-
+    # suppress over-clears on these flags, proven, so we surface context instead of clearing). No
+    # PAID_KEY; a transport/auth failure is surfaced, never fabricated context.
+    query = str(args.get("query") or "")
+    namespace = str(args.get("namespace") or "hipaa")
+    top_k = int(args.get("top_k") or 3)
+    if not query:
+        return _error("kb_context needs a `query` (the topic or finding to ground in the KB).")
+    try:
+        chunks = ctx.kb_context(query=query, namespace=namespace, top_k=top_k)
+    except Exception as exc:  # noqa: BLE001 - transport/auth -> surface, never fabricate context
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"KB context retrieval failed for namespace {namespace!r}: {detail}. (The KB needs a "
+            f"kb:read credential in the BFF env; this is read-only and never affects a verdict.)"
+        )
+    if not chunks:
+        return _text(f"No KB context found in namespace {namespace!r} for {query!r}.")
+    lines = []
+    for i, ch in enumerate(chunks[:top_k], 1):
+        text = (ch.get("text") or ch.get("chunk") or "").strip().replace("\n", " ")
+        lines.append(f"[{i}] (score {ch.get('score')}) {text[:400]}")
+    return _text(
+        f"KB context from namespace {namespace!r} for {query!r} ({len(chunks)} hit(s)) — RETRIEVAL "
+        f"ONLY, this does NOT change any verdict:\n" + "\n".join(lines)
+    )
+
+
 async def focus_artifact_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # CHATBIND-2: emit a pane-control DIRECTIVE so the conversation can OPEN + FOCUS the artifact
     # pane. $0/read-only — NO bound op, NO paid knob. An unknown tab (outside the 4-tab contract)
@@ -683,9 +720,20 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "config write; the step-5 'add grounding contracts' move). Shape: {flag_code, contract_type, "
         "params, [question], [version]}. Replaces an existing contract for the same flag, else appends. "
         "Canonical contract_types: snomed_subsumption (SNOMED code subsumption via Hermes), "
-        "kb_grounding (HIPAA KB over :8002), record_presence, presence_check. $0 — never a paid run. A "
-        "malformed contract or unknown flag is rejected (422/404) — surface it, do not retry blindly.",
+        "record_presence, presence_check. (For HIPAA-KB grounding, prefer the read-only kb_context "
+        "aid — KB-as-suppress over-clears these flags.) $0 — never a paid run. A malformed contract or "
+        "unknown flag is rejected (422/404) — surface it, do not retry blindly.",
         ADD_GROUNDING_CONTRACT_SCHEMA,
+    ),
+    (
+        kb_context_handler,
+        "kb_context",
+        "Retrieve the relevant HIPAA knowledge-base section(s) for a topic or a finding and SHOW "
+        "them as CONTEXT — the honest 'what does the policy actually say' aid. Args: {query, "
+        "[namespace=hipaa], [top_k=3]}. $0, READ-ONLY — it retrieves and displays; it NEVER changes "
+        "a verdict or clears a finding (KB suppression over-clears these flags). Use it to ground a "
+        "discussion in the source policy, not to decide the verdict.",
+        KB_CONTEXT_SCHEMA,
     ),
 ]
 

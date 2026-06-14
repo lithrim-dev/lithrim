@@ -251,7 +251,7 @@ def test_agent_package_does_not_pull_the_sdk_at_import():
 
 
 def test_tool_set_is_the_uap5c_journey_set():
-    """The complete set (15 tools): the UAP-5b spine (author_judge/get_judge/run_eval) + the
+    """The complete set (16 tools): the UAP-5b spine (author_judge/get_judge/run_eval) + the
     UAP-5c journey tools (get_agent/author_flag/review_runs) + the UAP-5c-2 split
     (run_eval_pack batch + assemble_agent edit-one-facet) + the CRUD-1 delete_judge revert +
     the FLAG-1 reference-flag create_flag/delete_flag + the CHATBIND-2 focus_artifact pane
@@ -276,4 +276,5 @@ def test_tool_set_is_the_uap5c_journey_set():
         "show_case",
         "propose_live_run",
         "add_grounding_contract",
+        "kb_context",
     }

@@ -392,6 +392,23 @@ class KbRagTool(VerificationTool):
 
         return httpx.Client(timeout=self._timeout), True
 
+    # --- the CONTEXT-AID path: read-only retrieval, NO conforms/suppress, NO verdict effect --- #
+    def search(
+        self, namespace: str, query: str, *, top_k: int = 5,
+        service: str | None = None, api_key: str | None = None, org_id: str | None = None,
+    ) -> list[dict]:
+        """Return the top-k KB chunks for ``query`` — the honest "show the relevant policy section
+        next to the finding" move. Unlike :meth:`verify`, this makes NO conforms/suppress decision
+        and cannot change a verdict; it only RETRIEVES. Auth via ``api_key`` or the
+        ``LITHRIM_KB_API_KEY`` / ``LITHRIM_API_KEY`` env (omitted on open/dev backends)."""
+        base = str(service or self._DEFAULT_SERVICE).rstrip("/")
+        ref: dict[str, Any] = {}
+        if api_key:
+            ref["api_key"] = api_key
+        if org_id:
+            ref["org_id"] = org_id
+        return self._search(base, namespace, query, int(top_k), ref)
+
 
 # --------------------------------------------------------------------------- #
 # RecordRagTool — pinned-reference conformance via lithrim_search_sdk

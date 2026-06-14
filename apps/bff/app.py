@@ -1705,6 +1705,16 @@ def _build_tool_context(
         )
         return {"flag_code": flag_code, "version": version, "replaced": replaced, **put}
 
+    # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
+    def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
+        # Read-only retrieval over KbRagTool (GET :8002/v1/kb/{ns}/search). The kb:read key is read
+        # from the BFF env (LITHRIM_KB_API_KEY / LITHRIM_API_KEY) by KbRagTool — secrets via env,
+        # never the config plane. NO conforms/suppress here: it returns chunks to SHOW, and can
+        # never change a verdict (kb_grounding-as-suppress over-clears these flags — measured).
+        from lithrim_bench.verification import KbRagTool
+
+        return KbRagTool().search(namespace, query, top_k=int(top_k))
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
@@ -1718,6 +1728,7 @@ def _build_tool_context(
         create_flag=_create_flag,
         delete_flag=_delete_flag,
         put_grounding_contract=_put_grounding_contract,
+        kb_context=_kb_context,
         default_agent=req_agent,
     )
 
