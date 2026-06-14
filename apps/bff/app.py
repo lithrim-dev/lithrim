@@ -1661,6 +1661,50 @@ def _build_tool_context(
         )
         return {"name": name, "judges": judges, **put}
 
+    # ── GROUND-CHAT-1: the conversational "add grounding contracts" WRITE (step 5 by voice).
+    def _put_grounding_contract(
+        flag_code: str, contract_type: str, params: dict | None = None,
+        question: str = "", version: str = "", agent: str = "",
+    ) -> dict:
+        # Mirrors _create_flag: read the DRAFT ontology directly (NO GET endpoint, so no FastAPI
+        # FieldInfo sentinels — the S-BS-82 trap), splice/replace the verification_contracts entry
+        # by flag_code, then PUT via the FROZEN audited put_ontology_endpoint (so _validate_ontology
+        # runs + the action="edit"/target=ontology audit fires). Per S-BS-82, every Query/Header/
+        # Depends param is passed explicitly. $0 config write; guards (snapshot/validate) hold for all.
+        ag_name = agent or req_agent
+        ag = _load_agent(ag_name, db_path)
+        ont_path, _src = _resolve_ontology_path(ag, workdir)
+        ontology = json.loads(ont_path.read_text())
+        if not any(f.get("flag") == flag_code for f in (ontology.get("flags") or [])):
+            raise HTTPException(
+                status_code=404, detail=f"unknown flag {flag_code!r} (create the flag first)"
+            )
+        entry = {
+            "contract_type": contract_type,
+            "flag_code": flag_code,
+            "question": question,
+            "params": params or {},
+            "version": version,
+        }
+        contracts = ontology.get("verification_contracts") or []
+        idx = next((i for i, c in enumerate(contracts) if c.get("flag_code") == flag_code), None)
+        replaced = idx is not None
+        if replaced:
+            contracts[idx] = entry
+        else:
+            contracts.append(entry)
+        ontology["verification_contracts"] = contracts
+        put = put_ontology_endpoint(
+            ontology=ontology,
+            agent=ag_name,
+            rationale=f"grounding contract ({contract_type}) for {flag_code}",
+            db_path=db_path,
+            workdir=workdir,
+            default_actor=actor,
+            x_actor=x_actor,
+        )
+        return {"flag_code": flag_code, "version": version, "replaced": replaced, **put}
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
@@ -1673,6 +1717,7 @@ def _build_tool_context(
         delete_judge=_delete_judge,
         create_flag=_create_flag,
         delete_flag=_delete_flag,
+        put_grounding_contract=_put_grounding_contract,
         default_agent=req_agent,
     )
 

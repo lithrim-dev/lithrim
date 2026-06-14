@@ -208,10 +208,10 @@ def test_split_and_crud_tools_grow_the_set_to_nine_with_no_paid_knob():
     ``focus_artifact`` pane directive, the CHATBIND-3 ``show_case`` source-input card, and the
     CHATBIND-4 ``propose_live_run`` consented paid-run hand-off — make the 14-tool set, and NONE
     exposes a paid knob — the S-BS-81 no-paid-knob guarantee generalized across the widened surface.
-    (The exhaustive sweep over ALL 14 is test_no_tool_schema_carries_a_paid_knob; the focus_artifact
+    (The exhaustive sweep over ALL 15 is test_no_tool_schema_carries_a_paid_knob; the focus_artifact
     / show_case / propose_live_run A-SAFE bounds are tests/test_chatbind2_pane.py.)"""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 14, names
+    assert len(names) == 15, names
     assert {
         "run_eval_pack", "assemble_agent", "delete_judge", "create_flag", "delete_flag",
         "show_case", "propose_live_run",

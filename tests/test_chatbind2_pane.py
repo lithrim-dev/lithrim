@@ -142,7 +142,8 @@ def test_focus_artifact_joins_the_tool_set_exactly_once():
     assert names.count("focus_artifact") == 1
     assert names.count("show_case") == 1
     assert names.count("propose_live_run") == 1
-    assert len(names) == 14  # +show_case (CHATBIND-3) +propose_live_run (CHATBIND-4); both $0, no paid knob
+    assert names.count("add_grounding_contract") == 1
+    assert len(names) == 15  # +add_grounding_contract (GROUND-CHAT-1, $0 audited write, no paid knob)
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in PAID_KEYS), name
 
@@ -159,7 +160,7 @@ def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byt
     allowed = list(opts.allowed_tools)
     derived = {f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS}
     assert set(allowed) == derived  # exactly the tool set — no extra, no paid surface
-    assert len(allowed) == len(set(allowed)) == 14
+    assert len(allowed) == len(set(allowed)) == 15
     assert {
         "mcp__lithrim__focus_artifact",
         "mcp__lithrim__show_case",

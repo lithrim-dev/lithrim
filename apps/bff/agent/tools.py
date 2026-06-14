@@ -111,6 +111,20 @@ SHOW_CASE_SCHEMA: dict[str, Any] = {}
 # CHATBIND-4: propose_live_run takes NO params — it asks the shell to OPEN the cost-confirm modal.
 # The agent PROPOSES; the human's modal-confirm is the only paid path. No paid knob, nothing to smuggle.
 PROPOSE_LIVE_RUN_SCHEMA: dict[str, Any] = {}
+# GROUND-CHAT-1 — ADD a grounding (verification) contract to the active agent's DRAFT ontology
+# (an audited config WRITE; makes "step 5: add grounding contracts" conversational). Entry shape
+# mirrors ContractBuilder.jsx + ontology.VerificationContractDecl: {contract_type, flag_code,
+# question, params, version}. $0 — NO PAID_KEY (the A-SAFE test asserts this generically over
+# _TOOL_SPECS). question/version/agent are optional (defaulted in the handler, exactly as
+# ContractBuilder defaults version to f"{flag_code}/v1").
+ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
+    "flag_code": str,
+    "contract_type": str,
+    "params": dict,
+    "agent": str,
+    "question": str,
+    "version": str,
+}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -144,6 +158,10 @@ class ToolContext:
     - ``delete_flag(flag_code, rationale) -> dict``  (FLAG-1 D3: DELETE a REFERENCE flag;
       reversible. The reference-only + orphan guards live in the endpoint, so this reaches only
       an UNUSED reference flag; a contract/judge-assigned/case-emitted flag raises and is surfaced.)
+    - ``put_grounding_contract(flag_code, contract_type, params, question, version, agent) -> dict``
+      (GROUND-CHAT-1: splice/replace the verification_contracts entry for flag_code in the DRAFT
+      ontology, then PUT via the FROZEN audited op; 404 unknown flag / 422 malformed — surfaced.
+      An audited $0 config write — the conversational "add grounding contracts" move.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -158,6 +176,7 @@ class ToolContext:
     delete_judge: Callable[..., dict]
     create_flag: Callable[..., dict]
     delete_flag: Callable[..., dict]
+    put_grounding_contract: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
@@ -463,6 +482,38 @@ async def delete_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     )
 
 
+async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # GROUND-CHAT-1 (audited WRITE): add/replace ONE verification_contract for flag_code in the
+    # active agent's DRAFT ontology — the conversational "step 5: add grounding contracts" move.
+    # $0, no PAID_KEY. The splice (replace-by-flag-code else append) + the FROZEN audited PUT live in
+    # the bound ctx.put_grounding_contract; a 404 (unknown flag) / 422 (malformed) is surfaced, never
+    # bypassed. question/version default exactly as ContractBuilder.jsx does.
+    flag_code = str(args.get("flag_code") or "")
+    contract_type = str(args.get("contract_type") or "")
+    params = args.get("params") if isinstance(args.get("params"), dict) else {}
+    question = str(args.get("question") or f"Does the grounding floor verify {flag_code}?")
+    version = str(args.get("version") or f"{flag_code or 'contract'}/v1")
+    agent = str(args.get("agent") or ctx.default_agent)
+    try:
+        res = ctx.put_grounding_contract(
+            flag_code=flag_code, contract_type=contract_type, params=params,
+            question=question, version=version, agent=agent,
+        )
+    except Exception as exc:  # HTTPException (404 unknown flag / 422 malformed) or anything raised
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not add a grounding contract for {flag_code!r}: {detail}. Nothing was persisted "
+            f"(the structural/snapshot gate held). Use a known contract_type and a flag that exists "
+            f"in the ontology."
+        )
+    ctx.emit(flag_part(agent))
+    return _text(
+        f"Added grounding contract {res.get('version', version)!r} ({contract_type}) for flag "
+        f"{flag_code!r} on agent {agent!r} ({'replaced the existing' if res.get('replaced') else 'new'} "
+        f"contract). The ontology working copy is audited; the floor runs at grade time over this flag."
+    )
+
+
 async def focus_artifact_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # CHATBIND-2: emit a pane-control DIRECTIVE so the conversation can OPEN + FOCUS the artifact
     # pane. $0/read-only — NO bound op, NO paid knob. An unknown tab (outside the 4-tab contract)
@@ -624,6 +675,17 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "with no replay baseline. You only PROPOSE: this opens the modal; the human's confirm is "
         "the only thing that spends. You can NEVER fire a paid run yourself. No params.",
         PROPOSE_LIVE_RUN_SCHEMA,
+    ),
+    (
+        add_grounding_contract_handler,
+        "add_grounding_contract",
+        "ADD a grounding (verification) contract to the agent's ontology for a flag (an audited "
+        "config write; the step-5 'add grounding contracts' move). Shape: {flag_code, contract_type, "
+        "params, [question], [version]}. Replaces an existing contract for the same flag, else appends. "
+        "Canonical contract_types: snomed_subsumption (SNOMED code subsumption via Hermes), "
+        "kb_grounding (HIPAA KB over :8002), record_presence, presence_check. $0 — never a paid run. A "
+        "malformed contract or unknown flag is rejected (422/404) — surface it, do not retry blindly.",
+        ADD_GROUNDING_CONTRACT_SCHEMA,
     ),
 ]
 
