@@ -521,6 +521,7 @@ def eval_pack_run_endpoint(
     db_path: Path = Depends(get_config_db),
     out_dir: Path | None = Depends(get_out_dir),
     collections_db: Path = Depends(get_collections_db),
+    workdir: Path = Depends(get_ontology_workdir),
 ) -> dict:
     """Batch a pack of agents through the canonical grade and freeze a thin eval-pack
     (R6 — the "did it move the number?" loop). Runs each agent via
@@ -533,6 +534,22 @@ def eval_pack_run_endpoint(
     in_process param); a batched in_process path is a follow-on.
     """
     agents = [_load_agent(name, db_path) for name in req.agents]
+    # PACK-WS (same routing as POST /v1/run-eval): a non-_core workspace grades EACH agent in a
+    # SUBPROCESS bound to its pack — the in-process _core BFF lacks the pack's grounding executors
+    # (e.g. healthcare's snomed_subsumption), which otherwise raises "no executor registered for
+    # contract_type 'snomed_subsumption'" mid-batch. The default _core path stays in-process.
+    ws = workspace.get_active_workspace()
+    grade_fn = None
+    if ws.packs_dir or ws.pack != workspace.DEFAULT_PACK:
+
+        def grade_fn(agent, *, live=False, in_process=False, **_kw):
+            ontology_path, _src = _resolve_ontology_path(agent, workdir)
+            return _grade_via_subprocess(
+                agent_name=agent.name, config_db=db_path, ontology_path=ontology_path,
+                collections_db=collections_db, out_dir=out_dir, live=live,
+                in_process=in_process, ws=ws,
+            )
+
     try:
         pack = evalpack.build_pack(
             req.pack_id,
@@ -540,6 +557,7 @@ def eval_pack_run_endpoint(
             live=req.live,
             out_dir=out_dir,
             collections_db=collections_db,
+            grade_fn=grade_fn,
         )
     except SystemExit as exc:  # a missing case bubbles up as SystemExit from run_eval
         raise HTTPException(status_code=400, detail=str(exc)) from exc
