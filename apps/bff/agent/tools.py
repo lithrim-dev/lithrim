@@ -529,6 +529,11 @@ async def kb_context_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str
     # PAID_KEY; a transport/auth failure is surfaced, never fabricated context.
     query = str(args.get("query") or "")
     namespace = str(args.get("namespace") or "hipaa")
+    # The KB catalog namespace is "hipaa" (also "medication-safety" / "clinical-escalation"). The
+    # model sometimes passes the Pinecone INDEX name ("hipaa-compliancev2") or "DEFAULT" — both 400.
+    # Normalize those to the working "hipaa" so the context aid doesn't fail on a name confusion.
+    if namespace.lower() in {"hipaa-compliancev2", "default", ""}:
+        namespace = "hipaa"
     top_k = int(args.get("top_k") or 3)
     if not query:
         return _error("kb_context needs a `query` (the topic or finding to ground in the KB).")
@@ -731,9 +736,10 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "kb_context",
         "Retrieve the relevant HIPAA knowledge-base section(s) for a topic or a finding and SHOW "
         "them as CONTEXT — the honest 'what does the policy actually say' aid. Args: {query, "
-        "[namespace=hipaa], [top_k=3]}. $0, READ-ONLY — it retrieves and displays; it NEVER changes "
-        "a verdict or clears a finding (KB suppression over-clears these flags). Use it to ground a "
-        "discussion in the source policy, not to decide the verdict.",
+        "[namespace], [top_k=3]}. LEAVE namespace unset (defaults to 'hipaa'); the only valid "
+        "namespaces are 'hipaa' (default), 'medication-safety', 'clinical-escalation' — do NOT pass "
+        "the index name 'hipaa-compliancev2'. $0, READ-ONLY — it retrieves and displays; it NEVER "
+        "changes a verdict or clears a finding. Use it to ground a discussion in the source policy.",
         KB_CONTEXT_SCHEMA,
     ),
 ]

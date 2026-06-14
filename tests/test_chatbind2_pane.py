@@ -43,6 +43,7 @@ from agent.tools import (  # noqa: E402
     PAID_KEYS,
     add_grounding_contract_handler,
     focus_artifact_handler,
+    kb_context_handler,
     run_eval_handler,
 )
 
@@ -110,6 +111,26 @@ def test_add_grounding_contract_accepts_flag_alias():
         )
     )
     assert captured["flag_code"] == "FABRICATED_HISTORY"  # `flag` was accepted as the alias
+    assert not res.get("is_error")
+
+
+def test_kb_context_normalizes_index_name_to_namespace():
+    """KB-CONTEXT-1 robustness: the model sometimes passes the Pinecone INDEX name
+    'hipaa-compliancev2' (which 400s) instead of the 'hipaa' catalog namespace; the handler
+    normalizes it so the read-only context aid doesn't fail on a name confusion (it did live)."""
+    captured: dict = {}
+
+    class _Ctx:
+        default_agent = "demo"
+
+        def kb_context(self, **kw):
+            captured.update(kw)
+            return [{"text": "§ 164.508 ...", "score": 1.2}]
+
+    res = asyncio.run(
+        kb_context_handler(_Ctx(), {"query": "phi disclosure", "namespace": "hipaa-compliancev2"})
+    )
+    assert captured["namespace"] == "hipaa"  # the index name was normalized to the catalog namespace
     assert not res.get("is_error")
 
 
