@@ -23,15 +23,14 @@ from pathlib import Path
 
 import pytest
 
-from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
+from lithrim_bench.harness.config import save_agent
 
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
 
+from tests._house_fixture import house_agent  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
-CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 _BFF = REPO_ROOT / "apps" / "bff"
 if str(_BFF) not in sys.path:
@@ -44,24 +43,8 @@ from agent.loop import _build_options, _deny_non_lithrim  # noqa: E402
 AGENT = "asafe1_test"
 
 
-def _fixture_agent(name: str = AGENT) -> Agent:
-    return Agent(
-        name=name,
-        eval_profile=EvalProfile(
-            judges=("risk_judge", "policy_judge", "faithfulness_judge"),
-            council_config={"disposition": "compose-over-live-v2"},
-            ontology_ref="clinical/1",
-            ontology_path=str(ONTOLOGY_SEED),
-            tools=("presence_check",),
-            kb_bindings={},
-            severity_map_ref="ontology:clinical/1",
-        ),
-        dataset=Dataset(
-            case_id=CASE_ID,
-            source=str(FIXTURES / f"case.{CASE_ID}.jsonl"),
-            baseline=str(FIXTURES / f"baseline.{CASE_ID}.json"),
-        ),
-    )
+def _fixture_agent(name: str = AGENT):
+    return house_agent(name=name)
 
 
 @pytest.fixture

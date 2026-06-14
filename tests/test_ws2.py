@@ -28,6 +28,8 @@ from lithrim_bench.harness.ontology import load_ontology
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import seed_ontology  # noqa: E402
 
+from tests._house_fixture import house_agent  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
@@ -75,10 +77,11 @@ def test_replay_without_baseline_fails_clean_not_typeerror(tmp_path):
     SystemExit (-> BFF 400), NOT Path(None) -> TypeError -> 500. Non-vacuous: pre-fix the
     Path(None) call raised TypeError, so this SystemExit/match assertion fails."""
     run_eval = _load_run_eval()
+    house = house_agent(name="sbs108_no_baseline")  # neutral _core — the SystemExit is domain-agnostic
     agent = Agent(
         name="sbs108_no_baseline",
-        eval_profile=_agent_over_fixtures().eval_profile,
-        dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=None),
+        eval_profile=house.eval_profile,
+        dataset=Dataset(case_id=house.dataset.case_id, source=house.dataset.source, baseline=None),
     )
     with pytest.raises(SystemExit, match="no captured baseline"):
         run_eval.run(agent, live=False, in_process=False, out_dir=tmp_path / "out")

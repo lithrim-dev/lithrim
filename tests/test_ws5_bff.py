@@ -19,6 +19,8 @@ from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 from fastapi.testclient import TestClient  # noqa: E402
 
+from tests._house_fixture import house_agent  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
@@ -62,6 +64,28 @@ def client(tmp_path):
     # PUT writes go to a tmp working dir, never the committed seed (clobber-safety).
     bff.app.dependency_overrides[bff.get_ontology_workdir] = lambda: tmp_path / "ont"
     # UAP-1: the run-provenance read resolves against a tmp doc-shim DB (hermetic).
+    bff.app.dependency_overrides[bff.get_collections_db] = lambda: tmp_path / "coll.sqlite"
+    try:
+        yield TestClient(bff.app)
+    finally:
+        bff.app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def house_client(tmp_path, monkeypatch):
+    """The BFF client over the NEUTRAL _core house fixture (S-BS-137) — used by the
+    domain-agnostic plumbing funcs (run-id/votes round-trip) so they run on _core in a
+    bare CE checkout. The clinical funcs keep the clinical ``client`` (NEEDS_PACK/RELOCATED)."""
+    db_path = tmp_path / "bench_config.sqlite"
+    save_agent(house_agent(name="ws5_bff_house"), db_path=db_path)
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
+    )
+    bff.app.dependency_overrides[bff.get_config_db] = lambda: db_path
+    bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
+    bff.app.dependency_overrides[bff.get_ontology_workdir] = lambda: tmp_path / "ont"
     bff.app.dependency_overrides[bff.get_collections_db] = lambda: tmp_path / "coll.sqlite"
     try:
         yield TestClient(bff.app)
@@ -118,12 +142,13 @@ def test_unknown_agent_is_404(client):
 # ── D0: the judge-council view folded into /v1/run-eval ──────────────────────
 
 
-def test_run_eval_carries_realized_council_votes(client):
-    """D0 — the run response surfaces the REALIZED per-judge votes for the JudgeTab."""
-    body = client.post("/v1/run-eval", json={"agent": "ws5_bff_test", "live": False}).json()
+def test_run_eval_carries_realized_council_votes(house_client):
+    """D0 — the run response surfaces the REALIZED per-judge votes for the JudgeTab.
+    Domain-agnostic plumbing: runs on the neutral _core house fixture (3 votes, v2 roles)."""
+    body = house_client.post("/v1/run-eval", json={"agent": "ws5_bff_house", "live": False}).json()
     council = body["council"]
     votes = council["votes"]
-    # the WS-0 baseline cast 3 real votes (risk / policy / faithfulness)
+    # the house baseline cast 3 real votes (risk / policy / faithfulness)
     assert {v["judge_role"] for v in votes} == {"risk_judge", "policy_judge", "faithfulness_judge"}
     for v in votes:
         assert v["vote"] in {"PASS", "WARN", "FAIL", "BLOCK"}

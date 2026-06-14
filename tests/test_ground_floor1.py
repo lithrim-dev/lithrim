@@ -26,11 +26,24 @@ from lithrim_bench.harness import grounding, pack
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict, load_ontology
 
+
 # PACK-3: the clinical suppress executor (RecordPresence) + its SOAP decoder relocated
 # into the active healthcare pack; the test reaches them through the pack loader, the
 # same way the engine merges them into suppress_executors().
-_FLOORS = pack.load_pack_floors()
-_decode_artifact_soap = _FLOORS._decode_artifact_soap
+#
+# PACK-DIST-2 (S-BS-137): the pack-floors load is LAZY (a function, not a module-level
+# assignment) so importing this module never derefs ``None`` in a bare CE checkout where
+# ``load_pack_floors()`` returns ``None`` — the root conftest's ``_IGNORE_MODULES_WHEN_RELOCATED``
+# ignore for this module only fires for indirect collection, NOT when the file is targeted
+# directly (``pytest tests/test_ground_floor1.py``), which used to crash at import. The body
+# is RELOCATED to the pack repo in D5; this only stops the import-time crash.
+def _floors():
+    return pack.load_pack_floors()
+
+
+def _decode_artifact_soap(case):
+    return _floors()._decode_artifact_soap(case)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CALIB = REPO_ROOT / "examples" / "judge_calib_v1.jsonl"
@@ -91,7 +104,7 @@ def test_record_presence_registered_and_buildable(ont_with_rp):
     decl = ont_with_rp.contract_for("FABRICATED_HISTORY")
     assert decl is not None and decl.contract_type == "record_presence"
     contract = grounding._build_contract(decl)  # built from the declaration alone
-    assert isinstance(contract, _FLOORS.RecordPresence)
+    assert isinstance(contract, _floors().RecordPresence)
 
 
 # --------------------------------------------------------------------------- #

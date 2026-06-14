@@ -40,10 +40,10 @@ from lithrim_bench.runtime.pipeline.provenance import (
     NoOpProvenanceStore,
     SqliteProvenanceStore,
 )
+from tests._house_fixture import HOUSE_CASE_ID as _CASE_ID
+from tests._house_fixture import HOUSE_CASE_PATH as _CASE_SRC
 
 _REPO = Path(__file__).resolve().parents[1]
-_CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-_CASE_SRC = _REPO / "tests" / "fixtures" / "ws0" / f"case.{_CASE_ID}.jsonl"
 
 # Inherently per-run (unseeded) fields — vary between any two evaluate() calls,
 # persistence on or off. The A3 control run proves this set is exhaustive.

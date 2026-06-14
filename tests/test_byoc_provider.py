@@ -226,16 +226,13 @@ for _p in (_SCRIPTS, _BFF):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-_BFF_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
-_BFF_ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
-_BFF_CASE = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-
-
 @pytest.fixture
 def bff_client(tmp_path, monkeypatch):
     pytest.importorskip("fastapi", reason="needs the [bff] extra")
     import app as bff
     from fastapi.testclient import TestClient
+
+    from tests._house_fixture import house_agent
 
     # Hermetic active workspace: route run-eval IN-PROCESS (the _core default) regardless of any
     # on-disk out/workspaces/.active a local shell session may have left non-default. The BFF
@@ -246,25 +243,11 @@ def bff_client(tmp_path, monkeypatch):
         lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
     )
 
-    from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
+    from lithrim_bench.harness.config import save_agent
 
-    agent = Agent(
-        name="byoc_bff_test",
-        eval_profile=EvalProfile(
-            judges=("risk_judge", "policy_judge", "faithfulness_judge"),
-            council_config={"disposition": "compose-over-live-v2"},
-            ontology_ref="clinical/1",
-            ontology_path=str(_BFF_ONTOLOGY_SEED),
-            tools=("presence_check",),
-            kb_bindings={},
-            severity_map_ref="ontology:clinical/1",
-        ),
-        dataset=Dataset(
-            case_id=_BFF_CASE,
-            source=str(_BFF_FIXTURES / f"case.{_BFF_CASE}.jsonl"),
-            baseline=str(_BFF_FIXTURES / f"baseline.{_BFF_CASE}.json"),
-        ),
-    )
+    # The neutral _core house fixture (S-BS-137) — the BFF-threading func below spies run_eval.run
+    # ($0, no real grade), so the agent only needs to round-trip through the config plane.
+    agent = house_agent(name="byoc_bff_test")
     db = tmp_path / "config.sqlite"
     save_agent(agent, db_path=db)
     bff.app.dependency_overrides[bff.get_config_db] = lambda: db

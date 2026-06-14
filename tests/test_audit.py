@@ -23,11 +23,11 @@ from lithrim_bench.harness.audit import (
     now_iso,
 )
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
+from tests._house_fixture import house_agent  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
+# the clinical seed the RELOCATED draft-override funcs read directly (they skip when absent).
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
-CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 # scripts/ on path so run_eval imports the same way the BFF does.
 _SCRIPTS = REPO_ROOT / "scripts"
@@ -206,23 +206,10 @@ def test_save_agent_without_audit_log_records_nothing(tmp_path):
 
 
 def _agent(name="t") -> Agent:
-    return Agent(
-        name=name,
-        eval_profile=EvalProfile(
-            judges=("risk_judge", "policy_judge", "faithfulness_judge"),
-            council_config={},
-            ontology_ref="clinical_v1",
-            ontology_path=str(ONTOLOGY_SEED),
-            tools=(),
-            kb_bindings={},
-            severity_map_ref="clinical_v1",
-        ),
-        dataset=Dataset(
-            case_id=CASE_ID,
-            source=str(FIXTURES / f"case.{CASE_ID}.jsonl"),
-            baseline=str(FIXTURES / f"baseline.{CASE_ID}.json"),
-        ),
-    )
+    # The neutral _core house fixture (S-BS-137): test_run_no_override grades it on _core in a
+    # bare CE checkout. The draft-override funcs below (RELOCATED) read the clinical seed bytes
+    # directly and skip when the clinical content is absent — the house agent does not affect them.
+    return house_agent(name=name)
 
 
 def test_run_no_override_grades_the_committed_seed(tmp_path):

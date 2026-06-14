@@ -43,10 +43,10 @@ from lithrim_bench.picklist import load_case  # noqa: E402
 from lithrim_bench.runtime.council.authored_stage import build_authored_semantic_stage  # noqa: E402
 from lithrim_bench.runtime.council.judge_assignment import render_role_questions  # noqa: E402
 from lithrim_bench.runtime.council.judges_dspy import V2_ROLES  # noqa: E402
+from tests._house_fixture import HOUSE_CASE_ID as _CASE_ID  # noqa: E402
+from tests._house_fixture import HOUSE_CASE_PATH as _CASE_SRC  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[1]
-_CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-_CASE_SRC = _REPO / "tests" / "fixtures" / "ws0" / f"case.{_CASE_ID}.jsonl"
 
 _MARKER = "=== AUTHORED REFINEMENT (ontology assignment) ==="
 _ASSIGNED_FLAG = "WRONG_DOSAGE"  # a risk_judge Tier-1 lens code

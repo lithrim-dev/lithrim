@@ -19,6 +19,7 @@ from lithrim_bench.harness.correction import build_correction, build_floor_corre
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict
 from lithrim_bench.harness.report import calibration_check
+from tests._house_fixture import HOUSE_CASE_ID, house_agent  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
@@ -235,14 +236,17 @@ def test_corpus_append_read_roundtrip_and_deterministic(tmp_path):
 
 
 def test_committed_example_corpus_fixture_shape():
-    """A1 — the committed example fixture is a valid corpus-row/1 (rollout_ref NOT asserted resolvable)."""
+    """A1 — the committed example fixture is a valid corpus-row/1 (rollout_ref NOT asserted resolvable).
+    Re-minted over the neutral _core house fixture (S-BS-137): a presence_check suppress row."""
     rows = list(corpus.read_corpus(WS4A_FIXTURES / "corpus.example.ndjson"))
     assert len(rows) == 1
     row = rows[0]
     assert set(row) == _ROW_KEYS
     assert row["schema_version"] == "corpus-row/1"
     assert row["action"] == "suppress"
-    assert row["flag_code"] == "MEDICATION_NOT_IN_TRANSCRIPT"
+    assert row["case_id"] == HOUSE_CASE_ID
+    assert row["flag_code"] == "UNSUPPORTED_ASSERTION"
+    assert row["contract"] == "PresenceCheck"
 
 
 # ── A2: the eval-pack round-trips ─────────────────────────────────────────────
@@ -271,13 +275,14 @@ def test_evalpack_build_load_roundtrip(tmp_path):
 
 
 def test_calibration_check_reports_match_and_ece(tmp_path):
-    """A3 — calibration_check yields verdict-match + ECE; status PASS (report-only, not a gate)."""
-    record = run_eval.run(_agent(), out_dir=tmp_path / "out")
+    """A3 — calibration_check yields verdict-match + ECE; status PASS (report-only, not a gate).
+    Domain-agnostic plumbing: runs on the neutral _core house baseline (same N=1 vote shape)."""
+    record = run_eval.run(house_agent(name="ws4a_house"), out_dir=tmp_path / "out")
     summary = calibration_check([record])
     assert summary["verdict_match_rate"] == 1.0
     assert summary["status"] == "PASS"
     assert summary["n_cases"] == 1 and summary["n_matched"] == 1
-    assert summary["ece"] == 0.5  # WS-0 baseline: 2 non-null confidences @ 1.0, expected_block
+    assert summary["ece"] == 0.5  # house baseline: 2 non-null confidences @ 1.0, expected_block
     assert summary["n_with_confidence"] == 2
     assert summary["caveat"] is not None and "small N" in summary["caveat"]
 
