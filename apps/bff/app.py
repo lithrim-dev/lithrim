@@ -871,7 +871,8 @@ def _validate_judge_assignment(
                 f"{sorted(lens)}; offenders: {off_lens}"
             ),
         )
-    off_snapshot = sorted(c for c in assigned_flags if c not in seed_ontology.load_snapshot_codes())
+    snapshot_codes = _active_snapshot_codes()
+    off_snapshot = sorted(c for c in assigned_flags if c not in snapshot_codes)
     if off_snapshot:
         raise HTTPException(
             status_code=422,
@@ -1072,6 +1073,20 @@ def ontology_endpoint(
     return json.loads(path.read_text())
 
 
+def _active_snapshot_codes() -> frozenset[str]:
+    """The active workspace's pack KNOWN_TAXONOMY_CODES (the TIER_1|2|3 union) — the gradeable gate.
+
+    PACK-DIST-1: the taxonomy snapshot relocated OUT of the repo, so the old
+    ``seed_ontology.load_snapshot_codes()`` (hardcoded ``packs/healthcare/taxonomy_snapshot.json``)
+    now raises FileNotFoundError → 500 on every config-write gate. The BFF process is ``_core``-bound
+    at import, so it resolves the ACTIVE WORKSPACE'S pack explicitly (``pack.active_pack()`` is
+    ``_core`` here) — the same pack the subprocess grade binds. The pack must be discoverable (the
+    global ``LITHRIM_BENCH_PACKS_DIR`` / an installed wheel)."""
+    from lithrim_bench.harness import pack as pack_mod
+
+    return pack_mod.pack_taxonomy_codes(workspace.get_active_workspace().pack)
+
+
 def _validate_ontology(ontology: dict) -> None:
     """The PUT gate: reject malformed or snapshot-violating ontologies (HTTP 422).
 
@@ -1086,7 +1101,7 @@ def _validate_ontology(ontology: dict) -> None:
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"malformed ontology: {exc}") from exc
     offenders = seed_ontology.gradeable_flags_outside_snapshot(
-        ontology.get("flags") or [], seed_ontology.load_snapshot_codes()
+        ontology.get("flags") or [], _active_snapshot_codes()
     )
     if offenders:
         raise HTTPException(
@@ -1197,7 +1212,7 @@ def delete_flag_endpoint(
     if target_flag is None:
         raise HTTPException(status_code=404, detail=f"unknown flag {flag_code!r} (nothing to delete)")
     # GUARD 1 — gradeable / in-snapshot contract code (a re-snapshot, not a local delete).
-    if bool(target_flag.get("gradeable")) or flag_code in seed_ontology.load_snapshot_codes():
+    if bool(target_flag.get("gradeable")) or flag_code in _active_snapshot_codes():
         raise HTTPException(
             status_code=422,
             detail=(
