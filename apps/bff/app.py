@@ -288,6 +288,27 @@ class ChatRequest(BaseModel):
     history: list[ChatTurn] = []
 
 
+def _load_live_env() -> None:
+    """Load the gitignored repo-root ``.live_env`` (``LITHRIM_API_KEY`` / ``LITHRIM_ORG_ID`` — the
+    kb:read credential the live KB tools read) into ``os.environ`` at BFF startup. The BFF otherwise
+    loads NO env file, so this is the one place the KB key reaches ``KbRagTool._headers``
+    (``LITHRIM_KB_API_KEY`` → ``LITHRIM_API_KEY``) AND the grade subprocess (it inherits os.environ).
+    ``setdefault``: an explicit env var still wins; ``.live_env`` only FILLS what is unset. Secrets
+    stay in the gitignored file, never the config plane. Absent file → no-op."""
+    live = Path(__file__).resolve().parents[2] / ".live_env"
+    if not live.exists():
+        return
+    for raw in live.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        os.environ.setdefault(key.strip(), val.strip().strip("'\""))
+
+
+_load_live_env()
+
+
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
