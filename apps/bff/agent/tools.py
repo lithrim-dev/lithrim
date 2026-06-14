@@ -241,15 +241,27 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         )
         or "none"
     )
+    # active_findings entries are flag-code STRINGS (or finding dicts) — normalize either shape.
+    # (The prior dict-only filter silently dropped string findings, telling the agent "none stand"
+    # on a reject verdict — a manufactured-win data bug the agent then faithfully relayed.)
     active = [
-        f.get("flag_code")
+        (f.get("flag_code") or f.get("code")) if isinstance(f, dict) else f
         for f in (composite.get("active_findings") or [])
-        if isinstance(f, dict) and f.get("flag_code")
     ]
+    active = [a for a in active if a]
+    verdict = composite.get("verdict", "—")
+    meaning = {
+        "reject": "the case was REJECTED",
+        "approve": "the case was APPROVED",
+        "needs_review": "the case NEEDS REVIEW",
+    }.get(str(verdict), str(verdict))
     return _text(
-        f"Ran a $0 REPLAY eval for {agent!r}: verdict={composite.get('verdict', '—')}. "
-        f"Grounded suppressions (tool-corrected false positives): {sup}. "
-        f"Active findings that still stand: {active or 'none'}. "
+        f"Ran a $0 REPLAY eval for {agent!r}. VERDICT = {str(verdict).upper()} ({meaning}). "
+        f"{len(active)} finding(s) STILL STAND and drive this verdict — do NOT call the case clean or "
+        f"say 'nothing stands' when this list is non-empty: {active or 'none'}. "
+        f"{len(adj)} false-positive(s) were tool-corrected (this corrects ONLY these; it does NOT "
+        f"clear the standing findings above): {sup}. "
+        f"Narrate the verdict + the standing findings honestly. "
         f"(A live/in-process PAID run is the human's call — confirm it in the cost modal.)"
     )
 
