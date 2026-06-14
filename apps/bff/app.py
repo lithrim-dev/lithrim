@@ -72,9 +72,9 @@ for _p in (str(REPO_ROOT), str(_SCRIPTS)):
         sys.path.insert(0, _p)
 
 import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors tests/test_ws4a.py)
-import seed_ontology  # noqa: E402  (scripts/ — import-only: snapshot lint for the PUT gate)
 
 from lithrim_bench.harness import (  # noqa: E402
+    admissibility,
     corpus,
     evalpack,
     workspace,  # noqa: E402
@@ -1118,33 +1118,29 @@ def ontology_endpoint(
 
 
 def _active_snapshot_codes() -> frozenset[str]:
-    """The active workspace's pack KNOWN_TAXONOMY_CODES (the TIER_1|2|3 union) — the gradeable gate.
+    """The active workspace's pack KNOWN_TAXONOMY_CODES (the gradeable gate).
 
-    PACK-DIST-1: the taxonomy snapshot relocated OUT of the repo, so the old
-    ``seed_ontology.load_snapshot_codes()`` (hardcoded ``packs/healthcare/taxonomy_snapshot.json``)
-    now raises FileNotFoundError → 500 on every config-write gate. The BFF process is ``_core``-bound
-    at import, so it resolves the ACTIVE WORKSPACE'S pack explicitly (``pack.active_pack()`` is
-    ``_core`` here) — the same pack the subprocess grade binds. The pack must be discoverable (the
-    global ``LITHRIM_BENCH_PACKS_DIR`` / an installed wheel)."""
-    from lithrim_bench.harness import pack as pack_mod
-
-    return pack_mod.pack_taxonomy_codes(workspace.get_active_workspace().pack)
+    PACK-DIST-2 (C3): delegates to the domain-agnostic
+    ``harness.admissibility.active_snapshot_codes`` — the single snapshot-resolution path the
+    config-write gate uses (it resolves the ACTIVE WORKSPACE'S pack, not a hardcoded clinical
+    path). Kept as a thin local alias for the in-module callers."""
+    return admissibility.active_snapshot_codes()
 
 
 def _validate_ontology(ontology: dict) -> None:
     """The PUT gate: reject malformed or snapshot-violating ontologies (HTTP 422).
 
-    Two checks, both import-only over the harness (no edits to lithrim_bench / scripts):
+    Two checks, both import-only over the harness:
       1. structural round-trip through ``ontology.from_dict`` (the eval-load path);
-      2. the S-BS-10/12 snapshot lint — a ``gradeable`` flag outside
-         ``taxonomy/taxonomy_snapshot.json`` is rejected loudly (the CLAUDE.md core
+      2. the S-BS-10/12 snapshot lint (``harness.admissibility``) — a ``gradeable`` flag
+         outside the active pack's taxonomy snapshot is rejected loudly (the CLAUDE.md core
          invariant: never silently score a flag the contract-of-record has not blessed).
     """
     try:
         ontology_from_dict(ontology)
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"malformed ontology: {exc}") from exc
-    offenders = seed_ontology.gradeable_flags_outside_snapshot(
+    offenders = admissibility.gradeable_flags_outside_snapshot(
         ontology.get("flags") or [], _active_snapshot_codes()
     )
     if offenders:

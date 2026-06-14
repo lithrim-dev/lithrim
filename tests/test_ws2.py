@@ -15,18 +15,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
+from lithrim_bench.harness import admissibility
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile
 from lithrim_bench.harness.grade import build_request_body
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import seed_ontology  # noqa: E402
-
-from tests._house_fixture import house_agent, pack_ws0_dir  # noqa: E402
+from tests._house_fixture import house_agent, pack_ws0_dir
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
@@ -91,7 +87,7 @@ def test_lint_fails_on_gradeable_outside_snapshot():
         {"flag": "WRONG_PATIENT_INFO", "gradeable": False},  # reference — exempt
     ]
     snapshot_codes = {"WRONG_DOSAGE", "MISSING_ALLERGY"}
-    offenders = seed_ontology.gradeable_flags_outside_snapshot(flags, snapshot_codes)
+    offenders = admissibility.gradeable_flags_outside_snapshot(flags, snapshot_codes)
     assert offenders == ["INVENTED_OFFENDER"]
 
 
