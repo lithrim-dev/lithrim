@@ -12,7 +12,6 @@ stay byte-additively-identical for the floor-less ``clinical_v1`` ontology.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -20,21 +19,22 @@ from lithrim_bench.harness.config import agent_from_dict, agent_to_dict
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.grounding_check import audit_grounding_checks
 from lithrim_bench.harness.report import composite
+from tests._house_fixture import pack_ws0_dir
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 _MED = "MEDICATION_NOT_IN_TRANSCRIPT"
 
 
 @pytest.fixture
 def baseline() -> dict:
-    return json.loads((FIXTURES / f"baseline.{CASE_ID}.json").read_text())
+    fixtures = pack_ws0_dir()
+    return json.loads((fixtures / f"baseline.{CASE_ID}.json").read_text())
 
 
 @pytest.fixture
 def case() -> dict:
-    return json.loads((FIXTURES / f"case.{CASE_ID}.jsonl").read_text().splitlines()[0])
+    fixtures = pack_ws0_dir()
+    return json.loads((fixtures / f"case.{CASE_ID}.jsonl").read_text().splitlines()[0])
 
 
 def test_declared_groundingcheck_audited_as_independent_entity(baseline, case):

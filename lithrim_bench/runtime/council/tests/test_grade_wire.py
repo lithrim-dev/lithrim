@@ -84,13 +84,38 @@ from lithrim_bench.runtime.pipeline.models import (  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[4]
 _CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-_BASELINE = _REPO / "tests" / "fixtures" / "ws0" / f"baseline.{_CASE_ID}.json"
-_CASE_SRC = _REPO / "tests" / "fixtures" / "ws0" / f"case.{_CASE_ID}.jsonl"
 
 # A5 live grade-wire (option-B addendum): the real v2 trio over grade_inprocess.
 _DROP_ALLERGY_CASE_ID = "bench_scribe_v1_drop_allergy_805205594117"
-_PROOF_CASE = _REPO / "examples" / "proof_case.jsonl"
-_A5_FIXTURE = _REPO / "tests" / "fixtures" / "ws0" / "a5_live.drop_allergy.json"
+
+
+def _ws0_dir() -> Path:
+    """PACK-DIST-2 C2: the ws0 baseline + case + a5 fixture live with the healthcare pack
+    (``../lithrim-pack-healthcare/fixtures/ws0/``), not in the CE tree. Resolve via the
+    discovery seam; ``pytest.skip`` in a bare CE checkout (every reader here is NEEDS_PACK /
+    Azure-gated). Self-contained — matches the vendored conftest's inline-discovery
+    convention rather than importing the ``tests`` package from this subtree."""
+    from lithrim_bench.harness import pack as _pack
+
+    try:
+        return _pack._pack_root("healthcare").parent / "fixtures" / "ws0"
+    except FileNotFoundError:
+        pytest.skip(
+            "PACK-DIST-1: healthcare pack not discoverable (bare CE checkout) — the ws0 "
+            "fixture lives with the pack; set LITHRIM_BENCH_PACKS_DIR or install "
+            "lithrim-pack-healthcare"
+        )
+
+
+def _proof_case() -> Path:
+    """The A5 live proof_case (relocated with the pack — PACK-DIST-1). Resolve via discovery;
+    used only by the Azure-gated live smoke (default-skipped)."""
+    from lithrim_bench.harness import pack as _pack
+
+    try:
+        return _pack._pack_root("healthcare").parent / "examples" / "proof_case.jsonl"
+    except FileNotFoundError:
+        pytest.skip("PACK-DIST-1: healthcare pack not discoverable — proof_case lives with the pack")
 _AZURE_READY = os.environ.get("LITHRIM_LLM_PROVIDER") == "azure" and all(
     os.environ.get(k)
     for k in (
@@ -103,12 +128,13 @@ _AZURE_READY = os.environ.get("LITHRIM_LLM_PROVIDER") == "azure" and all(
 
 
 def _baseline() -> dict:
-    return json.loads(_BASELINE.read_text())
+    return json.loads((_ws0_dir() / f"baseline.{_CASE_ID}.json").read_text())
 
 
 def _case() -> dict:
-    c = load_case(_CASE_ID, source=str(_CASE_SRC))
-    assert c is not None, f"case {_CASE_ID} not found in {_CASE_SRC}"
+    case_src = _ws0_dir() / f"case.{_CASE_ID}.jsonl"
+    c = load_case(_CASE_ID, source=str(case_src))
+    assert c is not None, f"case {_CASE_ID} not found in {case_src}"
     return c
 
 
@@ -231,8 +257,9 @@ def test_v2_trio_grade_inprocess_live():
     from lithrim_bench.runtime.council import llm_provider
 
     llm_provider.reset_clients()  # drop any client cached by the offline tests
-    case = load_case(_DROP_ALLERGY_CASE_ID, source=str(_PROOF_CASE))
-    assert case is not None, f"{_DROP_ALLERGY_CASE_ID} not in {_PROOF_CASE}"
+    proof_case = _proof_case()
+    case = load_case(_DROP_ALLERGY_CASE_ID, source=str(proof_case))
+    assert case is not None, f"{_DROP_ALLERGY_CASE_ID} not in {proof_case}"
 
     result = grade_inprocess(case)  # LIVE: real v2 trio, no semantic_stage injection
     grounded = ground(result, case, ontology=load_ontology())
@@ -277,7 +304,9 @@ def test_v2_trio_grade_inprocess_live():
             "per_judge": per_judge,
             "cost_tokens": result["provenance"].get("cost_tokens"),
         }
-        _A5_FIXTURE.write_text(json.dumps(artifact, indent=2) + "\n")
+        (_ws0_dir() / "a5_live.drop_allergy.json").write_text(
+            json.dumps(artifact, indent=2) + "\n"
+        )
 
     # Robust verdict-level assertions: the grade-wire works live; the defect rejects.
     assert result["verdict"] == "BLOCK"

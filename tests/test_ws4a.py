@@ -19,14 +19,11 @@ from lithrim_bench.harness.correction import build_correction, build_floor_corre
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict
 from lithrim_bench.harness.report import calibration_check
-from tests._house_fixture import HOUSE_CASE_ID, house_agent  # noqa: E402
+from tests._house_fixture import HOUSE_CASE_ID, house_agent, pack_ws0_dir  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 WS4A_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws4a"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-BASELINE = FIXTURES / f"baseline.{CASE_ID}.json"
-CASE = FIXTURES / f"case.{CASE_ID}.jsonl"
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 PINNED_VALIDATOR = REPO_ROOT / "validators" / "fhir_us_core_patient_validator.generated.jute"
 
@@ -50,14 +47,19 @@ def _agent() -> Agent:
             kb_bindings={},
             severity_map_ref="ontology:clinical/1",
         ),
-        dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=str(BASELINE)),
+        dataset=Dataset(
+            case_id=CASE_ID,
+            source=str(pack_ws0_dir() / f"case.{CASE_ID}.jsonl"),
+            baseline=str(pack_ws0_dir() / f"baseline.{CASE_ID}.json"),
+        ),
     )
 
 
 def _suppress_record() -> dict:
     """A real ws0-correction/1 record from the WS-0 replay flywheel."""
-    baseline = json.loads(BASELINE.read_text())
-    case = json.loads(CASE.read_text().splitlines()[0])
+    fixtures = pack_ws0_dir()
+    baseline = json.loads((fixtures / f"baseline.{CASE_ID}.json").read_text())
+    case = json.loads((fixtures / f"case.{CASE_ID}.jsonl").read_text().splitlines()[0])
     grounded = ground(baseline, case)
     return build_correction(
         suppressed_entry=grounded.suppressed[0],

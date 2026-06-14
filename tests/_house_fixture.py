@@ -23,9 +23,43 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from lithrim_bench.harness import pack as _pack
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def pack_ws0_dir_or_none() -> Path | None:
+    """The clinical ``ws0`` house fixture dir resolved from the discoverable healthcare pack
+    (``../lithrim-pack-healthcare/fixtures/ws0/``), or ``None`` in a bare CE checkout where the
+    pack is nowhere — PACK-DIST-2 C2. Non-skipping: for callers that only need to CONSTRUCT a
+    path string (e.g. an Agent the actual ws0 READ never happens for in bare CE because the
+    reading func is NEEDS_PACK-skipped). The CE tree carries no clinical fixture; ``ws0`` lives
+    one level above the pack root (``_pack_root('healthcare').parent``)."""
+    try:
+        return _pack._pack_root("healthcare").parent / "fixtures" / "ws0"
+    except FileNotFoundError:
+        return None
+
+
+def pack_ws0_dir() -> Path:
+    """The clinical ``ws0`` house fixture, resolved from the discoverable healthcare pack
+    (``../lithrim-pack-healthcare/fixtures/ws0/``) — PACK-DIST-2 C2.
+
+    For callers that READ the fixture. Every such CE consumer is a ``NEEDS_PACK`` func (it
+    grades/replays THROUGH healthcare), so a bare CE checkout has nothing to resolve — this
+    ``pytest.skip``s instead of dangling on a gone in-repo path. Dev/CI (pack discoverable)
+    resolves the real fixture dir."""
+    resolved = pack_ws0_dir_or_none()
+    if resolved is None:
+        pytest.skip(
+            "PACK-DIST-1: healthcare pack not discoverable (bare CE checkout) — the ws0 "
+            "house fixture lives with the pack; set LITHRIM_BENCH_PACKS_DIR or install "
+            "lithrim-pack-healthcare"
+        )
+    return resolved
 
 HOUSE_CASE_ID = "_core_house_v1"
 HOUSE_FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures" / "_core"

@@ -19,12 +19,15 @@ from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tests._house_fixture import house_agent  # noqa: E402
+from tests._house_fixture import house_agent, pack_ws0_dir_or_none  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
+# the ws0 fixture lives with the pack (PACK-DIST-2 C2). Only the NEEDS_PACK replay func reads
+# it server-side (skipped in bare CE); the agent below just needs path strings, so resolve
+# non-skipping (a None-fallback string the non-reading client funcs never touch).
+FIXTURES = pack_ws0_dir_or_none() or (REPO_ROOT / "tests" / "fixtures" / "ws0")
 
 # apps/bff on path so the test imports the BFF app the same way run_eval is imported.
 _BFF = REPO_ROOT / "apps" / "bff"

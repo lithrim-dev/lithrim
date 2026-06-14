@@ -26,13 +26,10 @@ from lithrim_bench.harness.grade import build_request_body
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import seed_ontology  # noqa: E402
 
-from tests._house_fixture import house_agent  # noqa: E402
+from tests._house_fixture import house_agent, pack_ws0_dir  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws0"
 CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-BASELINE = FIXTURES / f"baseline.{CASE_ID}.json"
-CASE = FIXTURES / f"case.{CASE_ID}.jsonl"
 ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 
 
@@ -58,7 +55,11 @@ def _agent_over_fixtures() -> Agent:
             kb_bindings={},
             severity_map_ref="ontology:clinical/1",
         ),
-        dataset=Dataset(case_id=CASE_ID, source=str(CASE), baseline=str(BASELINE)),
+        dataset=Dataset(
+            case_id=CASE_ID,
+            source=str(pack_ws0_dir() / f"case.{CASE_ID}.jsonl"),
+            baseline=str(pack_ws0_dir() / f"baseline.{CASE_ID}.json"),
+        ),
     )
 
 
@@ -123,7 +124,8 @@ def test_run_eval_passes_agent_config_to_live_grade(tmp_path, monkeypatch):
 
     def _fake_grade_live(case, **kwargs):
         captured.update(kwargs)
-        return json.loads(BASELINE.read_text())  # baseline-shaped, keeps run() offline
+        # baseline-shaped, keeps run() offline
+        return json.loads((pack_ws0_dir() / f"baseline.{CASE_ID}.json").read_text())
 
     monkeypatch.setattr(run_eval, "grade_live", _fake_grade_live)
 
