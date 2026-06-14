@@ -306,9 +306,6 @@ def _load_live_env() -> None:
         os.environ.setdefault(key.strip(), val.strip().strip("'\""))
 
 
-_load_live_env()
-
-
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -316,6 +313,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _startup_load_live_env() -> None:
+    """Load ``.live_env`` at SERVER startup, NOT at import — so importing app.py never mutates the
+    process-global env. Keeps the KB wire-contract test hermetic regardless of import order; the
+    running BFF (and the grade subprocess it spawns) still gets the kb:read credential."""
+    _load_live_env()
 
 
 @app.get("/health")
@@ -1647,6 +1652,7 @@ def _build_tool_context(
             db_path=db_path,
             out_dir=out_dir,
             collections_db=collections_db,
+            workdir=workdir,
         )
 
     # ── UAP-5c-2: the Domain-assembly WRITE closure (EDIT-ONE-FACET: the judges roster).

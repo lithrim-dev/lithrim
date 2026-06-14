@@ -119,8 +119,9 @@ def test_delete_agent_audited_and_list_agents_sorted(tmp_path):
 def test_asafe_delete_judge_is_the_ninth_tool_no_paid_knob():
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
     # CRUD-1 added delete_judge (9th); FLAG-1 added create_flag (10th) + delete_flag (11th);
-    # CHATBIND-2 added focus_artifact (12th); CHATBIND-3 show_case (13th); CHATBIND-4 propose_live_run (14th).
-    assert len(names) == 14 and len(set(names)) == 14, names
+    # CHATBIND-2 added focus_artifact (12th); CHATBIND-3 show_case (13th); CHATBIND-4 propose_live_run (14th);
+    # GROUND-CHAT-1 added add_grounding_contract (15th); KB-CONTEXT-1 added kb_context (16th).
+    assert len(names) == 16 and len(set(names)) == 16, names
     assert {"delete_judge", "create_flag", "delete_flag"} <= set(names)
     # NON-VACUOUS: every one of the 14 schemas is no-paid-knob, the new tools included.
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:
@@ -169,6 +170,8 @@ def _stub_ctx(delete_judge_fn):
         delete_judge=delete_judge_fn,
         create_flag=_noop,
         delete_flag=_noop,
+        put_grounding_contract=_noop,
+        kb_context=_noop,
     )
 
 

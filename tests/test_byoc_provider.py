@@ -232,10 +232,19 @@ _BFF_CASE = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
 
 
 @pytest.fixture
-def bff_client(tmp_path):
+def bff_client(tmp_path, monkeypatch):
     pytest.importorskip("fastapi", reason="needs the [bff] extra")
     import app as bff
     from fastapi.testclient import TestClient
+
+    # Hermetic active workspace: route run-eval IN-PROCESS (the _core default) regardless of any
+    # on-disk out/workspaces/.active a local shell session may have left non-default. The BFF
+    # active-workspace pointer is process-global; tests must not read it (the isolation seam).
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
+    )
 
     from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 

@@ -120,8 +120,8 @@ def build_pack(
     """
     # ``grade_fn`` (default the canonical ``run_eval.run``) lets a caller inject the grade — the
     # BFF passes a PACK-BOUND SUBPROCESS grader for a non-_core workspace, since the in-process
-    # core lacks that pack's grounding executors (e.g. healthcare's snomed_subsumption). Same
-    # record shape either way, so the pack assembly below is unchanged. Default None => byte-identical.
+    # core lacks that pack's grounding executors. Same record shape either way, so the pack
+    # assembly below is unchanged. Default None => byte-identical.
     run = grade_fn or _run_core()
     cases: list[dict[str, Any]] = []
     outcomes: list[dict[str, Any]] = []

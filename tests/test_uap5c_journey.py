@@ -84,11 +84,19 @@ def _fixture_agent(name: str = AGENT) -> Agent:
 
 
 @pytest.fixture
-def env(tmp_path):
+def env(tmp_path, monkeypatch):
     """A tmp config plane + a ToolContext bound to the real (frozen) BFF ops, plus a
     TestClient over the SAME db so GET /v1/audit reads what the tools wrote."""
     db = tmp_path / "bench_config.sqlite"
     save_agent(_fixture_agent(), db_path=db)
+    # Hermetic active workspace: the eval-pack batch routes IN-PROCESS (the _core default), not via
+    # whatever out/workspaces/.active a local shell session left set (the process-global pointer
+    # tests must not read — the isolation seam).
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
+    )
     ctx = bff._build_tool_context(
         req_agent=AGENT,
         db_path=db,
@@ -228,7 +236,7 @@ def test_run_eval_pack_drops_an_injected_live_knob(env, monkeypatch):
     ctx, _client = env
     captured = {}
 
-    def _spy(req, *, db_path=None, out_dir=None, collections_db=None):
+    def _spy(req, *, db_path=None, out_dir=None, collections_db=None, workdir=None):
         captured["live"] = req.live
         captured["pack_id"] = req.pack_id
         return {"pack": {"outcomes": []}, "run_ids": []}
@@ -240,6 +248,29 @@ def test_run_eval_pack_drops_an_injected_live_knob(env, monkeypatch):
         )
     )
     assert captured["live"] is False  # the injected paid knob was DROPPED at the bound op
+
+
+def test_run_eval_pack_threads_workdir_on_the_non_core_subprocess_path(env, monkeypatch):
+    """Regression (the FastAPI endpoint-as-plain-call Depends trap, S-BS-82 family): on a NON-_core
+    workspace the eval-pack batch routes to the pack-bound subprocess via a grade_fn that resolves the
+    agent ontology under ``workdir``. If the closure forgets to pass ``workdir=`` to
+    eval_pack_run_endpoint, workdir stays an unresolved ``Depends()`` and ``Path(workdir)`` raises
+    BEFORE the subprocess is reached — so reaching the spy proves the workdir was threaded through."""
+    ctx, _client = env
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="demo", pack="healthcare", packs_dir="x"),
+    )
+    seen = {}
+
+    def _spy(*, agent_name, config_db, ontology_path, collections_db, out_dir, live, in_process, ws):
+        seen["ontology_path"] = ontology_path  # reached ONLY if workdir resolved (no Depends leak)
+        raise SystemExit("captured after the subprocess routing resolved the ontology path")
+
+    monkeypatch.setattr(bff, "_grade_via_subprocess", _spy)
+    asyncio.run(run_eval_pack_handler(ctx, {"pack_id": "p", "agents": [AGENT]}))
+    assert "ontology_path" in seen  # the grade_fn resolved workdir and reached the subprocess call
 
 
 def test_run_eval_pack_handler_never_forwards_a_paid_knob(env):
