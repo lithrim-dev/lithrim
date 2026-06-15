@@ -306,3 +306,91 @@ def test_tool_set_is_the_uap5c_journey_set():
         "add_grounding_contract",
         "kb_context",
     }
+
+
+# ── SHEPHERD-1b (W2a): the one-step-and-wait rule is foregrounded + the prompt stays a SUPERSET ──
+
+
+def test_system_prompt_foregrounds_the_one_step_and_wait_rule():
+    """W2a / A2: the system prompt makes 'exactly ONE config PROPOSAL per turn, then STOP' an
+    imperative, prominent rule (S-BS-150) — and explicitly frees reads + a $0 run from the cap
+    (clarification #2: it is one config PROPOSAL per turn, not one tool call)."""
+    from agent.loop import _system_prompt
+
+    prompt = _system_prompt("eval-1")
+    assert "ONE STEP PER TURN" in prompt  # foregrounded, not buried
+    assert "EXACTLY ONE" in prompt and "config PROPOSAL" in prompt
+    assert "then STOP" in prompt
+    assert "do NOT chain multiple" in prompt.lower() or "Do NOT chain multiple" in prompt
+    # the cap is on PROPOSALS — reads + a $0 run stay free (so the start-of-turn live read holds)
+    assert "Reading the live state is FREE" in prompt
+
+
+def test_system_prompt_stays_a_superset_back_compat():
+    """W2a / A2 back-compat: the strengthened stanza is ADDED ON TOP of the SUPERSET — the base
+    persona, the HONESTY contract, the active-agent NAMING, and the operator-degrade clause are
+    all still present, so a non-onboarding chat is behavior-unchanged."""
+    from agent.loop import _system_prompt
+
+    prompt = _system_prompt("eval-1")
+    assert "Lithrim's setup assistant" in prompt  # 1) base persona
+    assert "HONESTY IS THE PRODUCT" in prompt  # 2) the honesty contract
+    assert "`eval-1`" in prompt  # 3) the active-agent naming
+    # 4) the operator-degrade clause (a fully-set-up agent is answered, not led)
+    assert "drop back to the" in prompt and "reactive operator posture" in prompt
+
+
+# ── SHEPHERD-1b (W2b): the turn-scoped pacing hook caps step-proposing writes to 1/turn ─────────
+
+
+def test_pacing_hook_caps_step_proposing_writes_to_one_per_turn():
+    """W2b / A2: the additive PreToolUse pacing hook allows the 1st step-proposing write, DENIES
+    the 2nd+ in the same turn (with a graceful pacing reason — clarification #2), never counts a
+    read, and resets per turn because _build_options is rebuilt per turn. The deny hook stays
+    FIRST + byte-unchanged and composes alongside it (purely additive, fail-open for itself)."""
+    pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
+    from agent.loop import _build_options
+
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 13), default_agent="eval-1")
+    opts = _build_options(ctx)
+    matcher = opts.hooks["PreToolUse"][0]
+    hooks = matcher.hooks
+    # the deny hook stays first + byte-unchanged; the pacing hook is appended (purely additive)
+    assert [h.__name__ for h in hooks] == ["_deny_non_lithrim", "_pace_one_step"]
+    pace = hooks[1]
+
+    async def _drive(hook, tool):
+        return await hook({"tool_name": f"mcp__lithrim__{tool}"}, "t", None)
+
+    # 1st step-proposing write this turn -> allow ({} == no decision == allow under the allowlist)
+    assert asyncio.run(_drive(pace, "author_judge")) == {}
+    # 2nd step-proposing write SAME turn -> deny, with a graceful pacing reason (not an error)
+    out = asyncio.run(_drive(pace, "add_grounding_contract"))
+    decision = out["hookSpecificOutput"]
+    assert decision["permissionDecision"] == "deny"
+    reason = decision["permissionDecisionReason"]
+    assert "One setup step per turn" in reason
+    assert "permission denied" not in reason.lower() and "blocked" not in reason.lower()
+    # a READ tool is NEVER counted -> always allowed, even after a write was already proposed
+    assert asyncio.run(_drive(pace, "get_agent")) == {}
+    assert asyncio.run(_drive(pace, "review_runs")) == {}
+    # a $0 replay run is the natural payoff after an edit -> never counted (clarification #2)
+    assert asyncio.run(_drive(pace, "run_eval")) == {}
+
+    # a FRESH turn (a new _build_options) -> a fresh counter -> the 1st write is allowed again
+    pace2 = _build_options(ctx).hooks["PreToolUse"][0].hooks[1]
+    assert asyncio.run(_drive(pace2, "author_judge")) == {}
+
+
+def test_pacing_hook_fails_open_for_itself():
+    """W2b safety: a malformed input_data must not crash the hook (fail-open for the PACING hook
+    only — it can ever only ADD a deny, never remove one, so failing open is safe; the A-SAFE
+    _deny_non_lithrim still independently governs the security bound)."""
+    pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
+    from agent.loop import _build_options
+
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 13), default_agent="eval-1")
+    pace = _build_options(ctx).hooks["PreToolUse"][0].hooks[1]
+    # None / a missing tool_name must not raise; they are not a counted write -> allow
+    assert asyncio.run(pace(None, "t", None)) == {}
+    assert asyncio.run(pace({}, "t", None)) == {}
