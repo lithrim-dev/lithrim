@@ -76,22 +76,22 @@
     {
       "criterion": "A1 (W1) — the rail reflects REAL state (empty -> Domain current + N/total; +judges -> Judges done).",
       "verdict": "PASS",
-      "evidence": "apps/shell/src/journey.test.jsx + the rail-render assertion ('4 / 6' literal gone, '1 / 5' shown): 15/15 pass with panes.shepherd.test.jsx. LIVE re-drive: PENDING-MONITOR-LIVE."
+      "evidence": "apps/shell/src/journey.test.jsx + the rail-render assertion ('4 / 6' literal gone, '1 / 5' shown): 15/15 pass with panes.shepherd.test.jsx. MONITOR LIVE re-drive 2026-06-15: the rail rendered '0 / 5' + Domain NOW (derived, not the static '4 / 6' all-todo). CONFIRMED."
     },
     {
       "criterion": "A2 (W2) — fresh eval: shepherd opens + proposes the next step; non-onboarding unchanged.",
       "verdict": "PASS",
-      "evidence": "tests/test_shepherd.py 4/4: journey order + 'propose the next incomplete step' + fresh-eval lead + 'already COMPLETE' -> 'reactive operator posture' degrade; SUPERSET (base persona + HONESTY + active-agent naming intact). LIVE re-drive: PENDING-MONITOR-LIVE."
+      "evidence": "tests/test_shepherd.py 4/4: journey order + 'propose the next incomplete step' + fresh-eval lead + 'already COMPLETE' -> 'reactive operator posture' degrade; SUPERSET (base persona + HONESTY + active-agent naming intact). MONITOR LIVE re-drive: the shepherd OPENED with 'Welcome! Let me first read the current state of your evaluation...' + rendered an explicit plan (Domain done / Judges <- this is your next step / ...) + led into authoring. Proactive leading CONFIRMED. CAVEAT: over-eager (chained many proposals in one turn vs 'one step + wait') -> S-BS-150."
     },
     {
       "criterion": "A3 (W3) — propose renders a save-pending editor (no auto-commit); Save flips the step done + the shepherd proposes next.",
-      "verdict": "PASS",
-      "evidence": "journey.test.jsx W3 deriveSteps flip (Judges current->done); panes.shepherd.test.jsx — a proposed JudgeEditor's real Save fires onConfigSaved. LIVE re-drive: PENDING-MONITOR-LIVE."
+      "verdict": "PASS (mechanism; live save not driven)",
+      "evidence": "journey.test.jsx W3 deriveSteps flip (Judges current->done); panes.shepherd.test.jsx — a proposed JudgeEditor's real Save fires onConfigSaved. MONITOR LIVE re-drive: a proposed editor rendered save-pending (no auto-commit) CONFIRMED; the live Save->advance was NOT driven (would mutate eval-1 without the user's OK + the S-BS-149 rail-sync gap would block a clean demo) -> proven at the mechanism/test layer only."
     },
     {
       "criterion": "A4 (W4) — fresh eval entry offers 'Start guided setup' / the next step (not the static chips).",
       "verdict": "PASS",
-      "evidence": "panes.shepherd.test.jsx: start-guided-setup + next-step-prompt render, fill the composer (no auto-send), old chips gone, chip omitted when complete. LIVE re-drive: PENDING-MONITOR-LIVE."
+      "evidence": "panes.shepherd.test.jsx: start-guided-setup + next-step-prompt render, fill the composer (no auto-send), old chips gone, chip omitted when complete. MONITOR LIVE re-drive: the empty state showed 'Start guided setup' + 'Next: Domain' (fill-the-composer, no auto-send). CONFIRMED."
     },
     {
       "criterion": "A5 (moat tripwire) — guard trio green; council/signals/tools.py zero-diff.",
@@ -105,15 +105,15 @@
     },
     {
       "criterion": "A7 (A-LIVE proof capsule) — honest before->after + a live capture.",
-      "verdict": "SKIP",
-      "evidence": "PROOF stub written (docs/research/PROOF_bench-salvage_SHEPHERD-1_2026-06-15.md): BEFORE + the 2 decisions used + code/test evidence DONE; AFTER (live :5180 captures) OWED to the monitor's A-LIVE re-drive."
+      "verdict": "PASS",
+      "evidence": "docs/research/PROOF_bench-salvage_SHEPHERD-1_2026-06-15.md ATTESTED: the monitor filled the AFTER from the 2026-06-15 :5180 re-drive (W1/W2/W4 confirmed live; W3 mechanism-tested; the two honest seams S-BS-149/S-BS-150 recorded). Honest-Δ honored (no manufactured 'leads perfectly' claim). Video OPTIONAL for this cycle; not recorded."
     }
   ],
 
   "diagnostic_stats": {
     "W3_event": "a NEW minimal callback (onConfigSaved App->CenterPane) reusing the editors' existing onResult save signal — there was NO existing reload path (the rail had no live data source before W1).",
     "review_signal_used": "runResult (the distinct-beat option) — Review done iff runResult non-null; the approved >=1-run fallback was NOT needed.",
-    "turn_count_latency": "PENDING-MONITOR-LIVE (full guided-onboarding turn count / latency measured during the A-LIVE re-drive).",
+    "turn_count_latency": "MONITOR LIVE: a single 'Start guided setup' turn chained ~20+ tool calls (ToolSearch, read agent x2, review runs x2, edit roster, author judge x3, read judge x4, load case, edit flag...) -> the shepherd leads HARD but over-eagerly (S-BS-150). The turn is long/verbose; the staged activity timeline (CONV-UX-1) keeps it legible.",
     "files_changed": "7 (3 W1 + 1 W2 + 2 W3/W4 shared + 3 W5 tests); 473 insertions / 21 deletions; all in driver §2 scope.",
     "new_genui_card_types": "0 (KNOWN_TOOLS untouched).",
     "tools_py_byte_stable": "yes (zero-diff)."
@@ -121,19 +121,63 @@
 
   "seams_opened": [
     {
-      "id": "S-BS-146",
+      "id": "S-BS-148",
       "title": "app.chat.test.jsx / StatusBar mock omits getMeta -> 2 unhandled rejections in the full Vitest run",
       "severity": "low",
       "fix_location": "apps/shell/src/app.chat.test.jsx (vi.mock('./bff.js')) — add getMeta to the mock",
-      "impact": "pre-existing (identical 2-error count at 5b966ff); not a SHEPHERD-1 regression; tests still pass. A one-line mock add clears the noise.",
+      "impact": "pre-existing (identical 2-error count at 5b966ff); not a SHEPHERD-1 regression; tests still pass. A one-line mock add clears the noise. RENUMBERED from the executor's S-BS-146 (an ID collision: S-BS-146 was already assigned in CONV-UX-1 to the shared-part show_intent auto-default; fresh-critic confirmed the collision).",
       "confidence": "CONFIRMED",
       "evidence": "clean-tree 5b966ff full Vitest = 1 failed | 90 passed | 2 errors; both errors are 'No \"getMeta\" export is defined on the \"./bff.js\" mock' (app.jsx:145 StatusBar poller)."
+    },
+    {
+      "id": "S-BS-149",
+      "title": "rail <-> active-agent sync gap: the journey rail derives from the shell's activeAgent, but the chat shepherd resolves its own agent (CONV-UX-1 _resolve_chat_agent) -> on a 'New evaluation' they disagree",
+      "severity": "med",
+      "fix_location": "apps/shell/src/app.jsx (refreshJourney's agent source) + the New-evaluation agent binding; reconcile with apps/bff/app.py _resolve_chat_agent",
+      "impact": "MONITOR LIVE: on a fresh 'New evaluation' the rail showed 0/5 + Domain NOW (blank activeAgent) while the shepherd resolved to eval-1 and correctly reported Domain done. The plan surface and the agent disagree on WHICH agent is being set up. Also blocks a clean live W3 save->advance demo. The natural SHEPHERD-1b scope (with S-BS-150).",
+      "confidence": "CONFIRMED",
+      "evidence": "monitor :5180 re-drive 2026-06-15: rail '0 / 5' Domain NOW vs the chat plan '✅ Domain bound to clinical/1, done'."
+    },
+    {
+      "id": "S-BS-150",
+      "title": "shepherd over-eager: chains many proposals in one turn vs the stanza's 'propose ONE step at a time + wait'",
+      "severity": "med",
+      "fix_location": "apps/bff/agent/loop.py _SHEPHERD_STANZA (firmer one-step-and-wait enforcement) — prompt-only; consider a mechanical gate later",
+      "impact": "MONITOR LIVE + fresh-critic: the lead-the-journey behavior is prompt-INSTRUCTED, not mechanically enforced; a single 'Start guided setup' turn chained ~20+ tool calls (authored judges, edited roster, edited a flag, loaded a case — all save-pending). It leads, arguably too hard. The natural SHEPHERD-1b scope (with S-BS-149).",
+      "confidence": "CONFIRMED",
+      "evidence": "monitor re-drive activity timeline (~20+ steps in one turn); fresh-critic finding #2 ('lead is prompt-instructed, not mechanically enforced')."
+    },
+    {
+      "id": "S-BS-151",
+      "title": "dead 'Knowledge base' entry in STEP_PROMPTS — KB is never 'current' (optional) so its next-step chip never fires",
+      "severity": "low",
+      "fix_location": "apps/shell/src/panes.jsx / data.jsx (STEP_PROMPTS) — drop the KB entry or make it reachable",
+      "impact": "cosmetic dead code; KB is optional and never the 'current' step, so the 'Next: Knowledge base' chip is unreachable. Fresh-critic finding #3.",
+      "confidence": "CONFIRMED",
+      "evidence": "fresh-critic critique-bench-salvage-SHEPHERD-1-2026-06-15.md finding #3."
     }
   ],
 
   "seams_closed": [],
 
-  "verdict": "CLEAN",
+  "hard_gate_critique": {
+    "critic_session": ".devloop/sessions/critique-bench-salvage-SHEPHERD-1-2026-06-15.md",
+    "verdict": "PASS (non-blocking)",
+    "counts": "0 BLOCKING / 3 NON-BLOCKING / 1 OPEN-QUESTION",
+    "reproduced": "moat diff byte-empty (council/signals/tools.py) + registry.js + CSS zero-diff + guard trio 17 non-vacuous; W1 deriveSteps non-vacuous (scratch-broke Judges->true -> 5 failures -> restored); W2 superset (persona+HONESTY+active-agent naming all present, no ChatRequest/ToolContext widening, _build_options byte-identical); W3 minimal callback on the existing onResult; suite 538/2(S-BS-96)/4 + a parent-worktree run confirming the Vitest delta is exactly +15 (same S-BS-145 + getMeta failures at 5b966ff).",
+    "non_blocking": "(1) 'N / 5' not the driver-literal 'N / 6' (KB excluded; documented+tested; stale comment wording); (2) proactivity unprovable at the code/test layer (deferred to the monitor re-drive -> CONFIRMED live); (3) dead 'Knowledge base' STEP_PROMPTS entry -> S-BS-151.",
+    "open_question": "lock the Review-step distinct-beat (runResult) signal as canon -> ACCEPTED (it is canon).",
+    "honesty": "flagged the S-BS-146 ID collision -> renumbered to S-BS-148."
+  },
+
+  "monitor_close": {
+    "closed_at": "2026-06-15",
+    "audit": "7-item monitor audit CLEAN: scope held (9 files = 5 code/test + PROOF + session log, all driver §2); tools.py + council/signals byte-stable + registry.js no new card types; guard trio green; suite +15/0-new (Python 538/2-pre-existing/4; Vitest +15, the 1 fail + 2 errors identical at parent); 5 atomic pathspec-only commits 95c427e..725b2e7; LOCAL not pushed; HARD-GATE fresh-critic PASS; A1/A2/A4 attested via the monitor :5180 re-drive; A3 mechanism-tested; A5/A6 PASS; A7 capsule ATTESTED.",
+    "live_attestation": "Monitor :5180 re-drive 2026-06-15 (demo-clinical, fresh 'New evaluation'): W1 the rail is LIVE ('0/5' + Domain NOW, derived not static); W2 the shepherd LEADS (opened with guidance + rendered an explicit per-step plan with '<- next step' + led into authoring) = the headline win, the vision realized at walking-skeleton level; W4 'Start guided setup' + 'Next: Domain' entry. W3 save->advance proven at the mechanism/test layer (live Save not driven). Two honest seams: S-BS-149 (rail<->agent sync) + S-BS-150 (over-eager pacing) = the SHEPHERD-1b scope.",
+    "verdict": "CLOSED PROCEED-WITH-CAVEATS"
+  },
+
+  "verdict": "CLOSED PROCEED-WITH-CAVEATS",
 
   "report": "SHEPHERD-1 landed as 5 atomic, pathspec-only commits (95c427e..725b2e7) on bench-salvage/ws6c-dspy over parent 5b966ff (NOT pushed). The setup-journey rail is now the shepherd's LIVE plan surface (journey.js deriveSteps, pure + tested), the agent prompt carries a proactive plan-aware SUPERSET stanza that degrades to operator posture when complete (W2), Save fires a minimal onConfigSaved->refreshJourney re-derive (W3, reusing the editors' existing onResult), and the empty state is shepherd-aware (W4). Moat is byte-stable (council/signals/tools.py zero-diff; guard trio green). Suites: Python 538 passed / 2 pre-existing S-BS-96 flakes (pass in isolation, untouched by this diff); shell Vitest 105 passed / 1 pre-existing S-BS-145 titlebar fail / 2 pre-existing getMeta-mock errors — all acknowledged, none new. A1-A4 verified at the code/test layer (PENDING-MONITOR-LIVE for the A-LIVE re-drive); A7 PROOF is a stub with the AFTER owed. NOTE: a FOREIGN git stash (stash@{0}, based at 421c192, touches app.py/seed_ontology.py/test_ws2.py) predates this work and was left untouched.",
 

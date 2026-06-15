@@ -1,10 +1,11 @@
 # PROOF capsule — SHEPHERD-1: the agent-led onboarding "shepherd" harness (plan + approval gates)
 
-> **Status: STUB — code/test layer DONE; the A-LIVE re-drive (A1–A4) is the MONITOR's.**
-> Authored by the executor (session-2026-06-15-1) per the hand-back contract: the BEFORE
-> + the two decisions used are recorded now; the AFTER (live `:5180` captures) is left for
-> the monitor's live re-drive. Honest-Δ binds: if the shepherd does not actually lead
-> end-to-end live, the AFTER must say so.
+> **Status: ATTESTED (monitor live re-drive, 2026-06-15) — PASS with two honest seams.**
+> Code/test layer DONE (executor); the A-LIVE re-drive on `:5180` (workspace `demo-clinical`,
+> a fresh "New evaluation") was run by the monitor: W1/W2/W4 confirmed live (strong), W3
+> mechanism unit-tested (live save not driven — see the seam). HARD-GATE fresh-critic PASS
+> (0 BLOCKING / 3 NB / 1 OQ). Honest-Δ honored: the AFTER reports what the drive actually
+> showed, including two tuning seams (S-BS-149 rail↔agent sync; S-BS-150 over-eager pacing).
 
 Bundle: `bench-salvage-phaseSHEPHERD-1-agent-led-onboarding-harness-driver`
 Branch: `bench-salvage/ws6c-dspy` · parent `5b966ff` · commits `95c427e..725b2e7` (NOT pushed)
@@ -62,16 +63,43 @@ the rail wired to state (`journey.js`), the shepherd stanza, and the save→adva
 
 ## AFTER (the live plan + proactive shepherd + approval-gated advance)
 
-> **OWED to the MONITOR (A-LIVE re-drive of `:5180`).** Fill with screenshots:
-> 1. A fresh eval (empty agent) → rail shows **Domain `current` (NOW pill) + 0 / 5**, the
->    empty state offers **"Start guided setup"** + **"Next: Domain"**.
-> 2. The shepherd OPENS with guidance and leads Domain → … (proactive, not pure reaction).
-> 3. Proposing a judge renders a **save-pending JudgeEditor** (no auto-commit); on **Save**,
->    the rail's **Judges** flips **done** and the count advances; the shepherd proposes the
->    next step.
-> 4. Non-onboarding chat on a fully-configured agent is behavior-unchanged (operator posture).
->
-> Honest-Δ: if the shepherd does not lead end-to-end (e.g. it stalls or skips a gate), say so.
+**Monitor A-LIVE re-drive, 2026-06-15 (`:5180`, `demo-clinical`, fresh "New evaluation"):**
+
+1. **W1 — the rail is LIVE: ✅ CONFIRMED.** The rail rendered **"0 / 5"** with **Domain** carrying
+   the **NOW pill** (`current`) and the rest `todo` — derived, not the static "4 / 6" all-`todo`.
+   The empty state offered **"Start guided setup"** (primary) + **"Next: Domain"** (the computed
+   next step). (Note: "N / 5" not "N / 6" — KB is optional and excluded from the required count;
+   documented + tested, defensible.)
+2. **W2 — the shepherd LEADS: ✅ CONFIRMED (the headline).** On "Start guided setup" the agent
+   OPENED with *"Welcome! Let me first read the current state of your evaluation so I can guide you
+   from the right starting point"*, then rendered an **explicit plan with per-step status** inline:
+   `✅ Domain — bound to clinical/1, done · ☐ Judges — roster empty ← this is your next step ·
+   ☐ Ground truth · ☐ KB (optional) · ☐ Run · ☐ Review`, and proactively led into authoring the
+   first judge with an approval-gate editor card. The CONV-UX-1 activity timeline composed
+   underneath. This is the Claude-Code "here's where you are / next step / proposed action —
+   approve?" loop, live.
+3. **W4 — shepherd entry: ✅ CONFIRMED** (per #1).
+4. **W3 — save→advance: mechanism unit-tested; live save NOT driven.** The monitor did not click
+   Save (would mutate `eval-1`'s roster without the user's OK, and the S-BS-149 sync gap below
+   would prevent a clean live demo anyway). The flip is proven by the W5 test (deriveSteps
+   before/after a JudgeEditor Save + `onConfigSaved`→`refreshJourney`).
+
+### Honest seams the re-drive surfaced (neither a failure — tuning a walking skeleton)
+- **S-BS-149 (med) — rail ↔ active-agent sync gap.** The left rail derives from the shell's
+  blank "New evaluation" `activeAgent` (showed **0 / 5, Domain NOW**), while the chat shepherd
+  resolved its own agent (the CONV-UX-1 `_resolve_chat_agent` fallback → `eval-1`) and correctly
+  reported **Domain done**. They disagree on *which agent is being set up*. Fix: bind the rail to
+  the agent the shepherd is configuring (or have "New evaluation" bind a concrete agent). This
+  also gates a clean live W3 save→advance demo.
+- **S-BS-150 (med) — over-eager pacing.** The W2 stanza says "propose **one** step at a time," but
+  the agent chained many proposals in one turn (authored judges, edited the roster, edited a flag,
+  loaded a case — all as save-pending proposals). It leads — arguably *too* hard. The
+  one-step-and-wait gate is prompt-instructed, not mechanically enforced (the critic flagged the
+  same); needs firmer enforcement (the natural SHEPHERD-1b scope, with S-BS-149).
+
+**Verdict:** the vision is realized at walking-skeleton level — the agent owns a plan, leads the
+next step, and gates with an editor. The two seams are the next iteration, surfaced honestly (no
+manufactured "it leads perfectly" claim).
 
 ---
 
