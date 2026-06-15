@@ -52,7 +52,11 @@ from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
 from lithrim_bench.harness.report import calibration, composite  # noqa: E402
-from lithrim_bench.picklist import expected_block, load_case  # noqa: E402
+from lithrim_bench.picklist import (  # noqa: E402
+    expected_block,
+    load_case,
+    normalize_expected_verdict,
+)
 
 
 def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, agent):
@@ -323,7 +327,10 @@ def run(
 
     grounded = ground(result, case, ontology=ontology)
     comp = composite(grounded)
-    cal = calibration(result, expected_block=expected_block(case))
+    # HONEST-1 (W2): an unlabeled case carries no expected verdict -> suppress per-case ECE
+    # in the blob too, so the stored record never fabricates a calibration number.
+    _labeled = bool(normalize_expected_verdict(case.get("expected_compliance_verdict")))
+    cal = calibration(result, expected_block=expected_block(case), labeled=_labeled)
 
     corrections = []
     for entry in grounded.suppressed:

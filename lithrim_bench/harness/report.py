@@ -93,7 +93,7 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
 
 
 def calibration(
-    result: dict[str, Any], *, expected_block: bool, n_bins: int = 10
+    result: dict[str, Any], *, expected_block: bool, labeled: bool = True, n_bins: int = 10
 ) -> dict[str, Any]:
     """Reliability bins + ECE over per-judge confidences. REPORT-ONLY.
 
@@ -101,8 +101,23 @@ def calibration(
     expected verdict (``expected_block``). Votes with ``confidence=None`` are
     excluded (they cannot be binned). Returns only non-empty bins plus the counts
     and an explicit small-N caveat.
+
+    HONEST-1: ``labeled=False`` (no ground truth) means "correct" is undefined, so
+    ECE/reliability are suppressed (``ece=None``, no bins) rather than scored against
+    a phantom ``expected_block``. The vote counts stay factual.
     """
     votes = (result.get("semantic") or {}).get("judge_votes") or []
+    if not labeled:
+        n_null = sum(1 for v in votes if v.get("confidence") is None)
+        return {
+            "reliability_bins": [],
+            "ece": None,
+            "n_total": len(votes),
+            "n_with_confidence": len(votes) - n_null,
+            "n_null_confidence": n_null,
+            "expected_block": None,
+            "caveat": "unlabeled — calibration requires ground truth",
+        }
     preds: list[tuple[float, bool]] = []
     n_null = 0
     for v in votes:
@@ -172,34 +187,69 @@ def calibration_check(records: list[dict[str, Any]]) -> dict[str, Any]:
         WS-4b preregistered/locked calibration gate — no threshold is locked here.
     """
     n_cases = len(records)
+    n_labeled = 0
     n_matched = 0
     ece_weighted_sum = 0.0
     n_pooled = 0
     for rec in records:
         expected = normalize_expected_verdict(rec["provenance"]["expected_compliance_verdict"])
-        if rec["composite"]["verdict"] in expected:
-            n_matched += 1
+        if expected:  # a labeled record (a declared expected-verdict set)
+            n_labeled += 1
+            if rec["composite"]["verdict"] in expected:
+                n_matched += 1
         cal = rec["calibration"]
         n = cal["n_with_confidence"]
-        ece_weighted_sum += cal["ece"] * n
-        n_pooled += n
+        ece = cal["ece"]
+        if ece is not None and n:  # an unlabeled case carries ece=None (W2) — never pool it
+            ece_weighted_sum += ece * n
+            n_pooled += n
 
-    verdict_match_rate = round(n_matched / n_cases, 4) if n_cases else 0.0
+    if n_labeled == 0:
+        label_status = "unlabeled"
+    elif n_labeled == n_cases:
+        label_status = "labeled"
+    else:
+        label_status = "partial"
+
+    # HONEST-1: with no ground truth there is NO accuracy/calibration to report — the verdict
+    # + grounding (label-free, computed elsewhere) stand; the accuracy/ECE are withheld, NOT
+    # fabricated. Neither a 0.0/WARN failure NOR a 1.0/PASS win may leak (honest-Δ both ways).
+    if label_status == "unlabeled":
+        return {
+            "label_status": "unlabeled",
+            "verdict_match_rate": None,
+            "ece": None,
+            "status": "unlabeled",
+            "n_cases": n_cases,
+            "n_labeled": 0,
+            "n_matched": 0,
+            "n_with_confidence": n_pooled,
+            "caveat": "no ground truth — verdict + grounding shown; author labels to unlock accuracy/calibration",
+        }
+
+    verdict_match_rate = round(n_matched / n_labeled, 4)
     ece = round(ece_weighted_sum / n_pooled, 4) if n_pooled else 0.0
-    status = "PASS" if n_cases and n_matched == n_cases else "WARN"
+    status = "PASS" if n_matched == n_labeled else "WARN"
 
-    caveat = None
+    notes: list[str] = []
+    if label_status == "partial":
+        notes.append(
+            f"{n_cases - n_labeled} of {n_cases} case(s) unlabeled — rate over the {n_labeled} labeled case(s)"
+        )
     if n_pooled < 5:
-        caveat = (
+        notes.append(
             f"small N: only {n_pooled} non-null confidence(s) pooled across "
             f"{n_cases} case(s); ece is indicative only (advisory, not a gate)"
         )
+    caveat = "; ".join(notes) if notes else None
 
     return {
+        "label_status": label_status,
         "verdict_match_rate": verdict_match_rate,
         "ece": ece,
         "status": status,
         "n_cases": n_cases,
+        "n_labeled": n_labeled,
         "n_matched": n_matched,
         "n_with_confidence": n_pooled,
         "caveat": caveat,
