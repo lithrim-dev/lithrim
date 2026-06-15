@@ -168,7 +168,7 @@ observation/council import-graph the failing tests probe, so they are NOT a 1b r
     a transactional commit gate; the write already persisted). It is NOT a 1b regression and the
     capsule already discloses the true semantics. Worth filing for a future prompt-wording cycle so
     the system prompt itself matches the capsule's honest framing.
-  - **Proposed seam:** **S-BS-151 (LOW)** — "shepherd stanza overstates the Save as an approval
+  - **Proposed seam:** **S-BS-152 (LOW)** — "shepherd stanza overstates the Save as an approval
     *gate*; the authoring tools persist immediately-and-audited (app.py:1018-1019). Reword
     loop.py:171 so the prompt's framing matches the capsule's honest 3-part gate (pacing cap +
     re-editability + audit trail). Pre-existing from SHEPHERD-1 (`fdb141e`); preserved by the 1b
@@ -195,7 +195,7 @@ observation/council import-graph the failing tests probe, so they are NOT a 1b r
 
 | # | Severity | Finding | Cite |
 |---|---|---|---|
-| 1 | NON-BLOCKING | Shepherd stanza calls the editor-card Save an "approval gate," but `author_judge`→`put_judge_endpoint`→`save_judge(audit_log=…)` persists immediately-and-audited. Pre-existing from SHEPHERD-1 (`fdb141e`, ancestor of `da2a0a8`); preserved verbatim by the 1b SUPERSET; the capsule discloses the true semantics. Propose **S-BS-151 (LOW)**. | loop.py:171 / apps/bff/app.py:1018-1019 / PROOF lines 48-63 |
+| 1 | NON-BLOCKING | Shepherd stanza calls the editor-card Save an "approval gate," but `author_judge`→`put_judge_endpoint`→`save_judge(audit_log=…)` persists immediately-and-audited. Pre-existing from SHEPHERD-1 (`fdb141e`, ancestor of `da2a0a8`); preserved verbatim by the 1b SUPERSET; the capsule discloses the true semantics. Propose **S-BS-152 (LOW)**. | loop.py:171 / apps/bff/app.py:1018-1019 / PROOF lines 48-63 |
 | A | OBSERVATION | Driver §4/§5 cite the moat at `runtime/council/...`; the live tree path is `lithrim_bench/runtime/council/...`. Path shorthand only — moat zero-diff verified at the correct path. Correct in the next driver. | driver §4-§5 vs `lithrim_bench/runtime/council/` |
 | B | OBSERVATION | The W1 coerce test's harness `useEffect` is a byte-identical *copy* of app.jsx:266, not an import of the real effect; a future app.jsx edit could silently desync it. Acceptable for a one-line effect (and the BFF-contract replica + sessionKey invariant add real coverage), but a structural import/guard would be stronger. | app.coerce.test.jsx:35 vs app.jsx:266 |
 | C | OBSERVATION | SDK 0.2.90 dispatches PreToolUse hooks CLI-side, so deny-precedence is enforced by the Claude Code hook engine, not the Python SDK. The additive-safety argument does NOT depend on ordering — only on the deny hook running independently (it does, as a registered matcher) and on `_STEP_PROPOSING_WRITES ⊆ lithrim tools` (verified). Noted so the safety claim isn't read as an in-SDK ordering guarantee. | loop.py:284-286 |
@@ -214,7 +214,7 @@ observation/council import-graph the failing tests probe, so they are NOT a 1b r
 **Overall: PASS** (0 BLOCKING). The moat + A-SAFE surface are byte-frozen, the pacing hook is
 purely additive and fail-closed-safe via the independent deny hook, the W1/W2a/W2b tests are
 non-vacuous, the honest-Δ is intact (live beats correctly marked PENDING-MONITOR-LIVE), and the
-diff is scoped to the 7 expected files. The single NON-BLOCKING seam (S-BS-151) is a pre-existing
+diff is scoped to the 7 expected files. The single NON-BLOCKING seam (S-BS-152) is a pre-existing
 prompt-prose honesty tidy, not a 1b regression.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
