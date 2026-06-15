@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-14",
+  "updated": "2026-06-15",
   "bundles": [
     {
       "id": "bench-salvage-phasePACK-DIST-2-finish-ce-pack-clinical-split-driver",
@@ -2311,6 +2311,28 @@
       "created": "2026-06-12",
       "last_re_verified": "2026-06-12 (HEAD ae0854e; monitor expand-driver: build_source_message_prompt def :762 + only-caller :2183 CONFIRMED; source_message bench-DEAD CONFIRMED [grade.py:73/local_pipeline.py:105/models.py:242 all transcript]; phi_redaction as generic mechanism + settings HIPAA_* keys CONFIRMED; ENUMERATED_RESIDUAL buckets CONFIRMED against test_6bclean_attestation.py).",
       "next_action": "READY -- hand the kickoff to a FRESH executor session; plan-review BEFORE any edit (Forks A/B/D); fresh-critic worktree pass at close. The grep-empty purity finisher. Do NOT autostart -- user's strategic call."
+    },
+    {
+      "id": "bench-salvage-phaseEVAL-FLOW-ground-truth-to-run-driver",
+      "stream": "bench-salvage",
+      "phase": "EVAL-FLOW",
+      "scope": "ground-truth-to-run-rail-faithful-paid-run",
+      "file": "bench-salvage_phaseEVAL-FLOW_ground-truth-to-run-rail-faithful-paid-run_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic required. Touches the journey Ground-truth predicate (journey.js:39, the rail-predicate mismatch reconciliation E-D1), the RunPanel paid-run gate (window.confirm -> in-DOM CostModal, S-BS-69), and drives a live/in_process PAID run. Moat + tools.py + _deny_non_lithrim + judge_metric.LENS_BY_ROLE byte-frozen.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md",
+        ".devloop/prompts/bench-salvage_phaseSHEPHERD-1c_judge-roster-advance-and-pack-aware-lens_driver.md",
+        ".devloop/sessions/HANDOFF_bench-salvage_SHEPHERD-1c_2026-06-15.md"
+      ],
+      "_note": "Authored 2026-06-15 by the monitor from the eval-flow-scope-recon fan-out (5-reader compose-vs-build ledger). User-locked: spine = Ground-truth -> Run (rail-faithful); run mode = include a live/in_process paid run. The run surface is ~80% built (POST /v1/run-eval, run_eval.run, RunPanel); net-new is the shepherd guidance + the rail-predicate reconciliation (a saved grounding contract writes ontology.verification_contracts but the rail checks eval_profile.tools/grounding_checks -> never ticks; W1 fixes this HONESTLY, no manufactured tick) + the in-DOM cost modal. Follows the S-BS-156 close (684f0f4) + the S-BS-158 env-export note.",
+      "created": "2026-06-15",
+      "last_re_verified": "2026-06-15 (monitor authoring; journey.js:39 / app.py:1777,368 / tools.py:492,723 / RunPanel.jsx:57 / loop.py:158 re-grepped against HEAD 3d38ebe)",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve E-D1..E-D5."
     }
   ]
 }
