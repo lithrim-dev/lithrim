@@ -4,7 +4,7 @@
    side that the Python tests/test_ws5_bff.py round-trip does not cover. */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { runEval, getOntology, listAgents, createAgent, deleteAgent } from "./bff.js";
+import { runEval, getOntology, listAgents, createAgent, deleteAgent, putJudge } from "./bff.js";
 import { ArtifactPane } from "./artifact.jsx";
 
 // A representative /v1/run-eval response: the S-BS-7 clinical story (reject; one
@@ -119,5 +119,24 @@ describe("CRUD-1 bff.js config-plane client", () => {
     const [url, opts] = fetch.mock.calls[0];
     expect(opts.method).toBe("DELETE");
     expect(url).toContain("name=eval-2");
+  });
+
+  it("S-BS-153: putJudge(role, body, {agent}) PUTs the agent in the query so the server rosters it", async () => {
+    vi.stubGlobal("fetch", mockFetch({ status: "ok", role: "risk_judge", rostered: true }));
+    await putJudge("risk_judge", { model: "", assigned_flags: ["MISSED_ESCALATION"], validator_refs: [] },
+      { actor: "sme@acme", rationale: "assign lens", agent: "demo-clinical" });
+    const [url, opts] = fetch.mock.calls[0];
+    expect(opts.method).toBe("PUT");
+    expect(url).toContain("/v1/judges/risk_judge?");
+    expect(url).toContain("agent=demo-clinical");
+    expect(url).toContain("rationale=assign+lens");
+    expect(opts.headers).toMatchObject({ "X-Actor": "sme@acme" });
+  });
+
+  it("S-BS-153: putJudge WITHOUT an agent omits the agent param (no roster add requested)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ status: "ok", role: "risk_judge", rostered: false }));
+    await putJudge("risk_judge", { model: "", assigned_flags: [], validator_refs: [] }, { rationale: "x" });
+    const [url] = fetch.mock.calls[0];
+    expect(url).not.toContain("agent=");
   });
 });

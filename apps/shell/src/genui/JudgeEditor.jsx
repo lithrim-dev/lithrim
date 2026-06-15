@@ -158,7 +158,9 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     setSave({ state: "saving", msg: "saving…" });
     try {
       const body = { model, assigned_flags: assigned, validator_refs: validators };
-      const res = await putJudge(role, body, { actor: actor || undefined, rationale });
+      // S-BS-153: pass the active agent so the save ALSO rosters this judge onto its
+      // eval_profile.judges (idempotent, audited, server-side) → the rail's Judges step ticks.
+      const res = await putJudge(role, body, { actor: actor || undefined, rationale, agent });
       setSave({ state: "saved", msg: `saved ✓ as ${res.actor?.id || "dev-default"}` });
       onResult?.(body);
       return res;

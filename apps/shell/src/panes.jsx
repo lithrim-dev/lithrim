@@ -419,7 +419,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Now author a <strong>judge</strong>. Assign an ontology flag lens to a role — the prompt preview updates live and <code className="inl">$0</code> (no model call), showing the exact <code className="inl">role_key_questions</code> the bridge will send. The live verdict-change is the paid finale, in a run.</p>
-              {renderTool({ type: "tool-judge_editor", state: "output-available", output: { role: "risk_judge", agent: "ws0_default" } }, { onResult: captureSetup("judge") })}
+              {/* S-BS-153: target the ACTIVE agent so the save's roster-add lands on the agent
+                  the rail derives from → refreshJourney (via captureSetup) flips Judges done. */}
+              {renderTool({ type: "tool-judge_editor", state: "output-available", output: { role: "risk_judge", agent } }, { onResult: captureSetup("judge") })}
             </div>
           </div>
 

@@ -122,3 +122,25 @@ describe("SHEPHERD-1 W3 — save → advance: deriveSteps re-derive flips a step
     expect(afterSave.done).toBe(beforeSave.done + 1);
   });
 });
+
+describe("SHEPHERD-1c — roster-add on judge save flips the Judges step (S-BS-153)", () => {
+  // S-BS-153: the JudgeEditor save now passes the active agent, so the server rosters the
+  // role onto eval_profile.judges (idempotent, audited). The rail predicate is unchanged
+  // (correct, pure) — what flips it is that the per-agent ROSTER (not the separate per-role
+  // JudgeConfig store) is now non-empty after the save. This pins the end-to-end semantics
+  // the rail relies on: an empty roster (the pre-1c JudgeEditor save) does NOT tick Judges;
+  // a roster-add does.
+  it("an empty eval_profile.judges leaves Judges NOT done (the pre-1c gap)", () => {
+    const d = deriveSteps(cfg({ ontology_ref: "x/1", judges: [] }), [], "eval-1", null);
+    expect(stateOf(d, "Judges")).not.toBe("done");
+  });
+
+  it("the roster-add (judges := [role]) ticks Judges done — idempotent on repeat", () => {
+    const onceRostered = deriveSteps(cfg({ ontology_ref: "x/1", judges: ["risk_judge"] }), [], "eval-1", null);
+    expect(stateOf(onceRostered, "Judges")).toBe("done");
+    // a second save of the same role is a server-side no-op → the roster is unchanged, still done
+    const twiceRostered = deriveSteps(cfg({ ontology_ref: "x/1", judges: ["risk_judge"] }), [], "eval-1", null);
+    expect(stateOf(twiceRostered, "Judges")).toBe("done");
+    expect(twiceRostered.done).toBe(onceRostered.done);
+  });
+});

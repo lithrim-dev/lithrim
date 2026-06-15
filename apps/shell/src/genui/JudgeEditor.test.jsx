@@ -89,6 +89,17 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
   });
 
+  it("S-BS-153: the save passes the ACTIVE agent so the server rosters the judge (the rail ticks)", async () => {
+    render(<JudgeEditor role="risk_judge" agent="demo-clinical-agent" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    // the load already binds the active agent
+    expect(getJudge.mock.calls[0]).toEqual(["risk_judge", { agent: "demo-clinical-agent" }]);
+    fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
+    await waitFor(() => expect(putJudge).toHaveBeenCalledTimes(1));
+    // the active agent rides the PUT so the roster-add lands on the rail's agent
+    expect(putJudge.mock.calls[0][2]).toMatchObject({ agent: "demo-clinical-agent" });
+  });
+
   it("surfaces a 422 owner↔emit violation inline (never a silent pass)", async () => {
     putJudge.mockRejectedValueOnce(new Error("PUT /v1/judges/risk_judge → 422: owner↔emit: ..."));
     render(<JudgeEditor role="risk_judge" />);

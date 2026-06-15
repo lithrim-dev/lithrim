@@ -851,13 +851,34 @@ def delete_agent_endpoint(
 # ── UAP-2 R2: GET/PUT /v1/judges — author a judge via ontology-assignment ──────
 
 
+def _active_lens_by_role() -> dict[str, frozenset[str]]:
+    """The active workspace's pack per-role lens (``role -> {codes it may assert}``).
+
+    S-BS-154: the offer/gate authority must track the ACTIVE WORKSPACE pack, not the BFF
+    *boot* pack. The module-global ``judge_metric.LENS_BY_ROLE`` (imported at :113) resolves
+    ONCE at import → the neutral ``_core`` default; under a ``healthcare`` workspace the editor
+    would offer ``_core`` codes the healthcare gate rejects (the live ``422 …
+    ['INTERNAL_INCONSISTENCY']``). Mirroring ``_active_snapshot_codes`` exactly, this resolves
+    the pack PER-REQUEST via the LAZY ``pack`` / ``workspace`` imports, so OFFER and GATE agree.
+
+    Confined to the BFF: it NEVER touches ``judge_metric.LENS_BY_ROLE`` (byte-frozen — it is
+    moat-load-bearing as the withstands-gate default lens in ``signals.py``)."""
+    from lithrim_bench.harness import pack as pack_mod
+    from lithrim_bench.harness import workspace
+
+    return pack_mod.pack_lenses(workspace.get_active_workspace().pack)
+
+
 def _judge_summary(role: str, jc, ontology) -> dict:
     """Project one judge: role + bound model + the assigned lens + the assignable
-    flags (LENS_BY_ROLE — the owned+emitted code set, per-flag tier/when_to_use from
-    the ontology) + the derived refinement questions (ontology ``questions_for``) +
+    flags (the active pack's lens — the owned+emitted code set, per-flag tier/when_to_use
+    from the ontology) + the derived refinement questions (ontology ``questions_for``) +
     the attached validator refs. An unauthored role serves a derived default (empty
-    assignment → the seed ``.txt`` base on render; A4 parity)."""
-    lens = sorted(LENS_BY_ROLE[role])
+    assignment → the seed ``.txt`` base on render; A4 parity).
+
+    S-BS-154: the offered lens is the ACTIVE-WORKSPACE pack's lens (``_active_lens_by_role``),
+    not the boot-pack ``LENS_BY_ROLE``, so the editor offers exactly what the gate accepts."""
+    lens = sorted(_active_lens_by_role()[role])
     assigned = list(jc.assigned_flags) if jc else []
     available = []
     for code in lens:
@@ -891,10 +912,10 @@ def _validate_judge_assignment(
     role: str, assigned_flags: list[str], validator_refs: list[str]
 ) -> None:
     """The PUT gate (422 on violation):
-    - ``role`` is a known v2 judge role (LENS_BY_ROLE / _TIER1_OWNERS authority);
+    - ``role`` is a known v2 judge role (the active pack's lens / _TIER1_OWNERS authority);
     - **owner↔emit** (CLAUDE.md invariant #4, S-BS-31/42): every assigned flag is in
-      the role's ``LENS_BY_ROLE`` — the owned-AND-emitted code set, owner-consistent
-      vs ``_TIER1_OWNERS`` by the council guard test
+      the role's active-pack lens (``_active_lens_by_role``, S-BS-154) — the owned-AND-emitted
+      code set, owner-consistent vs ``_TIER1_OWNERS`` by the council guard test
       (``test_every_tier1_lens_code_is_owner_resident``). The ontology's
       ``owner_roles`` are NOT the authority — they are stale v1 roles
       (behavior/source_message, no faithfulness_judge) never re-snapshotted to the
@@ -903,9 +924,10 @@ def _validate_judge_assignment(
       snapshot;
     - ``validator_refs`` ⊆ the persisted toolbox (execute-only; never authored here).
     """
-    if role not in LENS_BY_ROLE:
+    lens_by_role = _active_lens_by_role()
+    if role not in lens_by_role:
         raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
-    lens = LENS_BY_ROLE[role]
+    lens = lens_by_role[role]
     off_lens = sorted(c for c in assigned_flags if c not in lens)
     if off_lens:
         raise HTTPException(
@@ -945,10 +967,14 @@ def list_judges_endpoint(
     ag = _load_agent(agent, db_path)
     ont_path, _src = _resolve_ontology_path(ag, workdir)
     ontology = load_ontology(ont_path)
-    judges = [_judge_summary(role, saved.get(role), ontology) for role in sorted(LENS_BY_ROLE)]
+    # S-BS-154: enumerate the ACTIVE-WORKSPACE pack's roles (healthcare's production_judges
+    # = the same trio, so this is a no-op for healthcare, but it keeps offer + gate on one
+    # source-of-truth). The unknown-role 404 guards resolve the same active-pack roles.
+    roles = sorted(_active_lens_by_role())
+    judges = [_judge_summary(role, saved.get(role), ontology) for role in roles]
     return {
         "judges": judges,
-        "roles": sorted(LENS_BY_ROLE),
+        "roles": roles,
         "validators": list(_KNOWN_VALIDATORS),
     }
 
@@ -971,7 +997,7 @@ def get_judge_endpoint(
     given, else the saved/default assignment. This is the demonstrable
     assignment→prompt link (A8), exact because it calls the same
     ``render_role_questions`` the council uses."""
-    if role not in LENS_BY_ROLE:
+    if role not in _active_lens_by_role():  # S-BS-154: the active-pack roles
         raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
     saved = load_judge(role, db_path=db_path)
     ag = _load_agent(agent, db_path)
@@ -993,6 +1019,11 @@ def put_judge_endpoint(
     role: str,
     judge: dict = _JUDGE_BODY,
     rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    agent: str | None = Query(
+        None,
+        description="S-BS-153: when given, also roster this judge onto that agent's "
+        "eval_profile.judges (idempotent, audited) so authoring it advances the rail",
+    ),
     db_path: Path = Depends(get_config_db),
     default_actor: Actor = Depends(get_actor),
     x_actor: str | None = Header(None, alias="X-Actor"),
@@ -1003,7 +1034,15 @@ def put_judge_endpoint(
     with an actor-attributed, immutable audit record (``target.type='judge'``, R0)
     in one transaction (N4). NEVER generates a validator (execute-only) and NEVER
     writes the committed seed. Body = ``{model, assigned_flags[], validator_refs[]}``;
-    the role is the path."""
+    the role is the path.
+
+    S-BS-153 (roster-add on judge save, user-locked Option A): the per-role lens-config
+    store is SEPARATE from the per-agent roster (``eval_profile.judges``, the rail's Judges
+    predicate). When ``agent`` is given, after the judge save succeeds, idempotently add this
+    ``role`` to THAT agent's roster, persisted via the SAME audited ``put_agent_endpoint`` path
+    ``_assemble_agent`` uses (an AuditRecord for the roster change) — so "author a judge → it's
+    on this agent → the rail ticks". No-op if already present; ONLY the named agent mutates;
+    editing a lens never strips a roster."""
     assigned = list(judge.get("assigned_flags") or [])
     validator_refs = list(judge.get("validator_refs") or [])
     model = judge.get("model", "") or ""
@@ -1018,11 +1057,32 @@ def put_judge_endpoint(
     save_judge(
         jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
     )
+    rostered = False
+    if agent:
+        # Roster-add via the FROZEN GET/PUT agent ops (mirrors _assemble_agent): read the
+        # current agent, idempotently append THIS role, PUT through the audited op. Per S-BS-82,
+        # every Query/Header/Depends param goes to put_agent_endpoint explicitly. Only this agent
+        # changes; an existing roster entry is preserved (the append is a no-op if present).
+        current = get_agent_endpoint(name=agent, db_path=db_path)  # 404 on unknown agent
+        judges = list(current["eval_profile"].get("judges") or [])
+        if role not in judges:
+            judges.append(role)
+            current["eval_profile"]["judges"] = judges
+            put_agent_endpoint(
+                agent=current,
+                rationale=rationale,
+                db_path=db_path,
+                default_actor=actor,
+                x_actor=x_actor,
+            )
+            rostered = True
     return {
         "status": "ok",
         "role": role,
         "actor": actor.model_dump(),
         "assigned_flags": assigned,
+        "agent": agent,
+        "rostered": rostered,
     }
 
 

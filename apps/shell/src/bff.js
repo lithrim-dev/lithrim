@@ -167,13 +167,18 @@ export const getJudge = (role, { agent = "ws0_default", assignedFlags } = {}) =>
 };
 
 /* PUT /v1/judges/{role} — assign a flag lens + bind a model + attach validator refs.
-   422 on owner↔emit / snapshot / unknown-validator violation. actor rides X-Actor. */
-export const putJudge = (role, judge, { actor, rationale = "" } = {}) =>
-  call(`/v1/judges/${encodeURIComponent(role)}?rationale=${encodeURIComponent(rationale)}`, {
+   422 on owner↔emit / snapshot / unknown-validator violation. actor rides X-Actor.
+   S-BS-153: pass `agent` to ALSO roster this judge onto that agent's eval_profile.judges
+   (idempotent, audited, server-side) so authoring it advances the rail's Judges step. */
+export const putJudge = (role, judge, { actor, rationale = "", agent } = {}) => {
+  const q = new URLSearchParams({ rationale });
+  if (agent) q.set("agent", agent);
+  return call(`/v1/judges/${encodeURIComponent(role)}?${q.toString()}`, {
     method: "PUT",
     body: judge,
     headers: actor ? { "X-Actor": actor } : undefined,
   });
+};
 
 /* ── UAP-4: the calibration trainer — optimize a judge, see the honest held-out Δ ── */
 
