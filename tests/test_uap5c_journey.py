@@ -113,6 +113,43 @@ def test_review_runs_threads_the_latest_run_id_to_the_audit_card(env):
     assert part["output"]["runId"]  # a real run id threaded to the card for provenance
 
 
+# ── CONV-UX-1 (W3): GenUI gating — error-suppression + the show_intent tag ────────────
+
+
+def test_w3_a_failing_tool_emits_no_part(env):
+    """W3 / A4 (gating-named re-assert): a tool whose underlying call FAILS surfaces the error
+    and emits NO gen-UI part — the off-context-card-next-to-an-error must never originate at the
+    BFF. (The live Audit-card-next-to-404 was a SUCCESSFUL read; this pins the failure half.)"""
+    ctx, _client = env
+    res = asyncio.run(author_flag_handler(ctx, {"flag_code": "NOPE_NOT_A_FLAG", "tier": "TIER_1"}))
+    assert res.get("is_error") is True
+    assert ctx.parts == []  # no part emitted on a failed tool call
+
+
+def test_w3_review_runs_part_is_tagged_ondemand(env):
+    """W3 / A4: the PASSIVE review_runs read tags its audit_log part ``ondemand`` so the shell
+    collapses it to a compact affordance — exactly the orientation read the live drive rendered
+    off-context as a full Audit-trail card next to the 404."""
+    ctx, _client = env
+    asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
+    ctx.parts.clear()
+    asyncio.run(review_runs_handler(ctx, {}))
+    part = ctx.parts[-1]
+    assert part["type"] == "tool-audit_log"
+    assert part["show_intent"] == "ondemand"
+
+
+def test_w3_author_judge_part_is_tagged_auto():
+    """W3 / A4: the PRIMARY result the user asked to create (a judge) tags its judge_editor part
+    ``auto`` so it renders as the inline card — the contrast that makes the gating non-vacuous vs
+    the ``ondemand`` audit read above. Asserted at the adapter (pack-owner-independent): author_judge
+    emits ``judge_part`` whose default intent is ``auto``."""
+    from agent.adapter import audit_part, judge_part
+
+    assert judge_part("risk_judge", AGENT)["show_intent"] == "auto"  # the created-card path
+    assert audit_part("run-1")["show_intent"] == "ondemand"  # the passive-read path (contrast)
+
+
 def test_author_flag_unknown_flag_is_surfaced_not_bypassed(env):
     """A3 + A-SAFE: editing a non-existent flag is rejected; the tool surfaces it, emits
     NO card, and nothing is persisted (no silent un-audited write)."""

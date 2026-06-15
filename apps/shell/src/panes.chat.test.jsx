@@ -321,3 +321,112 @@ describe("CenterPane / Shell — UX-1: clean default + cadence + New-eval (S-BS-
     expect(spy).toHaveBeenCalled();
   });
 });
+
+// CONV-UX-1 (W1): the tool_call wire event (loop.py:264) — formerly DROPPED by the shell —
+// now renders an ordered activity timeline (a step per tool, running→done) and a non-static
+// working indicator carrying the latest in-flight tool label, across the WHOLE in-flight window.
+describe("CenterPane — CONV-UX-1 W1: thinking / working stages", () => {
+  const props = { onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
+
+  it("renders a tool_call as a human-labelled activity step (no longer dropped)", async () => {
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_call", name: "mcp__lithrim__get_agent", input: {} });
+      onEvent({ event: "tool_call", name: "mcp__lithrim__author_judge", input: { role: "risk_judge" } });
+      onEvent({ event: "assistant_delta", text: "Authored the risk judge." });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "create a risk judge" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the activity timeline mounted with the present-progressive labels mapped off the tool names
+    const activity = await screen.findByTestId("activity");
+    expect(activity).toHaveTextContent(/Reading the agent…/);
+    expect(activity).toHaveTextContent(/Authoring the judge…/);
+  });
+
+  it("the working indicator shows the latest in-flight tool label during the turn (not a static 'Thinking…')", async () => {
+    // hold the stream open after a tool_call so the indicator is asserted MID-FLIGHT (sending=true).
+    let release;
+    const gate = new Promise((r) => (release = r));
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_call", name: "mcp__lithrim__run_eval", input: {} });
+      await gate; // the turn is still in flight here
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "run a replay" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // MID-FLIGHT: the non-static indicator shows the running tool's label, not a bare "Thinking…"
+    const ind = await screen.findByTestId("working-indicator");
+    expect(ind).toHaveTextContent(/Running a \$0 replay…/);
+    release();
+    await waitFor(() => expect(screen.queryByTestId("working-indicator")).toBeNull());
+  });
+});
+
+// CONV-UX-1 (W3): GenUI gating — dedup same-type cards, collapse `ondemand` passive reads to a
+// compact affordance, and suppress ALL cards on an errored turn (the off-context-card-next-to-404
+// the live drive hit must not recur).
+describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () => {
+  const props = { onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
+
+  it("dedups two same-type cards within a turn to ONE", async () => {
+    // the VerdictCard renders synchronously from output (title "Sample verdict") — two same-type
+    // parts in one turn must collapse to a single card.
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-verdict_card", state: "output-available", output: { id: "r1", verdict: "REJECT", confidence: "0.9", agreement: "3 / 3" }, show_intent: "auto" } });
+      onEvent({ event: "tool_result", part: { type: "tool-verdict_card", state: "output-available", output: { id: "r1", verdict: "REJECT", confidence: "0.9", agreement: "3 / 3" }, show_intent: "auto" } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "run a replay" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // ONE card despite two same-type parts (and never the fallback)
+    await waitFor(() => expect(screen.getAllByText("Sample verdict").length).toBe(1));
+    expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+
+  it("collapses an `ondemand` passive read to a 'Show … ▸' affordance, expands on click", async () => {
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-audit_log", state: "output-available", output: { runId: "run-9" }, show_intent: "ondemand" } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "look around" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // a compact affordance, NOT a full card up front (the off-context Audit-trail card no longer pops)
+    const od = await screen.findByTestId("ondemand-part");
+    expect(od).toHaveTextContent(/Show audit trail ▸/);
+  });
+
+  it("suppresses ALL cards on an errored turn (no off-context card next to an error)", async () => {
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-audit_log", state: "output-available", output: { runId: "run-x" }, show_intent: "auto" } });
+      onEvent({ event: "error", detail: "GET /v1/case?agent=ws0_default → 404" });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane {...props} />);
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "create a risk judge" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // the error text shows...
+    expect(await screen.findByText(/404/)).toBeInTheDocument();
+    // ...and NO card (the audit_log part) rendered alongside it — the W3 error-guard held
+    expect(screen.queryByDisplayValue("run-x")).toBeNull();
+    expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+});

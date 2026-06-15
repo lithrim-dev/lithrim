@@ -192,6 +192,71 @@ def test_loop_event_shapes_with_a_stub_source(env):
     assert "subscription-equivalent" in events[3]["cost_label"]  # fold 4: not a literal charge
 
 
+# ── CONV-UX-1 (W0): the chat default_agent resolves against the ACTIVE workspace ──────
+
+
+def test_resolve_chat_agent_coerces_an_invalid_agent_to_the_workspace_agent(tmp_path):
+    """W0 / A1: a stale/invalid supplied agent (the live ws0_default-in-demo-clinical bug) is
+    COERCED to the active workspace's first agent — no dead ws0_default 404 in a non-default
+    workspace whose only agents are e.g. eval-1/snomed-demo."""
+    db = tmp_path / "config.sqlite"
+    save_agent(house_agent(name="eval-1"), db_path=db)
+    save_agent(house_agent(name="snomed-demo"), db_path=db)
+    resolved = bff._resolve_chat_agent("ws0_default", db)
+    assert resolved == "eval-1"  # the first agent (sorted), never the dead literal
+
+
+def test_resolve_chat_agent_honors_a_valid_supplied_agent(tmp_path):
+    """W0 GUARDRAIL: a VALID supplied non-default agent is HONORED verbatim — legitimate
+    multi-agent targeting must NOT be pinned to the workspace default."""
+    db = tmp_path / "config.sqlite"
+    save_agent(house_agent(name="eval-1"), db_path=db)
+    save_agent(house_agent(name="snomed-demo"), db_path=db)
+    assert bff._resolve_chat_agent("snomed-demo", db) == "snomed-demo"
+
+
+def test_resolve_chat_agent_back_compat_default_workspace(tmp_path):
+    """W0 / A1 back-compat: in a workspace that DOES hold ws0_default, the literal still
+    resolves to itself (the neutral `default` workspace path is unchanged)."""
+    db = tmp_path / "config.sqlite"
+    save_agent(house_agent(name="ws0_default"), db_path=db)
+    assert bff._resolve_chat_agent("ws0_default", db) == "ws0_default"
+
+
+def test_a_no_agent_arg_handler_targets_the_resolved_agent(tmp_path, monkeypatch):
+    """W0: a tool that OMITS the agent arg defaults to ctx.default_agent — and that default is
+    the RESOLVED workspace agent (the ToolContext built off the coerced value), so the agent-keyed
+    read targets the live agent, not the dead ws0_default."""
+    db = tmp_path / "config.sqlite"
+    save_agent(house_agent(name="eval-1"), db_path=db)
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
+    )
+    resolved = bff._resolve_chat_agent("ws0_default", db)  # coerced -> eval-1
+    ctx = bff._build_tool_context(
+        req_agent=resolved,
+        db_path=db,
+        out_dir=tmp_path / "out",
+        workdir=tmp_path / "ont",
+        collections_db=tmp_path / "coll.sqlite",
+        actor=bff.Actor(type="system", id="t"),
+        x_actor=None,
+    )
+    seen = {}
+
+    def _spy(*, name, **kw):
+        seen["name"] = name
+        return {"eval_profile": {}}
+
+    ctx.get_agent = _spy
+    from agent.tools import get_agent_handler
+
+    asyncio.run(get_agent_handler(ctx, {}))  # NO agent arg -> defaults to ctx.default_agent
+    assert seen["name"] == "eval-1"  # the resolved workspace agent, not ws0_default
+
+
 def test_sse_format_frames_one_event():
     from agent import sse_format
 
