@@ -126,6 +126,24 @@ def test_run_eval_replay_returns_composite_and_calibration_check(client):
     assert cal["caveat"] is not None and "small N" in cal["caveat"]
 
 
+def test_case_labeled_helper():
+    """HONEST-1 (H-D6): /v1/case must distinguish a DECLARED label (clean-negative ``[]``
+    or a verdict) from an UNLABELED BYO case (absent), so the CaseTab never mislabels
+    unknown-truth as a clean negative. ``_case_labeled`` is the pure presence test."""
+    assert bff._case_labeled({"expected_safety_flags": []}) is True  # declared clean-negative
+    assert bff._case_labeled({"expected_safety_flags": ["FABRICATED_HISTORY"]}) is True
+    assert bff._case_labeled({"expected_compliance_verdict": "approve"}) is True
+    assert bff._case_labeled({}) is False  # BYO unlabeled — no planted label
+    assert bff._case_labeled({"expected_safety_flags": None, "expected_compliance_verdict": None}) is False
+
+
+def test_get_case_reports_labeled_flag(client):
+    """A by-construction corpus case is reported as labeled=True (the field is emitted)."""
+    res = client.get(f"/v1/case?agent=ws5_bff_test")
+    assert res.status_code == 200
+    assert res.json()["labeled"] is True
+
+
 def test_corpus_is_listable(client):
     body = client.get("/v1/corpus").json()
     assert isinstance(body["rows"], list)  # graceful empty until a correction is written

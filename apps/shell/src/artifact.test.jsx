@@ -152,10 +152,64 @@ describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
       conditions: [],
       expected_safety_flags: [],
       injection_recipe: null,
+      labeled: true, // HONEST-1: a DECLARED clean-negative (label present, empty)
     });
     render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText("free text")).toBeInTheDocument(); // generic: not mis-parsed as JSON
     expect(screen.getByText(/nothing planted/i)).toBeInTheDocument(); // clean negative
     expect(screen.getByText(/Booking confirmed/)).toBeInTheDocument();
+  });
+
+  // A5 — HONEST-1: an UNLABELED (BYO) case must not be mislabeled as a clean negative.
+  it("an unlabeled case (labeled:false) reads 'unknown ground truth', NOT 'nothing planted'", async () => {
+    getCase.mockResolvedValue({
+      case_id: "byo_note_1",
+      transcript: "Patient calls to book a follow-up.",
+      artifact: "Booking confirmed.",
+      conditions: [],
+      labeled: false, // BYO: no planted label — the serializer marks it unlabeled
+    });
+    render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/unknown ground truth/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing planted/i)).toBeNull();
+    expect(screen.queryByText(/expected verdict: approve/i)).toBeNull();
+  });
+});
+
+// A4 — HONEST-1: the Report/Calibration block must withhold accuracy/ECE on unlabeled
+// data (no fabricated 0.0/WARN), while the verdict + grounding still render (label-free).
+const UNLABELED_RUN = {
+  case_id: "byo_note_1",
+  grade_path: "in_process",
+  composite: {
+    verdict: "reject",
+    stage_verdict: "BLOCK",
+    score: 1.0,
+    active_findings: ["FABRICATED_HISTORY"],
+    grounded_adjustments: [],
+  },
+  calibration_check: {
+    label_status: "unlabeled",
+    status: "unlabeled",
+    verdict_match_rate: null,
+    ece: null,
+    n_cases: 1,
+    n_with_confidence: 0,
+    caveat: "no ground truth — verdict + grounding shown; author labels to unlock accuracy/calibration",
+  },
+};
+
+describe("ReportTab — HONEST-1 unlabeled mode (A4)", () => {
+  it("withholds accuracy/ECE on unlabeled data — no fake 0.0/WARN, verdict still shown", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={UNLABELED_RUN} runError={null} />,
+    );
+    // the verdict + finding still render (label-free, real)
+    expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument();
+    // honest withheld copy — NOT a fabricated accuracy number
+    expect(screen.getByText(/withheld/i)).toBeInTheDocument();
+    expect(container.textContent).not.toContain("WARN");
+    expect(container.textContent).not.toContain("· PASS");
+    expect(container.textContent).not.toContain("null ·");
   });
 });
