@@ -16,6 +16,7 @@ import { getRuns, runEval } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Separator } from "../components/ui/separator.jsx";
+import { CostModal } from "../components/CostModal.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
@@ -25,7 +26,7 @@ const MODES = [
   { key: "in_process", label: "In-process trio", cost: "paid", paid: true },
 ];
 
-const COST_CONFIRM =
+const COST_BODY =
   "This is a PAID run (real council calls, ~$0.10–0.20). Replay is the $0 default. Continue?";
 
 const voteTone = (vote) =>
@@ -37,6 +38,10 @@ export default function RunPanel({ agent = "ws0_default" }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
+  // EVAL-FLOW (W2a / S-BS-69): the PAID gate is an in-DOM modal, never window.confirm (a native
+  // confirm() freezes the renderer to CDP — memory browser-mcp-confirm-blocks-renderer — so a paid
+  // run can't be driven in the A-LIVE re-drive). `paid.open` shows the modal; only its confirm runs.
+  const [paid, setPaid] = useState({ open: false, busy: false });
 
   const loadHistory = () =>
     getRuns()
@@ -51,10 +56,9 @@ export default function RunPanel({ agent = "ws0_default" }) {
     return () => { live = false; };
   }, []);
 
-  const runNow = async () => {
-    const m = MODES.find((x) => x.key === mode);
-    // Cost gate: any paid mode must be explicitly confirmed before a call is made.
-    if (m.paid && !window.confirm(COST_CONFIRM)) return;
+  // Fire the actual run. Replay ($0) calls directly; a paid mode reaches here only AFTER the
+  // in-DOM cost modal's confirm (the human authorizes the spend) — there is no window.confirm.
+  const doRun = async () => {
     setRunStatus("running");
     setError(null);
     try {
@@ -65,6 +69,22 @@ export default function RunPanel({ agent = "ws0_default" }) {
     } catch (e) {
       setError(String(e.message || e));
       setRunStatus("error");
+    }
+  };
+
+  const runNow = () => {
+    const m = MODES.find((x) => x.key === mode);
+    // Cost gate: a paid mode opens the in-DOM modal (no call yet); replay runs straight away.
+    if (m.paid) { setPaid({ open: true, busy: false }); return; }
+    doRun();
+  };
+
+  const confirmPaid = async () => {
+    setPaid((p) => ({ ...p, busy: true }));
+    try {
+      await doRun();
+    } finally {
+      setPaid({ open: false, busy: false });
     }
   };
 
@@ -160,6 +180,15 @@ export default function RunPanel({ agent = "ws0_default" }) {
           POST /v1/run-eval · replay $0 · live/in-process paid (confirmed)
         </span>
       </CardFooter>
+      <CostModal
+        open={paid.open}
+        busy={paid.busy}
+        title="Run a PAID evaluation?"
+        body={COST_BODY}
+        confirmLabel="Run (paid)"
+        onConfirm={confirmPaid}
+        onCancel={() => setPaid({ open: false, busy: false })}
+      />
     </Card>
   );
 }
