@@ -1,0 +1,162 @@
+{
+  "session_id": "session-bench-salvage-phaseEVAL-FLOW-2026-06-15",
+  "stream": "bench-salvage",
+  "phase": "EVAL-FLOW",
+  "driver_bundle_id": "bench-salvage-phaseEVAL-FLOW-ground-truth-to-run-driver",
+  "started_at": "2026-06-15T21:25:00Z",
+  "ended_at": "2026-06-15T22:05:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-15T21:24:00Z",
+    "user_approved_at": "2026-06-15T21:24:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "E-D1=(i) rail reads ontology verification_contracts; E-D2=emit ContractBuilder as tool-contract_builder; E-D3=minimal generic grounding guidance; E-D4=drive paid run via RunPanel Run-now -> in-DOM CostModal; E-D5=CARRY S-BS-155 + S-BS-157.",
+        "evidence": "kickoff 'The APPROVED plan (implement exactly this)' — monitor plan-review done before this session",
+        "decided_at": "2026-06-15T21:24:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "R1 resolution: a thin BFF route POST /v1/grounding-contract WAS needed (no standalone grounding route existed; only the in-closure tool). It REUSES the bound ctx.put_grounding_contract (the same _put_grounding_contract) with ZERO new write logic and NO moat touch — the R1-authorized exception.",
+        "evidence": "kickoff R1: 'If the card needs a thin BFF route to POST, that's acceptable ONLY if it reuses _put_grounding_contract with NO new write logic and NO moat touch — and you must call it out.' apps/bff/app.py put_grounding_contract_endpoint.",
+        "decided_at": "2026-06-15T21:45:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "app.jsx-threading test: the App-level fetch->tick e2e link is NOT cleanly unit-testable in this harness (the dynamic import('./bff.js') in refreshJourney is not intercepted by vi.mock for assertion — getAgent calls=0; matches the existing app tests which never assert on the dynamic-import fetch results). Removed the brittle app.journey.test.jsx; rely on the monitor's A-LIVE re-drive for the live fetch->tick link, per the monitor note.",
+        "evidence": "probe: 'getAgent calls=0' with import * as bff under vi.mock; existing app.test.jsx / app.chat.test.jsx never assert getAgent was called. The thread is covered by journey.test.jsx A2 (deriveSteps reads contracts) + the direct reviewable app.jsx wire.",
+        "decided_at": "2026-06-15T21:40:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "The W2b Ground-truth->Run shepherd stanza was committed WITH W1c (commit 1ac81e9), not in commit 4 as the driver §6 sequence implies — because it is the same contiguous _SHEPHERD_STANZA string literal in loop.py; splitting it across two commits would be a non-atomic literal edit. Noted in both commit bodies.",
+        "evidence": "loop.py _SHEPHERD_STANZA single literal; commit 1ac81e9 body 'the adjacent Ground-truth->Run stanza (W2b) is folded here'.",
+        "decided_at": "2026-06-15T21:55:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "9e4b72c2788c18369265d63c3802174e36dafc31",
+      "repo": "lithrim-bench",
+      "title": "test(eval-flow): ground-truth→run rail-faithful acceptance — red",
+      "summary": "A1 (BFF, GREEN-from-start: guards the existing honest write path) + A2/A4 (journey, RED) + A3 (RunPanel, RED; the 2 prior window.confirm paid-gate tests REPLACED per EXECUTOR.md §4)."
+    },
+    {
+      "hash": "780e262d49ee3d8e96d6e9c42c4e6bd17f4d27d6",
+      "repo": "lithrim-bench",
+      "title": "feat(eval-flow): rail ticks Ground truth on a saved grounding contract (E-D1)",
+      "summary": "W1a: deriveSteps gains a 5th contracts=[] param (ORs verification_contracts in front of the kept tools/grounding_checks superset, predicate pure); app.jsx refreshJourney fetches getOntology and threads contracts into deriveSteps."
+    },
+    {
+      "hash": "1ac81e9fb6c8661493e35c9f2d1eeab1566cee5e",
+      "repo": "lithrim-bench",
+      "title": "feat(eval-flow): wire ContractBuilder card + Judges->Ground-truth shepherd stanza",
+      "summary": "W1b: POST /v1/grounding-contract reuses the bound ctx.put_grounding_contract (zero new write logic); ContractBuilder self-persists THEN onResult (honest tick, R1); panes threads agent. W1c+W2b: additive loop.py prose; _deny_non_lithrim untouched; tools.py zero-diff."
+    },
+    {
+      "hash": "1b98506b1b81986876aeecd79f424de1d840e5d2",
+      "repo": "lithrim-bench",
+      "title": "feat(eval-flow): in-DOM cost modal for RunPanel paid runs (S-BS-69) + Ground-truth->Run stanza",
+      "summary": "W2a: RunPanel's paid gate is the in-DOM CostModal (role=dialog/cost-confirm), never window.confirm — CDP-driveable. runNow opens the modal for paid modes; confirm fires the run; cancel aborts with no call."
+    },
+    {
+      "hash": "1db4c74a3036a7b4e4e1b5231214b2aa0952df6a",
+      "repo": "lithrim-bench",
+      "title": "feat(eval-flow): refresh wiring so both steps visibly tick (W3)",
+      "summary": "W3: RunPanel gains onRan(rec) fired post-run; panes threads agent + onRan -> (onRunResult + onConfigSaved) so the card's run re-derives the rail (Run ticks). The grounding-save tick was already wired."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "A1 is GREEN-from-start by design — it guards the EXISTING honest write path (_put_grounding_contract) that W1b reuses (the no-manufactured-tick precondition), not new behavior. A2/A3/A4 are genuinely RED (behavior absent) before their feature commits.",
+    "red_command": "cd apps/shell && npx vitest run src/journey.test.jsx src/genui/RunPanel.test.jsx  (A2/A3/A4) ; pytest tests/test_eval_flow.py (A1, green precondition)",
+    "red_evidence": "vitest RED: 'Test Files 2 failed (2) | Tests 4 failed | 19 passed (23)'. A2: 'expected current to be done' (deriveSteps lacks the 5th contracts param). A4: 'expected todo to be current' (Ground truth not ticking, run derivation off — consequence, NON-VACUOUS). A3: 'Unable to find role=dialog' / 'cost-confirm' (the in-DOM modal absent; gate still window.confirm). A1 (BFF): 2 passed (guards the precondition).",
+    "green_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACK=healthcare LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare pyenv exec python -m pytest -q ; cd apps/shell && npx vitest run ; ruff check apps/bff/app.py apps/bff/agent/loop.py tests/test_eval_flow.py ; npm run build",
+    "green_evidence": "pytest: '2 failed, 556 passed, 4 skipped' (the 2 fails are the pre-existing test_observation_pipeline.py pair, present at parent 77bcb60 as '2 failed, 553 passed'; +3 = my A1 file). vitest: '122 passed | 1 failed (123)' (the 1 fail rotates between app.test.jsx Shell-tab + app.chat.test.jsx getMeta — BOTH fail at parent 77bcb60; excluding those 2 pre-existing-broken files: '17 passed | 121 passed', 0 new fail). ruff: 'All checks passed!'. build: '403 modules transformed, built in 762ms'."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — add_grounding_contract/PUT writes the contract to the active agent's ontology verification_contracts (idempotent on re-save by flag_code), emits an AuditRecord, 404s on an unknown flag.",
+      "test": "tests/test_eval_flow.py::test_grounding_contract_persists_audited_and_404s (+ ::test_grounding_contract_route_reuses_the_bound_op + ::test_add_grounding_contract_tool_is_bounded_by_the_endpoint_guards)",
+      "verdict": "PASS",
+      "evidence": "pytest tests/test_eval_flow.py -> '3 passed'. Idempotent replace verified (res2.replaced=True, single entry, no growth); audit GET /v1/audit?target_type=ontology shows action=edit; HTTPException 404 on UNKNOWN_FLAG with no persisted residue."
+    },
+    {
+      "criterion": "A2 — deriveSteps flips Ground truth done once the chosen E-D1 source is non-empty, stays current/not-done when empty (NON-VACUOUS).",
+      "test": "apps/shell/src/journey.test.jsx :: 'Ground truth ticks on a saved grounding contract'",
+      "verdict": "PASS",
+      "evidence": "vitest journey.test.jsx '20 passed'. contracts=[] -> Ground truth current, done=2; contracts=[{flag_code}] -> done, done=3; the tools/grounding_checks superset clause kept (back-compat case green)."
+    },
+    {
+      "criterion": "A3 — RunPanel's paid gate is the in-DOM CostModal, not window.confirm: confirm fires the run, cancel aborts with no /v1/run-eval call, window.confirm never called.",
+      "test": "apps/shell/src/genui/RunPanel.test.jsx::test_paid_run_uses_indom_costmodal",
+      "verdict": "PASS",
+      "evidence": "vitest RunPanel.test.jsx '3 passed'. Modal opens (role=dialog) with no call; cancel -> no call; confirm (cost-confirm) -> runEval called once {in_process:true}; confirmSpy not called; live mode also routes through the modal."
+    },
+    {
+      "criterion": "A4 — deriveSteps flips Run done once a run record with agent === activeAgent exists (NON-VACUOUS); signature carries the new 5th param.",
+      "test": "apps/shell/src/journey.test.jsx :: 'Run ticks on a run for the active agent (with the new 5th param)'",
+      "verdict": "PASS",
+      "evidence": "vitest journey.test.jsx '20 passed'. run agent===activeAgent -> Run done; run for ANOTHER agent -> Run current (Ground truth done via contracts), NON-VACUOUS; deriveSteps called with the 5th contracts arg."
+    },
+    {
+      "criterion": "A5 — moat byte-frozen (compliance_council.py, _apply_consensus, signals.py), tools.py + _deny_non_lithrim byte-stable, judge_metric.py LENS_BY_ROLE untouched; guard trio green.",
+      "test": "tests/test_6bclean_seam_guard.py + tests/test_6bclean_attestation.py + git diff 77bcb60 HEAD",
+      "verdict": "PASS",
+      "evidence": "guard trio '17 passed'. git diff 77bcb60 HEAD --stat over compliance_council.py/signals.py/judge_metric.py/tools.py = EMPTY (zero diff); loop.py diff grep for deny_non_lithrim/tool_name/bypassPermissions = empty (additive prose only)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "paid_run_fired": "NONE — no live/in_process paid run fired this session (the monitor does the A-LIVE paid re-drive post-close).",
+    "services": "health-checked only (BFF :8787 {status:ok}, UI :5180 200); NEVER autostarted.",
+    "pytest_parent_vs_head": "parent 77bcb60: 2 failed / 553 passed. head: 2 failed / 556 passed (+3 from test_eval_flow.py; SAME 2 pre-existing observation-pipeline fails).",
+    "vitest_parent_vs_head": "parent 77bcb60: 1 pre-existing fail (app.test.jsx Shell-tab + app.chat.test.jsx getMeta both broken at parent). head: 122 passed / 1 fail full; 121 passed / 0 fail excluding the 2 pre-existing-broken files (+7 vitest tests, 0 new fail).",
+    "diff_scope": "12 files, all within driver §2; moat/tools.py/_deny_non_lithrim/judge_metric.py zero-diff."
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-159",
+      "title": "Live-chat shepherd surfaces the post-write FlagEditor for add_grounding_contract, not the FILL-IN ContractBuilder card.",
+      "severity": "low",
+      "fix_location": "apps/bff/agent/adapter.py (a contract_builder_part emitter) + the add_grounding_contract emit in apps/bff/agent/tools.py:517",
+      "impact": "In the LIVE conversational flow the shepherd's add_grounding_contract tool emits flag_part (the FlagEditor showing the ontology AFTER a write) — surfacing the FILL-IN ContractBuilder card in live chat would need an adapter mapping or a tools.py emit change. The latter is forbidden by the tools.py-byte-stable guardrail, so it was deferred. Today the ContractBuilder card surfaces + self-persists honestly via the panes SETUP_PARTS path; the A1 honest write path is fully wired and tested.",
+      "confidence": "CONFIRMED",
+      "evidence": "apps/bff/agent/tools.py:517 'ctx.emit(flag_part(agent))' inside add_grounding_contract_handler; apps/bff/agent/adapter.py:73-76 flag_part -> tool-flag_editor (no tool-contract_builder emitter exists)."
+    },
+    {
+      "id": "S-BS-160",
+      "title": "App-level fetch->rail-tick e2e link is not cleanly unit-testable (dynamic import('./bff.js') not intercepted for assertion).",
+      "severity": "low",
+      "fix_location": "apps/shell/src/app.jsx refreshJourney (the await import('./bff.js') pattern) + the vitest mock harness",
+      "impact": "The journey predicate (A2, journey.test.jsx) and the BFF write (A1) are deterministically covered; the App wire (getOntology -> setContracts -> deriveSteps 5th arg) is a direct reviewable edit. A full App-level fetch->tick test was attempted but the dynamic-import mock does not thread (getAgent calls=0), matching the existing app tests which never assert on the dynamic-import fetch. The live fetch->tick link is left to the monitor's A-LIVE re-drive (honest-Δ).",
+      "confidence": "CONFIRMED",
+      "evidence": "probe under vi.mock('./bff.js'): 'getAgent calls=0' after App render+settle; existing app.test.jsx / app.chat.test.jsx never assert getAgent was called. Removed the brittle app.journey.test.jsx."
+    },
+    {
+      "id": "S-BS-161",
+      "title": "contract_type is not pre-validated at authoring (accepts any contract_type, fails at grade time).",
+      "severity": "low",
+      "fix_location": "apps/bff/app.py _put_grounding_contract / ContractBuilder.jsx CONTRACT_TYPES",
+      "impact": "Driver §4 explicit DEFER: the handler accepts any contract_type string and only fails at grade time if it is not a registered floor executor. Out of EVAL-FLOW scope (the skeleton demonstrates the loop). Flagged, not fixed.",
+      "confidence": "CONFIRMED",
+      "evidence": "driver §4 'contract_type pre-validation ... real seam, but DEFER; flag it, don't fix it here.'"
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "EVAL-FLOW walking skeleton landed across 5 atomic commits (780e262..1db4c74, RED tests first at 9e4b72c). The rail now ticks Ground truth on a SAVED grounding contract by reading the SAME store the grade consumes (ontology.verification_contracts, E-D1 option i) — NOT eval_profile.tools stuffing (the honest tick, R1). The ContractBuilder card self-persists via a thin POST /v1/grounding-contract route that REUSES the bound ctx.put_grounding_contract with ZERO new write logic (R1 resolution: a thin route WAS needed; called out). RunPanel's paid gate is now the in-DOM CostModal (CDP-driveable, S-BS-69), never window.confirm. Shepherd prose (loop.py) gained additive Judges->Ground-truth + Ground-truth->Run stanzas; _deny_non_lithrim + tools.py are byte-stable (zero-diff verified). All 5 acceptance criteria PASS; moat zero-diff (A5 guards 17 passed). Green-bar: pytest 556 passed / 2 pre-existing fails; vitest 121 passed / 0 new fails (2 pre-existing-broken files excluded). PROCEED-WITH-CAVEATS (not CLEAN) because: (1) the live-chat ContractBuilder FILL-IN surfacing is a deferred seam (S-BS-159) — the card self-persists honestly via SETUP_PARTS today but the live shepherd emits the post-write FlagEditor; (2) the App fetch->tick e2e link relies on the monitor's A-LIVE re-drive (S-BS-160, not cleanly unit-testable). Monitor should audit the diff scope + the R1 route reuse first, then run the A-LIVE paid re-drive (the deferred paid run).",
+
+  "next_session_hint": "monitor should run /devloop-critique bench-salvage EVAL-FLOW (HARD GATE, fresh-critic) then the A-LIVE paid re-drive (Ground truth ticks on a saved contract -> in-DOM-confirmed paid run -> verdict -> Run ticks); capture the proof capsule honest-Δ."
+}
