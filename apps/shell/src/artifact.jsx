@@ -125,20 +125,29 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       <div className="art-sec" style={{ marginBottom: 4 }}>
         <div className="art-h2">Calibration <span className="cnt">diagnostic · N={cal.n_cases}</span></div>
-        <div style={{ fontSize: 12.5, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Verdict match</span>
-            <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{cal.verdict_match_rate} · {cal.status}</span>
+        {cal.label_status === "unlabeled" ? (
+          // HONEST-1: no ground truth -> withhold accuracy/ECE; never fabricate a 0.0/WARN.
+          <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div>No ground truth — verdict &amp; grounding shown; accuracy &amp; calibration withheld.</div>
+            <div>Author labels for these case(s) to unlock verdict-match &amp; ECE.</div>
+            {cal.caveat && <div style={{ fontSize: 11.5 }}>{cal.caveat}</div>}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>ECE</span>
-            <span style={{ fontFamily: "var(--mono)" }}>{cal.ece}</span>
+        ) : (
+          <div style={{ fontSize: 12.5, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Verdict match</span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{cal.verdict_match_rate} · {cal.status}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>ECE</span>
+              <span style={{ fontFamily: "var(--mono)" }}>{cal.ece}</span>
+            </div>
+            {cal.caveat && <div style={{ color: "var(--muted)", fontSize: 11.5 }}>{cal.caveat}</div>}
+            <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
+              Report-only diagnostic — not the locked calibration gate (WS-4b).
+            </div>
           </div>
-          {cal.caveat && <div style={{ color: "var(--muted)", fontSize: 11.5 }}>{cal.caveat}</div>}
-          <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
-            Report-only diagnostic — not the locked calibration gate (WS-4b).
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -451,7 +460,12 @@ function CaseTab({ agent = "ws0_default" }) {
       <div className="art-sec">
         <div className="art-h2">Planted defect <span className="cnt">by-construction ground truth</span></div>
         {planted.length === 0 ? (
-          <div style={{ color: "var(--muted)", fontSize: 12.5 }}>clean negative — nothing planted (expected verdict: approve)</div>
+          kase.labeled === false ? (
+            // HONEST-1: a BYO/unlabeled case is unknown-truth, NOT a declared clean negative.
+            <div style={{ color: "var(--muted)", fontSize: 12.5 }}>unknown ground truth — your data, no planted label</div>
+          ) : (
+            <div style={{ color: "var(--muted)", fontSize: 12.5 }}>clean negative — nothing planted (expected verdict: approve)</div>
+          )
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {planted.map((f) => <span key={f} className="chip">{f}</span>)}

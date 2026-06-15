@@ -515,6 +515,19 @@ def _artifact_note(artifact: Any) -> str | None:
     return (text.get("div") if isinstance(text, dict) else None) or None
 
 
+def _case_labeled(case: dict) -> bool:
+    """HONEST-1 (H-D6): does this case carry a DECLARED label? A by-construction case
+    declares ``expected_safety_flags`` (an empty list IS a declared clean-negative) and/or
+    an ``expected_compliance_verdict``; a BYO/unlabeled case has neither. The serializer
+    coerces ``expected_safety_flags`` to ``[]`` below, so absence is otherwise unrecoverable
+    by the CaseTab — this presence test is the signal it branches on (no mislabeling
+    unknown-truth as a clean negative)."""
+    return (
+        case.get("expected_safety_flags") is not None
+        or case.get("expected_compliance_verdict") is not None
+    )
+
+
 @app.get("/v1/case")
 def case_endpoint(
     agent: str = DEFAULT_AGENT,
@@ -538,6 +551,7 @@ def case_endpoint(
         "conditions": pp.get("conditions") or [],
         "expected_safety_flags": case.get("expected_safety_flags") or [],
         "injection_recipe": case.get("injection_recipe"),
+        "labeled": _case_labeled(case),
     }
 
 
