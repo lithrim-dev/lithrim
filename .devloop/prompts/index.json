@@ -1,7 +1,34 @@
 {
   "version": "1",
-  "updated": "2026-06-15",
+  "updated": "2026-06-16",
   "bundles": [
+    {
+      "id": "bench-salvage-phaseHONEST-1-honest-unlabeled-mode-driver",
+      "stream": "bench-salvage",
+      "phase": "HONEST-1",
+      "scope": "Phase 0 of the open-core MVP roadmap (the lithrim-doubledown-decision). Make the UNLABELED grade path honest: today calibration_check (report.py:178-189) keys on provenance.expected_compliance_verdict, and normalize_expected_verdict(None)->set() (picklist.py:83) collapses verdict_match_rate to 0.0 / status WARN + a meaningless ECE on a BYO user's unlabeled note, folded unconditionally into the run-eval response (app.py:446) and rendered as '0 · WARN' (artifact.jsx:131) with the CaseTab mislabeling unknown-truth as 'clean negative -- expected verdict: approve' (artifact.jsx:454). W1 a label-aware calibration_check (label_status in {labeled,unlabeled,partial}; suppress verdict_match_rate/ece on unlabeled, status='unlabeled' + caveat, the labeled path byte-unchanged) - W2 gate the per-case calibration()/ECE on unlabeled - W3 BFF pass-through stays honest - W4 honest Review render (verdict+reasoning+grounding shown, accuracy withheld, 'author labels to unlock') - W5 unknown-truth CaseTab branch. The verdict/grade path (composite) + the moat are byte-untouched. Precondition for Phase 1 BYO-INGEST (do NOT ship ingestion while the Review pane fakes 0.0/WARN on a new user's first run).",
+      "file": ".devloop/prompts/bench-salvage_phaseHONEST-1_honest-unlabeled-mode_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD-GATE",
+      "hardness_reason": "It IS the honesty surface -- the whole point is that the product stops fabricating an accuracy number on the exact data a new BYO user brings (the honesty-is-the-moat brand). A cold fresh-critic must confirm (a) no fabricated number leaks on the unlabeled path (ANY field -- not 0.0/WARN AND not a manufactured 1.0/PASS), (b) the LABELED path is byte-unchanged AND still reports a genuine WARN on a real verdict mismatch (non-vacuous BOTH directions), (c) the moat (compliance_council/_apply_consensus/signals/judge_metric LENS_BY_ROLE) + composite() (the verdict/grade path) are byte-untouched -- the change is confined to report.py calibration*, the app.py:446 fold, and artifact.jsx.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        ".devloop/prompts/bench-salvage_phaseHONEST-1_honest-unlabeled-mode_driver.md (THE driver)",
+        "lithrim_bench/harness/report.py:95-206 (calibration + calibration_check -- the label-aware edit)",
+        "lithrim_bench/picklist.py:81-99 (normalize_expected_verdict -- the empty-set source)",
+        "apps/bff/app.py:446 (the unconditional calibration_check fold)",
+        "apps/shell/src/artifact.jsx (the calibration block :130-131 + the CaseTab :454)",
+        "memory: lithrim-doubledown-decision + byo-data-ingestion-cliff (blocker #4) + self-asserting-loop-honesty-moat",
+        "the 4-analysis double-down workflow (feasibility/roadmap/bear/bull, 2026-06-16)"
+      ],
+      "_note": "AUTHORED by the monitor (planning session, no inline build) per the lithrim-doubledown-decision. Phase 0 of the open-core MVP program (Phase 1 = BYO-INGEST, 2 = floor-in-core, 3 = author-the-floor). The executor pastes the KICKOFF block into a fresh session, posts plan-review (H-D1..H-D5), then implements test-first. HARD-GATE fresh-critic to close.",
+      "created": "2026-06-16",
+      "last_re_verified": "2026-06-16",
+      "next_action": "/devloop-kickoff bench-salvage HONEST-1 (paste the driver KICKOFF into a fresh executor; plan-review resolves H-D1..H-D5; HARD-GATE fresh-critic to close). Then Phase 1 = BYO-INGEST."
+    },
     {
       "id": "bench-salvage-phasePACK-DIST-2-finish-ce-pack-clinical-split-driver",
       "stream": "bench-salvage",
