@@ -30,9 +30,19 @@
     }
   ],
 
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "<if false, why — the critic treats false as suspicious>",
+    "red_command": "<test command run before implementation>",
+    "red_evidence": "<verbatim failing output proving RED for the right reason>",
+    "green_command": "<full suite + lint + types, re-run from clean state>",
+    "green_evidence": "<verbatim passing output>"
+  },
+
   "acceptance": [
     {
       "criterion": "A1 — <from driver §5>",
+      "test": "<test_file::test_name that gates this criterion>",
       "verdict": "PASS | FAIL | SKIP",
       "evidence": "<test output snippet, command + result, file:line, etc>"
     }

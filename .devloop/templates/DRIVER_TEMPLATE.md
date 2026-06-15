@@ -50,15 +50,20 @@ Open these in order before posting plan-review:
 
 ## 2. Deliverables (file-by-file)
 
-1. **`<file/path/1.py>`** — `<one-line description of the change>`
+**Tests are authored FIRST** (per `EXECUTOR.md` §"Tests first"): write the
+acceptance tests, watch them fail (RED), commit them, then implement to
+GREEN. They lead the deliverables list, not trail it.
+
+1. **`<test/path/1.py>`** — tests for the deliverables below, written first
+   - One test per acceptance criterion A1, A2, A3 (§5)
+   - Must fail meaningfully before any implementation exists (RED)
+
+2. **`<file/path/1.py>`** — `<one-line description of the change>`
    - Add `<symbol>` with signature `<sig>`
    - Wire into `<call site>`
 
-2. **`<file/path/2.py>`** — `<one-line description>`
+3. **`<file/path/2.py>`** — `<one-line description>`
    - ...
-
-3. **`<test/path/1.py>`** — tests for deliverable 1 + 2
-   - Covers acceptance criteria A1, A2, A3 below
 
 4. **`<docs/whatever.md>`** — `<one-line description>` (if docs in scope)
 
@@ -93,13 +98,16 @@ in plan-review.
 
 ## 5. Acceptance criteria
 
-The cycle is done when ALL of these are PASS:
+Each criterion is a **test written first** (the deterministic gate the
+cycle and the critic hang on). Name the test, not just a command — "verify
+via <test>" must point at a real test that was RED before the code existed.
 
-- **A1.** `<criterion 1>` — verify via `<command or test>`
-- **A2.** `<criterion 2>` — verify via `<command or test>`
-- **A3.** `<criterion 3>` — verify via `<command or test>`
+- **A1.** `<criterion 1>` — test `<test_file::test_name>`
+- **A2.** `<criterion 2>` — test `<test_file::test_name>`
+- **A3.** `<criterion 3>` — test `<test_file::test_name>`
 
-Each gets a row in the session log's `acceptance` array.
+Each gets a row in the session log's `acceptance` array. A criterion with
+no test is not a gate — express it as a test or drop it from acceptance.
 
 ### Diagnostic stats (NOT acceptance gates)
 
@@ -114,12 +122,14 @@ distinction stays clean:
 
 ## 6. Commit structure + message templates
 
-Atomic commits per logical unit. Suggested order:
+Atomic commits per logical unit. **Tests commit first** so the diff shows
+RED→GREEN (the critic checks this commit order). Suggested order:
 
-1. **`feat(<scope>): <deliverable 1 title>`**
+1. **`test(<scope>): <test title> — red`**
+   - The acceptance tests, failing. Body notes the RED run.
+2. **`feat(<scope>): <deliverable 1 title>`**
    - Body explains why; references this driver bundle ID
-2. **`feat(<scope>): <deliverable 2 title>`**
-3. **`test(<scope>): <test title>`**
+3. **`feat(<scope>): <deliverable 2 title>`**
 4. **`docs(<scope>): <docs title>`** (if in scope)
 
 Each commit body should end with:
@@ -135,9 +145,11 @@ See .devloop/sessions/session-<stream>-phase<N>-YYYY-MM-DD.json
 
 ## 7. Verification checklist (run at end, before writing session log)
 
+- [ ] Acceptance tests were written first and failed before code (RED run recorded)
+- [ ] `test(...)` commit precedes the implementation commits it covers
 - [ ] All acceptance criteria PASS (per §5)
 - [ ] All commits exist; working tree clean
-- [ ] Tests pass + linters clean (re-run; record commands used)
+- [ ] Full suite passes + linters clean (re-run from clean state; record commands)
 - [ ] No file in the diff outside §2 deliverables (scope held)
 - [ ] No services were autostarted (user preference)
 - [ ] No pushes / publishes / tags (user preference)

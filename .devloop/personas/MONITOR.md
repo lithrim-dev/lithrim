@@ -7,8 +7,7 @@
 > **Read this at the start of any session that inherits the monitor role**,
 > whether fresh or resumed from compaction.
 >
-> **Generic — copy/adapt freely. Pattern distilled from the `etlp/.workstream/`
-> and `lithrim-command-center/.lithrim/` workflows.**
+> **Generic — copy/adapt freely.**
 
 ---
 
@@ -79,9 +78,12 @@ User pastes the kickoff into a fresh Claude Code session in the target
 repo. The execution session:
 
 1. Reads pre-flight docs in order.
-2. Posts plan-review to the user (non-negotiable).
-3. User approves or corrects → implementation begins.
-4. Executes per driver — atomic commits, tests, acceptance smoke.
+2. Posts plan-review to the user (non-negotiable) — including the
+   test plan: the acceptance tests it will write *before* code.
+3. User approves or corrects → tests-first begins.
+4. Writes acceptance tests, confirms they fail (RED), commits them
+   first; then implements per driver until GREEN — atomic commits,
+   re-runs the full suite + linters.
 5. Writes session log at
    `.devloop/sessions/session-<stream>-<phase>-YYYY-MM-DD.json`.
 6. Returns commit hashes + a short REPORT summary.
@@ -92,7 +94,10 @@ Monitor runs the **7-item verification checklist**:
 
 1. Commit hashes exist in the stated repos; working trees clean.
 2. Files match driver's expected outputs.
-3. Tests pass + linters clean (re-run if needed).
+3. Tests pass + linters clean (**re-run from clean state; do not trust
+   the session log's word**). Acceptance tests were written first —
+   `git log` shows the `test(...)` commit landing before the
+   implementation it covers (RED→GREEN demonstrated, not asserted).
 4. Scope held — grep for explicit "NOT in scope" items; confirm absent.
 5. User preferences honored (no autostart, no auto-commit, ...).
 6. Session log exists with the correct shape (see
@@ -105,11 +110,10 @@ On clean audit + clean critique:
 - Commit close-out (any monitor-authored supplements; STATE updates).
 - Update `.devloop/state/STREAM_<stream>.md` with cycle completion +
   new seams + next candidates.
-- **Proof capsule (at every A-LIVE attestation):** produce the proof
-  capsule — a proof doc (`docs/research/PROOF_<stream>_<phase>_<date>.md`)
-  + a zyng-narrated video (`out/zyng_narrate/`) — per
-  `.devloop/templates/PROOF_CAPSULE_TEMPLATE.md`. Honest-Δ only: an honest
-  loss is documented as a loss; never a manufactured win.
+- *(Optional — `proof-capsule` module.)* If enabled, produce the proof
+  capsule per `.devloop/modules/proof-capsule.md` — an evidence artifact for
+  any live attestation. Honest-Δ only: a loss is documented as a loss, never
+  a manufactured win.
 - Propose the next cycle.
 
 On audit or critique drift:
@@ -132,9 +136,19 @@ the cycle is declared done. Output goes to
 `.devloop/sessions/critique-<stream>-phase<N>-YYYY-MM-DD.md`, using
 `.devloop/templates/CRITIQUE_TEMPLATE.md`.
 
+### Gate 0 — deterministic verification (runs first, supreme)
+
+Before the 4 questions, **re-run the suite + linters + type checks from
+a clean state** (don't trust the session log). This is the gate the
+verdict hangs on: any FAIL ⇒ `BLOCKING`, halt, no further questions. The
+4 questions below are an LLM-as-judge pass — the *weakest* verification
+tier — and run only once Gate 0 is green. The judge may never overturn a
+deterministic result, and (per `CRITIC.md`) it may not raise a BLOCKING
+finding it can't reduce to a failing test.
+
 ### The 4 questions
 
-Performed as a **cold read** of the spec + the diff.
+Performed as a **cold read** of the spec + the diff, after Gate 0 passes.
 
 1. **Surface fidelity.** Does the public API (function names, signatures,
    return shapes, error taxonomy, configuration keys) match the spec

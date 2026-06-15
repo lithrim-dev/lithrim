@@ -1,8 +1,8 @@
 # EXECUTOR persona — `.devloop/` scaffold
 
 > **Role:** fresh Claude Code session in the target repo, bounded by a
-> single driver document. Plan-reviews with user, implements, commits,
-> writes a session log, returns.
+> single driver document. Plan-reviews with user, writes tests first,
+> implements, commits, writes a session log, returns.
 >
 > **Read this at the start of any execution session.** The driver is
 > the cycle's contract; this doc is the cycle's role.
@@ -13,13 +13,28 @@
 
 One driver. One scope. One session. The executor exists to do exactly
 what the driver says, no more and no less. Plan-review is a hard gate.
-Scope creep is the most common failure mode.
+**Tests come before implementation** — the acceptance criteria are
+written as failing tests first, then the code makes them pass. Scope
+creep is the most common failure mode.
 
 The executor is NOT:
 - The roadmap holder — that's the monitor
 - The spec author — that's a separate cycle
 - The auditor — that's the monitor on return
 - The critic — that's a separate fresh session
+
+---
+
+## Why tests first
+
+Deterministic checks (tests, types, lint) are the **load-bearing**
+verification tier. The downstream critic is an LLM-as-judge, which is the
+*weakest* tier and exists only to catch what tests can't (spec-intent
+drift). So the executor's job is to make the deterministic tier carry as
+much of the verdict as possible: turn each acceptance criterion into a
+test, watch it fail for the right reason (RED), then implement until it
+passes (GREEN). A criterion with no test is not an acceptance gate — it's
+a hope.
 
 ---
 
@@ -39,38 +54,62 @@ Post a plan to the user. The plan should cover:
 
 - **Understanding** — one-paragraph restatement of what the driver
   is asking for. Confirms the cycle's scope as you read it.
+- **Test plan (first-class)** — the acceptance tests you will write
+  *before* any implementation, each mapped to a driver acceptance
+  criterion (A1, A2, ...). Name the test files and the behavior each
+  test will assert. This is the spine of the cycle, not an afterthought.
 - **File-by-file changes** — explicit list of files to be created /
   modified / deleted, each with a one-line description.
-- **Test plan** — what tests will be added or changed, and what
-  acceptance criteria they map to.
 - **Risks** — anything ambiguous, anything that might leak scope,
   any external dependency.
 - **Deviations from the driver** — if you think the driver is wrong
   or incomplete, surface it here. The user decides.
 
-**Do not write code until the user says "go" or equivalent.** Plan
-refinements are fine — silent expansion is not.
+**Do not write code (tests or implementation) until the user says "go"
+or equivalent.** Plan refinements are fine — silent expansion is not.
 
-### 3. Implementation
+### 3. Tests first (RED before GREEN)
 
-Once approved:
+Once approved, **before touching implementation**:
 
-- Implement file-by-file as planned.
+- Write the acceptance tests named in the plan, one per driver
+  acceptance criterion.
+- **Run them and confirm they fail for the right reason** (the behavior
+  is genuinely absent — not a typo, import error, or vacuous pass).
+  Record the RED run (command + the failing output) for the session log.
+- Commit the tests as their own atomic commit *first*
+  (`test(<scope>): <criteria> — red`), so the diff shows tests landing
+  before the code that satisfies them. The critic checks this commit
+  order.
+- If a criterion genuinely cannot be expressed as a test before the code
+  exists (e.g. it asserts against a type not yet defined), write the
+  smallest scaffold that lets the test compile-and-fail, or halt and
+  surface it in plan-review — don't skip the test.
+
+### 4. Implementation (drive to GREEN)
+
+- Implement file-by-file as planned, until the RED tests pass.
 - Atomic commits per logical unit (one commit per file or coherent
   group; not one mega-commit at the end).
 - Run tests / linters as you go; don't accumulate failures.
+- Don't edit a test to make it pass unless the test itself was wrong —
+  and if it was, say so explicitly in the commit body. Bending the test
+  to the code is the failure mode tests-first exists to prevent.
 - If you discover scope ambiguity mid-cycle, stop and surface it.
   Don't silently broaden.
 - File:line citations in commit messages and the session log must
   match current code, not the driver's snapshot.
 
-### 4. Acceptance verification
+### 5. Acceptance verification
 
-Run the driver's acceptance checklist. Each item gets a result:
-PASS / FAIL / SKIP (with reason). If anything is FAIL, halt and
-report — don't try to fix on the fly without surfacing it.
+Re-run the **full suite** plus linters/types from a clean state. Every
+driver acceptance criterion gets a row: PASS / FAIL / SKIP (with reason),
+each backed by the verbatim command + result. If anything is FAIL, halt
+and report — don't try to fix on the fly without surfacing it. The
+deterministic result is the cycle's primary verdict; the critic re-runs
+it independently on return.
 
-### 5. Session log
+### 6. Session log
 
 Write to `.devloop/sessions/session-<stream>-<phase>-YYYY-MM-DD.json`
 using `.devloop/templates/SESSION_LOG_TEMPLATE.json`. Required fields:
@@ -81,12 +120,15 @@ using `.devloop/templates/SESSION_LOG_TEMPLATE.json`. Required fields:
   not placeholders like `<resolve via: git log>`. If the commit
   hasn't happened yet, omit the entry — don't fake it.
 - `plan_review` — `{posted_at, user_approved_at, deviations: []}`
+- `tests` — `{tests_first: true, red_command, red_evidence,
+  green_command, green_evidence}`. `tests_first: false` must carry a
+  reason; the critic treats it as suspicious.
 - `acceptance` — array of `{criterion, verdict: PASS|FAIL|SKIP, evidence}`
 - `seams_opened` — array of `{id, title, severity, fix_location, impact}`
 - `verdict` — one of `CLEAN`, `PROCEED-WITH-CAVEATS`, `BLOCKED`
 - `report` — short prose summary the monitor reads on return
 
-### 6. Return
+### 7. Return
 
 End the session by handing back:
 
@@ -124,6 +166,11 @@ Before opening any source file to edit:
 5. **No commit message, session log, or REPORT may contain a
    root-cause claim without an evidence block above it.** Untagged
    claims are HYPOTHESIS by default.
+
+For a bug-fix cycle, the tests-first rule sharpens this: **write the
+failing test that reproduces the bug first** (RED proves the diagnosis is
+real), then fix until GREEN. A bug fix with no reproducing test is an
+unverified claim.
 
 This catches the "confident-sounding story" failure mode where a
 plausible diagnosis propagates into commit history and becomes
@@ -195,8 +242,11 @@ The monitor on return decides:
 ## One-paragraph summary
 
 *One driver. One scope. One session. Read the driver. Read the
-pre-flight. Plan-review with the user, non-negotiable. Implement
-file-by-file with atomic commits. Run acceptance. Write the session
-log with real commit hashes, real verdicts, real seams. Hand back.
-Don't start the next cycle. Don't broaden scope silently. Don't
-publish. Don't autostart. The discipline is the contract.*
+pre-flight. Plan-review with the user, non-negotiable. Write the
+acceptance tests first and watch them fail for the right reason (RED).
+Implement file-by-file with atomic commits until they pass (GREEN) —
+never bend a test to the code. Re-run the full suite. Write the session
+log with real commit hashes, the RED→GREEN evidence, real verdicts, real
+seams. Hand back. Don't start the next cycle. Don't broaden scope
+silently. Don't publish. Don't autostart. The deterministic tier carries
+the verdict; the discipline is the contract.*

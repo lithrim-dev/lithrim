@@ -26,6 +26,27 @@ One sentence: `<the load-bearing summary the monitor reads on closeout>`
 
 ---
 
+## 0. Deterministic gate (supreme — runs first)
+
+> Re-run the suite + linters + types from a clean checkout of the audited
+> commits. This gate is supreme: any FAIL ⇒ `BLOCKING DRIFT`, halt, do not
+> proceed to the 4 questions. The 4 questions (LLM-judge tier) run only
+> once this is green and may never overturn it. Respect no-autostart
+> (`curl /health` first).
+
+| Check | Command (verbatim) | Result |
+|---|---|---|
+| Test suite | `<cmd>` | PASS / FAIL `<failing tests>` |
+| Linter | `<cmd>` | PASS / FAIL |
+| Type check | `<cmd>` | PASS / FAIL |
+
+**Tests-first check:** does `git log` show the `test(...)` commit landing
+*before* the implementation it covers? `<YES — RED→GREEN demonstrated / NO — flag>`
+
+**Gate verdict:** `<GREEN — proceed to the 4 questions / RED — BLOCKING, halt here>`
+
+---
+
 ## 1. Surface fidelity
 
 > Does the public API (function names, signatures, return shapes, error
@@ -141,15 +162,22 @@ If no intrusion: "All diffed files map to deliverables. No intrusion detected."
 
 ## Summary of findings
 
-| # | Question | BLOCKING | NON-BLOCKING | OPEN-QUESTION |
+| # | Gate / Question | BLOCKING | NON-BLOCKING | OPEN-QUESTION |
 |---|---|---|---|---|
+| 0 | Deterministic gate (tests/lint/types) | 0 | — | — |
 | 1 | Surface fidelity | 0 | 0 | 0 |
 | 2 | Behavioral fidelity | 0 | 0 | 0 |
 | 3 | Out-of-scope intrusion | 0 | 0 | 0 |
 | 4 | Spec ambiguity surfaced | 0 | 0 | 0 |
 
+**Gate 0 RED** → cycle CANNOT close, regardless of the questions below.
 **Total BLOCKING: 0** → cycle MAY close.
 **Total BLOCKING: ≥ 1** → cycle CANNOT close. Propose correction below.
+
+> Every BLOCKING finding from questions 1–4 must be reducible to a failing
+> test (state it in "Required actions"). A fidelity concern that can't be
+> expressed as a test is at most an OPEN-QUESTION — the LLM-judge tier does
+> not block on judgment alone.
 
 ---
 
@@ -173,10 +201,13 @@ not blocking closure:
 
 If performed by a fresh critic session (not monitor inline), confirm:
 
+- [ ] Ran Gate 0 (suite + lint + types) from a clean checkout, recorded verbatim, BEFORE the questions
+- [ ] Confirmed the `test(...)` commit precedes the implementation it covers
 - [ ] Read the spec without reading executor's session log first
 - [ ] Read the diff via `git show` against commits, not via executor's summary
 - [ ] Each finding cites both spec file:line and implementation file:line
-- [ ] Did NOT edit any code, spec, or driver
+- [ ] Each BLOCKING finding is reducible to a stated failing test
+- [ ] Did NOT edit any code, spec, or driver (running tests is not editing)
 - [ ] Did NOT confer with monitor or executor before writing the verdict
 
 If any are false, critique is in audit drift. Flag to user.
