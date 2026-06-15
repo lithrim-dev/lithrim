@@ -104,6 +104,45 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
 const ARTIFACT_TABS = ["case", "report", "judges", "config", "corpus"];
 const TAB_LABELS = { case: "Case", report: "Report", judges: "Judge council", config: "Config", corpus: "Corpus" };
 
+// CONV-UX-1 (W1): the live "thinking / working stages" — map a tool name (the wire carries
+// the SDK-MCP `mcp__lithrim__<tool>`) to a present-progressive human label. The events already
+// stream (loop.py tool_call); the shell renders them as an ordered, running→done activity
+// timeline so dead air reads as progress, not a freeze.
+const TOOL_LABELS = {
+  get_agent: "Reading the agent",
+  assemble_agent: "Editing the agent roster",
+  get_judge: "Reading the judge",
+  author_judge: "Authoring the judge",
+  delete_judge: "Reverting the judge",
+  author_flag: "Editing the flag",
+  create_flag: "Creating the flag",
+  delete_flag: "Deleting the flag",
+  add_grounding_contract: "Adding a grounding contract",
+  run_eval: "Running a $0 replay",
+  run_eval_pack: "Running a $0 replay batch",
+  review_runs: "Reviewing the run history",
+  show_case: "Loading the case",
+  focus_artifact: "Opening a panel",
+  kb_context: "Looking up the policy",
+  propose_live_run: "Surfacing the cost-confirm",
+};
+const toolLabel = (name) => {
+  const short = String(name || "").replace(/^mcp__lithrim__/, "");
+  return (TOOL_LABELS[short] || short.replace(/_/g, " ") || "Working") + "…";
+};
+
+// CONV-UX-1 (W3): gen-UI cards (tool-<name> in KNOWN_TOOLS) participate in dedup + intent
+// gating; pane-control DIRECTIVES (open_artifact / propose_live_run) are special-cased traces,
+// never cards. A friendly label for an `ondemand` collapsed read.
+const PART_LABELS = {
+  "tool-audit_log": "audit trail",
+  "tool-agent_editor": "the agent",
+  "tool-judge_editor": "the judge",
+  "tool-flag_editor": "the ontology",
+  "tool-verdict_card": "the verdict",
+  "tool-case_summary": "the case",
+};
+
 export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
@@ -147,7 +186,25 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
         {
           onEvent: (ev) => {
             if (ev.event === "assistant_delta") patchLast((m) => ({ ...m, text: (m.text || "") + ev.text }));
-            else if (ev.event === "tool_result" && ev.part) {
+            else if (ev.event === "thinking")
+              // CONV-UX-1 (W1/W2): the model's reasoning stream — accreted into a collapsible
+              // muted section. Only present when the SDK surfaces a ThinkingBlock/thinking_delta.
+              patchLast((m) => ({ ...m, thinking: (m.thinking || "") + ev.text }));
+            else if (ev.event === "tool_call") {
+              // CONV-UX-1 (W1): an ordered activity step. Mark any prior running step done (the
+              // SDK emits the next tool_call only after the previous tool resolved), then append
+              // the new running step so the indicator shows the latest in-flight label.
+              patchLast((m) => {
+                const activity = (m.activity || []).map((s) => ({ ...s, state: "done" }));
+                activity.push({ name: ev.name, label: toolLabel(ev.name), state: "running" });
+                return { ...m, activity };
+              });
+            } else if (ev.event === "tool_result" && ev.part) {
+              // W1: a result drained — the latest running step is done.
+              patchLast((m) => ({
+                ...m,
+                activity: (m.activity || []).map((s) => ({ ...s, state: "done" })),
+              }));
               // CHATBIND-2: a tool-open_artifact part is a pane-control DIRECTIVE, not a card.
               // Fire the open+focus side-effect ON ARRIVAL (once); it still appends so the turn
               // shows a tiny affordance (special-cased OUT of renderTool in the render map below).
@@ -164,7 +221,14 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               // the focused Report/Judge tab shows THIS run (byte-same to the manual Run-eval).
               onRunResult?.(ev.result);
             else if (ev.event === "error")
-              patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${ev.detail}` }));
+              // W1/W3: a loop error closes the activity (no step left spinning) and flags the
+              // turn errored so the render guard suppresses any card from the failed turn.
+              patchLast((m) => ({
+                ...m,
+                errored: true,
+                activity: (m.activity || []).map((s) => ({ ...s, state: "done" })),
+                text: (m.text ? m.text + "\n\n" : "") + `⚠ ${ev.detail}`,
+              }));
           },
         },
       );
@@ -392,34 +456,86 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 </div>
               </div>
             ) : (
-              <div className="msg" key={i}>
-                <div className="av ai"><Mark size={17} /></div>
-                <div className="content">
-                  <div className="name">Lithrim</div>
-                  {m.text && <Markdown>{m.text}</Markdown>}
-                  {(m.parts || []).map((part, j) => {
-                    // CHATBIND-2/4: pane-control + cost-confirm DIRECTIVES render as tiny non-card
-                    // traces, NEVER through renderTool (they are not registered gen-UI cards).
-                    if (part.type === "tool-open_artifact")
-                      return (
-                        <div key={j} data-testid="pane-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
-                          ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
+              (() => {
+                const isLast = i === chat.length - 1;
+                const inFlight = sending && isLast; // this turn is still streaming
+                // W3: dedup cards by type within this turn (one card per type), the seen-set the
+                // monitor specified; directives are NOT deduped (they are per-call pane traces).
+                const seen = new Set();
+                // W1: the latest in-flight tool label drives the working indicator (a running step,
+                // else a generic "Thinking…"); shown across the WHOLE in-flight window.
+                const running = (m.activity || []).find((s) => s.state === "running");
+                const indicatorLabel = running ? running.label : "Thinking…";
+                return (
+                  <div className="msg" key={i}>
+                    <div className="av ai"><Mark size={17} /></div>
+                    <div className="content">
+                      <div className="name">Lithrim</div>
+                      {/* W1: the model's reasoning, collapsible + muted (only when streamed). */}
+                      {m.thinking && (
+                        <details className="reasoning">
+                          <summary>Reasoning</summary>
+                          <div className="reasoning-bd">{m.thinking}</div>
+                        </details>
+                      )}
+                      {/* W1: the ordered activity timeline — a step per tool, running→done. */}
+                      {(m.activity || []).length > 0 && (
+                        <div className="activity" data-testid="activity">
+                          {m.activity.map((s, k) => (
+                            <div key={k} className={"act-step " + s.state}>
+                              <span className="act-dot" />
+                              <span className="act-lbl">{s.label}</span>
+                            </div>
+                          ))}
                         </div>
-                      );
-                    if (part.type === "tool-propose_live_run")
-                      return (
-                        <div key={j} data-testid="paid-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
-                          ↗ Surfaced the cost-confirm — you authorize the paid run
+                      )}
+                      {/* W2: soft block reveal — `reveal` fades each settled block in, no hard snap. */}
+                      {m.text && <div className="reveal"><Markdown>{m.text}</Markdown></div>}
+                      {/* W3: error-guard — a turn that errored renders NO card (an off-context card
+                          must never sit next to an error). */}
+                      {!m.errored && (m.parts || []).map((part, j) => {
+                        // CHATBIND-2/4: pane-control + cost-confirm DIRECTIVES render as tiny non-card
+                        // traces, NEVER through renderTool + never deduped (per-call pane traces).
+                        if (part.type === "tool-open_artifact")
+                          return (
+                            <div key={j} data-testid="pane-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                              ↗ Opened the {TAB_LABELS[part.output?.tab] || "artifact"} panel
+                            </div>
+                          );
+                        if (part.type === "tool-propose_live_run")
+                          return (
+                            <div key={j} data-testid="paid-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                              ↗ Surfaced the cost-confirm — you authorize the paid run
+                            </div>
+                          );
+                        // W3: dedup — render at most one card per type this turn.
+                        if (seen.has(part.type)) return null;
+                        seen.add(part.type);
+                        // W3: an `ondemand` part (a passive orientation read, e.g. the audit trail)
+                        // collapses to a compact "Show … ▸" affordance — a full card only on click,
+                        // so the agent's footing-finding reads don't throw cards off-context.
+                        if (part.show_intent === "ondemand")
+                          return (
+                            <details key={j} className="ondemand" data-testid="ondemand-part">
+                              <summary>Show {PART_LABELS[part.type] || "details"} ▸</summary>
+                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>
+                            </details>
+                          );
+                        // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
+                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>;
+                      })}
+                      {/* W1/W2: the non-static working indicator — visible across the WHOLE in-flight
+                          window (not only when text is empty), showing the latest tool label. */}
+                      {inFlight && (
+                        <div className="working" data-testid="working-indicator">
+                          <span className="working-dots"><i /><i /><i /></span>
+                          <span className="working-lbl">{indicatorLabel}</span>
                         </div>
-                      );
-                    // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                    return <div key={j}>{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>;
-                  })}
-                  {!m.text && !(m.parts || []).length && sending && i === chat.length - 1 && (
-                    <p style={{ color: "var(--muted)" }}>Thinking…</p>
-                  )}
-                </div>
-              </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
             ),
           )}
 

@@ -358,6 +358,46 @@ code.inl { font-family: var(--mono); font-size: 12.5px; background: var(--surfac
 
 .msg-actions { display: flex; gap: 9px; margin-top: 14px; }
 
+/* ---------- CONV-UX-1: thinking / working stages + cadence ---------- */
+/* W1: the ordered activity timeline (a step per tool-call, running→done). */
+.activity { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 10px; }
+.act-step { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.act-step .act-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); flex: 0 0 auto; }
+.act-step.running .act-dot { background: var(--accent); animation: act-pulse 1.1s ease-in-out infinite; }
+.act-step.running .act-lbl { color: var(--ink); }
+.act-step.done .act-dot { background: var(--accent); opacity: .5; }
+@keyframes act-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.6); opacity: .5; } }
+
+/* W1/W2: the non-static working indicator — animated dots + the latest tool label. */
+.working { display: flex; align-items: center; gap: 9px; margin: 4px 0 2px; color: var(--muted); font-size: 12.5px; }
+.working-lbl { color: var(--muted); }
+.working-dots { display: inline-flex; gap: 3px; }
+.working-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: inline-block; animation: work-bounce 1.2s ease-in-out infinite; }
+.working-dots i:nth-child(2) { animation-delay: .18s; }
+.working-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes work-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .45; } 40% { transform: translateY(-3px); opacity: 1; } }
+
+/* W2: soft block reveal — settle each arriving block in, never a hard snap. */
+.reveal { animation: reveal-in .26s cubic-bezier(.2,.7,.3,1); }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .act-step.running .act-dot, .working-dots i { animation: none; }
+}
+
+/* W1: the collapsible reasoning section (muted; only when the SDK streams thinking). */
+.reasoning { margin: 0 0 10px; }
+.reasoning > summary { cursor: pointer; font-size: 12px; color: var(--muted); list-style: none; user-select: none; }
+.reasoning > summary::-webkit-details-marker { display: none; }
+.reasoning > summary::before { content: "▸ "; color: var(--muted); }
+.reasoning[open] > summary::before { content: "▾ "; }
+.reasoning-bd { margin-top: 6px; padding: 9px 11px; border-left: 2px solid var(--border); background: var(--surface-muted); border-radius: 0 6px 6px 0; font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
+
+/* W3: an `ondemand` passive read — collapsed to a compact affordance, expands to the card. */
+.ondemand { margin: 4px 0; }
+.ondemand > summary { cursor: pointer; font-size: 12.5px; color: var(--accent); list-style: none; user-select: none; font-weight: 540; }
+.ondemand > summary::-webkit-details-marker { display: none; }
+.ondemand > summary:hover { color: var(--accent-ink); }
+
 /* inline cards */
 .icard {
   border: 1px solid var(--border); border-radius: var(--r);
