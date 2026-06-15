@@ -1,0 +1,141 @@
+{
+  "session_id": "session-bench-salvage-phaseSHEPHERD-1-2026-06-15",
+  "stream": "bench-salvage",
+  "phase": "SHEPHERD-1",
+  "driver_bundle_id": "bench-salvage-phaseSHEPHERD-1-agent-led-onboarding-harness-driver",
+  "started_at": "2026-06-15T15:30:00Z",
+  "ended_at": "2026-06-15T15:55:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-15T15:00:00Z",
+    "user_approved_at": "2026-06-15T15:20:00Z",
+    "deviations": [
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "the rail's active-step state literal is 'current' (not 'active'); used 'current' so the existing .step.current NOW-pill CSS styles it.",
+        "evidence": "apps/shell/src/panes.jsx:81 (NOW pill on s.state==='current'); styles.css:254 (.step.current .node). deriveSteps states = {done,current,todo}.",
+        "decided_at": "2026-06-15T15:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "W3 needs a NEW minimal event — the rail had no live data source; W1 introduces refreshJourney + W3 a minimal onConfigSaved callback (App<-CenterPane), reusing the editors' existing onResult save signal.",
+        "evidence": "monitor ACK #2; LeftRail received only agents/activeAgent pre-W1; editors call onResult on save (JudgeEditor.jsx:163, AgentEditor.jsx:84, FlagEditor.jsx:101).",
+        "decided_at": "2026-06-15T15:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "W2 = a plan-aware STANZA appended in _system_prompt (SUPERSET), NOT a mode flag; ChatRequest/ToolContext NOT widened; degrades to operator posture when complete.",
+        "evidence": "monitor ACK #3; loop.py _SHEPHERD_STANZA appended in _system_prompt; _build_options byte-identical.",
+        "decided_at": "2026-06-15T15:20:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Review-step signal = the runResult (distinct-beat) option, preferred over the ≥1-run fallback; threading runResult into deriveSteps was clean (App owns runResult).",
+        "evidence": "monitor DECISION on the open question; app.jsx deriveSteps(agentCfg, runs, activeAgent, runResult).",
+        "decided_at": "2026-06-15T15:20:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "95c427e",
+      "repo": "lithrim-bench",
+      "title": "feat(shepherd): derive the setup-journey rail from live config state (W1)",
+      "summary": "new journey.js deriveSteps (pure); LeftRail takes steps+journeyCount (state 'current', literal '4 / 6' gone); app.jsx agentCfg+runs+refreshJourney (GET /v1/agent + /v1/runs)."
+    },
+    {
+      "hash": "fdb141e",
+      "repo": "lithrim-bench",
+      "title": "feat(shepherd): proactive plan-aware shepherd system-prompt mode (W2)",
+      "summary": "_SHEPHERD_STANZA appended in _system_prompt as a SUPERSET; journey order + next-step lead + fresh-eval open + complete->operator degrade; A-SAFE/options byte-identical."
+    },
+    {
+      "hash": "1c9f01b",
+      "repo": "lithrim-bench",
+      "title": "feat(shepherd): approval-gate save->advance loop (W3)",
+      "summary": "onConfigSaved callback App->CenterPane wired to refreshJourney, fired from the existing captureSetup/onResult save signal; frozen card components untouched; no new GenUI type, no session state."
+    },
+    {
+      "hash": "f89e8d9",
+      "repo": "lithrim-bench",
+      "title": "feat(shepherd): shepherd-aware empty-state entry (W4)",
+      "summary": "empty state offers 'Start guided setup' + a 'Next: <step>' chip (nextStepName), both fill-the-composer (no auto-send); old 3 static chips removed."
+    },
+    {
+      "hash": "725b2e7",
+      "repo": "lithrim-bench",
+      "title": "test(shepherd): rail derivation + shepherd-prompt + save-advance tests (W5)",
+      "summary": "journey.test.jsx (derivation ladder + rail render + W3 flip), panes.shepherd.test.jsx (W4 entry + W3 onConfigSaved-fires), tests/test_shepherd.py (W2 prompt invariants + back-compat)."
+    }
+  ],
+
+  "acceptance": [
+    {
+      "criterion": "A1 (W1) — the rail reflects REAL state (empty -> Domain current + N/total; +judges -> Judges done).",
+      "verdict": "PASS",
+      "evidence": "apps/shell/src/journey.test.jsx + the rail-render assertion ('4 / 6' literal gone, '1 / 5' shown): 15/15 pass with panes.shepherd.test.jsx. LIVE re-drive: PENDING-MONITOR-LIVE."
+    },
+    {
+      "criterion": "A2 (W2) — fresh eval: shepherd opens + proposes the next step; non-onboarding unchanged.",
+      "verdict": "PASS",
+      "evidence": "tests/test_shepherd.py 4/4: journey order + 'propose the next incomplete step' + fresh-eval lead + 'already COMPLETE' -> 'reactive operator posture' degrade; SUPERSET (base persona + HONESTY + active-agent naming intact). LIVE re-drive: PENDING-MONITOR-LIVE."
+    },
+    {
+      "criterion": "A3 (W3) — propose renders a save-pending editor (no auto-commit); Save flips the step done + the shepherd proposes next.",
+      "verdict": "PASS",
+      "evidence": "journey.test.jsx W3 deriveSteps flip (Judges current->done); panes.shepherd.test.jsx — a proposed JudgeEditor's real Save fires onConfigSaved. LIVE re-drive: PENDING-MONITOR-LIVE."
+    },
+    {
+      "criterion": "A4 (W4) — fresh eval entry offers 'Start guided setup' / the next step (not the static chips).",
+      "verdict": "PASS",
+      "evidence": "panes.shepherd.test.jsx: start-guided-setup + next-step-prompt render, fill the composer (no auto-send), old chips gone, chip omitted when complete. LIVE re-drive: PENDING-MONITOR-LIVE."
+    },
+    {
+      "criterion": "A5 (moat tripwire) — guard trio green; council/signals/tools.py zero-diff.",
+      "verdict": "PASS",
+      "evidence": "git diff 5b966ff HEAD --stat over compliance_council.py + signals.py + tools.py = EMPTY (byte-stable). test_6bclean_seam_guard.py + test_6bclean_attestation.py: green (21 passed with test_shepherd.py)."
+    },
+    {
+      "criterion": "A6 (suite) — canonical Python suite + shell Vitest green; pre-existing flakes acknowledged.",
+      "verdict": "PASS",
+      "evidence": "Python: 538 passed, 2 failed (S-BS-96 order-dependent observation import-isolation flakes — PASS 13/13 in isolation on HEAD; untouched by this diff), 4 skipped. Shell Vitest: 105 passed, 1 failed (S-BS-145 titlebar/ModeSwitch — pre-existing, identical count at 5b966ff), 2 errors (pre-existing getMeta mock gap)."
+    },
+    {
+      "criterion": "A7 (A-LIVE proof capsule) — honest before->after + a live capture.",
+      "verdict": "SKIP",
+      "evidence": "PROOF stub written (docs/research/PROOF_bench-salvage_SHEPHERD-1_2026-06-15.md): BEFORE + the 2 decisions used + code/test evidence DONE; AFTER (live :5180 captures) OWED to the monitor's A-LIVE re-drive."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "W3_event": "a NEW minimal callback (onConfigSaved App->CenterPane) reusing the editors' existing onResult save signal — there was NO existing reload path (the rail had no live data source before W1).",
+    "review_signal_used": "runResult (the distinct-beat option) — Review done iff runResult non-null; the approved >=1-run fallback was NOT needed.",
+    "turn_count_latency": "PENDING-MONITOR-LIVE (full guided-onboarding turn count / latency measured during the A-LIVE re-drive).",
+    "files_changed": "7 (3 W1 + 1 W2 + 2 W3/W4 shared + 3 W5 tests); 473 insertions / 21 deletions; all in driver §2 scope.",
+    "new_genui_card_types": "0 (KNOWN_TOOLS untouched).",
+    "tools_py_byte_stable": "yes (zero-diff)."
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-146",
+      "title": "app.chat.test.jsx / StatusBar mock omits getMeta -> 2 unhandled rejections in the full Vitest run",
+      "severity": "low",
+      "fix_location": "apps/shell/src/app.chat.test.jsx (vi.mock('./bff.js')) — add getMeta to the mock",
+      "impact": "pre-existing (identical 2-error count at 5b966ff); not a SHEPHERD-1 regression; tests still pass. A one-line mock add clears the noise.",
+      "confidence": "CONFIRMED",
+      "evidence": "clean-tree 5b966ff full Vitest = 1 failed | 90 passed | 2 errors; both errors are 'No \"getMeta\" export is defined on the \"./bff.js\" mock' (app.jsx:145 StatusBar poller)."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "SHEPHERD-1 landed as 5 atomic, pathspec-only commits (95c427e..725b2e7) on bench-salvage/ws6c-dspy over parent 5b966ff (NOT pushed). The setup-journey rail is now the shepherd's LIVE plan surface (journey.js deriveSteps, pure + tested), the agent prompt carries a proactive plan-aware SUPERSET stanza that degrades to operator posture when complete (W2), Save fires a minimal onConfigSaved->refreshJourney re-derive (W3, reusing the editors' existing onResult), and the empty state is shepherd-aware (W4). Moat is byte-stable (council/signals/tools.py zero-diff; guard trio green). Suites: Python 538 passed / 2 pre-existing S-BS-96 flakes (pass in isolation, untouched by this diff); shell Vitest 105 passed / 1 pre-existing S-BS-145 titlebar fail / 2 pre-existing getMeta-mock errors — all acknowledged, none new. A1-A4 verified at the code/test layer (PENDING-MONITOR-LIVE for the A-LIVE re-drive); A7 PROOF is a stub with the AFTER owed. NOTE: a FOREIGN git stash (stash@{0}, based at 421c192, touches app.py/seed_ontology.py/test_ws2.py) predates this work and was left untouched.",
+
+  "next_session_hint": "monitor: run /devloop-audit bench-salvage SHEPHERD-1, then do the A-LIVE re-drive of :5180 (A1-A4) + fill the PROOF capsule AFTER + measure the turn-count/latency diagnostic; HARD GATE -> spawn a fresh-critic session (/devloop-critique bench-salvage SHEPHERD-1)."
+}
