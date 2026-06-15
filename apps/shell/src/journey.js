@@ -28,15 +28,22 @@ function nonEmptyObj(v) {
 }
 
 // Per-step done predicates, keyed by the template `name`. Pure over (agentCfg, runs,
-// activeAgent, runResult).
-function isDone(name, ep, runs, activeAgent, runResult) {
+// activeAgent, runResult, contracts).
+function isDone(name, ep, runs, activeAgent, runResult, contracts) {
   switch (name) {
     case "Domain":
       return !!ep.ontology_ref;
     case "Judges":
       return (ep.judges || []).length > 0;
     case "Ground truth":
-      return (ep.tools || []).length > 0 || (ep.grounding_checks || []).length > 0;
+      // EVAL-FLOW (E-D1 option i): the rail reads the SAME store the grade consumes — the
+      // ontology's verification_contracts (App fetches them; loop.py:158 claims this completes
+      // Ground truth). The eval_profile.tools/grounding_checks clause is KEPT as a superset.
+      return (
+        (contracts || []).length > 0 ||
+        (ep.tools || []).length > 0 ||
+        (ep.grounding_checks || []).length > 0
+      );
     case "Knowledge base":
       return nonEmptyObj(ep.kb_bindings);
     case "Run":
@@ -48,13 +55,15 @@ function isDone(name, ep, runs, activeAgent, runResult) {
   }
 }
 
-/* deriveSteps(agentCfg, runs, activeAgent, runResult) → { steps, done, total }.
+/* deriveSteps(agentCfg, runs, activeAgent, runResult, contracts) → { steps, done, total }.
    `steps` mirrors STEPS (name/desc) with a derived `state`; `done`/`total` count the
    REQUIRED steps only (KB excluded from the denominator so the optional step never
-   inflates "N / 6"). A missing/null agentCfg → all-`todo` with Domain `current`. */
-export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null) {
+   inflates "N / 6"). A missing/null agentCfg → all-`todo` with Domain `current`.
+   `contracts` (the ontology's verification_contracts, App-fetched) defaults to [] so the
+   existing 4-arg call sites stay green; a non-empty list ticks Ground truth (EVAL-FLOW). */
+export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null, contracts = []) {
   const ep = (agentCfg && agentCfg.eval_profile) || {};
-  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult));
+  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult, contracts));
 
   // `current` = the first incomplete REQUIRED step (skip the optional KB).
   let currentIdx = -1;

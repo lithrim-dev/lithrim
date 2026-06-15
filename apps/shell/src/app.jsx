@@ -195,6 +195,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // both; deriveSteps(...) turns them into the rail steps + the "N / total" count.
   const [agentCfg, setAgentCfg] = useState(null);
   const [runs, setRuns] = useState([]);
+  // EVAL-FLOW (W1a/E-D1 option i): the active agent's ontology verification_contracts — the
+  // SAME store the grade consumes. A saved grounding contract ticks the rail's Ground-truth step
+  // honestly (no eval_profile.tools stuffing). refreshJourney re-fetches it alongside cfg+runs.
+  const [contracts, setContracts] = useState([]);
   // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
   // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
   // also create + switch to a fresh runnable blank agent.
@@ -230,13 +234,15 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // after a workspace/agent switch, AND on the W3 save signal (onConfigSaved). Offline-safe.
   const refreshJourney = async () => {
     try {
-      const { getAgent, getRuns } = await import("./bff.js");
-      const [cfg, runHist] = await Promise.all([
+      const { getAgent, getRuns, getOntology } = await import("./bff.js");
+      const [cfg, runHist, ont] = await Promise.all([
         getAgent(activeAgent).catch(() => null),
         getRuns().then((r) => r.runs || []).catch(() => []),
+        getOntology(activeAgent).catch(() => null), // EVAL-FLOW (W1a): the grade's grounding store
       ]);
       setAgentCfg(cfg);
       setRuns(runHist);
+      setContracts((ont && ont.verification_contracts) || []);
     } catch { /* offline-safe */ }
   };
   useEffect(() => { refreshJourney(); }, [activeAgent]);
@@ -364,7 +370,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
 
   // SHEPHERD-1 (W1): derive the rail's plan from the live state. Review `done` ⟺ a run
   // result is loaded/viewed (runResult non-null) — a distinct guided beat past Run.
-  const journey = deriveSteps(agentCfg, runs, activeAgent, runResult);
+  // EVAL-FLOW (W1a): `contracts` (the ontology verification_contracts) ticks Ground truth.
+  const journey = deriveSteps(agentCfg, runs, activeAgent, runResult, contracts);
 
   return (
     <div className="desk">
