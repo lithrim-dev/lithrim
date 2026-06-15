@@ -1,11 +1,11 @@
 # Proof — bench-salvage CONV-UX-1: conversational cadence, thinking-stages + GenUI gating (2026-06-15)
 
 > A-LIVE attestation. Env: :5180 shell / :8787 BFF / :8002 council / :3031 mapper.
-> **STATUS: STUB.** Code + tests landed; the live re-drive (A1–A4 AFTER column) is the
-> MONITOR's to run on `:5180` (hand-back contract — the executor verifies at the code/test
-> layer only). The §0 BEFORE state is captured verbatim from the monitor's 2026-06-15 drive.
-> Honest-Δ binds: do NOT fill the AFTER column with "it's smooth now" unless the live re-drive
-> shows it.
+> **STATUS: ATTESTED (monitor live re-drive, 2026-06-15).** Code + tests landed (executor);
+> the live re-drive on `:5180` (workspace `demo-clinical`, same §0 message) was run by the
+> monitor — W0/W1/W3 confirmed live, W2 staging confirmed. Two honest caveats recorded below
+> (save-pending writes; verbose timeline). Honest-Δ honored: the AFTER column reports only what
+> the re-drive actually showed.
 
 ## Claim
 A 404-cascading, abrupt, off-context conversational surface becomes: (W0) workspace-correct
@@ -33,13 +33,36 @@ to the 404 cannot recur; cards dedup; passive reads collapse to an affordance).
     `ondemand` collapse, and an errored-turn card-suppression guard.
 
 ## Before → After
-| dimension | before (live, 2026-06-15) | after (MONITOR live re-drive — PENDING) |
+| dimension | before (live, 2026-06-15) | after (MONITOR live re-drive, 2026-06-15) |
 |---|---|---|
-| W0 default-agent | `GET /v1/case?agent=ws0_default → 404` in `demo-clinical` (agents `eval-1`/`snomed-demo`); judge never created | _pending: no ws0_default 404; judge created_ |
-| W1 staging | static `"Thinking…"` only; `tool_call` events dropped | _pending: activity timeline + non-static indicator with the latest tool label_ |
-| W2 cadence | dead air → whole paragraph pops → whole block pops → card pops | _pending: text accretes token-granular; soft block fade; indicator persists between blocks_ |
-| W3 gating | off-context Audit-trail card rendered next to the 404; every part rendered, no dedup/intent | _pending: judge editor is the primary `auto` card; no off-context Audit card; same-type reads dedup_ |
-| per-turn card count | (live: 1 off-context Audit card on a "create a judge" turn) | _pending: report after re-drive_ |
+| W0 default-agent | `GET /v1/case?agent=ws0_default → 404` in `demo-clinical` (agents `eval-1`/`snomed-demo`); judge never created | ✅ resolved to `eval-1` (narration: "eval-1 currently has no judges and uses clinical/1"); **no `ws0_default` 404**; judge authoring surfaced against `eval-1` |
+| W1 staging | static `"Thinking…"` only; `tool_call` events dropped | ✅ live activity timeline (`ToolSearch · Reading the agent · Authoring the judge · Reading the judge · Editing the roster…`) with per-step running/done dots; non-static `••• Thinking…` showing the latest tool label |
+| W2 cadence | dead air → whole paragraph pops → whole block pops → card pops | ✅ staged indicator fills the wait (no frozen feel); text accretes as it streams. Token-granular smoothness depends on the BYO-Claude transport emitting partials; the staging solves the felt-freeze regardless |
+| W3 gating | off-context Audit-trail card rendered next to the 404; every part rendered, no dedup/intent | ✅ on-context `Agent · eval-1` editor + `Judge · risk_judge` editor (auto); **no** off-context Audit-trail card; **no** error card |
+| per-turn card count | 1 off-context Audit card on a "create a judge" turn | 2 on-context editor cards (agent + judge); **0** off-context/audit cards |
+
+### §0 AFTER (verbatim, monitor's 2026-06-15 re-drive, workspace `demo-clinical`, same message):
+```
+Lithrim: [••• Thinking… — animated, with the live tool label]
+  → activity timeline: • ToolSearch  • Reading the agent (×3)  • Authoring the judge
+    • Reading the judge (×2)  • Editing the agent roster (×4)  …  (per-step running/done dots)
+  → narration resolves to the REAL agent: "The agent eval-1 currently has no judges and uses
+    the clinical/1 ontology. Let me inspect the risk judge role's default lens…"  (NO ws0_default, NO 404)
+  → GenUI: "Agent · eval-1 · config plane · attributed write" (roster editor, Save button)
+  → GenUI: "Judge · risk_judge · ontology-assignment · attributed write" (judge editor)
+  → NO off-context Audit-trail card; NO red 404 error block.
+```
+
+## Honest caveats (recorded; neither is a CONV-UX-1 regression)
+1. **The cards are save-pending editors, not auto-committed writes.** The audit trail shows **0
+   records dated 2026-06-15** (newest commit 2026-06-14) — the agent *proposes* the judge against
+   `eval-1` and renders the editor with a Save button; the actual `PUT` is the human's click. This
+   is the human-in-the-loop authoring model (consistent with the `author_flag` EDIT-ONLY precedent,
+   S-BS-83), not a break introduced here. A1/A4 "renders correctly, on-context, no 404" = MET;
+   "auto-persists end-to-end" = by-design human-gated. → folds into the SHEPHERD-1 approval-gate design.
+2. **The activity timeline lists every tool call verbatim**, so a verbose turn shows repeated labels
+   (`Reading the agent ×3`, `Editing the roster ×4`). Honest and far better than a blank wait, but
+   coalescing consecutive duplicate step labels is a low-priority polish follow-up → **S-BS-147**.
 
 ### §0 BEFORE (verbatim, monitor's 2026-06-15 `:5180` drive, workspace `demo-clinical`, message
 "Create a risk judge that flags unsupported clinical claims in the agent's answer."):
