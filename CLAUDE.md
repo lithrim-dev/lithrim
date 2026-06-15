@@ -55,3 +55,24 @@ If a case cannot meet (1)–(4), it does **not** ship. Do not append to `example
 - `docs/ARCHITECTURE.md` — engine diagram + module responsibilities.
 - `docs/LITHRIM_BENCH_PRODUCT_SPEC.md` — the developer-product framing (API surface, pricing, onboarding flow).
 - `docs/specs/SPEC_UNIFIED_AUTHORING_PRODUCT.md` — **LOCKED 2026-06-04.** THE product: the UI-driven author→process loop (create judges → create flags → run processing) over the config plane, with a first-class why/when/who/what audit trail. The 4-act journey is a frozen demo inside it. Entity model: judges = assigned ontologies + execute-not-generate validators; the Ralph-Loop withstands-gate; independent GroundingChecks. Build sequence = UAP-1..4.
+
+<!-- devloop:begin -->
+## .devloop workflow
+
+This repo uses the `.devloop/` monitor / executor / critic workflow. Before acting as a
+dev agent here, read `.devloop/personas/MONITOR.md` (or `EXECUTOR.md` / `CRITIC.md` for
+those roles). Slash commands: `/devloop-status`, `/devloop-resume`, `/devloop-kickoff`,
+`/devloop-audit`, `/devloop-critique`, `/devloop-close-phase`, `/devloop-expand-driver`,
+`/devloop-run` (autonomous: native subagents + Gate 0 + evidence capture, opt-in module).
+
+**Standing preferences (never override):** no autostart services (curl /health first) ·
+no auto-commit (stage + propose) · no push/publish without owner approval · plan-review
+before code · tests-first (write acceptance tests RED before code; deterministic gate is
+supreme, LLM-judge critic is the weak complement) · per-repo atomic commits ·
+diagnose-before-edit (evidence block + tag CONFIRMED / INFERRED / HYPOTHESIS).
+
+**Project commands** — test: `pytest -q` · ui-test: `cd apps/shell && npx vitest run` · lint: `ruff check .` · build: `cd apps/shell && npm run build`.
+**Services** (curl /health before use; never autostart):
+- BFF=:8787 (make up / make bff; check via `make health`)
+- UI=:5180 (make up / make ui)
+<!-- devloop:end -->
