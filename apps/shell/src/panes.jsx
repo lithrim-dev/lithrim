@@ -433,7 +433,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Everything checks out. Running the full set takes a few minutes; I'll stream verdicts into the report as they land.</p>
-              {renderTool({ type: "tool-run_panel", state: "output-available" })}
+              {/* EVAL-FLOW (W3): thread the active agent + an onRan callback so the card's run
+                  lifts the result into the shared report AND re-derives the rail (Run ticks). */}
+              {renderTool({ type: "tool-run_panel", state: "output-available", output: { agent, onRan: (rec) => { onRunResult?.(rec); onConfigSaved?.(); } } })}
               <div className="msg-actions">
                 <button className="btn btn-primary" disabled={runStatus === "loading"}
                   onClick={() => onRunEval(false)}>

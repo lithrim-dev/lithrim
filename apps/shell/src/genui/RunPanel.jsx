@@ -32,7 +32,7 @@ const COST_BODY =
 const voteTone = (vote) =>
   vote === "BLOCK" ? "var(--accent-ink)" : vote === "WARN" ? "var(--amber, #b45309)" : "var(--teal)";
 
-export default function RunPanel({ agent = "ws0_default" }) {
+export default function RunPanel({ agent = "ws0_default", onRan }) {
   const [mode, setMode] = useState("replay");
   const [runStatus, setRunStatus] = useState("idle"); // idle | running | done | error
   const [result, setResult] = useState(null);
@@ -66,6 +66,8 @@ export default function RunPanel({ agent = "ws0_default" }) {
       setResult(rec);
       setRunStatus("done");
       await loadHistory();
+      // EVAL-FLOW (W3): signal up so App.refreshJourney re-derives — a run for this agent ticks Run.
+      onRan?.(rec);
     } catch (e) {
       setError(String(e.message || e));
       setRunStatus("error");
