@@ -123,6 +123,51 @@ describe("SHEPHERD-1 W3 — save → advance: deriveSteps re-derive flips a step
   });
 });
 
+describe("EVAL-FLOW A2 — Ground truth ticks on a saved grounding contract (the ontology source)", () => {
+  // E-D1 option (i): the rail reads the ontology's verification_contracts (the SAME store the
+  // grade consumes + loop.py:158 claims), threaded as deriveSteps' 5th param `contracts`. The
+  // existing tools/grounding_checks OR-clause is KEPT as a superset; this adds the honest tick.
+  const judged = { ontology_ref: "x/1", judges: ["risk_judge"] }; // Domain+Judges done, Ground truth current
+
+  it("Ground truth NOT done when no contract exists (contracts=[]) — NON-VACUOUS", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, []);
+    expect(stateOf(d, "Ground truth")).toBe("current");
+    expect(d.done).toBe(2); // Domain + Judges only
+  });
+
+  it("Ground truth FLIPS done once a verification contract exists (contracts=[{flag_code}])", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, [{ flag_code: "WRONG_DOSAGE" }]);
+    expect(stateOf(d, "Ground truth")).toBe("done");
+    expect(d.done).toBe(3); // Domain + Judges + Ground truth
+  });
+
+  it("the contracts param is the 5th positional arg + defaults to [] (existing call sites stay green)", () => {
+    // a 4-arg call (no contracts) keeps the legacy behavior: Ground truth current here.
+    const legacy = deriveSteps(cfg(judged), [], "eval-1", null);
+    expect(stateOf(legacy, "Ground truth")).toBe("current");
+  });
+
+  it("KEEPS the eval_profile.tools/grounding_checks superset clause (back-compat)", () => {
+    const viaTools = deriveSteps(cfg({ ...judged, tools: ["dosage_grounding"] }), [], "eval-1", null, []);
+    expect(stateOf(viaTools, "Ground truth")).toBe("done"); // still ticks via the old store
+  });
+});
+
+describe("EVAL-FLOW A4 — Run ticks on a run for the active agent (with the new 5th param)", () => {
+  const ep = { ontology_ref: "x/1", judges: ["r"] };
+  const contracts = [{ flag_code: "WRONG_DOSAGE" }]; // Ground truth done via the new source
+
+  it("a run whose agent === activeAgent ticks Run done", () => {
+    const d = deriveSteps(cfg(ep), [{ agent: "eval-1" }], "eval-1", null, contracts);
+    expect(stateOf(d, "Run")).toBe("done");
+  });
+
+  it("a run for ANOTHER agent does NOT tick Run (NON-VACUOUS)", () => {
+    const d = deriveSteps(cfg(ep), [{ agent: "other" }], "eval-1", null, contracts);
+    expect(stateOf(d, "Run")).toBe("current"); // Ground truth done, Run is now current
+  });
+});
+
 describe("SHEPHERD-1c — roster-add on judge save flips the Judges step (S-BS-153)", () => {
   // S-BS-153: the JudgeEditor save now passes the active agent, so the server rosters the
   // role onto eval_profile.judges (idempotent, audited). The rail predicate is unchanged

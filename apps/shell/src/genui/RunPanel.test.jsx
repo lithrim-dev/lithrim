@@ -55,30 +55,50 @@ describe("RunPanel (tool-run_panel)", () => {
     confirmSpy.mockRestore();
   });
 
-  it("gates a paid mode behind a confirm — cancel makes no call", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<RunPanel />);
-    await waitFor(() => expect(getRuns).toHaveBeenCalled());
-
-    // switch to the paid in-process mode, then attempt to run
-    fireEvent.click(screen.getByRole("button", { name: /In-process trio/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
-
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(runEval).not.toHaveBeenCalled(); // cancelled → no paid call
-    confirmSpy.mockRestore();
-  });
-
-  it("runs the in-process trio when the cost gate is confirmed", async () => {
+  // EVAL-FLOW A3 / W2a (S-BS-69): the paid gate is the in-DOM CostModal, NOT window.confirm.
+  // A native confirm() freezes the renderer to CDP (memory browser-mcp-confirm-blocks-renderer),
+  // so a paid "Run now" must be CDP-driveable. These tests REPLACE the prior window.confirm
+  // assertions (which were correct for the old code, now wrong for the in-DOM gate — EXECUTOR.md §4).
+  it("test_paid_run_uses_indom_costmodal — confirm fires the run once; cancel makes no call; no window.confirm", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<RunPanel />);
     await waitFor(() => expect(getRuns).toHaveBeenCalled());
 
+    // switch to the paid in-process mode, then attempt to run → the in-DOM modal opens (NO call yet).
     fireEvent.click(screen.getByRole("button", { name: /In-process trio/i }));
     fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(runEval).not.toHaveBeenCalled(); // opening the modal makes NO call
 
+    // CANCEL aborts with no /v1/run-eval call.
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(runEval).not.toHaveBeenCalled();
+
+    // re-open and CONFIRM → the run fires exactly once, in-process.
+    fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("cost-confirm"));
     await waitFor(() => expect(runEval).toHaveBeenCalledTimes(1));
     expect(runEval).toHaveBeenCalledWith({ agent: "ws0_default", live: false, in_process: true });
+
+    // window.confirm is NEVER called — the gate is fully in-DOM.
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("the live mode also routes through the in-DOM modal (paid, CDP-driveable)", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<RunPanel />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Live :8002/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
+    fireEvent.click(await screen.findByTestId("cost-confirm"));
+
+    await waitFor(() => expect(runEval).toHaveBeenCalledTimes(1));
+    expect(runEval).toHaveBeenCalledWith({ agent: "ws0_default", live: true, in_process: false });
+    expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 });
