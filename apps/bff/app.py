@@ -1454,6 +1454,35 @@ def kb_search_endpoint(
     }
 
 
+def _resolve_chat_agent(req_agent: str, db_path: Path) -> str:
+    """CONV-UX-1 (W0): resolve the chat turn's effective agent against the ACTIVE
+    workspace's config DB. The live 404 cascade was twofold: the model emits the literal
+    ``ws0_default`` as an explicit tool arg AND the shell defaults ``activeAgent`` to
+    ``ws0_default``, but a non-``default`` workspace (e.g. ``demo-clinical``, agents
+    ``eval-1``/``snomed-demo``) has no such agent — so every agent-keyed tool (get_agent,
+    show_case, run_eval, the ontology read) 404s.
+
+    GUARDRAIL: a VALID supplied agent (present in this DB) is HONORED verbatim — multi-
+    agent targeting must keep working. Only an INVALID/absent supplied agent is COERCED to
+    the workspace's first agent. Back-compat: in ``default`` (which holds ``ws0_default``)
+    the literal still resolves to itself. Last resort (no agents at all) falls back to the
+    DEFAULT_AGENT literal so the loop can still surface the 404 honestly rather than crash.
+
+    Mirrors ``_load_agent``'s seed-on-first-use so a fresh workspace DB resolves the seeded
+    agent before any authoring."""
+    try:
+        if not db_path.exists():
+            seed_config_db(db_path=db_path)
+        names = list_agents(db_path=db_path)
+    except Exception:  # noqa: BLE001 — a DB read failure must not break the chat; keep the ask
+        return req_agent
+    if req_agent in names:
+        return req_agent  # GUARDRAIL: honor a valid (incl. explicitly-targeted) agent
+    if names:
+        return names[0]  # coerce an invalid/stale arg to the active workspace's first agent
+    return req_agent  # no agents on disk — keep the ask so the loop surfaces the honest 404
+
+
 def _build_tool_context(
     req_agent: str,
     db_path: Path,
@@ -1780,8 +1809,11 @@ async def chat_endpoint(
     from agent import run_chat, sse_format  # lazy: SDK loads here, on a real chat only
 
     actor = _resolve_actor(x_actor, default_actor)
+    # CONV-UX-1 (W0): coerce a stale/invalid agent (e.g. a ws0_default literal in a
+    # demo-clinical workspace) to the active workspace's agent; a valid one is honored.
+    resolved_agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(
-        req.agent, db_path, out_dir, workdir, collections_db, actor, x_actor
+        resolved_agent, db_path, out_dir, workdir, collections_db, actor, x_actor
     )
 
     # ONB-0: text-only prior turns, replayed as context (folded into the loop's query preamble)
