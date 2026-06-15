@@ -369,7 +369,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus}
-            onRunResult={(r) => { setRunResult(r); setRunStatus("ready"); }} />
+            onRunResult={(r) => { setRunResult(r); setRunStatus("ready"); }}
+            onConfigSaved={refreshJourney} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
           )}

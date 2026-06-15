@@ -149,10 +149,18 @@ const PART_LABELS = {
   "tool-case_summary": "the case",
 };
 
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult }) {
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult, onConfigSaved }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
-  const captureSetup = (key) => (result) => setSetup((s) => ({ ...s, [key]: result }));
+  // SHEPHERD-1 (W3): the editor cards (Agent/Judge/Flag) already call onResult on a
+  // successful audited Save (the approval gate). captureSetup is that save signal — fire
+  // onConfigSaved so App.refreshJourney re-derives the rail (the step flips done) and the
+  // shepherd's next turn re-reads the live config. The smallest possible callback; the
+  // frozen card components are untouched (they already emit onResult).
+  const captureSetup = (key) => (result) => {
+    setSetup((s) => ({ ...s, [key]: result }));
+    onConfigSaved?.();
+  };
   const captured = Object.keys(setup);
 
   // UAP-5b / R11: the live conversational loop. The composer streams POST /v1/chat
