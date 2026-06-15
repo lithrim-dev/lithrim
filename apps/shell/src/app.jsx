@@ -254,6 +254,18 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   };
   useEffect(() => { refreshAgents(); }, []);
 
+  // SHEPHERD-1b (W1, S-BS-149): converge the rail onto the SAME agent the chat shepherd
+  // resolves. The shell defaults activeAgent to ws0_default (or a ?agent= deep-link), but a
+  // non-default workspace's agents may not include it — so the rail derived a blank "0/5" for
+  // a phantom agent while the shepherd (_resolve_chat_agent) operated the workspace's first
+  // agent. This mirrors that BFF contract EXACTLY: a valid activeAgent (incl. a valid deep-link)
+  // is honored; an absent one coerces to agents[0]; an empty list is left unchanged (no crash).
+  // setActiveAgent ONLY — it never bumps sessionKey (the sole CenterPane remount trigger), and
+  // it is idempotent (once activeAgent ∈ agents the condition is false, so no flip-flop).
+  useEffect(() => {
+    if (agents.length > 0 && !agents.includes(activeAgent)) setActiveAgent(agents[0]);
+  }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // P2: load the workspaces for the switcher on mount.
   const refreshWorkspaces = async () => {
     try {
