@@ -4,7 +4,7 @@ import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
 import { ModeSwitch } from "./components/ModeSwitch.jsx";
-import { deriveSteps } from "./journey.js";
+import { deriveSteps, nextStep } from "./journey.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -370,7 +370,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus}
             onRunResult={(r) => { setRunResult(r); setRunStatus("ready"); }}
-            onConfigSaved={refreshJourney} />
+            onConfigSaved={refreshJourney} nextStepName={nextStep(journey)} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
           )}

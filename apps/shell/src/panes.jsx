@@ -149,7 +149,19 @@ const PART_LABELS = {
   "tool-case_summary": "the case",
 };
 
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult, onConfigSaved }) {
+// SHEPHERD-1 (W4): the per-step kickoff the next-incomplete-step chip fills into the
+// composer (never auto-sent — intent stays the human's). Keyed by the journey.js step name.
+const STEP_PROMPTS = {
+  Domain: "What domain should I set up — what kind of AI output do you want to grade?",
+  Judges: "Author the first judge for this evaluation",
+  "Ground truth": "Add a grounding contract so a flag has a tool-grounded floor",
+  "Knowledge base": "Bind a knowledge base for the judges to ground against",
+  Run: "Run a $0 replay on the current config",
+  Review: "Open the report so I can review the verdict",
+};
+const GUIDED_SETUP_PROMPT = "Help me set up my first evaluation from scratch";
+
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult, onConfigSaved, nextStepName }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   // SHEPHERD-1 (W3): the editor cards (Agent/Judge/Flag) already call onResult on a
@@ -431,26 +443,29 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             </>
           )}
 
-          {/* S-BS-89: the clean default surface — a real greeting + suggested prompts that
-              fill the composer (no auto-send). The scripted demo is one click away. */}
+          {/* S-BS-89 + SHEPHERD-1 (W4): the clean default surface is now shepherd-aware. The
+              primary "Start guided setup" kicks off the agent-led journey; a secondary chip
+              offers the NEXT incomplete step (from the live-derived plan, App-side). Both FILL
+              the composer (no auto-send — intent + the eventual spend stay the human's). */}
           {chat.length === 0 && !showExample && (
             <div className="empty-state">
               <div className="es-mark"><Mark size={30} /></div>
               <h2 className="es-title">What do you want to evaluate?</h2>
               <p className="es-sub">
-                Describe an agent, author a judge or flag, or run a $0 replay. Every change is
-                written to the config plane with a who/when/what/why audit trail.
+                Let the assistant shepherd you through setup, or jump straight to a step. Every
+                change is written to the config plane with a who/when/what/why audit trail.
               </p>
               <div className="es-prompts">
-                {[
-                  "Create a risk judge for your agent's answers",
-                  "Add a safety flag for fabricated claims",
-                  "Run a $0 replay on the current config",
-                ].map((p) => (
-                  <button key={p} className="es-prompt" onClick={() => fillPrompt(p)}>
-                    <Icon name="spark" size={14} /> {p}
+                <button className="es-prompt" data-testid="start-guided-setup"
+                  onClick={() => fillPrompt(GUIDED_SETUP_PROMPT)}>
+                  <Icon name="spark" size={14} /> Start guided setup
+                </button>
+                {nextStepName && STEP_PROMPTS[nextStepName] && (
+                  <button className="es-prompt" data-testid="next-step-prompt"
+                    onClick={() => fillPrompt(STEP_PROMPTS[nextStepName])}>
+                    <Icon name="spark" size={14} /> Next: {nextStepName}
                   </button>
-                ))}
+                )}
               </div>
               <button className="es-example" onClick={() => setShowExample(true)}>
                 Show example conversation
