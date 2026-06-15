@@ -129,3 +129,32 @@ def test_council_codes_resolve_from_the_pack_without_importing_openai():
     real codes (not an empty/vacuous set)."""
     codes = pack.council_known_codes()
     assert "WRONG_DOSAGE" in codes and "MISSING_ALLERGY" in codes
+
+
+def _clear_known_codes_cache() -> None:
+    """Clear whatever cache backs ``council_known_codes`` — the function itself pre-fix
+    (``@lru_cache`` on the argless accessor), the pack-keyed helper post-fix. Agnostic so the
+    regression below is RED on the stale code and GREEN on the keyed fix without an edit."""
+    for name in ("council_known_codes", "_council_known_codes"):
+        cache_clear = getattr(getattr(pack, name, None), "cache_clear", None)
+        if cache_clear:
+            cache_clear()
+
+
+def test_council_known_codes_tracks_active_pack_flip(monkeypatch):
+    """REGRESSION (S-BS-156): ``council_known_codes()`` MUST follow ``active_pack()`` WITHIN a
+    process. The ``maxsize=1`` cache returned the first-resolved pack's codes forever, so an
+    in-process pack flip (the BFF serving a healthcare flag op after first resolving the neutral
+    ``_core`` default) mis-fired ``assert_pack_council_consistent`` — healthcare's 19 codes
+    checked against the stale 8 ``_core`` codes → ``PackConsistencyError``. Keyed by pack, the
+    flip resolves live."""
+    _clear_known_codes_cache()
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", "_core")
+    core_codes = pack.council_known_codes()
+    assert "WRONG_DOSAGE" not in core_codes  # the neutral pack carries no clinical codes
+
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", "healthcare")
+    flipped = pack.council_known_codes()
+    assert flipped == pack._pack_taxonomy_codes("healthcare")  # tracks the flip, not stale _core
+    assert "WRONG_DOSAGE" in flipped and len(flipped) == 19
+    _clear_known_codes_cache()

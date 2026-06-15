@@ -246,7 +246,17 @@ def _pack_ref(pack: str, key: str) -> Path:
     return _resolve_ref(pack, _manifest(pack)[key])
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=8)
+def _council_known_codes(pack: str) -> frozenset[str]:
+    """Pack-keyed cache backing :func:`council_known_codes` — mirrors the per-pack caches on
+    :func:`assert_pack_council_consistent` / :func:`assert_pack_judges_consistent`. Keyed by
+    pack (not ``maxsize=1`` argless) so an in-process ``active_pack()`` flip resolves the right
+    snapshot instead of returning the first-resolved pack's codes forever (S-BS-156: the BFF
+    resolving a healthcare flag op after first caching the neutral ``_core`` default fired a
+    spurious ``PackConsistencyError``; collection order decided the poison)."""
+    return _pack_taxonomy_codes(pack)
+
+
 def council_known_codes() -> frozenset[str]:
     """The council's ``KNOWN_TAXONOMY_CODES`` (TIER_1|2|3 union).
 
@@ -256,8 +266,11 @@ def council_known_codes() -> frozenset[str]:
     The genuine council⇄snapshot equivalence — that the *imported* council resolved the SAME
     set — is pinned in the ``[council]``-env layer-1b test. (Pre-1b this AST-parsed the
     council's literal tier sets; once those became ``pack_tiers()`` subscripts a
-    ``literal_eval`` would raise, so the re-point is atomic with the council carve-out.)"""
-    return _pack_taxonomy_codes(active_pack())
+    ``literal_eval`` would raise, so the re-point is atomic with the council carve-out.)
+
+    Cached per-resolved-pack (:func:`_council_known_codes`), NOT ``maxsize=1`` over the argless
+    call — the latter went stale across an in-process active-pack flip (S-BS-156)."""
+    return _council_known_codes(active_pack())
 
 
 def assert_codes_known(codes: frozenset[str] | set[str], *, pack: str = "<pack>") -> None:

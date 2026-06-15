@@ -138,6 +138,7 @@ _NEEDS_PACK_FUNCS = {
     "test_pack_layer1a": {
         "test_active_pack_defaults_to_healthcare",
         "test_council_codes_resolve_from_the_pack_without_importing_openai",
+        "test_council_known_codes_tracks_active_pack_flip",
         "test_healthcare_pack_is_council_consistent",
         "test_loaded_ontology_is_the_clinical_domain",
     },
