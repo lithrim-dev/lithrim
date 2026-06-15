@@ -139,7 +139,7 @@ def test_case_labeled_helper():
 
 def test_get_case_reports_labeled_flag(client):
     """A by-construction corpus case is reported as labeled=True (the field is emitted)."""
-    res = client.get(f"/v1/case?agent=ws5_bff_test")
+    res = client.get("/v1/case?agent=ws5_bff_test")
     assert res.status_code == 200
     assert res.json()["labeled"] is True
 
