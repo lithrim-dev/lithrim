@@ -50,6 +50,14 @@ export const getCase = (agent = "ws0_default") =>
 export const putOntology = (ontology, agent = "ws0_default") =>
   call(`/v1/ontology?agent=${encodeURIComponent(agent)}`, { method: "PUT", body: ontology });
 
+/* POST /v1/grounding-contract — EVAL-FLOW (W1b): the ContractBuilder card's direct, audited
+   write of ONE verification_contract (replace-by-flag-code, idempotent) into the active agent's
+   ontology — the SAME store the grade consumes and the rail's Ground-truth step reads. Reuses
+   the SAME bound op the add_grounding_contract chat tool uses (no new write logic; $0). A 404
+   (unknown flag) / 422 (malformed) throws so the card can surface it. */
+export const putGroundingContract = (contract, agent = "ws0_default") =>
+  call("/v1/grounding-contract", { method: "POST", body: { ...contract, agent } });
+
 /* ── UAP-1: the config-plane write-path + the audit streams (all via BASE; S-BS-50,
    no hardcoded :8787) ─────────────────────────────────────────────────────────── */
 

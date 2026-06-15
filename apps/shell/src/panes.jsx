@@ -393,9 +393,12 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Before the full run, let's lock the config plane. Edit the flags &amp; severity, author a verification contract, and bind the knowledge base — each one writes straight into your eval profile.</p>
+              {/* EVAL-FLOW (W1b): thread the ACTIVE agent into the ContractBuilder card so its
+                  self-persist (POST /v1/grounding-contract → the audited write) lands on the
+                  agent the rail derives from → captureSetup → refreshJourney ticks Ground truth. */}
               {SETUP_PARTS.map(([type, key]) => (
                 <div key={key}>
-                  {renderTool({ type, state: "output-available" }, { onResult: captureSetup(key) })}
+                  {renderTool({ type, state: "output-available", output: { agent } }, { onResult: captureSetup(key) })}
                 </div>
               ))}
               <p style={{ fontSize: 12.5, color: "var(--muted)" }}>

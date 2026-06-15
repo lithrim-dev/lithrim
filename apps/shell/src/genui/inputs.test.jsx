@@ -4,7 +4,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-// FlagEditor reads GET /v1/ontology (read-only) + persists via PUT /v1/ontology — mock both.
+// FlagEditor reads GET /v1/ontology + persists via PUT; ContractBuilder (EVAL-FLOW W1b) now
+// self-persists via POST /v1/grounding-contract before firing onResult — mock all three.
 vi.mock("../bff.js", () => ({
   getOntology: vi.fn().mockResolvedValue({
     domain: "clinical",
@@ -16,12 +17,13 @@ vi.mock("../bff.js", () => ({
     ],
   }),
   putOntology: vi.fn().mockResolvedValue({ status: "ok", working_copy: "/tmp/ont/ws0_default.json" }),
+  putGroundingContract: vi.fn().mockResolvedValue({ flag_code: "X", replaced: false, status: "ok" }),
 }));
 
 import FlagEditor from "./FlagEditor.jsx";
 import ContractBuilder from "./ContractBuilder.jsx";
 import KbPicker from "./KbPicker.jsx";
-import { getOntology, putOntology } from "../bff.js";
+import { getOntology, putOntology, putGroundingContract } from "../bff.js";
 
 describe("FlagEditor (tool-flag_editor)", () => {
   it("reads the ontology via GET and returns severity_map + per-flag config", async () => {
@@ -71,23 +73,47 @@ describe("FlagEditor (tool-flag_editor)", () => {
 });
 
 describe("ContractBuilder (tool-contract_builder)", () => {
-  it("collects a claim → tool-query → verdict contract and returns it", () => {
+  // EVAL-FLOW (W1b/R1): "Add contract" now PERSISTS to ontology.verification_contracts (the
+  // grade's store) via POST /v1/grounding-contract BEFORE firing onResult — the honest tick.
+  // (The prior test asserted a synchronous onResult with no write; that was correct for the
+  // old card but is the behavior W1b changes — EXECUTOR.md §4.)
+  it("persists the contract via POST /v1/grounding-contract THEN returns it (honest tick)", async () => {
+    putGroundingContract.mockClear();
     const onResult = vi.fn();
-    render(<ContractBuilder onResult={onResult} />);
+    render(<ContractBuilder agent="eval-1" onResult={onResult} />);
 
     fireEvent.change(screen.getByLabelText("flag code"), { target: { value: "MEDICATION_NOT_IN_TRANSCRIPT" } });
     fireEvent.change(screen.getByLabelText("question"), { target: { value: "Is the med present in the transcript?" } });
     fireEvent.click(screen.getByRole("button", { name: /Add contract/i }));
 
-    expect(onResult).toHaveBeenCalledTimes(1);
-    const c = onResult.mock.calls[0][0];
-    expect(c).toMatchObject({
+    // the audited write fires first, against the active agent…
+    await waitFor(() => expect(putGroundingContract).toHaveBeenCalledTimes(1));
+    const [contract, agent] = putGroundingContract.mock.calls[0];
+    expect(agent).toBe("eval-1");
+    expect(contract).toMatchObject({
       contract_type: "presence_check",
       flag_code: "MEDICATION_NOT_IN_TRANSCRIPT",
       question: "Is the med present in the transcript?",
     });
+    // …then onResult signals up (so captureSetup → refreshJourney ticks Ground truth).
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
+    const c = onResult.mock.calls[0][0];
     expect(c.params).toBeTypeOf("object");
     expect(c.version).toMatch(/v1$/);
+    expect(await screen.findByText(/added to setup/i)).toBeInTheDocument();
+  });
+
+  it("a rejected write (404 unknown flag) surfaces inline and does NOT fire onResult (no manufactured tick)", async () => {
+    putGroundingContract.mockRejectedValueOnce(new Error("POST /v1/grounding-contract → 404: unknown flag"));
+    const onResult = vi.fn();
+    render(<ContractBuilder agent="eval-1" onResult={onResult} />);
+
+    fireEvent.change(screen.getByLabelText("flag code"), { target: { value: "NOPE" } });
+    fireEvent.change(screen.getByLabelText("question"), { target: { value: "q" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add contract/i }));
+
+    expect(await screen.findByText(/404/)).toBeInTheDocument();
+    expect(onResult).not.toHaveBeenCalled(); // the rail can never tick on a failed write
   });
 
   it("disables Add until claim + question are filled", () => {

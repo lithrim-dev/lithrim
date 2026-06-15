@@ -6,10 +6,14 @@
    The active pack may ship seeded contracts or be floor-less; this widget authors
    net-new — no seeded example to clone (expected).
 
-   Collects input + returns the contract via onResult(); no persistence (WS-5d wires
-   any write). Built on shadcn primitives + the @theme token bridge; the Preview opens
-   the built contract in a shadcn Dialog. */
+   EVAL-FLOW (W1b): "Add contract" now PERSISTS the contract to the active agent's ontology
+   verification_contracts via POST /v1/grounding-contract (the SAME audited write path the
+   add_grounding_contract chat tool uses; idempotent replace-by-flag-code), THEN fires
+   onResult() — so the rail's Ground-truth step ticks honestly (W1a reads that store). A 404
+   (unknown flag) / 422 surfaces inline; nothing fires onResult on a failed write. Built on
+   shadcn primitives + the @theme token bridge; the Preview opens the built contract in a Dialog. */
 import { useState } from "react";
+import { putGroundingContract } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Input } from "../components/ui/input.jsx";
@@ -31,13 +35,14 @@ function Field({ label, children }) {
   );
 }
 
-export default function ContractBuilder({ onResult }) {
+export default function ContractBuilder({ agent = "ws0_default", onResult }) {
   const [contractType, setContractType] = useState("presence_check");
   const [flagCode, setFlagCode] = useState("");
   const [question, setQuestion] = useState("");
   const [paramsText, setParamsText] = useState('{\n  "source": "response.claims"\n}');
   const [version, setVersion] = useState("");
   const [returned, setReturned] = useState(false);
+  const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
 
   let params = {}, paramsValid = true;
   try { params = JSON.parse(paramsText || "{}"); } catch { paramsValid = false; }
@@ -51,7 +56,20 @@ export default function ContractBuilder({ onResult }) {
   };
   const valid = paramsValid && contract.flag_code && contract.question;
 
-  const apply = () => { setReturned(true); onResult?.(contract); };
+  // W1b: persist to ontology.verification_contracts (the grade's store) THEN signal up — the
+  // save IS the approval gate (mirrors FlagEditor.persistEdit). Only a successful audited write
+  // fires onResult, so the rail can never tick on an unsaved/failed contract (honest tick).
+  const apply = async () => {
+    setPersist({ state: "saving", msg: "saving…" });
+    try {
+      await putGroundingContract(contract, agent);
+      setPersist({ state: "saved", msg: "added to setup ✓" });
+      setReturned(true);
+      onResult?.(contract);
+    } catch (e) {
+      setPersist({ state: "error", msg: String(e.message || e) });
+    }
+  };
 
   return (
     <Card className="my-3">
@@ -112,10 +130,17 @@ export default function ContractBuilder({ onResult }) {
             </pre>
           </DialogContent>
         </Dialog>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          {returned ? "added to setup ✓" : "net-new contract"}
+        <span
+          className={
+            "font-[family-name:var(--font-mono)] text-[10.5px] " +
+            (persist.state === "error" ? "text-[color:var(--accent-ink)]" : "text-muted-foreground")
+          }
+        >
+          {persist.state !== "idle" ? persist.msg : returned ? "added to setup ✓" : "net-new contract"}
         </span>
-        <Button className="ml-auto" size="sm" onClick={apply} disabled={!valid}>Add contract</Button>
+        <Button className="ml-auto" size="sm" onClick={apply} disabled={!valid || persist.state === "saving"}>
+          {persist.state === "saving" ? "Saving…" : "Add contract"}
+        </Button>
       </CardFooter>
     </Card>
   );

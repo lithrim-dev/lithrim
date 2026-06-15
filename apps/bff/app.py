@@ -288,6 +288,18 @@ class ChatRequest(BaseModel):
     history: list[ChatTurn] = []
 
 
+class GroundingContractRequest(BaseModel):
+    # EVAL-FLOW (W1b): the ContractBuilder card's direct, audited grounding-contract write — the
+    # SAME store the grade consumes (ontology.verification_contracts), the SAME write path the
+    # add_grounding_contract chat tool uses. $0 config write, NO paid knob (the card never runs).
+    flag_code: str
+    contract_type: str
+    params: dict = {}
+    question: str = ""
+    version: str = ""
+    agent: str = DEFAULT_AGENT
+
+
 def _load_live_env() -> None:
     """Load the gitignored repo-root ``.live_env`` (``LITHRIM_API_KEY`` / ``LITHRIM_ORG_ID`` — the
     kb:read credential the live KB tools read) into ``os.environ`` at BFF startup. The BFF otherwise
@@ -1254,6 +1266,45 @@ def put_ontology_endpoint(
         )
     )
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
+
+
+@app.post("/v1/grounding-contract")
+def put_grounding_contract_endpoint(
+    body: GroundingContractRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """EVAL-FLOW (W1b): the ContractBuilder card's direct, audited grounding-contract write.
+
+    REUSES the EXACT bound ``ctx.put_grounding_contract`` closure (the SAME one the
+    ``add_grounding_contract`` chat tool calls), built via the SAME ``_build_tool_context``
+    factory — so there is NO new write logic here: the splice (replace-by-flag-code else
+    append) + the FROZEN audited ``put_ontology_endpoint`` are unchanged, and the 404
+    (unknown flag) / 422 (malformed) gates hold. The contract lands in the SAME store the
+    grade consumes (``ontology.verification_contracts``), so the rail's Ground-truth tick is
+    HONEST (W1a reads this store). $0 — no PAID_KEY path.
+    """
+    ctx = _build_tool_context(
+        req_agent=body.agent,
+        db_path=db_path,
+        out_dir=out_dir,
+        workdir=workdir,
+        collections_db=collections_db,
+        actor=default_actor,
+        x_actor=x_actor,
+    )
+    return ctx.put_grounding_contract(
+        flag_code=body.flag_code,
+        contract_type=body.contract_type,
+        params=body.params or {},
+        question=body.question,
+        version=body.version,
+        agent=body.agent,
+    )
 
 
 def _cases_emitting_flag(flag_code: str, examples_dir: Path) -> list[str]:

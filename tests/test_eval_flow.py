@@ -162,6 +162,35 @@ def test_grounding_contract_persists_audited_and_404s(env):
     ), "a refused write must not leave a contract behind"
 
 
+def test_grounding_contract_route_reuses_the_bound_op(env):
+    """A1 / W1b: the ContractBuilder card's route (POST /v1/grounding-contract) lands the
+    contract in verification_contracts (the SAME store the rail reads) by REUSING the bound
+    op — no new write logic. A known flag persists + is audited; an unknown flag 404s."""
+    bff, ctx, client, db, workdir, examples = env
+
+    ok = client.post(
+        "/v1/grounding-contract",
+        json={
+            "flag_code": KNOWN_FLAG,
+            "contract_type": "presence_check",
+            "params": {"source": "response.claims"},
+            "question": "present?",
+            "version": f"{KNOWN_FLAG}/v1",
+            "agent": AGENT,
+        },
+    )
+    assert ok.status_code == 200, ok.text
+    assert any(c.get("flag_code") == KNOWN_FLAG for c in _draft_contracts(workdir))
+
+    # an unknown flag 404s through the SAME endpoint guard (NON-VACUOUS).
+    bad = client.post(
+        "/v1/grounding-contract",
+        json={"flag_code": UNKNOWN_FLAG, "contract_type": "presence_check", "agent": AGENT},
+    )
+    assert bad.status_code == 404
+    assert all(c.get("flag_code") != UNKNOWN_FLAG for c in _draft_contracts(workdir))
+
+
 def test_add_grounding_contract_tool_is_bounded_by_the_endpoint_guards(env):
     """A1 (agent-reachable, NON-VACUOUS): the add_grounding_contract tool over the bound op
     surfaces the 404 for an unknown flag without crashing — the guard lives in the endpoint."""
