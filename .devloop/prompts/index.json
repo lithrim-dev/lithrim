@@ -2318,7 +2318,7 @@
       "phase": "EVAL-FLOW",
       "scope": "ground-truth-to-run-rail-faithful-paid-run",
       "file": "bench-salvage_phaseEVAL-FLOW_ground-truth-to-run-rail-faithful-paid-run_driver.md",
-      "status": "ready",
+      "status": "shipped -- closed-PROCEED-WITH-CAVEATS 2026-06-15 (77bcb60..60618e0, 6 commits test-red-first pathspec-only, parent 77bcb60, NOT pushed; monitor 7-item CLEAN + HARD-GATE fresh-critic CLEAN [0 BLOCKING / 0 NB / 1 OQ], executor+critic spawned-as-subagents). Ground-truth->Run rail-faithful: a SAVED grounding contract honestly ticks Ground truth (rail-predicate mismatch fixed E-D1; R1 thin POST /v1/grounding-contract reuses the audited ctx.put_grounding_contract with ZERO new write logic; ContractBuilder fires onResult only on a successful write) + the in-DOM CostModal (S-BS-69) gates the paid run. MOAT + tools.py + _deny_non_lithrim + LENS_BY_ROLE 0-diff. Gate 0 (env exported) pytest 556p/2-S-BS-96/4skip + vitest 122p/1-S-BS-145, 0-new. Opened S-BS-159/160/161 (low); OWED the A-LIVE PAID re-drive (owner-gated).",
       "version": "v1",
       "hardness": "HARD GATE -- fresh-critic required. Touches the journey Ground-truth predicate (journey.js:39, the rail-predicate mismatch reconciliation E-D1), the RunPanel paid-run gate (window.confirm -> in-DOM CostModal, S-BS-69), and drives a live/in_process PAID run. Moat + tools.py + _deny_non_lithrim + judge_metric.LENS_BY_ROLE byte-frozen.",
       "target_repos": [
