@@ -39,33 +39,51 @@ from __future__ import annotations
 from typing import Any
 
 
-def _part(tool_name: str, output: dict[str, Any]) -> dict[str, Any]:
-    return {"type": f"tool-{tool_name}", "state": "output-available", "output": output}
+def _part(
+    tool_name: str, output: dict[str, Any], *, show_intent: str = "auto"
+) -> dict[str, Any]:
+    """CONV-UX-1 (W3): every part carries a ``show_intent`` GATING tag — ``"auto"`` (a
+    PRIMARY result the shell renders as a full card inline) or ``"ondemand"`` (a passive
+    orientation read the shell collapses to a compact "Show … ▸" affordance, expanded only
+    if asked). Additive + flat-spread-safe: the shell ignores unknown top-level keys, so an
+    older shell renders every part as before. The DEFAULT is ``"auto"`` — only explicitly-
+    passive reads tag ``"ondemand"``, keeping the gating conservative."""
+    return {
+        "type": f"tool-{tool_name}",
+        "state": "output-available",
+        "output": output,
+        "show_intent": show_intent,
+    }
 
 
-def judge_part(role: str, agent: str) -> dict[str, Any]:
-    """author_judge / get_judge -> the JudgeEditor card (it self-fetches via GET /v1/judges)."""
-    return _part("judge_editor", {"role": role, "agent": agent})
+def judge_part(role: str, agent: str, *, show_intent: str = "auto") -> dict[str, Any]:
+    """author_judge / get_judge -> the JudgeEditor card (it self-fetches via GET /v1/judges).
+    W3: author_judge is the PRIMARY result (``auto``); a bare get_judge PREVIEW is ``ondemand``
+    (the handler passes the intent)."""
+    return _part("judge_editor", {"role": role, "agent": agent}, show_intent=show_intent)
 
 
-def agent_part(name: str) -> dict[str, Any]:
+def agent_part(name: str, *, show_intent: str = "auto") -> dict[str, Any]:
     """get_agent (and UAP-5c-2 assemble_agent) -> the AgentEditor card (self-fetches
-    GET /v1/agent for ``name``). The Domain leg."""
-    return _part("agent_editor", {"agent": name})
+    GET /v1/agent for ``name``). The Domain leg. W3: an assemble_agent WRITE is ``auto``; a
+    bare get_agent orientation READ is ``ondemand`` (the handler passes the intent)."""
+    return _part("agent_editor", {"agent": name}, show_intent=show_intent)
 
 
-def flag_part(agent: str) -> dict[str, Any]:
-    """author_flag -> the FlagEditor card (self-fetches GET /v1/ontology for ``agent``).
-    The Flag leg."""
-    return _part("flag_editor", {"agent": agent})
+def flag_part(agent: str, *, show_intent: str = "auto") -> dict[str, Any]:
+    """author_flag / create_flag / add_grounding_contract -> the FlagEditor card (self-fetches
+    GET /v1/ontology for ``agent``). The Flag leg — a config WRITE, so ``auto`` by default."""
+    return _part("flag_editor", {"agent": agent}, show_intent=show_intent)
 
 
-def audit_part(run_id: str = "") -> dict[str, Any]:
+def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
     """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
     card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
     authored judge/flag write) and, given ``runId``, loads that run's provenance
-    (GET /v1/runs/{id}/audit). The Review/batch leg — pure-read."""
-    return _part("audit_log", {"runId": run_id})
+    (GET /v1/runs/{id}/audit). The Review/batch leg — pure-read. W3: a PASSIVE orientation
+    read, so ``ondemand`` by default (the off-context Audit-trail-next-to-404 the live drive
+    hit was exactly this card firing on the agent's incidental review_runs)."""
+    return _part("audit_log", {"runId": run_id}, show_intent=show_intent)
 
 
 def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
@@ -103,8 +121,12 @@ def open_artifact_part(tab: str) -> dict[str, Any]:
     """CHATBIND-2: focus_artifact -> a pane-control DIRECTIVE (not a gen-UI card). The shell
     honors it by OPENING + FOCUSING the named ArtifactPane tab; it is absent from KNOWN_TOOLS
     and is NEVER routed through ``renderTool``. ``tab`` is one of case|report|judges|config|corpus
-    (the caller validates it). $0 — emitting a directive can never fire a paid run."""
-    return _part("open_artifact", {"tab": tab})
+    (the caller validates it). $0 — emitting a directive can never fire a paid run.
+
+    W3: a DIRECTIVE carries NO ``show_intent`` tag — it is not a gen-UI card and never goes
+    through the shell's dedup/intent gating (the shell special-cases it out of renderTool), so
+    it keeps its bare {type,state,output} shape."""
+    return {"type": "tool-open_artifact", "state": "output-available", "output": {"tab": tab}}
 
 
 def case_summary_part(agent: str) -> dict[str, Any]:
@@ -118,5 +140,8 @@ def propose_live_run_part() -> dict[str, Any]:
     """CHATBIND-4: propose_live_run -> a $0 DIRECTIVE (not a card; like open_artifact) that asks
     the shell to OPEN the in-DOM CostModal. The AGENT only PROPOSES — it never fires the run; the
     human's explicit modal-confirm (confirmPaidRun) is the ONLY paid path. Absent from KNOWN_TOOLS,
-    never routed through renderTool, carries no agent/run/paid field — emitting it cannot spend."""
-    return _part("propose_live_run", {})
+    never routed through renderTool, carries no agent/run/paid field — emitting it cannot spend.
+
+    W3: a DIRECTIVE carries NO ``show_intent`` tag (like open_artifact) — it is not a card and
+    never goes through the shell's dedup/intent gating."""
+    return {"type": "tool-propose_live_run", "state": "output-available", "output": {}}
