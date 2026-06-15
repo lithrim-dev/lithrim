@@ -25,7 +25,10 @@ def test_shepherd_prompt_carries_the_journey_order_and_next_step_instruction():
     assert "Run -> Review" in p
     # W2: leads — finds + proposes the next incomplete step, one at a time.
     assert "propose the next incomplete step" in p
-    assert "ONE step at a time" in p
+    # SHEPHERD-1b (W2a, S-BS-150): the one-step rule is now FOREGROUNDED as an imperative
+    # clause (one config PROPOSAL per turn, then STOP) rather than the buried mid-stanza line.
+    assert "ONE STEP PER TURN" in p
+    assert "EXACTLY ONE" in p and "then STOP" in p
     assert "first incomplete" in p.lower()
     # W2: proposes (the Save is the gate), never auto-commits.
     assert "PROPOSE, never auto-commit" in p
