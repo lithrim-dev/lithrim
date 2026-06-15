@@ -4,6 +4,7 @@ import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
 import { ModeSwitch } from "./components/ModeSwitch.jsx";
+import { deriveSteps } from "./journey.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -189,6 +190,11 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     catch { return "ws0_default"; }
   });
   const [agents, setAgents] = useState([]);
+  // SHEPHERD-1 (W1): the live PLAN surface — the active agent's config (GET /v1/agent)
+  // + the run history (GET /v1/runs) the rail derivation reads. refreshJourney() re-fetches
+  // both; deriveSteps(...) turns them into the rail steps + the "N / total" count.
+  const [agentCfg, setAgentCfg] = useState(null);
+  const [runs, setRuns] = useState([]);
   // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
   // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
   // also create + switch to a fresh runnable blank agent.
@@ -212,11 +218,28 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       const { runEval } = await import("./bff.js");
       setRunResult(await runEval({ live, agent: activeAgent }));
       setRunStatus("ready");
+      refreshJourney(); // W1: a run flips Run/Review done in the rail
     } catch (err) {
       setRunError(String(err.message || err));
       setRunStatus("error");
     }
   };
+
+  // SHEPHERD-1 (W1): re-fetch the live plan state (the active agent's config + the run
+  // history) so the rail re-derives. Called on mount, on activeAgent change, after a run,
+  // after a workspace/agent switch, AND on the W3 save signal (onConfigSaved). Offline-safe.
+  const refreshJourney = async () => {
+    try {
+      const { getAgent, getRuns } = await import("./bff.js");
+      const [cfg, runHist] = await Promise.all([
+        getAgent(activeAgent).catch(() => null),
+        getRuns().then((r) => r.runs || []).catch(() => []),
+      ]);
+      setAgentCfg(cfg);
+      setRuns(runHist);
+    } catch { /* offline-safe */ }
+  };
+  useEffect(() => { refreshJourney(); }, [activeAgent]);
 
   // CRUD-1 (D4): load the config-plane agents for the rail switcher (GET /v1/agents).
   const refreshAgents = async () => {
@@ -327,6 +350,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
 
   const openArtifact = (t) => { setTab(t); setOpen(true); };
 
+  // SHEPHERD-1 (W1): derive the rail's plan from the live state. Review `done` ⟺ a run
+  // result is loaded/viewed (runResult non-null) — a distinct guided beat past Run.
+  const journey = deriveSteps(agentCfg, runs, activeAgent, runResult);
+
   return (
     <div className="desk">
       <div className="win">
@@ -337,7 +364,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           onSwitchWorkspace={onSwitchWorkspace} onCreateWorkspace={onCreateWorkspace} />
         <div className="body">
           <LeftRail width={leftW} agents={agents} activeAgent={activeAgent}
-            onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval} />
+            onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval}
+            steps={journey.steps} journeyCount={{ done: journey.done, total: journey.total }} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus}

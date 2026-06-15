@@ -22,7 +22,13 @@ const SETUP_PARTS = [
 // switch, × to delete (audited). The seed default + the last agent hide their delete
 // affordance (the BFF's 422 guards, reflected in the UI). "New evaluation" (the +)
 // creates a fresh runnable blank agent and switches to it.
-export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDeleteAgent, onNewEval }) {
+// SHEPHERD-1 (W1): the Setup journey is now the shepherd's PLAN surface — `steps`
+// (derived from live config + run state, journey.js) drives each node's state and the
+// "N / total" count. Absent the derived data (offline / pre-fetch) it falls back to the
+// static STEPS template so the rail never renders blank.
+export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDeleteAgent, onNewEval, steps, journeyCount }) {
+  const planSteps = steps && steps.length ? steps : STEPS;
+  const count = journeyCount || { done: planSteps.filter((s) => s.state === "done").length, total: planSteps.length };
   return (
     <aside className="rail" style={{ width }}>
       <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
@@ -69,13 +75,13 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
         <div className="journey">
           <div className="rail-hd" style={{ padding: "12px 6px 12px" }}>
             <span className="lbl">Setup journey</span>
-            <span className="tm" style={{ fontFamily: "var(--mono)" }}>4 / 6</span>
+            <span className="tm" style={{ fontFamily: "var(--mono)" }}>{count.done} / {count.total}</span>
           </div>
-          {STEPS.map((s, i) => (
+          {planSteps.map((s, i) => (
             <div key={s.name} className={"step " + s.state}>
               <div className="nodecol">
                 <div className="node">{s.state === "done" ? <Icon name="check" size={12} sw={2.4} /> : i + 1}</div>
-                {i < STEPS.length - 1 && <div className="line" />}
+                {i < planSteps.length - 1 && <div className="line" />}
               </div>
               <div className="body-txt">
                 <div className="sname">{s.name}{s.state === "current" && <span className="pill-now">NOW</span>}</div>
