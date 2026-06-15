@@ -10,7 +10,10 @@ inject a STUB source (a pre-baked message list) so the loop + the parts-adapter 
 (only when the loop actually runs), preserving import-isolation (A5).
 
 SSE event shapes (D-B, resolved at plan-review):
-    {"event": "assistant_delta", "text": str}
+    {"event": "assistant_delta", "text": str}   # CONV-UX-1 (W2): now token-granular when the
+        # SDK streams partials (include_partial_messages); whole-block fallback otherwise.
+    {"event": "thinking",        "text": str}   # CONV-UX-1 (W1): a reasoning ThinkingBlock /
+        # thinking_delta, surfaced as a collapsible muted section (only when the SDK emits it).
     {"event": "tool_call",       "name": str, "input": dict}
     {"event": "tool_result",     "part": {type, state, output}}   # the gen-UI part
     {"event": "run_result",      "result": {...}}                 # CHATBIND-2 (D4): the chat's
@@ -187,6 +190,12 @@ def _build_options(ctx: ToolContext):
         skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
         system_prompt=_system_prompt(ctx.default_agent),  # CHATBIND-1: name the active agent
         max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
+        # CONV-UX-1 (W2): fine-grained streaming. The SDK (>=0.2.90) interleaves StreamEvent
+        # objects whose `event` dict carries the Anthropic content_block_delta/text_delta chunks,
+        # so the shell can accrete text token-by-token instead of whole-block pops. The HONEST
+        # spike verdict: feasible on this path (see docs/research/PROOF_*). run_chat de-dups the
+        # trailing full AssistantMessage so a streamed block is not emitted twice.
+        include_partial_messages=True,
     )
 
 
@@ -251,17 +260,48 @@ async def run_chat(
         ToolUseBlock,
     )
 
+    # CONV-UX-1 (W1/W2): StreamEvent + ThinkingBlock are present from SDK 0.2.90; under an older
+    # SDK (or the test stub, which yields only Assistant/Result) they are simply never matched —
+    # the whole-block path still runs, so the loop degrades cleanly to block-granular streaming.
+    try:
+        from claude_agent_sdk import StreamEvent, ThinkingBlock
+    except ImportError:  # pragma: no cover — defensive for an older SDK
+        StreamEvent = ThinkingBlock = ()  # type: ignore[assignment]
+
     src = source or _real_source
     cost_usd: float | None = None
+    # CONV-UX-1 (W2): when partials stream a content block, the SDK still yields the assembled
+    # AssistantMessage afterward carrying the SAME full text/thinking — track what already
+    # streamed so the trailing full block is NOT emitted twice (de-dup, not double-render).
+    streamed_text = False
+    streamed_thinking = False
     try:
         async for msg in src(message, ctx, history):
-            if isinstance(msg, AssistantMessage):
+            if StreamEvent and isinstance(msg, StreamEvent):
+                # The Anthropic raw streaming event dict: a content_block_delta carries either a
+                # text_delta (assistant prose) or a thinking_delta (reasoning) — emit token-granular.
+                delta = (msg.event or {}).get("delta") or {}
+                dtype = delta.get("type")
+                if dtype == "text_delta" and delta.get("text"):
+                    streamed_text = True
+                    yield {"event": "assistant_delta", "text": delta["text"]}
+                elif dtype == "thinking_delta" and delta.get("thinking"):
+                    streamed_thinking = True
+                    yield {"event": "thinking", "text": delta["thinking"]}
+            elif isinstance(msg, AssistantMessage):
                 for block in msg.content:
-                    if isinstance(block, TextBlock):
-                        if block.text.strip():
+                    if ThinkingBlock and isinstance(block, ThinkingBlock):
+                        if not streamed_thinking and (block.thinking or "").strip():
+                            yield {"event": "thinking", "text": block.thinking}
+                    elif isinstance(block, TextBlock):
+                        if not streamed_text and block.text.strip():
                             yield {"event": "assistant_delta", "text": block.text}
                     elif isinstance(block, ToolUseBlock):
                         yield {"event": "tool_call", "name": block.name, "input": block.input}
+                # The assembled message closes a streamed turn; reset for the next AssistantMessage
+                # (a multi-turn loop streams, assembles, then streams the next turn's partials).
+                streamed_text = False
+                streamed_thinking = False
             elif isinstance(msg, ResultMessage):
                 cost_usd = getattr(msg, "total_cost_usd", None)
             # Drain any gen-UI parts the tool handlers emitted on this turn.
