@@ -1,7 +1,8 @@
 # Proof — bench-salvage SHEPHERD-1b: the shepherd leads *cleanly* — one agent, one step per turn (2026-06-15)
 
-> A-LIVE attestation env: :5180 shell / :8787 BFF (the live re-drive is the MONITOR's; the
-> code/test-layer findings below are the executor's). $0 (no paid run).
+> A-LIVE attestation env: :5181 shell (a stale shell held :5180; Vite fell back to :5181) /
+> :8787 BFF (re-drive on the monitor's pass, 2026-06-15; the code/test-layer findings below are
+> the executor's). $0 (no paid run; all writes were $0 audited config-plane edits + BYO-Claude chat).
 
 ## Claim
 
@@ -99,26 +100,68 @@ review/save it and tell you to continue, then set up the next step on the follow
   LITHRIM_BENCH_PACK=healthcare python -m pytest tests/test_uap5b_chat.py tests/test_shepherd.py` ;
   `cd apps/shell && npx vitest run src/app.coerce.test.jsx`.
 
-## Before → After (A-LIVE :5180 re-drive) — **PENDING-MONITOR-LIVE**
+## A-LIVE :5181 re-drive (monitor, 2026-06-15) — honest-Δ, NOT all wins
 
-The driver assigns the live re-drive to the monitor. To fill on the live pass:
-- **A1 LIVE:** open a non-default workspace whose agents exclude `ws0_default`; confirm the rail and
-  the shepherd name the SAME agent and the rail shows that agent's real step state (not "0/5").
-- **A2 LIVE:** give a multi-step ask; confirm exactly ONE save-pending card lands per turn.
-- **A3 LIVE (the SHEPHERD-1 deferred beat):** after the human acts on a proposed config, the rail
-  ticks a step to `done` — the beat held back in SHEPHERD-1 because of S-BS-149.
+Driven via Claude-in-Chrome on the `demo-clinical` workspace (agents `eval-1` + `snomed-demo`;
+**no `ws0_default`** — the exact non-default workspace S-BS-149 diverged in). $0 throughout.
+
+- **A1 — CONFIRMED LIVE ✓.** On landing, the rail showed a coherent **"1 / 5", Domain ✓, Judges =
+  NOW** for `eval-1` — i.e. it derived `eval-1`'s real config, NOT a phantom `ws0_default` "0/5".
+  Asked *"which agent am I setting up?"*, the shepherd read live state and surfaced an
+  **`Agent · eval-1`** editor card. Rail's active agent **and** the shepherd's resolved agent both =
+  `eval-1`. **They converge** — the S-BS-149 fix holds. (Bonus, both CONFIRMED live: the A-SAFE deny
+  hook fired *gracefully* when the model tried a stray `ToolSearch` — *"ToolSearch doesn't apply to
+  the Lithrim tools… let me read the live state first (free)"* — and the CONV-UX-1 activity timeline
+  rendered the tool steps.)
+- **A2 — CONFIRMED LIVE ✓.** Single message asked for **two** config steps ("set up my judges AND
+  add the ground-truth grounding contract … configure both now"). The shepherd verbalized the
+  pacing exactly — *"…**one config step per turn** … the natural order is Judges → Ground truth …
+  So I'll lead with judges now, then propose the grounding contract on the next turn once you've
+  saved"* — and surfaced **one** config write (the roster), deferring ground-truth. Free reads
+  (`get_agent`/`get_judge`) flowed unthrottled, as designed. The S-BS-150 fix holds (and W2b is
+  unit-test-proven as the mechanical backstop).
+- **A3 — DID NOT REPRODUCE LIVE ✗ (honest loss; the deferred demo beat).** Saving the
+  `Agent · eval-1` roster committed (audited: card showed *"saved ✓ as rahul@lithrim.dev"*), but the
+  rail **stayed "1 / 5, Judges NOW"** — it did not tick. Ground truth via the shell's own
+  `getAgent('eval-1')` post-save: **`eval_profile.judges: []`** (`ontology_ref:"clinical/1"`,
+  `tools:[]`). The rail derivation is **CORRECT** (faithfully reflects empty `judges`); the failure
+  is upstream. A second attempt (assigning the `risk_judge` lens via the JudgeEditor) returned a
+  **422: `assigned flags outside taxonomy snapshot … ['INTERNAL_INCONSISTENCY']`**. So neither live
+  authoring surface flips the rail's Judges step. **CONFIRMED** these are PRE-EXISTING gaps, not 1b
+  regressions (1b changed only the W1 coercion + the W2 pacing; it never touched SHEPHERD-1's W3
+  save→advance wiring, the field model, or the admissibility gate — SHEPHERD-1's own close already
+  recorded "W3 save→advance proven at the mechanism/test layer, live Save not driven"). The
+  rail-advance MECHANISM stays unit-test-proven (the W3 derivation test: an agentCfg with non-empty
+  `judges` → Judges `done`); the live break is localized to the authoring write + lens admissibility.
+
+### Two new seams filed (SHEPHERD-1c scope; neither blocks 1b)
+- **S-BS-153 (med)** — rail↔authoring **field-mapping gap**: the `Agent · eval-1` roster Save commits
+  (audited) but leaves `eval_profile.judges` (the rail's `Judges` predicate source, `journey.js`
+  `isDone`) empty — it writes a roster/`council_config`-shaped field the rail does not read. So the
+  live save→advance (SHEPHERD-1 W3) never ticks Judges. CONFIRMED via `getAgent` ground truth.
+- **S-BS-154 (med)** — JudgeEditor **lens options ⊄ pack taxonomy snapshot**: the `risk_judge` card
+  offers lens codes (`INTERNAL_INCONSISTENCY`, `UNSUPPORTED_ASSERTION`) that the demo-clinical
+  admissibility gate rejects (`422 assigned flags outside taxonomy snapshot`), so a judge can't be
+  authored via the offered lenses in this pack. CONFIRMED via the 422.
+
+**Verdict:** the two seams SHEPHERD-1b targeted — S-BS-149 + S-BS-150 — are CLOSED and live-confirmed
+(A1, A2). The deferred "rail ticks to done" beat (A3) is an **honest loss** that the live drive
+surfaced two real, pre-existing causes for. Per the honesty-is-the-moat thesis ("a manufactured win
+is a FAIL"), this loss is reported as the proof point it is, not hidden.
 
 ## Journey impact
 
 - Launch-journey phase: **P1 Install / P2 Verify** — onboarding is now coherent (the rail and the
   chat agree) and well-paced (one step at a time).
 - De-risk gap: **#1 SME-authorable bounded context** — a cleaner, less overwhelming guided author
-  loop.
-- Unblocks: the SHEPHERD-1 deferred "watch the rail tick to done" demo beat (now reproducible with
-  S-BS-149 closed).
+  loop (agent + rail now agree; one step per turn).
+- Still BLOCKED (honest): the SHEPHERD-1 deferred "watch the rail tick to done" demo beat does NOT
+  yet reproduce — S-BS-149 was necessary but not sufficient; S-BS-153 (authoring writes the field
+  the rail reads) + S-BS-154 (admissible lenses) are the remaining preconditions → SHEPHERD-1c.
 
 ## Video
 
-- PENDING-MONITOR-LIVE (optional per A6 — a tight re-capture of the deferred save→advance beat is the
-  payoff if cheap). Spec to author at live pass: `journeys/bench-salvage_SHEPHERD-1b.narrate.json` →
-  `out/zyng_narrate/`.
+- NOT captured. The intended payoff was a tight re-capture of the save→advance beat, but A3 did not
+  reproduce live (S-BS-153/154), so there is no honest "rail ticks to done" beat to film yet. A clean
+  capture is deferred to SHEPHERD-1c once 153/154 land. (A1 + A2 are demonstrable live now, but a
+  video is OPTIONAL per A6 and not worth the spend without the A3 payoff.)

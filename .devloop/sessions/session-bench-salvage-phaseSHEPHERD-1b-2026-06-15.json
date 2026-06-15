@@ -69,18 +69,18 @@
   "acceptance": [
     {
       "criterion": "A1 (W1) — rail + shepherd operate on the SAME agent in a non-default workspace",
-      "verdict": "PASS",
-      "evidence": "CODE/TEST layer: apps/shell/src/app.coerce.test.jsx (5 PASS) pins the shell coercion to the BFF _resolve_chat_agent contract (apps/bff/app.py:1479-1483) + exercises app.jsx:265-267's verbatim effect. LIVE re-drive PENDING-MONITOR-LIVE."
+      "verdict": "PASS (CODE/TEST + LIVE)",
+      "evidence": "CODE/TEST: apps/shell/src/app.coerce.test.jsx (5 PASS) pins the shell coercion to the BFF _resolve_chat_agent contract (apps/bff/app.py:1479-1483) + exercises app.jsx:265-267's verbatim effect. LIVE (monitor :5181 re-drive, demo-clinical workspace, agents eval-1+snomed-demo, no ws0_default): the rail showed a coherent '1/5' Domain-done/Judges-NOW for eval-1 (not a phantom ws0_default '0/5'); the shepherd, asked 'which agent am I setting up?', surfaced Agent·eval-1 — rail's active agent AND the shepherd's resolved agent both = eval-1. CONVERGED. CONFIRMED LIVE."
     },
     {
       "criterion": "A2 (W2a/W2b) — exactly one step (one save-pending card) per turn; reads free, counter resets",
-      "verdict": "PASS",
-      "evidence": "CODE/TEST layer: tests/test_uap5b_chat.py::test_pacing_hook_caps_step_proposing_writes_to_one_per_turn (1st allow, 2nd same-turn deny w/ graceful reason, reads + $0 run never counted, fresh _build_options resets) + ::test_pacing_hook_fails_open_for_itself + the W2a prompt tests. LIVE re-drive PENDING-MONITOR-LIVE."
+      "verdict": "PASS (CODE/TEST + LIVE)",
+      "evidence": "CODE/TEST: tests/test_uap5b_chat.py::test_pacing_hook_caps_step_proposing_writes_to_one_per_turn (1st allow, 2nd same-turn deny w/ graceful reason, reads + $0 run never counted, fresh _build_options resets) + ::test_pacing_hook_fails_open_for_itself + the W2a prompt tests. LIVE (monitor :5181 re-drive): a single message asking for TWO config steps ('set up my judges AND add the ground-truth grounding contract') produced exactly ONE config write (the roster) + the verbalized rule 'one config step per turn ... I'll lead with judges now, then propose the grounding contract on the next turn once you've saved'; free reads (get_agent/get_judge) flowed unthrottled. CONFIRMED LIVE. (Bonus live: the A-SAFE deny hook fired gracefully on a stray ToolSearch; the CONV-UX-1 activity timeline rendered.)"
     },
     {
       "criterion": "A3 (clean save->advance demo — the SHEPHERD-1 deferred beat)",
-      "verdict": "SKIP",
-      "evidence": "PENDING-MONITOR-LIVE — this is the A6 live capture (the monitor's :5180 re-drive). S-BS-149 is closed at the code/test layer, which is the precondition for the beat to reproduce."
+      "verdict": "DID-NOT-REPRODUCE (honest loss; non-blocking — pre-existing causes, not a 1b regression)",
+      "evidence": "LIVE (monitor :5181 re-drive): saving the Agent·eval-1 roster committed (audited: 'saved ✓ as rahul@lithrim.dev') but the rail stayed '1/5, Judges NOW'. Ground truth via the shell's own getAgent('eval-1') post-save: eval_profile.judges=[] (ontology_ref='clinical/1', tools=[]). The rail derivation is CORRECT (reads empty judges); the Agent-roster Save writes a roster/council_config field the rail does not read → S-BS-153. A second path (assigning the risk_judge lens) returned 422 'assigned flags outside taxonomy snapshot: [INTERNAL_INCONSISTENCY]' → S-BS-154. Both CONFIRMED pre-existing (1b touched only W1 coercion + W2 pacing; not the W3 save->advance wiring / field model / admissibility gate — SHEPHERD-1's close already noted 'W3 live Save not driven'). The rail-advance MECHANISM stays unit-test-proven (W3 derivation test). Honest-Δ: reported as a loss, not manufactured. → SHEPHERD-1c."
     },
     {
       "criterion": "A4 (moat/safety tripwire) — guard trio green; moat zero-diff; _deny_non_lithrim + tools.py byte-stable; A-SAFE surface unchanged",
@@ -107,13 +107,34 @@
     "turn_count_for_guided_onboarding": "PENDING-MONITOR-LIVE (reported on the live re-drive)"
   },
 
-  "seams_opened": [],
+  "seams_opened": [
+    {"id": "S-BS-152", "severity": "low", "summary": "PRE-EXISTING (filed by the fresh critic, renumbered from the critic's S-BS-151 collision): the _SHEPHERD_STANZA line 'the Save IS the approval gate / never auto-commit' overstates the mechanism — authoring tools persist immediately-and-audited (save_judge at app.py:1018-1019). Reword the prompt to match the capsule's honest 3-part gate (pacing + re-editability + audit trail). Not a 1b regression (line predates da2a0a8, from SHEPHERD-1 fdb141e; preserved verbatim in the W2a SUPERSET)."},
+    {"id": "S-BS-153", "severity": "med", "summary": "rail<->authoring FIELD-MAPPING gap (surfaced + CONFIRMED on the A3 live re-drive): the Agent·eval-1 roster Save commits (audited) but leaves eval_profile.judges (the rail's Judges predicate source, journey.js isDone) empty — it writes a roster/council_config-shaped field the rail does not read, so the live save->advance (SHEPHERD-1 W3) never ticks Judges. CONFIRMED via getAgent ground truth post-save. → SHEPHERD-1c."},
+    {"id": "S-BS-154", "severity": "med", "summary": "JudgeEditor lens options ⊄ pack taxonomy snapshot (surfaced + CONFIRMED on A3): the risk_judge card offers lens codes (INTERNAL_INCONSISTENCY/UNSUPPORTED_ASSERTION) the demo-clinical admissibility gate rejects (422 'assigned flags outside taxonomy snapshot'), so a judge can't be authored via the offered lenses in this pack. CONFIRMED via the 422. → SHEPHERD-1c."}
+  ],
 
   "seams_closed": ["S-BS-149", "S-BS-150"],
 
+  "hard_gate_critique": {
+    "verdict": "PASS",
+    "blocking": 0,
+    "non_blocking": 1,
+    "observation": 3,
+    "fresh_critic": true,
+    "critique_file": ".devloop/sessions/critique-bench-salvage-SHEPHERD-1b-2026-06-15.md",
+    "summary": "Fresh adversarial critic independently re-ran the guard trio (17 passed) + canonical suite (2 failed pre-existing/542 passed); confirmed tools.py + _deny_non_lithrim body + the moat (compliance_council.py/signals.py) byte-untouched, the pacing hook additive + fail-closed-safe (deny-first, can only ADD a deny), the tests non-vacuous, and honest-Δ clean. The 1 NON-BLOCKING finding is the pre-existing prompt-honesty seam (renumbered S-BS-152)."
+  },
+
+  "monitor_close": {
+    "closed_at": "2026-06-15",
+    "a_live_redrive": "DONE (monitor, :5181 shell / :8787 BFF, demo-clinical workspace, $0)",
+    "live_findings": "A1 CONFIRMED LIVE (rail + shepherd converge on eval-1). A2 CONFIRMED LIVE (one config step/turn, pacing verbalized + ground-truth deferred). A3 DID-NOT-REPRODUCE (honest loss): the audited roster Save did not tick the rail because eval_profile.judges stayed [] (S-BS-153), and the judge lens-assign path 422'd on admissibility (S-BS-154); both pre-existing, not 1b regressions.",
+    "disposition": "The two seams SHEPHERD-1b targeted (S-BS-149 + S-BS-150) are CLOSED + live-confirmed. The A3 demo beat remains deferred to SHEPHERD-1c (close S-BS-153 + S-BS-154). No video captured (no honest 'rail ticks' beat to film yet). Moat zero-diff; LOCAL not pushed."
+  },
+
   "verdict": "PROCEED-WITH-CAVEATS",
 
-  "report": "SHEPHERD-1b closed S-BS-149 (W1: a shell-side useEffect([agents]) mirroring _resolve_chat_agent on the initial-mount path, app.jsx:265-267, setActiveAgent-only / no remount / idempotent) and S-BS-150 (W2a: foregrounded one-proposal prompt rule, SUPERSET preserved; W2b: an additive turn-scoped PreToolUse pacing hook capping the 7 step-proposing writes to 1/turn, deny hook byte-unchanged + first, fail-open for itself, counter resets per turn). The W2b OPEN QUESTION resolved to per-write==per-step (the simple cap is correct). Honesty note (clarification #1): the authoring tools persist immediately-and-audited (save_judge at app.py:1018-1019), NOT a pending-commit-on-Save gate; the PROOF capsule states the gate accurately as pacing + re-editability + the audit trail. Byte-stability all confirmed: tools.py + _deny_non_lithrim + the A-SAFE surface + the moat (compliance_council.py/signals.py) untouched; guard trio green. Suite: canonical 2 failed/542 passed (the 2 are pre-existing observation sys.modules-pollution flakes, identical at parent da2a0a8); Vitest 1 failed/110 passed (the acknowledged S-BS-145 titlebar test). PROCEED-WITH-CAVEATS only because A1/A2/A3 carry a PENDING-MONITOR-LIVE :5180 re-drive (the executor verified at the code/test layer; the live re-drive + the optional video are the monitor's, per the driver + the HARD-GATE fresh-critic requirement).",
+  "report": "SHEPHERD-1b closed S-BS-149 (W1: a shell-side useEffect([agents]) mirroring _resolve_chat_agent on the initial-mount path, app.jsx:265-267, setActiveAgent-only / no remount / idempotent) and S-BS-150 (W2a: foregrounded one-proposal prompt rule, SUPERSET preserved; W2b: an additive turn-scoped PreToolUse pacing hook capping the 7 step-proposing writes to 1/turn, deny hook byte-unchanged + first, fail-open for itself, counter resets per turn). The W2b OPEN QUESTION resolved to per-write==per-step (the simple cap is correct). Honesty note (clarification #1): the authoring tools persist immediately-and-audited (save_judge at app.py:1018-1019), NOT a pending-commit-on-Save gate; the PROOF capsule states the gate accurately as pacing + re-editability + the audit trail. Byte-stability all confirmed: tools.py + _deny_non_lithrim + the A-SAFE surface + the moat (compliance_council.py/signals.py) untouched; guard trio green. Suite: canonical 2 failed/542 passed (the 2 are pre-existing observation sys.modules-pollution flakes, identical at parent da2a0a8); Vitest 1 failed/110 passed (the acknowledged S-BS-145 titlebar test). CLOSED PROCEED-WITH-CAVEATS: HARD-GATE fresh-critic PASS (0 blocking) + monitor :5181 A-LIVE re-drive done. A1 + A2 (the two target seams S-BS-149 + S-BS-150) CONFIRMED LIVE. A3 (the deferred save->advance demo beat) DID-NOT-REPRODUCE — an honest loss surfacing two pre-existing gaps (S-BS-153 rail<->authoring field-mapping; S-BS-154 lens admissibility), neither a 1b regression; deferred to SHEPHERD-1c. No video (no honest 'rail ticks' beat to film yet). Reported per the honesty-is-the-moat thesis (a manufactured win is a FAIL).",
 
-  "next_session_hint": "monitor: run /devloop-critique bench-salvage SHEPHERD-1b (HARD GATE — fresh critic must confirm _deny_non_lithrim + tools.py + the moat byte-untouched and W2b additive+fail-closed), then the A-LIVE :5180 re-drive of A1/A2/A3 + the optional video capture."
+  "next_session_hint": "SHEPHERD-1c: close S-BS-153 (make the chat/Agent authoring write eval_profile.judges so the rail's Judges step ticks live — OR align the rail predicate to the field the authoring writes) + S-BS-154 (the JudgeEditor must offer only lens codes admissible in the active pack's taxonomy snapshot). Then the A3 save->advance beat reproduces + the demo video is worth capturing. Lower priority: S-BS-152 (reword the stanza's 'approval gate' line to the honest 3-part gate)."
 }
