@@ -144,6 +144,12 @@ def _system_prompt(active_agent: str) -> str:
 # is complete -- so a fully-configured agent's chat is answered, not led.
 _SHEPHERD_STANZA = (
     "SHEPHERD THE ONBOARDING (lead, do not just react):\n"
+    "  ONE STEP PER TURN, THEN STOP (non-negotiable): propose EXACTLY ONE setup step per turn -- "
+    "one config PROPOSAL (one editor card) -- then STOP and end the turn. Do NOT chain multiple "
+    "authoring proposals in a single turn, and do NOT propose the next step until the human has "
+    "acted on the one you surfaced. Reading the live state is FREE: at the start of a turn you may "
+    "freely read (get_agent / get_judge / review_runs) and show/teach -- the one-step cap is on "
+    "config PROPOSALS, not on reads or on a $0 run.\n"
     "  The setup journey has a fixed order: Domain -> Judges -> Ground truth -> Knowledge base "
     "(optional) -> Run -> Review. A step is complete when:\n"
     "    - Domain: the agent has an ontology (an ontology_ref / a bound domain).\n"
@@ -160,8 +166,8 @@ _SHEPHERD_STANZA = (
     "  When the agent is a fresh/empty eval (no judges, no runs), OPEN with brief guidance and "
     "LEAD the next step -- e.g. 'Let's set up your first evaluation. What kind of AI output do "
     "you want to grade?' -- rather than waiting to be asked.\n"
-    "  Propose exactly ONE step at a time (do not dump the whole journey); after each step "
-    "completes, acknowledge it and propose the next incomplete step.\n"
+    "  After the human acts on the one step you surfaced, acknowledge it on the NEXT turn and "
+    "propose the next incomplete step (again, just the one).\n"
     "  PROPOSE, never auto-commit: surface the editor card for the human to Save (the Save IS "
     "the approval gate). Never claim a step is done that the live read does not show as done, "
     "and never claim a capability you do not have.\n"
@@ -173,6 +179,25 @@ _SHEPHERD_STANZA = (
 # The BYO-Claude cost figure the SDK reports is the subscription-EQUIVALENT estimate,
 # not a per-loop charge (fold 4 — cost honesty, consistent with the honest-Δ discipline).
 COST_LABEL = "subscription-equivalent estimate (BYO-Claude desktop — not a per-call charge)"
+
+# SHEPHERD-1b (W2b, S-BS-150): the STEP-PROPOSING write tools — each surfaces a config editor
+# card == one journey step (Domain/Judges/Ground-truth/etc.; one step == one write, confirmed at
+# plan-review). The turn-scoped pacing hook (_pace_one_step) caps these to 1/turn so the shepherd
+# proposes exactly one step and waits. NOT counted (free): reads (get_agent/get_judge/review_runs),
+# the $0 replays (run_eval/run_eval_pack — a $0 run after an edit is the natural payoff, not a
+# second proposal), and the look/teach directives (show_case/focus_artifact/kb_context/
+# propose_live_run). This is a SET of tool NAMES; tools.py is byte-stable.
+_STEP_PROPOSING_WRITES = frozenset(
+    {
+        "author_judge",
+        "author_flag",
+        "create_flag",
+        "delete_flag",
+        "assemble_agent",
+        "delete_judge",
+        "add_grounding_contract",
+    }
+)
 
 
 async def _deny_non_lithrim(input_data, tool_use_id, context):
@@ -217,11 +242,48 @@ def _build_options(ctx: ToolContext):
     tools = build_sdk_tools(ctx)
     server = create_sdk_mcp_server(name="lithrim", version="0.1.0", tools=tools)
     allowed = [f"mcp__lithrim__{name}" for _, name, *_ in _TOOL_SPECS]
+
+    # SHEPHERD-1b (W2b, S-BS-150): one-step-and-wait, mechanically enforced. _build_options is
+    # rebuilt PER TURN (_real_source: opts = _build_options(ctx)), so this turn-local counter
+    # resets by construction every turn. The hook ADDS a second PreToolUse matcher alongside the
+    # A-SAFE _deny_non_lithrim (which stays byte-unchanged and FIRST -- the SDK runs all matchers,
+    # and a PreToolUse deny prevents the audited write, so no second card is fabricated). It is
+    # fail-OPEN for ITSELF (any error -> {} == allow): safe because it can only ever ADD a deny,
+    # never remove one -- _deny_non_lithrim still independently governs the security bound.
+    pacing = {"writes": 0}
+
+    async def _pace_one_step(input_data, tool_use_id, context):
+        try:
+            name = (input_data or {}).get("tool_name") or ""
+            if name.startswith("mcp__lithrim__"):
+                name = name[len("mcp__lithrim__") :]
+            if name not in _STEP_PROPOSING_WRITES:
+                return {}  # reads, $0 runs, look/teach directives are free -- never counted
+            pacing["writes"] += 1
+            if pacing["writes"] <= 1:
+                return {}  # the FIRST step this turn -- allow it
+            # a 2nd+ config proposal this turn: pace it (graceful, not an error to the human)
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "One setup step per turn: you've already proposed a step this turn. "
+                        "Surface that one card, ask the human to review/save it and tell you to "
+                        "continue, then set up the next step on the following turn."
+                    ),
+                }
+            }
+        except Exception:
+            return {}  # fail-open for the pacing hook only; the deny hook is the real bound
+
     return ClaudeAgentOptions(
         mcp_servers={"lithrim": server},
         allowed_tools=allowed,  # defense-in-depth; the deny hook below is the real bound
         permission_mode="bypassPermissions",
-        hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[_deny_non_lithrim])]},
+        hooks={
+            "PreToolUse": [HookMatcher(matcher=None, hooks=[_deny_non_lithrim, _pace_one_step])]
+        },
         setting_sources=[],  # SDK isolation: no inherited ~/.claude settings / MCP servers
         skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
         system_prompt=_system_prompt(ctx.default_agent),  # CHATBIND-1: name the active agent
