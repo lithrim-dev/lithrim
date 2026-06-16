@@ -2383,6 +2383,31 @@
       "created": "2026-06-16",
       "last_re_verified": "2026-06-16 (monitor authoring; harness/admissibility.py:43-57 / harness/workspace.py:54,121 / apps/bff/app.py:353,681,719,733,760,775 / apps/shell/src/app.jsx:82-89 / packs/support_ticket_qa/{pack,taxonomy_snapshot}.json re-read against bench-salvage/ws6c-dspy HEAD df64f2f)",
       "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve D-A (post the full proposed taxonomy_snapshot.json) FIRST."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-2-jute-extractor-ingest-tool-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-2",
+      "scope": "jute-per-scene-extractor-and-ingest_cases-chat-tool-the-eval-anything-ingestion-half",
+      "file": "bench-salvage_phaseNARR-2_jute-extractor-ingest-tool_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic session required (/devloop-critique bench-salvage NARR-2). Touches the verification plane (lithrim_bench/verification/jute_extractor.py, net-new) + adds the 17th SDK-MCP chat tool (ingest_cases) with a LIVE-SERVICE dependency (:3031). The load-bearing invariant is TRUST-MODEL SEPARATION (A4): the jute_transform extractor is INGESTION-ONLY and must NEVER be added to _FLOOR_CONTRACT_TYPES / reach _apply_consensus/signals.py (don't collapse trust models -- memory jute-generated-contracts-unification). The MOAT is byte-frozen (compliance_council/_apply_consensus/signals/judge_metric.LENS_BY_ROLE + the A-SAFE _deny_non_lithrim hook = 0 diff; guard-trio tripwire green). Critic must confirm: A4 NON-VACUOUS (perturb: try to register the extractor as a contract -> the grade path must not pick it up), the structural-invariant A1 really rejects a mis-join (perturb the join key -> null -> score 0), and nothing was pinned/persisted on the error paths (A3 negative).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_NARRATIVE_EVAL.md",
+        "docs/specs/SPEC_GROUNDING_TOOL_LAYER.md",
+        "lithrim_bench/verification/jute_dspy.py",
+        "lithrim_bench/verification/etlp_client.py",
+        "apps/bff/agent/tools.py",
+        "tests/verification/test_jute_dspy.py"
+      ],
+      "_note": "Authored 2026-06-16 by the monitor from SPEC_NARRATIVE_EVAL (df64f2f) §4.2/§6 P0/§8/§12, with every §12 anchor re-grepped. CORRECTION baked into the driver: the spec cites _TOOL_SPECS:603-744 / _build_tool_context:1595-1910 in apps/bff/app.py, but the tool registry actually lives in apps/bff/agent/tools.py (_TOOL_SPECS:603, ToolContext:138, add_grounding_contract_handler:492 = the audited-write pattern to mirror, build_sdk_tools:748); only the bound-fn construction (_build_tool_context) is in app.py:1611; _resolve_chat_agent drifted to app.py:1582. The TASK_PACK has NO NARR entries (authored from the spec per the bench-salvage UAP-from-spec convention; backfill the pack opportunistically). Deliverables: jute_extractor.py (JuteExtractorSignature + score_extraction with the zero-null/count==expected structural invariant + best_of_n_extractor, parallels jute_dspy.py, ingestion-only) + the ingest_cases tool (17th; drop JSON -> generate jute_transform -> live-gate :3031 -> present -> on accept pin via persist_or_update + audited corpus upsert). Plan-review must resolve D-A (live-gate against a real :3031 endpoint; no /health route) / D-B (spec.py registration DEFAULT-SKIP -- never a floor contract) / D-C (the corpus-upsert target load_case reads; split the gradeable-upsert to a seam if heavier than the P0 'present+pin' exit) / D-D (bridge->scene offset = P1 stub). XFORM-1 folds in here (retired). NOT in scope: NARR-3 floor executors, NARR-4 frontend/multi-model council, sidecar bundling, FHIR reuse, any new gradeable flag/re-snapshot.",
+      "created": "2026-06-16",
+      "last_re_verified": "2026-06-16 (monitor authoring; jute_dspy.py:130/172/200/279/311/333/421 + etlp_client.py:48/97/141/155 + spec.py:44 + apps/bff/agent/tools.py:138/492/603/748 + apps/bff/app.py:109/294/540/1244/1582/1611 re-grepped against bench-salvage/ws6c-dspy HEAD cfe4b6d; :3031 live [404s /health, answers])",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve D-A..D-D. HARD GATE -> fresh-critic at close."
     }
   ]
 }
