@@ -43,6 +43,8 @@
 
 ## Current cycle
 
+> **🆕 NARR — the narrative-eval wedge ("eval anything" CE), `docs/specs/SPEC_NARRATIVE_EVAL.md` (`df64f2f`).** One ingest→author→grade loop proving CE is domain-agnostic: StoryWorld (accessible) + Healthcare (deep), same machine. **NARR-1 ✅ CLOSED 2026-06-16** (`08cc25c`+`c1e5997`, **data-only**: `packs/narrative/` pack + 1 test; a StoryWorld scene grades to a verdict under `pack=narrative` with healthcare unloaded + 0 leakage; A1–A6 GREEN; snapshot-consistency lint NON-VACUOUS [3 perturbations caught]; Routine inline-critique CLEAN). Grounding `wf_8715f73a-0ec` **REFUTED the "clinical-taxonomy wall"** — admissibility is PACK-BOUND (`harness/admissibility.py:43-57`) and the workspace/pack UI already exists (`apps/shell/src/app.jsx:82-89`), so NARR-1 was pure pack DATA (smaller than the spec's "+ UI hook"). **NEXT = NARR-2** (the JUTE per-scene extractor + the `ingest_cases` chat tool — the retired XFORM-1 folds in) → NARR-3 (deterministic floor executors) → NARR-4 (frontend demo). Handoff: `.devloop/sessions/HANDOFF_bench-salvage_NARR-1_2026-06-16.md`.
+
 | Cycle | Status | Note |
 |---|---|---|
 | **M1** — salvaged council + sync orchestrator in-process | **done 2026-05-30** | case-1 `reject==reject` (1/1); `FABRICATED_HISTORY` caught; `MEDICATION_NOT_IN_TRANSCRIPT` CONFIRMED FP. Persisted-judge-reasoning enabler landed. 82 tests green. Now a **WS-6 input** (the compartmentalize-local target), not the spine. Artifacts: `out/scribe_v1.local{,.guardfix}.ndjson`; handoff `docs/HANDOFF_BENCH_SALVAGE_2026-05-29.md`. |

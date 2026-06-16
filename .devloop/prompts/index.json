@@ -2367,7 +2367,7 @@
       "phase": "NARR-1",
       "scope": "narrative-domain-pack-data-only-eval-anything-CE-wedge",
       "file": "bench-salvage_phaseNARR-1_narrative-pack_driver.md",
-      "status": "ready",
+      "status": "shipped -- closed 2026-06-16 (08cc25c+c1e5997, 2 commits data-only, parent 935a36c; all acceptance A1-A6 GREEN: snapshot-consistency lint [NON-VACUOUS, 3 perturbations caught] + standalone-grade [clean->approve, BRACKET_LEAK->reject, 0 packs/healthcare reads, mirrors test_standalone_ce] + data-only diff [packs/narrative + tests ONLY, zero engine/BFF/shell]; ruff clean; pack-neighbor regression 59p/30-skip; Routine inline-critique CLEAN, no fresh-critic). Refinement vs spec: NARR-1's '+ UI hook' was ALREADY built (the shell pack-picker app.jsx:82-89) so this cycle was pure pack DATA. NEXT = NARR-2 (JUTE extractor + ingest_cases tool; the retired XFORM-1 folds in).",
       "version": "v1",
       "hardness": "Routine cycle -- monitor inline critique at close. DATA-ONLY (a new isolated packs/narrative/ pack + one standalone-grade test); ZERO moat surface, ZERO engine/BFF/shell edits (acceptance A5), no verdict-flip, no paid run. The deterministic gate is supreme: the snapshot-consistency lint (A2) + the standalone-grade test (A3, mirrors test_standalone_ce.py) + the data-only diff (A5). NOT HARD-GATE (no moat surface, no edit to an existing ontology-of-record, no paid run). The critic must confirm A2 is NON-VACUOUS (the consistency checks really fail on a malformed snapshot) and A5 holds (no code leaked in).",
       "target_repos": [
