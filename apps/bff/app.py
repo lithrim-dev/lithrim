@@ -1882,6 +1882,126 @@ def _build_tool_context(
         )
         return {"flag_code": flag_code, "version": version, "replaced": replaced, **put}
 
+    # ── NARR-2: the "eval anything" INGESTION binding — drop JSON → generate a JUTE transform →
+    # live-gate on :3031 → apply → PIN → upsert the workspace corpus + write ONE AuditRecord.
+    def _ingest_cases(
+        json_dump: str, extraction_rules: str = "", agent: str = ""
+    ) -> dict:
+        # INGESTION-ONLY (trust-model separation, SPEC_NARRATIVE_EVAL A4): this builds + pins a
+        # jute_transform via EtlpJuteClient DIRECTLY (like add_grounding_contract calls its bound
+        # write) — the extractor NEVER enters _CONTRACT_EXECUTORS / the grade-time floor. $0/BYO-key
+        # author transform, never a paid council run. The structural output-invariant
+        # (score_extraction) gates BOTH at generation time (live test_template) and at apply time;
+        # a mis-join returns null → rejected (RuntimeError surfaced by the handler), NOTHING pinned.
+        from lithrim_bench.harness import workspace as _ws
+        from lithrim_bench.verification import (
+            EtlpJuteClient,
+            best_of_n_extractor,
+            build_extractor_generator,
+            render_dsl_excerpt,
+            score_extraction,
+        )
+
+        ag_name = agent or req_agent
+        try:
+            sample = json.loads(json_dump)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"the ingested JSON did not parse: {exc}") from exc
+        # expected_count = the number of source entries the transform must yield one case each from.
+        # For a StoryWorld session that is the enhanced_scenes count; fall back to a top-level list
+        # length, else 1. (A heuristic for the generation oracle — the human can refine the rules.)
+        scenes = (
+            (sample.get("resource", {}).get("metadata", {}) or {}).get("enhanced_scenes")
+            if isinstance(sample, dict)
+            else None
+        )
+        if isinstance(scenes, dict):
+            expected_count = len(scenes)
+        elif isinstance(sample, list):
+            expected_count = len(sample)
+        else:
+            expected_count = 1
+        rules = extraction_rules or (
+            "Normalize this JSON dump into a per-entry array of eval cases; emit one record per "
+            "source entry with at least case_id and response (the graded content)."
+        )
+
+        client = EtlpJuteClient()
+        # live-gate at generation time: the loop scores every candidate against :3031 via
+        # test_template (a :3031-down / non-compiling candidate scores 0 and never accepts).
+        excerpt = render_dsl_excerpt(client.get_dsl_spec(), include_envelope_example=False)
+
+        def make_gen():
+            return build_extractor_generator(
+                client, excerpt, sample, expected_count=expected_count
+            )
+
+        pred = best_of_n_extractor(make_gen, rules, sample, n=3)
+        template = getattr(pred, "jute_transform", "") or ""
+        if not getattr(pred, "accepted", False):
+            raise RuntimeError(
+                f"the extractor did not converge to a clean {expected_count}-case transform "
+                f"(structural output-invariant unmet); nothing pinned"
+            )
+        # apply-time re-gate: confirm the accepted template still satisfies the invariant on apply.
+        scored = score_extraction(client, template, sample, expected_count=expected_count)
+        if not scored["accepted"]:
+            raise RuntimeError(
+                f"the pinned transform failed the apply-time invariant "
+                f"(count={scored['count']}, nulls={scored['nulls']}); nothing pinned"
+            )
+        cases = scored["cases"]
+
+        # PIN the converged transform as an etlp mapping (idempotent persist_or_update).
+        pin = client.persist_or_update(f"ingest-{ag_name}", template)
+        mapping_id = pin.get("id")
+
+        # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
+        # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
+        # registration (picklist PACK_FILES so they run through the grade) is the NARR-2→NARR-4
+        # bridge (flagged as a seam — heavier than the §6 "5 pinned cases" exit).
+        ws = _ws.get_active_workspace()
+        corpus_path = ws.out_dir / "ingested_cases.jsonl"
+        ws.out_dir.mkdir(parents=True, exist_ok=True)
+        existing: dict[str, dict] = {}
+        if corpus_path.exists():
+            for line in corpus_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("case_id"):
+                    existing[row["case_id"]] = row
+        for c in cases:
+            if c.get("case_id"):
+                existing[c["case_id"]] = c
+        corpus_path.write_text(
+            "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
+            + ("\n" if existing else "")
+        )
+
+        # ONE AuditRecord — the audit IS the product (§2B). "ingested N cases via pinned mapping M".
+        actor_resolved = _resolve_actor(x_actor, actor)
+        AuditLog(db_path=db_path).record(
+            AuditRecord(
+                actor=actor_resolved,
+                action="ingest",
+                target=Target(type="corpus", id=ag_name),
+                why={"rationale": f"ingested {len(cases)} cases via pinned mapping {mapping_id}"},
+                before=None,
+                after={
+                    "mapping_id": mapping_id,
+                    "count": len(cases),
+                    "corpus": str(corpus_path),
+                    "case_ids": [c.get("case_id") for c in cases],
+                },
+            )
+        )
+        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases)}
+
     # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
     def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
         # Read-only retrieval over KbRagTool (GET :8002/v1/kb/{ns}/search). The kb:read key is read
@@ -1906,6 +2026,7 @@ def _build_tool_context(
         delete_flag=_delete_flag,
         put_grounding_contract=_put_grounding_contract,
         kb_context=_kb_context,
+        ingest_cases=_ingest_cases,
         default_agent=req_agent,
     )
 

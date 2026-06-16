@@ -129,6 +129,19 @@ ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
 # for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
 # clears on these flags, so this is retrieval-only — informative, never a clear). No PAID_KEY.
 KB_CONTEXT_SCHEMA: dict[str, Any] = {"query": str, "namespace": str, "top_k": int}
+# NARR-2 — INGEST cases: drop a JSON dump → generate a JUTE jute_transform → live-gate on :3031 →
+# apply → PIN (persist_or_update) → upsert the workspace corpus + write ONE AuditRecord. The
+# "eval anything" ingestion half. The bound _ingest_cases owns generate/gate/pin/upsert/audit; the
+# handler surfaces a structured error (invariant failed / :3031 down / nothing pinned) exactly as
+# add_grounding_contract surfaces 404/422 — never bypassed, NEVER a paid run. NO PAID_KEY: ingestion
+# is the author-side JUTE transform ($0/BYO-key), not a council grade. `json` is the dump (string);
+# `extraction_rules`/`agent` are optional. The extractor is INGESTION-ONLY — it never reaches the
+# grade-time floor (trust-model separation; SPEC_NARRATIVE_EVAL A4).
+INGEST_CASES_SCHEMA: dict[str, Any] = {
+    "json": str,
+    "extraction_rules": str,
+    "agent": str,
+}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -168,6 +181,12 @@ class ToolContext:
       An audited $0 config write — the conversational "add grounding contracts" move.)
     - ``kb_context(query, namespace, top_k) -> dict``  (KB-CONTEXT-1: read-only KB RETRIEVAL — the
       honest "show the relevant HIPAA section" context aid; returns chunks, NEVER changes a verdict.)
+    - ``ingest_cases(json_dump, extraction_rules, agent) -> dict``  (NARR-2: the "eval anything"
+      ingestion half — generate a JUTE jute_transform, live-gate on :3031, apply, PIN
+      (persist_or_update), upsert the workspace corpus + write ONE AuditRecord. Returns
+      {cases, mapping_id, count}. Raises on an invariant failure / :3031 down — the handler
+      surfaces it and NOTHING is pinned. INGESTION-ONLY: the extractor never reaches the
+      grade-time floor (trust-model separation). $0/BYO-key — never a paid run.)
     - ``default_agent``: the agent the tools default to.
     """
 
@@ -184,6 +203,7 @@ class ToolContext:
     delete_flag: Callable[..., dict]
     put_grounding_contract: Callable[..., dict]
     kb_context: Callable[..., dict]
+    ingest_cases: Callable[..., dict]
     default_agent: str = "ws0_default"
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
@@ -522,6 +542,45 @@ async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any])
     )
 
 
+async def ingest_cases_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # NARR-2 (audited INGESTION): drop a JSON dump → the bound ctx.ingest_cases generates a JUTE
+    # jute_transform, live-gates it on :3031, applies it, PINs the mapping, upserts the workspace
+    # corpus, and writes ONE AuditRecord. The handler holds NO generate/pin logic of its own — it
+    # forwards + SURFACES a structured error (the structural invariant failed / :3031 down /
+    # nothing pinned) exactly as add_grounding_contract surfaces 404/422 — never bypassed, NEVER a
+    # paid run (ingestion is the author-side $0/BYO-key JUTE transform, not a council grade). On
+    # success it emits a `corpus` focus part (open the corpus tab to see the ingested cases).
+    json_dump = str(args.get("json") or "")
+    extraction_rules = str(args.get("extraction_rules") or "")
+    agent = str(args.get("agent") or ctx.default_agent)
+    if not json_dump.strip():
+        return _error(
+            "ingest_cases needs a `json` dump (the AI-system output to extract eval cases from). "
+            "Nothing was ingested or pinned."
+        )
+    try:
+        res = ctx.ingest_cases(
+            json_dump=json_dump, extraction_rules=extraction_rules, agent=agent
+        )
+    except Exception as exc:  # invariant failure / :3031 down / persist error — surface, never pin
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not ingest cases: {detail}. NOTHING was pinned or upserted (the structural "
+            f"output-invariant — a JSON array of N records, zero-null on the required keys — held; "
+            f"a mis-join returns null, so it is rejected, not silently shipped). Refine the "
+            f"extraction rules or check the :3031 mapper is up, then retry."
+        )
+    count = res.get("count") or len(res.get("cases") or [])
+    mapping_id = res.get("mapping_id")
+    ctx.emit(open_artifact_part("corpus"))
+    return _text(
+        f"Ingested {count} case(s) from the JSON dump for agent {agent!r} via pinned mapping "
+        f"{mapping_id} — extracted, live-gated on :3031, PINNED, and upserted to the workspace "
+        f"corpus (one audit record written; $0, no paid run). Open the corpus tab to review them, "
+        f"then author criteria + grade."
+    )
+
+
 async def kb_context_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # KB-CONTEXT-1 ($0/read-only): retrieve the relevant KB section(s) for a topic/finding and SHOW
     # them — the honest CONTEXT AID. It NEVER changes a verdict (retrieval-only; kb_grounding-as-
@@ -741,6 +800,19 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "the index name 'hipaa-compliancev2'. $0, READ-ONLY — it retrieves and displays; it NEVER "
         "changes a verdict or clears a finding. Use it to ground a discussion in the source policy.",
         KB_CONTEXT_SCHEMA,
+    ),
+    (
+        ingest_cases_handler,
+        "ingest_cases",
+        "INGEST eval cases from a JSON dump of an AI system's output (the 'eval anything' move): "
+        "generate a JUTE transform behind the scenes, live-gate it on the :3031 mapper, apply it, "
+        "PIN the mapping, and upsert the extracted cases into the workspace corpus (one audit "
+        "record). Shape: {json, [extraction_rules], [agent]}. The extracted cases are UNLABELED by "
+        "construction (the dump is the SUT input, not gold). $0/BYO-key — never a paid run; the "
+        "extractor is ingestion-only and never touches the grade-time floor. A structural-invariant "
+        "failure (a mis-join → null → rejected) or a :3031-down path surfaces an error and pins "
+        "NOTHING — surface it, refine the rules, do not retry blindly.",
+        INGEST_CASES_SCHEMA,
     ),
 ]
 

@@ -30,7 +30,6 @@ if str(_BFF) not in sys.path:
 from agent import tools as agent_tools  # noqa: E402
 from agent.loop import _deny_non_lithrim  # noqa: E402
 
-
 # ── STRUCTURAL / A-SAFE (plain core — SDK-free) ──────────────────────────────────
 
 
