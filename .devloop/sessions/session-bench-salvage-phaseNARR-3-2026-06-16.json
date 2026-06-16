@@ -1,0 +1,154 @@
+{
+  "session_id": "session-bench-salvage-phaseNARR-3-2026-06-16",
+  "stream": "bench-salvage",
+  "phase": "NARR-3",
+  "driver_bundle_id": "bench-salvage-phaseNARR-3-narrative-floor-executors-driver",
+  "started_at": "2026-06-16T00:00:00Z",
+  "ended_at": "2026-06-16T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-16T00:00:00Z",
+    "user_approved_at": "2026-06-16T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Driver IS the standing approval (autonomous mode); the plan was pre-approved by the owner per the kickoff. R1-R4 all resolved in-driver.",
+        "evidence": "kickoff: 'The plan-review was APPROVED by the owner — implement it.'",
+        "decided_at": "2026-06-16T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Stale-invariant update to tests/test_narrative_pack.py (the 7th file, outside the 6 deliverables): two NARR-1-era assertions that NARR-3 directly supersedes — `ont[\"verification_contracts\"] == []` and `n_verification_contracts == 0`. Updated to the NARR-3 reality (3 attached floor contracts; floors are in_process so :8002 still never reached). The tests were correct for NARR-1, not bent to the code.",
+        "evidence": "tests/test_narrative_pack.py:91 (was: assert ont['verification_contracts'] == []) and :271 (was: assert n_verification_contracts == 0)",
+        "decided_at": "2026-06-16T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Reshaped the legacy clean fixture narrative_jinn_exposure_clean (in deliverable #6's narrative_v1.jsonl) from an 11-sentence 2-scene glue to a faithful single 4-sentence per-scene clean_text (the Ranger's Arrival scene the transcript already references) + stamped finish_reason:stop/source:enhanced. CONFIRMED via evidence: the prior content was 11 sentences (paragraphs=2), tripping the now-attached LENGTH_VIOLATION floor (band 3-4) → BLOCK. The 2-scene glue was a NARR-1 authoring artifact predating the floor and violated the per-scene case contract (SPEC §4.2: response->artifacts[0].content = one scene's clean_text). This honors A4 (clean case stays approve) + the CLAUDE.md 'labels true by construction' invariant.",
+        "evidence": "diagnose: sentence_count(whole artifact)=11; ranger-arrival-alone=4; floor: length_violation conforms=False evidence={'sentence_count': 11, 'min_sentences': 3, 'max_sentences': 4}",
+        "decided_at": "2026-06-16T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "bb3759f",
+      "repo": "lithrim-bench",
+      "title": "test(narrative): NARR-3 floor executors acceptance — red",
+      "summary": "A1..A6 acceptance tests written first; RED = 8 failed (floors module + TOOL_BRACKET_LEAK + violation case all absent)."
+    },
+    {
+      "hash": "ed99e27",
+      "repo": "lithrim-bench",
+      "title": "feat(verification): register the 3 narrative floor tool-names (NARR-3, Option A)",
+      "summary": "Additive-only spec.py: 3 tool-name constants + _KNOWN_TOOLS + _REQUIRED_REFERENCE_KEYS; __post_init__ and the 6 prior tools byte-unchanged."
+    },
+    {
+      "hash": "f8e60f3",
+      "repo": "lithrim-bench",
+      "title": "feat(narrative): deterministic floor executors — bracket/length/silent-degradation",
+      "summary": "packs/narrative/floors.py (3 pure-stdlib in_process tools + FLOOR_EXECUTORS) + pack.json 'floors' key."
+    },
+    {
+      "hash": "1877d71",
+      "repo": "lithrim-bench",
+      "title": "feat(narrative): attach the floor contracts in the pack ontology",
+      "summary": "ontology.json verification_contracts (3 decls; LENGTH_VIOLATION MEDIUM per R2) + 3 by-construction violation cases + the clean-case reshape + the 2 stale-test updates."
+    },
+    {
+      "hash": "24c72fc",
+      "repo": "lithrim-bench",
+      "title": "fix(narrative): NARR-3 Gate-0 corrections — needle-scrub floors.py + pack-guard A4",
+      "summary": "floors.py docstring scrubbed of a 'dosage'/'healthcare' needle (test_a2); the 3 A4 ground()-integration tests skip under a non-narrative active pack."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "LITHRIM_BENCH_PACK=narrative LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare PYENV_VERSION=debuglithrim python -m pytest tests/test_narrative_floor.py -q",
+    "red_evidence": "8 failed in 0.19s. RED is genuine and for the right reason: A1/A2/A3 fail on the absent packs/narrative/floors.py (FileNotFoundError/module missing); A4 ground()-integration fails (no floor executor); A5 subprocess fails with 'narrative violation case did not load' (narrative_jinn_silent_degradation absent from the JSONL); A6 raises 'AttributeError: module lithrim_bench.verification.spec has no attribute TOOL_BRACKET_LEAK'.",
+    "green_command": "Gate 0 (a) narrative + Gate 0 (b) healthcare, both: LITHRIM_BENCH_PACK=<pack> LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare PYENV_VERSION=debuglithrim python -m pytest -q ; ruff check on all touched files.",
+    "green_evidence": "Gate 0 (a) targeted (pack=narrative): tests/test_narrative_floor.py tests/test_narrative_pack.py -> 11 passed in 2.15s (8 floor A1-A6 + 3 narrative_pack). Gate 0 (a) full (pack=narrative, ignoring the 14 pre-existing generator-import modules): 104 failed, 482 passed, 5 skipped — IDENTICAL 104 pre-existing pack-activation failures as parent 582ee94 (parent: 104 failed, 471 passed); 0 new failures, +11 net passing = my new tests. Gate 0 (b) full (pack=healthcare, the conftest-green clinical env): 3 failed, 586 passed, 8 skipped — STABLE across two runs; the 3 are the driver's named pre-existing set (test_pack_dist::test_a2 + 2 observation order-pollution tests that pass in isolation), a strict SUBSET of parent's 8 (parent run-order-pollution had +5 test_eval_flow/test_ws5_bff, also order-pollution, pass-in-isolation). ruff: All checks passed!"
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — bracket_leak fires (marker-targeted, not any bracket pair)",
+      "test": "tests/test_narrative_floor.py::test_bracket_leak_violation_and_clean",
+      "verdict": "PASS",
+      "evidence": "conforms=False on '[READER FEELING: tense]'; True on clean prose AND on a legitimate lowercase in-prose bracket '[it was faded]'; None on empty/None subject. (pack=narrative: passed.)"
+    },
+    {
+      "criterion": "A2 — length_violation fires",
+      "test": "tests/test_narrative_floor.py::test_length_violation_and_clean",
+      "verdict": "PASS",
+      "evidence": "conforms=False on a 1-sentence and a 6-sentence preamble; True on 3- and 4-sentence; None on empty. (band {min:3,max:4} from spec.reference.)"
+    },
+    {
+      "criterion": "A3 — silent_degradation fires (the headline; provenance off claim.source)",
+      "test": "tests/test_narrative_floor.py::test_silent_degradation_violation_clean_and_inconclusive",
+      "verdict": "PASS",
+      "evidence": "conforms=False on finish_reason=content_filter + source=baseline (driven from storyworld_session.json scene_content_filtered_fallback); True on stop/enhanced and on content_filter/enhanced (non-demotion); None when either provenance field is absent."
+    },
+    {
+      "criterion": "A4 — the floor flips the verdict via ground()",
+      "test": "tests/test_narrative_floor.py::test_silent_degradation_flips_pass_to_block + ::test_clean_case_stays_pass_floor_blocks_empty + ::test_inconclusive_silent_degradation_never_flips",
+      "verdict": "PASS",
+      "evidence": "degraded case: g.original_verdict==PASS, g.verdict==BLOCK, composite==reject, floor_blocks carries SILENT_DEGRADATION; clean case stays PASS/approve, floor_blocks injected==[]; inconclusive case (provenance absent) never flips (injected_finding None). Skips cleanly under a non-narrative active pack (pack-guarded)."
+    },
+    {
+      "criterion": "A5 — admissibility, pack-bound, zero leakage (subprocess pack=narrative)",
+      "test": "tests/test_narrative_floor.py::test_narrative_floor_grades_under_pack_narrative",
+      "verdict": "PASS",
+      "evidence": "subprocess LITHRIM_BENCH_PACK=narrative + sys.addaudithook: narrative_jinn_silent_degradation grades through load_case + ground() -> stage_verdict=BLOCK, verdict=reject, SILENT_DEGRADATION in active_codes, n_verification_contracts==3, floor_block_count>=1, healthcare_reads==[]."
+    },
+    {
+      "criterion": "A6 — moat + clinical floor regression-clean (_KNOWN_TOOLS additive)",
+      "test": "tests/test_narrative_floor.py::test_known_tools_additive_and_three_new_registered + Gate 0 (b)",
+      "verdict": "PASS",
+      "evidence": "the 6 prior tools remain in _KNOWN_TOOLS (additive, disjoint from the 3 new); _REQUIRED_REFERENCE_KEYS shapes verified (dosage_grounding={dose_regex} untouched; length_violation={min_sentences,max_sentences}; bracket_leak/silent_degradation=set()). Gate 0 (b) pack=healthcare: the clinical floor + suite stay 0-new-failure. spec.py diff purely additive."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "inject_severity_per_floor": "BRACKET_LEAK=HIGH (TIER_1->BLOCK), SILENT_DEGRADATION=HIGH (TIER_1->BLOCK), LENGTH_VIOLATION=MEDIUM (R2 owner pick; blocks at block_at_or_above=0.5)",
+    "resulting_verdict_per_floor": "all three -> BLOCK (composite reject) on their by-construction violation case; R2 LENGTH_VIOLATION MEDIUM=0.5 >= block_at_or_above=0.5 -> BLOCK (confirmed live).",
+    "violation_example_cases_added": "3 (narrative_jinn_silent_degradation, narrative_bracket_leak, narrative_length_violation); each fires EXACTLY its one expected_safety_flag (by-construction single-defect verified).",
+    "spec_py_edit": "purely additive: 3 constants + 3 _KNOWN_TOOLS entries + 3 _REQUIRED_REFERENCE_KEYS entries; no - lines on the 6 prior tools or __post_init__.",
+    "moat_byte_freeze": "git diff 582ee94 HEAD -- compliance_council.py signals.py withstands.py judge_metric.py apps/bff/agent/tools.py == EMPTY.",
+    "scope": "7 files = the 6 deliverables + tests/test_narrative_pack.py (the surfaced stale-invariant update). No NOT-in-scope file touched."
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-NARR3-1",
+      "title": "conftest has no pack=narrative notion — the full suite cannot collect/run green under the canonical narrative env",
+      "severity": "medium",
+      "fix_location": "conftest.py (_IGNORE_MODULES_WHEN_BARE_CE / _NEEDS_PACK_FUNCS — they key on healthcare-discoverable vs bare-CE, never the active pack)",
+      "impact": "Under LITHRIM_BENCH_PACK=narrative + LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare, modules that load the active pack's generators at import (test_structural_backend etc.) error-on-collect, and the clinical-grade NEEDS_PACK tests fail (narrative has no clinical codes). 104 pre-existing failures, IDENTICAL count at parent — NOT introduced by NARR-3. The honest narrative-env gate is the targeted narrative suite; the regression gate is pack=healthcare.",
+      "confidence": "CONFIRMED",
+      "evidence": "parent 582ee94 under pack=narrative (same ignores) = 104 failed, 471 passed; conftest.py:237-256 (pytest_ignore_collect/modifyitems gate on _healthcare_discoverable(), not active_pack())."
+    },
+    {
+      "id": "S-BS-NARR3-2",
+      "title": "test_pack_dist::test_a2 flags the narrative pack's needle-free-CLAIM prose (a self-referential false positive)",
+      "severity": "low",
+      "fix_location": "packs/narrative/ontology.json:3 + packs/narrative/taxonomy_snapshot.json:4 (the _provenance.note recites the needle words to assert their absence) OR tests/test_pack_dist.py _PASSIVE_CARVE_OUT",
+      "impact": "test_a2 (data-surface clinical-free scan) fails on the 2 narrative note lines because the needle-free CLAIM sentence ('no HIPAA/patient/.../transcript wording') contains the very substrings the scanner greps. Pre-existing at parent (CONFIRMED: identical 2 lines flagged at 582ee94). NARR-3 scrubbed its own floors.py needle (the only NEW hit) so it does NOT worsen test_a2.",
+      "confidence": "CONFIRMED",
+      "evidence": "parent 582ee94 test_a2 flags exactly packs/narrative/ontology.json:3 + packs/narrative/taxonomy_snapshot.json:4 (same as HEAD); floors.py needle scan at HEAD == NONE after the scrub."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "NARR-3 lands the 3 deterministic narrative FLOOR executors (bracket_leak/length_violation/silent_degradation) in packs/narrative/floors.py + the one additive core registration in verification/spec.py (Option A) + attaches the 3 verification_contracts in the pack ontology. All 6 acceptance criteria A1-A6 PASS; tests were RED-first (8 failed) then GREEN. The SILENT_DEGRADATION day-one proof works: a content_filter+baseline case flips a council PASS -> BLOCK -> reject through ground(), with floor_blocks carrying the injected finding, zero packs/healthcare reads. MOAT is byte-frozen (empty diff on the 5 frozen files); the spec.py edit is purely additive. CAVEATS: (1) the cycle reshaped the legacy clean fixture (11-sentence 2-scene glue -> a faithful 4-sentence per-scene clean_text) because the now-attached LENGTH_VIOLATION floor correctly flagged the over-long glued scene — a by-construction correctness fix, surfaced and logged; (2) it updated 2 stale NARR-1-era assertions in test_narrative_pack.py (verification_contracts==[] / n_verification_contracts==0) to the NARR-3 reality. On audit, check first: the 3 named pre-existing failures (test_pack_dist::test_a2 + the 2 observation order-pollution tests, all confirmed pre-existing at parent) and the moat byte-freeze.",
+
+  "next_session_hint": "monitor should trigger a FRESH-CRITIC session (HARD GATE) per .devloop/prompts/KICKOFF_CRITIC.md: verify the moat byte-freeze + the spec.py additive-only claim non-vacuously; confirm A1-A6 reproduce; sanity-check the clean-fixture reshape + the 2 test_narrative_pack invariant updates."
+}
