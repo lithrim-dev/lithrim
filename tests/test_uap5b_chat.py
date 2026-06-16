@@ -279,14 +279,16 @@ def test_agent_package_does_not_pull_the_sdk_at_import():
 
 
 def test_tool_set_is_the_uap5c_journey_set():
-    """The complete set (16 tools): the UAP-5b spine (author_judge/get_judge/run_eval) + the
+    """The complete set (17 tools): the UAP-5b spine (author_judge/get_judge/run_eval) + the
     UAP-5c journey tools (get_agent/author_flag/review_runs) + the UAP-5c-2 split
     (run_eval_pack batch + assemble_agent edit-one-facet) + the CRUD-1 delete_judge revert +
     the FLAG-1 reference-flag create_flag/delete_flag + the CHATBIND-2 focus_artifact pane
     directive + the CHATBIND-3 show_case (source-input card) + the CHATBIND-4 propose_live_run
-    (the consented paid-run hand-off -- $0 directive, the human's confirm spends). The exact-bound
-    + no-paid-knob assertions live in tests/test_uap5c_journey.py (S-BS-81); the focus_artifact /
-    show_case / propose_live_run A-SAFE bounds live in tests/test_chatbind2_pane.py."""
+    (the consented paid-run hand-off -- $0 directive, the human's confirm spends) + the NARR-2
+    ingest_cases (the "eval anything" ingestion half -- $0/BYO-key, never a paid run). The
+    exact-bound + no-paid-knob assertions live in tests/test_uap5c_journey.py (S-BS-81); the
+    focus_artifact / show_case / propose_live_run A-SAFE bounds live in tests/test_chatbind2_pane.py;
+    the ingest_cases A-SAFE bound lives in tests/bff/test_ingest_cases_tool.py."""
     names = {name for _, name, *_ in agent_tools._TOOL_SPECS}
     assert names == {
         "author_judge",
@@ -305,6 +307,7 @@ def test_tool_set_is_the_uap5c_journey_set():
         "propose_live_run",
         "add_grounding_contract",
         "kb_context",
+        "ingest_cases",
     }
 
 
@@ -351,7 +354,7 @@ def test_pacing_hook_caps_step_proposing_writes_to_one_per_turn():
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent.loop import _build_options
 
-    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 13), default_agent="eval-1")
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 14), default_agent="eval-1")
     opts = _build_options(ctx)
     matcher = opts.hooks["PreToolUse"][0]
     hooks = matcher.hooks
@@ -389,7 +392,7 @@ def test_pacing_hook_fails_open_for_itself():
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent.loop import _build_options
 
-    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 13), default_agent="eval-1")
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 14), default_agent="eval-1")
     pace = _build_options(ctx).hooks["PreToolUse"][0].hooks[1]
     # None / a missing tool_name must not raise; they are not a counted write -> allow
     assert asyncio.run(pace(None, "t", None)) == {}
