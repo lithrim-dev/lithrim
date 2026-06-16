@@ -17,12 +17,21 @@ loads this LAZILY on first grounding use, by which point all core modules are
 imported — so there is no cycle). These floors are ``in_process`` (NOT ``:3031``), so
 ``SERVICE_CONTRACT_TYPES`` is deliberately absent and ``SUPPRESS_EXECUTORS`` is empty.
 
-What lives here (the three P0 floor codes; the judge-layer codes are NARR-4):
+What lives here — the ACTIVE floor set is 2 codes (``FLOOR_EXECUTORS``):
   * ``bracket_leak``       — :class:`BracketLeakTool`: a leaked instruction marker.
-  * ``length_violation``   — :class:`LengthViolationTool`: a preamble outside the bounds.
   * ``silent_degradation`` — :class:`SilentDegradationTool`: a non-``stop`` generation
     silently demoted to the baseline yet shipped as final (the day-one headline; reads
     provenance off the case row via ``claim.source``, NOT the artifact).
+
+``length_violation`` is RETAINED-BUT-UNATTACHED (NARR-4 / S-BS-NARR3-3): the
+:class:`LengthViolationTool` class + ``_length_reference`` + the ``TOOL_LENGTH_VIOLATION``
+name registration stay, but the executor is NOT in ``FLOOR_EXECUTORS``. The check was
+demoted to the ``policy_judge`` lens (it is already a ``policy_judge`` lens code +
+question ordinal 2): the shipped per-scene record carries only ``clean_text`` with no
+separable preamble span, so counting the whole scene against a 3-4 *preamble* band
+false-blocks legitimate enhanced scenes — preamble-length is not true-by-construction
+on the shipped record. The tool is kept for a zero-code re-attach if a future record
+ever carries a separable preamble span (option a).
 """
 
 from __future__ import annotations
@@ -215,12 +224,12 @@ FLOOR_EXECUTORS: dict[str, FloorExecutor] = {
         tool_factory=lambda http_client: BracketLeakTool(),
         reference_builder=_bracket_reference,
     ),
-    TOOL_LENGTH_VIOLATION: FloorExecutor(
-        tool_factory=lambda http_client: LengthViolationTool(),
-        reference_builder=_length_reference,
-    ),
     TOOL_SILENT_DEGRADATION: FloorExecutor(
         tool_factory=lambda http_client: SilentDegradationTool(),
         reference_builder=_silent_degradation_reference,
     ),
+    # LENGTH_VIOLATION is NOT attached (NARR-4 / S-BS-NARR3-3): demoted to the policy_judge
+    # lens. The LengthViolationTool class + _length_reference + the TOOL_LENGTH_VIOLATION
+    # name registration are RETAINED-BUT-UNATTACHED for a zero-code re-attach if a future
+    # record ever carries a separable preamble span (option a).
 }
