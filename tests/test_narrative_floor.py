@@ -434,3 +434,79 @@ def test_known_tools_additive_and_three_new_registered():
     }
     assert spec_mod._REQUIRED_REFERENCE_KEYS[spec_mod.TOOL_BRACKET_LEAK] == set()
     assert spec_mod._REQUIRED_REFERENCE_KEYS[spec_mod.TOOL_SILENT_DEGRADATION] == set()
+
+
+# ── NARR-4 — LENGTH_VIOLATION demoted out of the floor → the policy_judge lens ──
+#
+# The shipped per-scene record carries only ['title','source','clean_text'] — there is no
+# separable preamble span, so the floor counted the WHOLE enhanced scene against the 3-4
+# preamble band and FALSE-BLOCKED real scenes (mountain_road=7, the_warning=5, the_descent=5).
+# The lock (S-BS-NARR3-3): remove the length_violation FLOOR contract; LENGTH_VIOLATION is
+# already a policy_judge lens code + question ordinal 2 — the judge layer keeps grading it.
+
+_ENHANCED_SCENES = {
+    k: v
+    for k, v in json.loads(FIXTURE.read_text())["resource"]["metadata"]["enhanced_scenes"].items()
+    if v.get("source") == "enhanced"
+}
+
+
+def _shipped_narrative_ontology():
+    from lithrim_bench.harness.ontology import load_ontology
+    from lithrim_bench.harness.pack import pack_ontology_path
+
+    return load_ontology(pack_ontology_path())
+
+
+@_NEEDS_NARRATIVE_PACK
+def test_real_enhanced_scenes_are_not_length_blocked():
+    """A1 (headline RED→GREEN): every real enhanced scene grades through the SHIPPED narrative
+    ontology without a floor-injected LENGTH_VIOLATION. At the parent (length_violation still a
+    floor) mountain_road/the_warning/the_descent FALSE-BLOCK because the whole scene exceeds the
+    3-4 preamble band; after the demote no floor LENGTH_VIOLATION can fire."""
+    from lithrim_bench.harness.grounding import ground
+
+    ont = _shipped_narrative_ontology()
+    assert _ENHANCED_SCENES, "fixture must carry enhanced scenes"
+    blocked = []
+    for scene_id, scene in _ENHANCED_SCENES.items():
+        case = {
+            "artifacts": [{"type": "narrative_scene", "content": scene["clean_text"]}],
+            "finish_reason": "stop",
+            "source": "enhanced",
+        }
+        g = ground(_COUNCIL_PASS, case, ontology=ont)
+        floor_codes = {
+            b["injected_finding"]["code"]
+            for b in g.floor_blocks
+            if b["injected_finding"] is not None
+        }
+        if g.verdict == "BLOCK" or "LENGTH_VIOLATION" in floor_codes:
+            blocked.append((scene_id, g.verdict, sorted(floor_codes)))
+    assert not blocked, f"real enhanced scenes were length-blocked by the floor: {blocked}"
+
+
+@_NEEDS_NARRATIVE_PACK
+def test_shipped_ontology_has_no_length_violation_floor_contract():
+    """A2 (the demote, asserted): the SHIPPED narrative ontology declares exactly 2 floor
+    verification_contracts — bracket_leak + silent_degradation — and NO length_violation."""
+    ont = _shipped_narrative_ontology()
+    types = sorted(d.contract_type for d in ont.contracts)
+    assert types == ["bracket_leak", "silent_degradation"], types
+    assert "length_violation" not in types
+    assert len(ont.contracts) == 2
+
+
+def test_length_violation_judge_ownership_intact():
+    """A5 (judge ownership intact — green both ways): LENGTH_VIOLATION stays a policy_judge lens
+    code in the snapshot, and the ontology keeps the gradeable flag + the policy_judge question
+    ordinal 2 — so it is graded by the judge layer (no inert owner), only un-floored."""
+    snap = json.loads((PACK_DIR / "taxonomy_snapshot.json").read_text())
+    assert "LENGTH_VIOLATION" in snap["lenses"]["policy_judge"]
+    assert "LENGTH_VIOLATION" in snap["tiers"]["TIER_2_HIGH_RISK"]
+
+    ont = json.loads((PACK_DIR / "ontology.json").read_text())
+    flag = next((f for f in ont["flags"] if f["flag"] == "LENGTH_VIOLATION"), None)
+    assert flag is not None and flag["gradeable"] is True and flag["owner_roles"] == []
+    q2 = next((q for q in ont["questions"] if q["role"] == "policy_judge" and q["ordinal"] == 2), None)
+    assert q2 is not None and "preamble" in q2["text"]
