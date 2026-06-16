@@ -2360,6 +2360,29 @@
       "created": "2026-06-15",
       "last_re_verified": "2026-06-15 (monitor authoring; journey.js:39 / app.py:1777,368 / tools.py:492,723 / RunPanel.jsx:57 / loop.py:158 re-grepped against HEAD 3d38ebe)",
       "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve E-D1..E-D5."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-1-narrative-pack-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-1",
+      "scope": "narrative-domain-pack-data-only-eval-anything-CE-wedge",
+      "file": "bench-salvage_phaseNARR-1_narrative-pack_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "Routine cycle -- monitor inline critique at close. DATA-ONLY (a new isolated packs/narrative/ pack + one standalone-grade test); ZERO moat surface, ZERO engine/BFF/shell edits (acceptance A5), no verdict-flip, no paid run. The deterministic gate is supreme: the snapshot-consistency lint (A2) + the standalone-grade test (A3, mirrors test_standalone_ce.py) + the data-only diff (A5). NOT HARD-GATE (no moat surface, no edit to an existing ontology-of-record, no paid run). The critic must confirm A2 is NON-VACUOUS (the consistency checks really fail on a malformed snapshot) and A5 holds (no code leaked in).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_NARRATIVE_EVAL.md",
+        "packs/support_ticket_qa/pack.json",
+        "tests/test_standalone_ce.py",
+        "tests/test_neutral_default.py"
+      ],
+      "_note": "Authored 2026-06-16 by the monitor from SPEC_NARRATIVE_EVAL (committed df64f2f) + the grounding run wf_8715f73a-0ec (adversarial verify REFUTED the clinical-taxonomy wall: admissibility is PACK-BOUND via harness/admissibility.py:43-57; packs/support_ticket_qa is the non-clinical precedent) + a workspace/pack-surface fan-out (the WorkspaceSwitcher pack dropdown app.jsx:82-89 + GET /v1/packs app.py:775 + POST /v1/workspaces{pack} app.py:760 + _grade_via_subprocess LITHRIM_BENCH_PACK app.py:353 ALREADY EXIST end-to-end). NARR-1 is therefore DATA-ONLY: author packs/narrative/ (pack.json + taxonomy_snapshot.json + ontology.json + council_roles/ mirroring support_ticket_qa) + a clean-negative StoryWorld fixture (HONEST-1 unlabeled) + a standalone-grade test. The spec's '+ UI hook' is already satisfied by the existing shell pack-picker. NOT in scope: the JUTE extractor + ingest_cases tool (NARR-2, where the retired XFORM-1 folds); the deterministic floor executors (NARR-3); the frontend demo + multi-model council (NARR-4).",
+      "created": "2026-06-16",
+      "last_re_verified": "2026-06-16 (monitor authoring; harness/admissibility.py:43-57 / harness/workspace.py:54,121 / apps/bff/app.py:353,681,719,733,760,775 / apps/shell/src/app.jsx:82-89 / packs/support_ticket_qa/{pack,taxonomy_snapshot}.json re-read against bench-salvage/ws6c-dspy HEAD df64f2f)",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve D-A (post the full proposed taxonomy_snapshot.json) FIRST."
     }
   ]
 }
