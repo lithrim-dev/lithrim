@@ -21,6 +21,13 @@ from .jute_dspy import (
     strip_fences,
     verdict_for,
 )
+from .jute_extractor import (
+    best_of_n_extractor,
+    build_extractor_generator,
+    extraction_feedback_from,
+    make_extraction_metric,
+    score_extraction,
+)
 from .jute_gen import JuteGenValidatorTool
 from .mcp_client import McpError, McpStdioClient
 from .mutation import (
@@ -91,6 +98,11 @@ __all__ = [
     "strip_fences",
     "build_generator",
     "best_of_n",
+    "score_extraction",
+    "extraction_feedback_from",
+    "make_extraction_metric",
+    "build_extractor_generator",
+    "best_of_n_extractor",
     "mutation_coverage",
     "joint_coverage",
     "mutants_to_cases",

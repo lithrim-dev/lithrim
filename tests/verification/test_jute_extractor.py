@@ -101,11 +101,14 @@ def _apply_golden(session: dict) -> list[dict]:
 
 
 def _apply_misjoin(session: dict) -> list[dict]:
-    """A WRONG join key: the relational $reduce never matches, so `call` stays null and
-    `model`/`finish_reason` come back null on every record (the §4.2 'mis-join returns
-    null' boundary). The structural invariant must reject this."""
+    """A WRONG key into the source collection: the per-scene lift collapses, so the graded
+    content (`response`) AND the identifier (`case_id`) come back null on every record (the
+    §4.2 'mis-join returns null' boundary — null on a REQUIRED §4.1 key, not just a passthrough
+    field). The structural invariant must reject this."""
     rows = _apply_golden(session)
     for r in rows:
+        r["response"] = None
+        r["case_id"] = None
         r["model"] = None
         r["finish_reason"] = None
     return rows
