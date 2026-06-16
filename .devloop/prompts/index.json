@@ -2415,7 +2415,7 @@
       "phase": "NARR-3",
       "scope": "deterministic-narrative-floor-executors-bracket-leak-length-violation-silent-degradation-plus-attach-validators-the-grade-time-anti-circularity-floor",
       "file": "bench-salvage_phaseNARR-3_narrative-floor-executors_driver.md",
-      "status": "ready",
+      "status": "shipped -- closed 2026-06-16 PROCEED-WITH-CAVEATS (HARD-GATE fresh cold critic a395280677970c2d3 NON-BLOCKING [0 BLOCKING / 2 NB / 1 new seam] + monitor 7-item audit CLEAN; executor a0c6a58e). bb3759f..0b2b58d (6 commits, test-red-first, parent 582ee94). The 3 P0 deterministic floor executors ship in packs/narrative/floors.py (FLOOR_EXECUTORS, pure-stdlib) merged via floor_executors() (grounding.py:386-390); the ONE owner-chosen Option-A additive core edit (verification/spec.py +3 tool-names, 6 prior byte-unchanged). HEADLINE holds: SILENT_DEGRADATION flips clean council PASS->BLOCK->reject, asserted NON-VACUOUSLY in the canonical green bar (test_narrative_floor.py:395 subprocess, not skip-guarded). MOAT byte-frozen (compliance_council/signals/withstands/judge_metric/tools.py + grounding.py = 0-diff). Gate 0 healthcare canonical: 3 pre-existing fails / 0 new. Seams: S-BS-NARR3-3 (LENGTH_VIOLATION over-fire, LOCKED 2026-06-16 = demote to policy_judge lens -> implemented by NARR-4), S-BS-NARR3-1 (conftest pack-activation), S-BS-NARR3-2 (test_a2 disclaimer needle). Critique: .devloop/sessions/critique-bench-salvage-phaseNARR-3-2026-06-16.md. NEXT = NARR-4 (the S-BS-NARR3-3 demote fix; the demo + bridge SPLIT to NARR-5).",
       "version": "v1",
       "hardness": "HARD GATE -- fresh-critic at close. Touches the grade-time FLOOR verdict-flip path (ground() grounding.py:647-668 injects a BLOCK the council missed) + a MOAT-ADJACENT core file (verification/spec.py: the ONE authorized additive edit -- 3 tool-names into the CLOSED _KNOWN_TOOLS/_REQUIRED_REFERENCE_KEYS, owner-chosen Option A 2026-06-16). LOAD-BEARING CORRECTION vs the NARR-2 handoff: floor codes register in packs/narrative/floors.py FLOOR_EXECUTORS (the floor_executors() core-pack merge grounding.py:386-390), NOT in _CONTRACT_EXECUTORS (the SUPPRESS registry the handoff wrongly cited). MOAT byte-frozen (compliance_council/_apply_consensus/signals/withstands/judge_metric.LENS_BY_ROLE/tools.py = 0 diff; the floor runs in ground(), downstream of the frozen council). Critic must confirm: the verdict actually FLIPS PASS->BLOCK via ground() on a degraded case (A4); the inconclusive path (conforms=None) NEVER flips (drop provenance -> stays PASS); the spec.py edit is purely ADDITIVE (6 prior tools byte-unchanged, clinical floor green); 0 packs/healthcare reads under pack=narrative (non-vacuous, mirror test_narrative_pack).",
       "target_repos": [
@@ -2436,6 +2436,36 @@
       "created": "2026-06-16",
       "last_re_verified": "2026-06-16 (monitor authoring; grounding.py:302-401/506-681 + spec.py:34-123 + tools.py:44-149 + ontology.py:65-96 + packs/narrative/{ontology.json:143-152,pack.json,taxonomy_snapshot.json} + tests/fixtures/narrative/storyworld_session.json re-grepped vs bench-salvage/ws6c-dspy HEAD 57463a7; healthcare/floors.py + tests/verification/test_grounding_floor.py + tests/test_narrative_pack.py line numbers from the anchor-map, executor re-confirms on read)",
       "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve R1 (the SILENT_DEGRADATION claim.source data path -- where load_case puts finish_reason/source) / R2 (LENGTH_VIOLATION inject_severity block-vs-warn) / R3 (required reference keys) / R4 (artifacts[0].content present so _run_floor doesn't bail). HARD GATE -> fresh-critic at close."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-4-length-violation-demote-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-4",
+      "scope": "demote-LENGTH_VIOLATION-out-of-the-deterministic-floor-to-the-policy_judge-lens-the-S-BS-NARR3-3-lock-fix-purely-subtractive-floor-honesty-precondition",
+      "file": "bench-salvage_phaseNARR-4_length-violation-demote_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic at close. Changes the grade-time FLOOR set (removes the length_violation deterministic check from ground()) + removes a by-construction label-true corpus case. SUBTRACTIVE: no core edit (verification/spec.py 0-diff -- TOOL_LENGTH_VIOLATION stays registered, LengthViolationTool retained for zero-code re-attach), no moat edit, no re-snapshot (LENGTH_VIOLATION is ALREADY a policy_judge lens code in taxonomy_snapshot.json + ontology question ordinal 2). Critic must confirm: SILENT_DEGRADATION still flips PASS->BLOCK (headline preserved); the 3 real enhanced scenes (mountain_road/the_warning/the_descent) now grade PASS (the over-fire is fixed, A1 RED at parent 22bf3c6); the removed example case was genuinely floor-only; the moat + spec.py are 0-diff; nothing soft-passed.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_NARRATIVE_EVAL.md",
+        ".devloop/sessions/critique-bench-salvage-phaseNARR-3-2026-06-16.md",
+        "packs/narrative/floors.py",
+        "packs/narrative/ontology.json",
+        "packs/narrative/taxonomy_snapshot.json",
+        "packs/narrative/examples/narrative_v1.jsonl",
+        "lithrim_bench/harness/grounding.py",
+        "lithrim_bench/verification/spec.py",
+        "tests/test_narrative_floor.py",
+        "tests/test_narrative_pack.py",
+        "tests/fixtures/narrative/storyworld_session.json"
+      ],
+      "_note": "Authored 2026-06-16 by the monitor implementing the S-BS-NARR3-3 LOCK (owner decision: DEMOTE LENGTH_VIOLATION out of the deterministic floor -> the policy_judge lens). Diagnosis CONFIRMED with verbatim evidence: the tool splitter re.compile('[.!?]+') on the full clean_text of storyworld_session.json gives ranger_arrival=4 (in-band), mountain_road=7, the_warning=5, the_descent=5 (all FALSE-BLOCK under [3,4]) -- the critic's NON-BLOCKING #2 numbers reproduce exactly. Decisive fact: each enhanced scene carries only ['title','source','clean_text'] (NO separable preamble span) and §4.2 jute_transform emits response:clean_text (the whole scene), so preamble-length is NOT machine-true-by-construction -> does not belong in the floor. Demote is PURELY SUBTRACTIVE because LENGTH_VIOLATION is ALREADY policy_judge-lens-owned. Options NOT chosen: (b) whole-scene re-pin (hollow check) / (a) preamble-span ingestion (needs upstream data the fixture lacks -- revisit in NARR-5 if real data carries it). Deliverables: ontology.json (remove the length_violation verification_contract, 3->2; update _provenance.note) + floors.py (remove TOOL_LENGTH_VIOLATION from FLOOR_EXECUTORS, KEEP the class, docstring note RETAINED-BUT-UNATTACHED) + narrative_v1.jsonl (remove the narrative_length_violation by-construction case, 4->3) + tests (A1 test_real_enhanced_scenes_are_not_length_blocked RED->GREEN, A2 no length contract, A3 headline preserved, A4 tool retained unit, A5 judge ownership intact; consequence-edits test_narrative_pack.py:93/275 + the test-local _NARRATIVE_ONT_DICT) + SPEC_NARRATIVE_EVAL.md §4.3/§11 mechanical sync. NOT in scope (SPLIT to NARR-5): the multi-model Claude/GPT/Llama council, the frontend demo, the S-BS-NARR2-1 corpus-gradeable bridge, option-(a) preamble-span ingestion. This SPLITS spec-§8's 'NARR-4 = demo': this NARR-4 is the floor-honesty precondition; the demo becomes NARR-5 (authored after a live reassessment).",
+      "created": "2026-06-16",
+      "last_re_verified": "2026-06-16 (monitor authoring; packs/narrative/{floors.py:104-227,ontology.json:43-179,taxonomy_snapshot.json lenses,examples/narrative_v1.jsonl:4} + tests/test_narrative_floor.py:122/208-241/257/395/409 + tests/test_narrative_pack.py:93/275 + tests/fixtures/narrative/storyworld_session.json re-grepped + the splitter reproduced on the full clean_text, vs HEAD 22bf3c6)",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve R1 (grade through the SHIPPED load_ontology(), not the test-local dict) / R2 (A1 genuinely RED at parent 22bf3c6 -- paste the failing output) / R3 (removing the example orphans no count/iteration assertion) / R4 (moat + spec.py 0-diff). HARD GATE -> fresh-critic at close."
     }
   ]
 }
