@@ -374,24 +374,6 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
               <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Done. Your <strong>judge council</strong> is three models cross-checking every verdict, with a weighted vote and a 0.66 agreement floor. Here's a sample they just scored on the 50-row dry run:</p>
-              {renderTool({ type: "tool-verdict_card", state: "output-available" })}
-            </div>
-          </div>
-
-          <div className="msg">
-            <div className="av ai"><Mark size={17} /></div>
-            <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Calibration on the dry run is tight — predicted confidence tracks observed accuracy within <strong>±3%</strong>, so the council's scores are trustworthy as a stopping signal.</p>
-              {renderTool({ type: "tool-calibration_chart", state: "output-available" })}
-            </div>
-          </div>
-
-          <div className="msg">
-            <div className="av ai"><Mark size={17} /></div>
-            <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
               <p>Before the full run, let's lock the config plane. Edit the flags &amp; severity, author a verification contract, and bind the knowledge base — each one writes straight into your eval profile.</p>
               {/* EVAL-FLOW (W1b): thread the ACTIVE agent into the ContractBuilder card so its
                   self-persist (POST /v1/grounding-contract → the audited write) lands on the

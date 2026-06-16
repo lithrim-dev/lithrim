@@ -377,7 +377,7 @@ describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () =
   const props = { onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
 
   it("dedups two same-type cards within a turn to ONE", async () => {
-    // the VerdictCard renders synchronously from output (title "Sample verdict") — two same-type
+    // the VerdictCard renders synchronously from output (title "Verdict") — two same-type
     // parts in one turn must collapse to a single card.
     chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
       if (!onEvent) return;
@@ -391,7 +391,7 @@ describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () =
     fireEvent.click(screen.getByTestId("chat-send"));
 
     // ONE card despite two same-type parts (and never the fallback)
-    await waitFor(() => expect(screen.getAllByText("Sample verdict").length).toBe(1));
+    await waitFor(() => expect(screen.getAllByText("Verdict").length).toBe(1));
     expect(screen.queryByText(/Unsupported component/)).toBeNull();
   });
 

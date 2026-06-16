@@ -20,7 +20,7 @@ const EXPECTED = {
   "tool-flag_editor": /Flags & severity|Loading ontology/i,
   "tool-contract_builder": /Verification contract/i,
   "tool-kb_picker": /Knowledge base/i,
-  "tool-verdict_card": /Sample verdict/i,
+  "tool-verdict_card": /No verdict yet/i, // output-less mount = honest empty state, not a fabricated sample
   "tool-calibration_chart": /^Calibration$/, // anchored: the title, not the legend's "perfect calibration"
   "tool-agent_editor": /Loading agent|Agent ·/i, // UAP-1 R1 — config-plane write surface
   "tool-audit_log": /Audit trail/i, // UAP-1 R0 — the why/when/who/what view
