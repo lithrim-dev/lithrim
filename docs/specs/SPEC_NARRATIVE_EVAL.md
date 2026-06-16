@@ -124,7 +124,7 @@ Draft codes, derived from the enhancement prompt's own machine-checkable contrac
 | code | layer | check |
 |---|---|---|
 | `BRACKET_LEAK` | floor (det.) | output contains `[…]` (the marker leaked) |
-| `LENGTH_VIOLATION` | floor (det.) | not 3–4 sentences |
+| `LENGTH_VIOLATION` | judge | preamble not 3–4 sentences (judge lens — not machine-separable from the authored body in the shipped record, S-BS-NARR3-3) |
 | `POV_VIOLATION` | floor (det.) | 1st/2nd person in a 3rd-person story |
 | `LANGUAGE_DRIFT` | floor (det.) | output language ≠ session language |
 | `SILENT_DEGRADATION` | floor (provenance) | `finish_reason != stop` yet silently fell back to baseline while reported `completed` |
@@ -209,6 +209,7 @@ while the run reported `completed` → `SILENT_DEGRADATION` caught deterministic
   from a UI-drafted ontology? (Affects how "author a domain from the UI" actually closes.)
 - Pack scope for the first demo: the workbook-labeled paths (anchored to Todd) vs the full ~225 cases.
 - Is narrative-eval a **Core demonstration pack** or a **public plugin**? (Packaging — affects where it ships.)
+- RESOLVED 2026-06-16 (S-BS-NARR3-3): LENGTH_VIOLATION is a judge lens, not a deterministic floor — the shipped per-scene record carries only clean_text (no preamble span), so preamble-length is not true-by-construction. The LengthViolationTool is retained, unattached, for a future preamble-span (option a) if real data carries it.
 
 ## 12. Evidence appendix
 - **Proven artifact:** the §4.2 per-scene template — live `compiled: True`, 5 cases, all fields
