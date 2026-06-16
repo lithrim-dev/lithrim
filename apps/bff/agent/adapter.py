@@ -87,13 +87,15 @@ def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, 
 
 
 def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
-    """run_eval -> the VerdictCard (flat-spread). Projects the composite verdict + the
-    realized council agreement off the run-eval record; defaults fill the rest of the
-    demo-shaped card."""
+    """run_eval -> the VerdictCard (flat-spread). Projects the REAL council output off the
+    run-eval record — the verdict, the active findings it flagged (the "why"), the realized
+    judge agreement + confidence, and the faithfulness-judge status. NO demo fill: the card
+    shows what the council actually returned ([[no-static-components-in-live-eval-ui]])."""
     composite = record.get("composite") or {}
     council = record.get("council") or {}
     votes = council.get("votes") or []
     verdict = str(composite.get("verdict") or composite.get("stage_verdict") or "—")
+    findings = [str(f) for f in (composite.get("active_findings") or [])]
     n = len(votes)
     agree = (
         sum(
@@ -106,15 +108,27 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
     )
     confs = [v.get("confidence") for v in votes if isinstance(v.get("confidence"), (int, float))]
     conf = f"{(sum(confs) / len(confs)):.2f}" if confs else "—"
-    return _part(
-        "verdict_card",
-        {
-            "id": record.get("pipeline_run_id") or record.get("case_id") or "run",
-            "verdict": verdict.upper(),
-            "confidence": conf,
-            "agreement": f"{agree} / {n}" if n else "—",
-        },
+    # the real "why" — the findings the council flagged (or a clean pass), not a demo Q/A.
+    answer = (
+        f"{len(findings)} finding(s): " + ", ".join(findings[:6])
+        if findings
+        else "No findings — passes the quality gate."
     )
+    out: dict[str, Any] = {
+        "id": record.get("pipeline_run_id") or record.get("case_id") or "run",
+        "verdict": verdict.upper(),
+        "confidence": conf,
+        "agreement": f"{agree} / {n}" if n else "—",
+        "answer": answer,
+    }
+    # the faithfulness pillar reflects the faithfulness judge's actual vote (clear vs flagged).
+    faith = next((v for v in votes if "faith" in str(v.get("judge_role") or "").lower()), None)
+    if faith:
+        out["pillar"] = "Faithfulness"
+        out["pillarStatus"] = (
+            "clear ✓" if str(faith.get("vote") or "").upper() in ("PASS", "APPROVE") else "flagged"
+        )
+    return _part("verdict_card", out)
 
 
 def open_artifact_part(tab: str) -> dict[str, Any]:
