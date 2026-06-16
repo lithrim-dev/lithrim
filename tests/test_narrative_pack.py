@@ -87,13 +87,14 @@ def test_narrative_snapshot_consistency():
         for owner in f.get("owner_roles", []):
             assert owner in prod and code in lenses.get(owner, []), f"flag {code!r} owner {owner!r} is inert"
 
-    # NARR-3 attaches the 3 P0 deterministic FLOOR contracts (bracket_leak/length_violation/
-    # silent_degradation). Each must reference a real floor flag in the snapshot and carry the
-    # inject_flag_code/inject_severity the floor dispatch reads (was [] in NARR-1).
-    _NARR3_FLOOR_TYPES = {"bracket_leak", "length_violation", "silent_degradation"}
+    # NARR-3 attached the deterministic FLOOR contracts; NARR-4 (S-BS-NARR3-3) demoted
+    # LENGTH_VIOLATION out of the floor → the policy_judge lens, leaving 2 floor contracts
+    # (bracket_leak, silent_degradation). Each must reference a real floor flag in the snapshot
+    # and carry the inject_flag_code/inject_severity the floor dispatch reads (was [] in NARR-1).
+    _NARR3_FLOOR_TYPES = {"bracket_leak", "silent_degradation"}
     contracts = ont["verification_contracts"]
     assert {c["contract_type"] for c in contracts} == _NARR3_FLOOR_TYPES, (
-        "NARR-3 declares exactly the 3 P0 floor contracts"
+        "NARR-4 declares exactly the 2 deterministic floor contracts (LENGTH_VIOLATION demoted)"
     )
     for c in contracts:
         assert c["flag_code"] in tier_union, f"floor contract flag {c['flag_code']!r} not in the snapshot tiers"
@@ -270,9 +271,10 @@ def test_narrative_authored_path_grades_to_a_verdict():
     assert out["votes"]["risk_judge"]["vote"] != "BLOCK"
     assert out["votes"]["faithfulness_judge"]["vote"] != "BLOCK"
 
-    # NARR-3: the 3 pure-stdlib in_process floor contracts are attached (was 0 in NARR-1); they
-    # never reach :8002, and on this length-clean / complete-generation clean scene none fire.
-    assert out["n_verification_contracts"] == 3
+    # NARR-3 attached the floor contracts (was 0 in NARR-1); NARR-4 demoted LENGTH_VIOLATION out
+    # of the floor, leaving 2 pure-stdlib in_process floor contracts. They never reach :8002, and
+    # on this complete-generation clean scene none fire.
+    assert out["n_verification_contracts"] == 2
     assert out["healthcare_reads"] == [], f"healthcare leaked under pack=narrative: {out['healthcare_reads']}"
     assert out["build_judge_lm_callable"] is True
 

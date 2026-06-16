@@ -193,16 +193,6 @@ _NARRATIVE_ONT_DICT = {
             "tier": "TIER_1",
             "gradeable": True,
         },
-        {
-            "flag": "LENGTH_VIOLATION",
-            "category": "contract",
-            "definition": "",
-            "when_to_use": "",
-            "when_NOT_to_use": "",
-            "owner_roles": [],
-            "tier": "TIER_2",
-            "gradeable": True,
-        },
     ],
     "questions": [],
     "verification_contracts": [
@@ -219,18 +209,6 @@ _NARRATIVE_ONT_DICT = {
             "contract_type": "bracket_leak",
             "version": "v1",
             "params": {"inject_flag_code": "BRACKET_LEAK", "inject_severity": "HIGH"},
-        },
-        {
-            "flag_code": "LENGTH_VIOLATION",
-            "question": "Is the preamble 3-4 sentences?",
-            "contract_type": "length_violation",
-            "version": "v1",
-            "params": {
-                "inject_flag_code": "LENGTH_VIOLATION",
-                "inject_severity": "MEDIUM",
-                "min_sentences": 3,
-                "max_sentences": 4,
-            },
         },
     ],
     "severity_map": {
@@ -395,7 +373,7 @@ def _run_grade() -> dict:
 def test_narrative_floor_grades_under_pack_narrative():
     out = _run_grade()
     assert out["active_pack"] == PACK
-    assert out["n_verification_contracts"] == 3
+    assert out["n_verification_contracts"] == 2
     assert out["stage_verdict"] == "BLOCK"
     assert out["verdict"] == "reject"
     assert "SILENT_DEGRADATION" in out["active_codes"]
