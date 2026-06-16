@@ -18,6 +18,9 @@ data/synthea_*/*
 
 out/
 
+# Raw marketing/screen-capture footage — large local scratch, never commit (published cuts live under out/).
+marketing_raw/
+
 # Live-stack credentials — do not commit
 .live_env
 
