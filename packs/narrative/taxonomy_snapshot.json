@@ -1,0 +1,59 @@
+{
+  "snapshot_metadata": {
+    "source": "NARR-1 narrative-eval wedge (SPEC_NARRATIVE_EVAL §4.3) — hand-authored. The eval-anything CE demonstrator on AI-generated narrative (Lenador StoryWorld).",
+    "note": "A genuinely INDEPENDENT non-clinical pack (its OWN ontology + council_roles + taxonomy, no packs/healthcare reuse) — mirrors packs/support_ticket_qa. Grades AI-rewritten interactive-fiction scenes against the enhancement prompt's OWN authored contract + narrative judge lenses. production_judges reuses the CORE deployable trio role NAMES (PACK-2c boundary: a pack SUBSETS known deployable identities; it introduces NO new deployable judge). Hand-authored (NOT scripts/snapshot_taxonomy.py — there is no backend taxonomy to harvest); read-only at grade time per the CLAUDE.md core invariant. tier: core = the OSS sample tier. The floor-layer codes (BRACKET_LEAK, LENGTH_VIOLATION, POV_VIOLATION, LANGUAGE_DRIFT, SILENT_DEGRADATION, CLICHE_OVERUSE, REPETITION) ship here as gradeable JUDGE flags; their deterministic verification_contract executors are NARR-3.",
+    "seeded_by": "hand-authored (NARR-1)"
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "BRACKET_LEAK",
+      "SILENT_DEGRADATION"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "BODY_CONTRADICTION",
+      "LENGTH_VIOLATION",
+      "POV_VIOLATION",
+      "LANGUAGE_DRIFT",
+      "MODE_INAPPROPRIATE",
+      "TONE_INFIDELITY"
+    ],
+    "TIER_3_MEDIUM": [
+      "CLICHE_OVERUSE",
+      "REPETITION",
+      "PERSONALIZATION_MISS"
+    ]
+  },
+  "tier1_owners": {
+    "BRACKET_LEAK": [
+      "policy_judge"
+    ],
+    "SILENT_DEGRADATION": [
+      "risk_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "lenses": {
+    "policy_judge": [
+      "BRACKET_LEAK",
+      "LENGTH_VIOLATION",
+      "POV_VIOLATION",
+      "LANGUAGE_DRIFT",
+      "CLICHE_OVERUSE",
+      "REPETITION"
+    ],
+    "risk_judge": [
+      "SILENT_DEGRADATION",
+      "MODE_INAPPROPRIATE"
+    ],
+    "faithfulness_judge": [
+      "BODY_CONTRADICTION",
+      "TONE_INFIDELITY",
+      "PERSONALIZATION_MISS"
+    ]
+  },
+  "declared_but_not_running": []
+}
