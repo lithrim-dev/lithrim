@@ -31,6 +31,14 @@ TOOL_RECORD_RAG = "record_rag"
 TOOL_KB_RAG = "kb_rag"
 TOOL_JUTE_GEN = "jute_gen"
 TOOL_DOSAGE_GROUNDING = "dosage_grounding"
+# NARR-3 (Option A — minimal core registration): the 3 narrative floor tool-names.
+# The CLOSED ``_KNOWN_TOOLS`` set hard-rejects any unknown ``VerificationSpec.tool`` at
+# construction, so a pack floor (its EXECUTOR ships in ``packs/<pack>/floors.py``, like
+# the clinical ``dosage_grounding``) cannot register a NEW ``contract_type`` without a
+# small ADDITIVE core edit here. Option B (a pack-extensible registry) was NOT chosen.
+TOOL_BRACKET_LEAK = "bracket_leak"
+TOOL_LENGTH_VIOLATION = "length_violation"
+TOOL_SILENT_DEGRADATION = "silent_degradation"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -38,6 +46,9 @@ _KNOWN_TOOLS = {
     TOOL_KB_RAG,
     TOOL_JUTE_GEN,
     TOOL_DOSAGE_GROUNDING,
+    TOOL_BRACKET_LEAK,
+    TOOL_LENGTH_VIOLATION,
+    TOOL_SILENT_DEGRADATION,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -56,6 +67,13 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # SME-pinnable reference; transcript_path / record_path (the grounding sources) are
     # optional and default to "transcript" / absent.
     TOOL_DOSAGE_GROUNDING: {"dose_regex"},
+    # NARR-3 narrative floors (deterministic, offline, in_process). bracket_leak +
+    # silent_degradation take no required reference (the marker pattern / the demotion
+    # rule are pinned in the tool; an empty set passes the missing-keys check vacuously).
+    # length_violation pins the SME's preamble bounds.
+    TOOL_BRACKET_LEAK: set(),
+    TOOL_LENGTH_VIOLATION: {"min_sentences", "max_sentences"},
+    TOOL_SILENT_DEGRADATION: set(),
 }
 
 
