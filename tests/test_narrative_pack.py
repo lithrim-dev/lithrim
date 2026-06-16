@@ -87,8 +87,18 @@ def test_narrative_snapshot_consistency():
         for owner in f.get("owner_roles", []):
             assert owner in prod and code in lenses.get(owner, []), f"flag {code!r} owner {owner!r} is inert"
 
-    # NARR-1 ships codes as JUDGE flags only — the deterministic floor executors are NARR-3
-    assert ont["verification_contracts"] == [], "NARR-1 declares no verification_contracts (floor = NARR-3)"
+    # NARR-3 attaches the 3 P0 deterministic FLOOR contracts (bracket_leak/length_violation/
+    # silent_degradation). Each must reference a real floor flag in the snapshot and carry the
+    # inject_flag_code/inject_severity the floor dispatch reads (was [] in NARR-1).
+    _NARR3_FLOOR_TYPES = {"bracket_leak", "length_violation", "silent_degradation"}
+    contracts = ont["verification_contracts"]
+    assert {c["contract_type"] for c in contracts} == _NARR3_FLOOR_TYPES, (
+        "NARR-3 declares exactly the 3 P0 floor contracts"
+    )
+    for c in contracts:
+        assert c["flag_code"] in tier_union, f"floor contract flag {c['flag_code']!r} not in the snapshot tiers"
+        assert c["params"]["inject_flag_code"] == c["flag_code"], "inject_flag_code must match the floor flag"
+        assert c["params"]["inject_severity"] in {"HIGH", "MEDIUM", "LOW"}
 
     # the snapshot tier union and the gradeable-flag set are the same contract (no orphan codes)
     assert {f["flag"] for f in gradeable} == tier_union, "ontology gradeable flags must equal the snapshot tier union"
@@ -244,7 +254,9 @@ def test_narrative_authored_path_grades_to_a_verdict():
     """A-NARR-2: a StoryWorld scene grades through the authored path under pack=narrative. A clean
     scene with no assignment -> approve; assigning BRACKET_LEAK to its owner (policy_judge) -> that
     judge BLOCKs -> Tier-1 one-strike -> composite reject (the move is the AUTHORING). A-NARR-3:
-    no verification_contracts so :8002 is never reached. A-NARR-4: ZERO packs/healthcare reads."""
+    NARR-3 attaches 3 pure-stdlib in_process floor contracts, so the grade still never reaches
+    :8002 (the clean scene is length-clean + complete-generation, so none fire). A-NARR-4: ZERO
+    packs/healthcare reads."""
     out = _run_grade()
     assert out["active_pack"] == PACK
     assert f"/packs/{PACK}/" in out["prompts_dir"]
@@ -258,7 +270,9 @@ def test_narrative_authored_path_grades_to_a_verdict():
     assert out["votes"]["risk_judge"]["vote"] != "BLOCK"
     assert out["votes"]["faithfulness_judge"]["vote"] != "BLOCK"
 
-    assert out["n_verification_contracts"] == 0  # :8002 never reached
+    # NARR-3: the 3 pure-stdlib in_process floor contracts are attached (was 0 in NARR-1); they
+    # never reach :8002, and on this length-clean / complete-generation clean scene none fire.
+    assert out["n_verification_contracts"] == 3
     assert out["healthcare_reads"] == [], f"healthcare leaked under pack=narrative: {out['healthcare_reads']}"
     assert out["build_judge_lm_callable"] is True
 
