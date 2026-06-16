@@ -7,9 +7,10 @@ orchestrator, the floor registry, the ``VerificationTool`` base, and the dispatc
 ``tool.verify``). This module is the narrative pack's contribution: three pure-stdlib
 floor tools that INJECT a BLOCK the council missed (the FLOOR direction), behind the
 pack executor-registration interface (``harness.pack.load_pack_floors`` →
-``grounding.floor_executors()`` merges this module's ``FLOOR_EXECUTORS``). It mirrors
-``packs/healthcare/floors.py`` ``DosageGroundingTool`` — pure-stdlib, no httpx/dspy at
-import; the lambda tool factories accept-and-ignore the injected ``http_client``.
+``grounding.floor_executors()`` merges this module's ``FLOOR_EXECUTORS``). It follows
+the same pack-floor pattern as the other domain packs' ``floors.py`` modules — pure-
+stdlib, no httpx/dspy at import; the lambda tool factories accept-and-ignore the
+injected ``http_client``.
 
 The dependency points **pack → core** only (this imports core primitives; the core
 loads this LAZILY on first grounding use, by which point all core modules are

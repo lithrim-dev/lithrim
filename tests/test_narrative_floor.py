@@ -27,7 +27,25 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _narrative_floors_registered() -> bool:
+    """The narrative floor executors are registered only when pack=narrative is the ACTIVE
+    pack (floor_executors() resolves via the active pack). The A4 ground()-integration tests
+    need them; under pack=healthcare they are absent → skip (the A1-A3 unit tests load
+    floors.py directly and are pack-agnostic)."""
+    from lithrim_bench.harness.grounding import floor_executors
+
+    return "silent_degradation" in floor_executors()
+
+
+_NEEDS_NARRATIVE_PACK = pytest.mark.skipif(
+    not _narrative_floors_registered(),
+    reason="narrative floor executors not registered under the active pack (set LITHRIM_BENCH_PACK=narrative)",
+)
 PACK_DIR = REPO_ROOT / "packs" / "narrative"
 FLOORS_PATH = PACK_DIR / "floors.py"
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "narrative" / "storyworld_session.json"
@@ -235,6 +253,7 @@ def _narrative_floor_ontology():
     return from_dict(_NARRATIVE_ONT_DICT)
 
 
+@_NEEDS_NARRATIVE_PACK
 def test_silent_degradation_flips_pass_to_block():
     from lithrim_bench.harness.grounding import ground
     from lithrim_bench.harness.report import composite
@@ -256,6 +275,7 @@ def test_silent_degradation_flips_pass_to_block():
     assert "SILENT_DEGRADATION" in [f.get("code") for f in g.active]
 
 
+@_NEEDS_NARRATIVE_PACK
 def test_clean_case_stays_pass_floor_blocks_empty():
     from lithrim_bench.harness.grounding import ground
     from lithrim_bench.harness.report import composite
@@ -276,6 +296,7 @@ def test_clean_case_stays_pass_floor_blocks_empty():
     assert [b for b in g.floor_blocks if b["injected_finding"] is not None] == []
 
 
+@_NEEDS_NARRATIVE_PACK
 def test_inconclusive_silent_degradation_never_flips():
     from lithrim_bench.harness.grounding import ground
 
