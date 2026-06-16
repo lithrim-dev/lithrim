@@ -2408,6 +2408,34 @@
       "created": "2026-06-16",
       "last_re_verified": "2026-06-16 (monitor authoring; jute_dspy.py:130/172/200/279/311/333/421 + etlp_client.py:48/97/141/155 + spec.py:44 + apps/bff/agent/tools.py:138/492/603/748 + apps/bff/app.py:109/294/540/1244/1582/1611 re-grepped against bench-salvage/ws6c-dspy HEAD cfe4b6d; :3031 live [404s /health, answers])",
       "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve D-A..D-D. HARD GATE -> fresh-critic at close."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-3-narrative-floor-executors-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-3",
+      "scope": "deterministic-narrative-floor-executors-bracket-leak-length-violation-silent-degradation-plus-attach-validators-the-grade-time-anti-circularity-floor",
+      "file": "bench-salvage_phaseNARR-3_narrative-floor-executors_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic at close. Touches the grade-time FLOOR verdict-flip path (ground() grounding.py:647-668 injects a BLOCK the council missed) + a MOAT-ADJACENT core file (verification/spec.py: the ONE authorized additive edit -- 3 tool-names into the CLOSED _KNOWN_TOOLS/_REQUIRED_REFERENCE_KEYS, owner-chosen Option A 2026-06-16). LOAD-BEARING CORRECTION vs the NARR-2 handoff: floor codes register in packs/narrative/floors.py FLOOR_EXECUTORS (the floor_executors() core-pack merge grounding.py:386-390), NOT in _CONTRACT_EXECUTORS (the SUPPRESS registry the handoff wrongly cited). MOAT byte-frozen (compliance_council/_apply_consensus/signals/withstands/judge_metric.LENS_BY_ROLE/tools.py = 0 diff; the floor runs in ground(), downstream of the frozen council). Critic must confirm: the verdict actually FLIPS PASS->BLOCK via ground() on a degraded case (A4); the inconclusive path (conforms=None) NEVER flips (drop provenance -> stays PASS); the spec.py edit is purely ADDITIVE (6 prior tools byte-unchanged, clinical floor green); 0 packs/healthcare reads under pack=narrative (non-vacuous, mirror test_narrative_pack).",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_NARRATIVE_EVAL.md",
+        "docs/specs/SPEC_GROUNDING_TOOL_LAYER.md",
+        "lithrim_bench/harness/grounding.py",
+        "lithrim_bench/verification/spec.py",
+        "lithrim_bench/verification/tools.py",
+        "lithrim_bench/harness/ontology.py",
+        "packs/narrative/ontology.json",
+        "tests/verification/test_grounding_floor.py",
+        "tests/test_narrative_pack.py"
+      ],
+      "_note": "Authored 2026-06-16 by the monitor from SPEC_NARRATIVE_EVAL (4.1/4.3/5/8 NARR-3/9), pre-worked by the anchor-map workflow wf_2ac1c863-404 (4 readers) with every load-bearing anchor re-grepped DIRECTLY by the monitor. TASK_PACK has NO NARR entries (authored from spec per the bench-salvage UAP-from-spec convention; backfill opportunistically). BLOCKING FINDING surfaced + owner-decided: a new floor contract_type CANNOT register pack-only -- VerificationSpec.__post_init__ (spec.py:106-116) rejects any tool not in the CLOSED core _KNOWN_TOOLS (spec.py:34-41); dosage_grounding proves pack executors still register their tool-name in core spec.py. Owner chose Option A (minimal core registration: add 3 tool-names) over Option B (generalize the registry pack-extensible) 2026-06-16. Deliverables: spec.py (+3 tool-names, additive) + packs/narrative/floors.py (NEW: 3 pure-stdlib VerificationTool floors mirroring healthcare DosageGroundingTool + FLOOR_EXECUTORS) + pack.json (+floors key) + ontology.json (populate the empty verification_contracts with the 3 floor decls, inject_severity HIGH/HIGH/MEDIUM) + tests/test_narrative_floor.py (A1-A6) + optional violation example cases. SILENT_DEGRADATION = the day-one proof (finish_reason=content_filter + source=baseline shipped as complete -- the storyworld_session.json degraded scene). NOT in scope: judge-layer codes, the deferred floor codes (POV/LANGUAGE/CLICHE/REPETITION), Option B registry refactor, NARR-4 frontend/multi-model, the S-BS-NARR2-1 corpus-gradeable bridge, withstands/moat edits, re-snapshot, any healthcare touch.",
+      "created": "2026-06-16",
+      "last_re_verified": "2026-06-16 (monitor authoring; grounding.py:302-401/506-681 + spec.py:34-123 + tools.py:44-149 + ontology.py:65-96 + packs/narrative/{ontology.json:143-152,pack.json,taxonomy_snapshot.json} + tests/fixtures/narrative/storyworld_session.json re-grepped vs bench-salvage/ws6c-dspy HEAD 57463a7; healthcare/floors.py + tests/verification/test_grounding_floor.py + tests/test_narrative_pack.py line numbers from the anchor-map, executor re-confirms on read)",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve R1 (the SILENT_DEGRADATION claim.source data path -- where load_case puts finish_reason/source) / R2 (LENGTH_VIOLATION inject_severity block-vs-warn) / R3 (required reference keys) / R4 (artifacts[0].content present so _run_floor doesn't bail). HARD GATE -> fresh-critic at close."
     }
   ]
 }
