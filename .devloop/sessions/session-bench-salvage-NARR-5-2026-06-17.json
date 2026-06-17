@@ -1,0 +1,142 @@
+{
+  "session_id": "session-bench-salvage-NARR-5-2026-06-17",
+  "stream": "bench-salvage",
+  "phase": "NARR-5",
+  "driver_bundle_id": "bench-salvage-phaseNARR-5-narrative-demo-offline-cut-driver",
+  "started_at": "2026-06-17T04:15:00Z",
+  "ended_at": "2026-06-17T05:05:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-17T04:14:00Z",
+    "user_approved_at": "2026-06-17T04:14:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Scope reduced to D1-D4 only (offline, $0); D5 (PAID live council) is a separate owner go and was NOT run.",
+        "evidence": "executor invocation: 'Implement ONLY D1-D4 ... DO NOT run D5'",
+        "decided_at": "2026-06-17T04:14:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "D3 corrected form: build_trio(models=) alone, NO predictors (build_trio is all-or-nothing on predictors — judges_dspy.py:385); the driver's original predictors-based form was wrong.",
+        "evidence": "judges_dspy.py:385 predictor branch bypasses build_judge_lm routing at :395-396; mirrors tests/test_byoc_provider.py:164",
+        "decided_at": "2026-06-17T04:14:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Added a module-level pytestmark skipif(active_pack()!='narrative') to test_narrative_multimodel_seam.py so the pack=healthcare regression gate stays 0-new (LENGTH_VIOLATION is narrative-only taxonomy; under healthcare _validate_findings drops it, which made the MOCK test fail in the full healthcare gate).",
+        "evidence": "commit 2e8b421; without the guard the healthcare gate showed 1 new failure (test_policy_judge_fires_length_violation_with_evidence_MOCK)",
+        "decided_at": "2026-06-17T04:45:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "2f65ce6",
+      "repo": "lithrim-bench",
+      "title": "test(narrative): NARR-5 D1-D4 acceptance — red",
+      "summary": "D1 corpus-bridge integration test (RED: load_case returns None) + D2 floor-blocks vitest (RED: section absent) + D3/D4 multi-model seam proofs."
+    },
+    {
+      "hash": "76c00ed",
+      "repo": "lithrim-bench",
+      "title": "feat(picklist): NARR-5 D1 — workspace-corpus fallback in load_case (S-BS-NARR2-1) — green",
+      "summary": "load_case resolves an ingested workspace-corpus case as a strictly-last fallback after PACK_FILES, lazy harness.workspace import."
+    },
+    {
+      "hash": "0361fee",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): NARR-5 D2 — ReportTab Floor Blocks section — green",
+      "summary": "Renders comp.floor_adjustments between Active findings and Grounded adjustments, color-coded floor_block (red) vs floor_inconclusive (muted); +22/-0 JSX."
+    },
+    {
+      "hash": "2e8b421",
+      "repo": "lithrim-bench",
+      "title": "test(narrative): NARR-5 D3/D4 — gate the multi-model seam proof to pack=narrative",
+      "summary": "Module-level pytestmark skipif active_pack()!=narrative so the canonical healthcare gate stays 0-new."
+    },
+    {
+      "hash": "f0ac250",
+      "repo": "lithrim-bench",
+      "title": "style(narrative): NARR-5 D1 — ruff clean the corpus-bridge test",
+      "summary": "Drop unused os import, sort in-fn imports."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "D1 + D2 are RED-first production gaps. D3/D4 are test-only proofs of already-working wiring (per the corrected plan), green-on-existing-wiring — committed in the same tests-first commit as new test files landing before any impl.",
+    "red_command": "LITHRIM_BENCH_PACK=narrative ... pytest -q tests/test_narrative_corpus_bridge.py::test_ingested_corpus_case_resolves_and_grades_via_load_case  +  cd apps/shell && npx vitest run src/artifact.test.jsx",
+    "red_evidence": "D1: AssertionError: ingested corpus case did not resolve via load_case (the D1 gap) / assert None is not None (tests/test_narrative_corpus_bridge.py:102). D2: TestingLibraryElementError: Unable to find an element with the text: /Floor blocks/i (src/artifact.test.jsx:265).",
+    "green_command": "LITHRIM_BENCH_PACK=narrative ... pytest -q tests/test_narrative_{floor,pack,multimodel_seam,corpus_bridge}.py ; LITHRIM_BENCH_PACK=healthcare ... pytest -q ; cd apps/shell && npx vitest run ; ruff check <touched.py>",
+    "green_evidence": "pack=narrative: 19 passed. pack=healthcare full suite: 587 passed / 5 failed (all pre-existing — 1 deterministic test_a2 carve-out + 4 order-pollution flakes that pass in isolation) / 13 skipped. vitest: 133 passed / 1 failed (pre-existing S-BS-145 app.test.jsx titlebar, fails in isolation too). ruff: All checks passed!"
+  },
+
+  "acceptance": [
+    {
+      "criterion": "D1 — S-BS-NARR2-1 corpus-gradeable bridge (load_case workspace fallback, PACK_FILES-first preserved)",
+      "test": "tests/test_narrative_corpus_bridge.py::{test_ingested_corpus_case_resolves_and_grades_via_load_case, test_pack_files_first_precedence_preserved_on_collision}",
+      "verdict": "PASS",
+      "evidence": "RED→GREEN: load_case returned None at a4efd0f → resolves + grades ($0 injected predictors) → composite verdict 'approve'; collision test confirms PACK_FILES row wins (workspace marker absent)."
+    },
+    {
+      "criterion": "D2 — ReportTab Floor Blocks section (renders floor_adjustments; graceful when empty)",
+      "test": "apps/shell/src/artifact.test.jsx::ReportTab — Floor Blocks section (NARR-5 D2)",
+      "verdict": "PASS",
+      "evidence": "RED→GREEN: 'Floor blocks' text absent at a4efd0f → SILENT_DEGRADATION floor_block renders with contract_type + disposition; empty-floor run renders NO section (non-vacuous)."
+    },
+    {
+      "criterion": "D3 — multi-model-seam OFFLINE proof ($0, SEAM/WIRING not judge quality)",
+      "test": "tests/test_narrative_multimodel_seam.py::{test_multimodel_seam_build_trio_models_routes_per_role_offline, test_multimodel_seam_frozen_consensus_output_shape_offline}",
+      "verdict": "PASS",
+      "evidence": "build_trio(ontology=narrative, models={'risk_judge':'byo-claude'}) routes risk_judge→ClaudeCliLM, policy/faithfulness→Azure dspy.LM (azure/mistral-large-3, azure/llama-4-maverick) constructed with no network call; frozen _apply_consensus output shape intact (consensus/decision/artifact_verdict/evidence_summary)."
+    },
+    {
+      "criterion": "D4 — honest LENGTH_VIOLATION positive-catch OFFLINE proof (MOCK predictor; real catch is D5)",
+      "test": "tests/test_narrative_multimodel_seam.py::test_policy_judge_fires_length_violation_with_evidence_MOCK",
+      "verdict": "PASS",
+      "evidence": "policy_judge MOCK predictor fires LENGTH_VIOLATION with a non-empty evidence span, surviving _validate_findings (narrative known code); risk_judge does NOT fire it (isolated to the lens). Test name contains MOCK."
+    },
+    {
+      "criterion": "Moat + core 0-diff vs a4efd0f",
+      "test": "git diff a4efd0f HEAD -- <8 frozen files>",
+      "verdict": "PASS",
+      "evidence": "0 lines diff across compliance_council/signals/withstands/judge_metric.py + grounding.py + verification/{spec,tools}.py + apps/bff/agent/tools.py."
+    },
+    {
+      "criterion": "Canonical regression gate (pack=healthcare) shows 0 NEW",
+      "test": "pytest -q under LITHRIM_BENCH_PACK=healthcare",
+      "verdict": "PASS",
+      "evidence": "5 failed all classified pre-existing: test_a2 (deterministic, fails at a4efd0f baseline in isolation) + test_judges_list/test_run_eval_replay/2x observation (order-pollution flakes, pass in isolation at HEAD AND at a4efd0f). a4efd0f baseline full suite = 8 failed (a different flaky subset). 0 new deterministic failures."
+    },
+    {
+      "criterion": "D5 — LIVE 3-model council run (PAID)",
+      "test": "n/a",
+      "verdict": "SKIP",
+      "evidence": "Out of scope for this invocation (offline D1-D4 only; D5 needs a separate owner go). NOT run."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "pack_narrative_suite": "19 passed / 0 failed",
+    "pack_healthcare_full_suite": "587 passed / 5 failed (all pre-existing) / 13 skipped",
+    "pack_healthcare_baseline_a4efd0f": "579 passed / 8 failed (order-pollution moving target) / 13 skipped",
+    "vitest": "133 passed / 1 failed (pre-existing S-BS-145) / 21 files",
+    "moat_freeze_diff_lines": "0",
+    "diff_scope_files": "5 (artifact.jsx, artifact.test.jsx, picklist.py, 2 new test files)",
+    "d5_paid_run": "NOT RUN — separate owner go"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "NARR-5 offline cut (D1-D4) landed CLEAN. D1: load_case now resolves an ingested workspace-corpus case as a strictly-last fallback after PACK_FILES (S-BS-NARR2-1 bridge), proven RED→GREEN ($0 injected predictors) with S-BS-9 precedence preserved. D2: the ReportTab now renders comp.floor_adjustments as a color-coded Floor Blocks section (the SILENT_DEGRADATION flip is visceral), RED→GREEN via vitest, graceful when empty. D3/D4: the Claude/GPT/Llama mixed council is proven config-only offline (build_trio models= routing) and the LENGTH_VIOLATION judge-lens catch is proven via an explicit MOCK predictor — both gated to pack=narrative so the healthcare regression gate stays 0-new. Moat + core 0-diff vs a4efd0f; ruff clean; vitest 0-new. D5 (the PAID live 3-model run) was deliberately NOT run — it is a separate owner go. On audit the monitor should confirm: (1) the 5 healthcare-gate failures are all pre-existing (4 are order-pollution flakes that pass in isolation; the baseline a4efd0f shows 8 failures, a different flaky subset, confirming the moving-target pollution S-BS-NARR3-1); (2) S-BS-NARR4-1 remains OPEN (D4 proved the wiring via MOCK; the REAL live positive-catch is D5).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage NARR-5 next, then schedule the D5 PAID live council run as a separate owner-approved go (the wiring is now de-risked offline)."
+}
