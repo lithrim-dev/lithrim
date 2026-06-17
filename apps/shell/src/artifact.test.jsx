@@ -213,3 +213,65 @@ describe("ReportTab — HONEST-1 unlabeled mode (A4)", () => {
     expect(container.textContent).not.toContain("null ·");
   });
 });
+
+// NARR-5 D2 — the ReportTab Floor Blocks section. composite() emits `floor_adjustments`
+// (report.py:87) but artifact.jsx rendered it NOWHERE; the SILENT_DEGRADATION floor flip
+// (PASS→BLOCK→reject) was invisible. Each adj = {flag, action: floor_block|floor_inconclusive,
+// contract_type, contract, conforms, disposition}.
+const FLOOR_BLOCK_RUN = {
+  case_id: "narrative_jinn_silent_degradation",
+  grade_path: "in_process",
+  composite: {
+    verdict: "reject",
+    stage_verdict: "BLOCK",
+    score: 1.0,
+    active_findings: ["SILENT_DEGRADATION"],
+    grounded_adjustments: [],
+    floor_adjustments: [
+      {
+        flag: "SILENT_DEGRADATION",
+        action: "floor_block",
+        contract_type: "silent_degradation",
+        contract: "v1",
+        conforms: false,
+        disposition: "inject_block",
+      },
+    ],
+    floor_block_count: 1,
+  },
+  calibration_check: { label_status: "unlabeled", status: "unlabeled", verdict_match_rate: null, ece: null, n_cases: 1, n_with_confidence: 0 },
+};
+
+const NO_FLOOR_RUN = {
+  case_id: "narrative_jinn_exposure_clean",
+  grade_path: "in_process",
+  composite: {
+    verdict: "approve",
+    stage_verdict: "PASS",
+    score: 0.0,
+    active_findings: [],
+    grounded_adjustments: [],
+    floor_adjustments: [],
+    floor_block_count: 0,
+  },
+  calibration_check: { label_status: "unlabeled", status: "unlabeled", verdict_match_rate: null, ece: null, n_cases: 1, n_with_confidence: 0 },
+};
+
+describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
+  it("renders a floor_block (SILENT_DEGRADATION verdict-flip) with its contract + disposition", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={FLOOR_BLOCK_RUN} runError={null} />,
+    );
+    expect(screen.getByText(/Floor blocks/i)).toBeInTheDocument();
+    // the flag code, contract type, and disposition all render
+    const flagHits = screen.getAllByText("SILENT_DEGRADATION");
+    expect(flagHits.length).toBeGreaterThan(0);
+    expect(container.textContent).toContain("silent_degradation"); // contract_type
+    expect(container.textContent).toContain("inject_block"); // disposition
+  });
+
+  it("does NOT render a Floor blocks section (no false BLOCK styling) when floor_adjustments is empty", () => {
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={NO_FLOOR_RUN} runError={null} />);
+    expect(screen.queryByText(/Floor blocks/i)).toBeNull();
+  });
+});
