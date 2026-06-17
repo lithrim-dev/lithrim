@@ -2287,7 +2287,18 @@ def storyworld_ingest_endpoint(
             detail="StoryWorld connector not configured (POST /v1/connector/config first)",
         )
 
+    # NARR-6b: the FROZEN _ingest_cases drives best_of_n_extractor's DSPy ChainOfThought, which
+    # raises 'No LM is loaded' unless an LM is in the ambient dspy context — so a live pull would
+    # trap every session as an error and yield 0 cases. Configure a BYO-Claude ($0) LM ONCE and
+    # wrap each per-session ctx.ingest_cases() in that context (the established judge_optimize.py
+    # `with dspy.context(lm=lm):` pattern). LOCALIZED here — _ingest_cases + the chat path stay
+    # byte-identical.
+    import dspy
+
+    from lithrim_bench.runtime.council.byo_claude_lm import build_claude_cli_lm
     from lithrim_bench.verification import StoryWorldAdminClient
+
+    ingest_lm = build_claude_cli_lm()
 
     ctx = _build_tool_context(
         req_agent=req.agent,
@@ -2316,7 +2327,8 @@ def storyworld_ingest_endpoint(
             records = _prepare_storyworld_session(detail)
             if not records:
                 continue
-            out = ctx.ingest_cases(json.dumps(records), agent=req.agent)
+            with dspy.context(lm=ingest_lm):
+                out = ctx.ingest_cases(json.dumps(records), agent=req.agent)
             sessions_seen += 1
             for case in out.get("cases", []):
                 cid = case.get("case_id")
