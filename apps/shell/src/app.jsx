@@ -102,10 +102,12 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
   );
 }
 
-// NARR-6: the StoryWorld connector form (a popover off a toolbar pill, mirrors WorkspaceSwitcher).
-// Base URL + a MASKED key + a read-only Test button surfacing the 200/401/timeout status; on a
-// clean Test the key is written server-side to .connector_env (never the response), then "Pull a
-// batch" ingests real-field cases ($0 — the floor-grade is NARR-7). Hand-compact JSX, no prettier.
+// CONN-1: the registry-driven connector form (a popover off a toolbar pill, mirrors
+// WorkspaceSwitcher). The data source is PICKED from GET /v1/connectors (the active pack's declared
+// ingest connectors — no hardcoded source); base URL + a MASKED key + a read-only Test surfacing
+// the 200/401/timeout status; on a clean Test the key is written server-side to .connector_env
+// (never the response), then "Pull a batch" → POST /v1/connector/ingest dispatches by connector_id
+// and ingests real-field cases ($0 — the floor-grade is NARR-7). Hand-compact JSX, no prettier.
 export function ConnectorForm() {
   const [open, setOpen] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -113,7 +115,24 @@ export function ConnectorForm() {
   const [limit, setLimit] = useState(50);
   const [status, setStatus] = useState(null); // {kind:"ok"|"err"|"ingested", msg}
   const [busy, setBusy] = useState(false);
+  const [connectors, setConnectors] = useState([]); // CONN-1: registry-driven, GET /v1/connectors
+  const [selected, setSelected] = useState("");
   const ref = useRef(null);
+  // CONN-1: load the declared ingest connectors when the popover opens (no hardcoded source).
+  useEffect(() => {
+    if (!open || connectors.length) return;
+    (async () => {
+      try {
+        const { listConnectors } = await import("./bff.js");
+        const list = (await listConnectors()).connectors || [];
+        setConnectors(list);
+        if (list.length && !selected) {
+          setSelected(list[0].connector_id);
+          if (list[0].default_base_url) setBaseUrl(list[0].default_base_url);
+        }
+      } catch { /* leave empty → the popover shows the no-connectors hint */ }
+    })();
+  }, [open, connectors.length, selected]);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -121,11 +140,11 @@ export function ConnectorForm() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
   const test = async () => {
-    if (!baseUrl.trim() || !key.trim()) return;
+    if (!selected || !baseUrl.trim() || !key.trim()) return;
     setBusy(true); setStatus(null);
     try {
       const { testConnector } = await import("./bff.js");
-      const r = await testConnector({ base_url: baseUrl.trim(), x_api_key: key.trim() });
+      const r = await testConnector({ base_url: baseUrl.trim(), x_api_key: key.trim(), connector_id: selected });
       setStatus(r.status === 200
         ? { kind: "ok", msg: `Connected · tested ${r.last_tested || ""}` }
         : { kind: "err", msg: r.error || `status ${r.status}` });
@@ -133,10 +152,11 @@ export function ConnectorForm() {
     finally { setBusy(false); }
   };
   const pull = async () => {
+    if (!selected) return;
     setBusy(true); setStatus(null);
     try {
-      const { ingestStoryworld } = await import("./bff.js");
-      const r = await ingestStoryworld({ limit: Number(limit) || 50 });
+      const { ingestConnector } = await import("./bff.js");
+      const r = await ingestConnector({ connector_id: selected, limit: Number(limit) || 50 });
       setStatus({ kind: "ingested",
         msg: `Ingested ${r.count} case(s) from ${r.sessions} session(s)${r.errors_trapped ? ` · ${r.errors_trapped} trapped` : ""}` });
     } catch (e) { setStatus({ kind: "err", msg: String(e.message || e) }); }
@@ -159,26 +179,37 @@ export function ConnectorForm() {
   const statusColor = status?.kind === "err" ? "var(--amber)" : "var(--teal)";
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button className="ws-pill" title="Connect a data source (StoryWorld admin API)"
+      <button className="ws-pill" title="Connect a data source (pick from the pack's connectors)"
         onClick={() => setOpen((o) => !o)} style={{ cursor: "pointer", border: "none" }}>
         <I name="link" size={11} /> Connector <I name="chevD" size={11} />
       </button>
       {open && (
         <div style={menuStyle}>
           <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase",
-            letterSpacing: 0.5 }}>StoryWorld admin API</div>
+            letterSpacing: 0.5 }}>Data source</div>
+          {connectors.length === 0 ? (
+            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>No connectors for this workspace.</div>
+          ) : (
+            <select value={selected} onChange={(e) => {
+              setSelected(e.target.value);
+              const c = connectors.find((x) => x.connector_id === e.target.value);
+              if (c && c.default_base_url) setBaseUrl(c.default_base_url);
+            }} style={inputStyle}>
+              {connectors.map((c) => <option key={c.connector_id} value={c.connector_id}>{c.label}</option>)}
+            </select>
+          )}
           <input value={baseUrl} placeholder="base URL (https://…)"
             onChange={(e) => setBaseUrl(e.target.value)} style={inputStyle} />
           <input type="password" value={key} placeholder="x-api-key (write-only, masked)"
             autoComplete="off" onChange={(e) => setKey(e.target.value)} style={inputStyle} />
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={test} disabled={busy} style={btn(false)}>Test connection</button>
+            <button onClick={test} disabled={busy || !selected} style={btn(false)}>Test connection</button>
           </div>
           <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input type="number" min="1" value={limit} onChange={(e) => setLimit(e.target.value)}
               title="how many sessions to pull" style={{ ...inputStyle, width: 70 }} />
-            <button onClick={pull} disabled={busy} style={btn(true)}>Pull a batch</button>
+            <button onClick={pull} disabled={busy || !selected} style={btn(true)}>Pull a batch</button>
           </div>
           {status && <div style={{ fontSize: 11.5, color: statusColor }}>{status.msg}</div>}
         </div>

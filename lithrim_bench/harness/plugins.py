@@ -212,18 +212,20 @@ _CORE_TOOL_PLUGINS: tuple[PluginManifest, ...] = (
 )
 
 
-def tool_plugins() -> list[PluginManifest]:
-    """The tool registry (core ∪ the active pack) as ``kind: tool`` plugins — the TOOL-1
-    declaration layer. Core tools are the static :data:`_CORE_TOOL_PLUGINS` (the JUTE connector,
-    all-Core); a pack contributes tools DATA-ONLY via its manifest ``tools`` ref (a ``tools.json``
-    list of manifest dicts), each forced to ``kind='tool'`` and defaulting to the pack's tier.
-    Mirrors :func:`provider_plugins` (static core) ⊕ the pack-floors fold in
-    :func:`grounding.contract_plugins` (pack-contributed). ``pack`` is imported lazily so this
-    module stays dependency-light."""
+def tool_plugins(pack: str | None = None) -> list[PluginManifest]:
+    """The tool registry (core ∪ a pack) as ``kind: tool`` plugins — the TOOL-1 declaration layer.
+    Core tools are the static :data:`_CORE_TOOL_PLUGINS` (the JUTE connector, all-Core); a pack
+    contributes tools DATA-ONLY via its manifest ``tools`` ref (a ``tools.json`` list of manifest
+    dicts), each forced to ``kind='tool'`` and defaulting to the pack's tier. Mirrors
+    :func:`provider_plugins` (static core) ⊕ the pack-floors fold in
+    :func:`grounding.contract_plugins` (pack-contributed). ``pack`` defaults to the active pack;
+    pass it explicitly to enumerate a specific workspace's pack from a differently-pinned process
+    (CONN-1 — the BFF process binds one pack but serves multi-pack workspaces). ``pack`` (the
+    module) is imported lazily so this module stays dependency-light."""
     out: list[PluginManifest] = list(_CORE_TOOL_PLUGINS)
     from lithrim_bench.harness import pack as _pack
 
-    active = _pack.active_pack()
+    active = pack or _pack.active_pack()
     pack_tier = _pack._manifest(active).get("tier", "core")
     for raw in _pack.load_pack_tools(active) or ():
         out.append(

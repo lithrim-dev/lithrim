@@ -6,6 +6,7 @@
   "ontology": "ontology.json",
   "flags_ref": "taxonomy_snapshot.json",
   "floors": "floors.py",
+  "tools": "tools.json",
   "council_roles": "council_roles",
   "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
 }

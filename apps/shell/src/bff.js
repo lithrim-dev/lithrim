@@ -101,13 +101,18 @@ export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =
 export const testConnector = ({ base_url, x_api_key, connector_id = "storyworld_admin" } = {}) =>
   call("/v1/connector/config", { method: "POST", body: { connector_id, base_url, x_api_key } });
 
-/* POST /v1/connector/storyworld/ingest — paginate the admin API + ingest real-field cases
-   (PII-redacted) into the active workspace corpus; the key loads from .connector_env (not sent).
-   Returns {count, sessions, cases, errors_trapped}. $0 (no paid council; the floor-grade is NARR-7). */
-export const ingestStoryworld = ({ limit = 50, offset = 0, agent } = {}) =>
-  call("/v1/connector/storyworld/ingest", {
+/* CONN-1: GET /v1/connectors — the ingest-capable connectors declared in the active pack's tool
+   registry (plugins.tool_plugins()). Display-safe fields only ({connector_id, label,
+   default_base_url, transport}); never a key. The picker renders this list — no hardcoded source. */
+export const listConnectors = () => call("/v1/connectors");
+
+/* CONN-1: POST /v1/connector/ingest — generic batch ingest, dispatched by connector_id to a
+   per-connector pull adapter (the key loads server-side from .connector_env, never sent). Returns
+   {count, sessions, cases, errors_trapped}. $0 (no paid council; the floor-grade is NARR-7). */
+export const ingestConnector = ({ connector_id, limit = 50, offset = 0, agent } = {}) =>
+  call("/v1/connector/ingest", {
     method: "POST",
-    body: { limit, offset, ...(agent ? { agent } : {}) },
+    body: { connector_id, limit, offset, ...(agent ? { agent } : {}) },
   });
 
 /* GET /v1/agent/template — the committed blank-slate template (ws0_default.json), the

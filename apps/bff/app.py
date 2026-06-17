@@ -2373,12 +2373,7 @@ def connector_config_endpoint(
     }
 
 
-@app.post("/v1/connector/storyworld/ingest")
-def storyworld_ingest_endpoint(
-    req: StoryworldIngestRequest,
-    default_actor: Actor = Depends(get_actor),
-    x_actor: str | None = Header(None, alias="X-Actor"),
-) -> dict:
+def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
     """NARR-6c: the real-field batch ingest, DETERMINISTIC direct-write. Load ``base_url`` + key
     (env override first, then ``.connector_env``), paginate ``/api/admin/sessions``, fetch each
     detail, and per session run ``_prepare_storyworld_session`` (dict-or-list scene normalize,
@@ -2390,8 +2385,10 @@ def storyworld_ingest_endpoint(
     Per-session errors (401/404/timeout) are trapped structurally — nothing written. One batch-
     summary AuditRecord (§8.4); the key is never returned. ``_ingest_cases`` (the CHAT ingest path
     for arbitrary JSON) is unchanged — only this connector endpoint went direct-write.
+
+    CONN-1: extracted to a per-connector adapter (keyed by ``connector_id`` in
+    :data:`_CONNECTOR_INGEST_ADAPTERS`); the bespoke StoryWorld pull below is untouched.
     """
-    ws = workspace.get_active_workspace()
     env = _load_connector_env(ws)
     api_key = os.environ.get(_STORYWORLD_KEY_VAR) or env.get(_STORYWORLD_KEY_VAR)
     base_url = (
@@ -2473,7 +2470,7 @@ def storyworld_ingest_endpoint(
     # ingest audits — the generation that fired those per-session audits is gone).
     AuditLog(db_path=ws.config_db).record(
         AuditRecord(
-            actor=_resolve_actor(x_actor, default_actor),
+            actor=actor,
             action="ingest_batch",
             target=Target(type="corpus", id=req.agent),
             why={
@@ -2497,3 +2494,82 @@ def storyworld_ingest_endpoint(
         "cases": list(union.keys()),
         "errors_trapped": errors_trapped,
     }
+
+
+# ── CONN-1: the registry-driven connector surface ──────────────────────────────────────────
+# The connector panel reads GET /v1/connectors (the ingest-capable subset of
+# plugins.tool_plugins() — declaration-driven, License-gated, secrets never returned) and ingests
+# through POST /v1/connector/ingest, which dispatches by connector_id to a per-connector pull
+# adapter. Adding a connector is a manifest entry (+ an adapter here, if it pulls) — never a UI
+# edit. Today storyworld_admin is the only wired pull adapter; the JUTE connector is a transform
+# engine (no service.ingest flag) and is intentionally excluded from the ingest picker.
+_CONNECTOR_INGEST_ADAPTERS = {
+    "storyworld_admin": _ingest_storyworld,
+}
+
+
+class ConnectorIngestRequest(BaseModel):
+    connector_id: str
+    limit: int = 50
+    offset: int = 0
+    agent: str = DEFAULT_AGENT
+
+
+@app.get("/v1/connectors")
+def connectors_list_endpoint() -> dict:
+    """CONN-1: the ingest-capable connectors declared in the ACTIVE WORKSPACE's pack tool registry
+    (``plugins.tool_plugins(pack=ws.pack)``, License-gated). Keyed to the workspace's pack — NOT the
+    BFF process env — so a narrative workspace served through a differently-pinned process still
+    sees its connectors. Projects ONLY display-safe fields — never a key, never a service secret.
+    The shell renders this as the connector picker (no hardcoded source).
+    """
+    from lithrim_bench.harness import plugins
+
+    ws = workspace.get_active_workspace()
+    lic = plugins.default_license()
+    out: list[dict] = []
+    for p in plugins.tool_plugins(pack=getattr(ws, "pack", None)):
+        if not lic.permits(p.id):
+            continue
+        svc = p.service or {}
+        if not svc.get("ingest"):
+            continue
+        out.append(
+            {
+                "connector_id": p.id,
+                "label": svc.get("label") or p.id,
+                "default_base_url": svc.get("default_base_url", ""),
+                "transport": p.transport,
+            }
+        )
+    return {"connectors": out}
+
+
+@app.post("/v1/connector/ingest")
+def connector_ingest_endpoint(
+    req: ConnectorIngestRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CONN-1: generic batch ingest — dispatch by ``connector_id`` to a per-connector pull
+    adapter. A declaration-only connector (no wired adapter) is a clean 400; nothing written.
+    """
+    adapter = _CONNECTOR_INGEST_ADAPTERS.get(req.connector_id)
+    if adapter is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"connector {req.connector_id!r} has no ingest adapter",
+        )
+    ws = workspace.get_active_workspace()
+    return adapter(ws, req, actor=_resolve_actor(x_actor, default_actor))
+
+
+@app.post("/v1/connector/storyworld/ingest")
+def storyworld_ingest_endpoint(
+    req: StoryworldIngestRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """NARR-6c legacy route — back-compat delegator to the storyworld_admin adapter (CONN-1)."""
+    ws = workspace.get_active_workspace()
+    return _ingest_storyworld(ws, req, actor=_resolve_actor(x_actor, default_actor))
