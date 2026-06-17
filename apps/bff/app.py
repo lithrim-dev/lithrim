@@ -2264,14 +2264,17 @@ def storyworld_ingest_endpoint(
     default_actor: Actor = Depends(get_actor),
     x_actor: str | None = Header(None, alias="X-Actor"),
 ) -> dict:
-    """NARR-6 P1b: the real-field batch ingest. Load ``base_url`` + key (env override first,
-    then ``.connector_env``), paginate ``/api/admin/sessions``, fetch each detail, and per
-    session REUSE the FROZEN ``_ingest_cases`` machinery with endpoint-side sample-prep
-    (``_prepare_storyworld_session``: dict-or-list scene normalize, source/finish_reason join,
-    §8.1 PII drop+redact). Union all sessions' enveloped cases into ``ws.out_dir/
+    """NARR-6c: the real-field batch ingest, DETERMINISTIC direct-write. Load ``base_url`` + key
+    (env override first, then ``.connector_env``), paginate ``/api/admin/sessions``, fetch each
+    detail, and per session run ``_prepare_storyworld_session`` (dict-or-list scene normalize,
+    source/finish_reason join, §8.1 PII drop+redact) → map each prepped record through the FROZEN
+    ``_to_envelope`` and write DIRECTLY. NO DSPy generation / NO LM / NO ``:3031`` — the prep is
+    already correct §4.1-shaped (A-LIVE verified), so re-deriving a JUTE transform was redundant
+    and (proven live) did not converge. Union all sessions' enveloped cases into ``ws.out_dir/
     ingested_cases.jsonl`` (each enriched with ``session_id``); the D1 bridge grades these.
-    Per-session errors (401/404/timeout/mis-join) are trapped structurally — a mis-join fails
-    CLEAN (nothing pinned). One batch-summary AuditRecord (§8.4). The key is never returned.
+    Per-session errors (401/404/timeout) are trapped structurally — nothing written. One batch-
+    summary AuditRecord (§8.4); the key is never returned. ``_ingest_cases`` (the CHAT ingest path
+    for arbitrary JSON) is unchanged — only this connector endpoint went direct-write.
     """
     ws = workspace.get_active_workspace()
     env = _load_connector_env(ws)
@@ -2287,28 +2290,17 @@ def storyworld_ingest_endpoint(
             detail="StoryWorld connector not configured (POST /v1/connector/config first)",
         )
 
-    # NARR-6b: the FROZEN _ingest_cases drives best_of_n_extractor's DSPy ChainOfThought, which
-    # raises 'No LM is loaded' unless an LM is in the ambient dspy context — so a live pull would
-    # trap every session as an error and yield 0 cases. Configure a BYO-Claude ($0) LM ONCE and
-    # wrap each per-session ctx.ingest_cases() in that context (the established judge_optimize.py
-    # `with dspy.context(lm=lm):` pattern). LOCALIZED here — _ingest_cases + the chat path stay
-    # byte-identical.
-    import dspy
-
-    from lithrim_bench.runtime.council.byo_claude_lm import build_claude_cli_lm
+    # NARR-6c: _prepare_storyworld_session already produces correct §4.1-shaped per-scene records
+    # DETERMINISTICALLY (source/finish_reason joined, §8.1 PII dropped+redacted — A-LIVE verified).
+    # The old per-session ctx.ingest_cases() redundantly re-derived a JUTE transform via DSPy, which
+    # needs an LM and (proven live) does NOT converge — every session trapped, 0 cases. So map each
+    # prepped record through the FROZEN _to_envelope and write DIRECTLY: $0, deterministic, instant,
+    # no LM / no :3031 / no generation. _ingest_cases + the chat path stay byte-identical (the
+    # connector no longer drives the extractor; the chat ingest_cases path still does, for arbitrary
+    # JSON). No tool context is needed here anymore.
     from lithrim_bench.verification import StoryWorldAdminClient
+    from lithrim_bench.verification.jute_extractor import _to_envelope
 
-    ingest_lm = build_claude_cli_lm()
-
-    ctx = _build_tool_context(
-        req_agent=req.agent,
-        db_path=ws.config_db,
-        out_dir=ws.out_dir,
-        workdir=ws.ontology_dir,
-        collections_db=ws.collections_db,
-        actor=_resolve_actor(x_actor, default_actor),
-        x_actor=x_actor,
-    )
     client = StoryWorldAdminClient(base_url, api_key=api_key)
 
     union: dict[str, dict] = {}
@@ -2327,17 +2319,15 @@ def storyworld_ingest_endpoint(
             records = _prepare_storyworld_session(detail)
             if not records:
                 continue
-            with dspy.context(lm=ingest_lm):
-                out = ctx.ingest_cases(json.dumps(records), agent=req.agent)
             sessions_seen += 1
-            for case in out.get("cases", []):
+            for r in records:
+                case = _to_envelope(r)
                 cid = case.get("case_id")
                 if not cid:
                     continue
                 # enrich with session_id (the frozen _to_envelope drops it) for the union write
-                case = {**case, "session_id": session_id}
-                union[cid] = case
-        except Exception:  # noqa: BLE001 — 401/404/timeout/mis-join: trap structurally, never fabricate
+                union[cid] = {**case, "session_id": session_id}
+        except Exception:  # noqa: BLE001 — 401/404/timeout: trap structurally, never fabricate
             errors_trapped += 1
             continue
 
@@ -2363,7 +2353,9 @@ def storyworld_ingest_endpoint(
             + ("\n" if existing else "")
         )
 
-    # ONE batch-summary AuditRecord (§8.4) — per-session audits already fired inside _ingest_cases.
+    # ONE batch-summary AuditRecord (§8.4) — the ONLY audit on this path: NARR-6c writes the prepped
+    # records directly via _to_envelope (deterministic direct-write, no LLM / no :3031 / no per-session
+    # ingest audits — the generation that fired those per-session audits is gone).
     AuditLog(db_path=ws.config_db).record(
         AuditRecord(
             actor=_resolve_actor(x_actor, default_actor),
