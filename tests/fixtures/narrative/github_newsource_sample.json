@@ -1,0 +1,56 @@
+{
+  "source": "github",
+  "repo": "pallets/flask",
+  "issues": [
+    {
+      "number": 1361,
+      "title": "Method render_template does not use blueprint specified template_folder",
+      "author": "Kevin922",
+      "state": "closed"
+    },
+    {
+      "number": 1575,
+      "title": "What is the release schedule for 1.0?",
+      "author": "lipis",
+      "state": "closed"
+    }
+  ],
+  "comments": [
+    {
+      "id": 87403507,
+      "issue_number": 1361,
+      "author": "untitaker",
+      "body": "What is the output, and what did you expect?"
+    },
+    {
+      "id": 114582278,
+      "issue_number": 1361,
+      "author": "alanhamlett",
+      "body": "The render_template function should look like this:"
+    },
+    {
+      "id": 119505789,
+      "issue_number": 1361,
+      "author": "ael-code",
+      "body": "I encountered the same bug. I build up a simple example to reproduce it."
+    },
+    {
+      "id": 143842993,
+      "issue_number": 1575,
+      "author": "davidism",
+      "body": "There is a great place to start contributing positively to see a new release sooner."
+    },
+    {
+      "id": 145698154,
+      "issue_number": 1575,
+      "author": "stephane",
+      "body": "There are many trivial Pull Requests but nobody to close or merge them."
+    },
+    {
+      "id": 145716465,
+      "issue_number": 1575,
+      "author": "davidism",
+      "body": "This might be that Flask is working well for what it was designed to do."
+    }
+  ]
+}
