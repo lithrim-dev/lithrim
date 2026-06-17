@@ -276,11 +276,56 @@ $body:
 """
 
 
-def render_dsl_excerpt(spec: dict, *, include_envelope_example: bool = True) -> str:
+# EXTRACTOR-ONLY grounding addendum (NARR-7 / G1). This is appended ONLY on the
+# `jute_extractor` path (`for_extractor=True`) — the VALIDATOR path (`jute_dspy`) NEVER sees it,
+# so its excerpt stays byte-identical (R1: _RUNTIME_NOTES is SHARED). These facts are EMPIRICALLY
+# DERIVED from the live :3031 spike (NOTE_jute_extractor_wired_demo_2026-06-17.md §A): they are
+# the exact quirks that took a blind first-shot on a NEW join-heavy shape (GitHub issues⋈comments)
+# to 0/3, and a one-refine round to 3/3. The validator authors single-resource CHECKS; the
+# extractor must author a relational JOIN across collections — a different burden that needs the
+# join idiom + the two traps + the deployed string/concat quirks.
+_EXTRACTOR_NOTES = (
+    "EXTRACTOR — AUTHORING A RELATIONAL JOIN (TRUST THIS over the spec; verified live on the "
+    "deployed engine — the deployed build differs from the documented spec):\n"
+    "  FEED-SHAPE: the engine wraps your input as {resource: <input>}, so address the dump as "
+    "`resource.<topKey>` (e.g. resource.comments, resource.issues).\n"
+    "  ITERATE one record per entry of the SOURCE collection with `$map: $ resource.<coll>` "
+    "`$as: e` `$body: ...` — the output row-count equals the iterated collection's length.\n"
+    "  JOIN-BY-KEY (the ROBUST idiom): to attach a related collection's row, find it by key with "
+    "a nested `$reduce` (find-by-key): `$reduce: $ resource.<other>` `$as: [acc, x]` "
+    "`$start: null` `$body: { $if: $ x.key = e.joinKey, $then: $ x, $else: $ acc }`. The "
+    "$reduce/$let/$map each bind their var INTO the existing scope, so the inner $body CAN read "
+    "the outer loop var.\n"
+    "  STRING LITERALS: DOUBLE QUOTES ONLY — `\"github\"`, NOT `'github'`. Single-quote literals "
+    "FAIL TO PARSE on the deployed engine (the served spec lies). This was the dominant first-"
+    "shot failure on a new shape.\n"
+    "  CONCAT with the `+` operator: `\"gh-\" + toString(x.id)`. joinStr is (sep, ARRAY) — NOT a "
+    "variadic concat; do NOT use joinStr to glue scalars.\n"
+    "  A $body/$reduce/$let value that SELECTS between values MUST be a STRUCTURED $if OBJECT "
+    "`{ $if: $ cond, $then: $ a, $else: $ b }` — NEVER an inline string `\"$ $if: ...\"`.\n"
+    "  WORKS: len(coll) (= the count; 'count'/'length'/'size' are ABSENT), groupBy(keyfn, coll) "
+    "(a clean keyed index).\n"
+    "  JOIN TRAP 1 (predicate `.0`): `coll.*(this.k = key).0.field` does NOT take the first match "
+    "— after a predicate, `.0` maps INTO each match and collapses to `[]` → the joined field is "
+    "null (a MIS-JOIN). Use the $reduce find-by-key idiom instead.\n"
+    "  JOIN TRAP 2 (assoc index): an `assoc`-built index then `.(key)` returns null — assoc makes "
+    "STRING keys but a dynamic `.(...)` looks up a KEYWORD (string-vs-keyword mismatch).\n"
+    "  NO `#` in a YAML scalar (it starts a comment and truncates the expression)."
+)
+
+
+def render_dsl_excerpt(
+    spec: dict, *, include_envelope_example: bool = True, for_extractor: bool = False
+) -> str:
     """Render a compact, TRUTHFUL grounding excerpt from the live DSL spec.
 
     The served spec documents builtins the runtime lacks, so the rendered operators/builtins
     are followed by the verified runtime notes + the output-envelope example.
+
+    `for_extractor=True` (NARR-7) appends the EXTRACTOR-ONLY relational-JOIN grounding addendum
+    (`_EXTRACTOR_NOTES`) — the join idiom, the two join traps, the deployed string/concat quirks.
+    It is STRICTLY ADDITIVE: the default (validator) excerpt is byte-identical with/without the
+    flag absent, so `jute_dspy`'s SHARED `_RUNTIME_NOTES` is never regressed (R1).
     """
     chunks: list[str] = []
     if isinstance(spec, dict) and spec:
@@ -299,6 +344,8 @@ def render_dsl_excerpt(spec: dict, *, include_envelope_example: bool = True) -> 
             "{name, field, status, message}. Follow this assembly shape (author your own "
             "checks):\n" + _ENVELOPE_SKELETON
         )
+    if for_extractor:
+        chunks.append(_EXTRACTOR_NOTES)
     return "\n\n".join(chunks)
 
 

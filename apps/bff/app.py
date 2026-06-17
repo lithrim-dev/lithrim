@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -238,6 +239,37 @@ def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
     if wc.exists():
         return wc, "draft"
     return agent.ontology_abspath(), "committed"
+
+
+# NARR-7 / G3 — backtick-quoted collection names in an extraction_rules hint (e.g. "one case per
+# `comments`"). The AGENT channel for naming the iterated collection (the SDK-MCP tool schema is
+# frozen, no expected_count knob), so an arbitrary {issues,comments}-shaped dump can ingest.
+_ITERATED_COLLECTION_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+
+
+def _infer_iterated_count(sample: Any, extraction_rules: str = "") -> int:
+    """Infer expected_count = the iterated SOURCE collection's length (NARR-7 / G3).
+
+    Resolution: (1) a backtick-quoted top-level key in extraction_rules whose value is a list
+    (the agent's iterated-collection hint), else (2) the StoryWorld enhanced_scenes count
+    (UNCHANGED), else (3) a bare top-level list length, else 1. A non-list dict with no hint
+    yields 1 — so a multi-record transform is REJECTED by the gate, not silently mis-counted.
+    """
+    if isinstance(sample, dict) and extraction_rules:
+        for name in _ITERATED_COLLECTION_RE.findall(extraction_rules):
+            value = sample.get(name)
+            if isinstance(value, list):
+                return len(value)
+    scenes = (
+        (sample.get("resource", {}).get("metadata", {}) or {}).get("enhanced_scenes")
+        if isinstance(sample, dict)
+        else None
+    )
+    if isinstance(scenes, dict):
+        return len(scenes)
+    if isinstance(sample, list):
+        return len(sample)
+    return 1
 
 
 def _load_agent(name: str, db_path: Path):
@@ -2002,7 +2034,10 @@ def _build_tool_context(
     # ── NARR-2: the "eval anything" INGESTION binding — drop JSON → generate a JUTE transform →
     # live-gate on :3031 → apply → PIN → upsert the workspace corpus + write ONE AuditRecord.
     def _ingest_cases(
-        json_dump: str, extraction_rules: str = "", agent: str = ""
+        json_dump: str,
+        extraction_rules: str = "",
+        agent: str = "",
+        expected_count: int | None = None,
     ) -> dict:
         # INGESTION-ONLY (trust-model separation, SPEC_NARRATIVE_EVAL A4): this builds + pins a
         # jute_transform via EtlpJuteClient DIRECTLY (like add_grounding_contract calls its bound
@@ -2024,20 +2059,18 @@ def _build_tool_context(
             sample = json.loads(json_dump)
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"the ingested JSON did not parse: {exc}") from exc
-        # expected_count = the number of source entries the transform must yield one case each from.
-        # For a StoryWorld session that is the enhanced_scenes count; fall back to a top-level list
-        # length, else 1. (A heuristic for the generation oracle — the human can refine the rules.)
-        scenes = (
-            (sample.get("resource", {}).get("metadata", {}) or {}).get("enhanced_scenes")
-            if isinstance(sample, dict)
-            else None
-        )
-        if isinstance(scenes, dict):
-            expected_count = len(scenes)
-        elif isinstance(sample, list):
-            expected_count = len(sample)
-        else:
-            expected_count = 1
+        # expected_count = the number of source entries the transform must yield one case each
+        # from. RESOLUTION ORDER (NARR-7 / G3 — the {issues,comments}-dict bug fix):
+        #   1. an EXPLICIT expected_count (the connector / a precise caller names it);
+        #   2. an ITERATED-COLLECTION HINT in extraction_rules — a backtick-quoted top-level key
+        #      whose value is a list (e.g. "one case per `comments`") → len(dump[key]); this is the
+        #      AGENT channel, since the SDK-MCP tool schema is frozen (no expected_count knob);
+        #   3. the StoryWorld enhanced_scenes count (UNCHANGED default);
+        #   4. a bare top-level list length, else 1.
+        # Without (1) or (2) a non-list dict (e.g. {issues,comments}) infers 1 and a multi-record
+        # transform is correctly REJECTED (the gate, not a silent mis-count) — see G3/R5.
+        if expected_count is None:
+            expected_count = _infer_iterated_count(sample, extraction_rules)
         rules = extraction_rules or (
             "Normalize this JSON dump into a per-entry array of eval cases; emit one record per "
             "source entry with at least case_id and response (the graded content)."
@@ -2046,7 +2079,13 @@ def _build_tool_context(
         client = EtlpJuteClient()
         # live-gate at generation time: the loop scores every candidate against :3031 via
         # test_template (a :3031-down / non-compiling candidate scores 0 and never accepts).
-        excerpt = render_dsl_excerpt(client.get_dsl_spec(), include_envelope_example=False)
+        # for_extractor=True (NARR-7 / G1): the EXTRACTOR-only relational-JOIN grounding addendum
+        # (the $reduce find-by-key idiom + the two join traps + the double-quote/`+`-concat quirks)
+        # — what makes generation on a join-heavy NEW shape converge. The VALIDATOR excerpt is
+        # untouched (R1 — _RUNTIME_NOTES is shared but the addendum is extractor-path-only).
+        excerpt = render_dsl_excerpt(
+            client.get_dsl_spec(), include_envelope_example=False, for_extractor=True
+        )
 
         def make_gen():
             return build_extractor_generator(
