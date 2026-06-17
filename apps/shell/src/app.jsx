@@ -102,6 +102,91 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
   );
 }
 
+// NARR-6: the StoryWorld connector form (a popover off a toolbar pill, mirrors WorkspaceSwitcher).
+// Base URL + a MASKED key + a read-only Test button surfacing the 200/401/timeout status; on a
+// clean Test the key is written server-side to .connector_env (never the response), then "Pull a
+// batch" ingests real-field cases ($0 — the floor-grade is NARR-7). Hand-compact JSX, no prettier.
+export function ConnectorForm() {
+  const [open, setOpen] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [key, setKey] = useState("");
+  const [limit, setLimit] = useState(50);
+  const [status, setStatus] = useState(null); // {kind:"ok"|"err"|"ingested", msg}
+  const [busy, setBusy] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const test = async () => {
+    if (!baseUrl.trim() || !key.trim()) return;
+    setBusy(true); setStatus(null);
+    try {
+      const { testConnector } = await import("./bff.js");
+      const r = await testConnector({ base_url: baseUrl.trim(), x_api_key: key.trim() });
+      setStatus(r.status === 200
+        ? { kind: "ok", msg: `Connected · tested ${r.last_tested || ""}` }
+        : { kind: "err", msg: r.error || `status ${r.status}` });
+    } catch (e) { setStatus({ kind: "err", msg: String(e.message || e) }); }
+    finally { setBusy(false); }
+  };
+  const pull = async () => {
+    setBusy(true); setStatus(null);
+    try {
+      const { ingestStoryworld } = await import("./bff.js");
+      const r = await ingestStoryworld({ limit: Number(limit) || 50 });
+      setStatus({ kind: "ingested",
+        msg: `Ingested ${r.count} case(s) from ${r.sessions} session(s)${r.errors_trapped ? ` · ${r.errors_trapped} trapped` : ""}` });
+    } catch (e) { setStatus({ kind: "err", msg: String(e.message || e) }); }
+    finally { setBusy(false); }
+  };
+  const menuStyle = {
+    position: "absolute", top: "calc(100% + 6px)", left: 0, minWidth: 280, zIndex: 60,
+    background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10,
+    boxShadow: "var(--shadow-pop)", padding: 10, display: "flex", flexDirection: "column", gap: 7,
+  };
+  const inputStyle = {
+    padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: "1px solid var(--border)",
+    background: "var(--bg)", color: "var(--ink)",
+  };
+  const btn = (primary) => ({
+    padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer",
+    background: primary ? "var(--accent)" : "var(--surface-muted)",
+    color: primary ? "#fff" : "var(--ink)", fontWeight: 600,
+  });
+  const statusColor = status?.kind === "err" ? "var(--amber)" : "var(--teal)";
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button className="ws-pill" title="Connect a data source (StoryWorld admin API)"
+        onClick={() => setOpen((o) => !o)} style={{ cursor: "pointer", border: "none" }}>
+        <I name="link" size={11} /> Connector <I name="chevD" size={11} />
+      </button>
+      {open && (
+        <div style={menuStyle}>
+          <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase",
+            letterSpacing: 0.5 }}>StoryWorld admin API</div>
+          <input value={baseUrl} placeholder="base URL (https://…)"
+            onChange={(e) => setBaseUrl(e.target.value)} style={inputStyle} />
+          <input type="password" value={key} placeholder="x-api-key (write-only, masked)"
+            autoComplete="off" onChange={(e) => setKey(e.target.value)} style={inputStyle} />
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={test} disabled={busy} style={btn(false)}>Test connection</button>
+          </div>
+          <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="number" min="1" value={limit} onChange={(e) => setLimit(e.target.value)}
+              title="how many sessions to pull" style={{ ...inputStyle, width: 70 }} />
+            <button onClick={pull} disabled={busy} style={btn(true)}>Pull a batch</button>
+          </div>
+          {status && <div style={{ fontSize: 11.5, color: statusColor }}>{status.msg}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode, workspaces, activeWs, onSwitchWorkspace, onCreateWorkspace }) {
   return (
     <div className="titlebar">
@@ -110,6 +195,8 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
       <div className="tb-crumb">
         <WorkspaceSwitcher active={activeWs} workspaces={workspaces}
           onSwitch={onSwitchWorkspace} onCreate={onCreateWorkspace} />
+        <span className="crumb-sep"><I name="chevR" size={14} /></span>
+        <ConnectorForm />
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
         <span className="crumb-txt">Evaluations <span className="crumb-sep">/</span> <b>New evaluation</b></span>
       </div>

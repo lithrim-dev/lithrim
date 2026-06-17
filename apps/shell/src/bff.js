@@ -93,6 +93,23 @@ export const switchWorkspace = (name) =>
 export const createWorkspace = ({ name, pack = "_core", actor = "you@local" }) =>
   call("/v1/workspaces", { method: "POST", body: { name, pack, actor } });
 
+/* ── NARR-6: the StoryWorld connector — connect the admin API → batch-ingest real cases ──
+   POST /v1/connector/config — run a read-only Test with the supplied key; on a clean 200 the
+   BFF writes the key ONLY to the gitignored .connector_env (never SQLite/the response) +
+   persists base_url+last_tested. Returns {connector_id, base_url, last_tested, status} — never
+   the key. The shell masks the key input and surfaces the 200/401/timeout status. */
+export const testConnector = ({ base_url, x_api_key, connector_id = "storyworld_admin" } = {}) =>
+  call("/v1/connector/config", { method: "POST", body: { connector_id, base_url, x_api_key } });
+
+/* POST /v1/connector/storyworld/ingest — paginate the admin API + ingest real-field cases
+   (PII-redacted) into the active workspace corpus; the key loads from .connector_env (not sent).
+   Returns {count, sessions, cases, errors_trapped}. $0 (no paid council; the floor-grade is NARR-7). */
+export const ingestStoryworld = ({ limit = 50, offset = 0, agent } = {}) =>
+  call("/v1/connector/storyworld/ingest", {
+    method: "POST",
+    body: { limit, offset, ...(agent ? { agent } : {}) },
+  });
+
 /* GET /v1/agent/template — the committed blank-slate template (ws0_default.json), the
    clone source for a fresh agent. Independent of the active workspace, since a freshly
    created workspace starts with NO agents. */
