@@ -1,26 +1,21 @@
-"""NARR-6 P1b — ``POST /v1/connector/storyworld/ingest`` (the real-field batch ingest).
+"""NARR-6c — ``POST /v1/connector/storyworld/ingest`` (deterministic direct-write).
 
-The endpoint paginates the StoryWorld admin API (via an injected ``StoryWorldAdminClient``),
-fetches each session detail, and per session runs the FROZEN ``_ingest_cases`` machinery with
-endpoint-side sample-prep (owner §8 decisions):
+The connector ingest no longer generates a JUTE transform via DSPy. ``_prepare_storyworld_
+session`` already produces correct §4.1-shaped per-scene records deterministically (source/
+finish_reason joined, §8.1 PII dropped+redacted); the endpoint now maps each record through
+the FROZEN ``jute_extractor._to_envelope`` and writes directly. No LM, no ``:3031``, no
+generation — $0, deterministic, instant. (NARR-6b's per-session ``ctx.ingest_cases`` +
+``dspy.context`` are SUPERSEDED: the connector no longer drives the extractor.)
 
-  * §8.3 — ``metadata.enhanced_scenes`` dict-OR-list normalized to a list of scenes (endpoint-side).
-  * source/finish_reason — per scene, ``enhancement_status=="success" -> "enhanced"`` else
-    ``"baseline"``; ``finish_reason`` joined from ``metadata.llm_calls`` by ``scene_node_id`` so the
-    ``content_filtered`` fallback projects ``source:baseline, finish:content_filter`` (what
-    ``SilentDegradationTool`` reads).
-  * §8.1 PII — structurally DROP ``child_name``/``age`` (+ reader free-text) so they never enter the
-    envelope, AND ``redact_text`` over the body text (no PHI_PATTERNS extension).
+All $0/offline: only the ``StoryWorldAdminClient`` is mocked (it would otherwise hit the live
+admin API). The extractor / ``:3031`` / LM are NOT mocked — they are no longer on the connector
+path. ``_ingest_cases`` (the CHAT ingest path) stays byte-identical and is untouched here.
 
-All $0/offline: the StoryWorld client + ``best_of_n_extractor`` + ``score_extraction`` + the
-``:3031`` client are mocked (mirror ``tests/bff/test_ingest_cases_bound.py``). The mocked extractor
-returns the SAME enveloped scene records the endpoint prepared, so the test asserts the endpoint's
-real-field projection + redaction, not the JUTE transform itself.
-
-  * A3 — the real-shape redacted fixture → N enveloped cases with correct source/finish_reason per
-    scene; PII (child_name/age + the inline-PII string) absent/redacted; session_id present.
-  * A5 — a mocked mis-join (score_extraction accepted=False) → trapped, count==0, persist/audit
-    spies ZERO, nothing in ingested_cases.jsonl (mirror the bound mis-join test).
+  * A3 — the real-shape redacted fixture → N enveloped cases with correct source/finish_reason
+    per scene (the content_filtered scene → source:baseline, finish:content_filter); PII
+    (child_name/age + the inline-PII string) absent/redacted; session_id present on every case.
+  * A5 — a malformed / non-enhanced session yields 0 records and is skipped CLEANLY: count==0,
+    audit fires (the batch summary), nothing written to ingested_cases.jsonl.
 """
 
 from __future__ import annotations
@@ -28,7 +23,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -71,14 +65,17 @@ def ws_env(tmp_path, monkeypatch):
         importlib.reload(ws_mod)
 
 
-def _install_fake_storyworld(monkeypatch, detail: dict):
-    """A StoryWorldAdminClient that lists ONE session and returns the given detail."""
+def _install_fake_storyworld(monkeypatch, detail):
+    """A StoryWorldAdminClient that lists ONE session and returns the given detail (or, if
+    ``detail`` is None, lists ZERO sessions). The live admin API is the ONLY thing mocked."""
 
     class FakeClient:
         def __init__(self, *_a, **_k):
             pass
 
         def list_sessions(self, limit=50, offset=0):
+            if detail is None:
+                return {"items": [], "total": 0}
             return {"items": [{"id": detail.get("id", "sess_real_001")}], "total": 1}
 
         def get_session(self, session_id):
@@ -87,69 +84,21 @@ def _install_fake_storyworld(monkeypatch, detail: dict):
     monkeypatch.setattr("lithrim_bench.verification.StoryWorldAdminClient", FakeClient)
 
 
-def _install_passthrough_extractor(monkeypatch, calls):
-    """Mock best_of_n_extractor + score_extraction so the cases the ENDPOINT prepared (the
-    sample passed to _ingest_cases) pass through unchanged — proving the endpoint's real-field
-    projection + redaction, $0 (no :3031, no LM)."""
-    from lithrim_bench.verification.jute_extractor import _to_envelope
-
-    def fake_bon(make_gen, rules, sample, n=3):
-        calls["bon"] += 1
-        # the endpoint hands _ingest_cases a prepared list of per-scene records; carry it through.
-        records = sample if isinstance(sample, list) else [sample]
-        calls["_records"] = records
-        return SimpleNamespace(accepted=True, jute_transform="t")
-
-    def fake_score(client, template, sample, expected_count=1):
-        calls["score"] += 1
-        records = calls.get("_records") or (sample if isinstance(sample, list) else [sample])
-        cases = [_to_envelope(r) for r in records]
-        return {"accepted": True, "count": len(cases), "nulls": 0, "cases": cases}
-
-    monkeypatch.setattr("lithrim_bench.verification.best_of_n_extractor", fake_bon)
-    monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
-    monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
-
-    class FakeJute:
-        def __init__(self, *_a, **_k):
-            pass
-
-        def get_dsl_spec(self):
-            return {}
-
-        def persist_or_update(self, *_a, **_k):
-            calls["persist"] += 1
-            return {"id": 777}
-
-    monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
-
-
 def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monkeypatch):
-    """A3: the real-shape fixture → 3 cases; per-scene source/finish correct (the content_filtered
-    fallback → source:baseline, finish:content_filter); child_name/age + inline PII absent/redacted;
-    session_id present on every case."""
+    """A3: the real-shape fixture → 3 cases DETERMINISTICALLY (no LM / :3031 / generation); per-
+    scene source/finish correct (the content_filtered scene → source:baseline, finish:content_
+    filter); child_name/age + inline PII absent/redacted; session_id present on every case."""
     ws_mod, ws = ws_env
     detail = json.loads(_FIXTURE.read_text())
     _install_fake_storyworld(monkeypatch, detail)
-    calls = {"bon": 0, "score": 0, "persist": 0, "audit": 0}
-    _install_passthrough_extractor(monkeypatch, calls)
-
-    class SpyAudit:
-        def __init__(self, *_a, **_k):
-            pass
-
-        def record(self, *_a, **_k):
-            calls["audit"] += 1
-
-    monkeypatch.setattr(bff, "AuditLog", SpyAudit)
     client = TestClient(bff.app)
 
     resp = client.post("/v1/connector/storyworld/ingest", json={"limit": 50})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["count"] == 3, body
-    assert body["sessions"] == 1
-    assert resp.text.count("content_filter") >= 0  # not asserting on the response, on the corpus
+    assert body["sessions"] == 1, body
+    assert body["errors_trapped"] == 0, body
 
     corpus = ws.out_dir / "ingested_cases.jsonl"
     assert corpus.exists()
@@ -159,12 +108,15 @@ def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monke
     by_source = {}
     for r in rows:
         # session_id present on every emitted case
-        ctx = json.loads(r["context"]) if isinstance(r.get("context"), str) else {}
-        assert r.get("session_id") or ctx.get("session_id"), f"session_id missing on {r}"
+        assert r.get("session_id") == "sess_real_001", f"session_id missing/wrong on {r}"
+        # D1 gradeability: §4.1 envelope is complete + unlabeled-by-construction
+        assert r["artifacts"][0]["content"], "empty artifact content"
+        assert r["expected_safety_flags"] == []
+        assert r["injection_recipe"] is None
         by_source.setdefault((r.get("source"), r.get("finish_reason")), 0)
         by_source[(r.get("source"), r.get("finish_reason"))] += 1
 
-    # 2 enhanced/stop + 1 baseline/content_filter (the masked fallback)
+    # 2 enhanced/stop + 1 baseline/content_filter (the masked fallback the SilentDegradationTool reads)
     assert by_source.get(("enhanced", "stop")) == 2, by_source
     assert by_source.get(("baseline", "content_filter")) == 1, by_source
 
@@ -174,112 +126,23 @@ def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monke
     assert _INLINE_PII not in blob, "inline PII (email) was not redacted"
 
 
-def test_ingest_wraps_generation_in_dspy_lm_context(ws_env, monkeypatch):
-    """NARR-6b: the connector ingest's per-session generation must run under a configured DSPy LM
-    (else best_of_n_extractor's ChainOfThought raises 'No LM is loaded' and a live pull yields 0
-    cases). Monkeypatch build_claude_cli_lm → a sentinel LM ($0/offline, no claude CLI shell-out),
-    capture dspy.settings.lm at extractor-call time, and assert it is the sentinel (not None) AND the
-    endpoint produced cases (count > 0). RED at the parent: no LM context → captured lm is None."""
-    import dspy
-
+def test_ingest_non_enhanced_session_skips_clean(ws_env, monkeypatch):
+    """A5 (reframed): a session with no enhanced_scenes yields 0 records and is skipped CLEANLY —
+    count==0, the batch-summary audit still fires (one batch audit, no per-session audits), and
+    nothing is written to ingested_cases.jsonl. There is no :3031 gate on the connector path."""
     ws_mod, ws = ws_env
-    detail = json.loads(_FIXTURE.read_text())
+    detail = {"id": "sess_empty", "story_id": "x", "metadata": {"llm_calls": []}}
     _install_fake_storyworld(monkeypatch, detail)
 
-    sentinel_lm = SimpleNamespace(model="byo-claude-sentinel")
-    monkeypatch.setattr(
-        "lithrim_bench.runtime.council.byo_claude_lm.build_claude_cli_lm",
-        lambda *a, **k: sentinel_lm,
-    )
-
-    captured = {"lm_at_call": "UNSET"}
-
-    def fake_bon(make_gen, rules, sample, n=3):
-        captured["lm_at_call"] = dspy.settings.lm
-        return SimpleNamespace(accepted=True, jute_transform="t")
-
-    def fake_score(client, template, sample, expected_count=1):
-        from lithrim_bench.verification.jute_extractor import _to_envelope
-
-        records = sample if isinstance(sample, list) else [sample]
-        cases = [_to_envelope(r) for r in records]
-        return {"accepted": True, "count": len(cases), "nulls": 0, "cases": cases}
-
-    monkeypatch.setattr("lithrim_bench.verification.best_of_n_extractor", fake_bon)
-    monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
-    monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
-
-    class FakeJute:
-        def __init__(self, *_a, **_k):
-            pass
-
-        def get_dsl_spec(self):
-            return {}
-
-        def persist_or_update(self, *_a, **_k):
-            return {"id": 777}
-
-    monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
+    audits = {"n": 0, "actions": []}
 
     class SpyAudit:
         def __init__(self, *_a, **_k):
             pass
 
-        def record(self, *_a, **_k):
-            pass
-
-    monkeypatch.setattr(bff, "AuditLog", SpyAudit)
-    client = TestClient(bff.app)
-
-    resp = client.post("/v1/connector/storyworld/ingest", json={"limit": 50})
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["count"] > 0, body  # cases produced (the live pull no longer yields 0)
-    assert captured["lm_at_call"] is sentinel_lm, (
-        f"expected the BYO-Claude LM in the ambient dspy context at generation time, "
-        f"got {captured['lm_at_call']!r}"
-    )
-
-
-def test_ingest_misjoin_fails_clean_nothing_pinned(ws_env, monkeypatch):
-    """A5: a mocked mis-join (score_extraction accepted=False) → the per-session error is trapped,
-    count==0, persist/audit spies ZERO, nothing in ingested_cases.jsonl."""
-    ws_mod, ws = ws_env
-    detail = json.loads(_FIXTURE.read_text())
-    _install_fake_storyworld(monkeypatch, detail)
-    calls = {"bon": 0, "score": 0, "persist": 0, "audit": 0}
-
-    def fake_bon(make_gen, rules, sample, n=3):
-        calls["bon"] += 1
-        return SimpleNamespace(accepted=True, jute_transform="t")
-
-    def fake_score(client, template, sample, expected_count=1):
-        calls["score"] += 1
-        return {"accepted": False, "count": 3, "nulls": 2, "cases": []}
-
-    monkeypatch.setattr("lithrim_bench.verification.best_of_n_extractor", fake_bon)
-    monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
-    monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
-
-    class FakeJute:
-        def __init__(self, *_a, **_k):
-            pass
-
-        def get_dsl_spec(self):
-            return {}
-
-        def persist_or_update(self, *_a, **_k):
-            calls["persist"] += 1
-            return {"id": 777}
-
-    monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
-
-    class SpyAudit:
-        def __init__(self, *_a, **_k):
-            pass
-
-        def record(self, *_a, **_k):
-            calls["audit"] += 1
+        def record(self, rec, *_a, **_k):
+            audits["n"] += 1
+            audits["actions"].append(getattr(rec, "action", None))
 
     monkeypatch.setattr(bff, "AuditLog", SpyAudit)
     client = TestClient(bff.app)
@@ -288,10 +151,12 @@ def test_ingest_misjoin_fails_clean_nothing_pinned(ws_env, monkeypatch):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["count"] == 0, body
-    assert body["errors_trapped"] >= 1, body
+    assert body["sessions"] == 0, body  # an empty-scene session contributes no records
 
-    assert calls["score"] >= 1  # non-vacuous: the apply-gate ran
-    assert calls["persist"] == 0  # NOTHING pinned
+    # exactly the ONE batch-summary audit (deterministic direct-write — no per-session ingest audits)
+    assert audits["n"] == 1, audits
+    assert audits["actions"] == ["ingest_batch"], audits
+
     corpus = ws.out_dir / "ingested_cases.jsonl"
     if corpus.exists():
         assert [ln for ln in corpus.read_text().splitlines() if ln.strip()] == []
