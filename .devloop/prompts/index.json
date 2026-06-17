@@ -2466,6 +2466,37 @@
       "created": "2026-06-16",
       "last_re_verified": "2026-06-16 (monitor authoring; packs/narrative/{floors.py:104-227,ontology.json:43-179,taxonomy_snapshot.json lenses,examples/narrative_v1.jsonl:4} + tests/test_narrative_floor.py:122/208-241/257/395/409 + tests/test_narrative_pack.py:93/275 + tests/fixtures/narrative/storyworld_session.json re-grepped + the splitter reproduced on the full clean_text, vs HEAD 22bf3c6)",
       "next_action": "Hand the KICKOFF block to a FRESH executor session; plan-review must resolve R1 (grade through the SHIPPED load_ontology(), not the test-local dict) / R2 (A1 genuinely RED at parent 22bf3c6 -- paste the failing output) / R3 (removing the example orphans no count/iteration assertion) / R4 (moat + spec.py 0-diff). HARD GATE -> fresh-critic at close."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-5-narrative-demo-offline-cut-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-5",
+      "scope": "the-narrative-eval-demo-offline-demonstrable-live-cut-S-BS-NARR2-1-corpus-gradeable-bridge-plus-ReportTab-floor-block-UI-plus-multi-model-seam-and-honest-LENGTH_VIOLATION-offline-proofs-live-real-azure-3-model-browser-demo-SPLIT-to-NARR-6",
+      "file": "bench-salvage_phaseNARR-5_narrative-demo-offline-cut_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic at close. Touches the grade-input path picklist.load_case (D1, NOT a frozen file) + makes a public 'multi-model council is config-only' claim (D3). NO moat file edited: D1 touches picklist.load_case; D2 touches apps/shell/src/artifact.jsx; D3/D4 only CALL build_trio/build_authored_semantic_stage/_apply_consensus, never edit them. Critic must confirm: D1 preserves S-BS-9 PACK_FILES-first precedence; D2 renders the SILENT_DEGRADATION floor-block honestly (no false BLOCK on a clean/inconclusive scene); D3+D4 are EXPLICITLY predictor MOCKS (prove the seam/wiring, NOT judge quality -- no manufactured win, honest-Delta is the commercial moat); moat + core (compliance_council/signals/withstands/judge_metric/grounding.py/verification/{spec,tools}.py/apps/bff/agent/tools.py) 0-diff; no re-snapshot.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_NARRATIVE_EVAL.md",
+        ".devloop/sessions/HANDOFF_bench-salvage_NARR-4_2026-06-16.md",
+        "lithrim_bench/picklist.py",
+        "lithrim_bench/harness/workspace.py",
+        "lithrim_bench/harness/report.py",
+        "apps/shell/src/artifact.jsx",
+        "apps/bff/app.py",
+        "lithrim_bench/verification/jute_extractor.py",
+        "lithrim_bench/runtime/council/authored_stage.py",
+        "lithrim_bench/runtime/council/judges_dspy.py",
+        "lithrim_bench/runtime/council/byo_claude_lm.py",
+        "tests/test_narrative_floor.py"
+      ],
+      "_note": "Authored 2026-06-17 by the monitor from a code-scan reassessment (run wf_9cd6359c-326, 4 parallel readers + synthesis, confidence HIGH), with every load-bearing anchor re-grepped DIRECTLY by the monitor afterward (the Explore agents drifted on 2 paths -- picklist is lithrim_bench/picklist.py NOT harness/, artifact.jsx confirmed -- corrected in the driver). All services were DOWN at authoring; the live-UI pass defers to the executor (NARR-6). HEADLINE FINDING: the multi-model Claude/GPT/Llama council is ALREADY config-only (build_trio(models=) judges_dspy.py:329 -> build_judge_lm:205; build_authored_semantic_stage(models=,roles=) authored_stage.py:148 wraps the frozen _apply_consensus; /v1/run-eval re-derives models from persisted judge config app.py:411) -- proven on healthcare (BYOC-1), NO engine work. The two genuine gaps are narrow + offline-testable + moat-clean: load_case (picklist.py:112) has no workspace-ingested-corpus path (S-BS-NARR2-1 D-C bridge), and composite() ALREADY emits floor_adjustments (report.py:87) but artifact.jsx renders it NOWHERE (the SILENT_DEGRADATION flip is invisible). THE CUT (offline/$0/no services): D1 the bridge + D2 the ReportTab floor-block section + D3 the multi-model-seam offline proof (injected ClaudeCliLM runner) + D4 the honest LENGTH_VIOLATION positive-catch (predictor MOCK, honest-Delta). MAP-DRIFT CORRECTED: narrative_v1.jsonl has 3 cases NOT 5; pack examples already discoverable via pack_cases (pack.py:190) -- the bridge is for the INGESTED workspace corpus specifically. SPLIT to NARR-6 (gated on services up + Azure Mistral/Llama deployments judges_dspy.py:65-69 + creds): the live real-Azure 3-model run, the browser walkthrough, the live :3031 ingest leg, the real-LM LENGTH_VIOLATION catch, per-judge-model provenance UI (S-BS-97). This SPLITS spec-§8's 'NARR-4 = demo' further: NARR-4 was the floor-honesty fix; NARR-5 is the offline demonstrable cut; NARR-6 is the live visceral demo.",
+      "created": "2026-06-17",
+      "last_re_verified": "2026-06-17 (monitor authoring; picklist.py:101-112/45-63/20 + harness/workspace.py get_active_workspace().out_dir + app.py:540/1964 + jute_extractor.py:63 + report.py:51-92 [floor_adjustments:87, floor_block_count:91] + artifact.jsx:96-130 [floor rendered NOWHERE] + authored_stage.py:148-190 + judges_dspy.py:329-405/205-264 re-grepped vs HEAD 7be383f)",
+      "next_action": "OWNER scope-confirm first (the live visceral demo SPLIT to NARR-6 reframes the spec-§8 headline); then hand the KICKOFF block to a FRESH executor session; plan-review must resolve R1 (TRACE the UI->grade path app.py:540 to locate the real D1 break -- resolution fallback vs dropdown enumeration) / R2 (lazy workspace import + S-BS-9 PACK_FILES-first precedence) / R3 (D3/D4 are MOCKS -- honest-Delta) / R4 (moat + core 0-diff) / R5 (JSX no-prettier, vitest 0-new). HARD GATE -> fresh-critic at close."
     }
   ]
 }
