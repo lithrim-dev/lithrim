@@ -21,7 +21,6 @@ RESOLUTION + GRADEABILITY of an ingested case, not judge quality.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -79,10 +78,10 @@ def test_ingested_corpus_case_resolves_and_grades_via_load_case(isolated_workspa
     GREEN: the workspace-corpus fallback resolves it and grade_inprocess produces a verdict."""
     ws_mod, ws = isolated_workspaces
     from lithrim_bench.harness.grade import grade_inprocess
+    from lithrim_bench.harness.grounding import ground
     from lithrim_bench.harness.ontology import load_ontology
     from lithrim_bench.harness.pack import pack_ontology_path
     from lithrim_bench.harness.report import composite
-    from lithrim_bench.harness.grounding import ground
     from lithrim_bench.picklist import load_case
     from lithrim_bench.runtime.council.authored_stage import build_authored_semantic_stage
     from lithrim_bench.runtime.council.judges_dspy import V2_ROLES
