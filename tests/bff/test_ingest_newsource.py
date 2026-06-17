@@ -186,6 +186,67 @@ def test_github_dict_rejects_without_count_fix(tmp_path, monkeypatch, github_dum
 
 
 # --------------------------------------------------------------------------- #
+# A7 (NARR-7.1) — REUSE: a transform already pinned for the agent, still valid on this sample,
+# is APPLIED deterministically and generation is SKIPPED ($0, instant, reused=True).
+# --------------------------------------------------------------------------- #
+def test_github_reuses_pinned_transform_skips_generation(tmp_path, monkeypatch, github_dump):
+    """generate-at-authoring → pin → REUSE: when ``find_mapping_by_title`` returns a pinned
+    transform AND the structural invariant holds on the sample, _ingest_cases reuses it —
+    ``reused=True``, the pinned mapping id, and best_of_n_extractor + persist_or_update are
+    NEVER called (the repeat 'pull' is instant). The self-validating guard (a mis-applying pin
+    is not reused) is the A6 sibling."""
+    bon_calls = {"n": 0}
+
+    def fake_bon(make_gen, rules, sample, n=3):
+        bon_calls["n"] += 1  # MUST stay 0 on the reuse path
+        return SimpleNamespace(accepted=True, jute_transform="t")
+
+    def fake_score(client, template, sample, expected_count=1):
+        records = _github_records(json.loads(sample) if isinstance(sample, str) else sample)
+        return {
+            "accepted": True,
+            "count": len(records),
+            "expected_count": expected_count,
+            "nulls": 0,
+            "cases": _to_github_envelope(records),
+        }
+
+    class FakeJutePinned:
+        def __init__(self, *_a, **_k):
+            pass
+
+        def get_dsl_spec(self):
+            return {}
+
+        def find_mapping_by_title(self, _title):
+            return {"id": 111, "content": {"yaml": "<pinned-transform>"}}
+
+        def persist_or_update(self, *_a, **_k):
+            raise AssertionError("persist_or_update must NOT be called on the reuse path")
+
+    monkeypatch.setattr("lithrim_bench.verification.best_of_n_extractor", fake_bon)
+    monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
+    monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
+    monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJutePinned)
+    ws_out = tmp_path / "wsout"
+    monkeypatch.setattr(
+        "lithrim_bench.harness.workspace.get_active_workspace",
+        lambda: SimpleNamespace(out_dir=ws_out),
+    )
+    ctx = _real_ctx(tmp_path)
+
+    out = ctx.ingest_cases(
+        json_dump=github_dump,
+        extraction_rules="one case per `comments`",
+        expected_count=6,
+    )
+    assert out["count"] == 6
+    assert out["reused"] is True
+    assert out["mapping_id"] == 111
+    assert bon_calls["n"] == 0  # generation SKIPPED — the whole point of reuse
+
+
+# --------------------------------------------------------------------------- #
 # A6 — mis-join fails clean: a wrong-shape apply (count != expected) → no pin, no audit.
 # --------------------------------------------------------------------------- #
 def test_github_misjoin_pins_nothing(tmp_path, monkeypatch, github_dump):

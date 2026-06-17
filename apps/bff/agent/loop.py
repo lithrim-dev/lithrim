@@ -70,6 +70,14 @@ _SYSTEM_PROMPT = (
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
     "trail of everything you authored -- $0.\n"
+    "  - ingest_cases: INGEST an arbitrary JSON dump of AI-system output into eval cases (the "
+    "'eval anything' tool; an audited $0 write, never a paid run). ARGS: `json` = the JSON dump "
+    "(paste it verbatim); `extraction_rules` = a plain-language description that says what ONE case "
+    "is and NAMES the source collection to iterate, in backticks (e.g. \"one case per `comments`; "
+    "response = the comment body; join the issue title by issue_number\"); `agent` = the target "
+    "agent. It generates a JUTE transform (or REUSES the one already pinned for that agent -> "
+    "instant), live-gates it on :3031, pins it, applies it, and upserts the workspace corpus. A "
+    "mis-join is rejected with NOTHING pinned -- surface that plainly; never claim a partial ingest.\n"
     "  - show_case: show the SOURCE case (transcript + artifact + the planted label) as an inline "
     "Case Summary card -- $0; use it to let the human SEE what they're about to evaluate.\n"
     "  - focus_artifact: open + focus the artifact side-panel on a tab (case | report | judges | "
@@ -78,6 +86,10 @@ _SYSTEM_PROMPT = (
     "  - propose_live_run: when the human wants the REAL/LIVE verdict (not a $0 replay) -- e.g. on "
     "an imported case with no replay baseline -- surface the cost-confirm modal so THEY can "
     "authorize the paid run. $0; you only PROPOSE, you never spend.\n"
+    "ALL of the tools above are ALREADY loaded and directly callable by their exact names with "
+    "the documented arguments -- do NOT call ToolSearch / tool_search / any schema-discovery or "
+    "tool-loader (they are blocked and unnecessary here). Call the tool you need directly; if you "
+    "are unsure of an argument, use the names documented above (never guess a different arg name).\n"
     "You can NEVER fire a paid run; a live or in-process run -- single or batch -- is the "
     "human's explicit cost-confirmed action (offer propose_live_run; their modal-confirm spends). "
     "If a tool returns an error (an "
@@ -238,6 +250,51 @@ async def _deny_non_lithrim(input_data, tool_use_id, context):
     }
 
 
+def _chat_provider_env() -> tuple[str | None, str | None]:
+    """CONV-PROVIDER-1 — OPT-IN hot-switch of the conversational layer to the Anthropic API.
+
+    **Credit-safe by default.** The PAID Anthropic API powers the chat agent ONLY when explicitly
+    enabled via ``LITHRIM_CHAT_PROVIDER=anthropic`` (read from os.environ, else the gitignored
+    repo-root ``.env`` / ``.live_env``, at TURN time — so flipping the flag needs no BFF restart).
+    The DEFAULT — *even with ``ANTHROPIC_API_KEY`` sitting in ``.env``* — returns ``(None, None)`` →
+    the $0 BYO-Claude path (the local ``claude`` CLI on desktop auth). A key on disk NEVER silently
+    bills.
+
+    When opted in: the key is handed ONLY to the conversation SDK subprocess
+    (``ClaudeAgentOptions.env``, which the SDK MERGES over the inherited env — subprocess_cli.py:431),
+    NEVER written to the BFF ``os.environ`` — so the BYO-Claude JUDGE plane stays on desktop auth.
+    ``LITHRIM_CHAT_MODEL`` pins the model (alias "sonnet"/"opus" or a full id; default "sonnet").
+    Returns (api_key, model). NEVER logs the key.
+
+    NOTE: Anthropic only. The Agent SDK drives Claude; an Azure GPT/Mistral/Llama conversational
+    agent would need a different (OpenAI-tools) loop engine, not this seam.
+    """
+    import os
+    from pathlib import Path
+
+    def _read(name: str) -> str | None:
+        v = os.environ.get(name)
+        if v:
+            return v
+        root = Path(__file__).resolve().parents[3]  # apps/bff/agent/loop.py → repo root
+        for fname in (".env", ".live_env"):
+            f = root / fname
+            if not f.exists():
+                continue
+            for raw in f.read_text().splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, val = line.split("=", 1)
+                if k.strip() == name:
+                    return val.strip().strip("'\"")
+        return None
+
+    if (_read("LITHRIM_CHAT_PROVIDER") or "").strip().lower() not in ("anthropic", "anthropic-api", "api"):
+        return None, None  # credit-safe default: $0 BYO-Claude (desktop auth), key on disk ignored
+    return (_read("ANTHROPIC_API_KEY") or None), (_read("LITHRIM_CHAT_MODEL") or "sonnet")
+
+
 def _build_options(ctx: ToolContext):
     """ClaudeAgentOptions for the BYO-Claude loop over the in-process tools (lazy SDK).
 
@@ -287,7 +344,10 @@ def _build_options(ctx: ToolContext):
         except Exception:
             return {}  # fail-open for the pacing hook only; the deny hook is the real bound
 
+    api_key, chat_model = _chat_provider_env()
     return ClaudeAgentOptions(
+        model=chat_model,  # CONV-PROVIDER-1: a pinned Claude via the Anthropic API when set; None → CLI default
+        env=({"ANTHROPIC_API_KEY": api_key} if api_key else {}),  # SCOPED to this subprocess (judges unaffected)
         mcp_servers={"lithrim": server},
         allowed_tools=allowed,  # defense-in-depth; the deny hook below is the real bound
         permission_mode="bypassPermissions",

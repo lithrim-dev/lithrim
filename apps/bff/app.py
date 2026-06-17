@@ -256,10 +256,33 @@ def _infer_iterated_count(sample: Any, extraction_rules: str = "") -> int:
     yields 1 — so a multi-record transform is REJECTED by the gate, not silently mis-counted.
     """
     if isinstance(sample, dict) and extraction_rules:
+        # (1) an explicit backtick-quoted top-level key (the precise hint).
         for name in _ITERATED_COLLECTION_RE.findall(extraction_rules):
             value = sample.get(name)
             if isinstance(value, list):
                 return len(value)
+        # (1b) NARR-7.1: a bare top-level list-key named as a WHOLE WORD (singular or plural) in the
+        # rules — so the agent's NATURAL "one case per comments" resolves without exact backticks.
+        # Disambiguate: if several list keys are named, prefer one after per/each/every; if still
+        # ambiguous, do NOT guess (fall through to 1 → the gate rejects, never a silent mis-count).
+        list_keys = {k: len(v) for k, v in sample.items() if isinstance(v, list) and v}
+        named = [
+            k
+            for k in list_keys
+            if re.search(rf"\b{re.escape(k.rstrip('s'))}s?\b", extraction_rules, re.IGNORECASE)
+        ]
+        if len(named) > 1:
+            named = [
+                k
+                for k in named
+                if re.search(
+                    rf"\b(?:per|each|every)\b[^.;]*\b{re.escape(k.rstrip('s'))}s?\b",
+                    extraction_rules,
+                    re.IGNORECASE,
+                )
+            ]
+        if len(named) == 1:
+            return list_keys[named[0]]
     scenes = (
         (sample.get("resource", {}).get("metadata", {}) or {}).get("enhanced_scenes")
         if isinstance(sample, dict)
@@ -2077,40 +2100,90 @@ def _build_tool_context(
         )
 
         client = EtlpJuteClient()
-        # live-gate at generation time: the loop scores every candidate against :3031 via
-        # test_template (a :3031-down / non-compiling candidate scores 0 and never accepts).
-        # for_extractor=True (NARR-7 / G1): the EXTRACTOR-only relational-JOIN grounding addendum
-        # (the $reduce find-by-key idiom + the two join traps + the double-quote/`+`-concat quirks)
-        # — what makes generation on a join-heavy NEW shape converge. The VALIDATOR excerpt is
-        # untouched (R1 — _RUNTIME_NOTES is shared but the addendum is extractor-path-only).
-        excerpt = render_dsl_excerpt(
-            client.get_dsl_spec(), include_envelope_example=False, for_extractor=True
-        )
 
-        def make_gen():
-            return build_extractor_generator(
-                client, excerpt, sample, expected_count=expected_count
+        # REUSE (NARR-7.1, generate-at-authoring → pin → REUSE): if a transform is ALREADY pinned for
+        # this agent AND it still satisfies the structural invariant on THIS sample (the source shape
+        # is unchanged), apply it deterministically and SKIP generation — $0, instant, NO LM. A shape
+        # change fails the invariant → fall through to (re)generate+pin. Self-validating: a mis-applying
+        # pin is NEVER reused (a mis-join returns null → not accepted). Only the FIRST ingest of a shape
+        # pays the generation cost; a repeat "pull" is instant.
+        reused = False
+        template = scored = mapping_id = None
+        # graceful: a client that can't list mappings (a minimal/test stub) simply can't reuse →
+        # falls through to generate. Reuse is an optimization, never a requirement.
+        _find = getattr(client, "find_mapping_by_title", None)
+        _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
+        if _existing and (_existing.get("content") or {}).get("yaml"):
+            _pre = score_extraction(
+                client, _existing["content"]["yaml"], sample, expected_count=expected_count
+            )
+            if _pre["accepted"]:
+                template, scored, mapping_id, reused = (
+                    _existing["content"]["yaml"],
+                    _pre,
+                    _existing.get("id"),
+                    True,
+                )
+
+        if not reused:
+            # live-gate at generation time: the loop scores every candidate against :3031 via
+            # test_template (a :3031-down / non-compiling candidate scores 0 and never accepts).
+            # for_extractor=True (NARR-7 / G1): the EXTRACTOR-only relational-JOIN grounding addendum
+            # (the $reduce find-by-key idiom + the two join traps + the double-quote/`+`-concat quirks)
+            # — what makes generation on a join-heavy NEW shape converge. The VALIDATOR excerpt is
+            # untouched (R1 — _RUNTIME_NOTES is shared but the addendum is extractor-path-only).
+            excerpt = render_dsl_excerpt(
+                client.get_dsl_spec(), include_envelope_example=False, for_extractor=True
             )
 
-        pred = best_of_n_extractor(make_gen, rules, sample, n=3)
-        template = getattr(pred, "jute_transform", "") or ""
-        if not getattr(pred, "accepted", False):
-            raise RuntimeError(
-                f"the extractor did not converge to a clean {expected_count}-case transform "
-                f"(structural output-invariant unmet); nothing pinned"
-            )
-        # apply-time re-gate: confirm the accepted template still satisfies the invariant on apply.
-        scored = score_extraction(client, template, sample, expected_count=expected_count)
-        if not scored["accepted"]:
-            raise RuntimeError(
-                f"the pinned transform failed the apply-time invariant "
-                f"(count={scored['count']}, nulls={scored['nulls']}); nothing pinned"
-            )
+            def make_gen():
+                return build_extractor_generator(
+                    client, excerpt, sample, expected_count=expected_count
+                )
+
+            # GEN-LM (NARR-7.1): the generate->refine loop needs a DSPy LM to AUTHOR the transform YAML
+            # (the live gate is :3031; the LM only writes YAML, never grades). The BFF configures no
+            # global LM (the council builds its own per-role LMs), so default to BYO-Claude ($0 — the
+            # same build_claude_cli_lm the live G2 test uses) when none is set, SCOPED to this call so
+            # it never perturbs the council. INGESTION-ONLY; moat untouched. An injected predictor
+            # (offline tests) short-circuits the LM, so this stays $0/offline there.
+            import dspy
+
+            gen_lm = dspy.settings.lm
+            if gen_lm is None:
+                try:
+                    from lithrim_bench.runtime.council.byo_claude_lm import build_claude_cli_lm
+
+                    gen_lm = build_claude_cli_lm()
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"no generation LM available to author the ingest transform "
+                        f"(BYO-Claude unavailable: {exc}); nothing pinned"
+                    ) from exc
+            # n=2 (NARR-7.1): the within-generator refine loop (up to 3 iters, live-gated each) IS the
+            # convergence mechanism — n is redundant INDEPENDENT restarts. BYO-Claude is ~13s/attempt,
+            # so n=2 (one restart for insurance) keeps the interactive chat-ingest responsive
+            # (~13-26s) vs n=3's ~40s+; a batch caller can pass a higher n later.
+            with dspy.context(lm=gen_lm):
+                pred = best_of_n_extractor(make_gen, rules, sample, n=2)
+            template = getattr(pred, "jute_transform", "") or ""
+            if not getattr(pred, "accepted", False):
+                raise RuntimeError(
+                    f"the extractor did not converge to a clean {expected_count}-case transform "
+                    f"(structural output-invariant unmet); nothing pinned"
+                )
+            # apply-time re-gate: confirm the accepted template still satisfies the invariant on apply.
+            scored = score_extraction(client, template, sample, expected_count=expected_count)
+            if not scored["accepted"]:
+                raise RuntimeError(
+                    f"the pinned transform failed the apply-time invariant "
+                    f"(count={scored['count']}, nulls={scored['nulls']}); nothing pinned"
+                )
+            # PIN the converged transform as an etlp mapping (idempotent persist_or_update).
+            pin = client.persist_or_update(f"ingest-{ag_name}", template)
+            mapping_id = pin.get("id")
+
         cases = scored["cases"]
-
-        # PIN the converged transform as an etlp mapping (idempotent persist_or_update).
-        pin = client.persist_or_update(f"ingest-{ag_name}", template)
-        mapping_id = pin.get("id")
 
         # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
         # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
@@ -2146,7 +2219,10 @@ def _build_tool_context(
                 actor=actor_resolved,
                 action="ingest",
                 target=Target(type="corpus", id=ag_name),
-                why={"rationale": f"ingested {len(cases)} cases via pinned mapping {mapping_id}"},
+                why={
+                    "rationale": f"ingested {len(cases)} cases via "
+                    f"{'REUSED' if reused else 'generated+pinned'} mapping {mapping_id}"
+                },
                 before=None,
                 after={
                     "mapping_id": mapping_id,
@@ -2156,7 +2232,7 @@ def _build_tool_context(
                 },
             )
         )
-        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases)}
+        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "reused": reused}
 
     # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
     def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
