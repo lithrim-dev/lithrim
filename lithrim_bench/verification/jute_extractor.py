@@ -214,6 +214,10 @@ def _build_extractor_signature():
         template. Output raw YAML only — no markdown fences, no commentary.
         """
 
+        dsl_excerpt: str = dspy.InputField(
+            desc="the working subset of the JUTE DSL + idioms (RUNTIME REALITY notes — "
+            "some documented builtins are UNIMPLEMENTED and fail at apply; trust these over the spec)"
+        )
         extraction_rules: str = dspy.InputField(desc="what a 'case' is + which keys to emit")
         sample_input: str = dspy.InputField(desc="a sample of the domain JSON to normalize")
         prior_template: str = dspy.InputField(desc="the previous attempt, or '' on the first try")

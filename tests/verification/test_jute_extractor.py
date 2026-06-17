@@ -339,3 +339,19 @@ _NARRATIVE_RULES = (
     "resource.metadata.llm_calls row by scene_node_id, with keys: case_id, story_id, mode, "
     "language, node, scene_title, source, model, finish_reason, response (the scene clean_text)."
 )
+
+
+def test_extractor_signature_declares_dsl_excerpt():
+    """The extractor signature MUST declare ``dsl_excerpt`` as an InputField so the model
+    actually receives the DSL runtime-reality grounding (which builtins work, the 2 YAML rules).
+    forward() already passes ``dsl_excerpt=self.dsl_excerpt`` — but if the signature omits it,
+    DSPy SILENTLY DROPS it and the model authors JUTE blind to the live :3031 builtin-gap (the
+    bug that made live generation never converge). Mirrors the proven jute_dspy.JuteValidatorSignature.
+    """
+    from lithrim_bench.verification.jute_extractor import _build_extractor_signature
+
+    sig = _build_extractor_signature()
+    assert "dsl_excerpt" in sig.input_fields, (
+        "dsl_excerpt must be a declared InputField (else DSPy drops the DSL grounding "
+        "forward() passes) — see jute_dspy.JuteValidatorSignature"
+    )
