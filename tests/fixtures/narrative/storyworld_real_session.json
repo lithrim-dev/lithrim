@@ -1,0 +1,33 @@
+{
+  "id": "sess_real_001",
+  "story_id": "jinn-of-jebel-hafeet",
+  "mode": "adult",
+  "language": "en",
+  "child_name": "Noor Al-Mansoori",
+  "age": 9,
+  "reader_note": "Noor's mum (jane.doe@example.com) asked to keep it gentle. Call her at 555-867-5309.",
+  "metadata": {
+    "enhanced_scenes": {
+      "scene_ranger_arrival": {
+        "title": "The Ranger's Arrival",
+        "enhancement_status": "success",
+        "clean_text": "Dust and sand rasped on Noor's tongue, the heat from Zahra's wake still buzzing under her skin. She registered a change in the ranger: a composed, deliberate certainty where there had been only urgency."
+      },
+      "scene_mountain_road": {
+        "title": "The Mountain Road",
+        "enhancement_status": "success",
+        "clean_text": "The vehicle tore up the mountain road, tires skidding as the ranger fought the incline. The headlights swung across bare rock, and for a moment the dark beyond them seemed to lean closer."
+      },
+      "scene_content_filtered_fallback": {
+        "title": "The Reckoning",
+        "enhancement_status": "content_filtered",
+        "clean_text": "The confrontation unfolded near the old well, where the family had once drawn water. The night gave no answer, only the long road back down the mountain."
+      }
+    },
+    "llm_calls": [
+      {"scene_node_id": "scene_ranger_arrival", "model": "gpt-5", "finish_reason": "stop"},
+      {"scene_node_id": "scene_mountain_road", "model": "gpt-5", "finish_reason": "stop"},
+      {"scene_node_id": "scene_content_filtered_fallback", "model": "gpt-5", "finish_reason": "content_filter"}
+    ]
+  }
+}

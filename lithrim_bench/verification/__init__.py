@@ -55,6 +55,7 @@ from .spec import (
     VerificationResult,
     VerificationSpec,
 )
+from .storyworld_client import StoryWorldAdminClient
 from .tools import (
     FakeRecordRagTool,
     KbRagTool,
@@ -86,6 +87,7 @@ __all__ = [
     "FakeRecordRagTool",
     "JuteGenValidatorTool",
     "EtlpJuteClient",
+    "StoryWorldAdminClient",
     "McpStdioClient",
     "McpError",
     "GOLDEN_US_CORE_PATIENT_VALIDATOR",
