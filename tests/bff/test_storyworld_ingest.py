@@ -174,6 +174,73 @@ def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monke
     assert _INLINE_PII not in blob, "inline PII (email) was not redacted"
 
 
+def test_ingest_wraps_generation_in_dspy_lm_context(ws_env, monkeypatch):
+    """NARR-6b: the connector ingest's per-session generation must run under a configured DSPy LM
+    (else best_of_n_extractor's ChainOfThought raises 'No LM is loaded' and a live pull yields 0
+    cases). Monkeypatch build_claude_cli_lm → a sentinel LM ($0/offline, no claude CLI shell-out),
+    capture dspy.settings.lm at extractor-call time, and assert it is the sentinel (not None) AND the
+    endpoint produced cases (count > 0). RED at the parent: no LM context → captured lm is None."""
+    import dspy
+
+    ws_mod, ws = ws_env
+    detail = json.loads(_FIXTURE.read_text())
+    _install_fake_storyworld(monkeypatch, detail)
+
+    sentinel_lm = SimpleNamespace(model="byo-claude-sentinel")
+    monkeypatch.setattr(
+        "lithrim_bench.runtime.council.byo_claude_lm.build_claude_cli_lm",
+        lambda *a, **k: sentinel_lm,
+    )
+
+    captured = {"lm_at_call": "UNSET"}
+
+    def fake_bon(make_gen, rules, sample, n=3):
+        captured["lm_at_call"] = dspy.settings.lm
+        return SimpleNamespace(accepted=True, jute_transform="t")
+
+    def fake_score(client, template, sample, expected_count=1):
+        from lithrim_bench.verification.jute_extractor import _to_envelope
+
+        records = sample if isinstance(sample, list) else [sample]
+        cases = [_to_envelope(r) for r in records]
+        return {"accepted": True, "count": len(cases), "nulls": 0, "cases": cases}
+
+    monkeypatch.setattr("lithrim_bench.verification.best_of_n_extractor", fake_bon)
+    monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
+    monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
+
+    class FakeJute:
+        def __init__(self, *_a, **_k):
+            pass
+
+        def get_dsl_spec(self):
+            return {}
+
+        def persist_or_update(self, *_a, **_k):
+            return {"id": 777}
+
+    monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
+
+    class SpyAudit:
+        def __init__(self, *_a, **_k):
+            pass
+
+        def record(self, *_a, **_k):
+            pass
+
+    monkeypatch.setattr(bff, "AuditLog", SpyAudit)
+    client = TestClient(bff.app)
+
+    resp = client.post("/v1/connector/storyworld/ingest", json={"limit": 50})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] > 0, body  # cases produced (the live pull no longer yields 0)
+    assert captured["lm_at_call"] is sentinel_lm, (
+        f"expected the BYO-Claude LM in the ambient dspy context at generation time, "
+        f"got {captured['lm_at_call']!r}"
+    )
+
+
 def test_ingest_misjoin_fails_clean_nothing_pinned(ws_env, monkeypatch):
     """A5: a mocked mis-join (score_extraction accepted=False) → the per-session error is trapped,
     count==0, persist/audit spies ZERO, nothing in ingested_cases.jsonl."""
