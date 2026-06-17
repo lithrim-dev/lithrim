@@ -248,8 +248,22 @@ def test_github_short_is_rejected(github_dump):
     reason="live-service dependent; set LITHRIM_NARR_LIVE=1 with :3031 up + an LM",
 )
 def test_live_extractor_converges_github(github_dump):
-    pytest.importorskip("dspy")
+    """G2 — the honest 'it generalizes' evidence: best_of_n_extractor GENERATES a JUTE
+    transform for the GENUINELY NEW GitHub shape (join issues⋈comments by issue_number) from
+    the enriched (for_extractor) grounding alone, and the live :3031 ACCEPTS it (count=6,
+    zero-null). NOT in Gate 0. Default LM = BYO-Claude $0 (the trimmed ~1.6KB sample clears the
+    old 120s timeout); LITHRIM_NARR_LM=azure picks the Azure DSPy adapter if the CLI misbehaves.
+    """
+    dspy = pytest.importorskip("dspy")
     from lithrim_bench.verification import render_dsl_excerpt
+
+    # configure the one-time generation LM (the live gate is :3031; the LM only authors YAML).
+    lm_choice = os.getenv("LITHRIM_NARR_LM", "byo-claude")
+    if lm_choice in ("byo-claude", "claude", "claude-cli"):
+        from lithrim_bench.runtime.council.byo_claude_lm import build_claude_cli_lm
+
+        dspy.configure(lm=build_claude_cli_lm(claude_model=os.getenv("LITHRIM_NARR_CLAUDE_MODEL")))
+    # else: rely on a pre-configured dspy.settings.lm (e.g. an Azure adapter the runner set up).
 
     client = EtlpJuteClient()
     excerpt = render_dsl_excerpt(
@@ -260,7 +274,7 @@ def test_live_extractor_converges_github(github_dump):
         return build_extractor_generator(client, excerpt, github_dump, expected_count=6)
 
     out = best_of_n_extractor(make_gen, _GITHUB_RULES, github_dump, n=3)
-    assert out.accepted is True
+    assert out.accepted is True, f"live generation did not converge; history={getattr(out, 'history', None)}"
     s = score_extraction(client, out.jute_transform, github_dump, expected_count=6)
     assert s["count"] == 6 and s["nulls"] == 0
 
