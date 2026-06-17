@@ -29,13 +29,22 @@ pytest.importorskip("dspy")
 pytest.importorskip("openai")
 
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
-from lithrim_bench.harness.pack import pack_ontology_path  # noqa: E402
+from lithrim_bench.harness.pack import active_pack, pack_ontology_path  # noqa: E402
 from lithrim_bench.runtime.council import judges_dspy as J  # noqa: E402
 from lithrim_bench.runtime.council.settings import settings  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-ONT = load_ontology(pack_ontology_path())
+# D3/D4 assert NARRATIVE-pack taxonomy behavior (LENGTH_VIOLATION is a narrative policy_judge
+# lens code; under pack=healthcare it is not a KNOWN code and _validate_findings drops it). The
+# canonical narrative env is LITHRIM_BENCH_PACK=narrative — skip the module otherwise so the
+# pack=healthcare regression gate stays 0-new.
+pytestmark = pytest.mark.skipif(
+    active_pack() != "narrative",
+    reason="narrative multi-model seam proof — set LITHRIM_BENCH_PACK=narrative",
+)
+
+ONT = load_ontology(pack_ontology_path()) if active_pack() == "narrative" else None
 
 
 # ── D3 — the multi-model SEAM/WIRING (offline, $0; NOT judge quality) ──────────────────
