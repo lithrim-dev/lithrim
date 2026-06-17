@@ -108,6 +108,28 @@ function ReportTab({ runStatus, runResult, runError }) {
         ))}
       </div>
 
+      {(comp.floor_adjustments || []).length > 0 && (
+        <div className="art-sec">
+          <div className="art-h2">Floor blocks <span className="cnt">structural · verdict-flip</span></div>
+          {(comp.floor_adjustments || []).map((a, i) => {
+            const isBlock = a.action === "floor_block";
+            return (
+              <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: isBlock ? "var(--accent)" : "var(--muted)" }}>{a.flag}</span>
+                  <span style={{ color: isBlock ? "var(--accent)" : "var(--muted)", whiteSpace: "nowrap" }}>
+                    {isBlock ? "floor_block" : "floor_inconclusive"} · {a.contract_type}
+                  </span>
+                </div>
+                <div style={{ color: "var(--muted)", marginTop: 3 }}>
+                  conforms: {String(a.conforms)} · {a.disposition}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {comp.grounded_adjustments.length > 0 && (
         <div className="art-sec">
           <div className="art-h2">Grounded adjustments <span className="cnt">tool-verified</span></div>
