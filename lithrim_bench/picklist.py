@@ -98,9 +98,39 @@ def expected_block(case: dict[str, Any]) -> bool:
     return "reject" in normalize_expected_verdict(case.get("expected_compliance_verdict"))
 
 
+def _load_from_workspace_corpus(case_id: str) -> dict[str, Any] | None:
+    """S-BS-NARR2-1 bridge: scan the ACTIVE workspace's ingested corpus
+    (``ws.out_dir/ingested_cases.jsonl``, ``jute_extractor._to_envelope`` shape) for ``case_id``.
+
+    Lazy in-fn import of :mod:`lithrim_bench.harness.workspace` (same core layer; the import is
+    guarded so a bare-CE / no-workspace context degrades to ``None`` instead of raising). This is
+    the STRICTLY-LAST fallback in :func:`load_case`, AFTER the explicit ``source`` pin (S-BS-9) and
+    :func:`resolve_case_fixtures` (``PACK_FILES``), so an ingested case never shadows a pack case.
+    """
+    try:
+        from lithrim_bench.harness import workspace
+    except ImportError:
+        return None
+    try:
+        corpus = workspace.get_active_workspace().out_dir / "ingested_cases.jsonl"
+    except Exception:  # noqa: BLE001 — a missing/unreadable workspace must not break resolution
+        return None
+    if not corpus.exists():
+        return None
+    for line in corpus.open():
+        line = line.strip()
+        if not line:
+            continue
+        row = json.loads(line)
+        if (row.get("case_id") or row.get("id")) == case_id:
+            return row
+    return None
+
+
 def load_case(case_id: str, *, source: str | Path | None = None) -> dict[str, Any] | None:
     """Load one case row by id. If ``source`` is given, that file is pinned (the
-    S-BS-9 source-pin); otherwise fall back to the documented pack resolution order.
+    S-BS-9 source-pin); otherwise fall back to the documented pack resolution order, and — STRICTLY
+    LAST — the active workspace's ingested corpus (S-BS-NARR2-1, the corpus-gradeable bridge).
     """
     if source is not None:
         source = Path(source)
@@ -109,4 +139,7 @@ def load_case(case_id: str, *, source: str | Path | None = None) -> dict[str, An
                 row = json.loads(line)
                 if (row.get("case_id") or row.get("id")) == case_id:
                     return row
-    return resolve_case_fixtures({case_id}).get(case_id)
+    pack_row = resolve_case_fixtures({case_id}).get(case_id)
+    if pack_row is not None:
+        return pack_row
+    return _load_from_workspace_corpus(case_id)
