@@ -57,6 +57,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -298,6 +299,122 @@ class GroundingContractRequest(BaseModel):
     question: str = ""
     version: str = ""
     agent: str = DEFAULT_AGENT
+
+
+class ConnectorConfigRequest(BaseModel):
+    # NARR-6 P1a: the StoryWorld admin connector config. The key is validated with a
+    # read-only Test, then written ONLY to the gitignored .connector_env (§8.2) — never
+    # SQLite/manifest/git/the response.
+    connector_id: str = "storyworld_admin"
+    base_url: str
+    x_api_key: str
+
+
+class StoryworldIngestRequest(BaseModel):
+    # NARR-6 P1b: the real-field batch ingest. base_url + key load from .connector_env / env;
+    # no secret rides the request body.
+    limit: int = 50
+    offset: int = 0
+    agent: str = DEFAULT_AGENT
+
+
+# NARR-6: where the StoryWorld connector secret + sidecar live (gitignored, per active workspace).
+_CONNECTOR_ENV_NAME = ".connector_env"
+_CONNECTOR_SIDECAR_NAME = "connector.json"
+_STORYWORLD_KEY_VAR = "STORYWORLD_API_KEY"
+# §8.1 PII: structurally-dropped session keys (child identity + reader free-text) — never enveloped.
+_STORYWORLD_PII_KEYS = ("child_name", "age", "reader_note", "reader_feedback", "child_age")
+
+
+def _load_connector_env(ws) -> dict[str, str]:
+    """Parse the active workspace's gitignored ``.connector_env`` (KEY=value; mirrors
+    ``grade.py:_load_env``). Missing file -> empty. Secrets stay on disk, never the config plane."""
+    env: dict[str, str] = {}
+    path = ws.dir / _CONNECTOR_ENV_NAME
+    if not path.exists():
+        return env
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        env[key.strip()] = val.strip()
+    return env
+
+
+def _read_connector_sidecar(ws) -> dict:
+    path = ws.dir / _CONNECTOR_SIDECAR_NAME
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def _scenes_to_list(enhanced_scenes: Any) -> list[dict]:
+    """§8.3 (endpoint-side; _ingest_cases frozen): normalize ``metadata.enhanced_scenes``
+    dict-OR-list into a list of per-scene records, each carrying its ``scene_node_id`` (the
+    dict key, or the record's own id) so the finish_reason join has a stable key."""
+    scenes: list[dict] = []
+    if isinstance(enhanced_scenes, dict):
+        for node_id, scene in enhanced_scenes.items():
+            if isinstance(scene, dict):
+                scenes.append({"scene_node_id": node_id, **scene})
+    elif isinstance(enhanced_scenes, list):
+        for scene in enhanced_scenes:
+            if isinstance(scene, dict):
+                node_id = scene.get("scene_node_id") or scene.get("id") or scene.get("node_id")
+                scenes.append({"scene_node_id": node_id, **scene})
+    return scenes
+
+
+def _prepare_storyworld_session(session: dict) -> list[dict]:
+    """NARR-6 P1b sample-prep (endpoint-side; runs BEFORE _ingest_cases, which stays frozen).
+
+    Per scene: project ``source`` (``enhancement_status=="success" -> "enhanced"`` else
+    ``"baseline"``) + join ``finish_reason`` from ``metadata.llm_calls`` by ``scene_node_id``;
+    add ``session_id`` + ``node``. §8.1 PII: ``child_name``/``age``/reader free-text are NEVER
+    read into the record (structural key-drop), and ``redact_text`` runs over the scene body.
+    Returns the list of per-scene records the extractor normalizes into eval cases.
+    """
+    from lithrim_bench.runtime.council.phi_redaction import redact_text
+
+    session_id = session.get("id") or session.get("session_id") or ""
+    metadata = session.get("metadata") or {}
+    llm_calls = metadata.get("llm_calls") or []
+    finish_by_node: dict[str, str] = {}
+    model_by_node: dict[str, str] = {}
+    if isinstance(llm_calls, list):
+        for call in llm_calls:
+            if isinstance(call, dict) and call.get("scene_node_id"):
+                finish_by_node[call["scene_node_id"]] = call.get("finish_reason")
+                model_by_node[call["scene_node_id"]] = call.get("model")
+
+    records: list[dict] = []
+    for scene in _scenes_to_list(metadata.get("enhanced_scenes")):
+        node_id = scene.get("scene_node_id")
+        status = scene.get("enhancement_status")
+        source = "enhanced" if status == "success" else "baseline"
+        finish_reason = finish_by_node.get(node_id)
+        # §8.1: redact the body text; child_name/age/reader free-text are never read in.
+        clean_text = redact_text(scene.get("clean_text") or scene.get("response") or "")
+        records.append(
+            {
+                "case_id": f"storyworld_{session_id}_{node_id}" if session_id else f"sw_{node_id}",
+                "response": clean_text,
+                "session_id": session_id,
+                "node": node_id,
+                "scene_title": redact_text(scene.get("title") or ""),
+                "source": source,
+                "finish_reason": finish_reason,
+                "model": model_by_node.get(node_id),
+                "story_id": session.get("story_id"),
+                "mode": session.get("mode"),
+                "language": session.get("language"),
+            }
+        )
+    return records
 
 
 def _load_live_env() -> None:
@@ -2074,3 +2191,190 @@ async def chat_endpoint(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/v1/connector/config")
+def connector_config_endpoint(
+    req: ConnectorConfigRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """NARR-6 P1a: configure the StoryWorld admin connector. Run a READ-ONLY Test (GET
+    ``/api/admin/sessions?limit=1``) with the supplied key; on a clean 200, write the key
+    ONLY to the gitignored ``out/workspaces/<active>/.connector_env`` (§8.2; mirrors
+    ``grade.py:_load_env``) + persist ``base_url`` + ``last_tested`` to a gitignored
+    ``connector.json`` sidecar. The key is NEVER returned, logged, or written to SQLite/
+    the manifest. On 401/timeout the status is surfaced and the key is NOT written.
+    """
+    from lithrim_bench.verification import StoryWorldAdminClient
+
+    ws = workspace.get_active_workspace()
+    client = StoryWorldAdminClient(req.base_url, api_key=req.x_api_key)
+    test = client.test_connection()
+    status, ok = int(test.get("status", 0)), bool(test.get("ok"))
+
+    if not ok:
+        # surface the failing status; do NOT write the key (non-vacuous vs the clean path)
+        return {
+            "connector_id": req.connector_id,
+            "base_url": req.base_url,
+            "status": status,
+            "last_tested": None,
+            "error": f"connection test failed (status {status})",
+        }
+
+    last_tested = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    ws.dir.mkdir(parents=True, exist_ok=True)
+    # the key → .connector_env ONLY (gitignored, never SQLite/manifest/git/the response)
+    (ws.dir / _CONNECTOR_ENV_NAME).write_text(f"{_STORYWORLD_KEY_VAR}={req.x_api_key}\n")
+    # base_url + last_tested → the gitignored sidecar (NOT the Workspace dataclass)
+    (ws.dir / _CONNECTOR_SIDECAR_NAME).write_text(
+        json.dumps(
+            {
+                "connector_id": req.connector_id,
+                "base_url": req.base_url,
+                "last_tested": last_tested,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    actor = _resolve_actor(x_actor, default_actor)
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="connector_config",
+            target=Target(type="connector", id=req.connector_id),
+            why={"rationale": f"configured + tested the {req.connector_id} connector (status 200)"},
+            before=None,
+            after={"base_url": req.base_url, "last_tested": last_tested},  # NEVER the key
+        )
+    )
+    return {
+        "connector_id": req.connector_id,
+        "base_url": req.base_url,
+        "status": status,
+        "last_tested": last_tested,
+    }
+
+
+@app.post("/v1/connector/storyworld/ingest")
+def storyworld_ingest_endpoint(
+    req: StoryworldIngestRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """NARR-6 P1b: the real-field batch ingest. Load ``base_url`` + key (env override first,
+    then ``.connector_env``), paginate ``/api/admin/sessions``, fetch each detail, and per
+    session REUSE the FROZEN ``_ingest_cases`` machinery with endpoint-side sample-prep
+    (``_prepare_storyworld_session``: dict-or-list scene normalize, source/finish_reason join,
+    §8.1 PII drop+redact). Union all sessions' enveloped cases into ``ws.out_dir/
+    ingested_cases.jsonl`` (each enriched with ``session_id``); the D1 bridge grades these.
+    Per-session errors (401/404/timeout/mis-join) are trapped structurally — a mis-join fails
+    CLEAN (nothing pinned). One batch-summary AuditRecord (§8.4). The key is never returned.
+    """
+    ws = workspace.get_active_workspace()
+    env = _load_connector_env(ws)
+    api_key = os.environ.get(_STORYWORLD_KEY_VAR) or env.get(_STORYWORLD_KEY_VAR)
+    base_url = (
+        os.environ.get("STORYWORLD_BASE_URL")
+        or _read_connector_sidecar(ws).get("base_url")
+        or ""
+    )
+    if not api_key or not base_url:
+        raise HTTPException(
+            status_code=400,
+            detail="StoryWorld connector not configured (POST /v1/connector/config first)",
+        )
+
+    from lithrim_bench.verification import StoryWorldAdminClient
+
+    ctx = _build_tool_context(
+        req_agent=req.agent,
+        db_path=ws.config_db,
+        out_dir=ws.out_dir,
+        workdir=ws.ontology_dir,
+        collections_db=ws.collections_db,
+        actor=_resolve_actor(x_actor, default_actor),
+        x_actor=x_actor,
+    )
+    client = StoryWorldAdminClient(base_url, api_key=api_key)
+
+    union: dict[str, dict] = {}
+    sessions_seen = 0
+    errors_trapped = 0
+    try:
+        listing = client.list_sessions(limit=req.limit, offset=req.offset)
+        items = listing.get("items", []) if isinstance(listing, dict) else []
+    except Exception as exc:  # noqa: BLE001 — a list failure is a trapped batch error, not a crash
+        raise HTTPException(status_code=502, detail=f"StoryWorld list failed: {exc}") from exc
+
+    for item in items:
+        session_id = item.get("id") if isinstance(item, dict) else item
+        try:
+            detail = client.get_session(session_id)
+            records = _prepare_storyworld_session(detail)
+            if not records:
+                continue
+            out = ctx.ingest_cases(json.dumps(records), agent=req.agent)
+            sessions_seen += 1
+            for case in out.get("cases", []):
+                cid = case.get("case_id")
+                if not cid:
+                    continue
+                # enrich with session_id (the frozen _to_envelope drops it) for the union write
+                case = {**case, "session_id": session_id}
+                union[cid] = case
+        except Exception:  # noqa: BLE001 — 401/404/timeout/mis-join: trap structurally, never fabricate
+            errors_trapped += 1
+            continue
+
+    # union write (the D1 bridge grades these); enriches each envelope with session_id.
+    corpus = ws.out_dir / "ingested_cases.jsonl"
+    ws.out_dir.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, dict] = {}
+    if corpus.exists():
+        for line in corpus.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("case_id"):
+                existing[row["case_id"]] = row
+    existing.update(union)
+    if union:  # only rewrite when this batch added cases (a clean mis-join leaves the corpus alone)
+        corpus.write_text(
+            "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
+            + ("\n" if existing else "")
+        )
+
+    # ONE batch-summary AuditRecord (§8.4) — per-session audits already fired inside _ingest_cases.
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=_resolve_actor(x_actor, default_actor),
+            action="ingest_batch",
+            target=Target(type="corpus", id=req.agent),
+            why={
+                "rationale": (
+                    f"StoryWorld batch ingest: {len(union)} cases from {sessions_seen} "
+                    f"session(s) ({errors_trapped} trapped)"
+                )
+            },
+            before=None,
+            after={
+                "count": len(union),
+                "sessions": sessions_seen,
+                "errors_trapped": errors_trapped,
+                "case_ids": list(union.keys()),
+            },
+        )
+    )
+    return {
+        "count": len(union),
+        "sessions": sessions_seen,
+        "cases": list(union.keys()),
+        "errors_trapped": errors_trapped,
+    }

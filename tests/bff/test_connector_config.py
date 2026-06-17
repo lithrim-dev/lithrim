@@ -100,7 +100,7 @@ def test_connector_config_clean_test_writes_key_only_to_connector_env(ws_env, mo
 
     # the key never reaches SQLite (the config plane)
     for db in ws.dir.rglob("*.sqlite"):
-        assert secret not in db.read_bytes()
+        assert secret.encode() not in db.read_bytes()
 
 
 def test_connector_config_failed_test_surfaces_auth_and_does_not_write_key(ws_env, monkeypatch):
