@@ -2497,6 +2497,32 @@
       "created": "2026-06-17",
       "last_re_verified": "2026-06-17 (monitor authoring; picklist.py:101-112/45-63/20 + harness/workspace.py get_active_workspace().out_dir + app.py:540/1964 + jute_extractor.py:63 + report.py:51-92 [floor_adjustments:87, floor_block_count:91] + artifact.jsx:96-130 [floor rendered NOWHERE] + authored_stage.py:148-190 + judges_dspy.py:329-405/205-264 re-grepped vs HEAD 7be383f)",
       "next_action": "OWNER scope CONFIRMED 2026-06-17 (fold in the live 3-model run). Hand the KICKOFF block to a FRESH executor session (plan-review first); plan-review must resolve R1 (TRACE the UI->grade path app.py:540 to locate the real D1 break) / R2 (lazy workspace import + S-BS-9 PACK_FILES-first) / R3 (D3/D4 MOCKS, D5 REAL -- honest-Delta) / R4 (moat + core 0-diff) / R5 (JSX no-prettier, vitest 0-new) / R6 (D5 is a PAID live Azure run -- prove the wiring offline in D3 FIRST, run deliberately, log cost, NO loop/retry; a SEPARATE owner 'go' before the paid run) / R7 (create/select a NARRATIVE workspace + seed the agent + per-judge model bindings before D5) / R8 (honest-Δ -- a non-flip / LENGTH_VIOLATION no-fire is a VALID publishable result). HARD GATE -> fresh-critic at close."
+    },
+    {
+      "id": "bench-salvage-phaseNARR-6-ui-eval-loop-connector-ingest-driver",
+      "stream": "bench-salvage",
+      "phase": "NARR-6",
+      "scope": "the-UI-driven-StoryWorld-eval-loop-P1a-connector-config-form-plus-P1b-real-field-batch-ingest-self-serve-in-the-shell-connect-pull-ingest-half-FLOOR-grade-and-Findings-view-are-NARR-7-paid-council-is-P2a",
+      "file": "bench-salvage_phaseNARR-6_ui-eval-loop-connector-ingest_driver.md",
+      "status": "ready",
+      "version": "v1",
+      "hardness": "HARD GATE -- fresh-critic at close. NEW BFF endpoints (POST /v1/connector/config + POST /v1/connector/storyworld/ingest) + a secret/PII path + a real-data extractor + a shell connector form. $0 (no paid council). MOAT read-only: REUSES _ingest_cases (app.py:1887, not edited) + clones EtlpJuteClient (new file) + the D1 picklist bridge already grades ingested cases; council four + grounding.py + verification/{spec,tools}.py + apps/bff/agent/tools.py must be 0-diff. Critic confirms: the x-api-key never persists outside the gitignored .connector_env (never SQLite/manifest/git/response/logs); PII (child_name/age) is REDACTED before ingested_cases.jsonl; the real-field transform maps enhanced_scenes[dict-or-list] + enhancement_status->source + finish_reason join correctly AND fails clean on mis-join (the :3031 apply-gate); the moat/core are 0-diff.",
+      "target_repos": ["lithrim-bench"],
+      "related_docs": [
+        "docs/research/PROOF_narrative_live_council_2026-06-17.md",
+        ".devloop/sessions/HANDOFF_bench-salvage_NARR-5_2026-06-17.md",
+        "apps/bff/app.py",
+        "lithrim_bench/verification/etlp_client.py",
+        "lithrim_bench/verification/jute_extractor.py",
+        "lithrim_bench/harness/grade.py",
+        "lithrim_bench/picklist.py",
+        "apps/shell/src/app.jsx",
+        "apps/shell/src/bff.js"
+      ],
+      "_note": "Authored 2026-06-17 by the monitor from the UI-eval-loop reassessment (run wf_d493ca05-d40, 4 readers + synthesis, HIGH confidence) + 3 owner decisions, every anchor re-grepped DIRECTLY. The owner wants the 'eval anything' loop self-serve in the shell (connect StoryWorld admin API -> pull batch -> ingest -> $0 floor grade -> corpus Findings view). A $0 curl sweep PROVED the floor finds 11 SILENT_DEGRADATION in 841 (incl. 4 the app's own enhancement_status=success masked, caught by the finish_reason=content_filter join). SPLIT: NARR-6 = P1a (connector config + shell form) + P1b (real-field batch ingest, the connect+pull half); NARR-7 = P1c (grade_floor_only, the $0 synthetic-result-through-ground() path) + P1d (GET /v1/corpus/findings + a 6th Findings tab -- the visible payoff); DEFERRED: P2a (PAID council over the corpus behind the CostModal), P2b (kind:tool decl + agent-callable ingest), P3 (kind:importer generalization). OWNER DECISIONS baked in: (1) PII REDACT-at-ingest (reuse core phi_redaction; no child_name/age on disk); (2) secret -> gitignored out/workspaces/<ws>/.connector_env (mirror grade.py:22 .live_env; never SQLite/manifest); (3) transform AUTO-GENERATE via best_of_n_extractor, live-gated on :3031, then PINNED (generate-at-authoring -> deterministic apply). The over-fire lesson (PERSONALIZATION_MISS over-fires on thin context, from the live real-session grade) is a P2a requirement (rich context for the council), NOT a NARR-6 concern -- NARR-6 is floor-only and the floor doesn't depend on context. COMPOSE: _ingest_cases machinery (app.py:1887), the D1 bridge (picklist.py:101-145), EtlpJuteClient pattern (etlp_client.py:48), the .live_env loader (grade.py:22), the WorkspaceSwitcher form (app.jsx:13-103). NET-NEW: the connector-config endpoint+secret handling, the StoryWorld HTTP client + pagination, the real-field batch transform. Real host (owner-provided): https://storyworld-api-uae.salmonocean-32935a91.uaenorth.azurecontainerapps.io (x-api-key; /api/admin/sessions {items,total}=841; /api/admin/sessions/<id>). This supersedes the earlier 'NARR-6 = polished walkthrough/video' framing (folds into the eventual demo phase with the NARR-5 seams).",
+      "created": "2026-06-17",
+      "last_re_verified": "2026-06-17 (monitor authoring; app.py:1887-2032/2005-2013/743-772 + etlp_client.py:48-150 + jute_extractor.py:63 + grade.py:22-38/40/85/129 + picklist.py:101-145 + grounding.py:645-668 [floors run off the case row independent of council] + artifact.jsx:535-547 [5 tabs + CorpusTab:348] re-grepped vs HEAD 65a3d68; connector-config endpoint confirmed ABSENT; phi_redaction confirmed core-resident)",
+      "next_action": "Hand the KICKOFF block to a FRESH executor session (plan-review first); plan-review resolves R1 (real host = owner Azure URL, mock client for the green bar) / R2 (locate the phi_redaction callable; assert no PII on disk) / R3 (auto-gen transform + :3031 live-gate + pin; pin a fixture for offline tests; dict-or-list shape) / R4 (secret never outside .connector_env) / R5 (moat+core 0-diff, REUSE _ingest_cases). HARD GATE -> fresh-critic at close. NARR-7 (P1c+P1d, the $0 floor-grade + Findings view) follows; P2a (paid council) after that."
     }
   ]
 }
