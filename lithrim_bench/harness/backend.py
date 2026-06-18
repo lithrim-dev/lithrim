@@ -97,6 +97,32 @@ class Dialect:
             return raw
         return json.loads(raw)
 
+    # ── PERSIST-2c-3: the config-plane dialect bits (json query, serial PK, insertion order) ──
+    def json_extract(self, col: str, key: str) -> str:
+        """A SQL expression selecting json field ``key`` from column ``col`` AS TEXT — the one
+        structurally-different query between the backends (SQLite ``json_extract`` vs PG ``->>``)."""
+        return f"json_extract({col}, '$.{key}')" if self.backend == "sqlite" else f"{col}->>'{key}'"
+
+    @property
+    def serial_pk(self) -> str:
+        return (
+            "INTEGER PRIMARY KEY AUTOINCREMENT"
+            if self.backend == "sqlite"
+            else "BIGSERIAL PRIMARY KEY"
+        )
+
+    @property
+    def serial_col(self) -> str:
+        """A monotonic insertion-order column. SQLite leans on the implicit ``rowid`` (so the
+        column is unused there); Postgres needs an explicit ``BIGSERIAL``."""
+        return "INTEGER" if self.backend == "sqlite" else "BIGSERIAL"
+
+    @property
+    def insertion_order(self) -> str:
+        """The column to ORDER BY for newest-first by insertion: SQLite's implicit ``rowid`` vs
+        the Postgres ``seq`` serial."""
+        return "rowid" if self.backend == "sqlite" else "seq"
+
 
 def make_provenance_store(url: str | Path | None = None) -> Any:
     """Resolve the backend and return a ``ProvenanceStore``. SQLite is the default + never
