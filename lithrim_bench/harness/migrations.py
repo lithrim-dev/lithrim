@@ -17,12 +17,23 @@ from pathlib import Path
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
+def _yoyo_url(url: str) -> str:
+    """yoyo selects its driver by URL SCHEME: ``postgresql://`` → psycopg2 (which the bench
+    does NOT ship), ``postgresql+psycopg://`` → psycopg3 (the store's driver, the ``[pg]``
+    extra). Translate so yoyo uses psycopg3 while the store/factory keep the plain
+    ``postgresql://`` (what ``psycopg.connect`` + ``backend_of`` expect)."""
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 def apply_migrations(url: str, *, migrations_dir: Path | None = None) -> None:
     """Apply the pending ``migrations/`` against ``url`` via yoyo (the managed-tier schema
     source). Lazy yoyo import — the ``[pg]`` extra."""
     from yoyo import get_backend, read_migrations
 
-    backend = get_backend(url)
+    backend = get_backend(_yoyo_url(url))
     migrations = read_migrations(str(migrations_dir or MIGRATIONS_DIR))
     with backend.lock():
         backend.apply_migrations(backend.to_apply(migrations))

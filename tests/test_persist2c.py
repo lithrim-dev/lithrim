@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,8 +170,9 @@ def test_postgres_backend_is_tier_pro_gated(monkeypatch):
 # ── A5 (PG store is contract-shaped + importable without psycopg) ──────────────
 
 
-def test_postgres_store_implements_the_protocol_without_psycopg():
-    assert "psycopg" not in sys.modules  # importing the store did NOT pull the driver
+def test_postgres_store_implements_the_protocol():
+    """The PG store is contract-shaped — a ProvenanceStore with the full method set (psycopg
+    is needed only to USE it; the no-driver-AT-LOAD invariant is the subprocess test below)."""
     store = PostgresProvenanceStore("postgresql://u@h/db")
     for m in ("save", "find_by_id", "latest_for", "list_versions"):
         assert callable(getattr(store, m))
@@ -188,12 +190,18 @@ def test_sqlite_store_byte_identical_back_compat(tmp_path):
 
 
 def test_core_does_not_import_a_db_driver_at_load():
-    # importing the seam + the stores must NOT pull psycopg/yoyo (the [pg] extra)
-    import lithrim_bench.harness.backend  # noqa: F401
-    import lithrim_bench.runtime.pipeline.provenance  # noqa: F401
-
-    assert "psycopg" not in sys.modules
-    assert "yoyo" not in sys.modules
+    # the "no DB driver at LOAD" invariant — checked in a CLEAN subprocess so it is robust to
+    # whether another test (the gated PG contract) already imported psycopg in this session
+    # (the [pg] extra may be installed; the core must still not pull it at import time).
+    code = (
+        "import lithrim_bench.harness.backend, lithrim_bench.runtime.pipeline.provenance, sys;"
+        "assert 'psycopg' not in sys.modules, 'psycopg imported at load';"
+        "assert 'yoyo' not in sys.modules, 'yoyo imported at load';"
+        "print('clean')"
+    )
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    assert r.returncode == 0 and "clean" in r.stdout, (r.stdout, r.stderr)
 
 
 def test_core_dependencies_unchanged():
