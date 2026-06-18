@@ -23,7 +23,6 @@ Doc-shim table (S-BS-4): a single JSON column keyed by agent name; see
 from __future__ import annotations
 
 import json
-import sqlite3
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -55,14 +54,10 @@ def init_config_db(db_path: str | Path = DEFAULT_CONFIG_DB) -> None:
     """Create an EMPTY config DB (the agents schema, no rows). A fresh workspace starts
     blank so its isolation is visible ('create your first agent'); the existing-but-empty
     DB also stops the BFF's seed-if-missing guards from re-seeding it. Idempotent."""
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
-        conn.commit()
-    finally:
-        conn.close()
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_SCHEMA)
 
 
 @dataclass(frozen=True)
@@ -285,23 +280,21 @@ def delete_agent(
 def list_agents(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> list[str]:
     """All saved agent names, sorted (empty before any seed/author). Backs ``GET
     /v1/agents`` (the rail switcher) + the BFF last-agent delete-guard."""
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_SCHEMA)
         rows = conn.execute("SELECT name FROM agents ORDER BY name").fetchall()
-    finally:
-        conn.close()
     return [r[0] for r in rows]
 
 
 def load_agent(name: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> Agent:
     """Load an agent eval-profile from the config DB by name."""
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_SCHEMA)
         row = conn.execute("SELECT json FROM agents WHERE name = ?", (name,)).fetchone()
-    finally:
-        conn.close()
     if row is None:
         raise KeyError(f"agent {name!r} not found in config DB {db_path}")
     return agent_from_dict(json.loads(row[0]))

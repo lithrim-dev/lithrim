@@ -19,7 +19,6 @@ Stdlib ``sqlite3`` only.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +27,11 @@ def _history_table(table: str) -> str:
     return f"{table}_history"
 
 
-def _history_schema(table: str) -> str:
+def _history_schema(table: str, dialect: Any) -> str:
     h = _history_table(table)
     return (
         f"CREATE TABLE IF NOT EXISTS {h} (\n"
-        "    hist_id     INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+        f"    hist_id     {dialect.serial_pk},\n"
         "    original_id TEXT NOT NULL,\n"
         "    txnid       TEXT NOT NULL,\n"
         "    seq         INTEGER NOT NULL,\n"
@@ -45,11 +44,13 @@ def _history_schema(table: str) -> str:
 
 
 def archive_prior(conn: Any, *, table: str, id_col: str, id_val: str, archived_at: str) -> None:
-    """In the caller's transaction: if a row for ``id_val`` exists in ``table``, snapshot its
-    ``(json, created_at)`` into ``{table}_history`` with a monotonic ``seq`` + a ``txnid``
-    surrogate, ``created_at`` PRESERVED. No-op on the first write (nothing to archive)."""
+    """In the caller's ``DbConn`` transaction: if a row for ``id_val`` exists in ``table``,
+    snapshot its ``(json, created_at)`` into ``{table}_history`` with a monotonic ``seq`` + a
+    ``txnid`` surrogate, ``created_at`` PRESERVED. No-op on the first write. PERSIST-2c-3: the
+    SQL is dialect-neutral (``?`` is translated by ``DbConn``); only the schema's serial PK
+    differs (``conn.dialect``)."""
     h = _history_table(table)
-    conn.executescript(_history_schema(table))
+    conn.executescript(_history_schema(table, conn.dialect))
     prior = conn.execute(
         f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
     ).fetchone()
@@ -70,22 +71,18 @@ def list_versions(db_path: str | Path, *, table: str, id_col: str, id_val: str) 
     """The version timeline for a table-backed config object, newest-first: the live head
     (``version = len(history)+1``, ``status='current'``) followed by every ``_history`` row
     (``status='superseded'``). ``[]`` when the id is unknown (no head, no history)."""
-    conn = sqlite3.connect(Path(db_path))
-    try:
-        conn.executescript(_history_schema(table))
-        try:
-            live = conn.execute(
-                f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
-            ).fetchone()
-        except sqlite3.OperationalError:  # the live table itself has never been created
-            live = None
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_history_schema(table, conn.dialect))
+        live = conn.execute(
+            f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
+        ).fetchone()
         hist = conn.execute(
             f"SELECT seq, json, created_at, archived_at FROM {_history_table(table)} "
             "WHERE original_id = ? ORDER BY seq",
             (id_val,),
         ).fetchall()
-    finally:
-        conn.close()
     if live is None and not hist:
         return []
     versions: list[dict] = []
@@ -117,27 +114,23 @@ def version_at(
 ) -> dict | None:
     """The object dict at a specific version (the head when ``version == len(history)+1``,
     else the ``_history`` row ``seq=version``). ``None`` when the version does not exist."""
-    conn = sqlite3.connect(Path(db_path))
-    try:
-        conn.executescript(_history_schema(table))
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_history_schema(table, conn.dialect))
         n = conn.execute(
             f"SELECT COUNT(*) FROM {_history_table(table)} WHERE original_id = ?", (id_val,)
         ).fetchone()[0]
         if version == n + 1:
-            try:
-                live = conn.execute(
-                    f"SELECT json FROM {table} WHERE {id_col} = ?", (id_val,)
-                ).fetchone()
-            except sqlite3.OperationalError:
-                live = None
+            live = conn.execute(
+                f"SELECT json FROM {table} WHERE {id_col} = ?", (id_val,)
+            ).fetchone()
             return json.loads(live[0]) if live else None
         row = conn.execute(
             f"SELECT json FROM {_history_table(table)} WHERE original_id = ? AND seq = ?",
             (id_val, version),
         ).fetchone()
         return json.loads(row[0]) if row else None
-    finally:
-        conn.close()
 
 
 def ledger_history(db_path: str | Path, *, target_type: str, target_id: str) -> list[dict]:

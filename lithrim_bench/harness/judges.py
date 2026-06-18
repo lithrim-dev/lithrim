@@ -23,7 +23,6 @@ only (the attachment), not their per-evaluation execution.
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -168,23 +167,21 @@ def delete_judge(
 def load_judge(role: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> JudgeConfig | None:
     """Load a saved judge-config by role, or ``None`` if the role was never authored
     (the BFF then serves a derived default — the role's lens, unbound model)."""
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_SCHEMA)
         row = conn.execute("SELECT json FROM judges WHERE role = ?", (role,)).fetchone()
-    finally:
-        conn.close()
     return judge_from_dict(json.loads(row[0])) if row is not None else None
 
 
 def list_judges(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> dict[str, JudgeConfig]:
     """All saved judge-configs keyed by role (empty before any authoring)."""
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(_SCHEMA)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(_SCHEMA)
         rows = conn.execute("SELECT json FROM judges ORDER BY role").fetchall()
-    finally:
-        conn.close()
     out: dict[str, JudgeConfig] = {}
     for (j,) in rows:
         jc = judge_from_dict(json.loads(j))

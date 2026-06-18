@@ -25,7 +25,6 @@ Stdlib ``sqlite3`` only — no new dependency.
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,18 +39,21 @@ DEFAULT_CONFIG_DB = REPO_ROOT / "out" / "config" / "bench_config.sqlite"
 # attributes via the BFF X-Actor header; the low-level seed path uses {system, seed}.
 SYSTEM_SEED_ACTOR = {"type": "system", "id": "seed"}
 
-_AUDIT_SCHEMA = """
-CREATE TABLE IF NOT EXISTS config_audit (
-    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    actor_type  TEXT NOT NULL,
-    actor_id    TEXT NOT NULL,
-    action      TEXT NOT NULL,
-    target_type TEXT NOT NULL,
-    target_id   TEXT NOT NULL,
-    json        TEXT NOT NULL
-)
-"""
+def _audit_schema(dialect: Any) -> str:
+    """The ``config_audit`` schema, dialect-aware (the ``seq`` PK is the only difference —
+    SQLite ``AUTOINCREMENT`` vs Postgres ``BIGSERIAL``). PERSIST-2c-3."""
+    return (
+        "CREATE TABLE IF NOT EXISTS config_audit (\n"
+        f"    seq         {dialect.serial_pk},\n"
+        "    ts          TEXT NOT NULL,\n"
+        "    actor_type  TEXT NOT NULL,\n"
+        "    actor_id    TEXT NOT NULL,\n"
+        "    action      TEXT NOT NULL,\n"
+        "    target_type TEXT NOT NULL,\n"
+        "    target_id   TEXT NOT NULL,\n"
+        "    json        TEXT NOT NULL\n"
+        ")"
+    )
 
 
 def now_iso() -> str:
@@ -108,11 +110,11 @@ class AuditLog:
     def __init__(self, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> None:
         self._db_path = Path(db_path)
 
-    def record(self, rec: AuditRecord, *, conn: sqlite3.Connection | None = None) -> None:
-        """Append one immutable record. When ``conn`` is given the INSERT rides the
-        caller's open transaction (the caller owns the commit) so the config write +
-        its audit row are atomic (N4); otherwise a private connection is opened,
-        committed, and closed."""
+    def record(self, rec: AuditRecord, *, conn: Any | None = None) -> None:
+        """Append one immutable record. When ``conn`` (a ``db.DbConn``) is given the INSERT
+        rides the caller's open transaction (the caller owns the commit) so the config write +
+        its audit row are atomic (N4); otherwise a private connection is opened, committed, and
+        closed — routed through the factory (LITHRIM_DB_URL → Postgres, else local SQLite)."""
         row = (
             rec.ts,
             rec.actor.type,
@@ -128,16 +130,14 @@ class AuditLog:
             "VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
         if conn is not None:
-            conn.execute(_AUDIT_SCHEMA)
+            conn.executescript(_audit_schema(conn.dialect))
             conn.execute(sql, row)
             return
-        own = sqlite3.connect(self._db_path)
-        try:
-            own.execute(_AUDIT_SCHEMA)
+        from lithrim_bench.harness.db import config_db_url, connect
+
+        with connect(config_db_url(self._db_path)) as own:
+            own.executescript(_audit_schema(own.dialect))
             own.execute(sql, row)
-            own.commit()
-        finally:
-            own.close()
 
     def query(
         self,
@@ -165,14 +165,13 @@ class AuditLog:
             clauses.append("ts >= ?")
             params.append(since)
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        conn = sqlite3.connect(self._db_path)
-        try:
-            conn.execute(_AUDIT_SCHEMA)
+        from lithrim_bench.harness.db import config_db_url, connect
+
+        with connect(config_db_url(self._db_path)) as conn:
+            conn.executescript(_audit_schema(conn.dialect))
             rows = conn.execute(
-                f"SELECT json FROM config_audit{where} ORDER BY seq", params
+                f"SELECT json FROM config_audit{where} ORDER BY seq", tuple(params)
             ).fetchall()
-        finally:
-            conn.close()
         return [json.loads(r[0]) for r in rows]
 
 
@@ -207,11 +206,10 @@ def upsert_with_audit(
     ``created_at`` and the prior is preserved in the shadow (the *prove-what-the-config-was*
     object-version timeline; the ledger stays the why/who change-stream).
     """
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(schema_sql)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(schema_sql)
         before: dict[str, Any] | None = None
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()
@@ -223,9 +221,6 @@ def upsert_with_audit(
         conn.execute(upsert_sql, upsert_params)
         if audit_log is not None and record_factory is not None:
             audit_log.record(record_factory(before), conn=conn)
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def delete_with_audit(
@@ -255,11 +250,10 @@ def delete_with_audit(
     ``after=None``), and the DELETE + the audit INSERT commit together — no config
     deletion escapes a record.
     """
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(schema_sql)
+    from lithrim_bench.harness.db import config_db_url, connect
+
+    with connect(config_db_url(db_path)) as conn:
+        conn.executescript(schema_sql)
         before: dict[str, Any] | None = None
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()
@@ -274,7 +268,4 @@ def delete_with_audit(
         removed = cur.rowcount > 0
         if audit_log is not None and record_factory is not None and before is not None:
             audit_log.record(record_factory(before), conn=conn)
-        conn.commit()
         return removed
-    finally:
-        conn.close()
