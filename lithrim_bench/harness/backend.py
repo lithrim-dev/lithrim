@@ -119,6 +119,23 @@ def make_provenance_store(url: str | Path | None = None) -> Any:
     return SqliteProvenanceStore(db_path=sqlite_path_of(resolved))
 
 
+def run_coro(coro):
+    """Run an async ProvenanceStore call to completion from EITHER a sync caller or one
+    already inside a running event loop (``asyncio.run`` raises there → complete it in a
+    worker thread). The BFF's sync read endpoints AND the async chat-tool handlers that call
+    them both rely on this; PERSIST-2c."""
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 def provenance_store_for(local_sqlite_path: str | Path | None = None) -> Any:
     """The grade path's store, with the managed-tier precedence: ``LITHRIM_DB_URL`` (the
     Postgres tier) when set, else the caller's local SQLite path (the default — byte-identical

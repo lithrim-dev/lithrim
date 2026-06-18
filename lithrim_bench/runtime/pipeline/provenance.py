@@ -42,6 +42,11 @@ class ProvenanceStore:
         """All version blobs for a ``(agent, case_id)`` lineage, newest-first."""
         return []
 
+    async def list_all(self, *, limit: int | None = None) -> list[dict]:
+        """All persisted run blobs, newest-first — the run-history list (S-BS-52). PERSIST-2c-2:
+        the backend-agnostic read so the BFF run-history/audit reflect the active backend."""
+        return []
+
 
 class NoOpProvenanceStore(ProvenanceStore):
     async def save(
@@ -56,6 +61,9 @@ class NoOpProvenanceStore(ProvenanceStore):
         return None
 
     async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
+        return []
+
+    async def list_all(self, *, limit: int | None = None) -> list[dict]:
         return []
 
 
@@ -133,6 +141,11 @@ class SqliteProvenanceStore(ProvenanceStore):
         replay-from-provenance baseline."""
         versions = await self.list_versions(agent_id, case_id)
         return versions[0] if versions else None
+
+    async def list_all(self, *, limit: int | None = None) -> list[dict]:
+        from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
+
+        return PIPELINE_RUNS.list_all(db_path=self._db_path or DEFAULT_COLLECTIONS_DB, limit=limit)
 
 
 class PostgresProvenanceStore(ProvenanceStore):
@@ -250,3 +263,15 @@ class PostgresProvenanceStore(ProvenanceStore):
     async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
         versions = await self.list_versions(agent_id, case_id)
         return versions[0] if versions else None
+
+    async def list_all(self, *, limit: int | None = None) -> list[dict]:
+        sql = "SELECT doc FROM pipeline_runs ORDER BY ins_seq DESC"
+        params: tuple = ()
+        if limit is not None:
+            sql += " LIMIT %s"
+            params = (limit,)
+        with self._connect() as conn:
+            for stmt in self._SCHEMA:
+                conn.execute(stmt)
+            rows = conn.execute(sql, params).fetchall()
+        return [r[0] for r in rows]

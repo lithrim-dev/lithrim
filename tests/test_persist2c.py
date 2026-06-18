@@ -223,6 +223,38 @@ def test_consensus_seam_is_zero_delta_vs_acc4973():
     assert_compliance_council_carveouts_only(REPO_ROOT)
 
 
+# ── A8 (read-side routing — run-history/audit reflect the active backend) ──────
+
+
+def test_list_all_round_trips_sqlite(tmp_path):
+    """``list_all`` (the run-history read the BFF endpoints now route through the factory)."""
+    store = SqliteProvenanceStore(db_path=tmp_path / "la.sqlite")
+    for rid in ("r1", "r2"):
+        blob = {**_prov(rid).model_dump(mode="json"), "agent_id": "a", "case_id": "c"}
+        asyncio.run(store.save_blob(blob))
+    ids = {d["pipeline_run_id"] for d in asyncio.run(store.list_all(limit=10))}
+    assert ids == {"r1", "r2"}
+
+
+@pytest.mark.skipif(
+    not os.environ.get("LITHRIM_DB_URL", "").startswith("postgres"),
+    reason="no live Postgres (set LITHRIM_DB_URL=postgresql://… for the PG read seam)",
+)
+def test_list_all_reads_postgres():
+    pytest.importorskip("psycopg")
+    from lithrim_bench.harness.migrations import apply_migrations, reset_provenance
+
+    url = os.environ["LITHRIM_DB_URL"]
+    apply_migrations(url)
+    reset_provenance(url)
+    store = make_provenance_store(url)
+    for rid in ("rP1", "rP2"):
+        blob = {**_prov(rid).model_dump(mode="json"), "agent_id": "a", "case_id": "c"}
+        asyncio.run(store.save_blob(blob))
+    ids = [d["pipeline_run_id"] for d in asyncio.run(store.list_all(limit=10))]
+    assert ids[:2] == ["rP2", "rP1"]  # newest-first (ins_seq DESC)
+
+
 # ── A7 (grade-path PG routing — the seam goes end-to-end) ─────────────────────
 
 

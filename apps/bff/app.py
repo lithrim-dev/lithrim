@@ -88,7 +88,10 @@ from lithrim_bench.harness.audit import (  # noqa: E402
     Target,
     make_actor,
 )
-from lithrim_bench.harness.collections import PIPELINE_RUNS  # noqa: E402
+from lithrim_bench.harness.backend import (  # noqa: E402  (PERSIST-2c the storage-backend seam)
+    provenance_store_for,
+    run_coro,
+)
 from lithrim_bench.harness.config import (  # noqa: E402
     agent_from_dict,
     agent_to_dict,
@@ -1243,7 +1246,7 @@ def meta_endpoint(
     except (FileNotFoundError, KeyError, ValueError, OSError):
         judges = 0
     try:
-        runs = len(PIPELINE_RUNS.list_all(db_path=collections_db, limit=500))
+        runs = len(run_coro(provenance_store_for(collections_db).list_all(limit=500)))
     except (OSError, ValueError, KeyError):
         runs = 0
     return {
@@ -1925,7 +1928,9 @@ def list_runs_endpoint(
     each addressable via its ``run_id`` (round-trips to ``GET /v1/runs/{id}/audit``).
     Replay + in_process + live all persist a provenance blob (S-BS-52), so the $0
     replay default appears here too. Empty list before any run is persisted."""
-    docs = PIPELINE_RUNS.list_all(db_path=collections_db, limit=limit)
+    # PERSIST-2c: read through the factory so run-history reflects the active backend
+    # (LITHRIM_DB_URL → Postgres, else the local SQLite at collections_db).
+    docs = run_coro(provenance_store_for(collections_db).list_all(limit=limit))
     return {"runs": [_run_summary(d) for d in docs]}
 
 
@@ -1942,7 +1947,8 @@ def get_run_audit_endpoint(
     UAP-3 (S-BS-52): replay + live + in_process all persist a provenance blob now, so
     any run that actually ran is auditable. An unknown / never-run id is still a clean
     404 — never a 500 (monitor N1)."""
-    doc = PIPELINE_RUNS.get(run_id, db_path=collections_db)
+    # PERSIST-2c: read through the factory (LITHRIM_DB_URL → Postgres, else local SQLite).
+    doc = run_coro(provenance_store_for(collections_db).find_by_id(run_id))
     if doc is None:
         raise HTTPException(
             status_code=404,
