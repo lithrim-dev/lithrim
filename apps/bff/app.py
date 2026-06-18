@@ -108,6 +108,11 @@ from lithrim_bench.harness.judges import (  # noqa: E402
 from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
+from lithrim_bench.harness.versioning import (  # noqa: E402  (PERSIST-2b config-object history)
+    ledger_history,
+    list_versions,
+    version_at,
+)
 from lithrim_bench.picklist import load_case  # noqa: E402  (the case the shell displays)
 from lithrim_bench.runtime.council.judge_assignment import (  # noqa: E402  (council-light; no openai)
     render_role_questions,
@@ -972,6 +977,84 @@ def get_agent_endpoint(
     """Load an assembled Agent (judges + ontology + tools + kb) from the config DB.
     404 on unknown, mirroring _load_agent."""
     return agent_to_dict(_load_agent(name, db_path))
+
+
+# ── PERSIST-2b: the config-object version history (_history read API) ──────────
+#
+# The "prove what the config WAS" half of the §2B moat. agent/judge are table-backed →
+# their _history reads the {agents,judges}_history copy-on-write shadow (versioning.py);
+# ontology is file-backed (no table) → its _history projects the immutable config_audit
+# ledger's after-snapshots. The why/who change-stream stays at GET /v1/audit.
+
+
+def _history_404_if_empty(versions: list[dict], what: str) -> dict:
+    if not versions:
+        raise HTTPException(status_code=404, detail=f"no version history for {what}")
+    return {"versions": versions, "current": versions[0]["object"]}
+
+
+@app.get("/v1/agent/_history")
+def agent_history_endpoint(
+    name: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """The version timeline of an agent eval-profile (shadow-backed), newest-first."""
+    versions = list_versions(db_path, table="agents", id_col="name", id_val=name)
+    return _history_404_if_empty(versions, f"agent {name!r}")
+
+
+@app.get("/v1/agent/_history/{version}")
+def agent_version_endpoint(
+    version: int, name: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """The agent eval-profile object as of a specific version."""
+    obj = version_at(db_path, table="agents", id_col="name", id_val=name, version=version)
+    if obj is None:
+        raise HTTPException(status_code=404, detail=f"agent {name!r} has no version {version}")
+    return {"version": version, "object": obj}
+
+
+@app.get("/v1/judges/{role}/_history")
+def judge_history_endpoint(role: str, db_path: Path = Depends(get_config_db)) -> dict:
+    """The version timeline of a judge config (shadow-backed), newest-first."""
+    versions = list_versions(db_path, table="judges", id_col="role", id_val=role)
+    return _history_404_if_empty(versions, f"judge {role!r}")
+
+
+@app.get("/v1/judges/{role}/_history/{version}")
+def judge_version_endpoint(
+    role: str, version: int, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """The judge config object as of a specific version."""
+    obj = version_at(db_path, table="judges", id_col="role", id_val=role, version=version)
+    if obj is None:
+        raise HTTPException(status_code=404, detail=f"judge {role!r} has no version {version}")
+    return {"version": version, "object": obj}
+
+
+@app.get("/v1/ontology/_history")
+def ontology_history_endpoint(
+    agent: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """The version timeline of an agent's ontology (ledger-backed: the file-backed object's
+    history is the config_audit after-snapshots), newest-first."""
+    versions = ledger_history(db_path, target_type="ontology", target_id=agent)
+    return _history_404_if_empty(versions, f"ontology for agent {agent!r}")
+
+
+@app.get("/v1/ontology/_history/{version}")
+def ontology_version_endpoint(
+    version: int, agent: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """The ontology object as of a specific version (from the ledger projection)."""
+    match = [
+        v for v in ledger_history(db_path, target_type="ontology", target_id=agent)
+        if v["version"] == version
+    ]
+    if not match:
+        raise HTTPException(
+            status_code=404, detail=f"ontology for agent {agent!r} has no version {version}"
+        )
+    return {"version": version, "object": match[0]["object"]}
 
 
 @app.put("/v1/agent")
