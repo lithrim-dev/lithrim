@@ -95,3 +95,20 @@ not hot-reload) and spends BYO-Claude — owner-authorized, not done here.
 
 GOOD items (#5 A-SAFE, #6 honesty) are untouched — the paid path stays the human's in-DOM
 cost-confirm; `case_id` is a selector, never a spend (asserted non-vacuously in the new tests).
+
+### A-LIVE re-drive (2026-06-18, browser MCP, `localhost:5180` / `clinverdict_clean`, BFF restarted)
+Re-ran the exact three failing scenarios conversationally. **All three CRITICAL findings fixed:**
+
+| Said | Before (the bug) | After (verified live) |
+|---|---|---|
+| "show me the cases I can evaluate" | seed only + agent-editor card | `list_cases` → table of **all 10** ClinVerdict cases, "unlabeled by construction", **Cases panel opened** (10 ingested · 10 with transcript), marked `clinverdict_01` "currently exploring". **No agent-editor card.** |
+| "open clinverdict_05_psychology…" | **claimed 05, showed the seed** | `show_case(case_id=…)` → inline Source-card **for case 05** (chip **"clean"**, not "planted defect") + the **Case pane renders case 05's** transcript/note/FHIR artifact (active-case sync). Honest note: "ingested corpus case … treat it as clean/unlabeled, not a planted bug." |
+| "run it and show me the verdict" | $0 replay on the **seed** | `run_eval` graded **`clinverdict_05_psychology`** (the shared active case): "Replay run failed: … no captured baseline for clinverdict_05_psychology — and I won't pretend otherwise" → **surfaced the cost-confirm modal** ("the assistant cannot do this — only you can authorize the spend"). Cancelled → **no spend**. |
+
+Also confirmed live: the de-jargon (#10–11) — status bar reads **"judges: 3"** (was "judge council: 3").
+A-SAFE + honesty (the GOOD items) held throughout — the agent never spent and never rounded up.
+
+**Residual (LOW, not a regression):** on Test 2 the model attempted a `ToolSearch` once before
+retrying `show_case` correctly — the A-SAFE deny hook refused it (the system prompt already forbids
+it; the model occasionally ignores that line). Correctness was unaffected; worth a future prompt
+reinforcement, not a blocker. Committed in `6b94c22`.
