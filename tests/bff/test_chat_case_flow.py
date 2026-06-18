@@ -260,6 +260,10 @@ def test_system_prompt_names_the_active_case_and_nudges_list_and_show():
     assert "list_cases" in prompt  # the enumerate-the-corpus nudge
     assert "show_case" in prompt and "case_id" in prompt  # open-case-X uses case_id
     assert prompt.startswith(_SYSTEM_PROMPT)  # the static base is preserved
+    # TOOLSEARCH-MISFIRE (positive reframe): the prompt no longer NAMES ToolSearch (the
+    # "don't think of an elephant" priming) — it states positively that all tools are loaded.
+    assert "ToolSearch" not in prompt and "tool_search" not in prompt
+    assert "already loaded" in prompt.lower()
     # back-compat: no active case → the agent-only prompt still works (no crash, no case named)
     bare = _system_prompt(AGENT)
     assert AGENT in bare

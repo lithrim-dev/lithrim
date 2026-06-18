@@ -103,6 +103,33 @@ def test_a_non_lithrim_namespace_is_denied():
     assert _decision(out) == "deny"
 
 
+def _reason(out: dict) -> str:
+    return (out or {}).get("hookSpecificOutput", {}).get("permissionDecisionReason", "")
+
+
+def test_discovery_tools_are_denied_with_a_targeted_redirect():
+    """TOOLSEARCH-MISFIRE: a tool-discovery / loader call (ToolSearch and friends) is still DENIED,
+    but with a TARGETED reason that redirects the model to call the loaded tool directly — so its
+    retry is instant instead of probing again. NON-VACUOUS: the reason names 'already loaded' + a
+    lithrim tool, which the generic refusal does not."""
+    for name in ("ToolSearch", "tool_search", "tool-search", "load_tool", "loadTool", "list_tools", "kb_search"):
+        out = asyncio.run(_deny_non_lithrim({"tool_name": name}, "t", {"signal": None}))
+        assert _decision(out) == "deny", name
+        low = _reason(out).lower()
+        assert "already loaded" in low and "directly" in low, (name, _reason(out))
+
+
+def test_non_discovery_builtins_keep_the_generic_refusal():
+    """The targeted redirect is SCOPED to discovery names — a plain built-in (Bash/Read/...) still
+    gets the generic 'not a Lithrim tool' refusal (so test_builtin_tools_are_denied_at_the_hook's
+    `name in reason` contract holds), not the redirect."""
+    for name in ("Bash", "Read", "Write", "Edit", "WebFetch", "Task"):
+        out = asyncio.run(_deny_non_lithrim({"tool_name": name}, "t", {"signal": None}))
+        assert _decision(out) == "deny", name
+        assert name in _reason(out)
+        assert "already loaded" not in _reason(out).lower()  # not the discovery redirect
+
+
 # ── the options carry the gate + isolation ───────────────────────────────────
 
 
@@ -130,3 +157,8 @@ def test_build_options_is_isolated_and_carries_only_the_lithrim_server(ctx):
     expected = [f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS]
     assert list(opts.allowed_tools) == expected
     assert all(a.startswith("mcp__lithrim__") for a in opts.allowed_tools)
+    # TOOLSEARCH-MISFIRE root control: `tools=[]` un-offers ALL built-ins (incl. ToolSearch) so the
+    # model never sees them — the deny hook is now defense-in-depth, not the only bound. The MCP
+    # server rides a separate path, so the 18 lithrim tools survive (asserted above).
+    assert opts.tools == []
+    assert "ToolSearch" in opts.disallowed_tools

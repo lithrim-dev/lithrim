@@ -195,6 +195,40 @@ def test_loop_event_shapes_with_a_stub_source(env):
     assert "subscription-equivalent" in events[3]["cost_label"]  # fold 4: not a literal charge
 
 
+def test_a_non_lithrim_tool_call_is_not_streamed_as_an_activity_step(env):
+    """TOOLSEARCH-MISFIRE (the UI-hygiene half): a ToolUseBlock the model emits for a NON-
+    mcp__lithrim__ tool (e.g. a ToolSearch tried out of habit) is GUARANTEED to be denied, so it
+    must NOT stream a `tool_call` event — otherwise the chat renders a doomed 'ToolSearch…' chip.
+    The sibling lithrim tool in the SAME turn still streams. NON-VACUOUS: drop the prefix guard in
+    loop.py and the ToolSearch tool_call reappears here."""
+    sdk = pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
+    from agent import run_chat
+
+    ctx, _client = env
+
+    async def _stub(_message, c, _history=None):
+        yield sdk.AssistantMessage(
+            content=[
+                sdk.ToolUseBlock(id="t0", name="ToolSearch", input={"query": "show_case"}),
+                sdk.ToolUseBlock(id="t1", name="mcp__lithrim__list_cases", input={}),
+            ],
+            model="claude",
+        )
+        yield sdk.ResultMessage(
+            subtype="success", duration_ms=1, duration_api_ms=1, is_error=False,
+            num_turns=1, session_id="s", total_cost_usd=0.0,
+        )
+
+    async def _drain():
+        return [e async for e in run_chat("show me the cases", ctx, source=_stub)]
+
+    events = asyncio.run(_drain())
+    tool_calls = [e["name"] for e in events if e["event"] == "tool_call"]
+    assert "mcp__lithrim__list_cases" in tool_calls  # the real tool still streams its step
+    assert "ToolSearch" not in tool_calls  # the doomed discovery call is dropped
+    assert all(n.startswith("mcp__lithrim__") for n in tool_calls)  # only lithrim steps reach the UI
+
+
 # ── CONV-UX-1 (W0): the chat default_agent resolves against the ACTIVE workspace ──────
 
 

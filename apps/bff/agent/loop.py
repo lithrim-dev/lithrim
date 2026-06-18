@@ -92,9 +92,9 @@ _SYSTEM_PROMPT = (
     "an imported case with no replay baseline -- surface the cost-confirm modal so THEY can "
     "authorize the paid run. $0; you only PROPOSE, you never spend.\n"
     "ALL of the tools above are ALREADY loaded and directly callable by their exact names with "
-    "the documented arguments -- do NOT call ToolSearch / tool_search / any schema-discovery or "
-    "tool-loader (they are blocked and unnecessary here). Call the tool you need directly; if you "
-    "are unsure of an argument, use the names documented above (never guess a different arg name).\n"
+    "the documented arguments -- there is no tool-discovery or loader step in this environment, so "
+    "always call the tool you need directly. If you are unsure of an argument, use the names "
+    "documented above (never guess a different arg name, and never look one up).\n"
     "You can NEVER fire a paid run; a live or in-process run -- single or batch -- is the "
     "human's explicit cost-confirmed action (offer propose_live_run; their modal-confirm spends). "
     "If a tool returns an error (an "
@@ -265,14 +265,35 @@ async def _deny_non_lithrim(input_data, tool_use_id, context):
         name = ""
     if name.startswith("mcp__lithrim__"):
         return {}  # pass-through: allowed (no decision == allow under the existing allowlist)
+    # TARGETED REDIRECT: a tool-discovery / loader call (ToolSearch and friends) should never happen
+    # now that `tools=[]` un-offers the built-ins, but if one slips through, redirect rather than just
+    # refuse — so the model's retry is instant and it calls the loaded tool directly instead of probing.
+    _disc = name.lower().replace("-", "_")
+    _is_discovery = (
+        "toolsearch" in _disc
+        or "tool_search" in _disc
+        or _disc.endswith("_search")
+        or "loadtool" in _disc
+        or "load_tool" in _disc
+        or _disc in {"tool_loader", "list_tools", "describe_tool"}
+    )
+    reason = (
+        (
+            f"{name}: all tools are already loaded — there is no tool-discovery or loader step here. "
+            "Call the tool you need directly by its exact mcp__lithrim__* name (e.g. list_cases, "
+            "show_case, run_eval, get_agent) with the documented arguments."
+        )
+        if _is_discovery
+        else (
+            f"{name or '<unknown>'} is not a Lithrim tool; this agent is bounded to "
+            "mcp__lithrim__* (it can never fire a paid run or touch the host)."
+        )
+    )
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": (
-                f"{name or '<unknown>'} is not a Lithrim tool; this agent is bounded to "
-                "mcp__lithrim__* (it can never fire a paid run or touch the host)."
-            ),
+            "permissionDecisionReason": reason,
         }
     }
 
@@ -376,6 +397,16 @@ def _build_options(ctx: ToolContext):
         model=chat_model,  # CONV-PROVIDER-1: a pinned Claude via the Anthropic API when set; None → CLI default
         env=({"ANTHROPIC_API_KEY": api_key} if api_key else {}),  # SCOPED to this subprocess (judges unaffected)
         mcp_servers={"lithrim": server},
+        # A-SAFE ROOT CONTROL (S-BS-90 follow-up): `tools=[]` disables ALL built-ins (Bash/Read/
+        # ToolSearch/...) so they are NEVER OFFERED to the model — unlike `allowed_tools`, which under
+        # bypassPermissions only governs prompting (claude-agent-sdk types.py: `tools=[]` → `--tools ""`,
+        # built-ins off; the MCP server rides the SEPARATE `--mcp-config` path, so the 18 mcp__lithrim__*
+        # tools are untouched). This stops the model reaching for ToolSearch out of Claude-Code habit at
+        # the SOURCE (the live "ToolSearch misfire") and demotes _deny_non_lithrim to pure
+        # defense-in-depth (the probe-1 built-in is now un-offered, not merely refused). `disallowed_tools`
+        # names ToolSearch explicitly as a belt-and-suspenders backstop (removed from the model's context).
+        tools=[],
+        disallowed_tools=["ToolSearch"],
         allowed_tools=allowed,  # defense-in-depth; the deny hook below is the real bound
         permission_mode="bypassPermissions",
         hooks={
@@ -491,7 +522,12 @@ async def run_chat(
                     elif isinstance(block, TextBlock):
                         if not streamed_text and block.text.strip():
                             yield {"event": "assistant_delta", "text": block.text}
-                    elif isinstance(block, ToolUseBlock):
+                    # Only stream the activity step for an in-process lithrim tool. A non-
+                    # mcp__lithrim__ block (e.g. a ToolSearch the model tried out of habit) is
+                    # GUARANTEED to be denied by _deny_non_lithrim, so it never yields a tool_result
+                    # — emitting it would render a doomed "ToolSearch…" chip in the chat. Drop it on
+                    # the wire (the security policy stays in one place — the deny hook).
+                    elif isinstance(block, ToolUseBlock) and block.name.startswith("mcp__lithrim__"):
                         yield {"event": "tool_call", "name": block.name, "input": block.input}
                 # The assembled message closes a streamed turn; reset for the next AssistantMessage
                 # (a multi-turn loop streams, assembles, then streams the next turn's partials).

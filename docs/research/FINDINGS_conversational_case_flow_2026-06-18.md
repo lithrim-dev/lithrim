@@ -108,7 +108,17 @@ Re-ran the exact three failing scenarios conversationally. **All three CRITICAL 
 Also confirmed live: the de-jargon (#10–11) — status bar reads **"judges: 3"** (was "judge council: 3").
 A-SAFE + honesty (the GOOD items) held throughout — the agent never spent and never rounded up.
 
-**Residual (LOW, not a regression):** on Test 2 the model attempted a `ToolSearch` once before
-retrying `show_case` correctly — the A-SAFE deny hook refused it (the system prompt already forbids
-it; the model occasionally ignores that line). Correctness was unaffected; worth a future prompt
-reinforcement, not a blocker. Committed in `6b94c22`.
+**Residual (LOW) — RESOLVED (TOOLSEARCH-MISFIRE).** On Test 2 the model attempted a `ToolSearch`
+once before retrying `show_case` — the deny hook refused it, but it wasted a step + leaked a
+"ToolSearch…" chip. **Root cause (CONFIRMED, claude_agent_sdk 0.2.90):** `ClaudeAgentOptions.tools`
+defaulted to `None`, so the `claude` subprocess *offered* its full built-in set (incl. ToolSearch)
+to the model; the deny hook only caught it at call time. **Fix (4 layers, `apps/bff/agent/loop.py`):**
+(1) `tools=[]` + `disallowed_tools=["ToolSearch"]` — built-ins are no longer offered (also hardens
+A-SAFE: the probe-1 built-ins are un-offered, deny hook → pure defense-in-depth; `--tools ""` and
+`--mcp-config` are independent flags, so the 18 lithrim tools survive); (2) the `tool_call` emit is
+gated on the `mcp__lithrim__` prefix (no doomed chip); (3) the deny hook returns a targeted "all tools
+already loaded — call directly" redirect for discovery names; (4) the prompt drops the literal
+"do NOT call ToolSearch" priming for a positive frame. Deterministic gate green (86 passed) +
+**A-LIVE re-confirmed (BFF restarted):** the exact open-case turn now shows a clean
+`Loading the case → Opening a panel` timeline — no ToolSearch chip — and the MCP journey
+(`list_cases`/`show_case`/`focus_artifact`) is intact under `tools=[]`.
