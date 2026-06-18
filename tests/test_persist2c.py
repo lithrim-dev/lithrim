@@ -125,6 +125,14 @@ def _run_provenance_contract(make_store):
     assert [v["pipeline_run_id"] for v in asyncio.run(store.list_versions("ag", "c2"))] == ["r3"]
     assert asyncio.run(store.latest_for("ag", "nope")) is None
 
+    # same-id re-save (the withstands re-embed / replay re-run path) — both backends UPDATE
+    # the live row in place (the latest write wins) and keep ONE live version of that id; the
+    # lineage addressing is unchanged. (Critic OQ: lock the same-id versioning, not just the
+    # distinct-id live path the calibration history uses.)
+    asyncio.run(store.save(_prov("r2", verdict="WARN"), agent_id="ag", case_id="c1"))
+    assert asyncio.run(store.find_by_id("r2"))["verdict"] == "WARN"  # last same-id write wins
+    assert [v["pipeline_run_id"] for v in asyncio.run(store.list_versions("ag", "c1"))] == ["r2", "r1"]
+
 
 def test_contract_sqlite(tmp_path):
     _run_provenance_contract(lambda: SqliteProvenanceStore(db_path=tmp_path / "contract.sqlite"))
