@@ -2616,7 +2616,7 @@
       "scope": "pg-sqlite-adapter-split-connection-factory-plus-dialect-plus-tier-pro-PostgresProvenanceStore-plus-yoyo-migrations-realizes-S-BS-38",
       "file": ".devloop/prompts/bench-salvage_phasePERSIST-2c_pg-sqlite-adapter_driver.md",
       "version": "v1",
-      "status": "SHIPPED 2026-06-18 (3c66db3..04a36dd; HARD GATE — fresh critic PENDING). PG contract-shaped + SQLite-proven, NOT CI-live-verified (S-BS-PERSIST-2C-PG-UNVERIFIED).",
+      "status": "CLOSED-WITH-CAVEATS 2026-06-18 (3c66db3..1b94005; fresh-critic (a2f4a0ea2ad121715) PROCEED-WITH-CAVEATS, 0 BLOCKING, honesty audit PASS; same-id contract strengthened). PG contract-shaped + SQLite-proven, NOT CI-live-verified (S-BS-PERSIST-2C-PG-UNVERIFIED).",
       "hardness": "HARD GATE — new (gated) deps + grade-path wiring + the tier:pro boundary; moat 0-delta. Fresh critic re-runs A1–A6 + the zero-regression diff + audits the PG-caveat honesty.",
       "target_repos": [
         "lithrim-bench"
@@ -2627,7 +2627,7 @@
       "_note": "Third cycle of PERSIST-2; realizes the deferred S-BS-38. Owner chose seam+contract-tested-PG + yoyo. Targets the ProvenanceStore blob tier; config-plane PG is a follow-on (S-BS-PERSIST-2C-CONFIG-TIER). Next: PERSIST-2d (projection tier).",
       "created": "2026-06-18",
       "last_re_verified": "2026-06-18",
-      "next_action": "/devloop-critique bench-salvage PERSIST-2c (HARD GATE); then run the PG contract vs a real Postgres."
+      "next_action": "Run the PG contract vs a real Postgres (pip install '.[pg]' + LITHRIM_DB_URL) to close S-BS-PERSIST-2C-PG-UNVERIFIED; then PERSIST-2d (projection tier)."
     }
   ]
 }
