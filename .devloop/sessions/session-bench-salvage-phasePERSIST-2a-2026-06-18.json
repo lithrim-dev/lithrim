@@ -1,0 +1,139 @@
+{
+  "session_id": "session-bench-salvage-phasePERSIST-2a-2026-06-18",
+  "stream": "bench-salvage",
+  "phase": "PERSIST-2a",
+  "driver_bundle_id": "bench-salvage-phasePERSIST-2a-versioned-blob-replay-driver",
+  "started_at": "2026-06-18T16:30:00Z",
+  "ended_at": "2026-06-18T18:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-18T16:55:00Z",
+    "user_approved_at": "2026-06-18T16:56:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Decision 1 (freshness) OWNER-PENDING — implemented drift-aware behind a swappable is_fresh() predicate (the monitor lean + the honest/pitch-aligned default); flagged for the owner's final call (a one-line predicate swap).",
+        "evidence": "driver §3 Decision 1: 'if unanswered at kickoff, implement drift-aware behind a swappable predicate and flag for confirmation.'",
+        "decided_at": "2026-06-18T16:56:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Test bug self-corrected: A4 originally asserted record['pipeline_run_id'] — that key is added by the BFF _grade_case wrapper, NOT by run_eval.run; corrected to record['result']['provenance']['pipeline_run_id']. A wrong-key test bug, not bending the test to the code.",
+        "evidence": "tests/test_persist2a.py::test_replay_resolves_from_persisted_head",
+        "decided_at": "2026-06-18T17:20:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "Driver cited paths as lithrim_bench/runtime/pipeline/provenance.py etc.; the package prefix is lithrim_bench/ (re-grepped, all symbols present at the cited functions). No behavioural drift.",
+        "evidence": "lithrim_bench/runtime/pipeline/provenance.py, lithrim_bench/harness/collections.py",
+        "decided_at": "2026-06-18T16:40:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "6d19079",
+      "repo": "lithrim-bench",
+      "title": "test(persist): versioned blob + replay-from-provenance + freshness — red",
+      "summary": "A1–A6 acceptance tests + minimal scaffolds; RED 8 failed / 2 passed (the 2 are A6 invariant guards)."
+    },
+    {
+      "hash": "bef4a7a",
+      "repo": "lithrim-bench",
+      "title": "feat(persist): versioned PIPELINE_RUNS history + copy-on-write (fix S-BS-68)",
+      "summary": "DocShimCollection.versioned (default False) + in-txn snapshot-then-write to {name}_history with first-write created_at preserved + find_by_json reader; PIPELINE_RUNS opts in."
+    },
+    {
+      "hash": "a39a95e",
+      "repo": "lithrim-bench",
+      "title": "feat(persist): case_id + latest_for/list_versions read seam + provenance_to_result adapter",
+      "summary": "ProvenanceStore gains case_id save kwarg + latest_for/list_versions; new harness/replay.py with provenance_to_result + grade_signature + is_fresh (stdlib)."
+    },
+    {
+      "hash": "db62276",
+      "repo": "lithrim-bench",
+      "title": "feat(persist): replay-from-provenance + the drift-aware freshness guard",
+      "summary": "run_eval.run resolves the persisted head as the $0 baseline when dataset.baseline is None (else-branch), with the drift-aware freshness guard; in_process head stamped post-save via _enrich_run_blob (the S-BS-72 pattern)."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare python -m pytest tests/test_persist2a.py -q",
+    "red_evidence": "8 failed, 2 passed in 0.40s — failing for the right reason (behaviour genuinely absent: list_versions/latest_for stubs return []/None, provenance_to_result NotImplementedError, PIPELINE_RUNS.versioned False, run_eval still hard-raises 'no captured baseline'). The 2 passing are A6 invariant guards (record byte-identical store on/off; acc4973 consensus 0-delta) — they guard against regression, so they hold throughout.",
+    "green_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare python -m pytest tests/test_persist2a.py -q ; ruff check <touched files>",
+    "green_evidence": "10 passed in 0.42s ; ruff: All checks passed!"
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — append-only versioning; S-BS-68 fixed",
+      "test": "tests/test_persist2a.py::test_provenance_versions_are_append_only + ::test_same_id_reinsert_archives_prior_and_preserves_created_at",
+      "verdict": "PASS",
+      "evidence": "distinct run_ids retained as versions (newest-first); same-id re-insert archives the prior into pipeline_runs_history with created_at PRESERVED and keeps the live row's first-write created_at. Diagnostic: 4 same-id re-grades → live=1 (head), history=3, all created_at == the first write."
+    },
+    {
+      "criterion": "A2 — addressability",
+      "test": "tests/test_persist2a.py::test_latest_for_and_list_versions_address_by_agent_case",
+      "verdict": "PASS",
+      "evidence": "latest_for(ag,c1)=head carrying case_id; list_versions newest-first; case_id persisted (absent before); NoOp → None/[]."
+    },
+    {
+      "criterion": "A3 — shape adapter",
+      "test": "tests/test_persist2a.py::test_provenance_to_result_round_trips",
+      "verdict": "PASS",
+      "evidence": "provenance_to_result(baseline.provenance) → ground+composite byte-equals grounding the original baseline (the persisted blob carries stage_results.semantic.evidence the adapter promotes). CONFIRMED against the real _core house baseline shape."
+    },
+    {
+      "criterion": "A4 — replay-from-provenance (the aha)",
+      "test": "tests/test_persist2a.py::test_replay_resolves_from_persisted_head",
+      "verdict": "PASS",
+      "evidence": "agent with baseline=None + a persisted head → run_eval.run resolves it → $0 replay (grade_path='replay', no SystemExit), composite matches the captured grade, result.provenance.pipeline_run_id == the head's."
+    },
+    {
+      "criterion": "A5 — freshness guard",
+      "test": "tests/test_persist2a.py::test_replay_refuses_a_stale_head_on_config_drift + ::test_is_fresh_is_a_swappable_drift_aware_predicate",
+      "verdict": "PASS",
+      "evidence": "a head whose grade_signature != the current config's is STALE → run_eval raises SystemExit('config changed … re-grade …'); is_fresh is the swappable drift-aware predicate (un-signed head never fresh)."
+    },
+    {
+      "criterion": "A6 — frozen contract / moat",
+      "test": "tests/test_persist2a.py::test_versioning_is_scoped_to_the_provenance_tier + ::test_consensus_seam_is_zero_delta_vs_acc4973 + ::test_frozen_contract_record_identical",
+      "verdict": "PASS",
+      "evidence": "PIPELINE_RUNS.versioned True; the four config collections versioned False (scope held); assert_compliance_council_carveouts_only(acc4973) green (the _apply_consensus moat is 0-delta — only the pack's clinical ONTOLOGY data drifted, which 2a does not touch); the in_process record is byte-identical store on/off."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "pipeline_runs_history_rows_after_4_same_id_regrades": "3 superseded (live head = 1); all archived rows preserve the first-write created_at — the S-BS-68 fix",
+    "grade_signature_inputs": "{ontology, authored assignments, authored models, council_config} — sha256 over the canonical JSON",
+    "grade_signature_sample": "cd03326ee927ccfd28cece1bc485606192fbb084c80210b9bdae5e926824659a",
+    "txnid_surrogate_format": "<archival-iso>#<seq> with monotonic seq (etlp-sqlite style)",
+    "full_suite": "38 failed / 626 passed / 14 skipped (debuglithrim + healthcare pack). The 38 are byte-identical to pristine 89fd270 (set-diff empty) — ZERO regressions from PERSIST-2a; +10 passed = the new A1–A6.",
+    "ruff": "All checks passed (touched files)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-PERSIST-PREEXISTING",
+      "title": "38 pre-existing full-suite failures: external healthcare pack clinical_v1.json stale vs acc4973",
+      "severity": "medium",
+      "fix_location": "../lithrim-pack-healthcare (pack repo) — re-snapshot / re-seed the clinical ontology; NOT this core",
+      "impact": "The pack-layer / frozen-clinical-ontology-seam / clinical-fixture tests fail because the relocated pack's clinical_v1.json drifted from its seed sources (the clinical-ontology-reseed-owner-drift issue). Out of scope for PERSIST-2a (no clinical/pack edits). CONFIRMED identical on pristine 89fd270.",
+      "confidence": "CONFIRMED",
+      "evidence": "diff /tmp/pristine_fails_sorted.txt /tmp/green_fails.txt → IDENTICAL; 38 == 38; the frozen-seam failures trip assert_clinical_ontology_seam_frozen (the ontology DATA), not the consensus seam."
+    }
+  ],
+
+  "seams_closed": ["S-BS-68"],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "PERSIST-2a landed: PIPELINE_RUNS is now a versioned temporal blob (live head + pipeline_runs_history copy-on-write, first-write created_at preserved = the S-BS-68 fix), addressable by (agent, case_id) via latest_for/list_versions, and an ingested case (dataset.baseline=None) now replays at $0 from the persisted head (provenance_to_result adapter) with a drift-aware freshness guard that refuses a stale verdict — the pitch's pay-once-replay-free aha. All A1–A6 green (10 tests), ruff clean, the _apply_consensus moat 0-delta vs acc4973, the in_process record byte-identical store on/off. The CAVEAT: the full suite shows 38 pre-existing failures (the external pack's clinical_v1.json drifted vs acc4973) — CONFIRMED byte-identical to pristine 89fd270, so ZERO regressions from this cycle; the monitor should NOT charge them to PERSIST-2a. Decision 1 (freshness policy) remains OWNER-PENDING behind the swappable is_fresh() predicate — confirm drift-aware before relying on the freshness behaviour in the demo.",
+
+  "next_session_hint": "HARD GATE — monitor runs /devloop-critique bench-salvage PERSIST-2a (fresh critic re-runs A1–A6 + the acc4973 0-delta independently); also surface the 38 pre-existing pack-drift failures to the owner as a separate pack-repo re-seed task."
+}
