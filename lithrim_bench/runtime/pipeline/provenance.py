@@ -20,19 +20,37 @@ logger = logging.getLogger(__name__)
 
 
 class ProvenanceStore:
-    async def save(self, provenance: Any, *, agent_id: str | None = None) -> None:
+    async def save(
+        self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
+    ) -> None:
         return None
 
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
         return None
+
+    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
+        """The head (most-recent) version blob for a ``(agent, case_id)`` lineage."""
+        return None
+
+    async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
+        """All version blobs for a ``(agent, case_id)`` lineage, newest-first."""
+        return []
 
 
 class NoOpProvenanceStore(ProvenanceStore):
-    async def save(self, provenance: Any, *, agent_id: str | None = None) -> None:
+    async def save(
+        self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
+    ) -> None:
         return None
 
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
         return None
+
+    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
+        return None
+
+    async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
+        return []
 
 
 class SqliteProvenanceStore(ProvenanceStore):
@@ -59,13 +77,17 @@ class SqliteProvenanceStore(ProvenanceStore):
     def __init__(self, *, db_path: str | Path | None = None) -> None:
         self._db_path = db_path
 
-    async def save(self, provenance: Any, *, agent_id: str | None = None) -> None:
+    async def save(
+        self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
+    ) -> None:
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
 
         try:
             doc: dict = provenance.model_dump(mode="json")
             if agent_id is not None:
                 doc["agent_id"] = agent_id
+            if case_id is not None:
+                doc["case_id"] = case_id
             PIPELINE_RUNS.insert(doc, db_path=self._db_path or DEFAULT_COLLECTIONS_DB)
         except Exception:
             logger.exception(
@@ -77,3 +99,11 @@ class SqliteProvenanceStore(ProvenanceStore):
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
 
         return PIPELINE_RUNS.get(pipeline_run_id, db_path=self._db_path or DEFAULT_COLLECTIONS_DB)
+
+    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
+        # RED scaffold — GREEN implements the head query.
+        return None
+
+    async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
+        # RED scaffold — GREEN implements the lineage query.
+        return []

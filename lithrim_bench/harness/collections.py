@@ -44,6 +44,12 @@ class DocShimCollection:
     name: str
     id_field: str
     fk: str
+    # PERSIST-2a: when True, a write that REPLACES an existing row (same id) first archives
+    # the prior row into a ``{name}_history`` shadow with its first-write ``created_at``
+    # PRESERVED (the S-BS-68 last-write-wins fix), keeping the live row's original
+    # ``created_at`` too. Default False → the four M1 config/report collections are
+    # byte-identical (their versioning is PERSIST-2b). Only ``PIPELINE_RUNS`` opts in.
+    versioned: bool = False
 
     def _schema(self) -> str:
         return (
