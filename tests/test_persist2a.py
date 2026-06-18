@@ -253,7 +253,8 @@ def test_replay_resolves_from_persisted_head(tmp_path):
     c_expected = composite(ground(baseline, case, ontology=ontology))
     assert record["composite"]["verdict"] == c_expected["verdict"]
     assert record["composite"]["score"] == c_expected["score"]
-    assert record["pipeline_run_id"] == blob["pipeline_run_id"]
+    # the resolved result carries the captured run's provenance (its pipeline_run_id)
+    assert record["result"]["provenance"]["pipeline_run_id"] == blob["pipeline_run_id"]
 
 
 # ── A5 (freshness guard) ──────────────────────────────────────────────────────
