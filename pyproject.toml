@@ -71,6 +71,16 @@ observation = [
 agent = [
     "claude-agent-sdk>=0.2.90,<0.3",
 ]
+# PERSIST-2c: the managed/VPC Postgres tier (plugin `tier: pro`). `psycopg` is the driver
+# the PostgresProvenanceStore lazy-imports; `yoyo-migrations` is the managed-tier migration
+# framework (the SQLite OSS core self-provisions via inline CREATE TABLE IF NOT EXISTS + needs
+# no framework). Kept OUT of `dependencies` so the default install stays the offline
+# pydantic+pandas stdlib-sqlite3 core — neither is ever imported at module load; the
+# `make_provenance_store` factory gates the Postgres backend behind LITHRIM_BENCH_LICENSE.
+pg = [
+    "psycopg[binary]>=3.1",
+    "yoyo-migrations>=8.2",
+]
 
 [project.scripts]
 # DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).

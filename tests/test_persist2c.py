@@ -180,10 +180,12 @@ def test_core_dependencies_unchanged():
     # text-scan (tomllib is 3.11+; the bench runs on 3.10) — the core `dependencies = [...]`
     # block must NOT carry a DB driver; the `[pg]` extra carries psycopg + yoyo instead.
     text = (REPO_ROOT / "pyproject.toml").read_text()
-    core_block = text.split("\ndependencies = [", 1)[1].split("]", 1)[0]
+    # split on the closing bracket on its own line ("\n]") — a dep like psycopg[binary] has
+    # an inner "]" that a bare "]" split would truncate on.
+    core_block = text.split("\ndependencies = [", 1)[1].split("\n]", 1)[0]
     assert "psycopg" not in core_block and "yoyo" not in core_block, core_block
     assert "\npg = [" in text, "missing the [pg] optional-dependencies extra"
-    pg_block = text.split("\npg = [", 1)[1].split("]", 1)[0]
+    pg_block = text.split("\npg = [", 1)[1].split("\n]", 1)[0]
     assert "psycopg" in pg_block and "yoyo" in pg_block, pg_block
 
 
