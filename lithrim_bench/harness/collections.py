@@ -62,8 +62,33 @@ class DocShimCollection:
             f"CREATE INDEX IF NOT EXISTS idx_{self.name}_fk ON {self.name}(fk)"
         )
 
+    def _history_schema(self) -> str:
+        """The append-only ``_history`` shadow for a versioned collection (etlp-mapper's
+        ``mappings_history``): every superseded version, version-addressable by
+        ``(original_id, seq/txnid)``. PERSIST-2a."""
+        return (
+            f"CREATE TABLE IF NOT EXISTS {self.name}_history (\n"
+            "    hist_id     INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+            "    original_id TEXT NOT NULL,\n"
+            "    txnid       TEXT NOT NULL,\n"
+            "    seq         INTEGER NOT NULL,\n"
+            "    fk          TEXT,\n"
+            "    json        TEXT NOT NULL,\n"
+            "    created_at  TEXT NOT NULL,\n"
+            "    archived_at TEXT NOT NULL\n"
+            ");\n"
+            f"CREATE INDEX IF NOT EXISTS idx_{self.name}_history_orig "
+            f"ON {self.name}_history(original_id)"
+        )
+
     def insert(self, doc: dict[str, Any], *, db_path: str | Path = DEFAULT_COLLECTIONS_DB) -> str:
-        """Upsert a document (idempotent on its id_field). Returns the db path."""
+        """Upsert a document (idempotent on its id_field). Returns the db path.
+
+        On a ``versioned`` collection, a write that REPLACES an existing row first copies
+        the prior row into ``{name}_history`` (with its first-write ``created_at`` PRESERVED)
+        and keeps the live row's original ``created_at`` — first-write-wins, the S-BS-68 fix
+        scoped to this tier. The snapshot-then-write runs in ONE transaction, so it is
+        portable (no SQLite trigger) and runs identically on PG later."""
         db_path = Path(db_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         doc_id = str(doc[self.id_field])
@@ -74,6 +99,28 @@ class DocShimCollection:
         conn = sqlite3.connect(db_path)
         try:
             conn.executescript(self._schema())
+            if self.versioned:
+                conn.executescript(self._history_schema())
+                prior = conn.execute(
+                    f"SELECT fk, json, created_at FROM {self.name} WHERE id = ?", (doc_id,)
+                ).fetchone()
+                if prior is not None:
+                    prior_fk, prior_json, prior_created = prior
+                    seq = (
+                        conn.execute(
+                            f"SELECT COUNT(*) FROM {self.name}_history WHERE original_id = ?",
+                            (doc_id,),
+                        ).fetchone()[0]
+                        + 1
+                    )
+                    conn.execute(
+                        f"INSERT INTO {self.name}_history "
+                        "(original_id, txnid, seq, fk, json, created_at, archived_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (doc_id, f"{created_at}#{seq}", seq, prior_fk, prior_json,
+                         prior_created, created_at),
+                    )
+                    created_at = prior_created  # first-write-wins on the live row
             conn.execute(
                 f"INSERT INTO {self.name} (id, fk, json, created_at) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET fk=excluded.fk, json=excluded.json, "
@@ -84,6 +131,33 @@ class DocShimCollection:
         finally:
             conn.close()
         return str(db_path)
+
+    def find_by_json(
+        self,
+        fields: dict[str, str],
+        *,
+        db_path: str | Path = DEFAULT_COLLECTIONS_DB,
+        newest_first: bool = True,
+    ) -> list[dict]:
+        """All docs matching every ``json_extract`` field equality, newest-first by
+        insertion order (``rowid``). Backs the versioned read seam (``latest_for`` /
+        ``list_versions``) WITHOUT promoting a field to an indexed column — S-BS-4
+        doc-shim-minimal. ``fields`` keys are internal (e.g. ``agent_id``/``case_id``),
+        never user input."""
+        if not fields:
+            return []
+        order = "DESC" if newest_first else "ASC"
+        where = " AND ".join(f"json_extract(json, '$.{k}') = ?" for k in fields)
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(self._schema())
+            rows = conn.execute(
+                f"SELECT json FROM {self.name} WHERE {where} ORDER BY rowid {order}",
+                tuple(fields.values()),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [json.loads(r[0]) for r in rows]
 
     def get(self, doc_id: str, *, db_path: str | Path = DEFAULT_COLLECTIONS_DB) -> dict | None:
         conn = sqlite3.connect(db_path)
@@ -153,4 +227,6 @@ COLLECTIONS: tuple[DocShimCollection, ...] = (
 # M1 conversation/report collections (its membership is pinned by
 # ``tests/test_ws1.py``); ``pipeline_runs`` is the run-keyed provenance store the
 # store looks up directly, not one of that mirrored set.
-PIPELINE_RUNS = DocShimCollection("pipeline_runs", id_field="pipeline_run_id", fk="org_id")
+PIPELINE_RUNS = DocShimCollection(
+    "pipeline_runs", id_field="pipeline_run_id", fk="org_id", versioned=True
+)
