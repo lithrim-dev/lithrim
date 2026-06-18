@@ -221,3 +221,49 @@ def test_consensus_seam_is_zero_delta_vs_acc4973():
     from tests._seam_freeze import assert_compliance_council_carveouts_only
 
     assert_compliance_council_carveouts_only(REPO_ROOT)
+
+
+# ── A7 (grade-path PG routing — the seam goes end-to-end) ─────────────────────
+
+
+def test_save_blob_round_trips_sqlite(tmp_path):
+    """The raw-dict blob seam (what run_eval's persist/enrich helpers carry) round-trips +
+    carries the extra addressability fields."""
+    store = SqliteProvenanceStore(db_path=tmp_path / "blob.sqlite")
+    doc = {
+        **_prov("rB").model_dump(mode="json"),
+        "agent_id": "ag",
+        "case_id": "c1",
+        "grade_signature": "sig",
+    }
+    asyncio.run(store.save_blob(doc))
+    got = asyncio.run(store.find_by_id("rB"))
+    assert got["agent_id"] == "ag" and got["case_id"] == "c1" and got["grade_signature"] == "sig"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("LITHRIM_DB_URL", "").startswith("postgres"),
+    reason="no live Postgres (set LITHRIM_DB_URL=postgresql://… to run the e2e grade→PG)",
+)
+def test_replay_grade_round_trips_to_postgres(tmp_path):
+    """END-TO-END: a $0 replay grade with LITHRIM_DB_URL set persists its provenance blob to
+    Postgres (not the local SQLite) — the grade path is routed through the factory."""
+    pytest.importorskip("psycopg")
+    import psycopg
+
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import run_eval
+
+    from lithrim_bench.harness.migrations import apply_migrations, reset_provenance
+    from tests._house_fixture import house_agent
+
+    url = os.environ["LITHRIM_DB_URL"]
+    apply_migrations(url)
+    reset_provenance(url)
+    collections_db = tmp_path / "collections.sqlite"
+    rec = run_eval.run(house_agent(), collections_db=collections_db, out_dir=tmp_path / "out")
+    run_id = rec["result"]["provenance"]["pipeline_run_id"]
+
+    with psycopg.connect(url) as c:
+        in_pg = c.execute("SELECT count(*) FROM pipeline_runs WHERE id=%s", (run_id,)).fetchone()[0]
+    assert in_pg == 1, "the replay grade's provenance blob did not land in Postgres"
