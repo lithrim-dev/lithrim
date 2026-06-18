@@ -100,10 +100,19 @@ class SqliteProvenanceStore(ProvenanceStore):
 
         return PIPELINE_RUNS.get(pipeline_run_id, db_path=self._db_path or DEFAULT_COLLECTIONS_DB)
 
-    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
-        # RED scaffold — GREEN implements the head query.
-        return None
-
     async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
-        # RED scaffold — GREEN implements the lineage query.
-        return []
+        """All persisted run blobs for a ``(agent, case_id)`` lineage, newest-first —
+        the calibration history. A ``json_extract`` query over the live ``PIPELINE_RUNS``
+        table (append-only across distinct ``pipeline_run_id`` rows), no indexed column."""
+        from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
+
+        return PIPELINE_RUNS.find_by_json(
+            {"agent_id": agent_id, "case_id": case_id},
+            db_path=self._db_path or DEFAULT_COLLECTIONS_DB,
+        )
+
+    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
+        """The head (most-recent) version blob for a ``(agent, case_id)`` lineage — the
+        replay-from-provenance baseline."""
+        versions = await self.list_versions(agent_id, case_id)
+        return versions[0] if versions else None
