@@ -312,6 +312,10 @@ class RunEvalRequest(BaseModel):
     in_process: bool = (
         False  # the in-process v2 Azure council (paid Azure calls) — a fresh real run
     )
+    # NARR-LOOP: grade a SPECIFIC case (e.g. an ingested-corpus case) without repointing the
+    # agent. Resolved via load_case's source→PACK_FILES→workspace-corpus fallback. None → the
+    # agent's own dataset.case_id (back-compat). No paid knob — it only selects WHICH case.
+    case_id: str | None = None
 
 
 class OptimizeRequest(BaseModel):
@@ -342,6 +346,11 @@ class ChatRequest(BaseModel):
     message: str
     agent: str = DEFAULT_AGENT
     history: list[ChatTurn] = []
+    # NARR-CHAT-LOOP: the case the human is exploring in the UI (the shared "active case" the
+    # shell sends each turn). The loop names it in the system prompt + defaults show_case/run_eval
+    # to it, so a conversational run grades the case on screen — not the agent's seed. A SELECTOR,
+    # never a paid knob; None → the agent's own dataset.case_id (back-compat).
+    active_case: str | None = None
 
 
 class GroundingContractRequest(BaseModel):
@@ -407,63 +416,62 @@ def _read_connector_sidecar(ws) -> dict:
         return {}
 
 
-def _scenes_to_list(enhanced_scenes: Any) -> list[dict]:
-    """§8.3 (endpoint-side; _ingest_cases frozen): normalize ``metadata.enhanced_scenes``
-    dict-OR-list into a list of per-scene records, each carrying its ``scene_node_id`` (the
-    dict key, or the record's own id) so the finish_reason join has a stable key."""
-    scenes: list[dict] = []
-    if isinstance(enhanced_scenes, dict):
-        for node_id, scene in enhanced_scenes.items():
-            if isinstance(scene, dict):
-                scenes.append({"scene_node_id": node_id, **scene})
-    elif isinstance(enhanced_scenes, list):
-        for scene in enhanced_scenes:
-            if isinstance(scene, dict):
-                node_id = scene.get("scene_node_id") or scene.get("id") or scene.get("node_id")
-                scenes.append({"scene_node_id": node_id, **scene})
-    return scenes
-
-
 def _prepare_storyworld_session(session: dict) -> list[dict]:
-    """NARR-6 P1b sample-prep (endpoint-side; runs BEFORE _ingest_cases, which stays frozen).
+    """NARR-6 P1b / CONN-2 sample-prep (endpoint-side; runs BEFORE _to_envelope + the frozen
+    _ingest_cases).
 
-    Per scene: project ``source`` (``enhancement_status=="success" -> "enhanced"`` else
-    ``"baseline"``) + join ``finish_reason`` from ``metadata.llm_calls`` by ``scene_node_id``;
-    add ``session_id`` + ``node``. §8.1 PII: ``child_name``/``age``/reader free-text are NEVER
-    read into the record (structural key-drop), and ``redact_text`` runs over the scene body.
-    Returns the list of per-scene records the extractor normalizes into eval cases.
+    The ingest unit is the per-call LLM generation record (``llm_calls``) — the richest gradeable
+    artifact: one eval case per call, carrying the model OUTPUT (``response_preview``) +
+    ``finish_reason`` (incl. the ``content_filter`` safety signal) + ``model``, with ``purpose``
+    mapped to ``source``. The live StoryWorld deployment returns ``llm_calls`` at the TOP LEVEL
+    (the test fixture nests it under ``metadata``); read top-level first, fall back to metadata.
+    §8.1 PII: ``child_name``/``age``/reader free-text are NEVER read into the record (structural
+    key-drop — only ``llm_calls`` + the session ids are touched), and ``redact_text`` runs over the
+    response preview. A session with no ``llm_calls`` yields 0 records and is skipped clean (the
+    enhancement pass ran on only a minority of sessions). The prompt is intentionally NOT carried
+    (it is the input, not the SUT output, and is the heaviest PII surface).
     """
     from lithrim_bench.runtime.council.phi_redaction import redact_text
 
     session_id = session.get("id") or session.get("session_id") or ""
-    metadata = session.get("metadata") or {}
-    llm_calls = metadata.get("llm_calls") or []
-    finish_by_node: dict[str, str] = {}
-    model_by_node: dict[str, str] = {}
-    if isinstance(llm_calls, list):
-        for call in llm_calls:
-            if isinstance(call, dict) and call.get("scene_node_id"):
-                finish_by_node[call["scene_node_id"]] = call.get("finish_reason")
-                model_by_node[call["scene_node_id"]] = call.get("model")
+    # §8.1: the child_name KEY is structurally dropped (never read into a record); use its value
+    # to ALSO scrub the name out of the carried free-text — the personalized prompt/response embed
+    # it, and redact_text only catches emails/phones, not names. Residual free-text PII beyond
+    # name/email/phone is best-effort.
+    child_name = (session.get("child_name") or "").strip()
+    name_tokens = [t for t in re.split(r"\s+", child_name) if len(t) > 1]
+
+    def _scrub(text: str) -> str:
+        t = redact_text(text or "")
+        if child_name:
+            t = t.replace(child_name, "[REDACTED_NAME]")
+        for tok in name_tokens:  # first/last name incl. the possessive the story uses ("Noor's")
+            t = re.sub(rf"\b{re.escape(tok)}('s)?\b", "[REDACTED_NAME]", t)
+        return t
+
+    llm_calls = session.get("llm_calls")
+    if not isinstance(llm_calls, list) or not llm_calls:
+        meta_calls = (session.get("metadata") or {}).get("llm_calls")
+        llm_calls = meta_calls if isinstance(meta_calls, list) else []
 
     records: list[dict] = []
-    for scene in _scenes_to_list(metadata.get("enhanced_scenes")):
-        node_id = scene.get("scene_node_id")
-        status = scene.get("enhancement_status")
-        source = "enhanced" if status == "success" else "baseline"
-        finish_reason = finish_by_node.get(node_id)
-        # §8.1: redact the body text; child_name/age/reader free-text are never read in.
-        clean_text = redact_text(scene.get("clean_text") or scene.get("response") or "")
+    for i, call in enumerate(llm_calls):
+        if not isinstance(call, dict):
+            continue
         records.append(
             {
-                "case_id": f"storyworld_{session_id}_{node_id}" if session_id else f"sw_{node_id}",
-                "response": clean_text,
+                "case_id": f"storyworld_{session_id}_call{i}" if session_id else f"sw_call{i}",
+                # the I/O pair: response_preview is the graded OUTPUT, prompt is the INPUT that
+                # produced it (rides context via _to_envelope); both §8.1-redacted + name-scrubbed.
+                "response": _scrub(call.get("response_preview") or ""),
+                "prompt": _scrub(call.get("prompt") or ""),
                 "session_id": session_id,
-                "node": node_id,
-                "scene_title": redact_text(scene.get("title") or ""),
-                "source": source,
-                "finish_reason": finish_reason,
-                "model": model_by_node.get(node_id),
+                "node": f"call{i}",
+                "source": call.get("purpose"),
+                "purpose": call.get("purpose"),
+                "provider": call.get("provider"),
+                "finish_reason": call.get("finish_reason"),
+                "model": call.get("model"),
                 "story_id": session.get("story_id"),
                 "mode": session.get("mode"),
                 "language": session.get("language"),
@@ -516,7 +524,7 @@ _RUN_EVAL_SCRIPT = REPO_ROOT / "scripts" / "run_eval.py"
 
 
 def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
-                          live, in_process, ws) -> dict:
+                          live, in_process, ws, case_id=None) -> dict:
     """Run the council-bound grade in a subprocess under the active workspace's pack
     (PACK-WS). The frozen council binds its pack at IMPORT, so a live BFF can't rebind it
     per-workspace — each grade gets a fresh process with LITHRIM_BENCH_PACK set instead, and
@@ -527,6 +535,8 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     cmd = [sys.executable, str(_RUN_EVAL_SCRIPT), "--agent", agent_name,
            "--config-db", str(config_db), "--emit-json"]
+    if case_id:  # NARR-LOOP: grade a specific corpus case (the subprocess reloads the agent
+        cmd += ["--case-id", case_id]  # from the DB, so the override must ride the CLI, not memory)
     if live:
         cmd.append("--live")
     if in_process:
@@ -568,7 +578,27 @@ def run_eval_endpoint(
     one (else the committed seed), so an authored flag/threshold actually grades. The
     chosen source is surfaced as ``ontology_source`` ('draft' | 'committed').
     """
-    agent = _load_agent(req.agent, db_path)
+    live, in_process = _resolve_run_backend(req)
+    return _grade_case(
+        agent_name=req.agent, case_id=req.case_id, live=live, in_process=in_process,
+        db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+    )
+
+
+def _grade_case(
+    *, agent_name, case_id, live, in_process, db_path, out_dir, workdir, collections_db
+) -> dict:
+    """Grade ONE case end-to-end and return the eval-report payload (the shared body of
+    POST /v1/run-eval and the batch POST /v1/cases/grade). ``case_id`` (NARR-LOOP) selects a
+    specific case — e.g. an ingested-corpus case — via load_case's source→PACK_FILES→corpus
+    fallback; ``None`` keeps the agent's own ``dataset.case_id``."""
+    agent = _load_agent(agent_name, db_path)
+    if case_id:
+        # frozen dataclasses → rebuild; load_case then resolves case_id from the agent's source
+        # (if present) else PACK_FILES else the active workspace's ingested corpus.
+        from dataclasses import replace
+
+        agent = replace(agent, dataset=replace(agent.dataset, case_id=case_id))
     ontology_path, ontology_source = _resolve_ontology_path(agent, workdir)
     # S-BS-63: thread the persisted judge authoring through to the in-process grade so
     # an authored judge re-votes with its authored lens (the static→live close). Read
@@ -581,9 +611,6 @@ def run_eval_endpoint(
     # ``byo-claude`` runs on the tool-less BYO-Claude LM (the mixed-provider council);
     # roles with no/empty model stay Azure (the default, byte-identical to before).
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
-    # LAUNCH-PREP D1: resolve the council backend from the request + LITHRIM_COUNCIL_BACKEND
-    # so a non-replay run defaults to the bundled in-process council (no :8002/Mongo).
-    live, in_process = _resolve_run_backend(req)
     ws = workspace.get_active_workspace()
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
@@ -594,8 +621,9 @@ def run_eval_endpoint(
     if ws.packs_dir or ws.pack != workspace.DEFAULT_PACK:
         try:
             record = _grade_via_subprocess(
-                agent_name=req.agent, config_db=db_path, ontology_path=ontology_path,
-                collections_db=collections_db, out_dir=out_dir, live=live, in_process=in_process, ws=ws,
+                agent_name=agent_name, config_db=db_path, ontology_path=ontology_path,
+                collections_db=collections_db, out_dir=out_dir, live=live, in_process=in_process,
+                ws=ws, case_id=case_id,
             )
         except SystemExit as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -665,6 +693,10 @@ def _artifact_note(artifact: Any) -> str | None:
     decodes. [[jute-for-data-transformations]]"""
     import base64
 
+    # an ingested artifact may be wrapped as {"raw": "<json string>"} (the JUTE transform's shape) —
+    # unwrap to the inner string so the FHIR/DocumentReference note below is still recoverable.
+    if isinstance(artifact, dict) and isinstance(artifact.get("raw"), str):
+        return _artifact_note(artifact["raw"])
     if not isinstance(artifact, str):
         return None
     try:
@@ -703,27 +735,39 @@ def _case_labeled(case: dict) -> bool:
 @app.get("/v1/case")
 def case_endpoint(
     agent: str = DEFAULT_AGENT,
+    case_id: str | None = Query(None),
     db_path: Path = Depends(get_config_db),
 ) -> dict:
-    """The agent's case content — so the shell DISPLAYS the same case the council GRADES
-    (no mockup mismatch). The transcript + the first artifact (raw, as graded) + a decoded
-    human-readable note for display + the patient record."""
+    """The case content — so the shell DISPLAYS the same case the council GRADES (no mockup
+    mismatch). The transcript + the first artifact (raw, as graded) + a decoded human-readable
+    note for display + the patient record. NARR-LOOP: a ``case_id`` selects a SPECIFIC case
+    (e.g. an ingested-corpus case for "explore each case") via load_case's source→PACK_FILES→
+    workspace-corpus fallback; ``None`` keeps the agent's own dataset.case_id."""
     ag = _load_agent(agent, db_path)
-    case = load_case(ag.dataset.case_id, source=ag.source_abspath())
+    target = case_id or ag.dataset.case_id
+    case = load_case(target, source=ag.source_abspath())
     if case is None:
-        raise HTTPException(status_code=404, detail=f"case {ag.dataset.case_id!r} not found")
+        raise HTTPException(status_code=404, detail=f"case {target!r} not found")
     artifacts = case.get("artifacts") or []
     pp = case.get("patient_profile") or {}
     artifact = artifacts[0].get("content") if artifacts and isinstance(artifacts[0], dict) else None
     return {
         "case_id": case.get("case_id"),
-        "transcript": case.get("transcript"),
+        # an ingested case carries the transcript on `context` (the §4.1 envelope); a
+        # by-construction pack case carries it on `transcript`.
+        "transcript": case.get("transcript") or case.get("context"),
         "artifact": artifact,
         "artifact_text": _artifact_note(artifact),
         "conditions": pp.get("conditions") or [],
         "expected_safety_flags": case.get("expected_safety_flags") or [],
         "injection_recipe": case.get("injection_recipe"),
-        "labeled": _case_labeled(case),
+        # "labeled" = carries a REAL answer (a declared verdict OR non-empty flags). An ingested
+        # case has neither (its `expected_safety_flags: []` is an unlabeled placeholder, not a
+        # declared clean-negative) → labeled=False, so the CaseTab shows "unknown ground truth".
+        "labeled": (
+            case.get("expected_compliance_verdict") is not None
+            or bool(case.get("expected_safety_flags"))
+        ),
     }
 
 
@@ -731,6 +775,134 @@ def case_endpoint(
 def corpus_endpoint() -> dict:
     """The correction-corpus rows (corpus-row/1). Empty list when none written yet."""
     return {"rows": list(corpus.read_corpus())}
+
+
+def _read_ingested_corpus() -> list[dict]:
+    """The active workspace's INGESTED cases (``ws.out_dir/ingested_cases.jsonl``) — the §4.1
+    envelopes a user dropped via ingest. Empty list when none. (Distinct from the correction
+    corpus served by ``/v1/corpus``.)"""
+    ws = workspace.get_active_workspace()
+    path = ws.out_dir / "ingested_cases.jsonl"
+    rows: list[dict] = []
+    if path.exists():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return rows
+
+
+def _ctx_nonempty(value: Any) -> bool:
+    return bool(value) and str(value).strip().lower() not in ("", "{}", "[]", "null", "none")
+
+
+@app.get("/v1/cases")
+def list_cases_endpoint() -> dict:
+    """NARR-LOOP — list the active workspace's INGESTED corpus (the gradeable cases a user
+    dropped via ingest), so the shell can show "load all cases" and grade case-by-case. Each
+    row carries enough to drive the picker without re-fetching: case_id, whether it has a label,
+    a non-empty grading context (the transcript-fidelity signal the 2026-06-17 fix guards), and
+    graded content. (The ``/v1/corpus`` slot serves the unrelated correction corpus.)"""
+    cases = []
+    for row in _read_ingested_corpus():
+        cid = row.get("case_id")
+        if not cid:
+            continue
+        arts = row.get("artifacts") or []
+        # "labeled" here = carries a REAL gold label (a non-empty flag set or an explicit
+        # verdict). NOT _case_labeled: that counts `expected_safety_flags: []` as a declared
+        # clean-negative, but `_to_envelope` stuffs `[]` into EVERY ingested case (unlabeled by
+        # construction, HONEST-1), so it would mislabel the whole corpus as labeled.
+        labeled = (
+            row.get("expected_compliance_verdict") is not None
+            or bool(row.get("expected_safety_flags"))
+        )
+        cases.append(
+            {
+                "case_id": cid,
+                "labeled": labeled,
+                "context_kind": row.get("context_kind"),
+                "has_context": _ctx_nonempty(row.get("context")),
+                "has_artifact": bool(arts and (arts[0].get("content") or "")),
+            }
+        )
+    return {"cases": cases, "count": len(cases)}
+
+
+class GradeCasesRequest(BaseModel):
+    # NARR-LOOP: batch-grade the ingested corpus (the "evaluate all of them → report" loop).
+    # case_ids None → ALL ingested cases. live/in_process are the SAME paid knobs as run-eval
+    # (replay/$0 default); a paid batch is the human's call, never an agent tool.
+    case_ids: list[str] | None = None
+    agent: str = DEFAULT_AGENT
+    live: bool = False
+    in_process: bool = False
+
+
+@app.post("/v1/cases/grade")
+def grade_cases_endpoint(
+    req: GradeCasesRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """NARR-LOOP — grade the ingested corpus (or a ``case_ids`` subset) and return the cohort
+    MATRIX: the "evaluate all of them → report" half of the ingest→grade loop. Each case grades
+    through the SAME ``_grade_case`` path as POST /v1/run-eval (so the case_id override, the
+    pack-subprocess routing, calibration, and council votes are identical). A per-case grade
+    failure is trapped into the row (``error``) so one bad case never aborts the batch."""
+    targets = req.case_ids or [
+        r["case_id"] for r in _read_ingested_corpus() if r.get("case_id")
+    ]
+    if not targets:
+        raise HTTPException(
+            status_code=400,
+            detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
+        )
+    live, in_process = _resolve_run_backend(req)
+    rows: list[dict] = []
+    for cid in targets:
+        try:
+            rec = _grade_case(
+                agent_name=req.agent, case_id=cid, live=live, in_process=in_process,
+                db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+            )
+            comp = rec.get("composite") or {}
+            rows.append(
+                {
+                    "case_id": cid,
+                    "verdict": comp.get("verdict"),
+                    "stage_verdict": comp.get("stage_verdict"),
+                    "findings": comp.get("active_findings") or [],
+                    "votes": [
+                        {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
+                         "confidence": v.get("confidence")}
+                        for v in (rec.get("council") or {}).get("votes", [])
+                    ],
+                    "run_id": rec.get("pipeline_run_id"),
+                }
+            )
+        except HTTPException as exc:
+            rows.append({"case_id": cid, "error": str(exc.detail)})
+        except Exception as exc:  # noqa: BLE001 — a batch must never abort on one bad case;
+            rows.append({"case_id": cid, "error": str(exc)})  # the failure rides the row, visibly
+    graded = [r for r in rows if r.get("verdict")]
+    verdicts: dict[str, int] = {}
+    for r in graded:
+        verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
+    summary = {
+        "n": len(targets),
+        "graded": len(graded),
+        "errors": len(rows) - len(graded),
+        "verdicts": verdicts,
+        "grade_path": "live" if live else ("in_process" if in_process else "replay"),
+    }
+    return {"matrix": rows, "summary": summary}
 
 
 class EvalPackRunRequest(BaseModel):
@@ -1788,6 +1960,7 @@ def _build_tool_context(
     collections_db: Path,
     actor: Actor,
     x_actor: str | None,
+    active_case: str | None = None,
 ):
     """Bind the EXISTING endpoint functions (deps resolved) into a ToolContext for the
     agent loop (UAP-5b D3). The closures call the FROZEN ops directly — every gate
@@ -1839,14 +2012,23 @@ def _build_tool_context(
             role, agent=req_agent, assigned_flags=None, db_path=db_path, workdir=workdir
         )
 
-    def _run_eval_replay(agent: str) -> dict:
+    def _run_eval_replay(agent: str, case_id: str | None = None) -> dict:
+        # NARR-CHAT-LOOP: ``case_id`` selects the ingested case to grade (the chat's "run case X" /
+        # the shared active case); ``None`` keeps the agent's own dataset.case_id. A-SAFE is
+        # untouched — live=in_process=False is hardcoded, so the case selector never becomes a spend.
         return run_eval_endpoint(
-            RunEvalRequest(agent=agent, live=False, in_process=False),
+            RunEvalRequest(agent=agent, case_id=case_id, live=False, in_process=False),
             db_path=db_path,
             out_dir=out_dir,
             workdir=workdir,
             collections_db=collections_db,
         )
+
+    def _list_cases() -> dict:
+        # NARR-CHAT-LOOP: the chat's list_cases reaches the SAME ingested corpus GET /v1/cases
+        # serves (the UI Cases tab). list_cases_endpoint takes no deps — it reads the active
+        # workspace's ingested_cases.jsonl. $0/read.
+        return list_cases_endpoint()
 
     # ── UAP-5c: the journey-completing closures (Domain / Flag / Review). Each wraps a
     # FROZEN op and (per the S-BS-82 rule) passes every Query/Header param explicitly.
@@ -2096,7 +2278,10 @@ def _build_tool_context(
             expected_count = _infer_iterated_count(sample, extraction_rules)
         rules = extraction_rules or (
             "Normalize this JSON dump into a per-entry array of eval cases; emit one record per "
-            "source entry with at least case_id and response (the graded content)."
+            "source entry with at least case_id, response (the graded content), and context (the "
+            "input the response was produced/graded against — e.g. the transcript/prompt/source "
+            "text). A record with an empty context is rejected (the response would be graded "
+            "against nothing)."
         )
 
         client = EtlpJuteClient()
@@ -2259,7 +2444,9 @@ def _build_tool_context(
         put_grounding_contract=_put_grounding_contract,
         kb_context=_kb_context,
         ingest_cases=_ingest_cases,
+        list_cases=_list_cases,
         default_agent=req_agent,
+        active_case=active_case,
     )
 
 
@@ -2291,7 +2478,8 @@ async def chat_endpoint(
     # demo-clinical workspace) to the active workspace's agent; a valid one is honored.
     resolved_agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(
-        resolved_agent, db_path, out_dir, workdir, collections_db, actor, x_actor
+        resolved_agent, db_path, out_dir, workdir, collections_db, actor, x_actor,
+        active_case=req.active_case,  # NARR-CHAT-LOOP: the shared active case the shell sends
     )
 
     # ONB-0: text-only prior turns, replayed as context (folded into the loop's query preamble)
@@ -2376,8 +2564,8 @@ def connector_config_endpoint(
 def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
     """NARR-6c: the real-field batch ingest, DETERMINISTIC direct-write. Load ``base_url`` + key
     (env override first, then ``.connector_env``), paginate ``/api/admin/sessions``, fetch each
-    detail, and per session run ``_prepare_storyworld_session`` (dict-or-list scene normalize,
-    source/finish_reason join, §8.1 PII drop+redact) → map each prepped record through the FROZEN
+    detail, and per session run ``_prepare_storyworld_session`` (one record per ``llm_calls`` entry,
+    §8.1 PII drop+redact — CONN-2) → map each prepped record through the FROZEN
     ``_to_envelope`` and write DIRECTLY. NO DSPy generation / NO LM / NO ``:3031`` — the prep is
     already correct §4.1-shaped (A-LIVE verified), so re-deriving a JUTE transform was redundant
     and (proven live) did not converge. Union all sessions' enveloped cases into ``ws.out_dir/
@@ -2402,8 +2590,8 @@ def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
             detail="StoryWorld connector not configured (POST /v1/connector/config first)",
         )
 
-    # NARR-6c: _prepare_storyworld_session already produces correct §4.1-shaped per-scene records
-    # DETERMINISTICALLY (source/finish_reason joined, §8.1 PII dropped+redacted — A-LIVE verified).
+    # NARR-6c/CONN-2: _prepare_storyworld_session produces correct §4.1-shaped per-llm_call records
+    # DETERMINISTICALLY (response_preview as the artifact, finish_reason carried, §8.1 PII dropped).
     # The old per-session ctx.ingest_cases() redundantly re-derived a JUTE transform via DSPy, which
     # needs an LM and (proven live) does NOT converge — every session trapped, 0 cases. So map each
     # prepped record through the FROZEN _to_envelope and write DIRECTLY: $0, deterministic, instant,

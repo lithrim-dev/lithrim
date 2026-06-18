@@ -49,7 +49,10 @@ AUTHOR_JUDGE_SCHEMA: dict[str, Any] = {
     "model": str,
 }
 GET_JUDGE_SCHEMA: dict[str, Any] = {"role": str}
-RUN_EVAL_SCHEMA: dict[str, Any] = {"agent": str}
+# NARR-CHAT-LOOP: ``case_id`` selects WHICH ingested-corpus case to grade (the "run case X"
+# leg). It is a SELECTOR, not a paid knob — the A-SAFE test asserts no PAID_KEY is here, and
+# the handler defaults an omitted case_id to the shared active case (never a paid path).
+RUN_EVAL_SCHEMA: dict[str, Any] = {"agent": str, "case_id": str}
 # UAP-5c — the journey-completing tools (each SDK-free, paid-knob-free; the S-BS-81
 # A-SAFE test asserts NO schema below carries a PAID_KEY):
 GET_AGENT_SCHEMA: dict[str, Any] = {"name": str}
@@ -105,9 +108,16 @@ FOCUS_ARTIFACT_SCHEMA: dict[str, Any] = {"tab": str}
 # "case" (CHATBIND-3) is the SOURCE INPUT view (transcript + artifact + the planted label) — the
 # "show me the case before we run it" leg. Still $0/read: the tab self-fetches GET /v1/case.
 _ARTIFACT_TABS = ("case", "report", "judges", "config", "corpus")
-# CHATBIND-3: show_case takes NO params — it summarizes the ACTIVE agent's source case as an
-# inline card (the card self-fetches GET /v1/case). $0/read, no paid knob, nothing to smuggle.
-SHOW_CASE_SCHEMA: dict[str, Any] = {}
+# CHATBIND-3 / NARR-CHAT-LOOP: show_case takes an OPTIONAL ``case_id`` — it summarizes a
+# SPECIFIC ingested-corpus case as an inline card (the card self-fetches GET /v1/case?case_id=X).
+# Omitted → the shared active case. $0/read, no paid knob (a selector, not a spend). The live bug
+# this fixes: with no case_id the tool always showed the agent's seed, so "open case X" claimed X
+# but showed the seed (confident-but-wrong).
+SHOW_CASE_SCHEMA: dict[str, Any] = {"case_id": str}
+# NARR-CHAT-LOOP: list_cases takes NO params — it enumerates the active workspace's INGESTED
+# corpus (GET /v1/cases) so "show me the cases I can evaluate" surfaces the real corpus, not the
+# agent's single seed case. $0/read, no paid knob, nothing to smuggle.
+LIST_CASES_SCHEMA: dict[str, Any] = {}
 # CHATBIND-4: propose_live_run takes NO params — it asks the shell to OPEN the cost-confirm modal.
 # The agent PROPOSES; the human's modal-confirm is the only paid path. No paid knob, nothing to smuggle.
 PROPOSE_LIVE_RUN_SCHEMA: dict[str, Any] = {}
@@ -187,7 +197,14 @@ class ToolContext:
       {cases, mapping_id, count}. Raises on an invariant failure / :3031 down — the handler
       surfaces it and NOTHING is pinned. INGESTION-ONLY: the extractor never reaches the
       grade-time floor (trust-model separation). $0/BYO-key — never a paid run.)
+    - ``list_cases() -> dict``  (NARR-CHAT-LOOP: enumerate the active workspace's INGESTED corpus
+      — the gradeable cases a user dropped via ingest — so "show me the cases" surfaces the real
+      corpus, not the agent's single seed. Returns {cases, count}. $0/read.)
     - ``default_agent``: the agent the tools default to.
+    - ``active_case``: NARR-CHAT-LOOP — the case the human is exploring in the UI (the shared
+      "active case" the shell sends per turn). run_eval/show_case DEFAULT their ``case_id`` to it
+      when omitted, so a conversational run grades the case on screen — never the agent's seed.
+      ``None`` keeps the agent's own ``dataset.case_id`` (back-compat). A selector, never a spend.
     """
 
     author_judge: Callable[..., dict]
@@ -204,7 +221,9 @@ class ToolContext:
     put_grounding_contract: Callable[..., dict]
     kb_context: Callable[..., dict]
     ingest_cases: Callable[..., dict]
+    list_cases: Callable[..., dict]
     default_agent: str = "ws0_default"
+    active_case: str | None = None
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
 
@@ -267,8 +286,12 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
     # A-SAFE: replay ONLY. No confirm/in_process/live is read or honored — the bound
     # ctx.run_eval_replay hardcodes the $0 path. The agent cannot spend here.
     agent = str(args.get("agent") or ctx.default_agent)
+    # NARR-CHAT-LOOP: grade the case the human is exploring (an explicit case_id, else the shared
+    # active case), not the agent's seed. ``case_id`` is a SELECTOR (the spy test proves no PAID_KEY
+    # reaches the op alongside it); ``None`` keeps the agent's own dataset.case_id (back-compat).
+    case_id = args.get("case_id") or ctx.active_case
     try:
-        record = ctx.run_eval_replay(agent=agent)
+        record = ctx.run_eval_replay(agent=agent, case_id=case_id)
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(f"Replay run failed for {agent!r}: {detail}.")
@@ -634,13 +657,53 @@ async def focus_artifact_handler(ctx: ToolContext, args: dict[str, Any]) -> dict
 
 
 async def show_case_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    # CHATBIND-3: emit an inline Case Summary card for the ACTIVE agent's source case. $0/read —
-    # NO bound op (the card self-fetches GET /v1/case), NO paid knob, no params. Pairs with
-    # focus_artifact: the card summarizes inline; its "View case" opens the full Case tab.
-    ctx.emit(case_summary_part(ctx.default_agent))
+    # CHATBIND-3 / NARR-CHAT-LOOP: emit an inline Case Summary card for a SPECIFIC case. $0/read —
+    # NO bound op (the card self-fetches GET /v1/case?case_id=X), NO paid knob. ``case_id`` selects
+    # the case (else the shared active case); the card carries it so it fetches X, not the agent's
+    # seed (the confident-but-wrong live bug). An EXPLICIT case_id also updates ctx.active_case so a
+    # same-turn run_eval defaults to the just-shown case (the chat↔UI active-case stays one thing).
+    case_id = args.get("case_id") or ctx.active_case
+    if args.get("case_id"):
+        ctx.active_case = str(args["case_id"])
+    ctx.emit(case_summary_part(ctx.default_agent, case_id))
+    target = case_id or "the current evaluation's case"
     return _text(
-        f"Showing the source case for {ctx.default_agent!r} as a card — the transcript, the scribe "
-        f"artifact, and the planted (by-construction) label. Open it to read the full case ($0)."
+        f"Showing case {target!r} for {ctx.default_agent!r} as a card — the transcript, the scribe "
+        f"artifact, and any by-construction label. (If a case has no planted label it is an ingested "
+        f"or clean case — say so honestly; do not call a clean/unlabeled case a planted defect.) "
+        f"Open it to read the full case ($0)."
+    )
+
+
+async def list_cases_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # NARR-CHAT-LOOP: enumerate the active workspace's INGESTED corpus (the gradeable cases a user
+    # dropped via ingest) so "show me the cases I can evaluate" surfaces the REAL corpus, not the
+    # agent's single seed (the live decoupling bug). $0/read — the bound ctx.list_cases wraps GET
+    # /v1/cases. Opens the Cases tab so the human SEES the corpus (a directive, not a card).
+    try:
+        res = ctx.list_cases()
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(f"Could not list the cases: {detail}.")
+    cases = res.get("cases") or []
+    count = res.get("count") if res.get("count") is not None else len(cases)
+    ctx.emit(open_artifact_part("corpus"))
+    if not count:
+        return _text(
+            "0 ingested cases in this workspace yet — there's nothing to evaluate until you ingest "
+            "some. Drop a JSON dump (ingest_cases) or pull a connector batch first, then ask again."
+        )
+    ids = ", ".join(str(c.get("case_id")) for c in cases if c.get("case_id"))
+    no_ctx = [c.get("case_id") for c in cases if not c.get("has_context")]
+    fidelity = (
+        f" ({len(no_ctx)} have an EMPTY grading context and would grade blind — re-ingest them)"
+        if no_ctx
+        else ""
+    )
+    return _text(
+        f"{count} ingested case(s) you can evaluate{fidelity}: {ids}. They're unlabeled by "
+        f"construction (the dump is the system's output, not gold). I opened the Cases tab — say "
+        f"\"open case <id>\" to explore one, or \"run case <id>\" for a $0 replay verdict."
     )
 
 
@@ -680,8 +743,9 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         run_eval_handler,
         "run_eval",
-        "Run a $0 REPLAY evaluation and render the verdict card. REPLAY ONLY — this "
-        "tool can never fire a paid (live/in-process) run; a paid run is the human's "
+        "Run a $0 REPLAY evaluation and render the verdict card. Pass case_id to grade a SPECIFIC "
+        "ingested case (from list_cases); omit it to grade the case the human is exploring. REPLAY "
+        "ONLY — this tool can never fire a paid (live/in-process) run; a paid run is the human's "
         "explicit cost-confirmed action.",
         RUN_EVAL_SCHEMA,
     ),
@@ -761,12 +825,24 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         FOCUS_ARTIFACT_SCHEMA,
     ),
     (
+        list_cases_handler,
+        "list_cases",
+        "LIST the cases the human can evaluate — the active workspace's INGESTED corpus ($0, "
+        "read-only; opens the Cases tab). Use it whenever they ask 'what cases are there', 'show "
+        "me the cases I can evaluate', or 'load all cases'. It enumerates the REAL corpus (every "
+        "case_id), NOT the agent's single seed case. The cases are unlabeled by construction. No "
+        "params. Then use show_case(case_id=…) to open one or run_eval(case_id=…) to grade it.",
+        LIST_CASES_SCHEMA,
+    ),
+    (
         show_case_handler,
         "show_case",
-        "Show the SOURCE case the council grades as an inline Case Summary card ($0, read-only) — "
-        "the transcript, the scribe artifact, and the by-construction planted label. Use it when "
-        "the human wants to SEE or explore the case BEFORE running. The card's 'View case' opens "
-        "the full Case tab. No params — it summarizes the current evaluation's case.",
+        "Show a SPECIFIC source case as an inline Case Summary card ($0, read-only) — the "
+        "transcript, the artifact, and any by-construction label. Pass case_id to open THAT case "
+        "(get the id from list_cases); omit it to show the case the human is currently exploring. "
+        "Use it when they want to SEE or explore a case BEFORE running. The card's 'View case' "
+        "opens the full Case tab. NEVER claim you opened a case_id you did not pass; describe a "
+        "clean/unlabeled case as clean, not as a planted defect.",
         SHOW_CASE_SCHEMA,
     ),
     (

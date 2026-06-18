@@ -6,6 +6,50 @@
   "child_name": "Noor Al-Mansoori",
   "age": 9,
   "reader_note": "Noor's mum (jane.doe@example.com) asked to keep it gentle. Call her at 555-867-5309.",
+  "llm_calls": [
+    {
+      "at": "2026-06-17T10:00:00Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "stop",
+      "prompt": "Enhance the ranger-arrival scene for Noor Al-Mansoori, age 9, gentle tone. Reply to jane.doe@example.com.",
+      "prompt_chars": 104,
+      "prompt_truncated": false,
+      "response_preview": "Dust and sand rasped on her tongue as the ranger arrived. (reply to jane.doe@example.com)",
+      "response_chars": 220,
+      "response_truncated": true,
+      "ms": 1180
+    },
+    {
+      "at": "2026-06-17T10:00:05Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "stop",
+      "prompt": "Continue with the mountain-road scene.",
+      "prompt_chars": 38,
+      "prompt_truncated": false,
+      "response_preview": "The vehicle tore up the mountain road, tires skidding on bare rock.",
+      "response_chars": 150,
+      "response_truncated": false,
+      "ms": 990
+    },
+    {
+      "at": "2026-06-17T10:00:09Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "content_filter",
+      "prompt": "Enhance the reckoning scene.",
+      "prompt_chars": 28,
+      "prompt_truncated": false,
+      "response_preview": "The confrontation unfolded near the old well, where—",
+      "response_chars": 60,
+      "response_truncated": true,
+      "ms": 410
+    }
+  ],
   "metadata": {
     "enhanced_scenes": {
       "scene_ranger_arrival": {

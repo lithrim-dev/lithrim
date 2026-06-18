@@ -449,6 +449,12 @@ def _print(agent: Agent, record: dict, *, live: bool = False) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="config-driven eval runner")
     parser.add_argument("--agent", default="ws0_default")
+    parser.add_argument(
+        "--case-id",
+        default=None,
+        help="grade a SPECIFIC case (e.g. an ingested-corpus case) instead of the agent's "
+        "dataset.case_id; resolved via load_case's source→PACK_FILES→workspace-corpus fallback",
+    )
     parser.add_argument("--config-db", default=str(DEFAULT_CONFIG_DB))
     parser.add_argument(
         "--live",
@@ -486,6 +492,10 @@ def main() -> int:
     if not db_path.exists():
         seed_config_db(db_path=db_path)
     agent = load_agent(args.agent, db_path=db_path)
+    if args.case_id:  # NARR-LOOP: grade a specific corpus case (the BFF subprocess override)
+        from dataclasses import replace
+
+        agent = replace(agent, dataset=replace(agent.dataset, case_id=args.case_id))
 
     # S-BS-63 / BYOC-1: thread any persisted judge authoring (role → assigned flag codes,
     # role → model) into the in-process grade so an authored judge re-votes with its

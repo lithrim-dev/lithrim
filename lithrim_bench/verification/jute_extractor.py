@@ -60,22 +60,64 @@ def _null_keys(record: Any) -> list[str]:
     return [k for k in _REQUIRED_KEYS if record.get(k) in (None, "")]
 
 
+# the empty-context sentinels: a `context` string the JUTE transform produced when it FAILED to
+# map the input (e.g. a clinical transcript). An empty object/array is "present but carries
+# nothing" — the SOAP would be graded against nothing, the silent-degradation we reject.
+_EMPTY_CONTEXT = {"", "{}", "[]", "null", "none"}
+
+
+def _envelope_incomplete(record: Any) -> list[str]:
+    """Envelope-level required fields that survive the transform but carry NOTHING: the graded
+    ``content`` and the grading ``context`` (the input the response is graded against — e.g. a
+    clinical transcript). A transform whose records have a non-null ``case_id``/``response`` but an
+    EMPTY ``context`` (the live 2026-06-17 transcript-drop: every clinical case shipped
+    ``context="{}"``) is lossy and must be rejected here, even though ``_null_keys`` passes."""
+    if not isinstance(record, dict):
+        return ["content", "context"]
+    env = _to_envelope(record)
+    missing: list[str] = []
+    arts = env.get("artifacts") or []
+    if not (arts and (arts[0].get("content") or "")):
+        missing.append("content")
+    ctx = env.get("context")
+    if ctx is None or (isinstance(ctx, str) and ctx.strip().lower() in _EMPTY_CONTEXT):
+        missing.append("context")
+    return missing
+
+
 def _to_envelope(record: dict) -> dict:
-    """Project one raw per-scene record into the §4.1 eval-case envelope. Ingested data is
-    UNLABELED by construction (customer output is the SUT input, not gold): ``expected_safety_
-    flags: []`` + ``injection_recipe: null`` (HONEST-1). ``response`` -> ``artifacts[0].content``;
-    the scene metadata rides ``context`` so the grade has the prompt-shape that produced it."""
+    """Project one raw record into the §4.1 eval-case envelope. Ingested data is UNLABELED by
+    construction (customer output is the SUT input, not gold): ``expected_safety_flags: []`` +
+    ``injection_recipe: null`` (HONEST-1). ``response`` -> ``artifacts[0].content``.
+
+    DOMAIN-AGNOSTIC context (the 2026-06-17 fix): the grade needs the input the response was
+    produced against. An explicit per-record ``context`` (or its ``transcript`` alias — e.g. a
+    clinical scribe's dialogue) is carried VERBATIM; only when neither is present does the
+    envelope fall back to assembling the narrative scene keys (StoryWorld §4.2, back-compat).
+    A transform that drops the context entirely is caught by ``score_extraction`` (it never
+    silently grades a SOAP against ``{}``)."""
     response = record.get("response") or ""
-    ctx_bits = {
-        k: record.get(k)
-        for k in ("story_id", "mode", "language", "node", "scene_title", "source")
-        if record.get(k) is not None
-    }
+    explicit = record.get("context")
+    if explicit in (None, ""):
+        explicit = record.get("transcript")
+    if explicit not in (None, ""):
+        context = explicit if isinstance(explicit, str) else json.dumps(explicit, sort_keys=True)
+    else:
+        ctx_bits = {
+            k: record.get(k)
+            for k in (
+                "story_id", "mode", "language", "node", "scene_title", "source",
+                "prompt", "purpose", "provider",
+            )
+            if record.get(k) is not None
+        }
+        context = json.dumps(ctx_bits, sort_keys=True)
     return {
         "case_id": record.get("case_id"),
         "artifacts": [
             {
-                "type": "narrative_scene",
+                # a transform may name the artifact/context kind for its domain; default unchanged.
+                "type": record.get("artifact_type") or "narrative_scene",
                 "content": response,
                 "metadata": {
                     "model": record.get("model"),
@@ -84,8 +126,8 @@ def _to_envelope(record: dict) -> dict:
                 },
             }
         ],
-        "context": json.dumps(ctx_bits, sort_keys=True),
-        "context_kind": "narrative_scene",
+        "context": context,
+        "context_kind": record.get("context_kind") or "narrative_scene",
         "expected_safety_flags": [],
         "injection_recipe": None,
         # passthrough provenance fields the floor/admissibility may read (not part of §4.1
@@ -127,9 +169,15 @@ def score_extraction(
             "error": error,
         }
     count = len(array)
-    null_records = [r for r in array if _null_keys(r)]
+
+    def _incomplete(r: Any) -> list[str]:
+        # a record is incomplete if a required §4.1 key is null (mis-join) OR its ENVELOPE
+        # carries no graded content / no grading context (the transcript-drop).
+        return _null_keys(r) + _envelope_incomplete(r)
+
+    null_records = [r for r in array if _incomplete(r)]
     nulls = len(null_records)
-    null_keys = sorted({k for r in null_records for k in _null_keys(r)})
+    null_keys = sorted({k for r in null_records for k in _incomplete(r)})
     count_ok = count == expected_count
     zero_null = nulls == 0
     accepted = bool(count_ok and zero_null and count > 0)
@@ -168,12 +216,21 @@ def extraction_feedback_from(score: dict) -> str:
             f"{score['expected_count']}. Iterate over EVERY entry of the source collection "
             "(one record per scene), do not drop or duplicate."
         )
-    if score["nulls"] > 0:
+    null_keys = score.get("null_keys") or []
+    if "context" in null_keys:
+        parts.append(
+            "EMPTY GRADING CONTEXT — the transform dropped the input the response is graded "
+            "against. Map the source input (e.g. the transcript/prompt/dialogue) into a `context` "
+            "field on EVERY record; a response graded against an empty context is meaningless, so "
+            "this is rejected even though case_id/response are present."
+        )
+    if score["nulls"] > 0 and [k for k in null_keys if k not in ("context", "content")]:
         parts.append(
             f"NULL ON REQUIRED KEYS — {score['nulls']} record(s) have null/missing "
-            f"{score['null_keys']} (a MIS-JOIN: the relational $reduce returned null because the "
-            "join key did not match). Fix the join so every record's required keys are populated; "
-            "a mis-join returns null, not an error, so the metric is the only thing that catches it."
+            f"{[k for k in null_keys if k not in ('context', 'content')]} (a MIS-JOIN: the "
+            "relational $reduce returned null because the join key did not match). Fix the join so "
+            "every record's required keys are populated; a mis-join returns null, not an error, so "
+            "the metric is the only thing that catches it."
         )
     return " ".join(parts) if parts else "all records present and complete"
 
@@ -209,9 +266,12 @@ def _build_extractor_signature():
         Ground STRICTLY in the DSL excerpt's RUNTIME REALITY notes — some documented builtins
         are unimplemented and will fail. Emit ONE record per entry of the source collection,
         joining any related collection by key. Each record MUST populate the required keys
-        (case_id, response) non-null. If prior_feedback is non-empty, FIX exactly what it
-        reports (esp. a MIS-JOIN that left required keys null) and return a corrected full
-        template. Output raw YAML only — no markdown fences, no commentary.
+        (case_id, response) non-null AND a `context` field = the input the response was
+        produced/graded against (e.g. the transcript / prompt / source dialogue) — a response
+        with no context is graded against nothing and is rejected. If prior_feedback is
+        non-empty, FIX exactly what it reports (a MIS-JOIN that left required keys null, or an
+        EMPTY GRADING CONTEXT) and return a corrected full template. Output raw YAML only — no
+        markdown fences, no commentary.
         """
 
         dsl_excerpt: str = dspy.InputField(

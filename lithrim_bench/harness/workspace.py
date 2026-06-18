@@ -118,6 +118,23 @@ def _write(ws: Workspace) -> None:
     ws.manifest_path.write_text(json.dumps(asdict(ws), indent=2) + "\n")
 
 
+def _resolve_external_packs_dir(pack: str) -> str | None:
+    """The LITHRIM_BENCH_PACKS_DIR dir that holds ``pack`` (so a workspace self-describes its pack
+    location — NARR-9), or ``None`` when the pack is in-repo / an entry point / discoverable
+    nowhere. Lazy import of :mod:`lithrim_bench.harness.pack` (avoids an import cycle; pack imports
+    nothing from workspace). Never raises — a non-discoverable pack just yields ``None`` (the
+    ambient env or a later install resolves it; creation is never blocked)."""
+    from lithrim_bench.harness import pack as _pack
+
+    try:
+        root = _pack._pack_root(pack)
+    except FileNotFoundError:
+        return None
+    parent = root.parent.resolve()
+    externals = {p.resolve() for p in _pack._external_pack_dirs()}
+    return str(parent) if parent in externals else None
+
+
 def create_workspace(
     name: str,
     *,
@@ -131,6 +148,12 @@ def create_workspace(
         raise ValueError(f"invalid workspace name {name!r} (use alphanumerics, '-' or '_')")
     if (WORKSPACES_DIR / name / "workspace.json").is_file():
         raise FileExistsError(f"workspace {name!r} already exists")
+    # NARR-9: a workspace pinned to an EXTERNALLY-DISTRIBUTED pack self-describes where that pack
+    # lives, so the grade subprocess (_grade_via_subprocess) finds it regardless of the BFF's
+    # ambient env — the multi-tenant shape (a workspace carries its own pack location). Only an
+    # external packs-dir is captured; an in-repo/entry-point/undiscoverable pack leaves None.
+    if packs_dir is None and pack != DEFAULT_PACK:
+        packs_dir = _resolve_external_packs_dir(pack)
     ws = Workspace(
         name=name, pack=pack, actor=actor, owner=owner, packs_dir=packs_dir, created_at=_now()
     )

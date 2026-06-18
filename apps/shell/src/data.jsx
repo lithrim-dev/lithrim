@@ -4,12 +4,12 @@
 
 // The onboarding checklist shown in the left rail — domain-agnostic.
 export const STEPS = [
-  { name: "Domain", desc: "Install a pack or author an ontology", state: "todo" },
-  { name: "Judges", desc: "Define your judge council", state: "todo" },
-  { name: "Ground truth", desc: "Add an oracle / grounding floor", state: "todo" },
-  { name: "Knowledge base", desc: "Index reference docs (optional)", state: "todo" },
-  { name: "Run", desc: "Evaluate an agent", state: "todo" },
-  { name: "Review", desc: "Inspect verdicts & report", state: "todo" },
+  { name: "Domain", desc: "Pick what kind of AI output to grade", state: "todo" },
+  { name: "Judges", desc: "Set up the judges that score it", state: "todo" },
+  { name: "Ground truth", desc: "Add a fact-check the judges must pass", state: "todo" },
+  { name: "Knowledge base", desc: "Connect reference docs (optional)", state: "todo" },
+  { name: "Run", desc: "Run the evaluation", state: "todo" },
+  { name: "Review", desc: "Read the verdict and report", state: "todo" },
 ];
 
 // Reliability curve (predicted confidence -> observed accuracy) — demo fallback only,

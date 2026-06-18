@@ -8,6 +8,19 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import { STEPS } from "./data.jsx";
 
+// A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
+// <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
+// the React key — this only changes what a person reads.
+export function agentLabel(name) {
+  if (!name) return name;
+  if (name === "ws0_default") return "Sample evaluation";
+  let m = /^eval-(\d+)$/.exec(name);
+  if (m) return `Evaluation ${m[1]}`;
+  m = /^(.+)_default$/.exec(name); // e.g. healthcare_default -> "Healthcare evaluation"
+  if (m) return m[1].charAt(0).toUpperCase() + m[1].slice(1).replace(/_/g, " ") + " evaluation";
+  return name;
+}
+
 // S-BS-19: the scripted host emits INPUT tool-parts; each widget's onResult threads
 // the collected config into local config-plane state (the §3 "the conversation writes
 // the config plane" loop). Local state per decision #3 (Zustand deferred).
@@ -59,8 +72,8 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
                 onClick={() => onSwitchAgent?.(name)}>
                 <span className="st" style={{ background: activeAgent === name ? "var(--accent)" : "var(--border)" }} />
                 <div className="tt">
-                  <div className="ti">{name}</div>
-                  <div className="ts">{seed ? "seed default" : "config-plane agent"}</div>
+                  <div className="ti" title={name}>{agentLabel(name)}</div>
+                  <div className="ts">{seed ? "Sample · start here" : "Your evaluation"}</div>
                 </div>
                 {canDelete && (
                   <button className="icon-btn" title="Delete this evaluation" aria-label={`Delete ${name}`}
@@ -108,7 +121,7 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
 // labels. ARTIFACT_TABS guards the directive in the shell (defense-in-depth; the BFF tool
 // already rejects an unknown tab) so a bogus tab can never open the pane to a crash.
 const ARTIFACT_TABS = ["case", "report", "judges", "config", "corpus"];
-const TAB_LABELS = { case: "Case", report: "Report", judges: "Judge council", config: "Config", corpus: "Corpus" };
+const TAB_LABELS = { case: "Case", report: "Report", judges: "Judges", config: "Setup", corpus: "Cases" };
 
 // CONV-UX-1 (W1): the live "thinking / working stages" — map a tool name (the wire carries
 // the SDK-MCP `mcp__lithrim__<tool>`) to a present-progressive human label. The events already
@@ -127,6 +140,7 @@ const TOOL_LABELS = {
   run_eval: "Running a $0 replay",
   run_eval_pack: "Running a $0 replay batch",
   review_runs: "Reviewing the run history",
+  list_cases: "Listing the cases",
   show_case: "Loading the case",
   focus_artifact: "Opening a panel",
   kb_context: "Looking up the policy",
@@ -151,17 +165,19 @@ const PART_LABELS = {
 
 // SHEPHERD-1 (W4): the per-step kickoff the next-incomplete-step chip fills into the
 // composer (never auto-sent — intent stays the human's). Keyed by the journey.js step name.
+// The KEYS must stay verbatim (matched against journey.js step names); only the values
+// — what the person "says" when they click the chip — are humanized.
 const STEP_PROMPTS = {
-  Domain: "What domain should I set up — what kind of AI output do you want to grade?",
-  Judges: "Author the first judge for this evaluation",
-  "Ground truth": "Add a grounding contract so a flag has a tool-grounded floor",
-  "Knowledge base": "Bind a knowledge base for the judges to ground against",
-  Run: "Run a $0 replay on the current config",
+  Domain: "What kind of AI output do you want to grade?",
+  Judges: "Set up the first judge that scores it",
+  "Ground truth": "Add a fact-check the judges have to pass",
+  "Knowledge base": "Connect reference docs the judges can check against",
+  Run: "Run the evaluation and show me the verdict",
   Review: "Open the report so I can review the verdict",
 };
 const GUIDED_SETUP_PROMPT = "Help me set up my first evaluation from scratch";
 
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", onRunResult, onConfigSaved, nextStepName }) {
+export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   // SHEPHERD-1 (W3): the editor cards (Agent/Judge/Flag) already call onResult on a
@@ -208,7 +224,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     try {
       const { chatStream } = await import("./bff.js");
       await chatStream(
-        { message, agent, history },
+        { message, agent, history, active_case: activeCase },
         {
           onEvent: (ev) => {
             if (ev.event === "assistant_delta") patchLast((m) => ({ ...m, text: (m.text || "") + ev.text }));
@@ -241,6 +257,11 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               // CHATBIND-4: a tool-propose_live_run DIRECTIVE opens the in-DOM CostModal — the agent
               // PROPOSES; only the human's confirm (confirmPaidRun) spends. The agent never runs paid.
               if (ev.part.type === "tool-propose_live_run") setPaid({ open: true, busy: false });
+              // NARR-CHAT-LOOP: a show_case card carries the case_id it opened — lift it into the
+              // shared active case so the chat↔UI stay ONE thing (the Case pane + a later Run target
+              // the case the chat just opened). The agent can never open a case it didn't pass.
+              if (ev.part.type === "tool-case_summary" && ev.part.output?.case_id)
+                onActiveCase?.(ev.part.output.case_id);
               patchLast((m) => ({ ...m, parts: [...(m.parts || []), ev.part] }));
             } else if (ev.event === "run_result")
               // CHATBIND-2 (D4): lift the chat's $0 replay into the shell's shared runResult so
@@ -322,7 +343,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     <main className="center">
       <div className="center-hd">
         <div style={{ minWidth: 0 }}>
-          <div className="h-title">{showExample ? "Example agent" : "New evaluation"}</div>
+          <div className="h-title">{showExample ? "Example conversation" : agentLabel(agent)}</div>
         </div>
         {showExample && (
           <>
@@ -338,9 +359,14 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           )}
           <button className="icon-btn" title="Refresh"><Icon name="refresh" size={16} /></button>
           {!artifactOpen && (
-            <button className="btn btn-ghost" onClick={() => onOpenArtifact("report")}>
-              <Icon name="panel" size={15} /> Open report
-            </button>
+            <>
+              <button className="btn btn-ghost" onClick={() => onOpenArtifact("case")}>
+                <Icon name="search" size={15} /> Explore case
+              </button>
+              <button className="btn btn-ghost" onClick={() => onOpenArtifact("report")}>
+                <Icon name="panel" size={15} /> Open report
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -356,7 +382,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <div className="name">Lithrim <span className="t">assistant</span></div>
               <p>Welcome back. We're configuring an evaluation for <strong>your agent</strong>. Let's confirm the domain, then kick off a run.</p>
               <ConfigCard onOpen={() => onOpenArtifact("config")} />
             </div>
@@ -373,8 +399,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Before the full run, let's lock the config plane. Edit the flags &amp; severity, author a verification contract, and bind the knowledge base — each one writes straight into your eval profile.</p>
+              <div className="name">Lithrim <span className="t">assistant</span></div>
+              <p>Before the full run, let's finish the setup. Choose what to flag and how serious each issue is, add a fact-check, and connect a reference knowledge base — each choice is saved to this evaluation.</p>
               {/* EVAL-FLOW (W1b): thread the ACTIVE agent into the ContractBuilder card so its
                   self-persist (POST /v1/grounding-contract → the audited write) lands on the
                   agent the rail derives from → captureSetup → refreshJourney ticks Ground truth. */}
@@ -384,7 +410,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 </div>
               ))}
               <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                Config plane captured: <strong>{captured.length ? captured.join(" · ") : "nothing yet"}</strong>
+                Saved so far: <strong>{captured.length ? captured.join(" · ") : "nothing yet"}</strong>
               </p>
             </div>
           </div>
@@ -392,8 +418,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
-              <p>Assemble the <strong>agent</strong> — its judge roster, ontology, and tools write straight to the config plane. Every change is attributed and logged; the audit trail below answers who/when/what/why for each edit and each run.</p>
+              <div className="name">Lithrim <span className="t">assistant</span></div>
+              <p>Set up the evaluation — its judges, the things they check for, and any tools they use. Every change is saved and logged, so you can always see who changed what, when, and why.</p>
               {renderTool({ type: "tool-agent_editor", state: "output-available" }, { onResult: captureSetup("agent") })}
               {renderTool({ type: "tool-audit_log", state: "output-available" })}
             </div>
@@ -402,7 +428,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <div className="name">Lithrim <span className="t">assistant</span></div>
               <p>Now author a <strong>judge</strong>. Assign an ontology flag lens to a role — the prompt preview updates live and <code className="inl">$0</code> (no model call), showing the exact <code className="inl">role_key_questions</code> the bridge will send. The live verdict-change is the paid finale, in a run.</p>
               {/* S-BS-153: target the ACTIVE agent so the save's roster-add lands on the agent
                   the rail derives from → refreshJourney (via captureSetup) flips Judges done. */}
@@ -413,7 +439,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
           <div className="msg">
             <div className="av ai"><Mark size={17} /></div>
             <div className="content">
-              <div className="name">Lithrim <span className="t">setup assistant</span></div>
+              <div className="name">Lithrim <span className="t">assistant</span></div>
               <p>Everything checks out. Running the full set takes a few minutes; I'll stream verdicts into the report as they land.</p>
               {/* EVAL-FLOW (W3): thread the active agent + an onRan callback so the card's run
                   lifts the result into the shared report AND re-derives the rail (Run ticks). */}
@@ -441,8 +467,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               <div className="es-mark"><Mark size={30} /></div>
               <h2 className="es-title">What do you want to evaluate?</h2>
               <p className="es-sub">
-                Let the assistant shepherd you through setup, or jump straight to a step. Every
-                change is written to the config plane with a who/when/what/why audit trail.
+                Set up an evaluation by chatting with the assistant, or pick a starting point
+                below. You can explore a test case, run an evaluation to get a verdict, and open
+                the report — every change is tracked with a full audit trail.
               </p>
               <div className="es-prompts">
                 <button className="es-prompt" data-testid="start-guided-setup"
@@ -583,7 +610,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <textarea
               ref={taRef}
               rows="1"
-              placeholder="Ask Lithrim, or describe a change to the eval…"
+              placeholder="Ask Lithrim to explore a case, run an evaluation, or open the report…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onComposerKey}

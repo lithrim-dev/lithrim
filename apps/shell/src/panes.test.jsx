@@ -26,7 +26,7 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
     expect(await screen.findByRole("button", { name: /Persist draft/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add contract/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Bind KB/i })).toBeInTheDocument();
-    expect(screen.getByText(/Config plane captured:/)).toBeInTheDocument();
+    expect(screen.getByText(/Saved so far:/)).toBeInTheDocument();
     expect(screen.getByText("nothing yet")).toBeInTheDocument();
   });
 

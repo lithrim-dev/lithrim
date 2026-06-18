@@ -229,7 +229,7 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
         <ConnectorForm />
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
-        <span className="crumb-txt">Evaluations <span className="crumb-sep">/</span> <b>New evaluation</b></span>
+        <span className="crumb-txt"><b>Evaluations</b></span>
       </div>
 
       <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
@@ -260,11 +260,10 @@ function StatusBar({ activeWs }) {
   useEffect(() => {
     let alive = true;
     const load = () =>
-      import("./bff.js").then(({ getMeta }) =>
-        getMeta()
-          .then((m) => alive && (setMeta(m), setConnected(true)))
-          .catch(() => alive && setConnected(false)),
-      );
+      import("./bff.js")
+        .then(({ getMeta }) => getMeta())
+        .then((m) => alive && (setMeta(m), setConnected(true)))
+        .catch(() => alive && setConnected(false));
     load();
     const t = setInterval(load, 4000); // reflect workspace switches / new agents / new runs
     return () => { alive = false; clearInterval(t); };
@@ -278,7 +277,7 @@ function StatusBar({ activeWs }) {
       </span>
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
       {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
-      {meta && <span className="si">judge council: {meta.judges}</span>}
+      {meta && <span className="si">judges: {meta.judges}</span>}
       <div className="right">
         {meta && <span className="si">{plural(meta.runs, "run")}</span>}
         {meta && <span className="si">v{meta.version}</span>}
@@ -330,6 +329,20 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [runStatus, setRunStatus] = useState("idle"); // idle | loading | ready | error
   const [runResult, setRunResult] = useState(null);
   const [runError, setRunError] = useState(null);
+  // The case a viewer is exploring / running — chosen from the ingested corpus (the Cases tab).
+  // null → the agent's own dataset.case_id (back-compat). Defaulted to the first ingested case
+  // on mount + workspace switch (refreshCases), so "explore each case" works out of the box.
+  const [activeCase, setActiveCase] = useState(null);
+  const refreshCases = async () => {
+    try {
+      const { listCases } = await import("./bff.js");
+      const cs = (await listCases()).cases || [];
+      setActiveCase((cur) => cur || (cs[0] && cs[0].case_id) || null);
+      return cs;
+    } catch { return []; }
+  };
+  useEffect(() => { refreshCases(); }, [activeWs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onSelectCase = (cid) => { setActiveCase(cid); setTab("case"); setOpen(true); };
 
   const doRun = async (live = false) => {
     setRunStatus("loading");
@@ -338,7 +351,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     setOpen(true);
     try {
       const { runEval } = await import("./bff.js");
-      setRunResult(await runEval({ live, agent: activeAgent }));
+      setRunResult(await runEval({ live, agent: activeAgent, case_id: activeCase }));
       setRunStatus("ready");
       refreshJourney(); // W1: a run flips Run/Review done in the rail
     } catch (err) {
@@ -407,6 +420,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     const left = await refreshAgents();
     setActiveAgent(left[0] || "ws0_default");
     setRunResult(null); setRunStatus("idle"); setRunError(null);
+    setActiveCase(null); // re-default to the new workspace's first case (refreshCases, on activeWs)
     setSessionKey((k) => k + 1);
   };
   const onSwitchWorkspace = async (name) => {
@@ -506,7 +520,13 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus}
-            onRunResult={(r) => { setRunResult(r); setRunStatus("ready"); }}
+            activeCase={activeCase} onActiveCase={setActiveCase}
+            onRunResult={(r) => {
+              setRunResult(r); setRunStatus("ready");
+              // NARR-CHAT-LOOP: a chat $0 replay carries the case it graded — keep the shared
+              // active case in sync so the Case/Report panes show the case the chat just ran.
+              if (r && r.case_id) setActiveCase(r.case_id);
+            }}
             onConfigSaved={refreshJourney} nextStepName={nextStep(journey)} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
@@ -514,6 +534,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           {open && (
             <ArtifactPane
               width={rightW} full={full} tab={tab} setTab={setTab} agent={activeAgent}
+              activeCase={activeCase} onSelectCase={onSelectCase}
               onClose={() => { setOpen(false); setFull(false); }}
               onToggleFull={() => setFull((f) => !f)}
               runStatus={runStatus} runResult={runResult} runError={runError}

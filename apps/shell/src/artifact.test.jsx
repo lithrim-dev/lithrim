@@ -9,10 +9,11 @@ vi.mock("./bff.js", () => ({
   getOntology: vi.fn(),
   getCorpus: vi.fn(),
   getCase: vi.fn(),
+  listCases: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";
-import { getOntology, getCorpus, getCase } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCases } from "./bff.js";
 
 const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
 
@@ -20,6 +21,8 @@ beforeEach(() => {
   getOntology.mockReset();
   getCorpus.mockReset();
   getCase.mockReset();
+  listCases.mockReset();
+  listCases.mockResolvedValue({ cases: [], count: 0 }); // default: no ingested cases
 });
 
 const COUNCIL_RESULT = {
@@ -46,14 +49,13 @@ describe("JudgeTab — realized council votes (A1)", () => {
     expect(screen.getByText(/confidence n\/a/)).toBeInTheDocument();
   });
 
-  it("S-BS-110: an in_process run is labeled PAID (in-process · paid), never replay · $0", () => {
-    // Pre-fix the tag was `grade_path === "live" ? "live · paid" : "replay · $0"`, so the
-    // LAUNCH-PREP in_process default mislabeled a real PAID run as $0. NON-VACUOUS: pre-fix
-    // this asserts the wrong tag and fails.
+  it("S-BS-110: an in_process run is labeled PAID (Full run · paid), never a $0 preview", () => {
+    // An in_process run is a real PAID council run — it must never be mislabeled as a $0 preview.
+    // NON-VACUOUS: if the in_process tag regressed to the replay/$0 label, this fails.
     const paid = { ...COUNCIL_RESULT, grade_path: "in_process" };
     const { container } = render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runResult={paid} runError={null} />);
-    expect(container.textContent).toContain("in-process · paid");
-    expect(container.textContent).not.toContain("replay · $0");
+    expect(container.textContent).toContain("Full run · paid");
+    expect(container.textContent).not.toContain("· $0");
   });
 
   it("prompts to run when there is no run yet", () => {
@@ -113,7 +115,7 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument();
-    expect(screen.getByText("suppress")).toBeInTheDocument();
+    expect(screen.getByText("false alarm cleared")).toBeInTheDocument();
     expect(screen.getByText(/BLOCK → PASS/)).toBeInTheDocument();
   });
 
@@ -121,6 +123,23 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     getCorpus.mockResolvedValue({ rows: [] });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText(/No corrections yet/i)).toBeInTheDocument();
+  });
+
+  it("NARR-LOOP: the Corpus tab self-fetches the INGESTED cases so they survive a reload", async () => {
+    // the refresh-poof fix: GET /v1/cases is fetched on mount, independent of any chat session.
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCases.mockResolvedValue({
+      count: 2,
+      cases: [
+        { case_id: "clinverdict_01_neurology", labeled: false, has_context: true, has_artifact: true },
+        { case_id: "clinverdict_10_splinter", labeled: false, has_context: false, has_artifact: true },
+      ],
+    });
+    render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText("clinverdict_01_neurology")).toBeInTheDocument();
+    expect(screen.getByText("clinverdict_10_splinter")).toBeInTheDocument();
+    expect(screen.getByText(/2 ingested · 1 with transcript/)).toBeInTheDocument(); // fidelity signal
+    expect(screen.getByText("transcript ✓")).toBeInTheDocument(); // case 01 carries its transcript
   });
 });
 
@@ -141,7 +160,7 @@ describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
     expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // the by-construction ground truth
     expect(screen.getByText("raw · structured")).toBeInTheDocument(); // a note present -> the artifact is the raw view
     expect(screen.getByText(/Diabetes mellitus type 2/)).toBeInTheDocument(); // the patient record
-    expect(getCase).toHaveBeenCalledWith("ws0_default"); // self-fetches the ACTIVE agent
+    expect(getCase).toHaveBeenCalledWith("ws0_default", null); // active agent · no specific case selected
   });
 
   it("renders a free-text artifact + a clean-negative (nothing planted) without crashing", async () => {
@@ -161,16 +180,16 @@ describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
   });
 
   // A5 — HONEST-1: an UNLABELED (BYO) case must not be mislabeled as a clean negative.
-  it("an unlabeled case (labeled:false) reads 'unknown ground truth', NOT 'nothing planted'", async () => {
+  it("an unlabeled case (labeled:false) reads 'No planted answer', NOT 'nothing planted'", async () => {
     getCase.mockResolvedValue({
       case_id: "byo_note_1",
       transcript: "Patient calls to book a follow-up.",
       artifact: "Booking confirmed.",
       conditions: [],
-      labeled: false, // BYO: no planted label — the serializer marks it unlabeled
+      labeled: false, // BYO/ingested: no planted label — the serializer marks it unlabeled
     });
     render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
-    expect(await screen.findByText(/unknown ground truth/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No planted answer/i)).toBeInTheDocument();
     expect(screen.queryByText(/nothing planted/i)).toBeNull();
     expect(screen.queryByText(/expected verdict: approve/i)).toBeNull();
   });
@@ -206,8 +225,8 @@ describe("ReportTab — HONEST-1 unlabeled mode (A4)", () => {
     );
     // the verdict + finding still render (label-free, real)
     expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument();
-    // honest withheld copy — NOT a fabricated accuracy number
-    expect(screen.getByText(/withheld/i)).toBeInTheDocument();
+    // honest copy — NOT a fabricated accuracy number
+    expect(screen.getByText(/accuracy can.t be measured yet/i)).toBeInTheDocument();
     expect(container.textContent).not.toContain("WARN");
     expect(container.textContent).not.toContain("· PASS");
     expect(container.textContent).not.toContain("null ·");
@@ -262,7 +281,7 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
     const { container } = render(
       <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={FLOOR_BLOCK_RUN} runError={null} />,
     );
-    expect(screen.getByText(/Floor blocks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hard-rule failures/i)).toBeInTheDocument();
     // the flag code, contract type, and disposition all render
     const flagHits = screen.getAllByText("SILENT_DEGRADATION");
     expect(flagHits.length).toBeGreaterThan(0);
@@ -272,6 +291,6 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
 
   it("does NOT render a Floor blocks section (no false BLOCK styling) when floor_adjustments is empty", () => {
     render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={NO_FLOOR_RUN} runError={null} />);
-    expect(screen.queryByText(/Floor blocks/i)).toBeNull();
+    expect(screen.queryByText(/Hard-rule failures/i)).toBeNull();
   });
 });

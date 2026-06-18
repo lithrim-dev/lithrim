@@ -143,11 +143,16 @@ def open_artifact_part(tab: str) -> dict[str, Any]:
     return {"type": "tool-open_artifact", "state": "output-available", "output": {"tab": tab}}
 
 
-def case_summary_part(agent: str) -> dict[str, Any]:
+def case_summary_part(agent: str, case_id: str | None = None) -> dict[str, Any]:
     """CHATBIND-3: show_case -> the CaseCard (it self-fetches GET /v1/case for ``agent`` —
     the reference-carrying pattern, like agent_part/judge_part). An inline summary of the
-    SOURCE case the council grades, with a "View case ->" that opens the full Case tab. $0."""
-    return _part("case_summary", {"agent": agent})
+    SOURCE case the council grades, with a "View case ->" that opens the full Case tab. $0.
+
+    NARR-CHAT-LOOP: ``case_id`` selects a SPECIFIC ingested-corpus case (the "open case X"
+    leg). It rides the output so the card self-fetches GET /v1/case?case_id=X — without it the
+    card showed the agent's seed regardless of the case asked for (the confident-but-wrong live
+    bug). ``None`` keeps the agent's own ``dataset.case_id`` (back-compat)."""
+    return _part("case_summary", {"agent": agent, "case_id": case_id})
 
 
 def propose_live_run_part() -> dict[str, Any]:

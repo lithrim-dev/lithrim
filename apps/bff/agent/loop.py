@@ -78,8 +78,13 @@ _SYSTEM_PROMPT = (
     "agent. It generates a JUTE transform (or REUSES the one already pinned for that agent -> "
     "instant), live-gates it on :3031, pins it, applies it, and upserts the workspace corpus. A "
     "mis-join is rejected with NOTHING pinned -- surface that plainly; never claim a partial ingest.\n"
-    "  - show_case: show the SOURCE case (transcript + artifact + the planted label) as an inline "
-    "Case Summary card -- $0; use it to let the human SEE what they're about to evaluate.\n"
+    "  - list_cases: LIST the cases the human can evaluate -- the workspace's INGESTED corpus "
+    "(every case_id), NOT the agent's single seed case -- $0; opens the Cases tab. Call it whenever "
+    "they ask 'what cases are there', 'show me the cases I can evaluate', or 'load all cases'.\n"
+    "  - show_case: show a SPECIFIC source case (transcript + artifact + any label) as an inline "
+    "Case Summary card -- $0. Pass case_id (from list_cases) to open THAT case; omit it for the case "
+    "they're exploring. NEVER claim you opened a case_id you did not pass, and describe a clean/"
+    "unlabeled case as clean, never as a planted defect.\n"
     "  - focus_artifact: open + focus the artifact side-panel on a tab (case | report | judges | "
     "config | corpus) to SHOW your work -- 'case' is the SOURCE INPUT (transcript + artifact + "
     "the planted label) the council grades; $0, a UI directive (never a paid run).\n"
@@ -111,7 +116,7 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _system_prompt(active_agent: str) -> str:
+def _system_prompt(active_agent: str, active_case: str | None = None) -> str:
     """CHATBIND-1 (S-BS-103): the active-agent-aware system prompt. ``_SYSTEM_PROMPT`` is
     the static base; this appends a stanza NAMING the rail-selected agent so the model
     targets it BY DEFAULT. The live bug was a static prompt with no active-agent context:
@@ -120,7 +125,28 @@ def _system_prompt(active_agent: str) -> str:
     ``ctx.default_agent`` (tools.py) -- naming the agent here is what stops the model
     supplying a stale ``ws0_default`` in the first place. No A-SAFE surface changes: this
     is the system_prompt string only; the deny-hook + isolation in ``_build_options`` are
-    byte-identical."""
+    byte-identical.
+
+    NARR-CHAT-LOOP: ``active_case`` is the case the human is exploring in the UI (the shared
+    "active case"). Naming it here makes run_eval/show_case default to THAT case (the chat↔UI
+    decoupling fix) -- without it the chat graded the agent's seed regardless of what was on
+    screen. ``None`` (no case selected yet) appends a list_cases nudge instead. A selector, never
+    a spend -- the A-SAFE surface is unchanged."""
+    case_stanza = (
+        f"The case the human is currently exploring is `{active_case}`. show_case and run_eval "
+        f"operate on `{active_case}` BY DEFAULT (you may omit case_id) unless the user names another "
+        f"case. When the user says \"this case\", \"the case\", or \"run it\", they mean "
+        f"`{active_case}`. To see the other cases, call list_cases; to switch, call "
+        f"show_case(case_id=…) / run_eval(case_id=…). Never claim to have opened or graded a case "
+        f"you did not pass to a tool.\n\n"
+        if active_case
+        else (
+            "No specific case is selected yet. When the human asks about cases, or to explore or "
+            "run one, call list_cases first to see the ingested corpus, then show_case(case_id=…) / "
+            "run_eval(case_id=…). Do not invent a case_id or operate on the seed as if it were the "
+            "corpus.\n\n"
+        )
+    )
     return (
         f"{_SYSTEM_PROMPT}\n\n"
         f"The current evaluation in this workspace is the agent `{active_agent}`. Operate on "
@@ -128,6 +154,7 @@ def _system_prompt(active_agent: str) -> str:
         f"`{active_agent}` unless the user EXPLICITLY names another agent. When the user says "
         f'"this case", "the current case", "this agent", or "the runs", they mean '
         f"`{active_agent}`.\n\n"
+        f"{case_stanza}"
         "Drive the artifact side-panel as you work (CHATBIND-2/3): when the human wants to SEE or "
         "explore the case -- the transcript, the scribe artifact, or what defect is planted -- call "
         "show_case to drop an inline Case Summary card (its \"View case\" opens the full Case tab); this "
@@ -356,7 +383,7 @@ def _build_options(ctx: ToolContext):
         },
         setting_sources=[],  # SDK isolation: no inherited ~/.claude settings / MCP servers
         skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
-        system_prompt=_system_prompt(ctx.default_agent),  # CHATBIND-1: name the active agent
+        system_prompt=_system_prompt(ctx.default_agent, ctx.active_case),  # CHATBIND-1 + NARR-CHAT-LOOP: name the active agent + case
         max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
         # CONV-UX-1 (W2): fine-grained streaming. The SDK (>=0.2.90) interleaves StreamEvent
         # objects whose `event` dict carries the Anthropic content_block_delta/text_delta chunks,

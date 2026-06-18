@@ -11,6 +11,10 @@ vi.mock("./bff.js", () => ({
   getRuns: vi.fn().mockResolvedValue({ runs: [] }),
   runEvalPack: vi.fn().mockResolvedValue({}),
   getCorpus: vi.fn().mockResolvedValue({ rows: [] }),
+  // NARR-CHAT-LOOP: the show_case CaseCard self-fetches GET /v1/case — stub it so the rendered
+  // card doesn't reject when a case_summary part streams in.
+  getCase: vi.fn().mockResolvedValue({ case_id: "clinverdict_05", transcript: "…", expected_safety_flags: [] }),
+  listCases: vi.fn().mockResolvedValue({ cases: [], count: 0 }),
   getOntology: vi.fn().mockResolvedValue({ flags: [], questions: [] }),
   putOntology: vi.fn().mockResolvedValue({}),
   getAgent: vi.fn().mockResolvedValue({ name: "ws0_default", eval_profile: {} }),
@@ -55,9 +59,10 @@ describe("CenterPane — the R11 conversational loop", () => {
     fireEvent.click(screen.getByTestId("chat-send"));
 
     await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
-    // ONB-0: the first send carries an empty history (no prior turns yet).
+    // ONB-0: the first send carries an empty history (no prior turns yet). NARR-CHAT-LOOP:
+    // active_case rides the request (null when no case selected) so the loop targets the case on screen.
     expect(chatStream).toHaveBeenCalledWith(
-      { message: "Author a risk judge and run it", agent: "ws0_default", history: [] },
+      { message: "Author a risk judge and run it", agent: "ws0_default", history: [], active_case: null },
       expect.objectContaining({ onEvent: expect.any(Function) }),
     );
 
@@ -82,9 +87,35 @@ describe("CenterPane — the R11 conversational loop", () => {
 
     await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
     expect(chatStream).toHaveBeenCalledWith(
-      { message: "show + review this case", agent: "imported_X", history: [] },
+      { message: "show + review this case", agent: "imported_X", history: [], active_case: null },
       expect.objectContaining({ onEvent: expect.any(Function) }),
     );
+  });
+
+  it("NARR-CHAT-LOOP: threads the shared active case into chatStream + a case_summary part lifts it back", async () => {
+    // The chat↔UI active-case is ONE thing: send() POSTs the UI-selected case so the loop targets
+    // it; a show_case card carries the case_id it opened, which the shell lifts via onActiveCase.
+    const onActiveCase = vi.fn();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-case_summary", state: "output-available", output: { agent: "ws0_default", case_id: "clinverdict_05" } } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane agent="ws0_default" activeCase="clinverdict_07" onActiveCase={onActiveCase}
+      onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "open case 5" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
+    // UI → chat: the selected case rode the request
+    expect(chatStream).toHaveBeenCalledWith(
+      expect.objectContaining({ active_case: "clinverdict_07" }),
+      expect.objectContaining({ onEvent: expect.any(Function) }),
+    );
+    // chat → UI: the case the show_case card opened lifts back into the shared active case
+    await waitFor(() => expect(onActiveCase).toHaveBeenCalledWith("clinverdict_05"));
   });
 
   it("streams the journey tool-parts and renders them inline via the existing registry (no new cards)", async () => {
@@ -173,7 +204,7 @@ describe("CenterPane — CHATBIND-2: the chat drives the artifact pane", () => {
     await waitFor(() => expect(onOpenArtifact).toHaveBeenCalledWith("judges"));
     // it rendered a tiny NON-CARD affordance, NOT a gen-UI card and NOT the fallback (FAILS if
     // rendered inline via renderTool)
-    expect(await screen.findByTestId("pane-directive")).toHaveTextContent(/Opened the Judge council panel/);
+    expect(await screen.findByTestId("pane-directive")).toHaveTextContent(/Opened the Judges panel/);
     expect(screen.queryByText(/Unsupported component/)).toBeNull();
   });
 
@@ -273,7 +304,7 @@ describe("CenterPane / Shell — UX-1: clean default + cadence + New-eval (S-BS-
     // opt-in reveals the canned showcase (preamble + the fake header chips)
     fireEvent.click(screen.getByText(/Show example conversation/i));
     expect(screen.getByText(/sample case/)).toBeInTheDocument();
-    expect(screen.getAllByText(/Example agent/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Example conversation/).length).toBeGreaterThan(0);
   });
 
   it("live turns use a neutral identity (You), never the scripted Jordan", async () => {

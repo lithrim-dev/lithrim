@@ -6,7 +6,7 @@
      - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
 import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { getOntology, getCorpus, getCase } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCases } from "./bff.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
 const VERDICT_UI = {
@@ -26,7 +26,7 @@ const VOTE_COLOR = {
 // grade_path → the cost tag. in_process is the OSS-standalone PAID default (LAUNCH-PREP);
 // only an actual replay is $0 — never label a paid run "$0" (S-BS-110).
 const gradeTag = (gp) =>
-  gp === "replay" ? "replay · $0" : gp === "in_process" ? "in-process · paid" : "live · paid";
+  gp === "replay" ? "Preview · $0" : gp === "in_process" ? "Full run · paid" : "Live · paid";
 
 function ReportMessage({ children }) {
   return (
@@ -38,19 +38,19 @@ function ReportMessage({ children }) {
 
 function ReportTab({ runStatus, runResult, runError }) {
   if (runStatus === "loading")
-    return <ReportMessage>Running eval over the harness…</ReportMessage>;
+    return <ReportMessage>Running the evaluation…</ReportMessage>;
   if (runStatus === "error")
     return (
       <ReportMessage>
         <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
-        <div style={{ marginTop: 10 }}>Is the BFF up? <code>uvicorn app:app --app-dir apps/bff --port 8787</code></div>
+        <div style={{ marginTop: 10 }}>The evaluation service isn’t responding — ask the host to restart it.</div>
       </ReportMessage>
     );
   if (!runResult)
     return (
       <ReportMessage>
-        No run yet. Press <strong>Run eval</strong> to drive the harness and render a real report.
+        No evaluation yet. Run one to see the verdict and report here.
       </ReportMessage>
     );
 
@@ -66,7 +66,7 @@ function ReportTab({ runStatus, runResult, runError }) {
         <div style={{ minWidth: 0 }}>
           <div className="rb-t">{ui.label}</div>
           <div className="rb-s">
-            {comp.active_findings.length} active finding(s) · {comp.grounded_adjustments.length} grounded-suppressed · {runResult.case_id}
+            {comp.active_findings.length} issue(s) flagged · {comp.grounded_adjustments.length} false alarm(s) removed by a tool · {runResult.case_id}
           </div>
         </div>
         <div className="rb-grade" style={{ color: ui.color }}>{comp.stage_verdict}</div>
@@ -79,10 +79,9 @@ function ReportTab({ runStatus, runResult, runError }) {
         </div>
         <div className="tiles">
           {[
-            { k: "Verdict", v: comp.verdict, d: `stage ${comp.stage_verdict}` },
-            { k: "Risk score", v: String(comp.score), d: "worst active severity" },
-            { k: "Active findings", v: String(comp.active_findings.length), d: "after grounding" },
-            { k: "Grounded suppressions", v: String(comp.grounded_adjustments.length), d: "contract-disproved" },
+            { k: "Risk score", v: String(comp.score), d: "0–1 · higher is riskier" },
+            { k: "Issues flagged", v: String(comp.active_findings.length), d: "after fact-checks" },
+            { k: "False alarms removed", v: String(comp.grounded_adjustments.length), d: "cleared by a tool" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -95,7 +94,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       <div className="art-sec">
         <div className="art-h2">
-          Active findings <span className="cnt">{comp.active_findings.length}</span>
+          Issues flagged <span className="cnt">{comp.active_findings.length}</span>
         </div>
         {comp.active_findings.length === 0 && (
           <div style={{ fontSize: 12.5, color: "var(--muted)" }}>None.</div>
@@ -110,7 +109,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       {(comp.floor_adjustments || []).length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Floor blocks <span className="cnt">structural · verdict-flip</span></div>
+          <div className="art-h2">Hard-rule failures <span className="cnt">a tool changed the verdict</span></div>
           {(comp.floor_adjustments || []).map((a, i) => {
             const isBlock = a.action === "floor_block";
             return (
@@ -132,7 +131,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       {comp.grounded_adjustments.length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Grounded adjustments <span className="cnt">tool-verified</span></div>
+          <div className="art-h2">Corrected by a tool <span className="cnt">fact-checked</span></div>
           {comp.grounded_adjustments.map((a, i) => (
             <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
@@ -146,12 +145,12 @@ function ReportTab({ runStatus, runResult, runError }) {
       )}
 
       <div className="art-sec" style={{ marginBottom: 4 }}>
-        <div className="art-h2">Calibration <span className="cnt">diagnostic · N={cal.n_cases}</span></div>
+        <div className="art-h2">Calibration <span className="cnt">N={cal.n_cases}</span></div>
         {cal.label_status === "unlabeled" ? (
           // HONEST-1: no ground truth -> withhold accuracy/ECE; never fabricate a 0.0/WARN.
           <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", flexDirection: "column", gap: 6 }}>
-            <div>No ground truth — verdict &amp; grounding shown; accuracy &amp; calibration withheld.</div>
-            <div>Author labels for these case(s) to unlock verdict-match &amp; ECE.</div>
+            <div>No answer key for this case — the verdict is shown, but accuracy can’t be measured yet.</div>
+            <div>Add the correct answer for this case to measure accuracy &amp; calibration.</div>
             {cal.caveat && <div style={{ fontSize: 11.5 }}>{cal.caveat}</div>}
           </div>
         ) : (
@@ -166,7 +165,7 @@ function ReportTab({ runStatus, runResult, runError }) {
             </div>
             {cal.caveat && <div style={{ color: "var(--muted)", fontSize: 11.5 }}>{cal.caveat}</div>}
             <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
-              Report-only diagnostic — not the locked calibration gate (WS-4b).
+              Shown for insight only — it doesn’t change the verdict.
             </div>
           </div>
         )}
@@ -179,7 +178,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 // Per-case truth (what each judge voted + its confidence), not a configured roster.
 function JudgeTab({ runStatus, runResult, runError }) {
   if (runStatus === "loading")
-    return <ReportMessage>Running the council over the harness…</ReportMessage>;
+    return <ReportMessage>Collecting the judges' votes…</ReportMessage>;
   if (runStatus === "error")
     return (
       <ReportMessage>
@@ -264,11 +263,11 @@ function ConfigTab({ agent = "ws0_default" }) {
     return () => { live = false; };
   }, [agent]);
 
-  if (status === "loading") return <ReportMessage>Loading ontology config…</ReportMessage>;
+  if (status === "loading") return <ReportMessage>Loading setup…</ReportMessage>;
   if (status === "error")
     return (
       <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read ontology</div>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Couldn’t read the setup</div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
       </ReportMessage>
     );
@@ -282,14 +281,14 @@ function ConfigTab({ agent = "ws0_default" }) {
     <div>
       <div className="art-sec">
         <div className="art-h2">
-          Ontology <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
+          What the judges check <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
         </div>
         <div className="tiles">
           {[
-            { k: "Flags", v: String(flags.length), d: `${gradeable} gradeable` },
-            { k: "Contracts", v: String(contracts.length), d: "verification floor" },
-            { k: "Block ≥", v: String(sm.block_at_or_above ?? "—"), d: "severity weight" },
-            { k: "Warn >", v: String(sm.warn_above ?? "—"), d: "severity weight" },
+            { k: "Checks", v: String(flags.length), d: `${gradeable} scored` },
+            { k: "Tool checks", v: String(contracts.length), d: "hard rules" },
+            { k: "Block at", v: String(sm.block_at_or_above ?? "—"), d: "risk threshold" },
+            { k: "Warn above", v: String(sm.warn_above ?? "—"), d: "risk threshold" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -341,11 +340,60 @@ function ConfigTab({ agent = "ws0_default" }) {
   );
 }
 
+// NARR-LOOP: the INGESTED eval corpus (GET /v1/cases) — the cases a user dropped via ingest,
+// self-fetched so they SURVIVE A RELOAD (the "refresh poof": before /v1/cases they only flashed
+// via the chat tool-result and vanished on reload). `has_context` surfaces the transcript-fidelity
+// the 2026-06-18 ingest fix guards. Renders nothing when there are none (no empty-state noise —
+// the correction flywheel below owns the empty case). Distinct from the correction corpus.
+function IngestedCasesSection({ activeCase = null, onSelectCase }) {
+  const [cases, setCases] = useState([]);
+  const [status, setStatus] = useState("loading");
+  useEffect(() => {
+    let live = true;
+    listCases()
+      .then((b) => { if (live) { setCases(b.cases || []); setStatus("ready"); } })
+      .catch(() => { if (live) setStatus("ready"); }); // offline-safe: show nothing, never crash
+    return () => { live = false; };
+  }, []);
+  if (status !== "ready" || cases.length === 0) return null;
+  const withCtx = cases.filter((c) => c.has_context).length;
+  return (
+    <div className="art-sec">
+      <div className="art-h2">
+        Eval cases <span className="cnt">{cases.length} ingested · {withCtx} with transcript</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 6px" }}>Click a case to explore it.</div>
+      {cases.map((c) => {
+        const active = c.case_id === activeCase;
+        return (
+          <div key={c.case_id} onClick={() => onSelectCase?.(c.case_id)}
+            style={{ padding: "8px 6px", margin: "0 -6px", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", cursor: onSelectCase ? "pointer" : "default", borderRadius: 6, background: active ? "var(--surface-2, rgba(127,127,127,0.10))" : "transparent" }}>
+            <span style={{ fontFamily: "var(--mono)", fontWeight: active ? 600 : 400 }}>{c.case_id}</span>
+            <span className="cnt" style={{ color: c.has_context ? "var(--teal)" : "var(--accent)" }}>
+              {c.has_context ? "transcript ✓" : "no transcript"}{c.labeled ? " · labeled" : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// The Corpus tab = the ingested eval cases (above) + the correction flywheel (below).
+function CorpusTab({ activeCase = null, onSelectCase }) {
+  return (
+    <div>
+      <IngestedCasesSection activeCase={activeCase} onSelectCase={onSelectCase} />
+      <CorrectionCorpus />
+    </div>
+  );
+}
+
 // The correction-corpus / flywheel view — GET /v1/corpus (corpus-row/1). Each row is
 // a logged grounding correction (suppress | floor) with before→after verdict + the
 // contract + owner roles + a rollout pointer. The corpus may be empty until a
 // run writes corrections — empty-state, never a crash.
-function CorpusTab() {
+function CorrectionCorpus() {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
@@ -370,24 +418,25 @@ function CorpusTab() {
   if (rows.length === 0)
     return (
       <ReportMessage>
-        No corrections yet. The flywheel fills as grounding suppresses a false flag or a
-        structural floor catches a missed one.
+        No corrections yet. This fills in as a tool clears a false alarm or catches a missed
+        issue during an evaluation.
       </ReportMessage>
     );
 
   const suppress = rows.filter((r) => r.action === "suppress").length;
   const floor = rows.filter((r) => r.action === "floor").length;
+  const ACTION_LABEL = { suppress: "false alarm cleared", floor: "miss caught" };
   return (
     <div>
       <div className="art-sec">
         <div className="art-h2">
-          Correction flywheel <span className="cnt">{rows.length} row(s)</span>
+          Corrections made by tools <span className="cnt">{rows.length} so far</span>
         </div>
         <div className="tiles">
           {[
-            { k: "Corrections", v: String(rows.length), d: "tool-grounded" },
-            { k: "Suppress", v: String(suppress), d: "confident FP disproved" },
-            { k: "Floor", v: String(floor), d: "missed violation caught" },
+            { k: "Total", v: String(rows.length), d: "checked by a tool" },
+            { k: "False alarms removed", v: String(suppress), d: "AI flagged it, a tool cleared it" },
+            { k: "Misses caught", v: String(floor), d: "AI missed it, a tool caught it" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -399,12 +448,12 @@ function CorpusTab() {
       </div>
 
       <div className="art-sec" style={{ marginBottom: 4 }}>
-        <div className="art-h2">Corrections <span className="cnt">corpus-row/1</span></div>
+        <div className="art-h2">Corrections <span className="cnt">{rows.length} logged</span></div>
         {rows.map((r, i) => (
           <div key={r.rollout_ref || i} style={{ padding: "9px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
               <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{r.flag_code}</span>
-              <span className="cnt" style={{ color: r.action === "floor" ? "var(--accent)" : "var(--teal)" }}>{r.action}</span>
+              <span className="cnt" style={{ color: r.action === "floor" ? "var(--accent)" : "var(--teal)" }}>{ACTION_LABEL[r.action] || r.action}</span>
             </div>
             <div style={{ color: "var(--muted)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontFamily: "var(--mono)" }}>{r.verdict_before} → {r.verdict_after}</span>
@@ -433,11 +482,13 @@ const _PRE = {
 
 function prettyArtifact(art) {
   if (art == null || art === "") return { text: "(no artifact)", kind: "empty" };
+  // an ingested artifact arrives wrapped as { raw: "<json string>" } — unwrap to the inner string.
+  if (typeof art === "object" && typeof art.raw === "string") art = art.raw;
   try { return { text: JSON.stringify(JSON.parse(art), null, 2), kind: "structured" }; }
-  catch { return { text: String(art), kind: "free text" }; }
+  catch { return { text: typeof art === "string" ? art : JSON.stringify(art, null, 2), kind: "free text" }; }
 }
 
-function CaseTab({ agent = "ws0_default" }) {
+function CaseTab({ agent = "ws0_default", caseId = null }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [kase, setKase] = useState(null);
   const [error, setError] = useState(null);
@@ -445,11 +496,11 @@ function CaseTab({ agent = "ws0_default" }) {
   useEffect(() => {
     let live = true;
     setStatus("loading");
-    getCase(agent)
+    getCase(agent, caseId) // caseId selects a specific ingested case ("explore each case")
       .then((c) => { if (live) { setKase(c); setStatus("ready"); } })
       .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
     return () => { live = false; };
-  }, [agent]);
+  }, [agent, caseId]);
 
   if (status === "loading") return <ReportMessage>Loading the source case…</ReportMessage>;
   if (status === "error")
@@ -480,11 +531,14 @@ function CaseTab({ agent = "ws0_default" }) {
         <pre style={_PRE}>{art.text}</pre>
       </div>
       <div className="art-sec">
-        <div className="art-h2">Planted defect <span className="cnt">by-construction ground truth</span></div>
+        <div className="art-h2">
+          {kase.labeled === false ? "Expected answer" : "Planted defect"}{" "}
+          <span className="cnt">{kase.labeled === false ? "not labeled · ingested data" : "by-construction ground truth"}</span>
+        </div>
         {planted.length === 0 ? (
           kase.labeled === false ? (
             // HONEST-1: a BYO/unlabeled case is unknown-truth, NOT a declared clean negative.
-            <div style={{ color: "var(--muted)", fontSize: 12.5 }}>unknown ground truth — your data, no planted label</div>
+            <div style={{ color: "var(--muted)", fontSize: 12.5 }}>No planted answer — this is your own data, graded honestly (accuracy can’t be scored without a labeled answer).</div>
           ) : (
             <div style={{ color: "var(--muted)", fontSize: 12.5 }}>clean negative — nothing planted (expected verdict: approve)</div>
           )
@@ -507,13 +561,13 @@ function CaseTab({ agent = "ws0_default" }) {
   );
 }
 
-export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", onClose, onToggleFull, runStatus, runResult, runError }) {
+export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", activeCase = null, onSelectCase, onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
-    case: ["Source case", "transcript + artifact · what the council grades"],
+    case: ["The case", "the input, the AI’s output, and the planted answer"],
     report: ["Evaluation report", "the latest run"],
-    judges: ["Judge council", "per-case realized votes"],
-    config: ["Config editor", "ontology · read-only"],
-    corpus: ["Correction corpus", "tool-grounded flywheel"],
+    judges: ["Judges", "how each one voted on this case"],
+    config: ["Setup", "what the judges check for"],
+    corpus: ["Cases & corrections", "the cases you loaded + fixes a tool made"],
   };
   const [t1, t2] = titles[tab];
   return (
@@ -525,7 +579,6 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
             <div className="sub">{t2}</div>
           </div>
           <div className="right">
-            <button className="btn btn-ghost" style={{ height: 28, padding: "0 10px" }}><ICN name="copy" size={14} /> Export</button>
             <button className="icon-btn" title={full ? "Exit fullscreen" : "Fullscreen"} onClick={onToggleFull}>
               <ICN name={full ? "minimize" : "expand"} size={16} />
             </button>
@@ -533,18 +586,18 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
           </div>
         </div>
         <div className="art-tabs">
-          {[["case", "Case"], ["report", "Report"], ["judges", "Judge council"], ["config", "Config"], ["corpus", "Corpus"]].map(([k, label]) => (
+          {[["case", "Case"], ["report", "Report"], ["judges", "Judges"], ["config", "Setup"], ["corpus", "Cases"]].map(([k, label]) => (
             <button key={k} className={"art-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
       </div>
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
-          {tab === "case" && <CaseTab agent={agent} />}
+          {tab === "case" && <CaseTab agent={agent} caseId={activeCase} />}
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} />}
-          {tab === "corpus" && <CorpusTab />}
+          {tab === "corpus" && <CorpusTab activeCase={activeCase} onSelectCase={onSelectCase} />}
         </div>
       </div>
     </section>

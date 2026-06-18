@@ -1,26 +1,30 @@
 /* CaseCard.jsx — the inline Case Summary card (CHATBIND-3 / tool-case_summary).
-   show_case emits a { agent } reference; this card SELF-FETCHES GET /v1/case (the
+   show_case emits a { agent, case_id } reference; this card SELF-FETCHES GET /v1/case (the
    reference-carrying pattern, like AgentEditor/JudgeEditor) and renders a summary of the
    SOURCE case the council grades — case_id, the by-construction planted defect, a note/transcript
    snippet — with a "View case ->" that opens the full Case tab. $0/read, no paid path.
 
-   Prop convention (S-BS-19): renderTool spreads part.output as props, so `agent` arrives flat;
-   `onOpenArtifact` is passed as a handler by panes.jsx. */
+   NARR-CHAT-LOOP: `case_id` (from show_case) selects the SPECIFIC ingested case to fetch — without
+   it the card showed the agent's seed regardless of the case asked for (the confident-but-wrong
+   live bug). `null` keeps the agent's own dataset.case_id (back-compat).
+
+   Prop convention (S-BS-19): renderTool spreads part.output as props, so `agent`/`case_id` arrive
+   flat; `onOpenArtifact` is passed as a handler by panes.jsx. */
 import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import { getCase } from "../bff.js";
 
-export default function CaseCard({ agent = "ws0_default", onOpenArtifact } = {}) {
+export default function CaseCard({ agent = "ws0_default", case_id = null, onOpenArtifact } = {}) {
   const [kase, setKase] = useState(null);
   const [err, setErr] = useState(null);
   useEffect(() => {
     let live = true;
-    getCase(agent)
+    getCase(agent, case_id)
       .then((c) => { if (live) setKase(c); })
       .catch((e) => { if (live) setErr(String(e.message || e)); });
     return () => { live = false; };
-  }, [agent]);
+  }, [agent, case_id]);
 
   if (err)
     return <div className="icard"><div className="icard-bd" style={{ color: "var(--accent)" }}>Could not load the case: {err}</div></div>;

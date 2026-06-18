@@ -20,7 +20,7 @@ describe("CaseCard — inline source-case summary", () => {
     });
     const onOpenArtifact = vi.fn();
     render(<CaseCard agent="ws0_default" onOpenArtifact={onOpenArtifact} />);
-    expect(getCase).toHaveBeenCalledWith("ws0_default"); // self-fetches the active agent
+    expect(getCase).toHaveBeenCalledWith("ws0_default", null); // self-fetches the agent's own case
     expect(await screen.findByText("Source case")).toBeInTheDocument();
     expect(screen.getByText("bench_scribe_v1_inject_condition")).toBeInTheDocument();
     expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // the planted defect
@@ -28,6 +28,15 @@ describe("CaseCard — inline source-case summary", () => {
     // NON-VACUOUS: clicking "View case" drives onOpenArtifact("case")
     fireEvent.click(screen.getByText(/View case/));
     expect(onOpenArtifact).toHaveBeenCalledWith("case");
+  });
+
+  it("self-fetches the SPECIFIC case_id show_case opened (not the agent's seed)", async () => {
+    // NARR-CHAT-LOOP: show_case(case_id=X) → the card must fetch X, not the agent's dataset case
+    // (the confident-but-wrong live bug where "open case X" showed the seed).
+    getCase.mockResolvedValue({ case_id: "clinverdict_05_psychology", transcript: "…", expected_safety_flags: [] });
+    render(<CaseCard agent="ws0_default" case_id="clinverdict_05_psychology" onOpenArtifact={() => {}} />);
+    expect(getCase).toHaveBeenCalledWith("ws0_default", "clinverdict_05_psychology");
+    expect(await screen.findByText("clinverdict_05_psychology")).toBeInTheDocument();
   });
 
   it("labels a clean-negative case 'clean' (nothing planted)", async () => {

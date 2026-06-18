@@ -11,10 +11,10 @@ describe("CRUD-1 LeftRail agents switcher", () => {
   it("renders the real agents and switches on click", () => {
     const onSwitchAgent = vi.fn();
     render(<LeftRail {...base} agents={["ws0_default", "eval-1"]} activeAgent="ws0_default" onSwitchAgent={onSwitchAgent} />);
-    expect(screen.getByText("ws0_default")).toBeInTheDocument();
-    expect(screen.getByText("eval-1")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("eval-1"));
-    expect(onSwitchAgent).toHaveBeenCalledWith("eval-1");
+    expect(screen.getByText("Sample evaluation")).toBeInTheDocument(); // friendly label for ws0_default
+    expect(screen.getByText("Evaluation 1")).toBeInTheDocument(); // friendly label for eval-1
+    fireEvent.click(screen.getByText("Evaluation 1"));
+    expect(onSwitchAgent).toHaveBeenCalledWith("eval-1"); // the raw id still drives the switch
   });
 
   it("hides delete for the seed default, shows + fires it for a deletable agent", () => {

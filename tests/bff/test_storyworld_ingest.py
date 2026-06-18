@@ -84,10 +84,12 @@ def _install_fake_storyworld(monkeypatch, detail):
     monkeypatch.setattr("lithrim_bench.verification.StoryWorldAdminClient", FakeClient)
 
 
-def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monkeypatch):
-    """A3: the real-shape fixture → 3 cases DETERMINISTICALLY (no LM / :3031 / generation); per-
-    scene source/finish correct (the content_filtered scene → source:baseline, finish:content_
-    filter); child_name/age + inline PII absent/redacted; session_id present on every case."""
+def test_ingest_llm_calls_projects_finish_model_and_redacts_pii(ws_env, monkeypatch):
+    """A3 (CONN-2): the live-shape fixture → one case per ``llm_calls`` entry DETERMINISTICALLY
+    (no LM / :3031 / generation). The graded artifact is the call's ``response_preview``; the
+    ``finish_reason`` (incl. ``content_filter``) + ``model`` ride the envelope; ``purpose`` maps to
+    ``source``. child_name/age (top-level PII) are structurally dropped + inline PII in a preview is
+    redacted; session_id present on every case."""
     ws_mod, ws = ws_env
     detail = json.loads(_FIXTURE.read_text())
     _install_fake_storyworld(monkeypatch, detail)
@@ -96,7 +98,7 @@ def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monke
     resp = client.post("/v1/connector/storyworld/ingest", json={"limit": 50})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["count"] == 3, body
+    assert body["count"] == 3, body  # 3 llm_calls
     assert body["sessions"] == 1, body
     assert body["errors_trapped"] == 0, body
 
@@ -105,25 +107,34 @@ def test_ingest_real_fields_projects_source_finish_and_redacts_pii(ws_env, monke
     rows = [json.loads(ln) for ln in corpus.read_text().splitlines() if ln.strip()]
     assert len(rows) == 3
 
-    by_source = {}
+    finishes = {}
     for r in rows:
-        # session_id present on every emitted case
         assert r.get("session_id") == "sess_real_001", f"session_id missing/wrong on {r}"
-        # D1 gradeability: §4.1 envelope is complete + unlabeled-by-construction
-        assert r["artifacts"][0]["content"], "empty artifact content"
+        # D1 gradeability: §4.1 envelope complete + unlabeled-by-construction
+        assert r["artifacts"][0]["content"], "empty artifact content"  # the response
         assert r["expected_safety_flags"] == []
         assert r["injection_recipe"] is None
-        by_source.setdefault((r.get("source"), r.get("finish_reason")), 0)
-        by_source[(r.get("source"), r.get("finish_reason"))] += 1
+        # the call's model + purpose(-as-source) ride the envelope
+        assert r.get("model") == "gpt-5", r
+        assert r.get("source") == "enhancement", r
+        # the prompt (the input that produced the response) rides the case context — the I/O pair
+        ctx = json.loads(r["context"])
+        assert ctx.get("prompt"), f"prompt not carried into context on {r['case_id']}"
+        finishes[r.get("finish_reason")] = finishes.get(r.get("finish_reason"), 0) + 1
 
-    # 2 enhanced/stop + 1 baseline/content_filter (the masked fallback the SilentDegradationTool reads)
-    assert by_source.get(("enhanced", "stop")) == 2, by_source
-    assert by_source.get(("baseline", "content_filter")) == 1, by_source
+    # the content_filter signal survives the per-call projection (the gold safety signal)
+    assert finishes.get("stop") == 2, finishes
+    assert finishes.get("content_filter") == 1, finishes
+
+    # the first call's prompt is carried (recognizable phrase) but its inline PII is redacted
+    ctx0 = json.loads(rows[0]["context"])["prompt"]
+    assert "ranger-arrival" in ctx0, ctx0
 
     blob = corpus.read_text()
     assert "Noor Al-Mansoori" not in blob, "child_name leaked into the corpus"
     assert '"age"' not in blob and "child_name" not in blob, "PII key leaked into the envelope"
-    assert _INLINE_PII not in blob, "inline PII (email) was not redacted"
+    # the email appears in BOTH a prompt and a response_preview — redacted in both (prompt + artifact)
+    assert _INLINE_PII not in blob, "inline PII (email) in prompt/response_preview was not redacted"
 
 
 def test_ingest_non_enhanced_session_skips_clean(ws_env, monkeypatch):
