@@ -33,7 +33,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from lithrim_bench.harness.audit import Actor, AuditLog, AuditRecord, Target  # noqa: E402
-from lithrim_bench.harness.collections import PIPELINE_RUNS  # noqa: E402
 from lithrim_bench.harness.config import (  # noqa: E402
     DEFAULT_CONFIG_DB,
     Agent,
@@ -115,6 +114,23 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
     }
 
 
+def _run_sync(coro):
+    """Run an async ProvenanceStore call to completion from EITHER a sync (CLI ``run_eval``)
+    or an async (the BFF / journey tool handlers run inside ``asyncio.run``) context.
+    ``asyncio.run`` raises inside a running loop, so when one is running we complete the
+    coroutine in a worker thread — the persist must finish before run-history reads it (the
+    side-effect can't be silently dropped, which is exactly the PERSIST-2c-2 regression this
+    fixes). PERSIST-2c-2."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 def _persist_run_provenance(
     result: dict,
     agent: Agent,
@@ -141,10 +157,11 @@ def _persist_run_provenance(
     doc["case_id"] = agent.dataset.case_id
     if grade_sig is not None:
         doc["grade_signature"] = grade_sig
-    if collections_db is not None:
-        PIPELINE_RUNS.insert(doc, db_path=collections_db)
-    else:
-        PIPELINE_RUNS.insert(doc)
+    # PERSIST-2c-2: route through the factory (LITHRIM_DB_URL → PG, else SQLite at
+    # collections_db — byte-identical to the prior PIPELINE_RUNS.insert default).
+    from lithrim_bench.harness.backend import provenance_store_for
+
+    _run_sync(provenance_store_for(collections_db).save_blob(doc))
 
 
 def _resolve_from_provenance(
@@ -160,7 +177,7 @@ def _resolve_from_provenance(
     from lithrim_bench.harness.backend import provenance_store_for
 
     store = provenance_store_for(collections_db)  # PERSIST-2c: LITHRIM_DB_URL → PG, else SQLite
-    head = asyncio.run(store.latest_for(agent.name, agent.dataset.case_id))
+    head = _run_sync(store.latest_for(agent.name, agent.dataset.case_id))
     if head is None:
         raise SystemExit(
             f"agent {agent.name!r} has no captured baseline — $0 replay is unavailable "
@@ -209,10 +226,13 @@ def _enrich_run_blob(
     stamp via ``_persist_run_provenance``)."""
     if not (in_process and run_id):
         return
-    if collections_db is not None:
-        blob = PIPELINE_RUNS.get(run_id, db_path=collections_db)
-    else:
-        blob = PIPELINE_RUNS.get(run_id)
+    # PERSIST-2c-2: get→patch→save through the factory (LITHRIM_DB_URL → PG, else SQLite at
+    # collections_db), so the in_process head's addressability stamps reach the SAME backend
+    # the orchestrator saved to (else, under PG, this would read an empty SQLite + no-op).
+    from lithrim_bench.harness.backend import provenance_store_for
+
+    store = provenance_store_for(collections_db)
+    blob = _run_sync(store.find_by_id(run_id))
     if blob is None:
         return
     if withstands_sink:
@@ -222,10 +242,7 @@ def _enrich_run_blob(
     blob.setdefault("agent_id", agent_id)
     blob["case_id"] = case_id
     blob["grade_signature"] = grade_sig
-    if collections_db is not None:
-        PIPELINE_RUNS.insert(blob, db_path=collections_db)
-    else:
-        PIPELINE_RUNS.insert(blob)
+    _run_sync(store.save_blob(blob))
 
 
 def run(

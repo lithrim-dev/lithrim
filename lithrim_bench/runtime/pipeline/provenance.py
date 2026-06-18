@@ -25,6 +25,12 @@ class ProvenanceStore:
     ) -> None:
         return None
 
+    async def save_blob(self, doc: dict) -> None:
+        """Persist an already-built provenance blob DICT (the run_eval persist/enrich helpers
+        carry a dict, not a model) — versioned like :meth:`save`. PERSIST-2c-2: the backend-
+        agnostic blob seam so the grade path routes through the factory, not PIPELINE_RUNS."""
+        return None
+
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
         return None
 
@@ -95,6 +101,17 @@ class SqliteProvenanceStore(ProvenanceStore):
                 extra={"pipeline_run_id": getattr(provenance, "pipeline_run_id", None)},
             )
 
+    async def save_blob(self, doc: dict) -> None:
+        from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
+
+        try:
+            PIPELINE_RUNS.insert(dict(doc), db_path=self._db_path or DEFAULT_COLLECTIONS_DB)
+        except Exception:
+            logger.exception(
+                "pipeline_provenance_blob_write_failed",
+                extra={"pipeline_run_id": (doc or {}).get("pipeline_run_id")},
+            )
+
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
 
@@ -161,13 +178,17 @@ class PostgresProvenanceStore(ProvenanceStore):
     async def save(
         self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
     ) -> None:
-        from psycopg.types.json import Jsonb
-
         doc: dict = provenance.model_dump(mode="json")
         if agent_id is not None:
             doc["agent_id"] = agent_id
         if case_id is not None:
             doc["case_id"] = case_id
+        await self.save_blob(doc)
+
+    async def save_blob(self, doc: dict) -> None:
+        from psycopg.types.json import Jsonb
+
+        doc = dict(doc)
         run_id = str(doc["pipeline_run_id"])
         try:
             with self._connect() as conn:
@@ -203,7 +224,7 @@ class PostgresProvenanceStore(ProvenanceStore):
         except Exception:  # fire-and-forget parity with the SQLite store
             logger.exception(
                 "pipeline_provenance_pg_write_failed",
-                extra={"pipeline_run_id": getattr(provenance, "pipeline_run_id", None)},
+                extra={"pipeline_run_id": run_id},
             )
 
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
