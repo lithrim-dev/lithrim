@@ -1,12 +1,13 @@
-"""Persist a graded+grounded record: fs blob + SQLite document-shim.
+"""Persist a graded+grounded record: SSOT ``reports`` row + fs blob (transition mirror).
 
-S-BS-4 is DECIDED = document shim: the SQLite table is a single JSON text column,
-NOT relational tables, so the store swaps back to Mongo cleanly later (WS-1+). The
-fs blob (``out/ws0/<case_id>.json``) is the human-readable mirror; the SQLite row
-is the queryable index. Both are keyed by ``case_id`` and idempotent — re-running
-the same case overwrites the same key rather than accumulating duplicates.
+PERSIST-3a slice 2: the grade result is now a row in the one SSOT DB (``reports_store``,
+``LITHRIM_DB_URL`` → Postgres else local SQLite), scoped by ``workspace_id`` and carrying the
+record as linked JSON with ``verdict``/``run_id``/``scores`` projected out. The legacy
+``out/<case_id>.json`` blob + the ``ws0.sqlite`` ``records`` doc-shim are kept as a transition
+mirror (dual-write); ``load`` reads the SSOT first, the ``records`` row as fallback.
 
-Stdlib ``sqlite3`` only — no new dependency.
+S-BS-4 (the ``records`` doc-shim): a single JSON text column, kept for back-compat during the
+3a transition. Stdlib ``sqlite3`` for the legacy mirror; the SSOT row routes through the db layer.
 """
 
 from __future__ import annotations
@@ -49,6 +50,20 @@ def persist(
     blob_path = out_dir / f"{case_id}.json"
     blob_path.write_text(json.dumps(record, indent=2, sort_keys=True))
 
+    # PERSIST-3a: the SSOT reports table is the source of truth (one DB selector); workspace_id
+    # is derived from out_dir (``.../<name>/out`` → ``<name>``). Best-effort: a store hiccup never
+    # fails a grade that already wrote its fs blob + the legacy records mirror below.
+    from lithrim_bench.harness.db import workspace_id_of
+
+    try:
+        from lithrim_bench.harness import reports_store
+
+        reports_store.save_report(
+            case_id, record, db_path=db_path, workspace_id=workspace_id_of(out_dir)
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
     created_at = datetime.now(timezone.utc).isoformat()
     payload = json.dumps(record, sort_keys=True)
     conn = sqlite3.connect(db_path)
@@ -67,7 +82,21 @@ def persist(
 
 
 def load(case_id: str, *, db_path: str | Path) -> dict[str, Any] | None:
-    """Read a persisted record back out of the SQLite doc-shim (round-trip aid)."""
+    """Read a persisted record back. PERSIST-3a: the SSOT ``reports`` table first (one DB
+    selector), the legacy ``ws0.sqlite`` ``records`` doc-shim as a transition fallback."""
+    from lithrim_bench.harness.db import workspace_id_of
+
+    try:
+        from lithrim_bench.harness import reports_store
+
+        rec = reports_store.load_report(
+            case_id, db_path=db_path, workspace_id=workspace_id_of(Path(db_path).parent)
+        )
+        if rec is not None:
+            return rec
+    except Exception:  # noqa: BLE001 — a DB hiccup must not hide the legacy records mirror
+        pass
+
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(_SCHEMA)
