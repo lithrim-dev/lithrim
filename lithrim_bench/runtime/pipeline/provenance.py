@@ -116,3 +116,38 @@ class SqliteProvenanceStore(ProvenanceStore):
         replay-from-provenance baseline."""
         versions = await self.list_versions(agent_id, case_id)
         return versions[0] if versions else None
+
+
+class PostgresProvenanceStore(ProvenanceStore):
+    """The managed/VPC-tier ProvenanceStore (PERSIST-2c, plugin ``tier: pro``).
+
+    A PARALLEL impl behind the same ``ProvenanceStore`` Protocol — the S-BS-38 "PG/Aurora
+    drops in behind this same interface" promise realized — persisting the run blob into a
+    Postgres ``pipeline_runs`` (JSONB) + ``pipeline_runs_history`` schema with the SAME
+    versioned copy-on-write semantics as the SQLite tier. ``psycopg`` is imported lazily
+    (the ``[pg]`` extra), so this class is importable on the stdlib core; only USING it
+    needs the driver + a reachable Postgres (``LITHRIM_DB_URL=postgresql://…``).
+
+    Contract-shaped + SQLite-proven: the shared ``run_provenance_contract`` runs the SAME
+    assertions against SQLite (always) and this store (skipped unless a live PG is
+    configured). Honesty bar: this path is not CI-live-verified offline — the gated
+    contract test is its proof.
+    """
+
+    # RED scaffold — GREEN implements the psycopg-backed versioned blob store.
+    def __init__(self, dsn: str) -> None:
+        self._dsn = dsn
+
+    async def save(
+        self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
+    ) -> None:
+        raise NotImplementedError
+
+    async def find_by_id(self, pipeline_run_id: str) -> dict | None:
+        raise NotImplementedError
+
+    async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
+        raise NotImplementedError
+
+    async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
+        raise NotImplementedError
