@@ -786,12 +786,22 @@ def corpus_endpoint() -> dict:
 
 
 def _read_ingested_corpus() -> list[dict]:
-    """The active workspace's INGESTED cases (``ws.out_dir/ingested_cases.jsonl``) — the §4.1
-    envelopes a user dropped via ingest. Empty list when none. (Distinct from the correction
-    corpus served by ``/v1/corpus``.)"""
+    """The active workspace's INGESTED cases — the §4.1 envelopes a user dropped via ingest.
+    PERSIST-3a: the SSOT ``cases`` table is the source of truth (``cases_store``, the one DB
+    selector); the legacy ``ws.out_dir/ingested_cases.jsonl`` is a transition fallback (a corpus
+    ingested before 3a). Empty list when none. (Distinct from the correction corpus served by
+    ``/v1/corpus``.)"""
     ws = workspace.get_active_workspace()
+    try:
+        from lithrim_bench.harness import cases_store
+
+        rows = [r["payload"] for r in cases_store.list_cases(db_path=ws.collections_db)]
+        if rows:
+            return rows
+    except Exception:  # noqa: BLE001 — a DB hiccup must not hide a legacy jsonl corpus
+        pass
     path = ws.out_dir / "ingested_cases.jsonl"
-    rows: list[dict] = []
+    rows = []
     if path.exists():
         for line in path.read_text().splitlines():
             line = line.strip()
@@ -802,6 +812,22 @@ def _read_ingested_corpus() -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return rows
+
+
+def _ssot_upsert_cases(ws, cases: list[dict]) -> None:
+    """Dual-write newly-ingested cases into the SSOT ``cases`` table (PERSIST-3a). The jsonl
+    write stays for the transition; this makes the corpus resolvable from the one DB (and, under
+    ``LITHRIM_DB_URL``, from Postgres). Best-effort: a store hiccup never fails an ingest that
+    already wrote its jsonl + audit row."""
+    try:
+        from lithrim_bench.harness import cases_store
+
+        for c in cases:
+            cid = c.get("case_id")
+            if cid:
+                cases_store.save_case(cid, c, source="ingested", db_path=ws.collections_db)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _ctx_nonempty(value: Any) -> bool:
@@ -2485,6 +2511,7 @@ def _build_tool_context(
             "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
             + ("\n" if existing else "")
         )
+        _ssot_upsert_cases(ws, cases)  # PERSIST-3a: the SSOT cases table (one DB selector)
 
         # ONE AuditRecord — the audit IS the product (§2B). "ingested N cases via pinned mapping M".
         actor_resolved = _resolve_actor(x_actor, actor)
@@ -2741,6 +2768,7 @@ def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
             "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
             + ("\n" if existing else "")
         )
+        _ssot_upsert_cases(ws, list(union.values()))  # PERSIST-3a: the SSOT cases table
 
     # ONE batch-summary AuditRecord (§8.4) — the ONLY audit on this path: NARR-6c writes the prepped
     # records directly via _to_envelope (deterministic direct-write, no LLM / no :3031 / no per-session

@@ -99,8 +99,10 @@ def expected_block(case: dict[str, Any]) -> bool:
 
 
 def _load_from_workspace_corpus(case_id: str) -> dict[str, Any] | None:
-    """S-BS-NARR2-1 bridge: scan the ACTIVE workspace's ingested corpus
-    (``ws.out_dir/ingested_cases.jsonl``, ``jute_extractor._to_envelope`` shape) for ``case_id``.
+    """Resolve ``case_id`` from the ACTIVE workspace's ingested corpus. PERSIST-3a: the SSOT
+    ``cases`` table is the source of truth (``cases_store``, one DB selector), and the legacy
+    ``ws.out_dir/ingested_cases.jsonl`` is a transition fallback (a corpus ingested before 3a, or
+    a dual-written file). DB first, file second.
 
     Lazy in-fn import of :mod:`lithrim_bench.harness.workspace` (same core layer; the import is
     guarded so a bare-CE / no-workspace context degrades to ``None`` instead of raising). This is
@@ -112,9 +114,20 @@ def _load_from_workspace_corpus(case_id: str) -> dict[str, Any] | None:
     except ImportError:
         return None
     try:
-        corpus = workspace.get_active_workspace().out_dir / "ingested_cases.jsonl"
+        ws = workspace.get_active_workspace()
     except Exception:  # noqa: BLE001 — a missing/unreadable workspace must not break resolution
         return None
+
+    try:
+        from lithrim_bench.harness import cases_store
+
+        row = cases_store.load_case_row(case_id, db_path=ws.collections_db)
+        if row is not None:
+            return row
+    except Exception:  # noqa: BLE001 — the DB read must not break the jsonl fallback
+        pass
+
+    corpus = ws.out_dir / "ingested_cases.jsonl"
     if not corpus.exists():
         return None
     for line in corpus.open():

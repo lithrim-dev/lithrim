@@ -33,6 +33,19 @@ def config_db_url(local_path: str | Path | None = None) -> str:
     return resolve_db_url(env or local_path)
 
 
+def workspace_id_of(local_path: str | Path | None = None) -> str:
+    """The ``workspace_id`` scope derived from a per-workspace db path (PERSIST-3a). A workspace
+    is a directory ``<WORKSPACES_DIR>/<name>/`` holding ``config.sqlite`` / ``collections.sqlite``
+    / ``out/`` — all DIRECT children of ``<name>/`` — so the parent dir name IS the scope. Under a
+    single shared DB (``LITHRIM_DB_URL`` set, the path otherwise ignored) this is what keeps one
+    workspace's rows isolated from another's; a non-workspace path (the default global config db,
+    a tmp test path) yields its own stable parent name. ``None`` → ``'default'``. Pure path op —
+    no import of ``workspace`` (avoids the config→db→workspace cycle)."""
+    if local_path is None:
+        return "default"
+    return Path(local_path).parent.name or "default"
+
+
 class DbConn:
     """A thin uniform wrapper over a ``sqlite3`` or ``psycopg`` connection.
 
