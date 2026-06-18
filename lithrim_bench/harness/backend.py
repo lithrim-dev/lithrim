@@ -117,3 +117,12 @@ def make_provenance_store(url: str | Path | None = None) -> Any:
     from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
 
     return SqliteProvenanceStore(db_path=sqlite_path_of(resolved))
+
+
+def provenance_store_for(local_sqlite_path: str | Path | None = None) -> Any:
+    """The grade path's store, with the managed-tier precedence: ``LITHRIM_DB_URL`` (the
+    Postgres tier) when set, else the caller's local SQLite path (the default — byte-identical
+    to constructing ``SqliteProvenanceStore`` directly). The single call ``run_eval`` / the BFF
+    use, so pointing the grade at Postgres is one env var, zero code change."""
+    env = os.environ.get("LITHRIM_DB_URL", "").strip()
+    return make_provenance_store(env or local_sqlite_path)

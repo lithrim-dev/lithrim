@@ -81,6 +81,18 @@ def test_factory_sqlite_default_and_postgres_construction(tmp_path, monkeypatch)
     assert isinstance(make_provenance_store("postgresql://u@h/db"), PostgresProvenanceStore)
 
 
+def test_provenance_store_for_precedence(tmp_path, monkeypatch):
+    """The grade-path helper: LITHRIM_DB_URL (managed PG) wins, else the local SQLite path
+    (byte-identical to before — the default grade path is unchanged)."""
+    from lithrim_bench.harness.backend import provenance_store_for
+
+    monkeypatch.delenv("LITHRIM_BENCH_LICENSE", raising=False)
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)
+    assert isinstance(provenance_store_for(tmp_path / "p.sqlite"), SqliteProvenanceStore)
+    monkeypatch.setenv("LITHRIM_DB_URL", "postgresql://u@h/db")
+    assert isinstance(provenance_store_for(tmp_path / "p.sqlite"), PostgresProvenanceStore)
+
+
 # ── A2 (dialect) ──────────────────────────────────────────────────────────────
 
 

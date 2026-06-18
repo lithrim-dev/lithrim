@@ -157,9 +157,9 @@ def _resolve_from_provenance(
     head is STALE under the drift-aware freshness guard — the config changed since it was
     graded, so serving the cached verdict would be a manufactured consistency (re-grade to
     see the new verdict). Pure read above the frozen seam."""
-    from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
+    from lithrim_bench.harness.backend import provenance_store_for
 
-    store = SqliteProvenanceStore(db_path=collections_db)
+    store = provenance_store_for(collections_db)  # PERSIST-2c: LITHRIM_DB_URL → PG, else SQLite
     head = asyncio.run(store.latest_for(agent.name, agent.dataset.case_id))
     if head is None:
         raise SystemExit(
@@ -318,7 +318,7 @@ def run(
         # Mongo). The store is lazily imported so the default-deps replay/live paths
         # above stay import-light; persistence is fire-and-forget behind ``save``, so
         # the record built below is byte-identical with the store on or off (A3).
-        from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
+        from lithrim_bench.harness.backend import provenance_store_for
 
         sys.stderr.write(
             "WARNING: --in-process runs the in-process v2 council (real paid Azure calls).\n"
@@ -363,7 +363,9 @@ def run(
         result = grade_inprocess(
             case,
             semantic_stage=semantic_stage,
-            provenance_store=SqliteProvenanceStore(db_path=collections_db),
+            # PERSIST-2c: LITHRIM_DB_URL → the managed Postgres tier, else the local SQLite
+            # path (byte-identical to before). Pointing the grade at PG is one env var.
+            provenance_store=provenance_store_for(collections_db),
         )
         grade_path = "in_process"
     elif live:
