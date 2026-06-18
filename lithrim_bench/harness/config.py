@@ -226,11 +226,14 @@ def save_agent(
         select_before_params=(agent.name,),
         upsert_sql=(
             "INSERT INTO agents (name, json, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(name) DO UPDATE SET json=excluded.json, created_at=excluded.created_at"
+            # PERSIST-2b: first-write-wins created_at — the live row keeps its authored
+            # timestamp; the prior version is preserved in agents_history (version_spec).
+            "ON CONFLICT(name) DO UPDATE SET json=excluded.json"
         ),
         upsert_params=(agent.name, payload, created_at),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
+        version_spec={"table": "agents", "id_col": "name", "id_val": agent.name},
     )
     return str(db_path)
 
@@ -275,6 +278,7 @@ def delete_agent(
         delete_params=(name,),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
+        version_spec={"table": "agents", "id_col": "name", "id_val": name},
     )
 
 

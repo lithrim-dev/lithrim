@@ -186,6 +186,7 @@ def upsert_with_audit(
     upsert_params: tuple[Any, ...],
     record_factory: Callable[[dict[str, Any] | None], AuditRecord] | None = None,
     audit_log: AuditLog | None = None,
+    version_spec: dict[str, str] | None = None,
 ) -> None:
     """Upsert one config-plane doc-shim row and (optionally) its immutable
     :class:`AuditRecord` in ONE connection / ONE transaction (monitor N4).
@@ -198,6 +199,13 @@ def upsert_with_audit(
     the prior row is read inside the txn, ``record_factory(before)`` builds the §2B
     record (so the caller owns the before→after diff + the action-typed ``why``), and
     the upsert + the audit INSERT commit together — no config write escapes a record.
+
+    PERSIST-2b: when ``version_spec`` (``{table, id_col, id_val}``) is given the prior
+    row is archived into ``{table}_history`` (copy-on-write) inside the SAME txn —
+    INDEPENDENT of ``audit_log`` (so seed/un-attributed writes version too). The caller's
+    upsert SQL drops the ``created_at`` re-stamp, so the live row keeps first-write
+    ``created_at`` and the prior is preserved in the shadow (the *prove-what-the-config-was*
+    object-version timeline; the ledger stays the why/who change-stream).
     """
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +216,10 @@ def upsert_with_audit(
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()
             before = json.loads(row[0]) if row is not None else None
+        if version_spec is not None:
+            from lithrim_bench.harness.versioning import archive_prior
+
+            archive_prior(conn, archived_at=now_iso(), **version_spec)
         conn.execute(upsert_sql, upsert_params)
         if audit_log is not None and record_factory is not None:
             audit_log.record(record_factory(before), conn=conn)
@@ -226,6 +238,7 @@ def delete_with_audit(
     delete_params: tuple[Any, ...],
     record_factory: Callable[[dict[str, Any]], AuditRecord] | None = None,
     audit_log: AuditLog | None = None,
+    version_spec: dict[str, str] | None = None,
 ) -> bool:
     """Delete one config-plane doc-shim row and (optionally) its immutable delete
     :class:`AuditRecord` in ONE connection / ONE transaction — the removal mirror of
@@ -251,6 +264,12 @@ def delete_with_audit(
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()
             before = json.loads(row[0]) if row is not None else None
+        if version_spec is not None:
+            # PERSIST-2b: archive the final state before removal, so the lifecycle is fully
+            # versioned (the deleted object's last version is recoverable from the shadow).
+            from lithrim_bench.harness.versioning import archive_prior
+
+            archive_prior(conn, archived_at=now_iso(), **version_spec)
         cur = conn.execute(delete_sql, delete_params)
         removed = cur.rowcount > 0
         if audit_log is not None and record_factory is not None and before is not None:

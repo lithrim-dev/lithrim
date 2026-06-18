@@ -108,11 +108,13 @@ def save_judge(
         select_before_params=(jc.role,),
         upsert_sql=(
             "INSERT INTO judges (role, json, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(role) DO UPDATE SET json=excluded.json, created_at=excluded.created_at"
+            # PERSIST-2b: first-write-wins created_at; the prior version → judges_history.
+            "ON CONFLICT(role) DO UPDATE SET json=excluded.json"
         ),
         upsert_params=(jc.role, payload, created_at),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
+        version_spec={"table": "judges", "id_col": "role", "id_val": jc.role},
     )
     return str(db_path)
 
@@ -159,6 +161,7 @@ def delete_judge(
         delete_params=(role,),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
+        version_spec={"table": "judges", "id_col": "role", "id_val": role},
     )
 
 
