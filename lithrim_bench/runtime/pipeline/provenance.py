@@ -134,20 +134,98 @@ class PostgresProvenanceStore(ProvenanceStore):
     contract test is its proof.
     """
 
-    # RED scaffold — GREEN implements the psycopg-backed versioned blob store.
+    # The Postgres schema (idempotent self-provision, mirroring the SQLite doc-shim posture;
+    # yoyo migrations are the managed-tier schema source, this is the defensive fallback).
+    # ``ins_seq`` gives a monotonic insertion order (the analogue of SQLite ``rowid``) for the
+    # newest-first lineage query; ``created_at`` is first-write-wins (kept on UPDATE).
+    _SCHEMA: tuple[str, ...] = (
+        "CREATE TABLE IF NOT EXISTS pipeline_runs ("
+        " id TEXT PRIMARY KEY, org_id TEXT, agent_id TEXT, case_id TEXT,"
+        " doc JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+        " ins_seq BIGSERIAL)",
+        "CREATE TABLE IF NOT EXISTS pipeline_runs_history ("
+        " hist_id BIGSERIAL PRIMARY KEY, original_id TEXT NOT NULL, txnid TEXT, seq INT,"
+        " doc JSONB NOT NULL, created_at TIMESTAMPTZ, archived_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+        "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_lineage ON pipeline_runs(agent_id, case_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_history_orig ON pipeline_runs_history(original_id)",
+    )
+
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
+
+    def _connect(self):
+        import psycopg  # lazy — the [pg] extra; never imported by the stdlib core
+
+        return psycopg.connect(self._dsn)
 
     async def save(
         self, provenance: Any, *, agent_id: str | None = None, case_id: str | None = None
     ) -> None:
-        raise NotImplementedError
+        from psycopg.types.json import Jsonb
+
+        doc: dict = provenance.model_dump(mode="json")
+        if agent_id is not None:
+            doc["agent_id"] = agent_id
+        if case_id is not None:
+            doc["case_id"] = case_id
+        run_id = str(doc["pipeline_run_id"])
+        try:
+            with self._connect() as conn:
+                for stmt in self._SCHEMA:
+                    conn.execute(stmt)
+                prior = conn.execute(
+                    "SELECT created_at, doc FROM pipeline_runs WHERE id = %s", (run_id,)
+                ).fetchone()
+                if prior is not None:
+                    seq = conn.execute(
+                        "SELECT count(*) FROM pipeline_runs_history WHERE original_id = %s",
+                        (run_id,),
+                    ).fetchone()[0] + 1
+                    conn.execute(
+                        "INSERT INTO pipeline_runs_history "
+                        "(original_id, txnid, seq, doc, created_at) VALUES (%s, %s, %s, %s, %s)",
+                        (run_id, f"{run_id}#{seq}", seq, Jsonb(prior[1]), prior[0]),
+                    )
+                    # first-write-wins: keep created_at, update the doc + the lineage columns
+                    conn.execute(
+                        "UPDATE pipeline_runs SET doc=%s, org_id=%s, agent_id=%s, case_id=%s "
+                        "WHERE id=%s",
+                        (Jsonb(doc), doc.get("org_id"), doc.get("agent_id"), doc.get("case_id"),
+                         run_id),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO pipeline_runs (id, org_id, agent_id, case_id, doc) "
+                        "VALUES (%s, %s, %s, %s, %s)",
+                        (run_id, doc.get("org_id"), doc.get("agent_id"), doc.get("case_id"),
+                         Jsonb(doc)),
+                    )
+        except Exception:  # fire-and-forget parity with the SQLite store
+            logger.exception(
+                "pipeline_provenance_pg_write_failed",
+                extra={"pipeline_run_id": getattr(provenance, "pipeline_run_id", None)},
+            )
 
     async def find_by_id(self, pipeline_run_id: str) -> dict | None:
-        raise NotImplementedError
+        with self._connect() as conn:
+            for stmt in self._SCHEMA:
+                conn.execute(stmt)
+            row = conn.execute(
+                "SELECT doc FROM pipeline_runs WHERE id = %s", (pipeline_run_id,)
+            ).fetchone()
+        return row[0] if row else None  # psycopg returns JSONB already parsed
 
     async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
-        raise NotImplementedError
+        with self._connect() as conn:
+            for stmt in self._SCHEMA:
+                conn.execute(stmt)
+            rows = conn.execute(
+                "SELECT doc FROM pipeline_runs WHERE agent_id = %s AND case_id = %s "
+                "ORDER BY ins_seq DESC",
+                (agent_id, case_id),
+            ).fetchall()
+        return [r[0] for r in rows]
 
     async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
-        raise NotImplementedError
+        versions = await self.list_versions(agent_id, case_id)
+        return versions[0] if versions else None
