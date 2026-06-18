@@ -21,6 +21,7 @@ opts into a real, paid ``:8002 /v1/pipeline/evaluate`` call and is OFF by defaul
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from collections.abc import Sequence
@@ -51,6 +52,11 @@ from lithrim_bench.harness.grounding_check import audit_grounding_checks  # noqa
 from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
+from lithrim_bench.harness.replay import (  # noqa: E402
+    grade_signature,
+    is_fresh,
+    provenance_to_result,
+)
 from lithrim_bench.harness.report import calibration, composite  # noqa: E402
 from lithrim_bench.picklist import (  # noqa: E402
     expected_block,
@@ -110,55 +116,98 @@ def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, 
 
 
 def _persist_run_provenance(
-    result: dict, agent: Agent, *, collections_db: str | Path | None = None
+    result: dict,
+    agent: Agent,
+    *,
+    grade_sig: str | None = None,
+    collections_db: str | Path | None = None,
 ) -> None:
     """Persist a replay/live run's PipelineProvenance blob to ``PIPELINE_RUNS`` so the
     run is auditable + listed in run-history (S-BS-52). ``agent_id`` is backfilled from
     the eval-profile (the captured baseline carries no agent_id). No-op when the result
     carries no ``pipeline_run_id``. Idempotent on ``pipeline_run_id`` (the doc-shim
     upserts): deterministic replay reuses the baseline's fixed id, so re-running replay
-    upserts ONE row per baseline rather than one-per-invocation — by design, not a bug."""
+    upserts ONE row per baseline rather than one-per-invocation — by design, not a bug.
+
+    PERSIST-2a: also stamps ``case_id`` (addressable by ``(agent, case_id)``) and the
+    ``grade_signature`` (freshness), so the replay/live head is resolvable by
+    replay-from-provenance — exactly how ``agent_id`` already rides (an extra doc field,
+    NOT a ``PipelineProvenance`` model edit, NOT a projection column)."""
     prov = (result or {}).get("provenance") or {}
     if not prov.get("pipeline_run_id"):
         return
     doc = dict(prov)
     doc.setdefault("agent_id", agent.name)
+    doc["case_id"] = agent.dataset.case_id
+    if grade_sig is not None:
+        doc["grade_signature"] = grade_sig
     if collections_db is not None:
         PIPELINE_RUNS.insert(doc, db_path=collections_db)
     else:
         PIPELINE_RUNS.insert(doc)
 
 
-def _embed_withstands_in_blob(
+def _resolve_from_provenance(
+    agent: Agent, grade_sig: str, *, collections_db: str | Path | None = None
+) -> dict:
+    """PERSIST-2a replay-from-provenance: resolve the persisted HEAD for ``(agent, case_id)``
+    as the $0 replay baseline (the blob the prior authorized grade wrote IS the baseline).
+
+    Raises ``SystemExit`` (the BFF maps it -> 400) when the store has no head, or when the
+    head is STALE under the drift-aware freshness guard — the config changed since it was
+    graded, so serving the cached verdict would be a manufactured consistency (re-grade to
+    see the new verdict). Pure read above the frozen seam."""
+    from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore
+
+    store = SqliteProvenanceStore(db_path=collections_db)
+    head = asyncio.run(store.latest_for(agent.name, agent.dataset.case_id))
+    if head is None:
+        raise SystemExit(
+            f"agent {agent.name!r} has no captured baseline — $0 replay is unavailable "
+            f"for imported/live-only cases; run it live or in_process instead."
+        )
+    if not is_fresh(head, grade_sig):
+        raise SystemExit(
+            f"agent {agent.name!r}: the config changed since case {agent.dataset.case_id!r} "
+            f"was last graded — re-grade (run it live or in_process) to see the new verdict."
+        )
+    return provenance_to_result(head)
+
+
+def _enrich_run_blob(
     run_id: str | None,
     withstands_sink: list[Any],
     *,
     in_process: bool,
+    case_id: str,
+    agent_id: str,
+    grade_sig: str,
     collections_db: str | Path | None = None,
 ) -> None:
     """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
     blob (stream-2, ``GET /v1/runs/{id}/audit``) — not just the ``AuditLog``/config_audit
-    stream-1 emitted above.
+    stream-1 emitted above — AND (PERSIST-2a) stamp the blob's ``(agent, case_id)``
+    addressability + freshness ``grade_signature``.
 
     The in_process orchestrator already saved the ``PipelineProvenance`` blob
     fire-and-forget (``grade.py`` → ``SqliteProvenanceStore.save``), and ``run_eval`` has
-    no pre-save handle (``grade.py:162-170``). So we patch it POST-save:
-    ``get(run_id)`` → embed ``withstands_decisions`` → re-``insert`` (idempotent upsert on
-    ``pipeline_run_id``). This lives entirely ABOVE the frozen consensus — no
-    ``_apply_consensus`` edit, no ``PipelineProvenance``-model edit — and the returned
-    ``result`` dict is untouched (the byte-identical A3 contract).
+    no pre-save handle (``grade.py``). So we patch it POST-save: ``get(run_id)`` →
+    patch (``withstands_decisions`` + ``agent_id``/``case_id``/``grade_signature``) →
+    re-``insert``. This lives entirely ABOVE the frozen consensus — no ``_apply_consensus``
+    edit, no ``PipelineProvenance``-model edit — and the returned ``result`` dict is
+    untouched (the byte-identical A6 contract).
 
-    The re-insert reads the FULL stored doc back, so the row id (``pipeline_run_id``) and
-    fk (``org_id``) are preserved by construction (``collections.py:63-65``). NOTE: the
-    upsert re-stamps ``created_at`` (``collections.py:67/73-74``) — S-BS-68-adjacent and
-    benign here (a 2nd write to the SAME row, same ``run`` call, ms apart → newest-first
-    ordering unchanged; the provenance's own timestamp in the payload is preserved). The
-    S-BS-68 first-write-wins fix is a separate, blob-tier-scoped pass — not this cycle.
+    PERSIST-2a: this same-id re-insert now exercises the versioned copy-on-write — the
+    orchestrator's bare blob = v1 (archived into ``pipeline_runs_history``), the enriched
+    blob = the head, addressable + freshness-signed for replay-from-provenance. The S-BS-68
+    re-stamp concern the prior note flagged is RESOLVED here: ``versioned`` insert preserves
+    the live row's first-write ``created_at``.
 
-    Only the authored in_process path runs the gate, so ``withstands_sink`` is empty
-    elsewhere; the guard makes that explicit + a no-op when there is nothing to embed.
-    """
-    if not (in_process and run_id and withstands_sink):
+    Runs for any in_process grade (to stamp addressability) even when ``withstands_sink`` is
+    empty (the gate only populates it on the authored trio); the withstands patch is guarded
+    so an empty sink leaves that field absent. No-op off the in_process path (replay/live
+    stamp via ``_persist_run_provenance``)."""
+    if not (in_process and run_id):
         return
     if collections_db is not None:
         blob = PIPELINE_RUNS.get(run_id, db_path=collections_db)
@@ -166,7 +215,13 @@ def _embed_withstands_in_blob(
         blob = PIPELINE_RUNS.get(run_id)
     if blob is None:
         return
-    blob["withstands_decisions"] = [{"role": d.role, **d.to_audit_why()} for d in withstands_sink]
+    if withstands_sink:
+        blob["withstands_decisions"] = [
+            {"role": d.role, **d.to_audit_why()} for d in withstands_sink
+        ]
+    blob.setdefault("agent_id", agent_id)
+    blob["case_id"] = case_id
+    blob["grade_signature"] = grade_sig
     if collections_db is not None:
         PIPELINE_RUNS.insert(blob, db_path=collections_db)
     else:
@@ -229,10 +284,28 @@ def run(
             f"ERROR: case {agent.dataset.case_id!r} not found in {agent.dataset.source}"
         )
 
+    # PERSIST-2a: the grade signature — a stable hash of the grade-DETERMINING config
+    # (ontology + the AUTHORED, pre-default ``assignments``/``models`` + ``council_config``).
+    # Computed HERE, before the in_process branch fills the full-lens assignments default, so
+    # grade-time and replay-resolve-time hash the same authored inputs (the full-lens default
+    # is ontology-derived, already in the hash). Stamped on the persisted head; recomputed at
+    # replay-resolve for the drift-aware freshness guard.
+    ontology_doc = json.loads(ontology_src.read_text())
+    grade_sig = grade_signature(
+        ontology_doc,
+        assignments=assignments,
+        models=models,
+        council_config=agent.eval_profile.council_config or {},
+    )
+
     # UAP-3b: the authored stage's withstands-gate appends its per-judge decisions
     # here; empty on the replay/live paths (the gate runs only on the authored
     # in_process trio).
     withstands_sink: list[Any] = []
+    # PERSIST-2a: True only when the replay baseline was RESOLVED from the persisted head
+    # (replay-from-provenance) — the head is already the persisted blob, so we skip the
+    # redundant re-persist below.
+    from_provenance = False
 
     if in_process:
         # WS-6c-AGENTIC grade-wire: score the case through the in-process v2 council
@@ -301,19 +374,19 @@ def run(
         # is the S-BS-6 disposition from the eval-profile. Both are additive —
         # absent => exactly the WS-0/WS-1 body.
         council_config = agent.eval_profile.council_config or None
-        ontology_payload = json.loads(ontology_src.read_text())
-        result = grade_live(case, council_config=council_config, ontology=ontology_payload)
+        result = grade_live(case, council_config=council_config, ontology=ontology_doc)
         grade_path = "live"
     else:
         if agent.dataset.baseline is None:
-            # Imported/live-only agents carry no captured baseline, so a $0 replay has
-            # nothing to read. Fail with a clear message (the BFF maps SystemExit -> 400)
-            # instead of Path(None) -> TypeError -> 500 (S-BS-108).
-            raise SystemExit(
-                f"agent {agent.name!r} has no captured baseline — $0 replay is unavailable "
-                f"for imported/live-only cases; run it live or in_process instead."
-            )
-        result = grade_replay(case, agent.baseline_abspath())
+            # PERSIST-2a: no committed baseline fixture, but the persisted head IS the
+            # baseline — resolve replay-from-provenance ($0). The drift-aware freshness guard
+            # refuses a stale head (config changed since it was graded); only when the store
+            # has nothing do we raise the honest "run it live/in_process" error (the BFF maps
+            # SystemExit -> 400, not Path(None) -> 500 / S-BS-108).
+            result = _resolve_from_provenance(agent, grade_sig, collections_db=collections_db)
+            from_provenance = True
+        else:
+            result = grade_replay(case, agent.baseline_abspath())
         grade_path = "replay"
 
     # S-BS-52: replay + live runs persist their provenance blob too, so every run is
@@ -322,8 +395,10 @@ def run(
     # ``result["provenance"]`` (pipeline_run_id/verdict/stage_results/...), the exact
     # doc shape ``/v1/runs/{id}/audit`` reads. in_process already persisted via the
     # orchestrator's SqliteProvenanceStore save seam, so skip it here (no double write).
-    if grade_path != "in_process":
-        _persist_run_provenance(result, agent, collections_db=collections_db)
+    # PERSIST-2a: a replay RESOLVED from the persisted head is already the stored blob, so
+    # re-persisting it would only churn a duplicate history version — skip it.
+    if grade_path != "in_process" and not from_provenance:
+        _persist_run_provenance(result, agent, grade_sig=grade_sig, collections_db=collections_db)
 
     grounded = ground(result, case, ontology=ontology)
     comp = composite(grounded)
@@ -363,7 +438,7 @@ def run(
     # "corrected" decision flipped it (action flip). The AuditRecord lands in the
     # immutable config_audit substrate (the universal §2B record carries run_id /
     # case_id / actor.type=critique). UAP-3b-2 / S-BS-72: the same ruling is ALSO
-    # embedded into the run-PROVENANCE blob below (``_embed_withstands_in_blob``), so
+    # embedded into the run-PROVENANCE blob below (``_enrich_run_blob``), so
     # ``GET /v1/runs/{id}/audit`` (stream-2) carries it, not just ``/v1/audit`` (stream-1).
     run_id = (result.get("provenance") or {}).get("pipeline_run_id")
     case_id = case.get("case_id") or agent.dataset.case_id
@@ -393,8 +468,14 @@ def run(
             emit(wrec)
             corrections.append(wrec)
 
-    _embed_withstands_in_blob(
-        run_id, withstands_sink, in_process=in_process, collections_db=collections_db
+    _enrich_run_blob(
+        run_id,
+        withstands_sink,
+        in_process=in_process,
+        case_id=agent.dataset.case_id,
+        agent_id=agent.name,
+        grade_sig=grade_sig,
+        collections_db=collections_db,
     )
 
     # UAP-3b-2 (the deferred UAP-3b A6): the post-consensus GroundingChecks declared in
