@@ -1,0 +1,80 @@
+{
+  "session_id": "session-bench-salvage-phasePERSIST-2b-2026-06-18",
+  "stream": "bench-salvage",
+  "phase": "PERSIST-2b",
+  "driver_bundle_id": "bench-salvage-phasePERSIST-2b-config-object-versioning-driver",
+  "started_at": "2026-06-18T19:00:00Z",
+  "ended_at": "2026-06-18T20:10:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-18T19:20:00Z",
+    "user_approved_at": "2026-06-18T19:25:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Mechanism decision: owner chose the etlp-faithful _history shadow (Option B) over a read-API-over-the-ledger projection (Option A), even though the config_audit ledger already stores full before/after snapshots — for mechanism symmetry with 2a + the PG-adapter (2c) shape + capturing un-audited (seed) versions.",
+        "evidence": "AskUserQuestion '2b mechanism' → 'etlp-faithful _history shadow'",
+        "decided_at": "2026-06-18T19:25:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Ontology is file-backed (PUT /v1/ontology writes a working-copy + a target.type='ontology' audit record) — it has NO table to shadow, so its _history is the ledger projection (ledger_history). agent/judge (table-backed) get the shadow. The asymmetry is inherent to the storage, surfaced + documented.",
+        "evidence": "apps/bff/app.py put_ontology_endpoint:1616-1625 (the ontology audit record)",
+        "decided_at": "2026-06-18T19:25:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {"hash": "a4378df", "repo": "lithrim-bench", "title": "test(persist): config-object _history shadow + read API — red", "summary": "A1–A5 tests + the versioning.py stub; RED 5 failed / 1 passed (the acc4973 invariant guard)."},
+    {"hash": "8e762c6", "repo": "lithrim-bench", "title": "feat(persist): shared versioning primitive (archive + list_versions/version_at + ledger projection)", "summary": "harness/versioning.py — the etlp copy-on-write + the shadow/ledger readers (stdlib)."},
+    {"hash": "78b362f", "repo": "lithrim-bench", "title": "feat(persist): version agent/judge config writes into _history (first-write-wins created_at)", "summary": "upsert_with_audit/delete_with_audit gain version_spec; save_agent/save_judge drop the created_at re-stamp + archive the prior."},
+    {"hash": "607f933", "repo": "lithrim-bench", "title": "feat(persist): the _history read API (agent/judge shadow + ontology ledger projection)", "summary": "6 BFF endpoints: agent/judge/ontology _history[/{version}]."}
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare python -m pytest tests/test_persist2b.py -q",
+    "red_evidence": "5 failed, 1 passed — failing for the right reason (no shadow → history empty; list_versions/version_at/ledger_history stubs return []/None; the _history endpoints 404). The 1 pass is the acc4973 consensus-seam invariant guard.",
+    "green_command": "same pytest + ruff check (touched files); then full suite tests+lithrim_bench",
+    "green_evidence": "6 passed; ruff: All checks passed!; full suite 38 failed / N passed — the 38 byte-identical to the pre-2b baseline (diff empty)."
+  },
+
+  "acceptance": [
+    {"criterion": "A1 — agent/judge shadow + first-write-wins", "test": "tests/test_persist2b.py::test_config_upsert_versions_into_history", "verdict": "PASS", "evidence": "2nd save archives the prior into {agents,judges}_history with created_at PRESERVED; the live row keeps first-write created_at; seed (un-audited) writes version too."},
+    {"criterion": "A2 — read API / addressability", "test": "::test_list_versions_and_version_at", "verdict": "PASS", "evidence": "list_versions → [current(v3), superseded(v2), superseded(v1)] newest-first; version_at(1)=m1, version_at(3)=head, version_at(99)=None; unknown id → []."},
+    {"criterion": "A3 — ontology via the ledger", "test": "::test_ontology_history_from_the_ledger", "verdict": "PASS", "evidence": "ledger_history projects the config_audit after-snapshots newest-first (o2,o1) + carries actor/action; unknown target → []."},
+    {"criterion": "A4 — BFF endpoints", "test": "::test_history_endpoints", "verdict": "PASS", "evidence": "GET /v1/{agent,judges,ontology}/…/_history[/{version}] return the timelines; current==head; point-lookup works; 404 on unknown id (debuglithrim + fastapi)."},
+    {"criterion": "A5 — frozen / scope", "test": "::test_frozen_and_scope + ::test_consensus_seam_is_zero_delta_vs_acc4973", "verdict": "PASS", "evidence": "2a's PIPELINE_RUNS.versioned=True + the four config collections versioned=False untouched; save_agent w/o audit_log still works + now versions; the audit ledger change-stream unchanged (no record on un-audited writes); assert_compliance_council_carveouts_only(acc4973) green."}
+  ],
+
+  "diagnostic_stats": {
+    "mechanism": "agent/judge = {table}_history copy-on-write shadow (etlp pattern, OWNER-CHOSEN); ontology = config_audit ledger projection (file-backed, no table)",
+    "created_at_change": "config tables now first-write-wins (dropped ON CONFLICT created_at re-stamp) — CONFIRMED safe (created_at write-only, never read for ordering/display)",
+    "full_suite": "38 failed (BYTE-IDENTICAL to the pre-2b baseline; revert-my-surface diff EMPTY → ZERO regressions) + the new 6 A1–A5 green",
+    "ruff": "All checks passed (touched files)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-PERSIST-2B-UNIFY",
+      "title": "Two copy-on-write implementations coexist (2a's DocShimCollection.insert + 2b's versioning.py)",
+      "severity": "low",
+      "fix_location": "lithrim_bench/harness/collections.py (refactor onto versioning.archive_prior)",
+      "impact": "2a's PIPELINE_RUNS versioning is inline in DocShimCollection.insert; 2b extracted the same mechanism into versioning.py. They were deliberately NOT unified this cycle (re-touching 2a's critic-passed code was out of scope). A follow-on can point DocShimCollection at versioning.archive_prior for the 'one tested place' ideal (Decision 2). Low — both are tested + behaviour-pinned.",
+      "confidence": "CONFIRMED",
+      "evidence": "collections.py insert() (2a, versioned branch) vs versioning.py archive_prior (2b) — same snapshot-then-write shape."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "PERSIST-2b landed CLEAN (ROUTINE cycle, monitor inline critique). The config plane's table-backed objects (agent/judge) now have an etlp-faithful _history copy-on-write shadow wired into the single upsert_with_audit chokepoint (first-write-wins created_at, versions on seed + audited writes alike); the file-backed ontology's history is the existing append-only config_audit ledger projection. A uniform _history read API (6 BFF endpoints + harness primitives) delivers the 'prove what the config WAS' half of the §2B moat, complementing the ledger's why/who change-stream. All A1–A5 green, ruff clean, no new dep, the _apply_consensus moat 0-delta vs acc4973, and the full suite is byte-identically the 38 pre-existing pack-drift failures (revert-my-surface diff EMPTY → zero regressions). Opened S-BS-PERSIST-2B-UNIFY (low — unify the two copy-on-write impls in a follow-on). Next in the arc: PERSIST-2c (the PG/SQLite adapter split + migration framework, realizing S-BS-38).",
+
+  "next_session_hint": "ROUTINE — already inline-critiqued. The arc continues at PERSIST-2c (PG adapter); or wire the _history API into the shell (a config-history view) as a product follow-on."
+}
