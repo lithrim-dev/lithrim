@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-06-18",
+  "updated": "2026-06-19",
   "bundles": [
     {
       "id": "bench-salvage-phaseHONEST-1-honest-unlabeled-mode-driver",
@@ -2628,6 +2628,32 @@
       "created": "2026-06-18",
       "last_re_verified": "2026-06-18",
       "next_action": "Run the PG contract vs a real Postgres (pip install '.[pg]' + LITHRIM_DB_URL) to close S-BS-PERSIST-2C-PG-UNVERIFIED; then PERSIST-2d (projection tier)."
+    },
+    {
+      "id": "bench-salvage-phaseFAUTH-1-surface-contract-builder-inline-driver",
+      "stream": "bench-salvage",
+      "phase": "FAUTH-1",
+      "scope": "Surface the ContractBuilder INPUT widget inline (conversational-first contract authoring). FIRST cut of the FAUTH program (flag-authoring self-serve; SPEC_FLAG_AUTHORING_SELF_SERVE.md). Today the only conversational touch on a grounding contract is add_grounding_contract (the AGENT composes (flag_code,contract_type,params) + persists + emits the READ-ONLY flag_editor card; adapter.py:73-76, tools.py:577); the interactive ContractBuilder widget EXISTS and already persists via the audited putGroundingContract (ContractBuilder.jsx:62-72) but is NEVER surfaced inline by the agent. FAUTH-1 adds a $0 SURFACE tool (author_contract) that emits the ContractBuilder INPUT widget inline, seeded with the in-context flag_code + agent, so a non-coder FILLS the card in chat and the widget's existing save persists it -- mirroring get_judge -> judge_part -> JudgeEditor. No new write path, no new executor, no assist wiring, no new floor. The MOAT + ground() + the executors + add_grounding_contract are byte-frozen.",
+      "file": ".devloop/prompts/bench-salvage_phaseFAUTH-1_surface-contract-builder-inline_driver.md",
+      "version": "v1",
+      "status": "ready -- AUTHORED by the monitor 2026-06-19 from SPEC_FLAG_AUTHORING_SELF_SERVE.md (§3/§4/§6 G1/§9; workflow wf_4c90541a-484 verified). Not yet kicked off. The adapter/tools/ContractBuilder/loop citations were re-read this session; the shell render-path citations (registry.js KNOWN_TOOLS, panes.jsx renderTool) are flagged UNVERIFIED and must be confirmed at plan-review (R1/R2).",
+      "hardness": "HARD-GATE -- widens the conversational tool surface (a new SDK-MCP tool in the A-SAFE allowlist). The A-SAFE floor (allowlist-bound + no-paid-knob + BYO-Claude) must be re-proven non-vacuously as the surface grows (the ONB-0 / UAP-5c-2 precedent). Fresh-critic at close.",
+      "hardness_reason": "A new conversational tool enters the deny-hook allowlist. The cold critic must confirm: author_contract carries NO paid knob + surfaces-not-spends (the widget's putGroundingContract is the only write, the existing audited path), the deny hook (loop.py:255-301) is byte-identical, the allowlist still equals _TOOL_SPECS, and the MOAT + ground() + add_grounding_contract are 0-diff.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_FLAG_AUTHORING_SELF_SERVE.md (THE spec -- the FAUTH program)",
+        "docs/specs/SPEC_CONVERSATIONAL_FIRST.md (the conversation IS the product)",
+        "apps/bff/agent/tools.py (get_judge=the surface mirror; add_grounding_contract=the existing write)",
+        "apps/bff/agent/adapter.py (judge_part/flag_part=the part-shape mirror)",
+        "apps/shell/src/genui/ContractBuilder.jsx (the INPUT widget -- already persists)",
+        "docs/research/REPORT_clinverdict_contrast_case10_2026-06-19.md (the case-10 motivation)"
+      ],
+      "_note": "FIRST driver of the FAUTH program (flag-authoring self-serve), authored from SPEC_FLAG_AUTHORING_SELF_SERVE.md per the UAP-from-spec convention (the TASK_PACK has no FAUTH entries; backfill opportunistically, as with NARR/PERSIST). The build sequence (SPEC §9, OpenEvidence de-prioritized to last): FAUTH-1 (G1, this) surface the builder inline -> FAUTH-2 (G3+OQ-2) align contract-types with registered executors + the registration GATE -> FAUTH-3 (G2, the keystone) wire the assist (kb_context + SNOMED) -> params, no hand-JSON -> FAUTH-4 (G4/NARR-FLOOR-1, OQ-3) the presence/semantic floor executor = the case-10 APPROVE->BLOCK flip -> FAUTH-5 (G5) retire/re-point KbPicker -> FAUTH-6 (G6) the OpenEvidence/evidence connector, access-gated, LAST. The monitor authors each driver just-ahead (re-verifying citations at authoring); FAUTH-2..6 are roadmap, not yet authored. The crux/risk lives in FAUTH-4 (OQ-3: presence over a free-text NL note without LLM inference) -- it MAY be pulled forward to de-risk if the owner prefers.",
+      "created": "2026-06-19",
+      "last_re_verified": "2026-06-19",
+      "next_action": "/devloop-kickoff bench-salvage FAUTH-1 -> paste the driver KICKOFF into a fresh executor session ROOTED IN lithrim-bench. Plan-review resolves R1 (inline render path -- registry.js/panes.jsx UNVERIFIED) / R2 (INPUT-widget save round-trip) / R3 (pacing) / R4 (the contract-type footgun) / R5 (the seeded flag source). HARD-GATE: fresh-critic at close. Then FAUTH-2 (G3 + the registration gate)."
     }
   ]
 }
