@@ -10,13 +10,16 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 // the widget self-persists via POST /v1/grounding-contract before firing onResult — mock it so
-// mounting never reaches a real fetch (mirrors inputs.test.jsx + VerdictCard.test.jsx).
+// mounting never reaches a real fetch (mirrors inputs.test.jsx + VerdictCard.test.jsx). FAUTH-2:
+// ContractBuilder also fetches the live registered types on mount (getGroundingContractTypes) —
+// mock it too, default a resolved set; individual tests override it (resolve/reject) for A3.
 vi.mock("../bff.js", () => ({
   putGroundingContract: vi.fn().mockResolvedValue({ flag_code: "X", replaced: false, status: "ok" }),
+  getGroundingContractTypes: vi.fn().mockResolvedValue({ contract_types: ["presence_check"], pack: "_core" }),
 }));
 
 import ContractBuilder, { CONTRACT_TYPES } from "./ContractBuilder.jsx";
-import { putGroundingContract } from "../bff.js";
+import { putGroundingContract, getGroundingContractTypes } from "../bff.js";
 
 describe("ContractBuilder — FAUTH-1 inline, pre-seeded by the in-context flag (A2)", () => {
   it("opens pre-filled with the seeded flagCode", () => {
@@ -65,6 +68,37 @@ describe("ContractBuilder — no broken-type footgun (A4 / R4)", () => {
     // the Select renders an option per registered type; none of the broken types is selectable.
     for (const broken of ["negation_check", "code_match", "range_check"]) {
       expect(screen.queryAllByText(broken)).toHaveLength(0);
+    }
+  });
+});
+
+describe("ContractBuilder — the live type list drives the UI, with a fallback (FAUTH-2 / A3)", () => {
+  it("fetches the active pack's registered types on mount and drives the Select from them", async () => {
+    getGroundingContractTypes.mockClear();
+    // a pack registry that DIFFERS from the static fallback — proves the fetched set is used.
+    getGroundingContractTypes.mockResolvedValueOnce({
+      contract_types: ["presence_check", "snomed_subsumption"],
+      pack: "healthcare",
+    });
+    render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
+
+    await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
+    // the fetched (pack-true) set renders; record_presence (static fallback only) does NOT, since
+    // the fetch returned a narrower set.
+    await waitFor(() => expect(screen.getAllByText("snomed_subsumption").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("record_presence")).toHaveLength(0);
+  });
+
+  it("falls back to the static CONTRACT_TYPES when the fetch REJECTS (offline-safe, no crash)", async () => {
+    getGroundingContractTypes.mockClear();
+    getGroundingContractTypes.mockRejectedValueOnce(new Error("offline"));
+    render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
+
+    await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
+    // first paint + the rejected fetch keep the static fallback selectable (never crashes).
+    await waitFor(() => expect(screen.getAllByText("presence_check").length).toBeGreaterThan(0));
+    for (const t of CONTRACT_TYPES) {
+      expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     }
   });
 });
