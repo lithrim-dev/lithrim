@@ -486,6 +486,16 @@ input[type="range"].slider::-moz-range-thumb {
 .agree-dots .ad { width: 9px; height: 9px; border-radius: 3px; background: var(--teal); }
 .agree-dots .ad.no { background: var(--surface-muted); border: 1px solid var(--border); }
 
+/* CONV-FIRST §3: the inline per-judge votes inside the verdict card (the conversation
+   shows how each judge voted — no pane needed). */
+.ivotes { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ivotes-h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.ivote { display: flex; align-items: center; gap: 9px; padding: 5px 0; font-size: 12.5px; }
+.ivote-av { width: 20px; height: 20px; flex: 0 0 auto; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; color: #fff; }
+.ivote-role { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ivote-vote { font-weight: 660; font-size: 11.5px; letter-spacing: .02em; }
+.ivote-conf { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 30px; text-align: right; }
+
 /* calibration */
 .calib-wrap { display: flex; gap: 16px; align-items: center; }
 .calib-legend { display: flex; flex-direction: column; gap: 10px; flex: 0 0 auto; }
@@ -601,6 +611,15 @@ input[type="range"].slider::-moz-range-thumb {
 .vbar-leg { display: flex; gap: 14px; font-size: 11px; color: var(--muted); }
 .vbar-leg span { display: inline-flex; align-items: center; gap: 5px; }
 .vbar-leg .d { width: 8px; height: 8px; border-radius: 2px; }
+
+/* TRANSPARENCY-1: the per-judge lens — the flags it CAN raise + whether it did. A row of
+   muted code-chips with "raised none" makes the blind spot visible (it had a lens; none of
+   it covered the defect). */
+.judge-lens { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; font-size: 10.5px; }
+.judge-lens .jl-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.judge-lens .jl-code { font-family: var(--mono); font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--surface-muted); border: 1px solid var(--border); color: var(--muted); }
+.judge-lens .jl-code.raised { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.judge-lens .jl-note { font-family: var(--mono); font-size: 10px; margin-left: 2px; }
 
 .consensus { border: 1px solid var(--border); border-radius: var(--r); background: var(--surface-2); padding: 13px; display: flex; gap: 13px; align-items: center; }
 .consensus .big { font-family: var(--mono); font-size: 28px; font-weight: 600; color: var(--ink); }

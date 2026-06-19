@@ -138,6 +138,22 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
         "confidence": conf,
         "agreement": f"{agree} / {n}" if n else "—",
         "answer": answer,
+        # CONV-FIRST §3: the inline card is the WHOLE result — carry the realized per-judge
+        # votes (role/vote/confidence) so the conversation shows how each judge voted, and the
+        # pipeline_run_id the inline clinician-dissent form (META-VERDICT-1) binds to.
+        "runId": record.get("pipeline_run_id") or "",
+        "votes": [
+            {
+                "role": str(v.get("judge_role") or v.get("role") or "judge"),
+                "vote": str(v.get("vote") or ""),
+                **(
+                    {"confidence": v.get("confidence")}
+                    if isinstance(v.get("confidence"), (int, float))
+                    else {}
+                ),
+            }
+            for v in votes
+        ],
     }
     # the faithfulness pillar reflects the faithfulness judge's actual vote (clear vs flagged).
     faith = next((v for v in votes if "faith" in str(v.get("judge_role") or "").lower()), None)

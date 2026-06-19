@@ -369,6 +369,21 @@ def test_system_prompt_foregrounds_the_one_step_and_wait_rule():
     assert "Reading the live state is FREE" in prompt
 
 
+def test_system_prompt_is_conversational_first():
+    """CONV-FIRST (SPEC_CONVERSATIONAL_FIRST): the conversation is the product. The prompt makes the
+    agent LEAD with inline gen-UI and keep the auxiliary pane CLOSED, calling focus_artifact ONLY on
+    an explicit drill-down. NON-VACUOUS both ways: the new directive is present AND the reversed
+    'pair the inline card with the pane focus' anti-pattern is gone."""
+    from agent.loop import _system_prompt
+
+    prompt = _system_prompt("eval-1")
+    assert "CONVERSATIONAL-FIRST" in prompt
+    assert "INLINE" in prompt and "stays CLOSED" in prompt
+    # focus_artifact is reserved for an EXPLICIT drill-down, not paired with every result
+    assert "ONLY when the human EXPLICITLY asks" in prompt
+    assert "Pair the inline card with the pane focus" not in prompt  # the anti-pattern is reversed
+
+
 def test_system_prompt_stays_a_superset_back_compat():
     """W2a / A2 back-compat: the strengthened stanza is ADDED ON TOP of the SUPERSET — the base
     persona, the HONESTY contract, the active-agent NAMING, and the operator-degrade clause are

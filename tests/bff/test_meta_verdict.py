@@ -154,9 +154,11 @@ def _stub_ctx(record_meta_verdict=None):
     )
 
 
-def test_record_meta_verdict_tool_routes_through_closure_and_focuses_report():
-    """A3: the handler calls the bound ctx.record_meta_verdict with the normalized args and
-    emits a `report` focus directive (the clinician-verdict slot lives there). $0, no paid run."""
+def test_record_meta_verdict_tool_routes_through_closure_and_stays_conversational():
+    """A3 / CONV-FIRST (SPEC_CONVERSATIONAL_FIRST §2): the handler calls the bound
+    ctx.record_meta_verdict with the normalized args and confirms IN THE CONVERSATION — it must
+    NOT open the pane (the reversed anti-pattern). The clinician-verdict form lives inline on the
+    verdict card; the human opens the full report only on an explicit drill-down. $0, no paid run."""
     seen: dict = {}
 
     def fake(run_id, human_verdict, agrees_with_council, judge_fallacy_code, rationale):
@@ -185,8 +187,8 @@ def test_record_meta_verdict_tool_routes_through_closure_and_focuses_report():
     assert "is_error" not in out
     assert seen["run_id"] == "run-xyz" and seen["human_verdict"] == "fail"
     assert seen["agrees"] is False and seen["fallacy"] == "Reference Bias"
-    # a report focus directive was emitted (open the Report tab where the slot lives)
-    assert [p for p in ctx.parts if p.get("output", {}).get("tab") == "report"], ctx.parts
+    # CONV-FIRST: NO pane-focus directive — recording is complete in the conversation.
+    assert not [p for p in ctx.parts if p.get("type") == "tool-open_artifact"], ctx.parts
 
 
 def test_record_meta_verdict_tool_surfaces_error_and_pins_nothing():

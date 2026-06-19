@@ -21,4 +21,13 @@ describe("Shell chrome (App titlebar)", () => {
     // ...and no stray `}` text node leaked into it (the 0c13d3f regression)
     expect(titlebar.textContent).not.toContain("}");
   });
+
+  // CONV-FIRST (SPEC_CONVERSATIONAL_FIRST): the conversation is the product. The auxiliary
+  // artifact pane is CLOSED by default — the center conversation fills the screen, and the
+  // pane opens only on an explicit drill-down. NON-VACUOUS: with the old `open=true` default
+  // the `.artifact` section renders and this fails.
+  it("CONV-FIRST: the artifact pane is CLOSED by default (conversation fills the center)", () => {
+    const { container } = render(<App mode="shell" setMode={() => {}} />);
+    expect(container.querySelector(".artifact")).toBeNull();
+  });
 });

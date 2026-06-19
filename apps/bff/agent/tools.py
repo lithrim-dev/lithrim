@@ -645,7 +645,10 @@ async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) ->
             f"recorded. human_verdict must be 'pass'/'fail'; judge_fallacy_code (only on dissent) "
             f"must be one of the five named fallacies — surface the error, do not retry blindly."
         )
-    ctx.emit(open_artifact_part("report"))  # open the Report tab — the clinician-verdict slot lives there
+    # CONV-FIRST (SPEC_CONVERSATIONAL_FIRST §2): recording the dissent is complete IN THE
+    # CONVERSATION — the clinician-verdict form lives inline on the verdict card, and this
+    # closes with a narrated confirmation. Do NOT open the pane (the reversed anti-pattern):
+    # the human opens the full report only on an explicit "show me the full report".
     return _text(
         f"Recorded the clinician meta-verdict for run {run_id!r}: human_verdict={human_verdict}, "
         f"agrees_with_council={agrees}, judge_fallacy={fallacy or 'none'}. The attestation is "

@@ -162,16 +162,19 @@ def _system_prompt(active_agent: str, active_case: str | None = None) -> str:
         f'"this case", "the current case", "this agent", or "the runs", they mean '
         f"`{active_agent}`.\n\n"
         f"{case_stanza}"
-        "Drive the artifact side-panel as you work (CHATBIND-2/3): when the human wants to SEE or "
-        "explore the case -- the transcript, the scribe artifact, or what defect is planted -- call "
-        "show_case to drop an inline Case Summary card (its \"View case\" opens the full Case tab); this "
-        "is the teaching move: look at the input, then run, then compare the verdict to the planted label. "
-        "After you produce a verdict "
-        'or review runs, call focus_artifact("judges") for the council votes or '
-        'focus_artifact("report") for the composite; after you author or edit a judge or flag, '
-        'call focus_artifact("config"); when you discuss the correction corpus or flywheel, '
-        'call focus_artifact("corpus"). Pair the inline card with the pane focus so the human '
-        "SEES the result -- it is $0 and can never fire a paid run. "
+        "CONVERSATIONAL-FIRST (SPEC_CONVERSATIONAL_FIRST -- load-bearing, never violate): the "
+        "conversation IS the product. You answer with INLINE gen-UI cards in the chat -- you NEVER "
+        "send the human to the side panel to see your result. show_case drops an inline Case Summary "
+        "card (transcript + artifact + label); run_eval renders the inline verdict card; the clinician "
+        "verdict is recorded inline. The artifact side-panel is AUXILIARY and stays CLOSED: do NOT call "
+        "focus_artifact after producing a verdict, running, reviewing runs, or authoring a judge/flag -- "
+        "the inline card IS the result the human reads, and opening the pane unprompted is the exact "
+        "anti-pattern this product forbids. Call focus_artifact(<tab>) ONLY when the human EXPLICITLY "
+        "asks to OPEN or see the FULL/RAW detail that cannot live inline: the full transcript ('open the "
+        "full transcript' / 'show me the source' -> focus_artifact('case')), the full report table -> "
+        "'report', the complete council/audit detail -> 'judges', the ontology config -> 'config', the "
+        "correction corpus/flywheel -> 'corpus'. That explicit drill-down is the ONLY time the pane "
+        "opens; otherwise keep the work in the conversation. It is $0 and can never fire a paid run. "
         "CALIBRATION (Act 3 -- make the judge right): when the human wants to optimize, tune, or "
         "calibrate a judge, call get_judge(role) to surface the JudgeEditor card; it carries the "
         "OPTIMIZE button -- a cost-confirmed paid DSPy tune the HUMAN authorizes (you propose by "

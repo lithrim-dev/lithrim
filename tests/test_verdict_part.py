@@ -17,6 +17,7 @@ from agent.adapter import verdict_part  # noqa: E402
 def _record(verdict, findings, votes):
     return {
         "case_id": "byo_clinical_unlabeled",
+        "pipeline_run_id": "run-xyz",
         "composite": {"verdict": verdict, "stage_verdict": "BLOCK", "active_findings": findings},
         "council": {"votes": votes},
     }
@@ -51,3 +52,23 @@ def test_verdict_part_clean_pass_has_no_findings_and_clear_faithfulness():
     assert out["verdict"] == "APPROVE"
     assert "No findings" in out["answer"]
     assert out["pillarStatus"] == "clear ✓"
+
+
+def test_verdict_part_carries_inline_votes_and_run_id():
+    """CONV-FIRST §3: the inline VerdictCard is the WHOLE result — it renders per-judge votes +
+    the clinician-dissent form in the conversation. So verdict_part must project the realized
+    per-judge votes (role/vote/confidence) AND the pipeline_run_id the inline dissent binds to."""
+    out = verdict_part(_record(
+        "approve", [],
+        [
+            {"judge_role": "risk_judge", "vote": "PASS", "confidence": 1.0},
+            {"judge_role": "policy_judge", "vote": "WARN", "confidence": 0.99},
+            {"judge_role": "faithfulness_judge", "vote": "PASS", "confidence": 0.98},
+        ],
+    ))["output"]
+    # the run the inline dissent form attaches to (META-VERDICT-1)
+    assert out["runId"] == "run-xyz"
+    # the realized per-judge votes, projected flat (role/vote/confidence)
+    assert isinstance(out["votes"], list) and len(out["votes"]) == 3
+    assert out["votes"][0] == {"role": "risk_judge", "vote": "PASS", "confidence": 1.0}
+    assert out["votes"][1]["role"] == "policy_judge" and out["votes"][1]["vote"] == "WARN"

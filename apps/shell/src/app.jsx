@@ -289,7 +289,12 @@ function StatusBar({ activeWs }) {
 function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [leftW, setLeftW] = useState(270);
   const [rightW, setRightW] = useState(440);
-  const [open, setOpen] = useState(true);
+  // CONV-FIRST (SPEC_CONVERSATIONAL_FIRST): the auxiliary artifact pane is CLOSED by default —
+  // the center conversation is the product surface. The pane opens only on an explicit
+  // drill-down (an inline card's "Open full →"/onOpenArtifact, the manual Run button, or an
+  // agent open_artifact directive gated to explicit detail). The conversational run path
+  // (CenterPane → onRunResult) renders inline and never opens it.
+  const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [tab, setTab] = useState("report");
   // Theme is owned by root.jsx (shared with the journey) when mounted there; fall back to

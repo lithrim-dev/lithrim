@@ -4,17 +4,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-// ConfigTab + CorpusTab self-fetch through bff.js — mock the getters + the meta-verdict write.
+// ConfigTab + CorpusTab + JudgeTab self-fetch through bff.js — mock the getters + the meta-verdict write.
 vi.mock("./bff.js", () => ({
   getOntology: vi.fn(),
   getCorpus: vi.fn(),
   getCase: vi.fn(),
   listCases: vi.fn(),
   recordMetaVerdict: vi.fn(),
+  getRunAudit: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";
-import { getOntology, getCorpus, getCase, listCases, recordMetaVerdict } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCases, recordMetaVerdict, getRunAudit } from "./bff.js";
 
 const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
 
@@ -25,11 +26,14 @@ beforeEach(() => {
   listCases.mockReset();
   listCases.mockResolvedValue({ cases: [], count: 0 }); // default: no ingested cases
   recordMetaVerdict.mockReset();
+  getRunAudit.mockReset();
+  getRunAudit.mockResolvedValue({ withstands: [] }); // default: no lens unless a test provides one
 });
 
 const COUNCIL_RESULT = {
   case_id: "bench_scribe_v1_inject_condition_1bd0f10dc7b5",
   grade_path: "replay",
+  pipeline_run_id: "run-xyz", // JudgeTab self-fetches the lens from GET /v1/runs/{id}/audit
   council: {
     votes: [
       { judge_role: "risk_judge", vote: "PASS", confidence: 1.0, model: "gpt-4.1", reason: "no HIPAA issue" },
@@ -63,6 +67,40 @@ describe("JudgeTab — realized council votes (A1)", () => {
   it("prompts to run when there is no run yet", () => {
     render(<ArtifactPane {...paneProps} tab="judges" runStatus="idle" runResult={null} runError={null} />);
     expect(screen.getByText(/per-case votes/i)).toBeInTheDocument();
+  });
+
+  // TRANSPARENCY-1 (the ClinVerdict contrast): the Judges pane shows each judge's LENS — the
+  // flags it could raise — self-fetched from GET /v1/runs/{id}/audit (`withstands`). So a PASS
+  // that happened because NOTHING in the lens covers the defect (Risk-Severity Blindness) is
+  // VISIBLE, not inferred. This is the "why did it miss?" beat.
+  it("shows each judge's lens (the flags it can flag), fetched from the run audit", async () => {
+    getRunAudit.mockResolvedValue({
+      withstands: [
+        { role: "risk_judge", signals_weighed: { ontology_rules: [
+          { code: "WRONG_DOSAGE", in_lens: true, raised: false },
+          { code: "MISSED_ESCALATION", in_lens: true, raised: false },
+          { code: "OUT_OF_LENS", in_lens: false, raised: false },
+        ] } },
+        { role: "policy_judge", signals_weighed: { ontology_rules: [
+          { code: "FABRICATED_CONSENT", in_lens: true, raised: false },
+        ] } },
+        { role: "faithfulness_judge", signals_weighed: { ontology_rules: [
+          { code: "HISTORY_OMISSION", in_lens: true, raised: false },
+        ] } },
+      ],
+    });
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="judges" runStatus="ready" runResult={COUNCIL_RESULT} runError={null} />,
+    );
+    // the JudgeTab self-fetched the lens by the run id
+    await waitFor(() => expect(getRunAudit).toHaveBeenCalledWith("run-xyz"));
+    // the flags in each judge's lens render (what it COULD have raised) — the out-of-lens one does not
+    await waitFor(() => expect(screen.getByText("WRONG_DOSAGE")).toBeInTheDocument());
+    expect(screen.getByText("MISSED_ESCALATION")).toBeInTheDocument();
+    expect(screen.getByText("FABRICATED_CONSENT")).toBeInTheDocument();
+    expect(screen.queryByText("OUT_OF_LENS")).toBeNull(); // in_lens=false is excluded
+    expect(container.querySelectorAll(".judge-lens").length).toBe(3);
+    expect(container.textContent).toMatch(/raised none/i); // the blind spot, named
   });
 });
 
