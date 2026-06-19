@@ -24,7 +24,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
-const CONTRACT_TYPES = ["presence_check", "negation_check", "code_match", "range_check"];
+// FAUTH-1 (R4): the inline type list is scoped to contract_types with a REGISTERED engine
+// executor — surfacing the builder inline makes this selectable by a non-coder, and an
+// unregistered type makes ground() RAISE at grade time (grounding.py:592-600). presence_check is
+// the always-registered core suppress executor; snomed_subsumption + record_presence are the
+// pack-registered grounding types add_grounding_contract advertises. The prior list's
+// negation_check / code_match / range_check have NO executor (the footgun) — removed. The deeper
+// registration GATE (refuse a free-text/LLM executor; refuse a type with no executor for the
+// active pack) is FAUTH-2/G3, not this cycle.
+export const CONTRACT_TYPES = ["presence_check", "snomed_subsumption", "record_presence"];
 
 function Field({ label, children }) {
   return (
@@ -35,9 +43,15 @@ function Field({ label, children }) {
   );
 }
 
-export default function ContractBuilder({ agent = "ws0_default", onResult }) {
+// FAUTH-1 (G1): ``flagCode`` SEEDS the card pre-bound to the in-context flag — when the agent
+// surfaces this inline (author_contract → tool-contract_builder), renderTool spreads
+// part.output = {agent, flag_code} as props, so the wire key is ``flag_code`` (snake); accept
+// either it or the camel ``flagCode`` (direct-render ergonomics). Defaults to "" (back-compat:
+// the pane-mounted + scripted-showcase paths are unchanged). If left blank, the widget's own
+// validation gates Save (R5).
+export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, onResult }) {
   const [contractType, setContractType] = useState("presence_check");
-  const [flagCode, setFlagCode] = useState("");
+  const [flagCode, setFlagCode] = useState(seedFlag ?? flag_code ?? "");
   const [question, setQuestion] = useState("");
   const [paramsText, setParamsText] = useState('{\n  "source": "response.claims"\n}');
   const [version, setVersion] = useState("");
