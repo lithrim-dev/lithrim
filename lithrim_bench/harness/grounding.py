@@ -374,25 +374,32 @@ def _active_pack() -> str:
     return _pack.active_pack()
 
 
-def suppress_executors() -> dict[str, Any]:
+def suppress_executors(pack: str | None = None) -> dict[str, Any]:
     """The full suppress registry the engine runs: the core-generic executors MERGED with
     the active pack's ``SUPPRESS_EXECUTORS``. The withstands-gate
     (``runtime/council/signals.py``) reads THIS — so a pack-registered suppress executor
-    (e.g. the clinical ``record_presence``) is moat-visible, not just visible to ``ground()``."""
-    suppress, _ = _pack_registries(_active_pack())
+    (e.g. the clinical ``record_presence``) is moat-visible, not just visible to ``ground()``.
+
+    FAUTH-2a: ``pack`` is OPTIONAL and defaults to ``_active_pack()`` — the no-arg call (the
+    withstands-gate + ``ground()`` at grade time, in the correct-pack subprocess) is byte-behavior
+    identical. An explicit ``pack`` lets the BFF author-time gate resolve the active WORKSPACE's
+    grade pack (≠ the BFF process pack); see ``apps/bff/app.py`` ``_active_lens_by_role``."""
+    suppress, _ = _pack_registries(pack or _active_pack())
     return {**_CONTRACT_EXECUTORS, **suppress}
 
 
-def floor_executors() -> dict[str, FloorExecutor]:
+def floor_executors(pack: str | None = None) -> dict[str, FloorExecutor]:
     """The full floor registry: the core-generic floors MERGED with the active pack's
-    ``FLOOR_EXECUTORS`` (e.g. the clinical ``dosage_grounding``)."""
-    _, floors = _pack_registries(_active_pack())
+    ``FLOOR_EXECUTORS`` (e.g. the clinical ``dosage_grounding``). FAUTH-2a: ``pack`` is OPTIONAL
+    and defaults to ``_active_pack()`` (no-arg behavior unchanged)."""
+    _, floors = _pack_registries(pack or _active_pack())
     return {**_core_floor_executors(), **floors}
 
 
-def floor_contract_types() -> set[str]:
-    """The set of contract_types the floor dispatch knows (core ∪ pack)."""
-    return set(floor_executors())
+def floor_contract_types(pack: str | None = None) -> set[str]:
+    """The set of contract_types the floor dispatch knows (core ∪ pack). FAUTH-2a: optional
+    ``pack`` defaults to ``_active_pack()`` (no-arg behavior unchanged)."""
+    return set(floor_executors(pack))
 
 
 # Contracts that compose over an out-of-process service (the manifest ``transport`` field):
