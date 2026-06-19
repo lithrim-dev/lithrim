@@ -177,7 +177,8 @@ def test_focus_artifact_joins_the_tool_set_exactly_once():
     assert names.count("add_grounding_contract") == 1
     assert names.count("kb_context") == 1
     assert names.count("list_cases") == 1
-    assert len(names) == 19  # +META-VERDICT-1 record_meta_verdict ($0, no paid knob — the clinician attestation)
+    assert names.count("author_contract") == 1
+    assert len(names) == 20  # +FAUTH-1 author_contract ($0 surface, no paid knob — the inline contract-authoring widget)
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in PAID_KEYS), name
 
@@ -194,7 +195,7 @@ def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byt
     allowed = list(opts.allowed_tools)
     derived = {f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS}
     assert set(allowed) == derived  # exactly the tool set — no extra, no paid surface
-    assert len(allowed) == len(set(allowed)) == 19
+    assert len(allowed) == len(set(allowed)) == 20
     assert {
         "mcp__lithrim__focus_artifact",
         "mcp__lithrim__show_case",

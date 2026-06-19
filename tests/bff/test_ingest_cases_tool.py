@@ -39,7 +39,7 @@ def test_registry_adds_exactly_ingest_cases_and_deny_hook_frozen():
     the A-SAFE deny hook passes ingest_cases (allowed) yet still DENIES a built-in (byte-
     frozen — the 17th tool is bounded for free)."""
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 19 and len(set(names)) == 19, names  # +META-VERDICT-1 record_meta_verdict
+    assert len(names) == 20 and len(set(names)) == 20, names  # +FAUTH-1 author_contract
     assert "ingest_cases" in names
     assert "record_meta_verdict" in names
 
