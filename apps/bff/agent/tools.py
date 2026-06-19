@@ -31,6 +31,7 @@ from .adapter import (
     agent_part,
     audit_part,
     case_summary_part,
+    contract_builder_part,
     flag_part,
     judge_part,
     open_artifact_part,
@@ -135,6 +136,14 @@ ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
     "question": str,
     "version": str,
 }
+# FAUTH-1 (G1) — SURFACE the ContractBuilder INPUT widget inline (the conversational-first
+# "author a grounding contract by filling a card in the chat" move). It is a $0 SURFACE tool —
+# the mirror of get_judge (which surfaces JudgeEditor): it emits the builder seeded with the
+# in-context flag_code, and the HUMAN's Save (the widget's existing putGroundingContract) is the
+# only write. It performs NO write itself, so the schema is {flag_code} ONLY — NO PAID_KEY, NO
+# contract_type/params (the human fills those in the card). The A-SAFE test asserts this is
+# paid-knob-free generically over _TOOL_SPECS.
+AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {"flag_code": str}
 # KB-CONTEXT-1 — the honest CONTEXT AID ($0/read-only): retrieve the relevant HIPAA-KB section(s)
 # for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
 # clears on these flags, so this is retrieval-only — informative, never a clear). No PAID_KEY.
@@ -582,6 +591,28 @@ async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any])
     )
 
 
+async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # FAUTH-1 (G1): SURFACE the ContractBuilder INPUT widget inline, seeded with the in-context
+    # flag_code + agent — the conversational-first "author a grounding contract by filling a card
+    # in the chat" move. The mirror is get_judge_handler: it READS nothing and WRITES nothing — it
+    # only ctx.emit(...) the input card + returns guidance text. The widget's own
+    # putGroundingContract (the human's Save) is the SOLE audited write (add_grounding_contract is
+    # the agent-composes twin; this is the human-authors surface alongside it). $0, no PAID_KEY,
+    # surfaces-not-spends. ``flag`` is accepted as an alias for ``flag_code`` (the model often
+    # reaches for the shorter name); an omitted/blank flag opens an empty card (the widget's own
+    # validation gates Save, R5).
+    flag_code = str(args.get("flag_code") or args.get("flag") or "")
+    ctx.emit(contract_builder_part(ctx.default_agent, flag_code))
+    return _text(
+        f"Surfaced the contract builder inline, pre-bound to flag "
+        f"{flag_code or '(none yet — name the flag in the card)'} on agent "
+        f"{ctx.default_agent!r}. Fill in the deterministic verification contract (claim → "
+        f"tool-query → verdict) and Save — the Save IS the audited write (the floor then runs at "
+        f"grade time over this flag). I only surface the card; I do not author the contract for you, "
+        f"and this is $0 (never a paid run)."
+    )
+
+
 async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # META-VERDICT-1 (audited WRITE): record the clinician's INDEPENDENT verdict + judge meta-audit
     # on a run — ClinVerdict Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
@@ -923,6 +954,20 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "aid — KB-as-suppress over-clears these flags.) $0 — never a paid run. A malformed contract or "
         "unknown flag is rejected (422/404) — surface it, do not retry blindly.",
         ADD_GROUNDING_CONTRACT_SCHEMA,
+    ),
+    (
+        author_contract_handler,
+        "author_contract",
+        "SURFACE the interactive contract-authoring widget INLINE so the HUMAN authors a "
+        "deterministic grounding (verification) contract by FILLING A CARD in the chat — the "
+        "conversational-first authoring move ($0, read-only; the mirror of get_judge surfacing the "
+        "JudgeEditor). Use it when the human wants to AUTHOR / define / set up a grounding contract "
+        "or criterion themselves. Shape: {flag_code} — the flag to pre-bind the card to (from "
+        "create_flag or named by the human). The human fills the contract_type/question/params and "
+        "their Save is the audited write (you do NOT compose the contract). For the agent-composes "
+        "path (you already know the contract_type + params), use add_grounding_contract instead. "
+        "Never a paid run.",
+        AUTHOR_CONTRACT_SCHEMA,
     ),
     (
         kb_context_handler,

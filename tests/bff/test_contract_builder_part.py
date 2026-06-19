@@ -29,7 +29,6 @@ if str(_BFF) not in sys.path:
 from agent import adapter as agent_adapter  # noqa: E402
 from agent import tools as agent_tools  # noqa: E402
 
-
 # ── the adapter part shape (A1) ──────────────────────────────────────────────
 
 

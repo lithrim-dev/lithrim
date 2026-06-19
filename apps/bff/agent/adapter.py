@@ -76,6 +76,24 @@ def flag_part(agent: str, *, show_intent: str = "auto") -> dict[str, Any]:
     return _part("flag_editor", {"agent": agent}, show_intent=show_intent)
 
 
+def contract_builder_part(
+    agent: str, flag_code: str = "", *, show_intent: str = "auto"
+) -> dict[str, Any]:
+    """FAUTH-1 (G1): author_contract -> the ContractBuilder INPUT widget, surfaced INLINE and
+    SEEDED with the in-context ``flag_code`` + ``agent`` so the human authors a deterministic
+    ``verification_contract`` by filling the card in the chat (not by the agent composing JSON,
+    not in the side pane). The mirror is judge_part -> JudgeEditor (a $0 surface; the human's
+    Save is the write). Unlike the read-or-self-fetch cards, this is an INPUT widget: its save
+    rides the EXISTING audited ``putGroundingContract`` (the shell threads ``onResult`` to it) —
+    this part adds NO new write path. ``auto`` by default (an authoring card the agent leads
+    with is a PRIMARY result the shell renders inline)."""
+    return _part(
+        "contract_builder",
+        {"agent": agent, "flag_code": flag_code},
+        show_intent=show_intent,
+    )
+
+
 def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
     """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
     card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
