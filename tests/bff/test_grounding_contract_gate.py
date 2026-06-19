@@ -46,9 +46,11 @@ import app as bff  # noqa: E402
 _AGENT = "ws0_default"
 
 
-def _registered() -> set[str]:
-    """The active pack's full registered executor set (suppress ∪ floor) — the gate's truth."""
-    return set(grounding.suppress_executors()) | set(grounding.floor_executors())
+def _registered(pack: str | None = None) -> set[str]:
+    """The registered executor set (suppress ∪ floor) for ``pack`` — the gate's truth. FAUTH-2a:
+    defaults to the process pack; pass an explicit pack to mirror the endpoint, which now resolves
+    the active WORKSPACE pack (so the assertion is order-independent vs the mutable workspace state)."""
+    return set(grounding.suppress_executors(pack)) | set(grounding.floor_executors(pack))
 
 
 def _seed_ontology(tmp_path: Path, flag_code: str = "MEDICATION_NOT_IN_TRANSCRIPT") -> Path:
@@ -102,12 +104,21 @@ def _contracts(ont_path: Path) -> list[dict]:
 # ── A4: the live-types endpoint is pack-true + excludes prose ───────────────────────────
 
 
-def test_grounding_contract_types_endpoint_is_pack_registered(tmp_path):
-    """GET /v1/grounding-contract/types returns exactly the active pack's registered executor
-    keys (suppress ∪ floor) — pinned against the LIVE registry, not a literal, so it can't
-    drift. It INCLUDES presence_check + the pack's snomed_subsumption/record_presence and
-    EXCLUDES any prose type."""
-    reg = _registered()
+def test_grounding_contract_types_endpoint_is_pack_registered(tmp_path, monkeypatch):
+    """GET /v1/grounding-contract/types returns exactly the active WORKSPACE pack's registered
+    executor keys (suppress ∪ floor) — pinned against the LIVE registry, not a literal, so it
+    can't drift. It INCLUDES presence_check + the pack's snomed_subsumption/record_presence and
+    EXCLUDES any prose type.
+
+    FAUTH-2a: the endpoint resolves ``get_active_workspace().pack`` (not the process env), so pin
+    the active workspace to healthcare — else this is order-dependent on the mutable workspace state
+    a prior full-suite test leaves behind (S-BS-FAUTH2-2)."""
+    from lithrim_bench.harness.workspace import Workspace
+
+    monkeypatch.setattr(
+        bff.workspace, "get_active_workspace", lambda: Workspace(name="t", pack="healthcare")
+    )
+    reg = _registered("healthcare")
     out = bff.grounding_contract_types_endpoint()
 
     assert out["contract_types"] == sorted(reg)
@@ -120,7 +131,7 @@ def test_grounding_contract_types_endpoint_is_pack_registered(tmp_path):
     assert "negation_check" not in out["contract_types"]
     # non-empty (R3: if the set ever computed core-only/empty the gate would regress authoring)
     assert out["contract_types"]
-    assert out["pack"] == grounding._active_pack()
+    assert out["pack"] == "healthcare"
 
 
 # ── A1: the author-time gate rejects an unregistered type, non-vacuously ─────────────────
@@ -239,3 +250,81 @@ def test_add_grounding_contract_rejects_unregistered_type(tmp_path, monkeypatch)
     )
     assert not res2.get("is_error")
     assert calls["audit"] == 1  # audited exactly once
+
+
+# ── FAUTH-2a: the gate/endpoint must resolve the ACTIVE WORKSPACE pack, not the process pack ──
+
+
+def test_accessors_optional_pack_arg_is_additive():
+    """grounding.suppress_executors()/floor_executors() take an optional pack= arg whose no-arg
+    behavior is byte-identical to the explicit-default call (the moat read in signals.py / ground()
+    is unaffected), and 'healthcare' is a strict superset of '_core' (the pack floors are present).
+
+    This is the grounding.py-level half of the FAUTH-2a fix: the accessor is now pack-addressable
+    so the BFF can ask for the WORKSPACE pack's set without rebinding the process env."""
+    # no-arg == the explicit process-default (behavior-identical — the withstands-gate is unaffected)
+    assert set(grounding.suppress_executors()) == set(
+        grounding.suppress_executors(grounding._active_pack())
+    )
+    assert set(grounding.floor_executors()) == set(
+        grounding.floor_executors(grounding._active_pack())
+    )
+    # healthcare ⊋ _core: the clinical floors are present ONLY under the healthcare pack
+    core = set(grounding.suppress_executors("_core")) | set(grounding.floor_executors("_core"))
+    hc = set(grounding.suppress_executors("healthcare")) | set(
+        grounding.floor_executors("healthcare")
+    )
+    assert core < hc  # strict subset
+    assert "record_presence" in hc and "record_presence" not in core
+    assert {"snomed_subsumption", "dosage_grounding"} <= hc
+
+
+def test_gate_resolves_the_active_workspace_pack_not_the_process_pack(tmp_path, monkeypatch):
+    """The gate/endpoint must admit a type registered for the ACTIVE WORKSPACE'S grade pack, even
+    when the BFF PROCESS pack differs — the live topology (process=_core, ws=healthcare graded via
+    a subprocess bound to ws.pack). At parent 48162ad the gate reads the process env and false-
+    rejects the pack floor (the live HTTP 422 the cold critic captured on clinverdict_clean).
+
+    S-BS-FAUTH2-2. RED here, GREEN after both call sites resolve get_active_workspace().pack."""
+    from fastapi import HTTPException
+
+    from lithrim_bench.harness.workspace import Workspace
+
+    # BFF process = _core (the live default — no LITHRIM_BENCH_PACK on the launcher)
+    monkeypatch.delenv("LITHRIM_BENCH_PACK", raising=False)
+    # the active workspace is pinned to healthcare (as clinverdict_clean is)
+    monkeypatch.setattr(
+        bff.workspace, "get_active_workspace", lambda: Workspace(name="t", pack="healthcare")
+    )
+
+    # (a) the endpoint returns the HEALTHCARE set (incl. record_presence), pack=healthcare
+    out = bff.grounding_contract_types_endpoint()
+    assert "record_presence" in out["contract_types"]
+    assert "snomed_subsumption" in out["contract_types"]
+    assert out["pack"] == "healthcare"
+
+    # (b) the gate PERSISTS a record_presence contract on a healthcare-workspace flag (no 422)
+    ont_path = _seed_ontology(tmp_path)
+    ctx = _real_ctx(tmp_path)
+    res = ctx.put_grounding_contract(
+        flag_code="MEDICATION_NOT_IN_TRANSCRIPT",
+        contract_type="record_presence",
+        params={},
+        question="Is the flagged item present in the record?",
+        version="rp/v1",
+        agent=_AGENT,
+    )
+    assert res["flag_code"] == "MEDICATION_NOT_IN_TRANSCRIPT"
+    pinned = _contracts(ont_path)
+    assert len(pinned) == 1
+    assert pinned[0]["contract_type"] == "record_presence"
+
+    # and prose is STILL rejected under the workspace pack (the FAUTH-2 win is not regressed)
+    with pytest.raises(HTTPException) as ei:
+        ctx.put_grounding_contract(
+            flag_code="MEDICATION_NOT_IN_TRANSCRIPT",
+            contract_type="openevidence_judge",
+            params={},
+            agent=_AGENT,
+        )
+    assert ei.value.status_code == 422
