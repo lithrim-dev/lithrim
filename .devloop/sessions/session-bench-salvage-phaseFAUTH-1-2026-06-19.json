@@ -1,0 +1,161 @@
+{
+  "session_id": "session-bench-salvage-phaseFAUTH-1-2026-06-19",
+  "stream": "bench-salvage",
+  "phase": "FAUTH-1",
+  "driver_bundle_id": "bench-salvage-phaseFAUTH-1-surface-contract-builder-inline-driver",
+  "started_at": "2026-06-19T23:30:00Z",
+  "ended_at": "2026-06-20T00:15:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-19T23:42:00Z",
+    "user_approved_at": "2026-06-19T23:42:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "R1/R2 resolved as ALREADY-WIRED: no panes.jsx/registry.js change needed — tool-contract_builder is in KNOWN_TOOLS (registry.js:24) + registered (ContractBuilder.jsx:163), and the chat renders parts via renderTool(part, {onResult, onOpenArtifact}) (panes.jsx:570). §2 deliverable 6 satisfied by verification, NOT a code change (scope held — no unneeded edit added).",
+        "evidence": "panes.jsx:570 renderTool(part, { onResult: captureSetup(...), onOpenArtifact }); registry.js:88 spreads part.output as props; ContractBuilder.jsx:163 registerTool('tool-contract_builder', ...)",
+        "decided_at": "2026-06-19T23:42:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "R3 (pacing): author_contract is treated like get_judge — a FREE surface, NOT added to _STEP_PROPOSING_WRITES. It performs NO write (the human's Save is the write, exactly like get_judge), so it should not consume the one-step-per-turn pacing budget.",
+        "evidence": "loop.py:242-252 _STEP_PROPOSING_WRITES unchanged (byte-identical); author_contract_handler emits a part + returns text, calls no bound op.",
+        "decided_at": "2026-06-19T23:42:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "R4 (the contract-type footgun): SCOPE-NOW (the driver recommendation). CONTRACT_TYPES scoped to the registered executor types {presence_check (core suppress), snomed_subsumption + record_presence (pack-registered, the types add_grounding_contract advertises)}; removed negation_check/code_match/range_check which have NO executor and make ground() RAISE (grounding.py:592-600). The deeper registration GATE + active-pack-discovery is FAUTH-2/G3 (deferred, not balloon scope — a live pack-type endpoint would be a new BFF surface).",
+        "evidence": "grounding.py:295-298 _CONTRACT_EXECUTORS={presence_check,kb_grounding}; floor_executors()={structural_jute,jute_gen}; pack adds record_presence/snomed_subsumption/dosage_grounding. ContractBuilder.jsx CONTRACT_TYPES old=[presence_check,negation_check,code_match,range_check].",
+        "decided_at": "2026-06-19T23:42:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "R5 (the seeded flag): the card opens pre-bound to flag_code (from create_flag or named by the human); a blank seed is gated by the widget's own Save validation. The wire key is flag_code (snake — renderTool spreads part.output verbatim); ContractBuilder accepts both flag_code and the camel flagCode.",
+        "evidence": "adapter.contract_builder_part emits output={agent, flag_code}; ContractBuilder({flagCode: seedFlag, flag_code}) initializes useState(seedFlag ?? flag_code ?? '').",
+        "decided_at": "2026-06-19T23:42:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "COUNT-INVARIANT consequence-edits: 6 A-SAFE exact-set/exact-count tests pinned the tool surface at 19; author_contract grows it to 20 — bumped 19->20 + added author_contract to the exact set (the mandatory consequence-edit, NARR-2 precedent). Committed separately (978e7f2) as test-only, pathspec-scoped.",
+        "evidence": "tests/test_uap5b_chat.py (exact set), test_uap5c_journey.py / test_chatbind2_pane.py / test_flag_crud.py / test_crud_delete.py / test_ingest_cases_tool.py (len==19 -> 20).",
+        "decided_at": "2026-06-20T00:02:00Z"
+      },
+      {
+        "kind": "CITATION-DRIFT",
+        "summary": "The moat files cited as runtime/council/{...}.py live at lithrim_bench/runtime/council/{...}.py; harness/grounding.py lives at lithrim_bench/harness/grounding.py. Resolved by using the actual paths. 0-diff confirmed against these.",
+        "evidence": "find: ./lithrim_bench/runtime/council/{compliance_council,signals,withstands,judge_metric}.py; ./lithrim_bench/harness/grounding.py",
+        "decided_at": "2026-06-19T23:35:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "4b5c89ca5e0d266952fe6582ab10ff80d7bc3a7d",
+      "repo": "lithrim-bench",
+      "title": "test(fauth): FAUTH-1 inline ContractBuilder surface — red",
+      "summary": "The 2 new acceptance test files (BFF adapter-part + A-SAFE; shell seeded-render + type-list), RED before code (behavior-absent)."
+    },
+    {
+      "hash": "f72d04f91c33156f0a5ce586ad85b587c69a4845",
+      "repo": "lithrim-bench",
+      "title": "feat(bff): author_contract — surface the ContractBuilder input widget inline (FAUTH-1)",
+      "summary": "adapter.contract_builder_part + tools.AUTHOR_CONTRACT_SCHEMA/author_contract_handler/_TOOL_SPECS entry + one loop.py prompt line. A $0 surface tool; the human's Save is the write. add_grounding_contract byte-unchanged."
+    },
+    {
+      "hash": "487dbee93c3b10ae116cf6123d1d0bb1544ff22d",
+      "repo": "lithrim-bench",
+      "title": "feat(shell): render the contract_builder input widget inline, seeded by flag (FAUTH-1)",
+      "summary": "ContractBuilder accepts a seed flag (flag_code/flagCode) so the inline card opens pre-bound; CONTRACT_TYPES scoped + exported to registered-executor types (R4)."
+    },
+    {
+      "hash": "978e7f222da8730aff92f55cd64f72411e0c7bd6",
+      "repo": "lithrim-bench",
+      "title": "test(fauth): bump the tool-count invariants 19→20 for author_contract (FAUTH-1)",
+      "summary": "6 A-SAFE exact-set/exact-count consequence-edits (the +1 tool surface), test-only, pathspec-scoped."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "RED committed first (4b5c89c) before any product code. The BFF test was authored to access net-new symbols via attribute access inside test bodies (not a top-level import) so each criterion fails behavior-absent (AttributeError/AssertionError) rather than masking RED behind a collection ImportError, per EXECUTOR.md §3.",
+    "red_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare python -m pytest tests/bff/test_contract_builder_part.py -q  ;  cd apps/shell && npx vitest run src/genui/ContractBuilder.test.jsx",
+    "red_evidence": "BFF: 5 failed — AttributeError: module 'agent.adapter' has no attribute 'contract_builder_part'; module 'agent.tools' has no attribute 'author_contract_handler' / 'AUTHOR_CONTRACT_SCHEMA'; AssertionError assert 0==1 (author_contract not in _TOOL_SPECS). Shell: 3 failed | 2 passed — CONTRACT_TYPES is undefined (toContain errored); the seeded flagCode field rendered blank.",
+    "green_command": "PYENV_VERSION=debuglithrim LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare python -m pytest tests/bff/test_contract_builder_part.py tests/test_asafe_tool_gate.py -v  ;  cd apps/shell && npx vitest run src/genui/ContractBuilder.test.jsx  ;  ruff check <touched .py>",
+    "green_evidence": "BFF cluster: 13 passed (5 contract_builder_part + 8 asafe_tool_gate incl. test_build_options_is_isolated... asserting allowlist == _TOOL_SPECS-derived set with author_contract). Shell: 5 passed (ContractBuilder.test.jsx). ruff: All checks passed! Affected count-pin cluster: 87 passed. Full Py suite: 688 passed / 28 failed / 23 skipped — all 28 are PRE-EXISTING pack-snapshot drift (baseline 645dfcd full-run = 28 fails; HEAD-vs-baseline set-diff = environmental worktree-path skip + 1 order-pollution flake, NONE in FAUTH files, moat 0-diff). vitest full: 150 passed / 1 failed (app.test.jsx — foreign uncommitted Shell/Journey WIP, not a FAUTH file)."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — the agent surfaces the builder inline (one tool-contract_builder part carrying {agent, flag_code}; NO bound write op)",
+      "test": "tests/bff/test_contract_builder_part.py::test_author_contract_emits_contract_builder_part (+ test_contract_builder_part_carries_agent_and_flag_code, test_author_contract_defaults_agent_and_handles_missing_flag)",
+      "verdict": "PASS",
+      "evidence": "author_contract_handler emits exactly one tool-contract_builder part output={agent:'ws0_default', flag_code:'INFORMED_DISSENT_ERASURE'}; the ctx stub raises on every bound op, so the proof that nothing is written is non-vacuous (the test passes only because no op was called)."
+    },
+    {
+      "criterion": "A2 — the inline widget renders pre-seeded + saves with the seeded flag_code",
+      "test": "apps/shell/src/genui/ContractBuilder.test.jsx (opens pre-filled with seeded flagCode; Add contract calls putGroundingContract with the seeded flag_code)",
+      "verdict": "PASS",
+      "evidence": "render flagCode='INFORMED_DISSENT_ERASURE' -> the flag-code field has that value; clicking Add contract calls putGroundingContract(contract, 'eval-1') with contract.flag_code='INFORMED_DISSENT_ERASURE'; the no-seed default stays blank (back-compat)."
+    },
+    {
+      "criterion": "A3 — A-SAFE: no paid knob, surfaces-not-spends",
+      "test": "tests/bff/test_contract_builder_part.py::test_author_contract_schema_has_no_paid_knob + test_author_contract_is_registered_in_tool_specs_exactly_once + tests/test_asafe_tool_gate.py (deny-hook + isolation)",
+      "verdict": "PASS",
+      "evidence": "AUTHOR_CONTRACT_SCHEMA={flag_code:str} carries no PAID_KEY; the generic sweep over _TOOL_SPECS finds no PAID_KEY anywhere; author_contract is in _TOOL_SPECS exactly once with the surface handler; the deny hook is byte-identical (0-diff) and test_build_options_is_isolated_and_carries_only_the_lithrim_server passes (allowlist == _TOOL_SPECS-derived set incl. author_contract)."
+    },
+    {
+      "criterion": "A4 — no broken-type footgun (R4 scope-now)",
+      "test": "apps/shell/src/genui/ContractBuilder.test.jsx (the inline type list contains ONLY types with a registered executor)",
+      "verdict": "PASS",
+      "evidence": "CONTRACT_TYPES exported = [presence_check, snomed_subsumption, record_presence]; toContain(presence_check) + not.toContain(negation_check|code_match|range_check). The removed types are exactly the ones with no executor that make ground() RAISE (grounding.py:592-600)."
+    },
+    {
+      "criterion": "A5 — frozen 0-delta + green bar; tool count +1; allowlist == _TOOL_SPECS",
+      "test": "git diff (moat) + the count-invariant tests + full suite/vitest/ruff",
+      "verdict": "PASS",
+      "evidence": "MOAT 0-diff across all 4 commits: compliance_council.py/signals.py/withstands.py/judge_metric.py/harness/grounding.py = 0 diff lines; add_grounding_contract_handler byte-IDENTICAL; _deny_non_lithrim 0 matches in loop.py diff. Tool count 19->20 (exactly +1). Allowlist auto-derived from _TOOL_SPECS (test_build_options_is_isolated... PASS). Full Py 688p/28f (28 == pre-existing pack-drift baseline, 0 new in FAUTH files); vitest 150p/1f (foreign app.test.jsx WIP); ruff clean on touched files."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "conversational_tool_count": "19 -> 20 (author_contract; exactly +1)",
+    "author_contract_in_step_proposing_writes": "NO (R3 — treated like get_judge, a free surface; _STEP_PROPOSING_WRITES byte-unchanged)",
+    "panes_jsx_registry_js_changed": "NO (R1/R2 — the inline render path was already wired; verified, not edited)",
+    "contract_types_scoped": "presence_check, snomed_subsumption, record_presence (removed negation_check/code_match/range_check — no executor)",
+    "moat_diff_lines": "0 (all 5 frozen files)",
+    "full_py_suite": "688 passed / 28 failed / 23 skipped (28 == pre-existing pack-drift baseline; 0 new)",
+    "vitest": "150 passed / 1 failed (foreign app.test.jsx WIP, not FAUTH); FAUTH-relevant shell 37/37"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-FAUTH1-1",
+      "title": "CONTRACT_TYPES is hardcoded, not pack-derived (the active-pack-aware registration gate is FAUTH-2/G3)",
+      "severity": "low",
+      "fix_location": "apps/shell/src/genui/ContractBuilder.jsx CONTRACT_TYPES + a future BFF endpoint exposing floor_contract_types()/suppress_executors() for the active pack",
+      "impact": "The inline type list is scoped to the registered-executor types as a static guard, but it is NOT derived from the ACTIVE pack's live registry. On a non-healthcare pack, snomed_subsumption/record_presence are absent (they would still raise at grade time if selected). The honest fix (a live pack-types endpoint + the free-text/LLM-executor registration GATE, OQ-2) is the FAUTH-2/G3 scope — deferred per the driver R4 (scope-now took only the thin slice).",
+      "confidence": "CONFIRMED",
+      "evidence": "grounding.py:295-298 (_CONTRACT_EXECUTORS core); grounding.py:386-390 floor_executors() merges pack FLOOR_EXECUTORS; no BFF endpoint exposes these (grep contract_type/floor_contract_types over apps/bff/app.py shows none)."
+    },
+    {
+      "id": "S-BS-FAUTH1-2",
+      "title": "A-LIVE on :5180 is OWED to the owner (no agent-driven browser this cycle)",
+      "severity": "low",
+      "fix_location": "owner-run live walkthrough on :5180 (BFF :8787 + UI :5180 are UP)",
+      "impact": "The end-to-end live proof (the conversation surfaces author_contract -> ContractBuilder inline -> human fills + Saves -> the contract persists, verifiable via GET /v1/ontology or /v1/audit) is owed. Both services were curl-confirmed UP (BFF /health = {status:ok}; UI :5180 serves), so the owner can run it without any autostart.",
+      "confidence": "CONFIRMED",
+      "evidence": "curl :8787/health -> {\"status\":\"ok\"}; curl :5180/ -> <!DOCTYPE html>. Driver §7 + kickoff: A-LIVE owed; do not drive the browser."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "FAUTH-1 (G1) landed clean across 4 pathspec-scoped commits (RED 4b5c89c -> BFF f72d04f -> shell 487dbee -> count-invariants 978e7f2). The conversation can now SURFACE the ContractBuilder INPUT widget inline (the new $0 author_contract tool, the get_judge mirror), seeded with the in-context flag, and the human's Save rides the EXISTING audited putGroundingContract (no new write path). R1/R2 resolved as already-wired (no panes.jsx/registry.js edit — scope held); R3 = free surface (not paced); R4 = scope-now (CONTRACT_TYPES scoped to registered-executor types, the broken raising types removed); R5 = seed via flag_code. A1-A5 PASS. MOAT byte-frozen (0 diff to council four + grounding.py; add_grounding_contract + _deny_non_lithrim byte-identical); A-SAFE re-proven (no paid knob, surfaces-not-spends, allowlist == _TOOL_SPECS, deny-hook 0-diff). Tool count 19->20 (exactly +1). The verdict is PROCEED-WITH-CAVEATS only because A-LIVE on :5180 is OWED (both services are UP for the owner) and 2 low seams are open (the pack-aware type registry is FAUTH-2). On audit: confirm the 28 full-suite fails are the pre-existing pack-drift baseline (they are — baseline 645dfcd full-run is also 28; 0 new in FAUTH files; moat 0-diff), and the 1 vitest fail (app.test.jsx) is foreign uncommitted Shell/Journey WIP, not FAUTH. HARD-GATE: a fresh critic is owed (the monitor runs it).",
+
+  "next_session_hint": "monitor should run /devloop-critique bench-salvage FAUTH-1 (HARD GATE — fresh cold critic; re-prove A-SAFE non-vacuously + moat 0-diff), then the owner runs the owed A-LIVE on :5180, then /devloop-audit + close-phase."
+}
