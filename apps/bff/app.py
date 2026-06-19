@@ -1686,18 +1686,26 @@ def ontology_endpoint(
 
 @app.get("/v1/grounding-contract/types")
 def grounding_contract_types_endpoint() -> dict:
-    """FAUTH-2 (G3): the active pack's REGISTERED grounding-contract executor keys (suppress ∪
-    floor) — the pack-true list the inline ``ContractBuilder`` drives its type selector from,
-    retiring the hand-maintained static constant (S-BS-FAUTH1-1). It is the SAME set the
-    author-time gate in ``_put_grounding_contract`` admits, so the UI can only offer a type that
-    will actually be accepted (and that ``ground()`` will not raise on at grade time). READ-ONLY:
-    it CALLS ``grounding.suppress_executors()`` / ``floor_executors()`` (the moat accessors) and
-    writes nothing — no audit, no PUT, $0. The pack is the process-global active pack
-    (``LITHRIM_BENCH_PACK``), exactly what ``ground()`` reads at grade time."""
-    from lithrim_bench.harness import grounding as _grounding
+    """FAUTH-2 (G3): the active WORKSPACE's pack REGISTERED grounding-contract executor keys
+    (suppress ∪ floor) — the pack-true list the inline ``ContractBuilder`` drives its type
+    selector from, retiring the hand-maintained static constant (S-BS-FAUTH1-1). It is the SAME
+    set the author-time gate in ``_put_grounding_contract`` admits, so the UI can only offer a
+    type that will actually be accepted (and that ``ground()`` will not raise on at grade time).
+    READ-ONLY: it CALLS ``grounding.suppress_executors()`` / ``floor_executors()`` (the moat
+    accessors) and writes nothing — no audit, no PUT, $0.
 
-    registered = set(_grounding.suppress_executors()) | set(_grounding.floor_executors())
-    return {"contract_types": sorted(registered), "pack": _grounding._active_pack()}
+    FAUTH-2a (S-BS-FAUTH2-2, the S-BS-154 family): resolve the ACTIVE WORKSPACE's grade pack
+    PER-REQUEST (``workspace.get_active_workspace().pack``), NOT the BFF *process* pack
+    (``LITHRIM_BENCH_PACK``, live = ``_core``). A non-``_core`` workspace grades in a subprocess
+    bound to ITS pack, so reading the process pack here false-rejected the clinical floors
+    (``record_presence``/``snomed_subsumption``/``dosage_grounding``) on a healthcare workspace.
+    Mirrors ``_active_lens_by_role`` exactly so OFFER and GATE agree."""
+    from lithrim_bench.harness import grounding as _grounding
+    from lithrim_bench.harness import workspace as _workspace
+
+    ws_pack = _workspace.get_active_workspace().pack
+    registered = set(_grounding.suppress_executors(ws_pack)) | set(_grounding.floor_executors(ws_pack))
+    return {"contract_types": sorted(registered), "pack": ws_pack}
 
 
 def _active_snapshot_codes() -> frozenset[str]:
@@ -2406,9 +2414,9 @@ def _build_tool_context(
                 status_code=404, detail=f"unknown flag {flag_code!r} (create the flag first)"
             )
         # FAUTH-2 (G3 / OQ-2 — the spine invariant's enforceable second half, at AUTHOR time):
-        # refuse a contract_type with no registered DETERMINISTIC executor in the active pack,
-        # BEFORE the splice/PUT. This moves the grade-time RAISE (grounding.py:599-600 — "no
-        # executor registered", a 500 mid-batch) up to a clean 422 here, so a prose / free-text /
+        # refuse a contract_type with no registered DETERMINISTIC executor in the active WORKSPACE's
+        # grade pack, BEFORE the splice/PUT. This moves the grade-time RAISE (grounding.py:599-600 —
+        # "no executor registered", a 500 mid-batch) up to a clean 422 here, so a prose / free-text /
         # future-"openevidence_judge" type can never be pinned. READ-ONLY against the moat: it
         # CALLS the public accessors (suppress ∪ floor) — it never edits grounding.py/ground()/the
         # executors. The 404 (unknown flag) above still takes precedence; nothing is persisted on
@@ -2416,9 +2424,14 @@ def _build_tool_context(
         # gate (refuse a free-text executor at the accessor itself) is FAUTH-2b (cross-repo: the
         # external pack executors carry no marker yet → a fail-closed marker-gate would drop the
         # clinical floors). The chat handler's broad except surfaces this 422 as honest guidance.
+        # FAUTH-2a (S-BS-FAUTH2-2, the S-BS-154 family): resolve the active WORKSPACE's grade pack
+        # (NOT the BFF process pack, live = _core) so the gate admits exactly what the grade
+        # subprocess will run — else it false-rejects the clinical floors on a healthcare workspace.
         from lithrim_bench.harness import grounding as _grounding
+        from lithrim_bench.harness import workspace as _workspace
 
-        registered = set(_grounding.suppress_executors()) | set(_grounding.floor_executors())
+        _ws_pack = _workspace.get_active_workspace().pack
+        registered = set(_grounding.suppress_executors(_ws_pack)) | set(_grounding.floor_executors(_ws_pack))
         if contract_type not in registered:
             raise HTTPException(
                 status_code=422,
