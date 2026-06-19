@@ -294,7 +294,7 @@ present — all three compile into the deterministic contract before it is pinne
 |---|---|---|---|
 | **G1** | Emit authoring widgets INLINE — the agent must emit the `tool-contract_builder` widget, not just the read-only `flag_editor`, for `add_grounding_contract`. | **EXISTS-PARTIAL** (adapter emits `flag_editor` today) | `apps/bff/agent/adapter.py` (the `add_grounding_contract` → `flag_editor` mapping); target widget `apps/shell/src/genui/index.js` (`ContractBuilder`) |
 | **G2** | The ASSIST layer = the keystone: wire retrieval (OpenEvidence + `kb_context` + SNOMED) INTO the builder so **prose → params**, no hand-JSON. OpenEvidence is G2's **authoritative external-evidence source**. | **NET-NEW** | new `openevidence_context_handler` modeled on `kb_context_handler` `apps/bff/agent/tools.py:668-700`, wired at `build_sdk_tools` `tools.py:970`; manifest at `lithrim_bench/harness/plugins.py:203-212`; consumed by `ContractBuilder` ASSIST sub-step (`genui/index.js`) |
-| **G3** | Align `ContractBuilder` contract-types with REAL engine executors. `negation_check` / `code_match` / `range_check` have NO executor → `ground()` raises (`grounding.py:599-600`); `presence_check` is a SUPPRESS, not a block-floor. Add the **registration gate** (spine invariant 2nd half: refuse any free-text/LLM executor). | **NET-NEW** | `ContractBuilder` `CONTRACT_TYPES` list (`genui/index.js`) must equal the registered executor keys; gate at the executor-registration site feeding `grounding.py:592-600` |
+| **G3** | Align `ContractBuilder` contract-types with REAL engine executors. `negation_check` / `code_match` / `range_check` have NO executor → `ground()` raises (`grounding.py:599-600`); `presence_check` is a SUPPRESS, not a block-floor. Add the **registration gate** (spine invariant 2nd half: refuse any free-text/LLM executor). | **DONE (TYPE gate) — FAUTH-2 / 2026-06-20**; **oracle-marker gate → FAUTH-2b** | **Shipped (FAUTH-2):** the author-time TYPE gate at the single write chokepoint `_put_grounding_contract` (`apps/bff/app.py`) — refuses a `contract_type ∉ grounding.suppress_executors() ∪ floor_executors()` (422), moving the grade-time RAISE up to author time; the live type list `GET /v1/grounding-contract/types` drives `ContractBuilder` (fetch-on-mount, static fallback) retiring the hand-list S-BS-FAUTH1-1. **Deferred (FAUTH-2b, S-BS-FAUTH2-1):** the `oracle_kind` executor-MARKER gate INSIDE `suppress_executors()`/`floor_executors()` (`grounding.py:377-395`) — moat byte-frozen + the external pack executors carry no marker, so a fail-closed marker-gate would drop the clinical floors (tag the pack FIRST, cross-repo). |
 | **G4** | NARR-FLOOR-1: the presence/semantic FLOOR executor. Today floors are `jute_gen` / `structural_jute` over STRUCTURED artifacts; `record_presence` is a SUPPRESS, not a block-floor. A floor that injects a BLOCK on a MISSING required concept does not yet exist. | **NET-NEW** | new executor registered into the floor set; plugs into `ground()`'s floor loop `grounding.py:647-665` (see §7) |
 | **G5** | Retire / re-point `KbPicker` (STUB: placeholder namespaces, legacy-inert `kb_bindings`). | **EXISTS-PARTIAL** (stub present) | `apps/shell/src/genui/index.js` (`KbPicker`); re-point at the live `kb_context` assist or remove |
 
@@ -392,10 +392,26 @@ the contract, independent of any judge.
     a CE checkout) vs `pro` (strand B/C — external commercial literature, gated/absent under deny).
     Single-field flip, zero engine edits. **Deferred** — decide when the connector actually lands
     (§9 step 6), since access is currently blocked (OQ-4).
-  - **OQ-2 (the registration GATE — §3 second half).** What is the exact, testable predicate that
-    refuses a "free-text/LLM" executor at registration time (so `openevidence_judge` can never be
-    smuggled in as a `contract_type`)? Must be mechanical, not prose — the spine invariant is only
-    as strong as this gate. **Sharpest.**
+  - **OQ-2 (the registration GATE — §3 second half).** ~~What is the exact, testable predicate that
+    refuses a "free-text/LLM" executor at registration time…~~ **RESOLVED (FAUTH-2 / 2026-06-20) in
+    two halves.** *(a) The enforceable half, SHIPPED:* the author-time **TYPE gate** — the predicate
+    is `contract_type ∈ set(grounding.suppress_executors()) ∪ set(grounding.floor_executors())`,
+    enforced fail-closed (422) at the single write chokepoint `_put_grounding_contract`
+    (`apps/bff/app.py`, shared by the card POST and the `add_grounding_contract` chat tool). This
+    moves the existing grade-time RAISE (`grounding.py:599-600`) UP to author time, so a
+    prose / unknown / `openevidence_judge` `contract_type` can never be PINNED — it is rejected
+    before persistence (nothing splices, nothing audits). Mechanical + tested
+    (`tests/bff/test_grounding_contract_gate.py`); READ-ONLY against the moat (it CALLS the public
+    accessors, never edits `grounding.py`). *(b) The deeper half, DEFERRED → FAUTH-2b
+    (S-BS-FAUTH2-1):* an `oracle_kind ∈ {code, structure, value}` **MARKER** on each executor class +
+    a validation pass INSIDE `suppress_executors()`/`floor_executors()` (`grounding.py:377-395`) that
+    refuses any executor lacking the marker — so a free-text/LLM executor can never *register* (not
+    just never be pinned by type). This is a **coordinated cross-repo** change: `grounding.py` is moat
+    byte-frozen, and the external `../lithrim-pack-healthcare` executors carry NO `oracle_kind` marker
+    today (verified 2026-06-20), so a fail-closed marker-gate at the accessor would **suppress the
+    clinical floors** (`record_presence`/`snomed_subsumption`/`dosage_grounding`) → grade regression.
+    The pack executors must be TAGGED first, then the accessor gated. **Both halves remain required;
+    FAUTH-2 ships the first and names the second — the invariant is not weakened.**
   - **OQ-3 (NARR-FLOOR-1 oracle for a NL note).** The case-10 artifact is a free-text scribe note,
     but the floor must decide from a coded/structural oracle, not free-text inference. Is the oracle
     SNOMED-subsumption over an extracted concept set (Hermes), a `structural_jute` span check, or a
@@ -418,13 +434,18 @@ the contract, independent of any judge.
 > case-10 loop is demonstrable WITHOUT OpenEvidence; the evidence connector is a final, optional
 > enrichment behind a **vendor-swappable evidence-connector interface** (§5.1).
 
-  1. **G1 — surface the builder inline.** Re-point `adapter.py` so `add_grounding_contract` emits
-     `tool-contract_builder`, not `flag_editor`. Demonstrable: the physician sees an interactive
-     builder inline. (Zero new executors; smallest cut.)
-  2. **G3 + OQ-2 — align contract-types + the registration gate.** Make `ContractBuilder.CONTRACT_TYPES`
-     equal the registered executor keys; add the mechanical free-text-executor refusal gate.
-     Demonstrable: an unregistered/prose contract-type is rejected at authoring time, not at
-     `ground()` raise time.
+  1. **G1 — surface the builder inline. ✅ DONE (FAUTH-1 / 2026-06-20).** Re-point `adapter.py` so
+     `add_grounding_contract` emits `tool-contract_builder`, not `flag_editor`. Demonstrable: the
+     physician sees an interactive builder inline. (Zero new executors; smallest cut.)
+  2. **G3 + OQ-2 — align contract-types + the registration gate. ✅ DONE-PARTIAL (FAUTH-2 /
+     2026-06-20); oracle-marker gate → FAUTH-2b.** The TYPE alignment + the author-time TYPE gate
+     shipped: `ContractBuilder`'s type list is driven LIVE by the registered executor keys (GET
+     `/v1/grounding-contract/types`, static fallback), and `_put_grounding_contract` refuses an
+     unregistered/prose `contract_type` with a 422 at authoring time (not at `ground()` raise time).
+     The mechanical free-text-executor refusal at the registration ACCESSOR (the `oracle_kind`
+     marker, §3 "exact seam") is **deferred to FAUTH-2b** (cross-repo: tag the external pack
+     executors first — see OQ-2(b)). Demonstrable now: an unregistered/prose contract-type is
+     rejected at authoring time, nothing pinned, nothing audited.
   3. **G2 — wire retrieval → params (on the AVAILABLE assists).** The ASSIST sub-step pre-fills
      contract params from `kb_context` + SNOMED/Hermes (prose/codes → params, no hand-JSON) —
      **no OpenEvidence dependency.** Demonstrable: the case-10 contract authored with zero JSON.
