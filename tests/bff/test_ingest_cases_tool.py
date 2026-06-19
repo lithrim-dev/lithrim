@@ -39,8 +39,9 @@ def test_registry_adds_exactly_ingest_cases_and_deny_hook_frozen():
     the A-SAFE deny hook passes ingest_cases (allowed) yet still DENIES a built-in (byte-
     frozen — the 17th tool is bounded for free)."""
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 18 and len(set(names)) == 18, names  # +NARR-CHAT-LOOP list_cases
+    assert len(names) == 19 and len(set(names)) == 19, names  # +META-VERDICT-1 record_meta_verdict
     assert "ingest_cases" in names
+    assert "record_meta_verdict" in names
 
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:  # NON-VACUOUS: includes the new tool
         assert [k for k in agent_tools.PAID_KEYS if k in schema] == [], (n, schema)
@@ -83,6 +84,7 @@ def _stub_ctx(*, ingest_cases=None):
         kb_context=_noop,
         ingest_cases=ingest_cases or _noop,
         list_cases=_noop,
+        record_meta_verdict=_noop,
     )
 
 

@@ -216,7 +216,7 @@ def test_split_and_crud_tools_grow_the_set_to_nine_with_no_paid_knob():
     / show_case / propose_live_run A-SAFE bounds are tests/test_chatbind2_pane.py; the NARR-2
     ingest_cases A-SAFE bound is tests/bff/test_ingest_cases_tool.py.)"""
     names = [name for _, name, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 18, names  # +NARR-CHAT-LOOP list_cases
+    assert len(names) == 19, names  # +META-VERDICT-1 record_meta_verdict
     assert {
         "run_eval_pack",
         "assemble_agent",

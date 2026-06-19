@@ -60,7 +60,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -371,6 +371,31 @@ class GroundingContractRequest(BaseModel):
     question: str = ""
     version: str = ""
     agent: str = DEFAULT_AGENT
+
+
+# META-VERDICT-1: the closed judge-fallacy taxonomy (ClinVerdict's "Judge Fallacy" column).
+# A clinician naming WHY the automated judge erred — the dissent's typed reason. Closed by
+# construction: an out-of-enum code 422s at the model boundary (pydantic), never a free string.
+JudgeFallacyCode = Literal[
+    "Hallucination Blindness",
+    "Reference Bias",
+    "Metric Conflation",
+    "Risk-Severity Blindness",
+    "Boundary Violation",
+]
+JUDGE_FALLACY_CODES: tuple[str, ...] = get_args(JudgeFallacyCode)
+
+
+class MetaVerdictRequest(BaseModel):
+    # META-VERDICT-1 (SPEC_CLINVERDICT_SELF_SERVE §4 P0): a physician's INDEPENDENT verdict +
+    # judge meta-audit on a run — ClinVerdict's Layer-3 (HITL clinical validator). The clinician
+    # records their own pass/fail, whether they AGREE with the council, and — when they dissent —
+    # the judge's named fallacy. $0, no paid knob: this is an immutable AuditRecord, not a grade.
+    run_id: str
+    human_verdict: Literal["pass", "fail"]
+    agrees_with_council: bool
+    judge_fallacy_code: JudgeFallacyCode | None = None
+    rationale: str = ""
 
 
 class ConnectorConfigRequest(BaseModel):
@@ -1898,6 +1923,45 @@ def get_audit_endpoint(
     return {"records": records}
 
 
+@app.post("/v1/meta-verdict")
+def post_meta_verdict_endpoint(
+    body: MetaVerdictRequest,
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """META-VERDICT-1: record a clinician's INDEPENDENT verdict + judge meta-audit against a
+    run — ClinVerdict's Layer-3 (the HITL clinical validator), the surface that was missing.
+
+    A physician reads the council's votes (GET /v1/runs/{id}/audit) and records: their own
+    pass/fail, whether they AGREE with the council, and — when they dissent — the judge's
+    named fallacy (a closed enum, 422 out-of-enum). It writes exactly ONE immutable
+    AuditRecord via the SAME audited-write idiom as ``put_ontology_endpoint``
+    (``action=meta_verdict``, ``target=verdict/run_id``) — no engine/``harness/`` file is
+    touched. A second submission APPENDS (immutability by construction); the cohort matrix
+    (NARR-5-COHORT) joins these records to the run blobs to derive the verdict-match +
+    judge-blindness stats. $0 — there is no paid path here.
+    """
+    actor = _resolve_actor(x_actor, default_actor)
+    after = {
+        "human_verdict": body.human_verdict,
+        "agrees_with_council": body.agrees_with_council,
+        "judge_fallacy_code": body.judge_fallacy_code,
+    }
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=actor,
+            action="meta_verdict",
+            target=Target(type="verdict", id=body.run_id),
+            why={"rationale": body.rationale},
+            before=None,
+            after=after,
+            run_id=body.run_id,
+        )
+    )
+    return {"status": "ok", "run_id": body.run_id, "actor": actor.model_dump(), **after}
+
+
 def _run_audit_report(doc: dict, run_id: str) -> dict:
     """Project a persisted PipelineProvenance blob into the §2B run-provenance report
     (stream 2): who (the agent) / when (the run ts) / what (the verdict) / why (each
@@ -2545,6 +2609,29 @@ def _build_tool_context(
 
         return KbRagTool().search(namespace, query, top_k=int(top_k))
 
+    # ── META-VERDICT-1: the conversational "record my clinician verdict" WRITE — an immutable
+    # AuditRecord (action=meta_verdict, target=verdict/run_id) via the FROZEN audited endpoint.
+    def _record_meta_verdict(
+        run_id: str,
+        human_verdict: str,
+        agrees_with_council: bool,
+        judge_fallacy_code: str | None = None,
+        rationale: str = "",
+    ) -> dict:
+        # Validate at the model boundary (an out-of-enum code raises ValidationError, surfaced by
+        # the handler), then call the endpoint fn directly with every Depends/Header passed
+        # explicitly (S-BS-82: no FastAPI sentinel leaks). $0 — no paid knob exists on this path.
+        body = MetaVerdictRequest(
+            run_id=run_id,
+            human_verdict=human_verdict,
+            agrees_with_council=agrees_with_council,
+            judge_fallacy_code=judge_fallacy_code,
+            rationale=rationale,
+        )
+        return post_meta_verdict_endpoint(
+            body=body, db_path=db_path, default_actor=actor, x_actor=x_actor
+        )
+
     return ToolContext(
         author_judge=_author_judge,
         get_judge=_get_judge,
@@ -2561,6 +2648,7 @@ def _build_tool_context(
         kb_context=_kb_context,
         ingest_cases=_ingest_cases,
         list_cases=_list_cases,
+        record_meta_verdict=_record_meta_verdict,
         default_agent=req_agent,
         active_case=active_case,
     )

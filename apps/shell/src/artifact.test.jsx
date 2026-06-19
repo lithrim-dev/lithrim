@@ -2,18 +2,19 @@
    mock). JudgeTab takes realized council votes via props; ConfigTab self-fetches GET
    /v1/ontology; CorpusTab self-fetches GET /v1/corpus (populated + empty-state). */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-// ConfigTab + CorpusTab self-fetch through bff.js — mock the two getters.
+// ConfigTab + CorpusTab self-fetch through bff.js — mock the getters + the meta-verdict write.
 vi.mock("./bff.js", () => ({
   getOntology: vi.fn(),
   getCorpus: vi.fn(),
   getCase: vi.fn(),
   listCases: vi.fn(),
+  recordMetaVerdict: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";
-import { getOntology, getCorpus, getCase, listCases } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCases, recordMetaVerdict } from "./bff.js";
 
 const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   getCase.mockReset();
   listCases.mockReset();
   listCases.mockResolvedValue({ cases: [], count: 0 }); // default: no ingested cases
+  recordMetaVerdict.mockReset();
 });
 
 const COUNCIL_RESULT = {
@@ -292,5 +294,63 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
   it("does NOT render a Floor blocks section (no false BLOCK styling) when floor_adjustments is empty", () => {
     render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={NO_FLOOR_RUN} runError={null} />);
     expect(screen.queryByText(/Hard-rule failures/i)).toBeNull();
+  });
+});
+
+// META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit (ClinVerdict Layer-3).
+describe("ReportTab — clinician verdict (META-VERDICT-1)", () => {
+  const REPORT_RESULT = {
+    case_id: "clinverdict_10",
+    grade_path: "replay",
+    pipeline_run_id: "run-xyz",
+    composite: {
+      verdict: "approve",
+      stage_verdict: "PASS",
+      score: 0.2,
+      active_findings: [],
+      grounded_adjustments: [],
+      floor_adjustments: [],
+    },
+    calibration_check: { label_status: "unlabeled", n_cases: 1 },
+  };
+
+  it("records a DISSENT (fail + named fallacy) against the run via POST /v1/meta-verdict", async () => {
+    recordMetaVerdict.mockResolvedValue({ status: "ok" });
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={REPORT_RESULT} runError={null} />);
+    expect(screen.getByTestId("clinician-verdict")).toBeInTheDocument();
+    // verdict defaults to "fail" (dissent); name the fallacy + rationale, then record.
+    fireEvent.change(screen.getByLabelText("Judge fallacy"), { target: { value: "Reference Bias" } });
+    fireEvent.change(screen.getByLabelText("Rationale"), { target: { value: "ref note omitted the dissent" } });
+    fireEvent.click(screen.getByText("Record verdict"));
+    await waitFor(() => expect(recordMetaVerdict).toHaveBeenCalledTimes(1));
+    expect(recordMetaVerdict).toHaveBeenCalledWith({
+      run_id: "run-xyz",
+      human_verdict: "fail",
+      agrees_with_council: false,
+      judge_fallacy_code: "Reference Bias",
+      rationale: "ref note omitted the dissent",
+    });
+    expect(await screen.findByText("Recorded ✓")).toBeInTheDocument(); // the button flips to confirmed
+  });
+
+  it("AGREEING with the council hides the fallacy picker and omits the code", async () => {
+    recordMetaVerdict.mockResolvedValue({ status: "ok" });
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={REPORT_RESULT} runError={null} />);
+    fireEvent.click(screen.getByLabelText(/I agree with the council/));
+    expect(screen.queryByLabelText("Judge fallacy")).toBeNull(); // the picker is gone
+    fireEvent.click(screen.getByText("Pass"));
+    fireEvent.click(screen.getByText("Record verdict"));
+    await waitFor(() => expect(recordMetaVerdict).toHaveBeenCalledTimes(1));
+    const payload = recordMetaVerdict.mock.calls[0][0];
+    expect(payload.agrees_with_council).toBe(true);
+    expect(payload.human_verdict).toBe("pass");
+    expect("judge_fallacy_code" in payload).toBe(false); // never sent when agreeing
+  });
+
+  it("no run yet (no pipeline_run_id) → prompts to run first, never POSTs", () => {
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready"
+      runResult={{ ...REPORT_RESULT, pipeline_run_id: undefined }} runError={null} />);
+    expect(screen.getByText(/Run an evaluation first/)).toBeInTheDocument();
+    expect(recordMetaVerdict).not.toHaveBeenCalled();
   });
 });

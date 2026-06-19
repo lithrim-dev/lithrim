@@ -152,6 +152,18 @@ INGEST_CASES_SCHEMA: dict[str, Any] = {
     "extraction_rules": str,
     "agent": str,
 }
+# META-VERDICT-1 — RECORD a clinician's INDEPENDENT verdict + judge meta-audit on a run
+# (ClinVerdict Layer-3, the HITL clinical validator). An audited $0 WRITE: the human's pass/fail,
+# whether they AGREE with the council, and — on dissent — the judge's named fallacy (a CLOSED enum:
+# Hallucination Blindness | Reference Bias | Metric Conflation | Risk-Severity Blindness | Boundary
+# Violation; an out-of-enum code is rejected). NO PAID_KEY — recording an attestation is not a grade.
+RECORD_META_VERDICT_SCHEMA: dict[str, Any] = {
+    "run_id": str,
+    "human_verdict": str,
+    "agrees_with_council": bool,
+    "judge_fallacy_code": str,
+    "rationale": str,
+}
 # The paid knobs the agent must NEVER reach. Asserted absent from EVERY tool schema by
 # the A-SAFE test (S-BS-81 generalization) — a regression that adds one here fails the build.
 PAID_KEYS = ("confirm", "in_process", "live")
@@ -200,6 +212,10 @@ class ToolContext:
     - ``list_cases() -> dict``  (NARR-CHAT-LOOP: enumerate the active workspace's INGESTED corpus
       — the gradeable cases a user dropped via ingest — so "show me the cases" surfaces the real
       corpus, not the agent's single seed. Returns {cases, count}. $0/read.)
+    - ``record_meta_verdict(run_id, human_verdict, agrees_with_council, judge_fallacy_code,
+      rationale) -> dict``  (META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit
+      — ClinVerdict Layer-3. An audited $0 WRITE of one immutable AuditRecord (action=meta_verdict,
+      target=verdict/run_id). An out-of-enum judge_fallacy_code raises (surfaced). Never a paid run.)
     - ``default_agent``: the agent the tools default to.
     - ``active_case``: NARR-CHAT-LOOP — the case the human is exploring in the UI (the shared
       "active case" the shell sends per turn). run_eval/show_case DEFAULT their ``case_id`` to it
@@ -222,6 +238,7 @@ class ToolContext:
     kb_context: Callable[..., dict]
     ingest_cases: Callable[..., dict]
     list_cases: Callable[..., dict]
+    record_meta_verdict: Callable[..., dict]
     default_agent: str = "ws0_default"
     active_case: str | None = None
     parts: list[dict] = field(default_factory=list)
@@ -565,6 +582,47 @@ async def add_grounding_contract_handler(ctx: ToolContext, args: dict[str, Any])
     )
 
 
+async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # META-VERDICT-1 (audited WRITE): record the clinician's INDEPENDENT verdict + judge meta-audit
+    # on a run — ClinVerdict Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
+    # ctx.record_meta_verdict validates at the model boundary (an out-of-enum judge_fallacy_code or
+    # human_verdict raises) and writes one immutable AuditRecord; a failure is SURFACED exactly as
+    # add_grounding_contract surfaces 404/422 — never bypassed, never a paid run.
+    run_id = str(args.get("run_id") or "")
+    human_verdict = str(args.get("human_verdict") or "")
+    raw_agree = args.get("agrees_with_council")
+    agrees = (
+        raw_agree
+        if isinstance(raw_agree, bool)
+        else str(raw_agree).strip().lower() in ("true", "1", "yes")
+    )
+    # an empty/blank fallacy code -> None (the agreeing path carries no fallacy).
+    fallacy = (str(args.get("judge_fallacy_code") or "").strip()) or None
+    rationale = str(args.get("rationale") or "")
+    try:
+        ctx.record_meta_verdict(
+            run_id=run_id,
+            human_verdict=human_verdict,
+            agrees_with_council=agrees,
+            judge_fallacy_code=fallacy,
+            rationale=rationale,
+        )
+    except Exception as exc:  # ValidationError (out-of-enum) / HTTPException / anything raised
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not record the clinician meta-verdict for run {run_id!r}: {detail}. Nothing was "
+            f"recorded. human_verdict must be 'pass'/'fail'; judge_fallacy_code (only on dissent) "
+            f"must be one of the five named fallacies — surface the error, do not retry blindly."
+        )
+    ctx.emit(open_artifact_part("report"))  # open the Report tab — the clinician-verdict slot lives there
+    return _text(
+        f"Recorded the clinician meta-verdict for run {run_id!r}: human_verdict={human_verdict}, "
+        f"agrees_with_council={agrees}, judge_fallacy={fallacy or 'none'}. The attestation is "
+        f"immutable + audited (action=meta_verdict) — it adds to the record, it does not change the "
+        f"verdict."
+    )
+
+
 async def ingest_cases_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # NARR-2 (audited INGESTION): drop a JSON dump → the bound ctx.ingest_cases generates a JUTE
     # jute_transform, live-gates it on :3031, applies it, PINs the mapping, upserts the workspace
@@ -889,6 +947,19 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "failure (a mis-join → null → rejected) or a :3031-down path surfaces an error and pins "
         "NOTHING — surface it, refine the rules, do not retry blindly.",
         INGEST_CASES_SCHEMA,
+    ),
+    (
+        record_meta_verdict_handler,
+        "record_meta_verdict",
+        "RECORD the clinician's INDEPENDENT verdict + judge meta-audit on a run (the physician "
+        "Layer-3 review): their own pass/fail, whether they AGREE with the council, and — only when "
+        "they DISSENT — the judge's named fallacy. Shape: {run_id, human_verdict('pass'|'fail'), "
+        "agrees_with_council(bool), [judge_fallacy_code], [rationale]}. judge_fallacy_code is a CLOSED "
+        "enum (Hallucination Blindness | Reference Bias | Metric Conflation | Risk-Severity Blindness | "
+        "Boundary Violation); omit it when agreeing. Get run_id from the run/report on screen. An "
+        "audited $0 WRITE — it adds an immutable attestation, it NEVER changes the verdict or fires a "
+        "paid run. An out-of-enum code is rejected (surface it, do not retry blindly).",
+        RECORD_META_VERDICT_SCHEMA,
     ),
 ]
 

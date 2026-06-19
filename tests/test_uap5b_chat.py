@@ -316,7 +316,7 @@ def test_agent_package_does_not_pull_the_sdk_at_import():
 
 
 def test_tool_set_is_the_uap5c_journey_set():
-    """The complete set (18 tools — +NARR-CHAT-LOOP list_cases): the UAP-5b spine (author_judge/get_judge/run_eval) + the
+    """The complete set (19 tools — +META-VERDICT-1 record_meta_verdict): the UAP-5b spine (author_judge/get_judge/run_eval) + the
     UAP-5c journey tools (get_agent/author_flag/review_runs) + the UAP-5c-2 split
     (run_eval_pack batch + assemble_agent edit-one-facet) + the CRUD-1 delete_judge revert +
     the FLAG-1 reference-flag create_flag/delete_flag + the CHATBIND-2 focus_artifact pane
@@ -346,6 +346,7 @@ def test_tool_set_is_the_uap5c_journey_set():
         "kb_context",
         "ingest_cases",
         "list_cases",
+        "record_meta_verdict",
     }
 
 
@@ -392,7 +393,7 @@ def test_pacing_hook_caps_step_proposing_writes_to_one_per_turn():
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent.loop import _build_options
 
-    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 15), default_agent="eval-1")
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 16), default_agent="eval-1")
     opts = _build_options(ctx)
     matcher = opts.hooks["PreToolUse"][0]
     hooks = matcher.hooks
@@ -430,7 +431,7 @@ def test_pacing_hook_fails_open_for_itself():
     pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent.loop import _build_options
 
-    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 15), default_agent="eval-1")
+    ctx = agent_tools.ToolContext(*([lambda **k: {}] * 16), default_agent="eval-1")
     pace = _build_options(ctx).hooks["PreToolUse"][0].hooks[1]
     # None / a missing tool_name must not raise; they are not a counted write -> allow
     assert asyncio.run(pace(None, "t", None)) == {}

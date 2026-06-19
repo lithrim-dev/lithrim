@@ -124,8 +124,9 @@ def test_asafe_delete_judge_is_the_ninth_tool_no_paid_knob():
     # CRUD-1 added delete_judge (9th); FLAG-1 added create_flag (10th) + delete_flag (11th);
     # CHATBIND-2 added focus_artifact (12th); CHATBIND-3 show_case (13th); CHATBIND-4 propose_live_run (14th);
     # GROUND-CHAT-1 added add_grounding_contract (15th); KB-CONTEXT-1 added kb_context (16th);
-    # NARR-2 added ingest_cases (17th); NARR-CHAT-LOOP added list_cases (18th).
-    assert len(names) == 18 and len(set(names)) == 18, names
+    # NARR-2 added ingest_cases (17th); NARR-CHAT-LOOP added list_cases (18th);
+    # META-VERDICT-1 added record_meta_verdict (19th).
+    assert len(names) == 19 and len(set(names)) == 19, names
     assert {"delete_judge", "create_flag", "delete_flag"} <= set(names)
     # NON-VACUOUS: every one of the 17 schemas is no-paid-knob, the new tools included.
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:
@@ -178,6 +179,7 @@ def _stub_ctx(delete_judge_fn):
         kb_context=_noop,
         ingest_cases=_noop,
         list_cases=_noop,
+        record_meta_verdict=_noop,
     )
 
 
