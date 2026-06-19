@@ -18,6 +18,9 @@ vi.mock("../bff.js", () => ({
   }),
   putOntology: vi.fn().mockResolvedValue({ status: "ok", working_copy: "/tmp/ont/ws0_default.json" }),
   putGroundingContract: vi.fn().mockResolvedValue({ flag_code: "X", replaced: false, status: "ok" }),
+  // FAUTH-2: ContractBuilder fetches the live registered types on mount — mock it so these
+  // pre-existing tests don't crash on the new useEffect (back-compat / R4).
+  getGroundingContractTypes: vi.fn().mockResolvedValue({ contract_types: ["presence_check"], pack: "_core" }),
 }));
 
 import FlagEditor from "./FlagEditor.jsx";

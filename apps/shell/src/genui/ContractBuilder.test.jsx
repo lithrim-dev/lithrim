@@ -72,6 +72,12 @@ describe("ContractBuilder — no broken-type footgun (A4 / R4)", () => {
   });
 });
 
+// Radix Select renders its option items into a portal only when OPENED — open the trigger first
+// (Radix opens on pointerDown, not click; the jsdom pointer-capture + scrollIntoView shims live in
+// src/test/setup.js), then the SelectItems become queryable.
+const openTypeSelect = () =>
+  fireEvent.pointerDown(screen.getByLabelText("contract type"), { button: 0, ctrlKey: false, pointerType: "mouse" });
+
 describe("ContractBuilder — the live type list drives the UI, with a fallback (FAUTH-2 / A3)", () => {
   it("fetches the active pack's registered types on mount and drives the Select from them", async () => {
     getGroundingContractTypes.mockClear();
@@ -83,9 +89,10 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
 
     await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
-    // the fetched (pack-true) set renders; record_presence (static fallback only) does NOT, since
-    // the fetch returned a narrower set.
-    await waitFor(() => expect(screen.getAllByText("snomed_subsumption").length).toBeGreaterThan(0));
+    openTypeSelect();
+    // the fetched (pack-true) set drives the options; record_presence (static fallback only) is
+    // NOT offered, since the fetch returned a narrower set.
+    expect((await screen.findAllByText("snomed_subsumption")).length).toBeGreaterThan(0);
     expect(screen.queryAllByText("record_presence")).toHaveLength(0);
   });
 
@@ -95,10 +102,11 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
 
     await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
-    // first paint + the rejected fetch keep the static fallback selectable (never crashes).
-    await waitFor(() => expect(screen.getAllByText("presence_check").length).toBeGreaterThan(0));
+    openTypeSelect();
+    // the rejected fetch keeps the static fallback selectable (never crashes) — every static type
+    // is offered.
     for (const t of CONTRACT_TYPES) {
-      expect(screen.getAllByText(t).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText(t)).length).toBeGreaterThan(0);
     }
   });
 });

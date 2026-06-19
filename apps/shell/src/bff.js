@@ -61,6 +61,13 @@ export const putOntology = (ontology, agent = "ws0_default") =>
 export const putGroundingContract = (contract, agent = "ws0_default") =>
   call("/v1/grounding-contract", { method: "POST", body: { ...contract, agent } });
 
+/* GET /v1/grounding-contract/types — FAUTH-2 (G3): the active pack's REGISTERED grounding
+   executor keys (suppress ∪ floor) — the pack-true contract-type list ContractBuilder drives its
+   selector from, so a non-coder can only pick a type the author-time gate will accept (and that
+   ground() won't raise on at grade time). READ-ONLY, $0. The builder falls back to its static
+   CONTRACT_TYPES if this rejects (offline / first paint). */
+export const getGroundingContractTypes = () => call("/v1/grounding-contract/types");
+
 /* POST /v1/meta-verdict — META-VERDICT-1: a clinician's INDEPENDENT verdict + judge meta-audit
    on a run (ClinVerdict Layer-3). Writes ONE immutable AuditRecord (action=meta_verdict). $0 —
    it adds an attestation, it never changes the verdict or fires a paid run. judge_fallacy_code

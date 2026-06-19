@@ -12,8 +12,8 @@
    onResult() — so the rail's Ground-truth step ticks honestly (W1a reads that store). A 404
    (unknown flag) / 422 surfaces inline; nothing fires onResult on a failed write. Built on
    shadcn primitives + the @theme token bridge; the Preview opens the built contract in a Dialog. */
-import { useState } from "react";
-import { putGroundingContract } from "../bff.js";
+import { useEffect, useState } from "react";
+import { putGroundingContract, getGroundingContractTypes } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Input } from "../components/ui/input.jsx";
@@ -24,14 +24,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 
-// FAUTH-1 (R4): the inline type list is scoped to contract_types with a REGISTERED engine
-// executor — surfacing the builder inline makes this selectable by a non-coder, and an
-// unregistered type makes ground() RAISE at grade time (grounding.py:592-600). presence_check is
-// the always-registered core suppress executor; snomed_subsumption + record_presence are the
-// pack-registered grounding types add_grounding_contract advertises. The prior list's
-// negation_check / code_match / range_check have NO executor (the footgun) — removed. The deeper
-// registration GATE (refuse a free-text/LLM executor; refuse a type with no executor for the
-// active pack) is FAUTH-2/G3, not this cycle.
+// FAUTH-2 (G3): the inline type list is now driven LIVE by the active pack's registered executor
+// keys (GET /v1/grounding-contract/types → suppress ∪ floor), fetched on mount — retiring the
+// hand-maintained static guard (S-BS-FAUTH1-1). This list below is the OFFLINE / first-paint /
+// fetch-reject FALLBACK only (the pane-mounted + scripted-showcase paths run with no server).
+// presence_check is the always-registered core suppress executor; snomed_subsumption +
+// record_presence are the pack-registered grounding types add_grounding_contract advertises; the
+// broken negation_check / code_match / range_check (no executor → ground() raises) stay out.
+// The author-time GATE now also exists server-side: _put_grounding_contract refuses an
+// unregistered contract_type with a 422 (FAUTH-2) — so an off-list type can't be pinned even if
+// it reaches the wire. (The deeper oracle_kind executor-marker gate is FAUTH-2b, cross-repo.)
 export const CONTRACT_TYPES = ["presence_check", "snomed_subsumption", "record_presence"];
 
 function Field({ label, children }) {
@@ -51,6 +53,17 @@ function Field({ label, children }) {
 // validation gates Save (R5).
 export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, onResult }) {
   const [contractType, setContractType] = useState("presence_check");
+  // FAUTH-2 (G3): the type list is driven by the active pack's registered executors; init to the
+  // static fallback so first paint + offline (vitest / scripted-showcase) never crash, then
+  // replace it with the live set on a resolved fetch (keep the fallback on reject).
+  const [contractTypes, setContractTypes] = useState(CONTRACT_TYPES);
+  useEffect(() => {
+    let live = true;
+    getGroundingContractTypes()
+      .then((r) => { if (live && Array.isArray(r?.contract_types) && r.contract_types.length) setContractTypes(r.contract_types); })
+      .catch(() => {}); // offline / first paint → keep the static fallback
+    return () => { live = false; };
+  }, []);
   const [flagCode, setFlagCode] = useState(seedFlag ?? flag_code ?? "");
   const [question, setQuestion] = useState("");
   const [paramsText, setParamsText] = useState('{\n  "source": "response.claims"\n}');
@@ -101,7 +114,7 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
             <Select value={contractType} onValueChange={setContractType}>
               <SelectTrigger aria-label="contract type"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {CONTRACT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {contractTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>

@@ -17,6 +17,9 @@ vi.mock("./bff.js", () => ({
   listCases: vi.fn().mockResolvedValue({ cases: [], count: 0 }),
   getOntology: vi.fn().mockResolvedValue({ flags: [], questions: [] }),
   putOntology: vi.fn().mockResolvedValue({}),
+  // FAUTH-2: the registry's ContractBuilder fetches the live registered types on mount — stub it
+  // so mounting the gen-UI registry under this whole-surface mock doesn't reach an undefined export.
+  getGroundingContractTypes: vi.fn().mockResolvedValue({ contract_types: ["presence_check"], pack: "_core" }),
   getAgent: vi.fn().mockResolvedValue({ name: "ws0_default", eval_profile: {} }),
   putAgent: vi.fn().mockResolvedValue({}),
   getAudit: vi.fn().mockResolvedValue({ records: [] }),
