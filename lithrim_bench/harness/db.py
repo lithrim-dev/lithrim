@@ -89,6 +89,82 @@ class DbConn:
             self._raw.close()
 
 
+def _has_column(conn: DbConn, table: str, col: str) -> bool:
+    if conn.backend == "sqlite":
+        return any(r[1] == col for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+    row = conn.execute(
+        "SELECT 1 FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+        (table, col),
+    ).fetchone()
+    return row is not None
+
+
+def _table_exists(conn: DbConn, table: str) -> bool:
+    if conn.backend == "sqlite":
+        return (
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", (table,)
+            ).fetchone()
+            is not None
+        )
+    return (
+        conn.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", (table,)
+        ).fetchone()
+        is not None
+    )
+
+
+def migrate_workspace_scope(
+    conn: DbConn,
+    table: str,
+    *,
+    new_schema: str,
+    copy_cols: list[str],
+    key_cols: list[str],
+    stamp_workspace_id: str,
+    rebuild_pk: bool,
+) -> None:
+    """Idempotently carry an OLD-shape config table (pre slice-4, no ``workspace_id``) forward.
+
+    No-op when the table is ABSENT (a fresh DB — the caller's ``CREATE … IF NOT EXISTS`` already
+    makes it new-shape) or already carries ``workspace_id`` (already migrated). Existing rows are
+    stamped with ``stamp_workspace_id`` — the file's OWN workspace (``workspace_id_of(db_path)``),
+    NOT a literal 'default', so the scoped reads still see them.
+
+    ``rebuild_pk=True`` (agents / judges): the PK becomes composite ``(workspace_id, *key_cols)``
+    so the same name can exist in two workspaces — SQLite rebuilds the table (the only portable PK
+    change), Postgres adds the column + swaps the PK. ``rebuild_pk=False`` (config_audit / *_history,
+    append-only serial PK): a plain additive column + a one-shot stamp. PERSIST-3a slice 4."""
+    if not _table_exists(conn, table) or _has_column(conn, table, "workspace_id"):
+        return
+    cols = ", ".join(copy_cols)
+    if not rebuild_pk:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN workspace_id TEXT")
+        conn.execute(
+            f"UPDATE {table} SET workspace_id = ? WHERE workspace_id IS NULL", (stamp_workspace_id,)
+        )
+        return
+    if conn.backend == "sqlite":
+        # `execute` (NOT executescript) keeps the whole rebuild in ONE transaction — executescript
+        # forces an implicit COMMIT, which would land the RENAME before the rows are copied (a
+        # crash-only durability gap). Safe here: the rebuild path only ever runs the single-statement
+        # agents/judges CREATE; the multi-statement _history schema is the additive path above.
+        conn.execute(f"ALTER TABLE {table} RENAME TO {table}__pre3a")
+        conn.execute(new_schema)  # recreate `table` new-shape (single CREATE; atomic with the copy)
+        conn.execute(
+            f"INSERT INTO {table} (workspace_id, {cols}) SELECT ?, {cols} FROM {table}__pre3a",
+            (stamp_workspace_id,),
+        )
+        conn.execute(f"DROP TABLE {table}__pre3a")
+    else:  # postgres: add the column, stamp, then swap the PK to composite
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN workspace_id TEXT")
+        conn.execute(f"UPDATE {table} SET workspace_id = ?", (stamp_workspace_id,))
+        conn.execute(f"ALTER TABLE {table} ALTER COLUMN workspace_id SET NOT NULL")
+        conn.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {table}_pkey")
+        conn.execute(f"ALTER TABLE {table} ADD PRIMARY KEY (workspace_id, {', '.join(key_cols)})")
+
+
 def connect(url: str | Path | None = None) -> DbConn:
     """Open a ``DbConn`` for the resolved backend. SQLite is the default + never gated;
     Postgres lazy-imports ``psycopg`` (the ``[pg]`` extra). Use ``config_db_url(db_path)`` to

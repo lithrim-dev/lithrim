@@ -40,11 +40,13 @@ DEFAULT_CONFIG_DB = REPO_ROOT / "out" / "config" / "bench_config.sqlite"
 SYSTEM_SEED_ACTOR = {"type": "system", "id": "seed"}
 
 def _audit_schema(dialect: Any) -> str:
-    """The ``config_audit`` schema, dialect-aware (the ``seq`` PK is the only difference —
-    SQLite ``AUTOINCREMENT`` vs Postgres ``BIGSERIAL``). PERSIST-2c-3."""
+    """The ``config_audit`` schema, dialect-aware (the ``seq`` PK differs — SQLite ``AUTOINCREMENT``
+    vs Postgres ``BIGSERIAL``). PERSIST-3a slice 4: an additive ``workspace_id`` (append-only ledger,
+    serial PK unchanged) so ``query`` is workspace-scoped under a shared DB."""
     return (
         "CREATE TABLE IF NOT EXISTS config_audit (\n"
-        f"    seq         {dialect.serial_pk},\n"
+        f"    seq          {dialect.serial_pk},\n"
+        "    workspace_id TEXT,\n"
         "    ts          TEXT NOT NULL,\n"
         "    actor_type  TEXT NOT NULL,\n"
         "    actor_id    TEXT NOT NULL,\n"
@@ -53,6 +55,18 @@ def _audit_schema(dialect: Any) -> str:
         "    target_id   TEXT NOT NULL,\n"
         "    json        TEXT NOT NULL\n"
         ")"
+    )
+
+
+def _ensure_audit(conn: Any, workspace_id: str) -> None:
+    """Provision config_audit + idempotently add its ``workspace_id`` column to an old-shape table
+    (additive — the ledger is append-only, the serial PK is untouched). PERSIST-3a slice 4."""
+    from lithrim_bench.harness.db import migrate_workspace_scope
+
+    conn.executescript(_audit_schema(conn.dialect))
+    migrate_workspace_scope(
+        conn, "config_audit", new_schema=_audit_schema(conn.dialect), copy_cols=[], key_cols=[],
+        stamp_workspace_id=workspace_id, rebuild_pk=False,
     )
 
 
@@ -115,7 +129,11 @@ class AuditLog:
         rides the caller's open transaction (the caller owns the commit) so the config write +
         its audit row are atomic (N4); otherwise a private connection is opened, committed, and
         closed — routed through the factory (LITHRIM_DB_URL → Postgres, else local SQLite)."""
+        from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
+
+        wsid = workspace_id_of(self._db_path)
         row = (
+            wsid,
             rec.ts,
             rec.actor.type,
             rec.actor.id,
@@ -126,17 +144,15 @@ class AuditLog:
         )
         sql = (
             "INSERT INTO config_audit "
-            "(ts, actor_type, actor_id, action, target_type, target_id, json) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "(workspace_id, ts, actor_type, actor_id, action, target_type, target_id, json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         if conn is not None:
-            conn.executescript(_audit_schema(conn.dialect))
+            _ensure_audit(conn, wsid)
             conn.execute(sql, row)
             return
-        from lithrim_bench.harness.db import config_db_url, connect
-
         with connect(config_db_url(self._db_path)) as own:
-            own.executescript(_audit_schema(own.dialect))
+            _ensure_audit(own, wsid)
             own.execute(sql, row)
 
     def query(
@@ -150,8 +166,11 @@ class AuditLog:
         """Read the config-change stream (§2B stream 1), oldest-first. Filters are
         ANDed; ``actor`` matches ``actor_id``; ``since`` is an inclusive ISO8601 lower
         bound on ``ts`` (lexicographic, valid for ISO8601 UTC)."""
-        clauses: list[str] = []
-        params: list[Any] = []
+        from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
+
+        wsid = workspace_id_of(self._db_path)
+        clauses: list[str] = ["workspace_id = ?"]  # PERSIST-3a: the ledger read is workspace-scoped
+        params: list[Any] = [wsid]
         if actor is not None:
             clauses.append("actor_id = ?")
             params.append(actor)
@@ -164,11 +183,10 @@ class AuditLog:
         if since is not None:
             clauses.append("ts >= ?")
             params.append(since)
-        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        from lithrim_bench.harness.db import config_db_url, connect
+        where = " WHERE " + " AND ".join(clauses)
 
         with connect(config_db_url(self._db_path)) as conn:
-            conn.executescript(_audit_schema(conn.dialect))
+            _ensure_audit(conn, wsid)
             rows = conn.execute(
                 f"SELECT json FROM config_audit{where} ORDER BY seq", tuple(params)
             ).fetchall()
@@ -186,6 +204,8 @@ def upsert_with_audit(
     record_factory: Callable[[dict[str, Any] | None], AuditRecord] | None = None,
     audit_log: AuditLog | None = None,
     version_spec: dict[str, str] | None = None,
+    workspace_id: str | None = None,
+    migrate: dict[str, Any] | None = None,
 ) -> None:
     """Upsert one config-plane doc-shim row and (optionally) its immutable
     :class:`AuditRecord` in ONE connection / ONE transaction (monitor N4).
@@ -210,6 +230,13 @@ def upsert_with_audit(
 
     with connect(config_db_url(db_path)) as conn:
         conn.executescript(schema_sql)
+        if migrate is not None and workspace_id is not None and version_spec is not None:
+            from lithrim_bench.harness.db import migrate_workspace_scope
+
+            migrate_workspace_scope(
+                conn, version_spec["table"], new_schema=schema_sql,
+                stamp_workspace_id=workspace_id, **migrate,
+            )
         before: dict[str, Any] | None = None
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()
@@ -234,6 +261,8 @@ def delete_with_audit(
     record_factory: Callable[[dict[str, Any]], AuditRecord] | None = None,
     audit_log: AuditLog | None = None,
     version_spec: dict[str, str] | None = None,
+    workspace_id: str | None = None,
+    migrate: dict[str, Any] | None = None,
 ) -> bool:
     """Delete one config-plane doc-shim row and (optionally) its immutable delete
     :class:`AuditRecord` in ONE connection / ONE transaction — the removal mirror of
@@ -254,6 +283,13 @@ def delete_with_audit(
 
     with connect(config_db_url(db_path)) as conn:
         conn.executescript(schema_sql)
+        if migrate is not None and workspace_id is not None and version_spec is not None:
+            from lithrim_bench.harness.db import migrate_workspace_scope
+
+            migrate_workspace_scope(
+                conn, version_spec["table"], new_schema=schema_sql,
+                stamp_workspace_id=workspace_id, **migrate,
+            )
         before: dict[str, Any] | None = None
         if audit_log is not None:
             row = conn.execute(select_before_sql, select_before_params).fetchone()

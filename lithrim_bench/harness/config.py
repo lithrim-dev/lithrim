@@ -43,21 +43,37 @@ DEFAULT_AGENT_SEED_DIR = REPO_ROOT / "data" / "config" / "agents"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
-    name       TEXT PRIMARY KEY,
-    json       TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    workspace_id TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    json         TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, name)
 )
 """
+
+# PERSIST-3a slice 4: the migration spec carrying an OLD-shape (name-PK) agents table forward to
+# the composite (workspace_id, name) PK — so the same agent name can live in two workspaces.
+_AGENTS_MIGRATE = {"copy_cols": ["name", "json", "created_at"], "key_cols": ["name"], "rebuild_pk": True}
+
+
+def _ensure_agents(conn: Any, workspace_id: str) -> None:
+    """Provision the agents table (new-shape) + idempotently migrate an old-shape one (PERSIST-3a)."""
+    from lithrim_bench.harness.db import migrate_workspace_scope
+
+    conn.executescript(_SCHEMA)
+    migrate_workspace_scope(
+        conn, "agents", new_schema=_SCHEMA, stamp_workspace_id=workspace_id, **_AGENTS_MIGRATE
+    )
 
 
 def init_config_db(db_path: str | Path = DEFAULT_CONFIG_DB) -> None:
     """Create an EMPTY config DB (the agents schema, no rows). A fresh workspace starts
     blank so its isolation is visible ('create your first agent'); the existing-but-empty
     DB also stops the BFF's seed-if-missing guards from re-seeding it. Idempotent."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_SCHEMA)
+        _ensure_agents(conn, workspace_id_of(db_path))
 
 
 @dataclass(frozen=True)
@@ -199,7 +215,10 @@ def save_agent(
     ``agent_to_dict`` if the row existed) + ``why={rationale}`` (N2: the diff is NOT
     duplicated into ``why``). Absent ``audit_log`` the behavior is byte-identical to
     before (A5 back-compat)."""
+    from lithrim_bench.harness.db import workspace_id_of
+
     db_path = Path(db_path)
+    wsid = workspace_id_of(db_path)
     after = agent_to_dict(agent)
     payload = json.dumps(after, sort_keys=True)
     created_at = datetime.now(timezone.utc).isoformat()
@@ -217,18 +236,20 @@ def save_agent(
     upsert_with_audit(
         db_path,
         schema_sql=_SCHEMA,
-        select_before_sql="SELECT json FROM agents WHERE name = ?",
-        select_before_params=(agent.name,),
+        select_before_sql="SELECT json FROM agents WHERE workspace_id = ? AND name = ?",
+        select_before_params=(wsid, agent.name),
         upsert_sql=(
-            "INSERT INTO agents (name, json, created_at) VALUES (?, ?, ?) "
+            "INSERT INTO agents (workspace_id, name, json, created_at) VALUES (?, ?, ?, ?) "
             # PERSIST-2b: first-write-wins created_at — the live row keeps its authored
             # timestamp; the prior version is preserved in agents_history (version_spec).
-            "ON CONFLICT(name) DO UPDATE SET json=excluded.json"
+            "ON CONFLICT(workspace_id, name) DO UPDATE SET json=excluded.json"
         ),
-        upsert_params=(agent.name, payload, created_at),
+        upsert_params=(wsid, agent.name, payload, created_at),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
-        version_spec={"table": "agents", "id_col": "name", "id_val": agent.name},
+        version_spec={"table": "agents", "id_col": "name", "id_val": agent.name, "workspace_id": wsid},
+        workspace_id=wsid,
+        migrate=_AGENTS_MIGRATE,
     )
     return str(db_path)
 
@@ -252,7 +273,10 @@ def delete_agent(
     ``after=None``) land in ONE transaction via :func:`audit.delete_with_audit`. Runs /
     provenance are a SEPARATE immutable store keyed by ``run_id`` — deleting an agent's
     config row never touches its run blobs (they remain auditable history)."""
+    from lithrim_bench.harness.db import workspace_id_of
+
     db_path = Path(db_path)
+    wsid = workspace_id_of(db_path)
 
     def _record(before: dict[str, Any]) -> AuditRecord:
         return AuditRecord(
@@ -267,34 +291,42 @@ def delete_agent(
     return delete_with_audit(
         db_path,
         schema_sql=_SCHEMA,
-        select_before_sql="SELECT json FROM agents WHERE name = ?",
-        select_before_params=(name,),
-        delete_sql="DELETE FROM agents WHERE name = ?",
-        delete_params=(name,),
+        select_before_sql="SELECT json FROM agents WHERE workspace_id = ? AND name = ?",
+        select_before_params=(wsid, name),
+        delete_sql="DELETE FROM agents WHERE workspace_id = ? AND name = ?",
+        delete_params=(wsid, name),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
-        version_spec={"table": "agents", "id_col": "name", "id_val": name},
+        version_spec={"table": "agents", "id_col": "name", "id_val": name, "workspace_id": wsid},
+        workspace_id=wsid,
+        migrate=_AGENTS_MIGRATE,
     )
 
 
 def list_agents(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> list[str]:
     """All saved agent names, sorted (empty before any seed/author). Backs ``GET
     /v1/agents`` (the rail switcher) + the BFF last-agent delete-guard."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_SCHEMA)
-        rows = conn.execute("SELECT name FROM agents ORDER BY name").fetchall()
+        _ensure_agents(conn, wsid)
+        rows = conn.execute(
+            "SELECT name FROM agents WHERE workspace_id = ? ORDER BY name", (wsid,)
+        ).fetchall()
     return [r[0] for r in rows]
 
 
 def load_agent(name: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> Agent:
     """Load an agent eval-profile from the config DB by name."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_SCHEMA)
-        row = conn.execute("SELECT json FROM agents WHERE name = ?", (name,)).fetchone()
+        _ensure_agents(conn, wsid)
+        row = conn.execute(
+            "SELECT json FROM agents WHERE workspace_id = ? AND name = ?", (wsid, name)
+        ).fetchone()
     if row is None:
         raise KeyError(f"agent {name!r} not found in config DB {db_path}")
     return agent_from_dict(json.loads(row[0]))

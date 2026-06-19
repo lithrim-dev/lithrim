@@ -39,11 +39,27 @@ from lithrim_bench.harness.config import DEFAULT_CONFIG_DB
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS judges (
-    role       TEXT PRIMARY KEY,
-    json       TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    workspace_id TEXT NOT NULL,
+    role         TEXT NOT NULL,
+    json         TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, role)
 )
 """
+
+# PERSIST-3a slice 4: the migration carrying an OLD-shape (role-PK) judges table forward to the
+# composite (workspace_id, role) PK — so the same role can be authored in two workspaces.
+_JUDGES_MIGRATE = {"copy_cols": ["role", "json", "created_at"], "key_cols": ["role"], "rebuild_pk": True}
+
+
+def _ensure_judges(conn: Any, workspace_id: str) -> None:
+    """Provision the judges table (new-shape) + idempotently migrate an old-shape one (PERSIST-3a)."""
+    from lithrim_bench.harness.db import migrate_workspace_scope
+
+    conn.executescript(_SCHEMA)
+    migrate_workspace_scope(
+        conn, "judges", new_schema=_SCHEMA, stamp_workspace_id=workspace_id, **_JUDGES_MIGRATE
+    )
 
 
 @dataclass(frozen=True)
@@ -85,7 +101,10 @@ def save_judge(
     its immutable ``AuditRecord`` (``target.type='judge'``) land in ONE transaction
     via :func:`audit.upsert_with_audit` (N4). ``actor`` is the §2B "who"; absent
     ``audit_log`` the write is byte-equivalent to a plain upsert (back-compat)."""
+    from lithrim_bench.harness.db import workspace_id_of
+
     db_path = Path(db_path)
+    wsid = workspace_id_of(db_path)
     after = judge_to_dict(jc)
     payload = json.dumps(after, sort_keys=True)
     created_at = datetime.now(timezone.utc).isoformat()
@@ -103,17 +122,19 @@ def save_judge(
     upsert_with_audit(
         db_path,
         schema_sql=_SCHEMA,
-        select_before_sql="SELECT json FROM judges WHERE role = ?",
-        select_before_params=(jc.role,),
+        select_before_sql="SELECT json FROM judges WHERE workspace_id = ? AND role = ?",
+        select_before_params=(wsid, jc.role),
         upsert_sql=(
-            "INSERT INTO judges (role, json, created_at) VALUES (?, ?, ?) "
+            "INSERT INTO judges (workspace_id, role, json, created_at) VALUES (?, ?, ?, ?) "
             # PERSIST-2b: first-write-wins created_at; the prior version → judges_history.
-            "ON CONFLICT(role) DO UPDATE SET json=excluded.json"
+            "ON CONFLICT(workspace_id, role) DO UPDATE SET json=excluded.json"
         ),
-        upsert_params=(jc.role, payload, created_at),
+        upsert_params=(wsid, jc.role, payload, created_at),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
-        version_spec={"table": "judges", "id_col": "role", "id_val": jc.role},
+        version_spec={"table": "judges", "id_col": "role", "id_val": jc.role, "workspace_id": wsid},
+        workspace_id=wsid,
+        migrate=_JUDGES_MIGRATE,
     )
     return str(db_path)
 
@@ -139,7 +160,10 @@ def delete_judge(
     is the §2B "who". Absent ``audit_log`` it is a plain delete (back-compat). This
     primitive does NOT validate ``role`` against ``LENS_BY_ROLE`` — that 404 stays at the
     BFF edge (judges.py is council/dspy-free by construction)."""
+    from lithrim_bench.harness.db import workspace_id_of
+
     db_path = Path(db_path)
+    wsid = workspace_id_of(db_path)
 
     def _record(before: dict[str, Any]) -> AuditRecord:
         return AuditRecord(
@@ -154,34 +178,42 @@ def delete_judge(
     return delete_with_audit(
         db_path,
         schema_sql=_SCHEMA,
-        select_before_sql="SELECT json FROM judges WHERE role = ?",
-        select_before_params=(role,),
-        delete_sql="DELETE FROM judges WHERE role = ?",
-        delete_params=(role,),
+        select_before_sql="SELECT json FROM judges WHERE workspace_id = ? AND role = ?",
+        select_before_params=(wsid, role),
+        delete_sql="DELETE FROM judges WHERE workspace_id = ? AND role = ?",
+        delete_params=(wsid, role),
         record_factory=_record if audit_log is not None else None,
         audit_log=audit_log,
-        version_spec={"table": "judges", "id_col": "role", "id_val": role},
+        version_spec={"table": "judges", "id_col": "role", "id_val": role, "workspace_id": wsid},
+        workspace_id=wsid,
+        migrate=_JUDGES_MIGRATE,
     )
 
 
 def load_judge(role: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> JudgeConfig | None:
     """Load a saved judge-config by role, or ``None`` if the role was never authored
     (the BFF then serves a derived default — the role's lens, unbound model)."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_SCHEMA)
-        row = conn.execute("SELECT json FROM judges WHERE role = ?", (role,)).fetchone()
+        _ensure_judges(conn, wsid)
+        row = conn.execute(
+            "SELECT json FROM judges WHERE workspace_id = ? AND role = ?", (wsid, role)
+        ).fetchone()
     return judge_from_dict(json.loads(row[0])) if row is not None else None
 
 
 def list_judges(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> dict[str, JudgeConfig]:
     """All saved judge-configs keyed by role (empty before any authoring)."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_SCHEMA)
-        rows = conn.execute("SELECT json FROM judges ORDER BY role").fetchall()
+        _ensure_judges(conn, wsid)
+        rows = conn.execute(
+            "SELECT json FROM judges WHERE workspace_id = ? ORDER BY role", (wsid,)
+        ).fetchall()
     out: dict[str, JudgeConfig] = {}
     for (j,) in rows:
         jc = judge_from_dict(json.loads(j))

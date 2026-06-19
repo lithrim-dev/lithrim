@@ -31,7 +31,8 @@ def _history_schema(table: str, dialect: Any) -> str:
     h = _history_table(table)
     return (
         f"CREATE TABLE IF NOT EXISTS {h} (\n"
-        f"    hist_id     {dialect.serial_pk},\n"
+        f"    hist_id      {dialect.serial_pk},\n"
+        "    workspace_id TEXT,\n"  # PERSIST-3a slice 4: additive scope (serial PK unchanged)
         "    original_id TEXT NOT NULL,\n"
         "    txnid       TEXT NOT NULL,\n"
         "    seq         INTEGER NOT NULL,\n"
@@ -43,27 +44,43 @@ def _history_schema(table: str, dialect: Any) -> str:
     )
 
 
-def archive_prior(conn: Any, *, table: str, id_col: str, id_val: str, archived_at: str) -> None:
-    """In the caller's ``DbConn`` transaction: if a row for ``id_val`` exists in ``table``,
-    snapshot its ``(json, created_at)`` into ``{table}_history`` with a monotonic ``seq`` + a
-    ``txnid`` surrogate, ``created_at`` PRESERVED. No-op on the first write. PERSIST-2c-3: the
-    SQL is dialect-neutral (``?`` is translated by ``DbConn``); only the schema's serial PK
-    differs (``conn.dialect``)."""
-    h = _history_table(table)
+def _ensure_history(conn: Any, table: str, workspace_id: str) -> None:
+    """Provision ``{table}_history`` + idempotently add its ``workspace_id`` column (additive — the
+    shadow's serial PK is untouched). PERSIST-3a slice 4."""
+    from lithrim_bench.harness.db import migrate_workspace_scope
+
     conn.executescript(_history_schema(table, conn.dialect))
+    migrate_workspace_scope(
+        conn, _history_table(table), new_schema=_history_schema(table, conn.dialect),
+        copy_cols=[], key_cols=[], stamp_workspace_id=workspace_id, rebuild_pk=False,
+    )
+
+
+def archive_prior(
+    conn: Any, *, table: str, id_col: str, id_val: str, archived_at: str, workspace_id: str
+) -> None:
+    """In the caller's ``DbConn`` transaction: if a row for ``(workspace_id, id_val)`` exists in
+    ``table``, snapshot its ``(json, created_at)`` into ``{table}_history`` with a monotonic ``seq``
+    + a ``txnid`` surrogate, ``created_at`` PRESERVED. No-op on the first write. PERSIST-3a slice 4:
+    workspace-scoped — the live ``table`` is already migrated to the composite PK by the caller, and
+    the shadow gets its additive ``workspace_id`` here. SQL is dialect-neutral (``?`` translated)."""
+    h = _history_table(table)
+    _ensure_history(conn, table, workspace_id)
     prior = conn.execute(
-        f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
+        f"SELECT json, created_at FROM {table} WHERE workspace_id = ? AND {id_col} = ?",
+        (workspace_id, id_val),
     ).fetchone()
     if prior is None:
         return
     prior_json, prior_created = prior
     seq = conn.execute(
-        f"SELECT COUNT(*) FROM {h} WHERE original_id = ?", (id_val,)
+        f"SELECT COUNT(*) FROM {h} WHERE workspace_id = ? AND original_id = ?",
+        (workspace_id, id_val),
     ).fetchone()[0] + 1
     conn.execute(
-        f"INSERT INTO {h} (original_id, txnid, seq, json, created_at, archived_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (id_val, f"{archived_at}#{seq}", seq, prior_json, prior_created, archived_at),
+        f"INSERT INTO {h} (workspace_id, original_id, txnid, seq, json, created_at, archived_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (workspace_id, id_val, f"{archived_at}#{seq}", seq, prior_json, prior_created, archived_at),
     )
 
 
@@ -71,17 +88,25 @@ def list_versions(db_path: str | Path, *, table: str, id_col: str, id_val: str) 
     """The version timeline for a table-backed config object, newest-first: the live head
     (``version = len(history)+1``, ``status='current'``) followed by every ``_history`` row
     (``status='superseded'``). ``[]`` when the id is unknown (no head, no history)."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import _has_column, config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_history_schema(table, conn.dialect))
-        live = conn.execute(
-            f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
-        ).fetchone()
+        _ensure_history(conn, table, wsid)
+        # the live table is workspace-scoped once migrated; tolerate a not-yet-migrated old shape.
+        if _has_column(conn, table, "workspace_id"):
+            live = conn.execute(
+                f"SELECT json, created_at FROM {table} WHERE workspace_id = ? AND {id_col} = ?",
+                (wsid, id_val),
+            ).fetchone()
+        else:
+            live = conn.execute(
+                f"SELECT json, created_at FROM {table} WHERE {id_col} = ?", (id_val,)
+            ).fetchone()
         hist = conn.execute(
             f"SELECT seq, json, created_at, archived_at FROM {_history_table(table)} "
-            "WHERE original_id = ? ORDER BY seq",
-            (id_val,),
+            "WHERE workspace_id = ? AND original_id = ? ORDER BY seq",
+            (wsid, id_val),
         ).fetchall()
     if live is None and not hist:
         return []
@@ -114,21 +139,30 @@ def version_at(
 ) -> dict | None:
     """The object dict at a specific version (the head when ``version == len(history)+1``,
     else the ``_history`` row ``seq=version``). ``None`` when the version does not exist."""
-    from lithrim_bench.harness.db import config_db_url, connect
+    from lithrim_bench.harness.db import _has_column, config_db_url, connect, workspace_id_of
 
+    wsid = workspace_id_of(db_path)
     with connect(config_db_url(db_path)) as conn:
-        conn.executescript(_history_schema(table, conn.dialect))
+        _ensure_history(conn, table, wsid)
         n = conn.execute(
-            f"SELECT COUNT(*) FROM {_history_table(table)} WHERE original_id = ?", (id_val,)
+            f"SELECT COUNT(*) FROM {_history_table(table)} WHERE workspace_id = ? AND original_id = ?",
+            (wsid, id_val),
         ).fetchone()[0]
         if version == n + 1:
-            live = conn.execute(
-                f"SELECT json FROM {table} WHERE {id_col} = ?", (id_val,)
-            ).fetchone()
+            if _has_column(conn, table, "workspace_id"):
+                live = conn.execute(
+                    f"SELECT json FROM {table} WHERE workspace_id = ? AND {id_col} = ?",
+                    (wsid, id_val),
+                ).fetchone()
+            else:
+                live = conn.execute(
+                    f"SELECT json FROM {table} WHERE {id_col} = ?", (id_val,)
+                ).fetchone()
             return json.loads(live[0]) if live else None
         row = conn.execute(
-            f"SELECT json FROM {_history_table(table)} WHERE original_id = ? AND seq = ?",
-            (id_val, version),
+            f"SELECT json FROM {_history_table(table)} WHERE workspace_id = ? AND original_id = ? "
+            "AND seq = ?",
+            (wsid, id_val, version),
         ).fetchone()
         return json.loads(row[0]) if row else None
 
