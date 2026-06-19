@@ -1684,6 +1684,22 @@ def ontology_endpoint(
     return json.loads(path.read_text())
 
 
+@app.get("/v1/grounding-contract/types")
+def grounding_contract_types_endpoint() -> dict:
+    """FAUTH-2 (G3): the active pack's REGISTERED grounding-contract executor keys (suppress ∪
+    floor) — the pack-true list the inline ``ContractBuilder`` drives its type selector from,
+    retiring the hand-maintained static constant (S-BS-FAUTH1-1). It is the SAME set the
+    author-time gate in ``_put_grounding_contract`` admits, so the UI can only offer a type that
+    will actually be accepted (and that ``ground()`` will not raise on at grade time). READ-ONLY:
+    it CALLS ``grounding.suppress_executors()`` / ``floor_executors()`` (the moat accessors) and
+    writes nothing — no audit, no PUT, $0. The pack is the process-global active pack
+    (``LITHRIM_BENCH_PACK``), exactly what ``ground()`` reads at grade time."""
+    from lithrim_bench.harness import grounding as _grounding
+
+    registered = set(_grounding.suppress_executors()) | set(_grounding.floor_executors())
+    return {"contract_types": sorted(registered), "pack": _grounding._active_pack()}
+
+
 def _active_snapshot_codes() -> frozenset[str]:
     """The active workspace's pack KNOWN_TAXONOMY_CODES (the gradeable gate).
 
@@ -2388,6 +2404,28 @@ def _build_tool_context(
         if not any(f.get("flag") == flag_code for f in (ontology.get("flags") or [])):
             raise HTTPException(
                 status_code=404, detail=f"unknown flag {flag_code!r} (create the flag first)"
+            )
+        # FAUTH-2 (G3 / OQ-2 — the spine invariant's enforceable second half, at AUTHOR time):
+        # refuse a contract_type with no registered DETERMINISTIC executor in the active pack,
+        # BEFORE the splice/PUT. This moves the grade-time RAISE (grounding.py:599-600 — "no
+        # executor registered", a 500 mid-batch) up to a clean 422 here, so a prose / free-text /
+        # future-"openevidence_judge" type can never be pinned. READ-ONLY against the moat: it
+        # CALLS the public accessors (suppress ∪ floor) — it never edits grounding.py/ground()/the
+        # executors. The 404 (unknown flag) above still takes precedence; nothing is persisted on
+        # reject (the raise precedes put_ontology_endpoint). The deeper oracle_kind executor-marker
+        # gate (refuse a free-text executor at the accessor itself) is FAUTH-2b (cross-repo: the
+        # external pack executors carry no marker yet → a fail-closed marker-gate would drop the
+        # clinical floors). The chat handler's broad except surfaces this 422 as honest guidance.
+        from lithrim_bench.harness import grounding as _grounding
+
+        registered = set(_grounding.suppress_executors()) | set(_grounding.floor_executors())
+        if contract_type not in registered:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"contract_type {contract_type!r} has no registered executor for the active "
+                    f"pack — it would raise at grade time. Use one of: {sorted(registered)}."
+                ),
             )
         entry = {
             "contract_type": contract_type,
