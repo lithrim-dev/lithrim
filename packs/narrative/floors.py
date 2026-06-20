@@ -17,11 +17,14 @@ loads this LAZILY on first grounding use, by which point all core modules are
 imported — so there is no cycle). These floors are ``in_process`` (NOT ``:3031``), so
 ``SERVICE_CONTRACT_TYPES`` is deliberately absent and ``SUPPRESS_EXECUTORS`` is empty.
 
-What lives here — the ACTIVE floor set is 2 codes (``FLOOR_EXECUTORS``):
+What lives here — the ACTIVE floor set is 3 codes (``FLOOR_EXECUTORS``):
   * ``bracket_leak``       — :class:`BracketLeakTool`: a leaked instruction marker.
   * ``silent_degradation`` — :class:`SilentDegradationTool`: a non-``stop`` generation
     silently demoted to the baseline yet shipped as final (the day-one headline; reads
     provenance off the case row via ``claim.source``, NOT the artifact).
+  * ``value_presence``     — :class:`ValuePresenceTool` (FAUTH-4 / NARR-FLOOR-1): a value
+    spoken in a ``source_path`` (default ``transcript``) is MISSING from the artifact — the
+    inverse of ``dosage_grounding``; the case-10 erased-refusal completeness mechanism.
 
 ``length_violation`` is RETAINED-BUT-UNATTACHED (NARR-4 / S-BS-NARR3-3): the
 :class:`LengthViolationTool` class + ``_length_reference`` + the ``TOOL_LENGTH_VIOLATION``
@@ -44,11 +47,12 @@ from lithrim_bench.verification.spec import (
     TOOL_BRACKET_LEAK,
     TOOL_LENGTH_VIOLATION,
     TOOL_SILENT_DEGRADATION,
+    TOOL_VALUE_PRESENCE,
     Claim,
     VerificationResult,
     VerificationSpec,
 )
-from lithrim_bench.verification.tools import VerificationTool
+from lithrim_bench.verification.tools import VerificationTool, _dig, _norm
 
 # Default instruction-marker shape: an uppercase-led directive inside square brackets,
 # e.g. "[READER FEELING: tense]" / "[TONE]". MARKER-TARGETED on purpose — it does NOT
@@ -195,6 +199,104 @@ class SilentDegradationTool(VerificationTool):
 
 
 # --------------------------------------------------------------------------- #
+# ValuePresenceTool (FAUTH-4 / NARR-FLOOR-1) — a value spoken in the source is
+# MISSING from the artifact (the inverse of dosage_grounding; the case-10 mechanism)
+# --------------------------------------------------------------------------- #
+class ValuePresenceTool(VerificationTool):
+    """Floor: a required value spoken in a ``source_path`` (default ``transcript``) must be
+    PRESENT in the artifact (``artifacts[0].content`` → ``claim.subject``). When a required
+    value is ABSENT the floor injects a BLOCK the council missed (the case-10 erased-refusal
+    mechanism). The oracle is DETERMINISTIC surface-form matching — ``re.findall(value_regex,
+    source)`` extracts the required token(s); each is checked by normalized substring presence
+    in the artifact — never LLM inference (OQ-3).
+
+    Tri-state, conservative:
+      * ``conforms=False`` — a required value is missing (``match='all'``: any distinct value
+        absent; ``match='any'``: ALL accepted forms absent) → inject ``inject_flag_code``.
+      * ``conforms=True``  — the requirement is satisfied (``all`` present, or ``any`` present).
+      * ``conforms=None``  — nothing parseable (empty/non-str artifact, no source text, no
+        token extracted, or a malformed pinned regex) → NEVER flip by silence.
+
+    The honest limit: surface-form matching is brittle vs paraphrase; the SNOMED-coded oracle is
+    the richer swap-in (FAUTH-3b), behind this SAME FloorExecutor interface.
+
+    reference = {
+        "value_regex": <required token extractor>,   # required
+        "source_path": <dotted path into the case>,  # optional, default "transcript"
+        "match": "all" | "any",                       # optional, default "all" (completeness)
+    }
+    """
+
+    name = TOOL_VALUE_PRESENCE
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        value_regex = ref["value_regex"]
+        source_path = ref.get("source_path", "transcript")
+        match = ref.get("match", "all")
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "value_regex": value_regex,
+            "source_path": source_path,
+            "match": match,
+        }
+
+        artifact = claim.subject
+        if not isinstance(artifact, str) or not artifact.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "empty or non-text artifact; nothing to check presence against"},
+                manifest=manifest,
+            )
+
+        source_text = " ".join(str(x) for x in _dig(claim.source or {}, source_path))
+        if not source_text.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": f"no source text at '{source_path}'; nothing parseable"},
+                manifest=manifest,
+            )
+
+        try:
+            raw = re.findall(value_regex, source_text, flags=re.IGNORECASE)
+        except re.error as exc:
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": f"malformed value_regex; inconclusive ({exc})"},
+                manifest=manifest,
+            )
+
+        required: list[str] = []
+        seen: set[str] = set()
+        for m in raw:
+            tok = m if isinstance(m, str) else next((g for g in m if g), "")
+            key = _norm(tok)
+            if key and key not in seen:
+                seen.add(key)
+                required.append(tok)
+        if not required:
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "no required value spoken in the source; nothing to preserve"},
+                manifest=manifest,
+            )
+
+        hay = _norm(artifact)
+        present = [t for t in required if _norm(t) in hay]
+        missing = [t for t in required if _norm(t) not in hay]
+        # match='any' → concept present in ANY accepted form; 'all' → every distinct value preserved
+        conforms = bool(present) if match == "any" else not missing
+        return VerificationResult(
+            conforms=conforms,
+            evidence={"required": required, "present": present, "missing": missing, "match": match},
+            manifest=manifest,
+        )
+
+
+# --------------------------------------------------------------------------- #
 # reference builders — lift each tool's SME-pinned reference out of the decl params
 # --------------------------------------------------------------------------- #
 def _bracket_reference(params: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +314,15 @@ def _silent_degradation_reference(params: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _value_presence_reference(params: dict[str, Any]) -> dict[str, Any]:
+    ref: dict[str, Any] = {"value_regex": params["value_regex"]}
+    if params.get("source_path"):
+        ref["source_path"] = params["source_path"]
+    if params.get("match"):
+        ref["match"] = params["match"]
+    return ref
+
+
 # ── the pack executor-registration interface (PACK-3 D1; FLOOR direction) ───────────
 # Module-level declarative dicts: no execution at import, inspectable, import-clean. The
 # core merges FLOOR_EXECUTORS into grounding.floor_executors() on first grounding use
@@ -227,6 +338,12 @@ FLOOR_EXECUTORS: dict[str, FloorExecutor] = {
     TOOL_SILENT_DEGRADATION: FloorExecutor(
         tool_factory=lambda http_client: SilentDegradationTool(),
         reference_builder=_silent_degradation_reference,
+    ),
+    # FAUTH-4 / NARR-FLOOR-1: the inverse-direction completeness floor (a spoken value missing
+    # from the artifact → inject a BLOCK the council missed; the case-10 erased-refusal mechanism).
+    TOOL_VALUE_PRESENCE: FloorExecutor(
+        tool_factory=lambda http_client: ValuePresenceTool(),
+        reference_builder=_value_presence_reference,
     ),
     # LENGTH_VIOLATION is NOT attached (NARR-4 / S-BS-NARR3-3): demoted to the policy_judge
     # lens. The LengthViolationTool class + _length_reference + the TOOL_LENGTH_VIOLATION

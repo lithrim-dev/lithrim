@@ -39,6 +39,13 @@ TOOL_DOSAGE_GROUNDING = "dosage_grounding"
 TOOL_BRACKET_LEAK = "bracket_leak"
 TOOL_LENGTH_VIOLATION = "length_violation"
 TOOL_SILENT_DEGRADATION = "silent_degradation"
+# FAUTH-4 / NARR-FLOOR-1: the inverse-direction ``value_presence`` completeness floor —
+# a value spoken in a ``source_path`` (default ``transcript``) must appear in the artifact;
+# absent → inject a BLOCK the council missed (the case-10 erased-refusal mechanism). The NAME
+# is the "one unavoidable additive line" in core (SPEC_CLINVERDICT_SELF_SERVE.md:122); the tool
+# class + executor ship pack-local (``packs/narrative/floors.py``). After this, authoring is
+# params-only and a second inverse floor needs no new code.
+TOOL_VALUE_PRESENCE = "value_presence"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -49,6 +56,7 @@ _KNOWN_TOOLS = {
     TOOL_BRACKET_LEAK,
     TOOL_LENGTH_VIOLATION,
     TOOL_SILENT_DEGRADATION,
+    TOOL_VALUE_PRESENCE,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -74,6 +82,9 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     TOOL_BRACKET_LEAK: set(),
     TOOL_LENGTH_VIOLATION: {"min_sentences", "max_sentences"},
     TOOL_SILENT_DEGRADATION: set(),
+    # value_presence: the SME pins ``value_regex`` (the required token extractor); ``source_path``
+    # is optional (default ``transcript``). The artifact under test is ``artifacts[0].content``.
+    TOOL_VALUE_PRESENCE: {"value_regex"},
 }
 
 
