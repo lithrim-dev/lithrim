@@ -110,3 +110,29 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     }
   });
 });
+
+describe("ContractBuilder — FAUTH-3 prose→params pre-fill (A5)", () => {
+  it("pre-fills the editable params textarea from suggested_params (not the inert default), no auto-save", () => {
+    putGroundingContract.mockClear();
+    // the agent's assist suggestion (a presence_check skeleton); the card opens PRE-FILLED with it.
+    const sp = { med_source: "transcript.text", dosage_regex: "\\b\\d+\\b", token_min_len: 4, noise_tokens: ["the"] };
+    render(
+      <ContractBuilder agent="ws0_default" flagCode="MEDICATION_NOT_IN_TRANSCRIPT" suggested_params={sp} onResult={vi.fn()} />,
+    );
+    const ta = screen.getByLabelText("params json");
+    // the suggested values are pre-filled; the inert {"source":"response.claims"} default is gone.
+    expect(ta).toHaveValue(JSON.stringify(sp, null, 2));
+    expect(ta.value).not.toContain("response.claims");
+    // the suggestion is a DRAFT — the textarea stays editable.
+    fireEvent.change(ta, { target: { value: '{"med_source":"x","dosage_regex":"y"}' } });
+    expect(ta).toHaveValue('{"med_source":"x","dosage_regex":"y"}');
+    // SPINE INVARIANT (UI side): surfacing the pre-filled card writes NOTHING — only the human's
+    // explicit Save calls putGroundingContract.
+    expect(putGroundingContract).not.toHaveBeenCalled();
+  });
+
+  it("the un-seeded params textarea keeps the inert default (back-compat)", () => {
+    render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
+    expect(screen.getByLabelText("params json").value).toContain("response.claims");
+  });
+});
