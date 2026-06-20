@@ -182,6 +182,20 @@ def test_value_presence_match_all_requires_every_distinct_value():
     )
 
 
+def test_value_presence_match_all_is_word_boundary_not_substring():
+    """F4: match='all' must use WORD-BOUNDARY matching, not substring — a dropped '5 mg' must NOT be
+    satisfied by '25 mg' in the artifact (the dosage-inverse false-negative the critic caught)."""
+    floors = _load_floors()
+    tool = floors.ValuePresenceTool()
+    spec = _spec({"value_regex": r"\b\d+\s*mg\b", "source_path": "transcript"})  # default match='all'
+    case = {"transcript": "Start aspirin 5 mg daily."}
+    # the SOAP only has 25 mg — the spoken 5 mg dose was dropped → conforms=False (NOT a substring pass)
+    r = tool.verify(_claim("PLAN: aspirin 25 mg daily.", source=case), spec)
+    assert r.conforms is False and any("5" in m for m in r.evidence["missing"])
+    # the same dose preserved → conforms=True
+    assert tool.verify(_claim("PLAN: aspirin 5 mg daily.", source=case), spec).conforms is True
+
+
 # ── A3 — value_presence registered in core _KNOWN_TOOLS, ADDITIVELY (the 9 prior intact) ──
 
 

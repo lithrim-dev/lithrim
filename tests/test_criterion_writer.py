@@ -150,6 +150,19 @@ def test_bad_tier_rejected_and_aliases(core_pack):
     assert crit.short_tier_name("T1") == "TIER_1"
 
 
+# ── A8 (F1) — a malformed/empty code is refused WITHOUT writing (contract-of-record guard) ──
+
+
+def test_malformed_code_rejected_and_no_write(core_pack):
+    from lithrim_bench.harness import criterion as crit
+
+    snap_before = _snapshot(core_pack)
+    for bad in ["", "   ", "lower_case", "a;DROP", "9LEADS_DIGIT", "HAS SPACE", "Mixed_Case"]:
+        with pytest.raises(crit.BadCodeError):
+            crit.splice_gradeable_criterion(core_pack, bad, "TIER_2", "policy_judge")
+    assert _snapshot(core_pack) == snap_before  # not one bad code leaked into the snapshot
+
+
 # ── A7 — restore_snapshot rolls the splice back (the BFF atomicity backstop) ──
 
 

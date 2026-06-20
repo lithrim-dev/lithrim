@@ -200,6 +200,57 @@ def test_atomic_rollback_on_ontology_failure(core_ws, tmp_path):
     assert "GOOD_CODE" not in pack_mod.pack_taxonomy_codes(pack)
 
 
+# ── F1 — the request boundary refuses a malformed/empty code (no garbage into the snapshot) ──
+
+
+def test_malformed_code_refused_at_boundary(core_ws, tmp_path):
+    import pydantic
+
+    pack, _ = core_ws
+    before = _snapshot(pack)
+    for bad in ["", "   ", "lower", "a;DROP", "HAS SPACE"]:
+        with pytest.raises(pydantic.ValidationError):
+            _req(code=bad, tier="TIER_2", owner_role="policy_judge")
+    assert _snapshot(pack) == before
+
+
+# ── F2 — an audit failure (AFTER splice+overlay) rolls BOTH the snapshot AND the overlay back ──
+
+
+def test_audit_failure_rolls_back_snapshot_and_overlay(core_ws, tmp_path, monkeypatch):
+    from lithrim_bench.harness import pack as pack_mod
+
+    pack, _ = core_ws
+
+    def _boom(self, rec):
+        raise RuntimeError("audit db down")
+
+    monkeypatch.setattr(bff.AuditLog, "record", _boom)
+    before = _snapshot(pack)
+    with pytest.raises(RuntimeError):
+        _call(tmp_path, _req(code="ROLLBACK_CODE", tier="TIER_2", owner_role="policy_judge"))
+    # the snapshot splice is undone — no un-audited mutation of the contract-of-record
+    assert _snapshot(pack) == before
+    assert "ROLLBACK_CODE" not in pack_mod.pack_taxonomy_codes(pack)
+    # the ontology overlay is reverted too (it did not exist before this call)
+    overlay = tmp_path / "wd" / f"{_AGENT}.json"
+    assert not overlay.exists() or "ROLLBACK_CODE" not in overlay.read_text()
+
+
+# ── F3 — the audit record captures the FULL governance delta (lenses + tier1_owners, not just tiers) ──
+
+
+def test_audit_records_full_governance_delta(core_ws, tmp_path):
+    pack, records = core_ws
+    _call(tmp_path, _req(code="EVERY_DOSE_IN_SOAP", tier="TIER_2", owner_role="faithfulness_judge"))
+    rec = next(r for r in records if r.target.type == "criterion")
+    # the lenses raise-authority grant is in the canonical before→after diff (not only `tiers`)
+    assert "EVERY_DOSE_IN_SOAP" in rec.after["lenses"]["faithfulness_judge"]
+    assert "EVERY_DOSE_IN_SOAP" not in rec.before["lenses"]["faithfulness_judge"]
+    assert "EVERY_DOSE_IN_SOAP" in rec.after["tiers"]["TIER_2_HIGH_RISK"]
+    assert "tier1_owners" in rec.before and "tier1_owners" in rec.after
+
+
 # ── A6 — the misleading 422 is tier-aware: a core pack points to create_gradeable_criterion ──
 
 
