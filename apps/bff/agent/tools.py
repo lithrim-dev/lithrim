@@ -38,6 +38,7 @@ from .adapter import (
     propose_live_run_part,
     verdict_part,
 )
+from .assist import suggest_presence_check_params
 
 # Plain-dict input schemas (SDK-free; the A-SAFE test asserts the paid keys are
 # ABSENT from RUN_EVAL_SCHEMA — the agent literally cannot request a paid run).
@@ -140,10 +141,18 @@ ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
 # "author a grounding contract by filling a card in the chat" move). It is a $0 SURFACE tool —
 # the mirror of get_judge (which surfaces JudgeEditor): it emits the builder seeded with the
 # in-context flag_code, and the HUMAN's Save (the widget's existing putGroundingContract) is the
-# only write. It performs NO write itself, so the schema is {flag_code} ONLY — NO PAID_KEY, NO
-# contract_type/params (the human fills those in the card). The A-SAFE test asserts this is
-# paid-knob-free generically over _TOOL_SPECS.
-AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {"flag_code": str}
+# only write. It performs NO write itself — NO PAID_KEY (the A-SAFE test asserts this generically).
+# FAUTH-3 (G2, the ASSIST keystone): OPTIONAL prose->params seeds — suggested_params (a deterministic
+# presence_check draft the agent proposes) + source_hint (the chart path the agent lifts from the
+# prose; the handler builds the presence_check skeleton from it via assist.suggest_presence_check_params
+# when suggested_params is omitted) + question. All DRAFT seeds for the EDITABLE card; the handler stays
+# emit-only and the human's Save remains the sole audited write (still NO PAID_KEY, still no write op).
+AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {
+    "flag_code": str,
+    "suggested_params": dict,
+    "source_hint": str,
+    "question": str,
+}
 # KB-CONTEXT-1 — the honest CONTEXT AID ($0/read-only): retrieve the relevant HIPAA-KB section(s)
 # for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
 # clears on these flags, so this is retrieval-only — informative, never a clear). No PAID_KEY.
@@ -602,14 +611,30 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     # reaches for the shorter name); an omitted/blank flag opens an empty card (the widget's own
     # validation gates Save, R5).
     flag_code = str(args.get("flag_code") or args.get("flag") or "")
-    ctx.emit(contract_builder_part(ctx.default_agent, flag_code))
+    # FAUTH-3 (G2, the ASSIST keystone): prose->params seeds. An explicit suggested_params (the
+    # agent's composed draft) wins; else a chart-path source_hint builds the DETERMINISTIC
+    # presence_check skeleton (correct KEYS by construction, not LLM-hallucinated) via the pure
+    # helper. Both are DRAFT seeds for the EDITABLE card — this handler stays EMIT-ONLY (it calls
+    # NO bound write op); the human's Save (putGroundingContract) remains the sole audited write,
+    # so the assist never auto-writes the ontology and never enters ground() (the spine invariant).
+    suggested = args.get("suggested_params") if isinstance(args.get("suggested_params"), dict) else None
+    source_hint = str(args.get("source_hint") or "").strip()
+    if suggested is None and source_hint:
+        suggested = suggest_presence_check_params(flag_code, source_hint=source_hint)
+    question = str(args.get("question") or "")
+    ctx.emit(
+        contract_builder_part(
+            ctx.default_agent, flag_code, suggested_params=suggested, question=question
+        )
+    )
+    seeded = " (pre-filled with a suggested draft you can edit)" if suggested else ""
     return _text(
         f"Surfaced the contract builder inline, pre-bound to flag "
         f"{flag_code or '(none yet — name the flag in the card)'} on agent "
-        f"{ctx.default_agent!r}. Fill in the deterministic verification contract (claim → "
-        f"tool-query → verdict) and Save — the Save IS the audited write (the floor then runs at "
-        f"grade time over this flag). I only surface the card; I do not author the contract for you, "
-        f"and this is $0 (never a paid run)."
+        f"{ctx.default_agent!r}{seeded}. Fill in / adjust the deterministic verification contract "
+        f"(claim → tool-query → verdict) and Save — the Save IS the audited write (the floor then "
+        f"runs at grade time over this flag). I only surface the card and propose a draft; I do not "
+        f"author the contract for you, and this is $0 (never a paid run)."
     )
 
 

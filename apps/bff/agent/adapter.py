@@ -77,7 +77,12 @@ def flag_part(agent: str, *, show_intent: str = "auto") -> dict[str, Any]:
 
 
 def contract_builder_part(
-    agent: str, flag_code: str = "", *, show_intent: str = "auto"
+    agent: str,
+    flag_code: str = "",
+    *,
+    suggested_params: dict[str, Any] | None = None,
+    question: str = "",
+    show_intent: str = "auto",
 ) -> dict[str, Any]:
     """FAUTH-1 (G1): author_contract -> the ContractBuilder INPUT widget, surfaced INLINE and
     SEEDED with the in-context ``flag_code`` + ``agent`` so the human authors a deterministic
@@ -86,12 +91,20 @@ def contract_builder_part(
     Save is the write). Unlike the read-or-self-fetch cards, this is an INPUT widget: its save
     rides the EXISTING audited ``putGroundingContract`` (the shell threads ``onResult`` to it) —
     this part adds NO new write path. ``auto`` by default (an authoring card the agent leads
-    with is a PRIMARY result the shell renders inline)."""
-    return _part(
-        "contract_builder",
-        {"agent": agent, "flag_code": flag_code},
-        show_intent=show_intent,
-    )
+    with is a PRIMARY result the shell renders inline).
+
+    FAUTH-3 (G2, the ASSIST keystone): the OPTIONAL ``suggested_params`` (+ ``question``) pre-fill
+    the card's EDITABLE params field (+ question) — the prose->params draft the agent proposes. They
+    are DRAFT seeds only: the part is still emit-only, the human edits them, and the human's Save is
+    the sole audited write (the assist never auto-writes the ontology / never enters ground()). Both
+    are added to the output ONLY when present, so the un-suggested path is the byte-identical FAUTH-1
+    shape ({agent, flag_code})."""
+    out: dict[str, Any] = {"agent": agent, "flag_code": flag_code}
+    if suggested_params:
+        out["suggested_params"] = suggested_params
+    if question:
+        out["question"] = question
+    return _part("contract_builder", out, show_intent=show_intent)
 
 
 def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
