@@ -25,7 +25,6 @@ if str(_BFF) not in sys.path:
 from agent import assist as agent_assist  # noqa: E402
 from agent import tools as agent_tools  # noqa: E402
 
-
 # ── A4: the deterministic prose→params suggestion (no LLM, no network) ─────────
 
 
@@ -213,16 +212,32 @@ def test_author_contract_builds_presence_check_skeleton_from_source_hint():
     )
 
 
-def test_author_contract_no_suggestion_is_back_compat():
-    """A3/back-compat: with NO suggested_params, the part output is the FAUTH-1 shape exactly
-    ({agent, flag_code}) — no empty suggested_params/question keys leak in."""
+def test_author_contract_default_fills_skeleton_for_named_flag():
+    """A1/FAUTH-3a (the reliability fix): for a NAMED flag with NO suggested_params and NO
+    source_hint, author_contract DEFAULT-fills the deterministic presence_check skeleton (correct
+    keys by construction) — so the pre-fill no longer depends on the live agent remembering to pass
+    source_hint (which it did not, live). Still emit-only (the forbidden ctx proves no write)."""
     ctx = _stub_ctx()
     out = asyncio.run(
         agent_tools.author_contract_handler(ctx, {"flag_code": "MEDICATION_NOT_IN_TRANSCRIPT"})
     )
     assert "is_error" not in out
     o = next(p for p in ctx.parts if p.get("type") == "tool-contract_builder")["output"]
-    assert o == {"agent": "ws0_default", "flag_code": "MEDICATION_NOT_IN_TRANSCRIPT"}
+    assert o["suggested_params"] == agent_assist.suggest_presence_check_params(
+        "MEDICATION_NOT_IN_TRANSCRIPT"
+    )
+    # the correct PresenceCheck keys, not the inert {"source":"response.claims"} default.
+    assert set(o["suggested_params"]) == {"med_source", "dosage_regex", "token_min_len", "noise_tokens"}
+
+
+def test_author_contract_no_flag_stays_empty():
+    """FAUTH-3a: the "name the flag first" case is preserved — with NO flag_code there is nothing to
+    bind a presence_check to, so the card stays EMPTY (no skeleton pre-fill)."""
+    ctx = _stub_ctx()
+    out = asyncio.run(agent_tools.author_contract_handler(ctx, {}))
+    assert "is_error" not in out
+    o = next(p for p in ctx.parts if p.get("type") == "tool-contract_builder")["output"]
+    assert o == {"agent": "ws0_default", "flag_code": ""}
 
 
 def test_author_contract_schema_carries_suggested_params_no_paid_knob():

@@ -88,10 +88,12 @@ def test_author_contract_emits_contract_builder_part():
     # exactly one part, of the contract-builder type, seeded with the in-context flag + agent.
     parts = [p for p in ctx.parts if p.get("type") == "tool-contract_builder"]
     assert len(ctx.parts) == 1 and len(parts) == 1, ctx.parts
-    assert parts[0]["output"] == {
-        "agent": "ws0_default",
-        "flag_code": "INFORMED_DISSENT_ERASURE",
-    }
+    o = parts[0]["output"]
+    assert o["agent"] == "ws0_default"
+    assert o["flag_code"] == "INFORMED_DISSENT_ERASURE"
+    # FAUTH-3a: a NAMED-flag card now opens PRE-FILLED with the deterministic presence_check skeleton
+    # (correct keys by construction), so the human edits rather than hand-writes JSON. Still emit-only.
+    assert set(o["suggested_params"]) == {"med_source", "dosage_regex", "token_min_len", "noise_tokens"}
 
 
 def test_author_contract_defaults_agent_and_handles_missing_flag():
@@ -104,6 +106,8 @@ def test_author_contract_defaults_agent_and_handles_missing_flag():
     assert len(parts) == 1
     assert parts[0]["output"]["agent"] == "ws0_default"
     assert parts[0]["output"]["flag_code"] == ""
+    # FAUTH-3a: no flag named yet → nothing to bind a presence_check to → no skeleton pre-fill.
+    assert "suggested_params" not in parts[0]["output"]
 
 
 # ── A-SAFE: no paid knob, surfaces-not-spends, allowlist == _TOOL_SPECS ───────
