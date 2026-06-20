@@ -620,7 +620,11 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     # seeds for the EDITABLE card; this handler stays EMIT-ONLY (it calls NO bound write op); the
     # human's Save (putGroundingContract) remains the sole audited write, so the assist never
     # auto-writes the ontology and never enters ground() (the spine invariant).
-    suggested = args.get("suggested_params") if isinstance(args.get("suggested_params"), dict) else None
+    # NB: the SDK-MCP layer passes an EMPTY dict {} for an omitted dict-typed param (not None), so
+    # `{}` must be treated as "no suggestion" — else a real named-flag call (suggested_params={})
+    # would skip the default-fill and the card would show the inert default (the A-LIVE bug).
+    _raw = args.get("suggested_params")
+    suggested = _raw if (isinstance(_raw, dict) and _raw) else None
     source_hint = str(args.get("source_hint") or "").strip() or None
     if suggested is None and flag_code:
         suggested = suggest_presence_check_params(flag_code, source_hint=source_hint)
