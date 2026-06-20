@@ -203,27 +203,34 @@ class SilentDegradationTool(VerificationTool):
 # MISSING from the artifact (the inverse of dosage_grounding; the case-10 mechanism)
 # --------------------------------------------------------------------------- #
 class ValuePresenceTool(VerificationTool):
-    """Floor: a required value spoken in a ``source_path`` (default ``transcript``) must be
-    PRESENT in the artifact (``artifacts[0].content`` → ``claim.subject``). When a required
-    value is ABSENT the floor injects a BLOCK the council missed (the case-10 erased-refusal
-    mechanism). The oracle is DETERMINISTIC surface-form matching — ``re.findall(value_regex,
-    source)`` extracts the required token(s); each is checked by normalized substring presence
-    in the artifact — never LLM inference (OQ-3).
+    """Floor: a required value/concept spoken in a ``source_path`` (default ``transcript``) must
+    be PRESENT in the artifact (``artifacts[0].content`` → ``claim.subject``). When it is ABSENT
+    the floor injects a BLOCK the council missed (the case-10 erased-refusal mechanism). The oracle
+    is DETERMINISTIC surface-form matching — ``re.findall(value_regex, source)`` establishes what
+    the source raised; presence in the artifact is a deterministic regex/substring check — never
+    LLM inference (OQ-3).
 
-    Tri-state, conservative:
-      * ``conforms=False`` — a required value is missing (``match='all'``: any distinct value
-        absent; ``match='any'``: ALL accepted forms absent) → inject ``inject_flag_code``.
-      * ``conforms=True``  — the requirement is satisfied (``all`` present, or ``any`` present).
-      * ``conforms=None``  — nothing parseable (empty/non-str artifact, no source text, no
-        token extracted, or a malformed pinned regex) → NEVER flip by silence.
+    Two modes (``match``), conservative tri-state:
+      * ``match='all'`` — VALUE preservation (the dosage-inverse; SPEC_CLINVERDICT §123): EVERY
+        distinct value spoken in the source must appear (normalized substring) in the artifact;
+        any missing → ``conforms=False``.
+      * ``match='any'`` — CONCEPT co-presence (the case-10 refusal): the source RAISED the concept
+        (≥1 accepted form); the artifact must RECORD it in ANY accepted form (a ``value_regex``
+        hit) — tolerating paraphrase across the pinned form set, so a faithful note that records
+        the refusal in different words than the patient ("declined" for "don't want") does NOT
+        false-block. Concept absent from the artifact → ``conforms=False``.
+      * ``conforms=True``  — the requirement is satisfied.
+      * ``conforms=None``  — nothing parseable (empty/non-str artifact, no source text, the concept
+        was never raised in the source, or a malformed pinned regex) → NEVER flip by silence.
 
-    The honest limit: surface-form matching is brittle vs paraphrase; the SNOMED-coded oracle is
-    the richer swap-in (FAUTH-3b), behind this SAME FloorExecutor interface.
+    The honest limit: even concept mode is bounded by the pinned ``value_regex`` form set — a
+    refusal phrased OUTSIDE the set still false-blocks; the SNOMED-coded oracle is the paraphrase-
+    robust swap-in (FAUTH-3b), behind this SAME FloorExecutor interface.
 
     reference = {
-        "value_regex": <required token extractor>,   # required
-        "source_path": <dotted path into the case>,  # optional, default "transcript"
-        "match": "all" | "any",                       # optional, default "all" (completeness)
+        "value_regex": <required token/concept extractor>,  # required
+        "source_path": <dotted path into the case>,         # optional, default "transcript"
+        "match": "all" | "any",                              # optional, default "all" (preservation)
     }
     """
 
@@ -284,14 +291,30 @@ class ValuePresenceTool(VerificationTool):
                 manifest=manifest,
             )
 
+        if match == "any":
+            # CONCEPT co-presence: the source RAISED the concept (>=1 accepted form, ``required``);
+            # the artifact must RECORD it in ANY accepted form (a regex hit), tolerating paraphrase
+            # across the pinned form set. This deliberately does NOT require the source's verbatim
+            # token — a faithful note that records the refusal in different words than the patient's
+            # ("declined" for "don't want") must NOT false-block. (FAUTH-4b: the case-10 fix.)
+            concept_in_artifact = bool(re.search(value_regex, artifact, flags=re.IGNORECASE))
+            return VerificationResult(
+                conforms=concept_in_artifact,
+                evidence={
+                    "required": required,
+                    "concept_in_artifact": concept_in_artifact,
+                    "match": "any",
+                },
+                manifest=manifest,
+            )
+        # match='all' — VALUE preservation: every distinct value spoken in the source must appear
+        # (normalized substring) in the artifact (the dosage-inverse; SPEC_CLINVERDICT §123).
         hay = _norm(artifact)
         present = [t for t in required if _norm(t) in hay]
         missing = [t for t in required if _norm(t) not in hay]
-        # match='any' → concept present in ANY accepted form; 'all' → every distinct value preserved
-        conforms = bool(present) if match == "any" else not missing
         return VerificationResult(
-            conforms=conforms,
-            evidence={"required": required, "present": present, "missing": missing, "match": match},
+            conforms=not missing,
+            evidence={"required": required, "present": present, "missing": missing, "match": "all"},
             manifest=manifest,
         )
 

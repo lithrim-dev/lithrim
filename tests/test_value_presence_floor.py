@@ -116,10 +116,16 @@ def test_value_presence_violation_clean_and_inconclusive():
     # VIOLATION: the transcript records the refusal; the SOAP ERASED it → conforms=False (absent→BLOCK)
     r = tool.verify(_claim(SOAP_ERASED, source={"transcript": TRANSCRIPT}), spec)
     assert r.conforms is False
-    assert any("refus" in t.lower() for t in r.evidence["missing"])
+    assert r.evidence["concept_in_artifact"] is False  # match='any' = concept co-presence
+    assert any("refus" in t.lower() for t in r.evidence["required"])
 
-    # CLEAN: the SOAP PRESERVES the refusal → conforms=True (present, no inject)
+    # CLEAN: the SOAP records the refusal (any accepted form) → conforms=True (no inject)
     assert tool.verify(_claim(SOAP_KEPT, source={"transcript": TRANSCRIPT}), spec).conforms is True
+
+    # PARAPHRASE ROBUSTNESS (concept co-presence, FAUTH-4b): the source says "refused"/"declining";
+    # a faithful note recording it in a DIFFERENT accepted form ("declined") must NOT false-block.
+    paraphrased = "ASSESSMENT: preventive visit. PLAN: patient declined the booster; documented."
+    assert tool.verify(_claim(paraphrased, source={"transcript": TRANSCRIPT}), spec).conforms is True
 
     # INCONCLUSIVE: no source transcript → nothing parseable → None (never flip by silence)
     assert tool.verify(_claim(SOAP_ERASED, source={}), spec).conforms is None
