@@ -611,15 +611,18 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     # reaches for the shorter name); an omitted/blank flag opens an empty card (the widget's own
     # validation gates Save, R5).
     flag_code = str(args.get("flag_code") or args.get("flag") or "")
-    # FAUTH-3 (G2, the ASSIST keystone): prose->params seeds. An explicit suggested_params (the
-    # agent's composed draft) wins; else a chart-path source_hint builds the DETERMINISTIC
-    # presence_check skeleton (correct KEYS by construction, not LLM-hallucinated) via the pure
-    # helper. Both are DRAFT seeds for the EDITABLE card — this handler stays EMIT-ONLY (it calls
-    # NO bound write op); the human's Save (putGroundingContract) remains the sole audited write,
-    # so the assist never auto-writes the ontology and never enters ground() (the spine invariant).
+    # FAUTH-3 (G2, the ASSIST keystone) + FAUTH-3a (the reliability fix): prose->params seeds. An
+    # explicit suggested_params (the agent's composed draft) wins; otherwise, for a NAMED flag, the
+    # handler DEFAULT-fills the DETERMINISTIC presence_check skeleton (correct KEYS by construction,
+    # not LLM-hallucinated) via the pure helper — so the pre-fill does NOT depend on the live agent
+    # remembering to pass source_hint (A-LIVE showed it doesn't). source_hint, when given, sets
+    # med_source. No flag yet (the "name the flag first" empty card) → no pre-fill. All are DRAFT
+    # seeds for the EDITABLE card; this handler stays EMIT-ONLY (it calls NO bound write op); the
+    # human's Save (putGroundingContract) remains the sole audited write, so the assist never
+    # auto-writes the ontology and never enters ground() (the spine invariant).
     suggested = args.get("suggested_params") if isinstance(args.get("suggested_params"), dict) else None
-    source_hint = str(args.get("source_hint") or "").strip()
-    if suggested is None and source_hint:
+    source_hint = str(args.get("source_hint") or "").strip() or None
+    if suggested is None and flag_code:
         suggested = suggest_presence_check_params(flag_code, source_hint=source_hint)
     question = str(args.get("question") or "")
     ctx.emit(
