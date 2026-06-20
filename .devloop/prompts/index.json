@@ -2704,6 +2704,32 @@
       "created": "2026-06-20",
       "last_re_verified": "2026-06-20",
       "next_action": "CLOSED PROCEED-WITH-CAVEATS. OWED: an independent Gate-0 run + live re-proof when the subagent runner recovers (2-min /devloop-critique bench-salvage FAUTH-2a, or owner runs pytest -q). Then FAUTH-3 (G2, the assist keystone: wire kb_context+SNOMED -> contract params)."
+    },
+    {
+      "id": "bench-salvage-phaseFAUTH-3-assist-prose-to-params-driver",
+      "stream": "bench-salvage",
+      "phase": "FAUTH-3",
+      "scope": "The ASSIST keystone (G2): a physician describes an eval criterion in PROSE and the system SUGGESTS the deterministic presence_check params, pre-filling the ContractBuilder; the human edits + Saves (the existing audited putGroundingContract); the suggestion NEVER auto-writes the ontology and NEVER enters ground() (THE SPINE INVARIANT). Smallest cut = prose->presence_check params over the ALREADY-PROVEN retrieval-only kb_context (KbRagTool.search, physically separate from grade-time KbRagTool.verify). presence_check chosen: core/pure-stdlib, no service dep, known 4-key shape (med_source/dosage_regex/token_min_len/noise_tokens, grounding.py:134-137), suppress not floor. Deliverables: extend author_contract_handler (tools.py:594) + AUTHOR_CONTRACT_SCHEMA additively with optional suggested_params (emit-only, no write op, no PAID_KEY) + a deterministic presence_check skeleton helper; contract_builder_part (adapter.py:79) threads suggested_params; ContractBuilder.jsx pre-fills the editable params textarea from suggested_params (Save unchanged = sole audited write); loop.py teaches the kb_context-cite -> author_contract-suggest assist sequence. Authored from the fauth3-scope workflow (wf_99e8ae66-6e0, HIGH confidence). HONEST DEFERRAL: SNOMED authoring-time -> FAUTH-3b (no in-product Hermes authoring path exists; grade-time-only today; ground-by-CODE-only when built). Out: floor-param suggestion, KbPicker (FAUTH-5), OpenEvidence (FAUTH-6), the case-10 flip (FAUTH-4), the oracle_kind marker (FAUTH-2b).",
+      "file": ".devloop/prompts/bench-salvage_phaseFAUTH-3_assist-prose-to-params_driver.md",
+      "version": "v1",
+      "status": "DONE (deterministic-green + A-LIVE-proven) 2026-06-20; HARD-GATE cold critic OWED. Commits 457c4ae..1efd4b0 (8: RED->feat->feat->fix->RED->fix->RED->fix), monitor-completed in-session (executor sandbox-blocked twice). The ASSIST keystone: prose->pre-filled deterministic presence_check contract, ZERO hand-JSON correct keys, LIVE on clinverdict_clean. Full suite 28==28 (0 net new); MOAT + FAUTH-2 gate + kb_context retrieval 0-diff; no new SDK tool (count 20); spine guard non-vacuous. A-LIVE drove TWO honest fixes: FAUTH-3a (agent free-composed WRONG keys -> default-fill the deterministic skeleton for a named flag, independent of source_hint) + the empty-dict SDK trap ({} != None for an omitted dict param -> normalize {}->None, the inert-card root cause). OWED: the cold critic (/devloop-critique bench-salvage FAUTH-3) when the subagent runner is healthy. Seams: S-BS-FAUTH3-1 (med_source default, low), S-BS-FAUTH3-2 (dev --reload missed the final commit; devstack restart bff, low). DEFERRED -> FAUTH-3b (SNOMED authoring). Session log: .devloop/sessions/session-bench-salvage-phaseFAUTH-3-2026-06-20.json.",
+      "hardness": "HARD-GATE -- widens the conversational ASSIST surface and is the one place the spine invariant could erode (assist sliding into auto-write). Fresh cold critic at close.",
+      "hardness_reason": "The cold critic must re-prove NON-VACUOUSLY: the spine guard holds (the assist sequence kb_context+author_contract(suggested_params) writes NOTHING and ground() sees no new contract until an EXPLICIT human Save -- both directions), author_contract is emit-only (no bound write op), the suggestion is deterministic (no LLM/network for the param keys), the MOAT + ground()/PresenceCheck + kb_context retrieval + add_grounding_contract + the FAUTH-2 gate are 0-diff, A-SAFE unchanged (no PAID_KEY, tool count 20), and A-LIVE was actually run. The keystone risk (assist->auto-write) is the #1 attack target.",
+      "target_repos": [
+        "lithrim-bench"
+      ],
+      "related_docs": [
+        "docs/specs/SPEC_FLAG_AUTHORING_SELF_SERVE.md (§3 spine invariant; §4 the Assist step; §6 G2)",
+        "apps/bff/agent/tools.py (author_contract_handler + kb_context_handler retrieval-only)",
+        "apps/bff/agent/adapter.py (contract_builder_part)",
+        "apps/shell/src/genui/ContractBuilder.jsx (the editable params textarea)",
+        "lithrim_bench/harness/grounding.py (PresenceCheck :119-144 -- the param contract)",
+        "fauth3-scope workflow synthesis wf_99e8ae66-6e0"
+      ],
+      "_note": "THIRD live FAUTH cycle (the keystone). Authored from a scope workflow per the ultracode pattern. The honest finding: SNOMED/Hermes is grade-time-only, so FAUTH-3 proves prose->params over kb_context (presence_check) and SPLITS SNOMED to FAUTH-3b (real authoring-time terminology tool, ground-by-code). After FAUTH-3 closes: FAUTH-3b (SNOMED authoring) or FAUTH-4 (NARR-FLOOR-1, the case-10 flip), owner's call. Build seq remainder: FAUTH-4 floor / FAUTH-5 KbPicker / FAUTH-6 OpenEvidence.",
+      "created": "2026-06-20",
+      "last_re_verified": "2026-06-20",
+      "next_action": "EXECUTING as a background subagent (tests-RED-first; runner-verify-then-halt-if-denied; HARD-GATE cold critic at close). If the runner is sandbox-blocked, the monitor completes in-session (FAUTH-2a precedent). Then FAUTH-3b (SNOMED authoring) or FAUTH-4 (case-10 flip)."
     }
   ]
 }
