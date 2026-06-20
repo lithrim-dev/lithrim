@@ -230,6 +230,24 @@ def test_author_contract_default_fills_skeleton_for_named_flag():
     assert set(o["suggested_params"]) == {"med_source", "dosage_regex", "token_min_len", "noise_tokens"}
 
 
+def test_author_contract_empty_suggested_params_still_default_fills():
+    """FAUTH-3a (the live SDK trap, found in A-LIVE): the SDK-MCP layer passes an EMPTY dict {} for an
+    omitted dict-typed schema param (NOT None) — so a real named-flag call arrives as
+    suggested_params={}. Treat {} as 'no suggestion' and STILL default-fill the deterministic
+    skeleton; otherwise the card shows the inert {"source":"response.claims"} default (exactly the
+    live bug). Belt: source_hint passed as "" (the str omitted-param default) must also not break it."""
+    ctx = _stub_ctx()
+    out = asyncio.run(
+        agent_tools.author_contract_handler(
+            ctx,
+            {"flag_code": "MEDICATION_NOT_IN_TRANSCRIPT", "suggested_params": {}, "source_hint": ""},
+        )
+    )
+    assert "is_error" not in out
+    o = next(p for p in ctx.parts if p.get("type") == "tool-contract_builder")["output"]
+    assert set(o["suggested_params"]) == {"med_source", "dosage_regex", "token_min_len", "noise_tokens"}
+
+
 def test_author_contract_no_flag_stays_empty():
     """FAUTH-3a: the "name the flag first" case is preserved — with NO flag_code there is nothing to
     bind a presence_check to, so the card stays EMPTY (no skeleton pre-fill)."""
