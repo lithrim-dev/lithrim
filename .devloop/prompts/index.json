@@ -2730,6 +2730,16 @@
       "created": "2026-06-20",
       "last_re_verified": "2026-06-20",
       "next_action": "EXECUTING as a background subagent (tests-RED-first; runner-verify-then-halt-if-denied; HARD-GATE cold critic at close). If the runner is sandbox-blocked, the monitor completes in-session (FAUTH-2a precedent). Then FAUTH-3b (SNOMED authoring) or FAUTH-4 (case-10 flip)."
+    },
+    {
+      "id": "bench-salvage-phaseFAUTH-4-value-presence-floor-driver",
+      "stream": "bench-salvage",
+      "phase": "FAUTH-4",
+      "file": ".devloop/prompts/bench-salvage_phaseFAUTH-4_value-presence-floor_driver.md",
+      "version": "v1",
+      "status": "CLOSED CLEAN (deterministic-green + cold-critic CLEAN) 2026-06-20. NARR-FLOOR-1: the value_presence completeness floor (the case-10 PASS->BLOCK mechanism) = the INVERSE of dosage_grounding -- a value spoken in a source_path (default transcript) must be PRESENT in artifacts[0].content; absent -> inject a BLOCK the council missed. Deterministic oracle (OQ-3, no LLM): re.findall(value_regex, source) extracts the required token(s); normalized-substring presence-check -> absent->False (match=all: any distinct value missing; match=any: all forms absent), present->True, nothing-parseable/bad-regex->None. Per SPEC_CLINVERDICT_SELF_SERVE.md:122 the NAME is the one additive core line (verification/spec.py TOOL_VALUE_PRESENCE in _KNOWN_TOOLS+_REQUIRED_REFERENCE_KEYS); the tool class + executor ship pack-local (packs/narrative/floors.py, BracketLeakTool template). The ground() floor loop is UNCHANGED (already tri-state) -> MOAT (compliance_council/signals/withstands/judge_metric) + grounding.py byte-0-diff; both floor_executors() equality snapshots unperturbed (narrative-pack-local). Authoring is params-only via the shipped ContractBuilder + the FAUTH-2 gate; no new SDK tool (count 20). Cold critic (verdict-path HARD-GATE) ran Gate 0: full suite 38==38 parent<->HEAD (byte-identical failure SET, 0 net new, 0 swap; the 38 are pre-existing ../lithrim-pack-healthcare drift on BOTH 21cd859+e85203a), +5 passed/+3 skipped = new tests, 0 value_presence failures, ruff clean on touched files, tests-first RED 54f6c18->GREEN e85203a, flip non-vacuous both directions, malformed-regex inconclusive not a grade-abort, no over-claim. Critique: .devloop/sessions/critique-bench-salvage-phaseFAUTH-4-2026-06-20.md. Commits 21cd859..e85203a.",
+      "next_action": "DONE. NEXT (owner's call): the clinical case-10 instance (external-pack value_presence re-export + a pinned contract -> the live clinical flip) OR FAUTH-3b (SNOMED authoring, the richer oracle) OR FAUTH-5 (KbPicker) OR FAUTH-6 (OpenEvidence, last).",
+      "_note": "FOURTH live FAUTH cycle (the headline floor mechanism). The ground() floor loop already implements the tri-state the spec wants, so this is a purely ADDITIVE pack-local floor + one core name line -- grounding.py + the 4 moat files byte-frozen. Honest boundary: the demonstrable flip is the narrative crafted pair (a refusal-shaped scribe note); the CLINICAL case-10 live-authoring under pack=healthcare is a separate DATA follow-on in the external pack, NOT faked here. Seam S-BS-FAUTH4-1 (worktree-baseline measurement hygiene -- measure the parent in the SAME physical root; test_pack_dist._HAS_SIBLING is by-layout)."
     }
   ]
 }
