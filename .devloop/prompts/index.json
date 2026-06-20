@@ -3,6 +3,16 @@
   "updated": "2026-06-19",
   "bundles": [
     {
+      "id": "bench-salvage-phaseNARR-5-CRIT-a-snapshot-writer",
+      "stream": "bench-salvage",
+      "phase": "NARR-5-CRIT-a",
+      "file": ".devloop/sessions/critique-bench-salvage-phaseNARR-5-CRIT-a-2026-06-21.md",
+      "version": "v1",
+      "status": "CLOSED CLEAN (owner-signed-off + cold-critic CLEAN) 2026-06-21. The sanctioned gradeable-criterion snapshot WRITER -- the FIRST audited writer above the CLAUDE.md 'never hand-edit the snapshot' invariant. harness/criterion.py splice_gradeable_criterion splices a new gradeable code into a tier:core pack's snapshot (tiers + lenses + tier1_owners-when-T1) so the EXISTING admissibility gate passes for it (admissible path INTO the gate, NOT a weakening -- gradeable_flags_outside_snapshot byte-untouched; a never-created code still 422s). Gated tier:core (pro=NonCorePackError); validates owner in production_judges + dup + tier BEFORE any write; restore_snapshot atomicity backstop. POST /v1/criterion: splice -> append gradeable flag (overlay) -> ONE criterion audit, atomic. Tier-aware 422 fix (core->create_gradeable_criterion, pro->backend re-snapshot). Cold critic ran Gate 0 (38==38 identical set, +13 tests), RED->GREEN in a worktree, EMPIRICALLY forced the rollback, verified all 6 snapshot keys preserved, MOAT+grounding+pack+spec+agent 0-diff (no engine edit, NO new SDK tool), no repo-source mutation, no over-claim. NB note (endpoint rollback test) DISCHARGED (91d9edf). Commits 0fa20e1..91d9edf.",
+      "next_action": "DONE. HONEST BOUNDARY: gated to tier:core -> does NOT enable the case-10 flip in the tier:pro healthcare pack; it is the WRITER. NEXT: NARR-5-CRIT-b (the create_gradeable_criterion SDK-MCP tool over POST /v1/criterion, A-SAFE re-proof, tool count 20->21) -> the case-10 GOVERNED flip on a tier:core pack (mint DISSENT_ERASURE the sanctioned way + register value_presence there + grade). Open: S-BS-FAUTH4b-1 (spec 123 two-mode lock).",
+      "_note": "Owner sign-off (2026-06-21) required + obtained for the first snapshot writer (the spec tags NARR-5-CRIT 'needs human sign-off'). Scope split: -a = writer+endpoint+422fix (this); -b = the SDK-MCP tool (deferred, A-SAFE). Config-plane write only -- the council/moat is byte-frozen. Test vehicle = a throwaway copy of packs/_core (no repo-source mutation)."
+    },
+    {
       "id": "bench-salvage-phaseHONEST-1-honest-unlabeled-mode-driver",
       "stream": "bench-salvage",
       "phase": "HONEST-1",
