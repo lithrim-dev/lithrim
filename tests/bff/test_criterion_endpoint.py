@@ -166,6 +166,40 @@ def test_non_core_pack_422(tmp_path, monkeypatch):
     pack_mod._pack_root.cache_clear()
 
 
+# ── A7 — ATOMICITY: an ontology-write failure AFTER a successful splice rolls the splice back ──
+
+
+def test_atomic_rollback_on_ontology_failure(core_ws, tmp_path):
+    from fastapi import HTTPException
+
+    from lithrim_bench.harness import pack as pack_mod
+
+    pack, _ = core_ws
+    # Pre-seed the agent overlay with a SECOND gradeable flag NOT in the snapshot → the post-splice
+    # _validate_ontology 422s → restore_snapshot must undo the GOOD_CODE splice (snapshot+ontology
+    # never diverge). This guards the first-snapshot-writer's atomicity at the ENDPOINT level.
+    wd = tmp_path / "wd"
+    wd.mkdir(parents=True, exist_ok=True)
+    poisoned = {
+        "ontology_version": "t/v1",
+        "domain": "test",
+        "flags": [
+            {"flag": "UNBLESSED_PREEXISTING", "category": "x", "definition": "", "when_to_use": "",
+             "when_NOT_to_use": "", "owner_roles": ["policy_judge"], "tier": "TIER_2", "gradeable": True}
+        ],
+        "questions": [],
+        "verification_contracts": [],
+        "severity_map": {"weights": {}, "block_at_or_above": 1.0, "warn_above": 0.5},
+    }
+    (wd / f"{_AGENT}.json").write_text(json.dumps(poisoned))
+    before = _snapshot(pack)
+    with pytest.raises(HTTPException):
+        _call(tmp_path, _req(code="GOOD_CODE", tier="TIER_2", owner_role="faithfulness_judge"))
+    # the splice was rolled back — GOOD_CODE is NOT stranded in the snapshot
+    assert _snapshot(pack) == before
+    assert "GOOD_CODE" not in pack_mod.pack_taxonomy_codes(pack)
+
+
 # ── A6 — the misleading 422 is tier-aware: a core pack points to create_gradeable_criterion ──
 
 
