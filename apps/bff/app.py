@@ -65,7 +65,7 @@ from typing import Any, Literal, get_args
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS = REPO_ROOT / "scripts"
@@ -1811,7 +1811,9 @@ def put_ontology_endpoint(
 
 
 class CriterionRequest(BaseModel):
-    code: str
+    # F1: a taxonomy code is an uppercase-led SCREAMING_SNAKE token — refuse garbage at the boundary
+    # (the writer ALSO guards, defense-in-depth) so nothing malformed reaches the contract-of-record.
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
     tier: str  # TIER_1 | TIER_2 | TIER_3 (or T1/T2/T3 / the long snapshot tier-set names)
     owner_role: str  # must be a production judge of the active pack
     category: str = "completeness"
@@ -1854,8 +1856,12 @@ def create_criterion_endpoint(
     except crit_mod.CriterionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # Append the gradeable flag to the agent's ontology overlay, under the now-passing lint.
-    # ATOMIC: on ANY failure here, roll the snapshot back so snapshot + ontology never diverge.
+    # Post-splice writes: the ontology overlay AND the audit, under the now-passing lint. ATOMIC —
+    # on ANY failure (validation, overlay write, OR the audit, F2) roll BOTH the snapshot AND the
+    # overlay back so the snapshot/ontology never diverge and no un-audited snapshot mutation lands.
+    workdir.mkdir(parents=True, exist_ok=True)
+    out_path = workdir / f"{agent}.json"
+    overlay_before = out_path.read_text() if out_path.exists() else None
     try:
         ag = _load_agent(agent, db_path)
         before_path, _src = _resolve_ontology_path(ag, workdir)
@@ -1876,29 +1882,42 @@ def create_criterion_endpoint(
         }
         new_ontology = {**ontology, "flags": [*(ontology.get("flags") or []), new_flag]}
         _validate_ontology(new_ontology)
-        workdir.mkdir(parents=True, exist_ok=True)
-        out_path = workdir / f"{agent}.json"
         out_path.write_text(json.dumps(new_ontology, indent=2, sort_keys=True))
+        actor = _resolve_actor(x_actor, default_actor)
+        # F3: the audit captures the FULL governance delta — tiers + lenses (raise authority) +
+        # tier1_owners (the T1 one-strike), not only `tiers`.
+        AuditLog(db_path=db_path).record(
+            AuditRecord(
+                actor=actor,
+                action="create",
+                target=Target(type="criterion", id=body.code),
+                why={
+                    "rationale": rationale,
+                    "tier": body.tier,
+                    "owner_role": body.owner_role,
+                    "pack": pack,
+                },
+                before={
+                    "tiers": snap_before["tiers"],
+                    "lenses": snap_before["lenses"],
+                    "tier1_owners": snap_before.get("tier1_owners", {}),
+                },
+                after={
+                    "tiers": snap_after["tiers"],
+                    "lenses": snap_after["lenses"],
+                    "tier1_owners": snap_after.get("tier1_owners", {}),
+                    "ontology_flag": new_flag,
+                },
+            )
+        )
     except Exception:
         crit_mod.restore_snapshot(pack, snap_before)
+        if overlay_before is not None:
+            out_path.write_text(overlay_before)
+        elif out_path.exists():
+            out_path.unlink()
         raise
 
-    actor = _resolve_actor(x_actor, default_actor)
-    AuditLog(db_path=db_path).record(
-        AuditRecord(
-            actor=actor,
-            action="create",
-            target=Target(type="criterion", id=body.code),
-            why={
-                "rationale": rationale,
-                "tier": body.tier,
-                "owner_role": body.owner_role,
-                "pack": pack,
-            },
-            before={"tiers": snap_before["tiers"]},
-            after={"tiers": snap_after["tiers"], "ontology_flag": new_flag},
-        )
-    )
     return {
         "status": "ok",
         "code": body.code,

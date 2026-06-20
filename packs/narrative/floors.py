@@ -223,9 +223,15 @@ class ValuePresenceTool(VerificationTool):
       * ``conforms=None``  — nothing parseable (empty/non-str artifact, no source text, the concept
         was never raised in the source, or a malformed pinned regex) → NEVER flip by silence.
 
-    The honest limit: even concept mode is bounded by the pinned ``value_regex`` form set — a
-    refusal phrased OUTSIDE the set still false-blocks; the SNOMED-coded oracle is the paraphrase-
-    robust swap-in (FAUTH-3b), behind this SAME FloorExecutor interface.
+    The honest limits (BOTH directions, F5):
+      * false-POSITIVE — even concept mode is bounded by the pinned ``value_regex`` form set; a
+        refusal phrased OUTSIDE the set still false-blocks.
+      * false-NEGATIVE — ``match='any'`` searches the WHOLE artifact, NOT the concept's locus, so a
+        same-token mention in an UNRELATED context satisfies it: an erased vaccine refusal passes if
+        the note happens to say "declined to provide their SSN". The check is presence-of-token, not
+        presence-at-locus.
+    The SNOMED-coded, locus-scoped oracle is the robust swap-in for both (FAUTH-3b), behind this
+    SAME FloorExecutor interface.
 
     reference = {
         "value_regex": <required token/concept extractor>,  # required
@@ -308,10 +314,13 @@ class ValuePresenceTool(VerificationTool):
                 manifest=manifest,
             )
         # match='all' — VALUE preservation: every distinct value spoken in the source must appear
-        # (normalized substring) in the artifact (the dosage-inverse; SPEC_CLINVERDICT §123).
+        # in the artifact (the dosage-inverse; SPEC_CLINVERDICT §123). WORD-BOUNDARY, not substring
+        # (F4): a dropped "5 mg" must NOT be satisfied by "25 mg" — substring containment under-fires
+        # exactly the numeric doses this mode is for.
         hay = _norm(artifact)
-        present = [t for t in required if _norm(t) in hay]
-        missing = [t for t in required if _norm(t) not in hay]
+        _present = {t for t in required if re.search(rf"\b{re.escape(_norm(t))}\b", hay)}
+        present = [t for t in required if t in _present]
+        missing = [t for t in required if t not in _present]
         return VerificationResult(
             conforms=not missing,
             evidence={"required": required, "present": present, "missing": missing, "match": "all"},

@@ -22,8 +22,16 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import re
+import tempfile
+from pathlib import Path
 
 from . import pack as _pack
+
+# A taxonomy code is an uppercase-led SCREAMING_SNAKE token (matches every shipped snapshot code).
+# The contract-of-record writer refuses anything else BEFORE it can land in tiers/lenses (F1).
+_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 # the council tier-set names (the snapshot ``tiers`` keys) ↔ the ontology-flag short form
 _LONG_TO_SHORT = {
@@ -63,6 +71,10 @@ class DuplicateCriterionError(CriterionError):
     """code already exists in the pack's taxonomy. → 409"""
 
 
+class BadCodeError(CriterionError):
+    """code is empty / malformed (not an uppercase-led SCREAMING_SNAKE token). → 422"""
+
+
 def resolve_tier_name(tier: str) -> str:
     """SME-facing tier (``TIER_2`` / ``T2`` / ``TIER_2_HIGH_RISK``) → the snapshot tier-set name."""
     name = _TIER_ALIASES.get(tier)
@@ -93,6 +105,11 @@ def splice_gradeable_criterion(pack: str, code: str, tier: str, owner_role: str)
             f"pack {pack!r} is not tier:core; a tier:pro pack's taxonomy snapshot is a "
             "lithrim-backend re-snapshot (scripts/snapshot_taxonomy.py), not self-authored"
         )
+    if not isinstance(code, str) or not _CODE_RE.match(code):
+        raise BadCodeError(
+            f"code {code!r} is malformed; a taxonomy code must be an uppercase-led "
+            "SCREAMING_SNAKE token (^[A-Z][A-Z0-9_]*$)"
+        )
     tier_name = resolve_tier_name(tier)
     production = _pack.pack_production_judges(pack)
     if owner_role not in production:
@@ -110,15 +127,29 @@ def splice_gradeable_criterion(pack: str, code: str, tier: str, owner_role: str)
     after["lenses"][owner_role] = [*after["lenses"].get(owner_role, []), code]
     if tier_name == "TIER_1_NEVER_EVENTS":
         after.setdefault("tier1_owners", {})[code] = [owner_role]
-    snap_path.write_text(json.dumps(after, indent=2) + "\n")
+    _atomic_write(snap_path, json.dumps(after, indent=2) + "\n")
     _pack._council_known_codes.cache_clear()
     return before, after
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically (temp-in-dir + ``os.replace``) so a concurrent reader
+    never observes a half-written snapshot (F6)."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp_snapshot_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
 def restore_snapshot(pack: str, snapshot: dict) -> None:
     """Roll the pack snapshot back to ``snapshot`` (the BFF's atomicity backstop: if the ontology
-    overlay write fails AFTER a successful splice, undo the splice so the snapshot + ontology never
-    diverge). Clears the council known-codes cache."""
+    overlay or audit write fails AFTER a successful splice, undo the splice so the snapshot +
+    ontology never diverge). Atomic write; clears the council known-codes cache."""
     snap_path = _pack._pack_ref(pack, "flags_ref")
-    snap_path.write_text(json.dumps(snapshot, indent=2) + "\n")
+    _atomic_write(snap_path, json.dumps(snapshot, indent=2) + "\n")
     _pack._council_known_codes.cache_clear()
