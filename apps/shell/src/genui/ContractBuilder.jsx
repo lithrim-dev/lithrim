@@ -51,7 +51,11 @@ function Field({ label, children }) {
 // either it or the camel ``flagCode`` (direct-render ergonomics). Defaults to "" (back-compat:
 // the pane-mounted + scripted-showcase paths are unchanged). If left blank, the widget's own
 // validation gates Save (R5).
-export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, onResult }) {
+// FAUTH-3 (G2, the ASSIST keystone): the agent's assist may also spread ``suggested_params`` (a
+// prose→params draft) + ``question`` — DRAFT seeds that PRE-FILL the EDITABLE params/question
+// fields. They are defaults only: the human edits them and the human's Save is the sole audited
+// write (surfacing the pre-filled card writes NOTHING). Absent → the byte-identical FAUTH-1 behavior.
+export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, suggested_params, question: seedQuestion, onResult }) {
   const [contractType, setContractType] = useState("presence_check");
   // FAUTH-2 (G3): the type list is driven by the active pack's registered executors; init to the
   // static fallback so first paint + offline (vitest / scripted-showcase) never crash, then
@@ -65,8 +69,11 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
     return () => { live = false; };
   }, []);
   const [flagCode, setFlagCode] = useState(seedFlag ?? flag_code ?? "");
-  const [question, setQuestion] = useState("");
-  const [paramsText, setParamsText] = useState('{\n  "source": "response.claims"\n}');
+  const [question, setQuestion] = useState(seedQuestion ?? "");
+  // FAUTH-3: pre-fill the editable params from the agent's suggested_params draft; else the inert default.
+  const [paramsText, setParamsText] = useState(
+    suggested_params ? JSON.stringify(suggested_params, null, 2) : '{\n  "source": "response.claims"\n}',
+  );
   const [version, setVersion] = useState("");
   const [returned, setReturned] = useState(false);
   const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
