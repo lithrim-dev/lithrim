@@ -1735,15 +1735,38 @@ def _validate_ontology(ontology: dict) -> None:
         ontology.get("flags") or [], _active_snapshot_codes()
     )
     if offenders:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "a gradeable flag requires a lithrim-backend re-snapshot "
-                "(scripts/snapshot_taxonomy.py --backend-path …); it cannot be created from clean "
-                "locally — labels are true by construction. See docs/ONTOLOGY_FLAG_LIFECYCLE.md. "
-                f"Offending gradeable codes: {offenders}"
-            ),
+        raise HTTPException(status_code=422, detail=_gradeable_offender_detail(offenders))
+
+
+def _gradeable_offender_detail(offenders: list[str]) -> str:
+    """The 422 message for a gradeable flag outside the snapshot — TIER-AWARE (NARR-5-CRIT).
+
+    The gate is unchanged (labels true by construction); only the GUIDANCE is corrected. For a
+    ``tier:core`` pack (a hand-authored domain) the fix is the sanctioned self-serve writer
+    (``create_gradeable_criterion`` / POST ``/v1/criterion``), NOT the clinical backend re-snapshot
+    the old message misdirected the SME toward. For a ``tier:pro`` pack (a backend-derived snapshot)
+    the re-snapshot guidance stands."""
+    tier = "core"
+    try:
+        from lithrim_bench.harness import pack as _pack_mod
+        from lithrim_bench.harness import workspace as _ws
+
+        tier = _pack_mod._manifest(_ws.get_active_workspace().pack).get("tier", "core")
+    except Exception:  # noqa: BLE001 - resolution failure → safest (core) guidance
+        tier = "core"
+    if tier == "core":
+        return (
+            "a gradeable flag must first be minted into the active pack's taxonomy snapshot via the "
+            "sanctioned self-serve writer (create_gradeable_criterion / POST /v1/criterion) — a PUT "
+            "/v1/ontology alone cannot create one (labels are true by construction). "
+            f"Offending gradeable codes: {offenders}"
         )
+    return (
+        "a gradeable flag requires a lithrim-backend re-snapshot "
+        "(scripts/snapshot_taxonomy.py --backend-path …); it cannot be created from clean "
+        "locally — labels are true by construction. See docs/ONTOLOGY_FLAG_LIFECYCLE.md. "
+        f"Offending gradeable codes: {offenders}"
+    )
 
 
 @app.put("/v1/ontology")
@@ -1785,6 +1808,105 @@ def put_ontology_endpoint(
         )
     )
     return {"status": "ok", "agent": agent, "working_copy": str(path)}
+
+
+class CriterionRequest(BaseModel):
+    code: str
+    tier: str  # TIER_1 | TIER_2 | TIER_3 (or T1/T2/T3 / the long snapshot tier-set names)
+    owner_role: str  # must be a production judge of the active pack
+    category: str = "completeness"
+    definition: str = ""
+    when_to_use: str = ""
+    when_NOT_to_use: str = ""
+
+
+@app.post("/v1/criterion")
+def create_criterion_endpoint(
+    body: CriterionRequest,
+    agent: str = DEFAULT_AGENT,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """NARR-5-CRIT: mint a new GRADEABLE criterion self-serve — the sanctioned, AUDITED writer
+    above the CLAUDE.md "never hand-edit the snapshot" invariant (owner sign-off 2026-06-21).
+
+    Splices the code into the active WORKSPACE pack's taxonomy snapshot (``tiers`` + ``lenses`` +
+    ``tier1_owners``-when-T1) via the tier:core-gated harness writer, then appends the
+    ``gradeable=True`` ontology flag to the agent overlay under the NOW-passing admissibility lint —
+    ONE audited action, atomic (the snapshot is rolled back if the ontology write fails). The gate
+    itself is unchanged; this is the admissible self-serve path INTO it, not a weakening.
+
+    422 on a non-core pack / unknown owner / bad tier; 409 on a duplicate code.
+    """
+    from lithrim_bench.harness import criterion as crit_mod
+    from lithrim_bench.harness import workspace as ws_mod
+
+    pack = ws_mod.get_active_workspace().pack
+    try:
+        snap_before, snap_after = crit_mod.splice_gradeable_criterion(
+            pack, body.code, body.tier, body.owner_role
+        )
+    except crit_mod.DuplicateCriterionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except crit_mod.CriterionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Append the gradeable flag to the agent's ontology overlay, under the now-passing lint.
+    # ATOMIC: on ANY failure here, roll the snapshot back so snapshot + ontology never diverge.
+    try:
+        ag = _load_agent(agent, db_path)
+        before_path, _src = _resolve_ontology_path(ag, workdir)
+        ontology = (
+            json.loads(before_path.read_text())
+            if before_path.exists()
+            else {"flags": [], "questions": [], "verification_contracts": []}
+        )
+        new_flag = {
+            "flag": body.code,
+            "category": body.category,
+            "definition": body.definition,
+            "when_to_use": body.when_to_use,
+            "when_NOT_to_use": body.when_NOT_to_use,
+            "owner_roles": [body.owner_role],
+            "tier": crit_mod.short_tier_name(body.tier),
+            "gradeable": True,
+        }
+        new_ontology = {**ontology, "flags": [*(ontology.get("flags") or []), new_flag]}
+        _validate_ontology(new_ontology)
+        workdir.mkdir(parents=True, exist_ok=True)
+        out_path = workdir / f"{agent}.json"
+        out_path.write_text(json.dumps(new_ontology, indent=2, sort_keys=True))
+    except Exception:
+        crit_mod.restore_snapshot(pack, snap_before)
+        raise
+
+    actor = _resolve_actor(x_actor, default_actor)
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=actor,
+            action="create",
+            target=Target(type="criterion", id=body.code),
+            why={
+                "rationale": rationale,
+                "tier": body.tier,
+                "owner_role": body.owner_role,
+                "pack": pack,
+            },
+            before={"tiers": snap_before["tiers"]},
+            after={"tiers": snap_after["tiers"], "ontology_flag": new_flag},
+        )
+    )
+    return {
+        "status": "ok",
+        "code": body.code,
+        "tier": crit_mod.short_tier_name(body.tier),
+        "owner_role": body.owner_role,
+        "pack": pack,
+        "working_copy": str(out_path),
+    }
 
 
 @app.post("/v1/grounding-contract")
