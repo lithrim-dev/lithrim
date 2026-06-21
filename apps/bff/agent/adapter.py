@@ -82,6 +82,7 @@ def contract_builder_part(
     *,
     suggested_params: dict[str, Any] | None = None,
     question: str = "",
+    contract_type: str = "",
     show_intent: str = "auto",
 ) -> dict[str, Any]:
     """FAUTH-1 (G1): author_contract -> the ContractBuilder INPUT widget, surfaced INLINE and
@@ -104,6 +105,10 @@ def contract_builder_part(
         out["suggested_params"] = suggested_params
     if question:
         out["question"] = question
+    # S-BS-143: the agent-chosen direction (value_presence FLOOR vs presence_check SUPPRESS) so the
+    # card opens on the right contract_type. Added ONLY when set → the un-typed path is byte-identical.
+    if contract_type:
+        out["contract_type"] = contract_type
     return _part("contract_builder", out, show_intent=show_intent)
 
 

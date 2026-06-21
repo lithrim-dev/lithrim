@@ -39,7 +39,7 @@ from .adapter import (
     propose_live_run_part,
     verdict_part,
 )
-from .assist import suggest_presence_check_params
+from .assist import suggest_contract_params
 
 # Plain-dict input schemas (SDK-free; the A-SAFE test asserts the paid keys are
 # ABSENT from RUN_EVAL_SCHEMA — the agent literally cannot request a paid run).
@@ -144,12 +144,15 @@ ADD_GROUNDING_CONTRACT_SCHEMA: dict[str, Any] = {
 # in-context flag_code, and the HUMAN's Save (the widget's existing putGroundingContract) is the
 # only write. It performs NO write itself — NO PAID_KEY (the A-SAFE test asserts this generically).
 # FAUTH-3 (G2, the ASSIST keystone): OPTIONAL prose->params seeds — suggested_params (a deterministic
-# presence_check draft the agent proposes) + source_hint (the chart path the agent lifts from the
-# prose; the handler builds the presence_check skeleton from it via assist.suggest_presence_check_params
-# when suggested_params is omitted) + question. All DRAFT seeds for the EDITABLE card; the handler stays
-# emit-only and the human's Save remains the sole audited write (still NO PAID_KEY, still no write op).
+# draft the agent proposes) + source_hint (the chart path the agent lifts from the prose; the handler
+# builds the matching skeleton from it via assist.suggest_contract_params when suggested_params is
+# omitted) + question. S-BS-143: contract_type is the agent-chosen DIRECTION — value_presence (FLOOR,
+# injects a BLOCK on an absent required value; flips APPROVE→BLOCK) vs presence_check (SUPPRESS, default).
+# All DRAFT seeds for the EDITABLE card; the handler stays emit-only and the human's Save remains the
+# sole audited write (still NO PAID_KEY, still no write op).
 AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {
     "flag_code": str,
+    "contract_type": str,
     "suggested_params": dict,
     "source_hint": str,
     "question": str,
@@ -625,25 +628,34 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     flag_code = str(args.get("flag_code") or args.get("flag") or "")
     # FAUTH-3 (G2, the ASSIST keystone) + FAUTH-3a (the reliability fix): prose->params seeds. An
     # explicit suggested_params (the agent's composed draft) wins; otherwise, for a NAMED flag, the
-    # handler DEFAULT-fills the DETERMINISTIC presence_check skeleton (correct KEYS by construction,
-    # not LLM-hallucinated) via the pure helper — so the pre-fill does NOT depend on the live agent
-    # remembering to pass source_hint (A-LIVE showed it doesn't). source_hint, when given, sets
-    # med_source. No flag yet (the "name the flag first" empty card) → no pre-fill. All are DRAFT
+    # handler DEFAULT-fills the DETERMINISTIC skeleton (correct KEYS by construction, not LLM-
+    # hallucinated) via the pure helper — so the pre-fill does NOT depend on the live agent remembering
+    # to pass source_hint (A-LIVE showed it doesn't). source_hint, when given, sets the skeleton's
+    # source path. No flag yet (the "name the flag first" empty card) → no pre-fill. All are DRAFT
     # seeds for the EDITABLE card; this handler stays EMIT-ONLY (it calls NO bound write op); the
     # human's Save (putGroundingContract) remains the sole audited write, so the assist never
     # auto-writes the ontology and never enters ground() (the spine invariant).
+    # S-BS-143: contract_type is the agent-chosen DIRECTION — value_presence (FLOOR, can flip
+    # APPROVE→BLOCK) vs presence_check (SUPPRESS, the historical default). suggest_contract_params
+    # routes to the matching skeleton; an empty/unknown type falls back to presence_check (byte-
+    # identical to the prior behavior). The chosen type rides into the part so the card opens on it.
     # NB: the SDK-MCP layer passes an EMPTY dict {} for an omitted dict-typed param (not None), so
     # `{}` must be treated as "no suggestion" — else a real named-flag call (suggested_params={})
     # would skip the default-fill and the card would show the inert default (the A-LIVE bug).
+    contract_type = str(args.get("contract_type") or "").strip()
     _raw = args.get("suggested_params")
     suggested = _raw if (isinstance(_raw, dict) and _raw) else None
     source_hint = str(args.get("source_hint") or "").strip() or None
     if suggested is None and flag_code:
-        suggested = suggest_presence_check_params(flag_code, source_hint=source_hint)
+        suggested = suggest_contract_params(contract_type, flag_code, source_hint=source_hint)
     question = str(args.get("question") or "")
     ctx.emit(
         contract_builder_part(
-            ctx.default_agent, flag_code, suggested_params=suggested, question=question
+            ctx.default_agent,
+            flag_code,
+            suggested_params=suggested,
+            question=question,
+            contract_type=contract_type,
         )
     )
     seeded = " (pre-filled with a suggested draft you can edit)" if suggested else ""
