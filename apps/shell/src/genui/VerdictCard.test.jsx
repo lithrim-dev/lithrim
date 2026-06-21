@@ -89,3 +89,36 @@ describe("VerdictCard — fully-interactive inline result", () => {
     expect(container.querySelector(".ivotes")).toBeNull();
   });
 });
+
+// INLINE-IMPACT-1: the card must carry its own WHY — the approve reads as a REASONED verdict
+// (each judge's reason inline), and the BLOCK shows WHO caught it (a deterministic floor rule the
+// human authored), so the demo's thesis is on screen, not only in the voiceover.
+describe("VerdictCard — carries the WHY inline (reasoning + floor attribution)", () => {
+  it("renders each judge's reason under their vote (approve reads as reasoned, not a scorecard)", () => {
+    const votes = [
+      { role: "policy_judge", vote: "PASS", confidence: 0.92, reason: "Documentation aligns with the visit; no safety gap." },
+      { role: "risk_judge", vote: "PASS", confidence: 0.9 },
+    ];
+    const { getByText } = render(<VerdictCard verdict="approve" agreement="2 / 2" votes={votes} runId="r" />);
+    getByText(/Documentation aligns with the visit/); // the reason is visible inline
+  });
+
+  it("renders a 'Caught by floor rule' attribution from floorBlocks on a BLOCK", () => {
+    const floorBlocks = [
+      { flag: "DISSENT_ERASURE", contract_type: "value_presence", contract: "DISSENT_ERASURE/v1",
+        disposition: "the patient's refusal was stated but missing from the note" },
+    ];
+    const { getByText, container } = render(
+      <VerdictCard verdict="BLOCK" agreement="1 / 3" votes={[]} floorBlocks={floorBlocks} runId="r" />,
+    );
+    expect(container.textContent).toMatch(/caught by .*floor/i); // the attribution label
+    getByText("DISSENT_ERASURE"); // the injected code
+    expect(container.textContent).toMatch(/value_presence/); // the deterministic contract that fired
+    getByText(/refusal was stated but missing from the note/); // the one-line why
+  });
+
+  it("shows NO floor-rule attribution when there are no floorBlocks (no fabricated 'caught' on a clean pass)", () => {
+    const { container } = render(<VerdictCard verdict="approve" agreement="3 / 3" votes={[]} runId="r" />);
+    expect(container.textContent).not.toMatch(/caught by .*floor/i);
+  });
+});

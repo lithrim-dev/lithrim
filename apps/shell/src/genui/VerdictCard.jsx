@@ -33,7 +33,7 @@ function agreeDots(agreement) {
 
 export default function VerdictCard({
   id, question, answer, confidence, agreement, pillar, pillarStatus, verdict,
-  votes, runId, onOpenArtifact,
+  votes, floorBlocks, runId, onOpenArtifact,
 } = {}) {
   // Real-data only: with no verdict (and no question), this was an output-less mount —
   // show an honest placeholder instead of a fabricated sample verdict.
@@ -84,8 +84,29 @@ export default function VerdictCard({
           </div>
         </div>
 
+        {/* INLINE-IMPACT-1 (the demo's thesis, inline): WHO caught the flip — a deterministic
+            FLOOR rule the human authored, not a judge. Rendered only when a floor injected a block,
+            so a clean pass never shows a fabricated attribution. */}
+        {Array.isArray(floorBlocks) && floorBlocks.length > 0 && (
+          <div className="ifloor" style={{ margin: "10px 0", padding: "8px 10px", borderRadius: 8, background: "var(--accent-bg, rgba(240,90,70,0.07))", borderLeft: "3px solid var(--accent)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--accent)", marginBottom: 5 }}>Caught by floor rule</div>
+            {floorBlocks.map((b, i) => (
+              <div key={b.flag || i} style={{ marginBottom: i < floorBlocks.length - 1 ? 6 : 0 }}>
+                <span className="tag fail" style={{ marginRight: 6 }}>{b.flag}</span>
+                <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                  {b.contract_type}{b.contract ? ` · ${b.contract}` : ""}
+                </span>
+                {b.disposition && (
+                  <div style={{ fontSize: 12, color: "var(--fg)", lineHeight: 1.45, marginTop: 3 }}>{b.disposition}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* CONV-FIRST §3: the realized per-judge votes, INLINE — the human reads how each
-            judge voted in the conversation, not the pane. */}
+            judge voted in the conversation, not the pane. INLINE-IMPACT-1: each judge's REASON
+            renders under the vote so the verdict reads as reasoned judgment, not a bare scorecard. */}
         {Array.isArray(votes) && votes.length > 0 && (
           <div className="ivotes">
             <div className="ivotes-h">Council votes</div>
@@ -93,11 +114,16 @@ export default function VerdictCard({
               const c = VOTE_COLOR[String(v.vote || "").toUpperCase()] || "var(--muted)";
               const conf = typeof v.confidence === "number" ? v.confidence : null;
               return (
-                <div className="ivote" key={v.role || i}>
-                  <span className="ivote-av" style={{ background: c }}>{(v.role || "?").charAt(0).toUpperCase()}</span>
-                  <span className="ivote-role">{v.role || "judge"}</span>
-                  <span className="ivote-vote" style={{ color: c }}>{v.vote}</span>
-                  {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
+                <div key={v.role || i} style={{ marginBottom: v.reason ? 7 : 0 }}>
+                  <div className="ivote">
+                    <span className="ivote-av" style={{ background: c }}>{(v.role || "?").charAt(0).toUpperCase()}</span>
+                    <span className="ivote-role">{v.role || "judge"}</span>
+                    <span className="ivote-vote" style={{ color: c }}>{v.vote}</span>
+                    {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
+                  </div>
+                  {v.reason && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.45, margin: "1px 0 0 26px" }}>{v.reason}</div>
+                  )}
                 </div>
               );
             })}
