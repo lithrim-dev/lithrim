@@ -175,3 +175,18 @@ def test_restore_snapshot_rolls_back(core_pack):
     crit.restore_snapshot(core_pack, before)
     assert "TMP_CODE" not in pack_mod.pack_taxonomy_codes(core_pack)
     assert _snapshot(core_pack) == before
+
+
+def test_rollback_is_byte_faithful(core_pack):
+    """Live A-LIVE NIT (F6-followup): a content-identical rollback leaves the snapshot file
+    BYTE-identical — ensure_ascii=False preserves the raw unicode the snapshot stores, so a
+    splice-then-restore is a true no-op (no spurious git-dirty / re-escaped em-dashes)."""
+    from lithrim_bench.harness import criterion as crit
+    from lithrim_bench.harness import pack as pack_mod
+
+    snap_path = pack_mod._pack_ref(core_pack, "flags_ref")
+    original = snap_path.read_bytes()
+    before, _ = crit.splice_gradeable_criterion(core_pack, "TMP_CODE", "TIER_2", "policy_judge")
+    crit.restore_snapshot(core_pack, before)
+    assert snap_path.read_bytes() == original  # byte-faithful: no reformat, no re-escaping
+    assert "\\u" not in snap_path.read_text()  # raw unicode preserved, not ASCII-escaped

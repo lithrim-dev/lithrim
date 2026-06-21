@@ -127,17 +127,21 @@ def splice_gradeable_criterion(pack: str, code: str, tier: str, owner_role: str)
     after["lenses"][owner_role] = [*after["lenses"].get(owner_role, []), code]
     if tier_name == "TIER_1_NEVER_EVENTS":
         after.setdefault("tier1_owners", {})[code] = [owner_role]
-    _atomic_write(snap_path, json.dumps(after, indent=2) + "\n")
+    _write_snapshot(snap_path, after)
     _pack._council_known_codes.cache_clear()
     return before, after
 
 
-def _atomic_write(path: Path, text: str) -> None:
-    """Write ``text`` to ``path`` atomically (temp-in-dir + ``os.replace``) so a concurrent reader
-    never observes a half-written snapshot (F6)."""
+def _write_snapshot(path: Path, snapshot: dict) -> None:
+    """Serialize + atomically write a snapshot. ``ensure_ascii=False``: the snapshots store RAW
+    unicode (em-dashes etc.); escaping them would reformat the tracked file on EVERY write -- incl.
+    a content-identical rollback (the live A-LIVE NIT) -- so byte-fidelity keeps a no-op restore a
+    true no-op. Atomic (temp-in-dir + ``os.replace``) so a concurrent reader never sees a partial
+    write (F6)."""
+    text = json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n"
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp_snapshot_", suffix=".json")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         os.replace(tmp, path)
     except Exception:
@@ -149,7 +153,7 @@ def _atomic_write(path: Path, text: str) -> None:
 def restore_snapshot(pack: str, snapshot: dict) -> None:
     """Roll the pack snapshot back to ``snapshot`` (the BFF's atomicity backstop: if the ontology
     overlay or audit write fails AFTER a successful splice, undo the splice so the snapshot +
-    ontology never diverge). Atomic write; clears the council known-codes cache."""
+    ontology never diverge). Atomic, byte-faithful write; clears the council known-codes cache."""
     snap_path = _pack._pack_ref(pack, "flags_ref")
-    _atomic_write(snap_path, json.dumps(snapshot, indent=2) + "\n")
+    _write_snapshot(snap_path, snapshot)
     _pack._council_known_codes.cache_clear()
