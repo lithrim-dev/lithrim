@@ -47,12 +47,11 @@ from lithrim_bench.verification.spec import (
     TOOL_BRACKET_LEAK,
     TOOL_LENGTH_VIOLATION,
     TOOL_SILENT_DEGRADATION,
-    TOOL_VALUE_PRESENCE,
     Claim,
     VerificationResult,
     VerificationSpec,
 )
-from lithrim_bench.verification.tools import VerificationTool, _dig, _norm
+from lithrim_bench.verification.tools import VerificationTool
 
 # Default instruction-marker shape: an uppercase-led directive inside square brackets,
 # e.g. "[READER FEELING: tense]" / "[TONE]". MARKER-TARGETED on purpose — it does NOT
@@ -199,136 +198,6 @@ class SilentDegradationTool(VerificationTool):
 
 
 # --------------------------------------------------------------------------- #
-# ValuePresenceTool (FAUTH-4 / NARR-FLOOR-1) — a value spoken in the source is
-# MISSING from the artifact (the inverse of dosage_grounding; the case-10 mechanism)
-# --------------------------------------------------------------------------- #
-class ValuePresenceTool(VerificationTool):
-    """Floor: a required value/concept spoken in a ``source_path`` (default ``transcript``) must
-    be PRESENT in the artifact (``artifacts[0].content`` → ``claim.subject``). When it is ABSENT
-    the floor injects a BLOCK the council missed (the case-10 erased-refusal mechanism). The oracle
-    is DETERMINISTIC surface-form matching — ``re.findall(value_regex, source)`` establishes what
-    the source raised; presence in the artifact is a deterministic regex/substring check — never
-    LLM inference (OQ-3).
-
-    Two modes (``match``), conservative tri-state:
-      * ``match='all'`` — VALUE preservation (the dosage-inverse; SPEC_CLINVERDICT §123): EVERY
-        distinct value spoken in the source must appear (normalized substring) in the artifact;
-        any missing → ``conforms=False``.
-      * ``match='any'`` — CONCEPT co-presence (the case-10 refusal): the source RAISED the concept
-        (≥1 accepted form); the artifact must RECORD it in ANY accepted form (a ``value_regex``
-        hit) — tolerating paraphrase across the pinned form set, so a faithful note that records
-        the refusal in different words than the patient ("declined" for "don't want") does NOT
-        false-block. Concept absent from the artifact → ``conforms=False``.
-      * ``conforms=True``  — the requirement is satisfied.
-      * ``conforms=None``  — nothing parseable (empty/non-str artifact, no source text, the concept
-        was never raised in the source, or a malformed pinned regex) → NEVER flip by silence.
-
-    The honest limits (BOTH directions, F5):
-      * false-POSITIVE — even concept mode is bounded by the pinned ``value_regex`` form set; a
-        refusal phrased OUTSIDE the set still false-blocks.
-      * false-NEGATIVE — ``match='any'`` searches the WHOLE artifact, NOT the concept's locus, so a
-        same-token mention in an UNRELATED context satisfies it: an erased vaccine refusal passes if
-        the note happens to say "declined to provide their SSN". The check is presence-of-token, not
-        presence-at-locus.
-    The SNOMED-coded, locus-scoped oracle is the robust swap-in for both (FAUTH-3b), behind this
-    SAME FloorExecutor interface.
-
-    reference = {
-        "value_regex": <required token/concept extractor>,  # required
-        "source_path": <dotted path into the case>,         # optional, default "transcript"
-        "match": "all" | "any",                              # optional, default "all" (preservation)
-    }
-    """
-
-    name = TOOL_VALUE_PRESENCE
-
-    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
-        ref = spec.reference
-        value_regex = ref["value_regex"]
-        source_path = ref.get("source_path", "transcript")
-        match = ref.get("match", "all")
-        manifest = {
-            "tool": self.name,
-            "deterministic": True,
-            "spec_version": spec.version,
-            "locus": spec.locus,
-            "value_regex": value_regex,
-            "source_path": source_path,
-            "match": match,
-        }
-
-        artifact = claim.subject
-        if not isinstance(artifact, str) or not artifact.strip():
-            return VerificationResult(
-                conforms=None,
-                evidence={"reason": "empty or non-text artifact; nothing to check presence against"},
-                manifest=manifest,
-            )
-
-        source_text = " ".join(str(x) for x in _dig(claim.source or {}, source_path))
-        if not source_text.strip():
-            return VerificationResult(
-                conforms=None,
-                evidence={"reason": f"no source text at '{source_path}'; nothing parseable"},
-                manifest=manifest,
-            )
-
-        try:
-            raw = re.findall(value_regex, source_text, flags=re.IGNORECASE)
-        except re.error as exc:
-            return VerificationResult(
-                conforms=None,
-                evidence={"reason": f"malformed value_regex; inconclusive ({exc})"},
-                manifest=manifest,
-            )
-
-        required: list[str] = []
-        seen: set[str] = set()
-        for m in raw:
-            tok = m if isinstance(m, str) else next((g for g in m if g), "")
-            key = _norm(tok)
-            if key and key not in seen:
-                seen.add(key)
-                required.append(tok)
-        if not required:
-            return VerificationResult(
-                conforms=None,
-                evidence={"reason": "no required value spoken in the source; nothing to preserve"},
-                manifest=manifest,
-            )
-
-        if match == "any":
-            # CONCEPT co-presence: the source RAISED the concept (>=1 accepted form, ``required``);
-            # the artifact must RECORD it in ANY accepted form (a regex hit), tolerating paraphrase
-            # across the pinned form set. This deliberately does NOT require the source's verbatim
-            # token — a faithful note that records the refusal in different words than the patient's
-            # ("declined" for "don't want") must NOT false-block. (FAUTH-4b: the case-10 fix.)
-            concept_in_artifact = bool(re.search(value_regex, artifact, flags=re.IGNORECASE))
-            return VerificationResult(
-                conforms=concept_in_artifact,
-                evidence={
-                    "required": required,
-                    "concept_in_artifact": concept_in_artifact,
-                    "match": "any",
-                },
-                manifest=manifest,
-            )
-        # match='all' — VALUE preservation: every distinct value spoken in the source must appear
-        # in the artifact (the dosage-inverse; SPEC_CLINVERDICT §123). WORD-BOUNDARY, not substring
-        # (F4): a dropped "5 mg" must NOT be satisfied by "25 mg" — substring containment under-fires
-        # exactly the numeric doses this mode is for.
-        hay = _norm(artifact)
-        _present = {t for t in required if re.search(rf"\b{re.escape(_norm(t))}\b", hay)}
-        present = [t for t in required if t in _present]
-        missing = [t for t in required if t not in _present]
-        return VerificationResult(
-            conforms=not missing,
-            evidence={"required": required, "present": present, "missing": missing, "match": "all"},
-            manifest=manifest,
-        )
-
-
-# --------------------------------------------------------------------------- #
 # reference builders — lift each tool's SME-pinned reference out of the decl params
 # --------------------------------------------------------------------------- #
 def _bracket_reference(params: dict[str, Any]) -> dict[str, Any]:
@@ -344,15 +213,6 @@ def _length_reference(params: dict[str, Any]) -> dict[str, Any]:
 
 def _silent_degradation_reference(params: dict[str, Any]) -> dict[str, Any]:
     return {}
-
-
-def _value_presence_reference(params: dict[str, Any]) -> dict[str, Any]:
-    ref: dict[str, Any] = {"value_regex": params["value_regex"]}
-    if params.get("source_path"):
-        ref["source_path"] = params["source_path"]
-    if params.get("match"):
-        ref["match"] = params["match"]
-    return ref
 
 
 # ── the pack executor-registration interface (PACK-3 D1; FLOOR direction) ───────────
@@ -371,12 +231,9 @@ FLOOR_EXECUTORS: dict[str, FloorExecutor] = {
         tool_factory=lambda http_client: SilentDegradationTool(),
         reference_builder=_silent_degradation_reference,
     ),
-    # FAUTH-4 / NARR-FLOOR-1: the inverse-direction completeness floor (a spoken value missing
-    # from the artifact → inject a BLOCK the council missed; the case-10 erased-refusal mechanism).
-    TOOL_VALUE_PRESENCE: FloorExecutor(
-        tool_factory=lambda http_client: ValuePresenceTool(),
-        reference_builder=_value_presence_reference,
-    ),
+    # CORE-FLOOR-1: value_presence RELOCATED to core (lithrim_bench/verification/tools.py +
+    # grounding._core_floor_executors) — a domain-agnostic completeness floor available to EVERY
+    # pack incl. healthcare; narrative still gets it via the core merge in grounding.floor_executors().
     # LENGTH_VIOLATION is NOT attached (NARR-4 / S-BS-NARR3-3): demoted to the policy_judge
     # lens. The LengthViolationTool class + _length_reference + the TOOL_LENGTH_VIOLATION
     # name registration are RETAINED-BUT-UNATTACHED for a zero-code re-attach if a future

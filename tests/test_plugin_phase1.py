@@ -56,12 +56,15 @@ _FIXTURE_PACK = "_plugin_fixture"
 # The EXPLICIT expected registry snapshot under the healthcare pack (the suite's active pack via
 # conftest). Value-equality against this — not "no exception" — is what makes A1 non-vacuous (R1).
 _EXPECTED_SUPPRESS = {"presence_check", "kb_grounding", "record_presence", "snomed_subsumption"}
-_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "dosage_grounding"}
+# CORE-FLOOR-1: value_presence is a CORE floor now (domain-agnostic completeness floor, promoted
+# out of the narrative pack so it is available on EVERY pack incl. healthcare).
+_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "dosage_grounding"}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
     "kb_grounding": ("contract", "core", "service", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
+    "value_presence": ("contract", "core", "in_process", "grounding.floor"),
     "record_presence": ("contract", "pro", "in_process", "grounding.suppress"),
     "dosage_grounding": ("contract", "pro", "in_process", "grounding.floor"),
     # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology

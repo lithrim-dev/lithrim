@@ -22,7 +22,6 @@ contract_type. A1..A5 map to the driver acceptance criteria.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import subprocess
@@ -32,8 +31,6 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PACK_DIR = REPO_ROOT / "packs" / "narrative"
-FLOORS_PATH = PACK_DIR / "floors.py"
 PACK = "narrative"
 
 # ── the case-10-shaped crafted pair (a transcript records a refusal; the SOAP keeps / erases it) ──
@@ -72,15 +69,6 @@ _NEEDS_NARRATIVE_PACK = pytest.mark.skipif(
 )
 
 
-def _load_floors():
-    """Importlib-load packs/narrative/floors.py by path (mirrors load_pack_floors)."""
-    spec = importlib.util.spec_from_file_location("narrative_floors_under_test", FLOORS_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def _claim(subject, *, source=None):
     from lithrim_bench.verification import STRUCTURAL_CONFORMANCE, Claim
 
@@ -105,12 +93,29 @@ def _spec(reference):
     )
 
 
+# ── CORE-FLOOR-1 — value_presence is a CORE floor, available on EVERY pack (incl. healthcare) ──
+
+
+def test_value_presence_is_a_core_floor_available_to_every_pack():
+    """CORE-FLOOR-1: value_presence is a domain-agnostic completeness floor — it must be a CORE
+    floor (merged into every pack's registry), NOT narrative-only, so a clinician can author it on
+    the healthcare (clinical) workspace. RED before the move (it was registered only in
+    packs/narrative/floors.py FLOOR_EXECUTORS, so absent from _core / healthcare)."""
+    from lithrim_bench.harness.grounding import floor_executors
+
+    assert "value_presence" in floor_executors("_core"), "must be a CORE floor, not pack-gated"
+    assert "value_presence" in floor_executors("healthcare"), "must be available on the clinical pack"
+    # still present on narrative (now via the core merge), so the governed-flip demo is unaffected
+    assert "value_presence" in floor_executors("narrative")
+
+
 # ── A1 — ValuePresenceTool fires on absence, clears on presence, inconclusive otherwise ──
 
 
 def test_value_presence_violation_clean_and_inconclusive():
-    floors = _load_floors()
-    tool = floors.ValuePresenceTool()
+    from lithrim_bench.verification import ValuePresenceTool
+
+    tool = ValuePresenceTool()
     spec = _spec(dict(_REF))
 
     # VIOLATION: the transcript records the refusal; the SOAP ERASED it → conforms=False (absent→BLOCK)
@@ -145,8 +150,9 @@ def test_value_presence_violation_clean_and_inconclusive():
 
 
 def test_value_presence_dotted_source_path_and_bad_regex():
-    floors = _load_floors()
-    tool = floors.ValuePresenceTool()
+    from lithrim_bench.verification import ValuePresenceTool
+
+    tool = ValuePresenceTool()
     spec = _spec({"value_regex": r"penicillin", "source_path": "transcript.text"})
 
     case = {"transcript": {"text": "Patient is allergic to penicillin."}}
@@ -165,8 +171,9 @@ def test_value_presence_dotted_source_path_and_bad_regex():
 def test_value_presence_match_all_requires_every_distinct_value():
     """The default match='all' = the strict completeness check: EVERY distinct value spoken in the
     source must appear in the artifact (non-vacuous both ways)."""
-    floors = _load_floors()
-    tool = floors.ValuePresenceTool()
+    from lithrim_bench.verification import ValuePresenceTool
+
+    tool = ValuePresenceTool()
     # extract two distinct dose values from the transcript; both must be preserved in the SOAP
     spec = _spec({"value_regex": r"\b\d+\s*mg\b", "source_path": "transcript"})  # default match='all'
     case = {"transcript": "Start metoprolol 25 mg and atorvastatin 40 mg."}
@@ -185,8 +192,9 @@ def test_value_presence_match_all_requires_every_distinct_value():
 def test_value_presence_match_all_is_word_boundary_not_substring():
     """F4: match='all' must use WORD-BOUNDARY matching, not substring — a dropped '5 mg' must NOT be
     satisfied by '25 mg' in the artifact (the dosage-inverse false-negative the critic caught)."""
-    floors = _load_floors()
-    tool = floors.ValuePresenceTool()
+    from lithrim_bench.verification import ValuePresenceTool
+
+    tool = ValuePresenceTool()
     spec = _spec({"value_regex": r"\b\d+\s*mg\b", "source_path": "transcript"})  # default match='all'
     case = {"transcript": "Start aspirin 5 mg daily."}
     # the SOAP only has 25 mg — the spoken 5 mg dose was dropped → conforms=False (NOT a substring pass)

@@ -61,6 +61,7 @@ from .tools import (
     KbRagTool,
     RecordRagTool,
     StructuralJuteTool,
+    ValuePresenceTool,
     VerificationTool,
 )
 
@@ -82,6 +83,7 @@ __all__ = [
     "TOOL_DOSAGE_GROUNDING",
     "VerificationTool",
     "StructuralJuteTool",
+    "ValuePresenceTool",
     "KbRagTool",
     "RecordRagTool",
     "FakeRecordRagTool",

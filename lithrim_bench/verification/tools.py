@@ -35,6 +35,7 @@ from typing import Any
 
 from .spec import (
     TOOL_KB_RAG,
+    TOOL_VALUE_PRESENCE,
     Claim,
     VerificationResult,
     VerificationSpec,
@@ -67,6 +68,120 @@ def _dig(source: dict, dotted_path: str) -> list:
         else:
             return []
     return cur if isinstance(cur, list) else ([] if cur is None else [cur])
+
+
+# --------------------------------------------------------------------------- #
+# ValuePresenceTool (FAUTH-4 / NARR-FLOOR-1; CORE-FLOOR-1: promoted from the narrative pack to
+# core so it is available to EVERY pack, incl. healthcare) — a value spoken in the source is
+# MISSING from the artifact (the inverse of dosage_grounding; the case-10 erased-refusal mechanism)
+# --------------------------------------------------------------------------- #
+class ValuePresenceTool(VerificationTool):
+    """Floor: a required value/concept spoken in a ``source_path`` (default ``transcript``) must
+    be PRESENT in the artifact (``artifacts[0].content`` -> ``claim.subject``). When it is ABSENT
+    the floor injects a BLOCK the council missed (the case-10 erased-refusal mechanism). The oracle
+    is DETERMINISTIC surface-form matching -- ``re.findall(value_regex, source)`` establishes what
+    the source raised; presence in the artifact is a deterministic regex/substring check -- never
+    LLM inference (OQ-3). Domain-agnostic, so it lives in core (CORE-FLOOR-1), not a pack.
+
+    Two modes (``match``), conservative tri-state:
+      * ``match='all'`` -- VALUE preservation: EVERY distinct value spoken in the source must appear
+        (word-boundary) in the artifact; any missing -> ``conforms=False``.
+      * ``match='any'`` -- CONCEPT co-presence (the case-10 refusal): the source RAISED the concept
+        (>=1 accepted form); the artifact must RECORD it in ANY accepted form (a ``value_regex``
+        hit), tolerating paraphrase so a faithful note that records the refusal in different words
+        ("declined" for "don't want") does NOT false-block. Concept absent -> ``conforms=False``.
+      * ``conforms=True``  -- the requirement is satisfied.
+      * ``conforms=None``  -- nothing parseable (empty/non-str artifact, no source text, the concept
+        was never raised, or a malformed pinned regex) -> NEVER flip by silence.
+
+    reference = {
+        "value_regex": <required token/concept extractor>,  # required
+        "source_path": <dotted path into the case>,         # optional, default "transcript"
+        "match": "all" | "any",                              # optional, default "all" (preservation)
+    }
+    """
+
+    name = TOOL_VALUE_PRESENCE
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        value_regex = ref["value_regex"]
+        source_path = ref.get("source_path", "transcript")
+        match = ref.get("match", "all")
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "value_regex": value_regex,
+            "source_path": source_path,
+            "match": match,
+        }
+
+        artifact = claim.subject
+        if not isinstance(artifact, str) or not artifact.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "empty or non-text artifact; nothing to check presence against"},
+                manifest=manifest,
+            )
+
+        source_text = " ".join(str(x) for x in _dig(claim.source or {}, source_path))
+        if not source_text.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": f"no source text at '{source_path}'; nothing parseable"},
+                manifest=manifest,
+            )
+
+        try:
+            raw = re.findall(value_regex, source_text, flags=re.IGNORECASE)
+        except re.error as exc:
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": f"malformed value_regex; inconclusive ({exc})"},
+                manifest=manifest,
+            )
+
+        required: list[str] = []
+        seen: set[str] = set()
+        for m in raw:
+            tok = m if isinstance(m, str) else next((g for g in m if g), "")
+            key = _norm(tok)
+            if key and key not in seen:
+                seen.add(key)
+                required.append(tok)
+        if not required:
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "no required value spoken in the source; nothing to preserve"},
+                manifest=manifest,
+            )
+
+        if match == "any":
+            # CONCEPT co-presence: the artifact must record the concept in ANY accepted form,
+            # tolerating paraphrase across the pinned form set (FAUTH-4b: the case-10 fix).
+            concept_in_artifact = bool(re.search(value_regex, artifact, flags=re.IGNORECASE))
+            return VerificationResult(
+                conforms=concept_in_artifact,
+                evidence={
+                    "required": required,
+                    "concept_in_artifact": concept_in_artifact,
+                    "match": "any",
+                },
+                manifest=manifest,
+            )
+        # match='all' -- VALUE preservation: every distinct value must appear, WORD-BOUNDARY (F4):
+        # a dropped "5 mg" must NOT be satisfied by "25 mg".
+        hay = _norm(artifact)
+        _present = {t for t in required if re.search(rf"\b{re.escape(_norm(t))}\b", hay)}
+        present = [t for t in required if t in _present]
+        missing = [t for t in required if t not in _present]
+        return VerificationResult(
+            conforms=not missing,
+            evidence={"required": required, "present": present, "missing": missing, "match": "all"},
+            manifest=manifest,
+        )
 
 
 # --------------------------------------------------------------------------- #

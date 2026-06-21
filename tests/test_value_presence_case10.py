@@ -25,7 +25,6 @@ HONEST BOUNDARY (the chosen contained, no-governance cut):
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -36,7 +35,6 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FLOORS_PATH = REPO_ROOT / "packs" / "narrative" / "floors.py"
 
 # the SME pin for the refusal assertion: the patient's "don't want" / refuse / decline surface forms
 VALUE_REGEX = r"don['’]?t want|refus\w*|declin\w*"
@@ -60,20 +58,18 @@ _NEEDS_FIXTURE = pytest.mark.skipif(
 )
 
 
-def _load_floors():
-    spec = importlib.util.spec_from_file_location("narrative_floors_case10", FLOORS_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 # ── A1 — the floor finds the refusal ABSENT in the real erased SOAP (the mechanism, on real data) ──
 
 
 @_NEEDS_FIXTURE
 def test_value_presence_fires_on_the_real_erased_case10_soap():
-    from lithrim_bench.verification import STRUCTURAL_CONFORMANCE, Claim, VerificationSpec
+    # CORE-FLOOR-1: ValuePresenceTool is a core floor now (lithrim_bench/verification/tools.py).
+    from lithrim_bench.verification import (
+        STRUCTURAL_CONFORMANCE,
+        Claim,
+        ValuePresenceTool,
+        VerificationSpec,
+    )
 
     fx = json.loads(_FIXTURE.read_text())
     transcript = fx["transcript"]
@@ -83,7 +79,7 @@ def test_value_presence_fires_on_the_real_erased_case10_soap():
     assert re.search(r"don['’]?t want", transcript, re.I), "fixture transcript must record the refusal"
     assert not re.search(r"want|refus|declin", soap, re.I), "fixture SOAP must have erased the refusal"
 
-    tool = _load_floors().ValuePresenceTool()
+    tool = ValuePresenceTool()
     spec = VerificationSpec(
         tool="value_presence",
         applies_to_flags=("DISSENT_ERASURE",),

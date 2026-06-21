@@ -316,11 +316,25 @@ class FloorExecutor:
 
 @lru_cache(maxsize=1)
 def _core_floor_executors() -> dict[str, FloorExecutor]:
-    """The core-GENERIC floor executors (``structural_jute`` / ``jute_gen``). Lazy so this
-    module's own import stays stdlib-only — importing the ``verification`` tools (httpx/dspy
-    lazy within them) is deferred to the first floor run. The CLINICAL floor
-    (``dosage_grounding``) is registered by the pack, not here (PACK-3)."""
-    from lithrim_bench.verification import JuteGenValidatorTool, StructuralJuteTool
+    """The core-GENERIC floor executors (``structural_jute`` / ``jute_gen`` / ``value_presence``).
+    Lazy so this module's own import stays stdlib-only — importing the ``verification`` tools
+    (httpx/dspy lazy within them) is deferred to the first floor run. The CLINICAL floor
+    (``dosage_grounding``) is registered by the pack, not here (PACK-3). CORE-FLOOR-1: ``value_presence``
+    is a domain-agnostic completeness floor, so it lives in core (available to EVERY pack incl.
+    healthcare), not pack-local to narrative."""
+    from lithrim_bench.verification import (
+        JuteGenValidatorTool,
+        StructuralJuteTool,
+        ValuePresenceTool,
+    )
+
+    def _value_presence_ref(params: dict[str, Any]) -> dict[str, Any]:
+        ref: dict[str, Any] = {"value_regex": params["value_regex"]}
+        if params.get("source_path"):
+            ref["source_path"] = params["source_path"]
+        if params.get("match"):
+            ref["match"] = params["match"]
+        return ref
 
     def _structural_jute_ref(params: dict[str, Any]) -> dict[str, Any]:
         ref = {
@@ -350,6 +364,10 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         "jute_gen": FloorExecutor(
             tool_factory=lambda http_client: JuteGenValidatorTool(http_client=http_client),
             reference_builder=_jute_gen_ref,
+        ),
+        "value_presence": FloorExecutor(
+            tool_factory=lambda http_client: ValuePresenceTool(),
+            reference_builder=_value_presence_ref,
         ),
     }
 
