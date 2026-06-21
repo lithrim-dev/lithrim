@@ -71,7 +71,7 @@ def test_flag_tools_are_the_tenth_and_eleventh_no_paid_knob():
     propose_live_run + GROUND-CHAT-1 add_grounding_contract + KB-CONTEXT-1 kb_context + NARR-2
     ingest_cases); the sweep below covers all of them."""
     names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
-    assert len(names) == 20 and len(set(names)) == 20, names  # +FAUTH-1 author_contract
+    assert len(names) == 21 and len(set(names)) == 21, names  # +NARR-5-CRIT-b author_criterion
     assert {"create_flag", "delete_flag"} <= set(names)
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:  # NON-VACUOUS: the new tools included
         assert [k for k in agent_tools.PAID_KEYS if k in schema] == [], (n, schema)
