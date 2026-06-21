@@ -58,20 +58,28 @@ def suggest_presence_check_params(flag_code: str, source_hint: str | None = None
 
 
 def suggest_value_presence_params(flag_code: str, source_hint: str | None = None) -> dict:
-    """A deterministic ``value_presence`` (FLOOR) param skeleton — the FAUTH-3 prose→params suggestion
-    for the INVERSE direction (S-BS-143).
+    """A deterministic, GRADE-VALID ``value_presence`` (FLOOR) param skeleton — the FAUTH-3 prose→params
+    suggestion for the INVERSE direction (S-BS-143 / S-BS-143b).
 
     ``value_presence`` is a FLOOR executor (``packs/narrative/floors.py`` ``ValuePresenceTool``): a
     required value spoken in ``source_path`` (default ``transcript``) that is MISSING from the artifact
     → inject a BLOCK the council missed (the case-10 erased-refusal mechanism). It INJECTS a finding,
-    so unlike the presence_check SUPPRESS direction it can flip council-APPROVE → BLOCK. Returns the
-    ValuePresence keys (``spec.py`` required: ``value_regex``; optional ``source_path``) with proven
-    defaults — a DRAFT the human edits before Saving. ``source_hint`` (the chart path the value must be
-    recorded in) sets ``source_path``; absent → the executor default. Deterministic: same input → same
-    output; no LLM, no network."""
+    so unlike the presence_check SUPPRESS direction it can flip council-APPROVE → BLOCK.
+
+    The skeleton carries BOTH the matcher keys AND the INJECTION keys, so the floor a clinician talks
+    into existence actually flips — without them ``ground()`` (grounding.py:716-719 reads
+    ``inject_flag_code`` + ``inject_severity``) skip-logs the contract as malformed and injects nothing
+    (the S-BS-143b inert-floor bug). ``inject_flag_code`` defaults to the flag itself (the code the
+    floor injects on absence); ``match='any'`` is concept co-presence (FAUTH-4b — tolerate paraphrase
+    so a faithfully-worded note does not false-block). All are DRAFT values the human edits before
+    Saving. ``source_hint`` (the chart path the value must be recorded in) sets ``source_path``; absent
+    → the executor default. Deterministic: same input → same output; no LLM, no network."""
     return {
         "value_regex": _VALUE_REGEX,
         "source_path": source_hint or _DEFAULT_SOURCE_PATH,
+        "match": "any",
+        "inject_flag_code": flag_code,
+        "inject_severity": "HIGH",
     }
 
 

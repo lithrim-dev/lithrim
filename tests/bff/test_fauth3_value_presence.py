@@ -58,17 +58,77 @@ def _stub_ctx():
 
 
 def test_suggest_value_presence_params_is_deterministic_and_correctly_keyed():
-    """The helper returns the ValuePresence keys (``spec.py`` required: ``value_regex``; optional
-    ``source_path``, default ``transcript``), is deterministic, and threads a source_hint into
-    source_path. value_regex must be non-empty (else ValuePresence's reference_builder is inert)."""
+    """S-BS-143b: the helper returns a GRADE-VALID floor skeleton, deterministically. Beyond the
+    ValuePresence reference keys (``value_regex`` required; ``source_path``, ``match``), it MUST carry
+    the INJECTION keys the floor needs to turn a violation into a BLOCK — ``inject_flag_code`` (the code
+    the floor injects on absence; = the flag) + ``inject_severity`` (grounding.py:716-719 reads BOTH;
+    without them GRADE-GUARD-1 skip-logs the contract as malformed → it never flips, the S-BS-143b bug).
+    source_hint threads into source_path."""
     a = agent_assist.suggest_value_presence_params("DISSENT_ERASURE")
     b = agent_assist.suggest_value_presence_params("DISSENT_ERASURE")
     assert a == b  # deterministic
-    assert set(a) == {"value_regex", "source_path"}
+    assert set(a) == {"value_regex", "source_path", "match", "inject_flag_code", "inject_severity"}
     assert a["value_regex"]  # required, non-empty
     assert a["source_path"] == "transcript"  # the executor default
+    assert a["match"] == "any"  # concept co-presence (FAUTH-4b: tolerate paraphrase, no false-block)
+    assert a["inject_flag_code"] == "DISSENT_ERASURE"  # the floor injects THIS code on absence
+    assert a["inject_severity"] == "HIGH"
     c = agent_assist.suggest_value_presence_params("X", source_hint="soap.note")
     assert c["source_path"] == "soap.note"
+    assert c["inject_flag_code"] == "X"  # tracks the flag, not a hardcode
+
+
+def test_value_presence_skeleton_grades_valid_and_injects(monkeypatch):
+    """S-BS-143b (the end-to-end proof the rehearsal MISSED): a value_presence floor authored with
+    NOTHING but the assist skeleton must actually FLIP a council APPROVE → BLOCK. Build a contract from
+    suggest_value_presence_params alone, run the real ``ground()`` over a council-PASS + a case whose
+    transcript states a refusal the artifact erased — the floor must INJECT the block (not skip-log as
+    malformed). This is the regression that the prior 'card shows value_presence' check did not catch."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", "narrative")  # value_presence is a narrative-pack floor
+    import json as _json
+
+    from lithrim_bench.harness.grounding import ground
+    from lithrim_bench.harness.ontology import from_dict
+
+    params = agent_assist.suggest_value_presence_params("DISSENT_ERASURE")
+    # Build on the committed narrative ontology (full envelope) + append the net-new flag + the
+    # floor authored from NOTHING but the assist skeleton.
+    raw = _json.loads((REPO_ROOT / "packs" / "narrative" / "ontology.json").read_text())
+    raw["flags"].append(
+        {
+            "flag": "DISSENT_ERASURE",
+            "category": "completeness",
+            "definition": "An explicit patient refusal in the transcript erased from the note.",
+            "when_to_use": "",
+            "when_NOT_to_use": "",
+            "owner_roles": ["policy_judge"],
+            "tier": "TIER_1",
+            "gradeable": True,
+        }
+    )
+    raw.setdefault("verification_contracts", []).append(
+        {
+            "flag_code": "DISSENT_ERASURE",
+            "question": "Is the patient's refusal preserved in the note?",
+            "contract_type": "value_presence",
+            "version": "v1",
+            "params": params,
+        }
+    )
+    ont = from_dict(raw)
+    case = {
+        "transcript": "Patient: I don't want any tetanus vaccine.",
+        "artifacts": [{"content": "S: wooden splinter removed and cleaned. No vaccine discussion recorded."}],
+    }
+    council_approve = {
+        "verdict": "PASS",
+        "findings": [],
+        "semantic": {"judge_votes": [{"judge_role": "policy_judge", "vote": "PASS", "findings": []}]},
+    }
+    g = ground(council_approve, case, ontology=ont)
+    injected = [b["injected_finding"]["code"] for b in g.floor_blocks if b["injected_finding"] is not None]
+    assert injected == ["DISSENT_ERASURE"], "the assist skeleton must produce a floor that INJECTS the block"
+    assert g.original_verdict == "PASS" and g.verdict == "BLOCK"  # the flip is real
 
 
 def test_suggest_contract_params_dispatches_by_type():
@@ -108,7 +168,11 @@ def test_author_contract_value_presence_default_fills_floor_skeleton():
     assert o["suggested_params"] == agent_assist.suggest_value_presence_params(
         "DISSENT_ERASURE", source_hint="transcript"
     )
-    assert set(o["suggested_params"]) == {"value_regex", "source_path"}
+    # S-BS-143b: a GRADE-VALID floor — the injection keys must ride so the floor actually flips.
+    assert set(o["suggested_params"]) == {
+        "value_regex", "source_path", "match", "inject_flag_code", "inject_severity"
+    }
+    assert o["suggested_params"]["inject_flag_code"] == "DISSENT_ERASURE"
 
 
 def test_author_contract_value_presence_with_empty_suggested_params_still_floor_fills():
@@ -124,7 +188,9 @@ def test_author_contract_value_presence_with_empty_suggested_params_still_floor_
     assert "is_error" not in out
     o = next(p for p in ctx.parts if p.get("type") == "tool-contract_builder")["output"]
     assert o["contract_type"] == "value_presence"
-    assert set(o["suggested_params"]) == {"value_regex", "source_path"}
+    assert set(o["suggested_params"]) == {
+        "value_regex", "source_path", "match", "inject_flag_code", "inject_severity"
+    }
 
 
 # ── back-compat: the presence_check default path is byte-identical ──────────────
