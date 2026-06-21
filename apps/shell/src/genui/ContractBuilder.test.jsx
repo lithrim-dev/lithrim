@@ -136,3 +136,48 @@ describe("ContractBuilder — FAUTH-3 prose→params pre-fill (A5)", () => {
     expect(screen.getByLabelText("params json").value).toContain("response.claims");
   });
 });
+
+describe("ContractBuilder — FAUTH-3 / S-BS-143 seeded contract_type (the FLOOR direction)", () => {
+  it("opens on the seeded value_presence type and Saves it (the FLOOR direction, not presence_check)", async () => {
+    putGroundingContract.mockClear();
+    const onResult = vi.fn();
+    render(
+      <ContractBuilder
+        agent="narrative_default"
+        flagCode="DISSENT_ERASURE"
+        contract_type="value_presence"
+        suggested_params={{ value_regex: "refus\\w*", source_path: "transcript" }}
+        onResult={onResult}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("question"), { target: { value: "Is the refusal recorded?" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add contract/i }));
+
+    await waitFor(() => expect(putGroundingContract).toHaveBeenCalledTimes(1));
+    const [contract] = putGroundingContract.mock.calls[0];
+    // the card opened on the agent-chosen FLOOR direction — the authored contract is value_presence,
+    // NOT the presence_check suppress default (which can never flip APPROVE→BLOCK).
+    expect(contract.contract_type).toBe("value_presence");
+  });
+
+  it("offers the seeded type as selectable even when the live/fallback set omits it", async () => {
+    // the default mock returns only presence_check — the seeded value_presence must still be merged
+    // into the options so a non-coder can keep / re-pick it.
+    getGroundingContractTypes.mockClear();
+    render(
+      <ContractBuilder agent="narrative_default" flagCode="DISSENT_ERASURE" contract_type="value_presence" onResult={vi.fn()} />,
+    );
+    await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
+    openTypeSelect();
+    expect((await screen.findAllByText("value_presence")).length).toBeGreaterThan(0);
+  });
+
+  it("defaults to presence_check when no contract_type is seeded (back-compat)", async () => {
+    putGroundingContract.mockClear();
+    render(<ContractBuilder agent="ws0_default" flagCode="X" onResult={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("question"), { target: { value: "present?" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add contract/i }));
+    await waitFor(() => expect(putGroundingContract).toHaveBeenCalledTimes(1));
+    expect(putGroundingContract.mock.calls[0][0].contract_type).toBe("presence_check");
+  });
+});
