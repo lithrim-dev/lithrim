@@ -35,6 +35,15 @@ UVICORN_BIN="$PYENV_PREFIX/bin/uvicorn"
 PY_BIN="$PYENV_PREFIX/bin/python"
 SHELL_DIR="$REPO_ROOT/apps/shell"
 
+# Pack discovery for the BFF (S-BS-138). Without a packs dir the BFF boots on the neutral `_core`
+# default and can't resolve a tier:pro pack (e.g. `healthcare`) → 500 on a healthcare workspace's
+# grade. Honor a caller-set LITHRIM_BENCH_PACKS_DIR; else auto-discover the sibling pack repo; else
+# leave UNSET so a bare CE checkout stays on `_core` (the CE-PACK-NEUTRAL-DEFAULT contract).
+if [ -z "${LITHRIM_BENCH_PACKS_DIR:-}" ] && [ -d "$REPO_ROOT/../lithrim-pack-healthcare" ]; then
+  LITHRIM_BENCH_PACKS_DIR="$(cd "$REPO_ROOT/.." && pwd)/lithrim-pack-healthcare"
+fi
+PACKS_DIR="${LITHRIM_BENCH_PACKS_DIR:-}"
+
 if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; X=$'\033[0m'; else G=; Y=; R=; D=; X=; fi
 ok()   { echo "${G}✓${X} $*"; }
 info() { echo "${Y}•${X} $*"; }
@@ -57,11 +66,15 @@ start_bff() {
     err "  → the '$PYENV_VER' pyenv with the [bff] extra is required (pip install -e '.[bff]' in that env)."; return 1
   fi
   [ -f "$REPO_ROOT/.env" ] || info "no $REPO_ROOT/.env — the council's Azure config lives there; live grades will fail without it (replay still works)"
+  if [ -n "$PACKS_DIR" ]; then info "pack discovery: LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR"
+  else info "pack discovery: no LITHRIM_BENCH_PACKS_DIR — BFF on the neutral _core default (tier:pro packs absent)"; fi
   info "starting BFF (uvicorn · $PYENV_VER · watch/--reload) on :$BFF_PORT …"
+  # only prefix the var when discovered, so a bare CE checkout leaves it genuinely UNSET (not "")
+  local pd_env=(); [ -n "$PACKS_DIR" ] && pd_env=(env "LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR")
   # watch mode: --reload + --reload-dir scoped to the BFF and the Python it imports
   # (run_eval/harness/runtime) so the reloader ignores node_modules/out/.git/.devstack —
   # watching the repo root storms the reloader. The UI side (vite) is HMR by default.
-  ( cd "$REPO_ROOT" && exec nohup "$UVICORN_BIN" app:app --app-dir "$REPO_ROOT/apps/bff" --port "$BFF_PORT" \
+  ( cd "$REPO_ROOT" && exec "${pd_env[@]}" nohup "$UVICORN_BIN" app:app --app-dir "$REPO_ROOT/apps/bff" --port "$BFF_PORT" \
       --reload --reload-dir "$REPO_ROOT/apps/bff" --reload-dir "$REPO_ROOT/lithrim_bench" --reload-dir "$REPO_ROOT/scripts" \
       >"$RUN_DIR/bff.log" 2>&1 ) &
   echo $! >"$RUN_DIR/bff.pid"
