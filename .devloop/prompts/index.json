@@ -3,6 +3,16 @@
   "updated": "2026-06-19",
   "bundles": [
     {
+      "id": "bench-salvage-phaseNARR-5-CRIT-b-author-criterion-tool",
+      "stream": "bench-salvage",
+      "phase": "NARR-5-CRIT-b",
+      "file": ".devloop/sessions/critique-bench-salvage-phaseNARR-5-CRIT-b-2026-06-21.md",
+      "version": "v1",
+      "status": "CLOSED CLEAN (cold-critic CLEAN) 2026-06-21. The 21st conversational tool: author_criterion lets a physician mint a gradeable criterion BY TALKING -- EMIT-ONLY (the human's Save -> POST /v1/criterion, the NARR-5-CRIT-a writer, is the SOLE write; the agent never mints a code). Mirrors FAUTH-1. Backend: author_criterion_handler (emit-only) + criterion_builder_part + AUTHOR_CRITERION_SCHEMA (no PAID_KEY) + _TOOL_SPECS 20->21 + loop.py teaching. FE: CriterionBuilder.jsx (Save->postCriterion; local F1 code guard) + bff.js postCriterion + genui reg; vitest 4/4. Cold critic: Gate 0 38==38 (RED->GREEN worktree; the 1 vitest fail = pre-existing app.test.jsx), emit-only containment STRUCTURALLY guaranteed (no criterion-write ToolContext field/binding/grep-path), A-SAFE clean (derived 20->21 allowlist, byte-frozen deny hook), MOAT+grounding+criterion+spec 0-diff (no new writer). Commits c1e3771..6b9f149.",
+      "next_action": "DONE. NEXT: the case-10 GOVERNED flip on a tier:core pack (mint DISSENT_ERASURE via the writer + register value_presence there + grade -> the live A-LIVE payoff) + the A-LIVE shell drive of author_criterion (services). Seam S-BS-CRITIC-WORKTREE: after any cold critic, re-verify the branch tip + fast-forward if a checkout reset it.",
+      "_note": "Emit-only by the locked FAUTH spine + SPEC_CONVERSATIONAL_FIRST + the holistic critic's containment praise -- agent-direct snapshot write would violate the invariant, so NOT built. 2 cold-critic seams: (1) FIXED branch-ref hazard (a critic git-checkout in the shared tree reset the ref to 462fa78; fast-forwarded to d4030d6, zero loss) -> process guard S-BS-CRITIC-WORKTREE; (2) DISCHARGED containment-invariant pin (6b9f149)."
+    },
+    {
       "id": "bench-salvage-phaseNARR-5-CRIT-a-snapshot-writer",
       "stream": "bench-salvage",
       "phase": "NARR-5-CRIT-a",
