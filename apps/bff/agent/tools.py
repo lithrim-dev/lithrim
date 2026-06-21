@@ -32,6 +32,7 @@ from .adapter import (
     audit_part,
     case_summary_part,
     contract_builder_part,
+    criterion_builder_part,
     flag_part,
     judge_part,
     open_artifact_part,
@@ -152,6 +153,17 @@ AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {
     "suggested_params": dict,
     "source_hint": str,
     "question": str,
+}
+# NARR-5-CRIT-b — SURFACE the CriterionBuilder inline so the HUMAN mints a new GRADEABLE criterion
+# (code + tier + owner) by filling a card. EMIT-ONLY: the card's Save rides POST /v1/criterion (the
+# sanctioned snapshot writer); the agent never mints a code itself (the containment the holistic
+# critic praised). NO PAID_KEY. All fields optional (defaulted/empty seed; the card's own validation
+# + the server-side gate enforce shape/owner/tier at Save).
+AUTHOR_CRITERION_SCHEMA: dict[str, Any] = {
+    "code": str,
+    "tier": str,
+    "owner_role": str,
+    "definition": str,
 }
 # KB-CONTEXT-1 — the honest CONTEXT AID ($0/read-only): retrieve the relevant HIPAA-KB section(s)
 # for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
@@ -645,6 +657,28 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     )
 
 
+async def author_criterion_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # NARR-5-CRIT-b: SURFACE the CriterionBuilder INPUT widget inline, seeded with the in-context
+    # code/tier/owner_role + agent — the conversational "mint a new gradeable criterion by filling a
+    # card" move (the mirror of author_contract). EMIT-ONLY by design (the SPINE/CONTAINMENT
+    # invariant the holistic critic praised): this calls NO bound write op; the card's Save rides the
+    # sanctioned snapshot writer POST /v1/criterion (which gates tier:core + owner ∈ production_judges
+    # + code shape + dup, and audits) — the HUMAN's Save is the SOLE write of the contract-of-record.
+    # The agent never mints a code itself. $0, no PAID_KEY. All seeds are optional DRAFTs for the
+    # editable card; an empty seed opens an empty card (the card's own validation gates Save).
+    code = str(args.get("code") or "")
+    tier = str(args.get("tier") or "")
+    owner_role = str(args.get("owner_role") or "")
+    ctx.emit(criterion_builder_part(ctx.default_agent, code=code, tier=tier, owner_role=owner_role))
+    return _text(
+        f"Surfaced the criterion builder inline on agent {ctx.default_agent!r}"
+        f"{f' (seeded {code}/{tier}/{owner_role})' if code else ''}. Choose the code, tier, and "
+        f"owning judge, then Save — your Save is the SOLE write (POST /v1/criterion mints the "
+        f"gradeable criterion into the pack's taxonomy snapshot + ontology, audited). I only surface "
+        f"the card; I do not mint the criterion for you, and this is $0 (never a paid run)."
+    )
+
+
 async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # META-VERDICT-1 (audited WRITE): record the clinician's INDEPENDENT verdict + judge meta-audit
     # on a run — ClinVerdict Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
@@ -1003,6 +1037,20 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "path (you already know the contract_type + params), use add_grounding_contract instead. "
         "Never a paid run.",
         AUTHOR_CONTRACT_SCHEMA,
+    ),
+    (
+        author_criterion_handler,
+        "author_criterion",
+        "SURFACE the interactive criterion-authoring widget INLINE so the HUMAN mints a new GRADEABLE "
+        "criterion (a scoreable taxonomy code) by FILLING A CARD in the chat ($0, read-only; the "
+        "mirror of author_contract). Use it when the human wants to CREATE / define a new gradeable "
+        "criterion or scoreable flag the council should be able to RAISE. Shape: {code, tier, "
+        "owner_role} — the new SCREAMING_SNAKE code, its tier (TIER_1|TIER_2|TIER_3), and the owning "
+        "production judge. The human reviews and their Save is the audited write (POST /v1/criterion "
+        "splices the active tier:core pack's taxonomy snapshot + ontology); you do NOT mint the code. "
+        "For a NON-gradeable reference flag use create_flag; for a grounding contract use "
+        "author_contract. Never a paid run.",
+        AUTHOR_CRITERION_SCHEMA,
     ),
     (
         kb_context_handler,

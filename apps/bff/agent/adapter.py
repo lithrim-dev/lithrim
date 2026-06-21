@@ -107,6 +107,27 @@ def contract_builder_part(
     return _part("contract_builder", out, show_intent=show_intent)
 
 
+def criterion_builder_part(
+    agent: str,
+    code: str = "",
+    tier: str = "",
+    owner_role: str = "",
+    *,
+    show_intent: str = "auto",
+) -> dict[str, Any]:
+    """NARR-5-CRIT-b: author_criterion -> the CriterionBuilder INPUT widget, surfaced INLINE and
+    SEEDED with the in-context ``code``/``tier``/``owner_role`` + ``agent`` so the human MINTS a new
+    gradeable criterion by filling the card in the chat. The mirror is contract_builder_part. The
+    SPINE/CONTAINMENT invariant: this is emit-only — the card's Save rides ``POST /v1/criterion``
+    (the sanctioned snapshot writer), the human's Save is the SOLE write of the contract-of-record;
+    the agent never mints a code itself. ``auto`` (an authoring card the agent leads with)."""
+    return _part(
+        "criterion_builder",
+        {"agent": agent, "code": code, "tier": tier, "owner_role": owner_role},
+        show_intent=show_intent,
+    )
+
+
 def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
     """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
     card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
