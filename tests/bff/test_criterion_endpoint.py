@@ -166,21 +166,24 @@ def test_non_core_pack_422(tmp_path, monkeypatch):
     pack_mod._pack_root.cache_clear()
 
 
-# ── A7 — ATOMICITY: an ontology-write failure AFTER a successful splice rolls the splice back ──
+# ── S-BS-142 — a PRE-EXISTING out-of-snapshot gradeable flag must NOT block minting a NEW
+#    admissible criterion. The endpoint lints ONLY the net-new code (which the splice just blessed),
+#    not the whole agent ontology — a flag admitted under a DIFFERENT pack is not the new request's
+#    concern. (Endpoint ATOMICITY is covered by F2 below, via a failing audit write — a trigger that
+#    survives this fix; this test previously USED the whole-ontology lint as its rollback trigger,
+#    which WAS the S-BS-142 bug, so it is repurposed into the regression test.) ──
 
 
-def test_atomic_rollback_on_ontology_failure(core_ws, tmp_path):
-    from fastapi import HTTPException
-
+def test_preexisting_out_of_snapshot_flag_does_not_block_mint(core_ws, tmp_path):
     from lithrim_bench.harness import pack as pack_mod
 
     pack, _ = core_ws
-    # Pre-seed the agent overlay with a SECOND gradeable flag NOT in the snapshot → the post-splice
-    # _validate_ontology 422s → restore_snapshot must undo the GOOD_CODE splice (snapshot+ontology
-    # never diverge). This guards the first-snapshot-writer's atomicity at the ENDPOINT level.
+    # the cross-pack reality: the agent's ontology carries a gradeable flag the ACTIVE pack's
+    # snapshot never blessed (it was admitted under a different pack). Re-linting the WHOLE ontology
+    # used to 422 the new criterion; the endpoint must lint only the net-new code.
     wd = tmp_path / "wd"
     wd.mkdir(parents=True, exist_ok=True)
-    poisoned = {
+    preexisting = {
         "ontology_version": "t/v1",
         "domain": "test",
         "flags": [
@@ -191,13 +194,36 @@ def test_atomic_rollback_on_ontology_failure(core_ws, tmp_path):
         "verification_contracts": [],
         "severity_map": {"weights": {}, "block_at_or_above": 1.0, "warn_above": 0.5},
     }
-    (wd / f"{_AGENT}.json").write_text(json.dumps(poisoned))
-    before = _snapshot(pack)
-    with pytest.raises(HTTPException):
-        _call(tmp_path, _req(code="GOOD_CODE", tier="TIER_2", owner_role="faithfulness_judge"))
-    # the splice was rolled back — GOOD_CODE is NOT stranded in the snapshot
-    assert _snapshot(pack) == before
-    assert "GOOD_CODE" not in pack_mod.pack_taxonomy_codes(pack)
+    (wd / f"{_AGENT}.json").write_text(json.dumps(preexisting))
+    assert "UNBLESSED_PREEXISTING" not in pack_mod.pack_taxonomy_codes(pack)  # precondition: out-of-snapshot
+
+    out = _call(tmp_path, _req(code="GOOD_CODE", tier="TIER_2", owner_role="faithfulness_judge"))
+    assert out["status"] == "ok"  # S-BS-142 RED before the fix: 422 on UNBLESSED_PREEXISTING
+    assert "GOOD_CODE" in pack_mod.pack_taxonomy_codes(pack)  # the net-new criterion is blessed
+    final = {f["flag"] for f in json.loads((wd / f"{_AGENT}.json").read_text())["flags"]}
+    assert {"GOOD_CODE", "UNBLESSED_PREEXISTING"} <= final  # new landed, pre-existing preserved (not dropped)
+
+
+def test_validate_ontology_lint_flags_scopes_the_snapshot_check(core_ws, tmp_path):
+    """The fix mechanism: ``_validate_ontology`` defaults to linting ALL flags (the PUT gate /
+    labels-true-by-construction invariant, UNCHANGED), but ``lint_flags`` scopes the snapshot
+    check to a subset — the criterion endpoint passes only the net-new code."""
+    from fastapi import HTTPException
+
+    pack, _ = core_ws
+    foreign = {"flag": "FOREIGN_GRADEABLE", "category": "x", "definition": "", "when_to_use": "",
+               "when_NOT_to_use": "", "owner_roles": ["policy_judge"], "tier": "TIER_2", "gradeable": True}
+    ont = {"ontology_version": "t/v1", "domain": "test", "flags": [foreign], "questions": [],
+           "verification_contracts": [], "severity_map": {"weights": {}, "block_at_or_above": 1.0, "warn_above": 0.5}}
+    # DEFAULT (lint_flags=None): lints ALL flags → the foreign gradeable flag is rejected.
+    with pytest.raises(HTTPException) as ei:
+        bff._validate_ontology(ont)
+    assert ei.value.status_code == 422
+    # SCOPED: lint only an admissible subset (STYLE_VIOLATION ∈ _core snapshot) → the foreign flag
+    # is NOT re-linted → no raise.
+    admissible = {"flag": "STYLE_VIOLATION", "category": "x", "definition": "", "when_to_use": "",
+                  "when_NOT_to_use": "", "owner_roles": ["policy_judge"], "tier": "TIER_3", "gradeable": True}
+    bff._validate_ontology({**ont, "flags": [*ont["flags"], admissible]}, lint_flags=[admissible])  # no raise
 
 
 # ── F1 — the request boundary refuses a malformed/empty code (no garbage into the snapshot) ──
