@@ -55,16 +55,21 @@ function Field({ label, children }) {
 // prose→params draft) + ``question`` — DRAFT seeds that PRE-FILL the EDITABLE params/question
 // fields. They are defaults only: the human edits them and the human's Save is the sole audited
 // write (surfacing the pre-filled card writes NOTHING). Absent → the byte-identical FAUTH-1 behavior.
-export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, suggested_params, question: seedQuestion, onResult }) {
-  const [contractType, setContractType] = useState("presence_check");
+export default function ContractBuilder({ agent = "ws0_default", flagCode: seedFlag, flag_code, suggested_params, question: seedQuestion, contract_type: seedType, onResult }) {
+  // FAUTH-3 / S-BS-143: the agent-chosen DIRECTION seeds the type — value_presence (FLOOR, can flip
+  // APPROVE→BLOCK) vs presence_check (SUPPRESS, the back-compat default when no type is seeded).
+  const [contractType, setContractType] = useState(seedType || "presence_check");
   // FAUTH-2 (G3): the type list is driven by the active pack's registered executors; init to the
   // static fallback so first paint + offline (vitest / scripted-showcase) never crash, then
-  // replace it with the live set on a resolved fetch (keep the fallback on reject).
-  const [contractTypes, setContractTypes] = useState(CONTRACT_TYPES);
+  // replace it with the live set on a resolved fetch (keep the fallback on reject). S-BS-143: always
+  // keep the SEEDED type selectable (merge it in) so a non-coder can keep/re-pick the agent's choice
+  // even if the live/fallback set omits it (e.g. a pack-specific floor type).
+  const withSeed = (types) => (seedType && !types.includes(seedType) ? [...types, seedType] : types);
+  const [contractTypes, setContractTypes] = useState(withSeed(CONTRACT_TYPES));
   useEffect(() => {
     let live = true;
     getGroundingContractTypes()
-      .then((r) => { if (live && Array.isArray(r?.contract_types) && r.contract_types.length) setContractTypes(r.contract_types); })
+      .then((r) => { if (live && Array.isArray(r?.contract_types) && r.contract_types.length) setContractTypes(withSeed(r.contract_types)); })
       .catch(() => {}); // offline / first paint → keep the static fallback
     return () => { live = false; };
   }, []);
