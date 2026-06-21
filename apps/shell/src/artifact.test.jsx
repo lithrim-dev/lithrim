@@ -392,3 +392,17 @@ describe("ReportTab — clinician verdict (META-VERDICT-1)", () => {
     expect(recordMetaVerdict).not.toHaveBeenCalled();
   });
 });
+
+describe("ReportTab error copy — honest, not 'service down' for a structured 500 (GRADE-GUARD-1)", () => {
+  it("a structured HTTP 500 shows the real detail WITHOUT the misleading 'unreachable/restart' line", () => {
+    const err = 'POST /v1/run-eval → 500: {"detail":"no $0 replay baseline — run live or in_process"}';
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError={err} />);
+    expect(screen.getByText((t) => t.includes("no $0 replay baseline"))).toBeInTheDocument(); // the truth
+    expect(screen.queryByText(/unreachable|isn.t responding|restart it/i)).toBeNull(); // NOT claimed down
+  });
+
+  it("a genuine no-response (network) error DOES show the 'unreachable, restart' hint", () => {
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError="Failed to fetch" />);
+    expect(screen.getByText(/unreachable.*restart it/i)).toBeInTheDocument();
+  });
+});

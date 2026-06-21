@@ -170,7 +170,8 @@ def test_registered_contract_type_persists_non_vacuous(tmp_path):
     res = ctx.put_grounding_contract(
         flag_code="MEDICATION_NOT_IN_TRANSCRIPT",
         contract_type="presence_check",
-        params={"source": "response.claims"},
+        # GRADE-GUARD-1: valid presence_check params (the inert {"source":...} default is now 422'd)
+        params={"med_source": "transcript", "dosage_regex": r"\b\d+\b"},
         question="Is the flagged medication actually present?",
         version="med/v1",
         agent=_AGENT,
@@ -179,6 +180,30 @@ def test_registered_contract_type_persists_non_vacuous(tmp_path):
     pinned = _contracts(ont_path)
     assert len(pinned) == 1
     assert pinned[0]["contract_type"] == "presence_check"
+
+
+def test_malformed_params_rejected_at_the_gate(tmp_path):
+    """GRADE-GUARD-1: a REGISTERED type with MALFORMED params (a presence_check missing med_source —
+    the inert-default footgun that crashed the live A-LIVE grade) is rejected 422 at the gate via the
+    dry-construct validation, persisting NOTHING — so it can never detonate ground() at grade time.
+    Non-vacuous vs the valid persist above (same type, only the params differ)."""
+    from fastapi import HTTPException
+
+    ont_path = _seed_ontology(tmp_path)
+    ctx = _real_ctx(tmp_path)
+
+    with pytest.raises(HTTPException) as ei:
+        ctx.put_grounding_contract(
+            flag_code="MEDICATION_NOT_IN_TRANSCRIPT",
+            contract_type="presence_check",
+            params={"source": "response.claims"},  # the inert default — no med_source/dosage_regex
+            question="q",
+            version="x/v1",
+            agent=_AGENT,
+        )
+    assert ei.value.status_code == 422
+    assert "med_source" in str(ei.value.detail)
+    assert _contracts(ont_path) == []  # nothing persisted — the raise precedes put_ontology
 
 
 def test_gate_precedence_404_unknown_flag_before_422(tmp_path):
@@ -244,7 +269,8 @@ def test_add_grounding_contract_rejects_unregistered_type(tmp_path, monkeypatch)
             {
                 "flag_code": "MEDICATION_NOT_IN_TRANSCRIPT",
                 "contract_type": "presence_check",
-                "params": {"source": "response.claims"},
+                # GRADE-GUARD-1: valid params (the inert {"source":...} default is now 422'd)
+                "params": {"med_source": "transcript", "dosage_regex": r"\b\d+\b"},
             },
         )
     )
