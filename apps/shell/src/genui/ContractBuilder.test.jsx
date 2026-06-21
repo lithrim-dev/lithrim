@@ -181,3 +181,45 @@ describe("ContractBuilder — FAUTH-3 / S-BS-143 seeded contract_type (the FLOOR
     expect(putGroundingContract.mock.calls[0][0].contract_type).toBe("presence_check");
   });
 });
+
+describe("ContractBuilder — reads as rule authorship, not form-filling (INLINE-IMPACT-1)", () => {
+  it("shows a live 'Rule in English' restatement of the contract", () => {
+    render(
+      <ContractBuilder
+        agent="narrative_default"
+        flagCode="DISSENT_ERASURE"
+        contract_type="value_presence"
+        suggested_params={{ value_regex: "refus\\w*", source_path: "transcript" }}
+        question="Is the patient's refusal preserved in the note?"
+        onResult={vi.fn()}
+      />,
+    );
+    const en = screen.getByTestId("rule-in-english").textContent;
+    expect(en).toMatch(/DISSENT_ERASURE/); // the flag the rule guards
+    expect(en).toMatch(/refusal preserved/i); // the question, restated
+    expect(en).toMatch(/block/i); // the verdict direction in plain words
+  });
+
+  it("the 'Rule in English' restatement updates LIVE as the human edits", () => {
+    render(<ContractBuilder agent="x" flagCode="F" onResult={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("question"), { target: { value: "Was consent documented?" } });
+    expect(screen.getByTestId("rule-in-english").textContent).toMatch(/Was consent documented/);
+  });
+
+  it("shows an 'AI-suggested' pill when the assist seeded the params", () => {
+    render(
+      <ContractBuilder agent="x" flagCode="F" suggested_params={{ value_regex: "a", source_path: "t" }} onResult={vi.fn()} />,
+    );
+    expect(screen.getByText(/AI-suggested/i)).toBeInTheDocument();
+  });
+
+  it("no 'AI-suggested' pill when the human starts from scratch (not seeded)", () => {
+    render(<ContractBuilder agent="x" flagCode="F" onResult={vi.fn()} />);
+    expect(screen.queryByText(/AI-suggested/i)).toBeNull();
+  });
+
+  it("frames it as a Deterministic floor prominently (not a buried caption)", () => {
+    render(<ContractBuilder agent="x" flagCode="F" onResult={vi.fn()} />);
+    expect(screen.getByText(/Deterministic floor/i)).toBeInTheDocument();
+  });
+});

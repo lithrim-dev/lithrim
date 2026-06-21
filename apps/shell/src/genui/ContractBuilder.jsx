@@ -95,6 +95,17 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
   };
   const valid = paramsValid && contract.flag_code && contract.question;
 
+  // INLINE-IMPACT-1: a live plain-English restatement so authoring reads as writing a GUARDRAIL, not
+  // filling a form — updates as the human edits. value_presence (FLOOR) blocks on an absent stated
+  // value; everything else is the suppress/floor default phrasing.
+  const fc = contract.flag_code || "this flag";
+  const src = params.source_path || params.med_source || params.source || "the source";
+  const ruleEnglish =
+    contractType === "value_presence"
+      ? `Floor for ${fc}: require that a value matching /${params.value_regex || "…"}/ stated in "${src}" is recorded in the note.` +
+        `${contract.question ? ` Check: ${contract.question}` : ""} If it's missing, BLOCK the verdict — deterministic, no model call.`
+      : `Rule for ${fc}: ${contract.question || "verify the flagged claim"} — checked against "${src}". A violation BLOCKs the evaluation — deterministic, no model call.`;
+
   // W1b: persist to ontology.verification_contracts (the grade's store) THEN signal up — the
   // save IS the approval gate (mirrors FlagEditor.persistEdit). Only a successful audited write
   // fires onResult, so the rail can never tick on an unsaved/failed contract (honest tick).
@@ -115,6 +126,10 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
       <CardHeader>
         <span className="text-primary"><Icon name="shield" size={15} /></span>
         <CardTitle>Verification contract</CardTitle>
+        <span className="font-semibold text-[11px] text-primary">Deterministic floor</span>
+        {suggested_params && (
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">AI-suggested</span>
+        )}
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">claim → tool-query → verdict</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3.5">
@@ -134,6 +149,10 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
         <Field label="Question">
           <Input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Is the flagged medication actually present in the transcript?" aria-label="question" />
         </Field>
+        {/* INLINE-IMPACT-1: the rule in plain English, live — authoring reads as writing a guardrail. */}
+        <div data-testid="rule-in-english" className="rounded-[var(--radius-sm)] border border-border bg-secondary px-3 py-2 text-[12px] leading-relaxed text-foreground">
+          {ruleEnglish}
+        </div>
         <Field label="Params (JSON)">
           <textarea
             className="min-h-[72px] w-full rounded-[var(--radius-sm)] border border-input bg-background px-2.5 py-2 font-[family-name:var(--font-mono)] text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30 aria-[invalid=true]:border-[color:var(--accent)]"
