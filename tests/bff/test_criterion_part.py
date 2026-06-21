@@ -111,3 +111,12 @@ def test_author_criterion_registered_in_tool_specs_exactly_once():
     spec = next(s for s in agent_tools._TOOL_SPECS if s[1] == "author_criterion")
     assert spec[3] is agent_tools.AUTHOR_CRITERION_SCHEMA
     assert spec[0] is agent_tools.author_criterion_handler
+
+
+def test_toolcontext_carries_no_criterion_write_op():
+    """CONTAINMENT INVARIANT (cold-critic seam, NARR-5-CRIT-b): the agent's ToolContext must NEVER
+    carry a criterion-write op — author_criterion is emit-only and the human's Save (POST /v1/criterion)
+    is the SOLE write of the contract-of-record. Pin it STRUCTURALLY so a future op-binding can't
+    silently weaken the containment (the emit-only stub-ctx test only checks the EXISTING ops raise)."""
+    fields = set(agent_tools.ToolContext.__dataclass_fields__)
+    assert not any("criterion" in f for f in fields), fields
