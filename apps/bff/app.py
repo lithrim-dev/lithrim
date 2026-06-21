@@ -1718,21 +1718,29 @@ def _active_snapshot_codes() -> frozenset[str]:
     return admissibility.active_snapshot_codes()
 
 
-def _validate_ontology(ontology: dict) -> None:
+def _validate_ontology(ontology: dict, *, lint_flags: list[dict] | None = None) -> None:
     """The PUT gate: reject malformed or snapshot-violating ontologies (HTTP 422).
 
     Two checks, both import-only over the harness:
-      1. structural round-trip through ``ontology.from_dict`` (the eval-load path);
+      1. structural round-trip through ``ontology.from_dict`` (the eval-load path) — over the WHOLE
+         ontology;
       2. the S-BS-10/12 snapshot lint (``harness.admissibility``) — a ``gradeable`` flag
          outside the active pack's taxonomy snapshot is rejected loudly (the CLAUDE.md core
          invariant: never silently score a flag the contract-of-record has not blessed).
+
+    ``lint_flags`` (S-BS-142) scopes the snapshot lint (check #2) to a SUBSET of flags; ``None``
+    (the default) lints ALL flags — the PUT-gate behavior, UNCHANGED. The criterion endpoint passes
+    only the NET-NEW flag (which it just spliced into the active snapshot), so a pre-existing flag a
+    DIFFERENT pack admitted does not falsely 422 the new criterion. The invariant holds: the new
+    code is still gated (the splice + this scoped lint), and a real PUT still lints every flag.
     """
     try:
         ontology_from_dict(ontology)
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"malformed ontology: {exc}") from exc
+    flags_to_lint = (ontology.get("flags") or []) if lint_flags is None else lint_flags
     offenders = admissibility.gradeable_flags_outside_snapshot(
-        ontology.get("flags") or [], _active_snapshot_codes()
+        flags_to_lint, _active_snapshot_codes()
     )
     if offenders:
         raise HTTPException(status_code=422, detail=_gradeable_offender_detail(offenders))
@@ -1881,7 +1889,11 @@ def create_criterion_endpoint(
             "gradeable": True,
         }
         new_ontology = {**ontology, "flags": [*(ontology.get("flags") or []), new_flag]}
-        _validate_ontology(new_ontology)
+        # S-BS-142: lint ONLY the net-new code (the splice just blessed it). Re-linting the WHOLE
+        # ontology falsely 422'd the new criterion when a PRE-EXISTING flag was admitted under a
+        # different pack (out of THIS pack's snapshot). The structural round-trip still covers the
+        # whole ontology; atomicity (rollback on any post-splice failure) is unchanged.
+        _validate_ontology(new_ontology, lint_flags=[new_flag])
         out_path.write_text(json.dumps(new_ontology, indent=2, sort_keys=True))
         actor = _resolve_actor(x_actor, default_actor)
         # F3: the audit captures the FULL governance delta — tiers + lenses (raise authority) +
