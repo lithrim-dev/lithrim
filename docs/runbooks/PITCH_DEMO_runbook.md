@@ -29,8 +29,12 @@ PAID-real; never manufacture it.
    chat. If it replies → auth is good. If you see **401 / "Invalid authentication credentials"** → see
    Guardrails → "Chat auth."
 
-3. **Pre-stage the safety net** (do this even if you plan the live-authored flip). On a **narrative
-   (tier:core) workspace** with an agent (e.g. `narrative_default`):
+3. **Pre-stage the safety net** (do this even if you plan the live-authored flip). On a **dedicated
+   tier:core workspace built for case 10** — the narrative pack used purely as the self-authorable
+   *vehicle* (this is the honest boundary: healthcare is tier:pro and not self-authorable; case 10 is
+   clinical content graded against a tier:core workspace). Create this workspace fresh for the demo
+   (do NOT reuse `storyworld_` — that's a separate, non-clinical narrative workspace). Give it an agent,
+   then:
    - Mint the criterion `DISSENT_ERASURE` (TIER_1 / `policy_judge`) — chat: *"Add a gradeable criterion
      DISSENT_ERASURE, tier 1, owned by policy_judge"* → Save on the card → "criterion minted ✓".
    - Author the `value_presence` floor on it (chat: *"Add a grounding floor that blocks when the
