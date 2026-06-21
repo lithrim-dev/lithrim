@@ -368,6 +368,17 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         for f in (composite.get("active_findings") or [])
     ]
     active = [a for a in active if a]
+    # INLINE-IMPACT-1: narrate the structural-floor INJECTIONS (the deterministic rule the human
+    # authored that BLOCKED what the council missed) — the demo's thesis. Mirror the suppressions
+    # line so the agent says a FLOOR caught it (attribution), not only that false-positives were
+    # cleared. floor_adjustments[action==floor_block] are the injections that drove the verdict.
+    floor_inj = [
+        f"{fa.get('flag')} injected by the {fa.get('contract_type')} floor "
+        f"({fa.get('contract')}) — {(fa.get('disposition') or '').strip()[:120]}"
+        for fa in (composite.get("floor_adjustments") or [])
+        if fa.get("action") == "floor_block"
+    ]
+    floor_line = "; ".join(floor_inj) or "none"
     verdict = composite.get("verdict", "—")
     meaning = {
         "reject": "the case was REJECTED",
@@ -378,6 +389,8 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         f"Ran a $0 REPLAY eval for {agent!r}. VERDICT = {str(verdict).upper()} ({meaning}). "
         f"{len(active)} finding(s) STILL STAND and drive this verdict — do NOT call the case clean or "
         f"say 'nothing stands' when this list is non-empty: {active or 'none'}. "
+        f"{len(floor_inj)} deterministic FLOOR block(s) injected — a grounding rule caught what the "
+        f"council missed (these DROVE the verdict; attribute them to the floor, not a judge): {floor_line}. "
         f"{len(adj)} false-positive(s) were tool-corrected (this corrects ONLY these; it does NOT "
         f"clear the standing findings above): {sup}. "
         f"Narrate the verdict + the standing findings honestly. "
@@ -838,10 +851,11 @@ async def show_case_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str,
     ctx.emit(case_summary_part(ctx.default_agent, case_id))
     target = case_id or "the current evaluation's case"
     return _text(
-        f"Showing case {target!r} for {ctx.default_agent!r} as a card — the transcript, the scribe "
-        f"artifact, and any by-construction label. (If a case has no planted label it is an ingested "
-        f"or clean case — say so honestly; do not call a clean/unlabeled case a planted defect.) "
-        f"Open it to read the full case ($0)."
+        f"The case {target!r} for {ctx.default_agent!r} is shown INLINE above — the visit transcript "
+        f"and the scribe note are both in the card (compare what was said vs what was documented), plus "
+        f"any by-construction label. Read it in the conversation; point out anything the note left out. "
+        f"(If a case has no planted label it is an ingested or clean case — say so honestly; do not call "
+        f"a clean/unlabeled case a planted defect.) Offer the raw/editable transcript only if asked."
     )
 
 
@@ -1007,12 +1021,15 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         show_case_handler,
         "show_case",
-        "Show a SPECIFIC source case as an inline Case Summary card ($0, read-only) — the "
-        "transcript, the artifact, and any by-construction label. Pass case_id to open THAT case "
-        "(get the id from list_cases); omit it to show the case the human is currently exploring. "
-        "Use it when they want to SEE or explore a case BEFORE running. The card's 'View case' "
-        "opens the full Case tab. NEVER claim you opened a case_id you did not pass; describe a "
-        "clean/unlabeled case as clean, not as a planted defect.",
+        "Show a SPECIFIC source case as an inline Case Summary card ($0, read-only) — the card "
+        "renders the visit transcript AND the scribe note INLINE in the conversation (so the human "
+        "compares what was said vs what was documented), plus any by-construction label. Pass case_id "
+        "to show THAT case (get the id from list_cases); omit it to show the case the human is "
+        "currently exploring. Use it when they want to SEE or explore a case BEFORE running, then read "
+        "it together in the chat and point out anything the note omits. The case IS the inline card — "
+        "do NOT direct the human elsewhere to read it (offer the raw/editable transcript on request "
+        "only). NEVER claim you opened a case_id you did not pass; describe a clean/unlabeled case as "
+        "clean, not as a planted defect.",
         SHOW_CASE_SCHEMA,
     ),
     (

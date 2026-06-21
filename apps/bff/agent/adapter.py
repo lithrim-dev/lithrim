@@ -190,10 +190,30 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
                     if isinstance(v.get("confidence"), (int, float))
                     else {}
                 ),
+                # INLINE-IMPACT-1: carry each judge's REASON so the approve reads as a reasoned
+                # verdict inline (not a bare scorecard) — added only when present (byte-identical else).
+                **({"reason": str(v.get("reason"))} if v.get("reason") else {}),
             }
             for v in votes
         ],
     }
+    # INLINE-IMPACT-1 (the demo's thesis, inline): the structural-floor INJECTIONS — a deterministic
+    # contract that BLOCKED what the council missed. Projected from composite.floor_adjustments
+    # (action == floor_block only; inconclusive floors did not flip the verdict). The card renders a
+    # "Caught by floor rule" attribution (code + contract + one-line disposition) so the flip shows
+    # WHO caught it — the rule the human authored — not just "BLOCK". Added only when non-empty.
+    floor_blocks = [
+        {
+            "flag": fa.get("flag"),
+            "contract_type": fa.get("contract_type"),
+            "contract": fa.get("contract"),
+            "disposition": fa.get("disposition"),
+        }
+        for fa in (composite.get("floor_adjustments") or [])
+        if fa.get("action") == "floor_block"
+    ]
+    if floor_blocks:
+        out["floorBlocks"] = floor_blocks
     # the faithfulness pillar reflects the faithfulness judge's actual vote (clear vs flagged).
     faith = next((v for v in votes if "faith" in str(v.get("judge_role") or "").lower()), None)
     if faith:
@@ -218,8 +238,10 @@ def open_artifact_part(tab: str) -> dict[str, Any]:
 
 def case_summary_part(agent: str, case_id: str | None = None) -> dict[str, Any]:
     """CHATBIND-3: show_case -> the CaseCard (it self-fetches GET /v1/case for ``agent`` —
-    the reference-carrying pattern, like agent_part/judge_part). An inline summary of the
-    SOURCE case the council grades, with a "View case ->" that opens the full Case tab. $0.
+    the reference-carrying pattern, like agent_part/judge_part). It renders the SOURCE case the
+    council grades — the visit transcript AND the scribe note, INLINE in the conversation, so the
+    human compares what was said vs what was documented; an optional "Open transcript editor ->" is a
+    secondary drill-down, NOT the way to read the case (INLINE-IMPACT-1). $0.
 
     NARR-CHAT-LOOP: ``case_id`` selects a SPECIFIC ingested-corpus case (the "open case X"
     leg). It rides the output so the card self-fetches GET /v1/case?case_id=X — without it the
