@@ -83,6 +83,7 @@ class GroundedResult:
     original_verdict: str | None
     skipped_non_gradeable: list[dict[str, Any]] = field(default_factory=list)
     floor_blocks: list[dict[str, Any]] = field(default_factory=list)
+    skipped_malformed: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     result: dict[str, Any] = field(repr=False, default_factory=dict)
     case: dict[str, Any] = field(repr=False, default_factory=dict)
@@ -510,6 +511,46 @@ def _build_contract(
     return factory(decl)
 
 
+def validate_contract_params(decl: VerificationContractDecl, pack: str | None = None) -> None:
+    """Author-time guard (GRADE-GUARD-1): DRY-CONSTRUCT ``decl``'s contract to validate its params
+    shape, raising ``ValueError`` on malformed params. The FAUTH-2 author-time gate calls this so a
+    contract with bad params (e.g. a ``presence_check`` authored with the inert default, no
+    ``med_source``) is rejected (422) BEFORE it is persisted — instead of detonating ``ground()``
+    with a cryptic ``KeyError`` at grade time. READ-ONLY: it constructs the suppress executor, or the
+    floor's reference + ``VerificationSpec`` (which validates the required reference keys), and
+    discards the result; it never grades and never touches a service.
+
+    ``pack`` resolves the registry for the ACTIVE WORKSPACE'S grade pack (the FAUTH-2a family): a
+    pack-registered type (e.g. the clinical ``record_presence``) is unknown to the BFF process pack
+    (``_core``), so the gate passes the workspace pack — else it false-rejects the pack's executors.
+    ``None`` defaults to the process pack (byte-behavior for the in-pack callers)."""
+    ct = decl.contract_type
+    suppress = suppress_executors(pack)
+    floor = floor_executors(pack)
+    try:
+        if ct in suppress:
+            factory = suppress[ct]
+            # mirror _build_contract's dispatch (HTTP-composing executors take the client)
+            factory(decl, http_client=None) if ct in _HTTP_CONTRACT_TYPES else factory(decl)
+        elif ct in floor:
+            from lithrim_bench.verification import VerificationSpec
+
+            reference = floor[ct].reference_builder(decl.params)
+            VerificationSpec(  # validates the required reference keys (raises on missing)
+                tool=ct,
+                applies_to_flags=(decl.flag_code,),
+                locus=decl.params.get("locus", ""),
+                reference=reference,
+                version=decl.version,
+            )
+        else:
+            raise ValueError(f"no executor registered for contract_type {ct!r}")
+    except Exception as exc:  # noqa: BLE001 - normalize any construction error to a clear ValueError
+        raise ValueError(
+            f"malformed contract for {ct!r}: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 def _artifact_content(case: dict[str, Any]) -> Any:
     """The first artifact's content (the thing a structural floor validates), or None."""
     artifacts = case.get("artifacts") or []
@@ -605,9 +646,19 @@ def ground(
     ]
     if unknown:
         raise ValueError(f"no executor registered for contract_type {unknown[0].contract_type!r}")
-    contracts = {
-        decl.flag_code: _build_contract(decl, http_client=http_client) for decl in suppress_decls
-    }
+    # GRADE-GUARD-1: a contract with malformed params (e.g. a presence_check authored with the inert
+    # default, no med_source) must NOT crash the whole grade at construction. SKIP-LOG it (surfaced,
+    # never silent) — the same "never silently drop, never abort the grade" discipline as the S-BS-8/10
+    # skip-logging. The author-time gate (validate_contract_params) is the prevention; this is defense.
+    contracts: dict[str, VerificationContract] = {}
+    skipped_malformed: list[dict[str, Any]] = []
+    for decl in suppress_decls:
+        try:
+            contracts[decl.flag_code] = _build_contract(decl, http_client=http_client)
+        except Exception as exc:  # noqa: BLE001 - a malformed contract must degrade, not crash
+            skipped_malformed.append(
+                {"decl": decl, "stage": "build", "error": f"{type(exc).__name__}: {exc}"}
+            )
     semantic_evidence = {
         ev.get("violation_code"): ev for ev in (result.get("semantic") or {}).get("evidence", [])
     }
@@ -654,25 +705,34 @@ def ground(
     # WS-3 structural floor (the inverse direction): inject a BLOCK the council missed.
     floor_blocks: list[dict[str, Any]] = []
     for decl in floor_decls:
-        vr = _run_floor(decl, case, http_client=http_client)
-        if vr is None:
-            continue
-        if vr.conforms is False:
-            injected = {
-                "code": decl.params["inject_flag_code"],
-                "severity": decl.params["inject_severity"],
-                "detail": (
-                    f"structural floor: artifact violates pinned {decl.contract_type} "
-                    f"contract ({decl.params.get('artifact_kind')})"
-                ),
-                "_floor": True,
-                "_contract_version": decl.version,
-            }
-            active.append(injected)
-            floor_blocks.append({"decl": decl, "result": vr, "injected_finding": injected})
-        elif vr.conforms is None:
-            # inconclusive (drift / no-compile / not-configured) — surfaced, never flips.
-            floor_blocks.append({"decl": decl, "result": vr, "injected_finding": None})
+        # GRADE-GUARD-1: a malformed floor contract (missing inject_flag_code/severity, a bad
+        # reference, or an unreachable service) must SKIP-LOG, not crash the grade. A floor that
+        # cannot run injects NOTHING (the conservative "never fabricate a block on uncertainty"
+        # posture, == the conforms=None branch) and is surfaced.
+        try:
+            vr = _run_floor(decl, case, http_client=http_client)
+            if vr is None:
+                continue
+            if vr.conforms is False:
+                injected = {
+                    "code": decl.params["inject_flag_code"],
+                    "severity": decl.params["inject_severity"],
+                    "detail": (
+                        f"structural floor: artifact violates pinned {decl.contract_type} "
+                        f"contract ({decl.params.get('artifact_kind')})"
+                    ),
+                    "_floor": True,
+                    "_contract_version": decl.version,
+                }
+                active.append(injected)
+                floor_blocks.append({"decl": decl, "result": vr, "injected_finding": injected})
+            elif vr.conforms is None:
+                # inconclusive (drift / no-compile / not-configured) — surfaced, never flips.
+                floor_blocks.append({"decl": decl, "result": vr, "injected_finding": None})
+        except Exception as exc:  # noqa: BLE001 - a malformed/unreachable floor must degrade, not crash
+            skipped_malformed.append(
+                {"decl": decl, "stage": "floor", "error": f"{type(exc).__name__}: {exc}"}
+            )
 
     return GroundedResult(
         active=active,
@@ -680,6 +740,7 @@ def ground(
         ungrounded=ungrounded,
         skipped_non_gradeable=skipped_non_gradeable,
         floor_blocks=floor_blocks,
+        skipped_malformed=skipped_malformed,
         verdict=ontology.severity_map.rescore(active),
         original_verdict=result.get("verdict"),
         weights=dict(ontology.severity_map.weights),

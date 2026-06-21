@@ -2581,6 +2581,25 @@ def _build_tool_context(
                     f"pack — it would raise at grade time. Use one of: {sorted(registered)}."
                 ),
             )
+        # GRADE-GUARD-1: validate the PARAMS shape (not only the type) by dry-constructing the
+        # contract — a presence_check authored with the inert default (no med_source) is rejected
+        # HERE (422) instead of detonating ground() with a cryptic KeyError mid-grade (the live
+        # A-LIVE crash). READ-ONLY: validate_contract_params constructs + discards; never grades.
+        from lithrim_bench.harness.ontology import VerificationContractDecl
+
+        try:
+            _grounding.validate_contract_params(
+                VerificationContractDecl(
+                    flag_code=flag_code,
+                    question=question,
+                    contract_type=contract_type,
+                    params=params or {},
+                    version=version,
+                ),
+                pack=_ws_pack,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         entry = {
             "contract_type": contract_type,
             "flag_code": flag_code,

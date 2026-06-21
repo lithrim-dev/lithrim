@@ -40,14 +40,22 @@ function ReportMessage({ children }) {
 function ReportTab({ runStatus, runResult, runError }) {
   if (runStatus === "loading")
     return <ReportMessage>Running the evaluation…</ReportMessage>;
-  if (runStatus === "error")
+  if (runStatus === "error") {
+    // GRADE-GUARD-1: the BFF error format is "POST <path> → <status>: <detail>". A structured HTTP
+    // response means the service IS responding (the detail is the actionable truth — e.g. "no $0
+    // replay baseline — run live", or "malformed contract") — so DON'T claim it's down. Only show
+    // the "unreachable, restart it" hint for a genuine no-response/network failure.
+    const isHttp = /→\s*\d{3}\b/.test(String(runError || ""));
     return (
       <ReportMessage>
         <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
-        <div style={{ marginTop: 10 }}>The evaluation service isn’t responding — ask the host to restart it.</div>
+        {!isHttp && (
+          <div style={{ marginTop: 10 }}>The evaluation service may be unreachable — ask the host to restart it.</div>
+        )}
       </ReportMessage>
     );
+  }
   if (!runResult)
     return (
       <ReportMessage>
