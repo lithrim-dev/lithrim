@@ -1,0 +1,141 @@
+"""INLINE-IMPACT-1: the inline cards must carry their own WHY.
+
+Two gaps the demo-impact reassessment found in the BFF projection layer:
+  * ``verdict_part`` drops the per-judge ``reason`` (the approve reads as a scorecard, not a reasoned
+    verdict) and never threads ``composite.floor_adjustments`` (so the BLOCK card cannot show that a
+    deterministic FLOOR — the rule the clinician authored — caught the omission; the demo's thesis).
+  * ``run_eval_handler`` narrates ``grounded_adjustments`` (suppressions) but NOT the floor INJECTIONS,
+    and ``show_case`` narration pushes the human to the side panel.
+
+These pin the projection so the VerdictCard can render reasoning + a "Caught by floor rule" attribution
+inline, and the agent stops pointing at the pane. Pure projection/narration — no moat, no engine.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import sys
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("fastapi", reason="needs the [bff] extra")
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+_BFF = REPO_ROOT / "apps" / "bff"
+if str(_BFF) not in sys.path:
+    sys.path.insert(0, str(_BFF))
+
+from agent import tools as agent_tools  # noqa: E402
+from agent.adapter import verdict_part  # noqa: E402
+
+
+def _record(*, floor=True, reason=True):
+    fa = (
+        [
+            {
+                "flag": "DISSENT_ERASURE",
+                "action": "floor_block",
+                "contract_type": "value_presence",
+                "contract": "DISSENT_ERASURE/v1",
+                "conforms": False,
+                "disposition": "the patient's refusal was stated but missing from the note",
+            },
+            # an inconclusive floor must NOT be shown as a block (only injections flip the verdict)
+            {"flag": "X", "action": "floor_inconclusive", "contract_type": "value_presence",
+             "contract": "X/v1", "conforms": True, "disposition": "inconclusive"},
+        ]
+        if floor
+        else []
+    )
+    vote = {"judge_role": "policy_judge", "vote": "PASS", "confidence": 0.9}
+    if reason:
+        vote["reason"] = "No safety findings; documentation aligns with the visit."
+    return {
+        "pipeline_run_id": "run-1",
+        "composite": {
+            "verdict": "block" if floor else "approve",
+            "active_findings": ["DISSENT_ERASURE"] if floor else [],
+            "floor_adjustments": fa,
+        },
+        "council": {"votes": [vote]},
+    }
+
+
+# ── verdict_part threads the per-vote reason (the approve becomes a reasoned verdict) ──
+
+
+def test_verdict_part_threads_per_vote_reason():
+    out = verdict_part(_record(floor=False, reason=True))["output"]
+    assert out["votes"][0]["reason"] == "No safety findings; documentation aligns with the visit."
+
+
+def test_verdict_part_omits_reason_key_when_absent():
+    """Back-compat: a vote with no reason carries no reason key (the byte-identical prior shape)."""
+    out = verdict_part(_record(floor=False, reason=False))["output"]
+    assert "reason" not in out["votes"][0]
+
+
+# ── verdict_part threads the floor attribution (the thesis: a rule caught it) ──
+
+
+def test_verdict_part_threads_floor_blocks_attribution():
+    """The BLOCK card must be able to show WHO caught it: the injected code + the floor contract +
+    the one-line disposition — projected from composite.floor_adjustments (action == floor_block only)."""
+    out = verdict_part(_record(floor=True))["output"]
+    fb = out.get("floorBlocks")
+    assert isinstance(fb, list) and len(fb) == 1, "only the floor_block injection, not the inconclusive"
+    b = fb[0]
+    assert b["flag"] == "DISSENT_ERASURE"
+    assert b["contract_type"] == "value_presence"
+    assert b["contract"] == "DISSENT_ERASURE/v1"
+    assert "missing from the note" in b["disposition"]
+
+
+def test_verdict_part_omits_floor_blocks_when_none():
+    """Back-compat + honesty: a clean approve (no floor injection) carries no floorBlocks key, so the
+    card shows nothing — never a fabricated 'caught by floor' on a clean pass."""
+    out = verdict_part(_record(floor=False))["output"]
+    assert "floorBlocks" not in out
+
+
+# ── run_eval narration names the floor INJECTION (not only suppressions) ──
+
+
+def _spy_ctx(record):
+    def _replay(**_kw):
+        return record
+
+    def _forbidden(*_a, **_k):
+        raise AssertionError("run_eval must not call any other bound op")
+
+    return agent_tools.ToolContext(
+        author_judge=_forbidden, get_judge=_forbidden, run_eval_replay=_replay,
+        get_agent=_forbidden, author_flag=_forbidden, review_runs=_forbidden,
+        run_eval_pack=_forbidden, assemble_agent=_forbidden, delete_judge=_forbidden,
+        create_flag=_forbidden, delete_flag=_forbidden, put_grounding_contract=_forbidden,
+        kb_context=_forbidden, ingest_cases=_forbidden, list_cases=_forbidden,
+        record_meta_verdict=_forbidden, default_agent="ws0_default",
+    )
+
+
+def test_run_eval_narration_names_the_floor_injection():
+    """The agent must be able to say a deterministic floor caught it — so the handler's return text
+    names the injected floor finding(s), mirroring the existing suppression line."""
+    ctx = _spy_ctx(_record(floor=True))
+    out = asyncio.run(agent_tools.run_eval_handler(ctx, {"agent": "ws0_default", "case_id": "c"}))
+    text = out.get("content", [{}])[0].get("text", "") if isinstance(out.get("content"), list) else str(out)
+    assert "DISSENT_ERASURE" in text
+    assert "floor" in text.lower()
+
+
+# ── show_case narration stops pushing to the pane ──
+
+
+def test_show_case_tool_description_does_not_push_to_the_pane():
+    """The show_case tool description must not train the agent to point at the side panel / 'View case'
+    as the way to read the case — the inline card is the result."""
+    spec = next(s for s in agent_tools._TOOL_SPECS if s[1] == "show_case")
+    desc = spec[2].lower()
+    assert "side panel" not in desc
+    assert "opens the full case tab" not in desc
