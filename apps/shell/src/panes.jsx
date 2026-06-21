@@ -351,7 +351,19 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <span className="chip">sample case</span>
           </>
         )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          {/* ACTIVE-CASE-1: the active case is ALWAYS visible — "this case" never resolves to a
+              hidden default. Null = nothing auto-picked; the user names a case in the chat or picks
+              one via Explore case (the agent's None-branch then lists the corpus + asks). */}
+          {!showExample && (
+            <span
+              className="chip"
+              title={activeCase ? `Active case: ${activeCase}` : "No case selected — name a case in the chat, or pick one via Explore case"}
+              style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {activeCase ? `Case: ${activeCase}` : "No case selected"}
+            </span>
+          )}
           {showExample && (
             <button className="btn btn-ghost" title="Hide the example conversation" onClick={() => setShowExample(false)}>
               <Icon name="close" size={14} /> Hide example

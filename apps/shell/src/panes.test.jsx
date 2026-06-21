@@ -30,6 +30,17 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
     expect(screen.getByText("nothing yet")).toBeInTheDocument();
   });
 
+  it("ACTIVE-CASE-1: names the active case in the header chrome (it is visible, not hidden)", () => {
+    render(<CenterPane {...props} agent="ws0_default" activeCase="clinverdict_10_splinter_injury_vaccine_refusal" onActiveCase={() => {}} />);
+    // the case the agent's "this case" resolves to is shown on screen — no hidden referent.
+    expect(screen.getByText(/clinverdict_10_splinter/)).toBeInTheDocument();
+  });
+
+  it("ACTIVE-CASE-1: shows 'No case selected' when none is active (no silent first-case default)", () => {
+    render(<CenterPane {...props} agent="ws0_default" activeCase={null} onActiveCase={() => {}} />);
+    expect(screen.getByText(/No case selected/i)).toBeInTheDocument();
+  });
+
   it("threads a widget's onResult into config-plane state", async () => {
     render(<CenterPane {...props} />);
     fireEvent.click(screen.getByText(/Show example conversation/i)); // S-BS-89: reveal the opt-in showcase

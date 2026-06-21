@@ -334,16 +334,16 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [runStatus, setRunStatus] = useState("idle"); // idle | loading | ready | error
   const [runResult, setRunResult] = useState(null);
   const [runError, setRunError] = useState(null);
-  // The case a viewer is exploring / running — chosen from the ingested corpus (the Cases tab).
-  // null → the agent's own dataset.case_id (back-compat). Defaulted to the first ingested case
-  // on mount + workspace switch (refreshCases), so "explore each case" works out of the box.
+  // The case a viewer is exploring / running — chosen from the ingested corpus (the Cases tab) or
+  // named/shown in the chat. null → the agent's own dataset.case_id (back-compat). ACTIVE-CASE-1:
+  // we do NOT silently default to the first corpus case — that made "this case" resolve to an
+  // arbitrary, invisible case (incoherent cold-open). It stays null until the user names/picks a
+  // case (the chat's None-branch then calls list_cases + asks); the header shows the active case.
   const [activeCase, setActiveCase] = useState(null);
   const refreshCases = async () => {
     try {
       const { listCases } = await import("./bff.js");
-      const cs = (await listCases()).cases || [];
-      setActiveCase((cur) => cur || (cs[0] && cs[0].case_id) || null);
-      return cs;
+      return (await listCases()).cases || [];
     } catch { return []; }
   };
   useEffect(() => { refreshCases(); }, [activeWs]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -425,7 +425,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     const left = await refreshAgents();
     setActiveAgent(left[0] || "ws0_default");
     setRunResult(null); setRunStatus("idle"); setRunError(null);
-    setActiveCase(null); // re-default to the new workspace's first case (refreshCases, on activeWs)
+    setActiveCase(null); // ACTIVE-CASE-1: clear the active case on switch — no silent first-case pick
     setSessionKey((k) => k + 1);
   };
   const onSwitchWorkspace = async (name) => {
