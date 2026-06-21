@@ -25,7 +25,7 @@ _CASE = {"artifacts": [{"type": "x", "content": "the artifact text"}], "transcri
 _COUNCIL = {"verdict": "PASS", "findings": [], "semantic": {}}
 
 
-def _ont(params: dict):
+def _ont(params: dict, contract_type: str = "presence_check"):
     return from_dict(
         {
             "ontology_version": "grade_guard_test",
@@ -36,7 +36,7 @@ def _ont(params: dict):
             ],
             "questions": [],
             "verification_contracts": [
-                {"flag_code": "X", "contract_type": "presence_check", "question": "q",
+                {"flag_code": "X", "contract_type": contract_type, "question": "q",
                  "version": "v1", "params": params}
             ],
             "severity_map": {"weights": {"HIGH": 1.0, "MEDIUM": 0.5}, "block_at_or_above": 0.5, "warn_above": 0.0},
@@ -63,6 +63,20 @@ def test_ground_valid_presence_check_is_not_skiplogged():
     ont = _ont({"med_source": "transcript", "dosage_regex": r"\b\d+\b"})  # well-formed
     g = ground(_COUNCIL, _CASE, ontology=ont)
     assert g.skipped_malformed == []  # a valid contract builds; nothing skip-logged
+
+
+def test_ground_skiplogs_malformed_floor_contract_instead_of_crashing():
+    """B1 covers the FLOOR branch too (not just the suppress build): a malformed core floor
+    (``structural_jute`` with empty params) raises ``KeyError: 'service'`` INSIDE the floor loop —
+    it MUST skip-log (``stage='floor'``) and let the grade complete, the same as the suppress-side
+    ``med_source`` KeyError. Without the floor try/except this would 500 the grade."""
+    from lithrim_bench.harness.grounding import ground
+
+    g = ground(_COUNCIL, _CASE, ontology=_ont({}, contract_type="structural_jute"))  # MUST NOT raise
+    floor_skips = [s for s in g.skipped_malformed if s["stage"] == "floor"]
+    assert floor_skips, f"expected a floor-stage skip-log, got {g.skipped_malformed}"
+    assert floor_skips[0]["decl"].flag_code == "X"
+    assert g.verdict in ("PASS", "WARN", "BLOCK")  # the grade COMPLETED
 
 
 # ── B2 — validate_contract_params rejects malformed params at author time ──
