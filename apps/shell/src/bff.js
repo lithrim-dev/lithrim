@@ -68,6 +68,15 @@ export const putGroundingContract = (contract, agent = "ws0_default") =>
    CONTRACT_TYPES if this rejects (offline / first paint). */
 export const getGroundingContractTypes = () => call("/v1/grounding-contract/types");
 
+/* POST /v1/criterion — NARR-5-CRIT-b: the CriterionBuilder card's direct, audited mint of a new
+   GRADEABLE criterion (a scoreable taxonomy code) into the active tier:core pack's taxonomy snapshot
+   (tiers + lenses + tier1_owners) + the ontology overlay. The sanctioned snapshot writer — the
+   human's Save is the SOLE write of the contract-of-record (the agent never mints a code). A 409
+   (duplicate) / 422 (non-core pack / bad owner / bad tier / malformed code) throws so the card can
+   surface it. $0, never a paid run. */
+export const postCriterion = (criterion, agent = "ws0_default") =>
+  call("/v1/criterion", { method: "POST", body: { ...criterion, agent } });
+
 /* POST /v1/meta-verdict — META-VERDICT-1: a clinician's INDEPENDENT verdict + judge meta-audit
    on a run (ClinVerdict Layer-3). Writes ONE immutable AuditRecord (action=meta_verdict). $0 —
    it adds an attestation, it never changes the verdict or fires a paid run. judge_fallacy_code
