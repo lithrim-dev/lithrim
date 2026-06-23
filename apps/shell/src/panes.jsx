@@ -7,6 +7,7 @@ import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import { STEPS } from "./data.jsx";
+import { getConversation, putConversation } from "./bff.js"; // PERSIST-CONV: the durable-thread store
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -198,6 +199,11 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const [chat, setChat] = useState([]); // [{role:'user'|'assistant', text?, parts?}]
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  // PERSIST-CONV: the durable-thread guards. `hydrated` flips once the stored thread loads for
+  // THIS agent (so the persist effect never writes back before the hydrate completes — no
+  // empty-thread clobber of a stored one). CenterPane remounts per-agent on the sessionKey bump,
+  // so a fresh mount = a fresh hydrate; the `agent` dep also re-hydrates a same-instance swap.
+  const hydratedRef = useRef(null); // the agent the current chat was hydrated for
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
   const taRef = useRef(null);
   const convoRef = useRef(null); // the scroll container
@@ -299,6 +305,46 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   useEffect(() => {
     if (atBottom) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [chat, atBottom]);
+
+  // PERSIST-CONV: HYDRATE the stored thread on mount / agent-change so a refresh restores the
+  // conversation. Don't clobber an in-progress send (guard on !sending); a brand-new agent has no
+  // stored thread → [] (correct empty-state). `hydratedRef` gates the persist effect below.
+  useEffect(() => {
+    let live = true;
+    hydratedRef.current = null;
+    (async () => {
+      let thread = [];
+      try {
+        const res = await getConversation(agent);
+        if (Array.isArray(res?.thread)) thread = res.thread;
+      } catch {
+        /* offline / first paint → the clean empty-state, never a crash */
+      }
+      if (!live) return;
+      // Never clobber a turn already in flight: apply the hydrated thread only onto a still-empty
+      // chat (a send that landed first wins; the persist effect then keeps the store current).
+      if (thread.length) setChat((c) => (c.length === 0 ? thread : c));
+      hydratedRef.current = agent;
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent]);
+
+  // PERSIST-CONV: PERSIST the settled thread (debounced) once a turn finishes — not while
+  // `sending` (only the final thread persists), only after the hydrate landed for THIS agent
+  // (so an empty hydrate never overwrites a stored thread), and only when non-empty (a brand-new
+  // agent with no turn writes nothing — no clobber of nothing).
+  useEffect(() => {
+    if (sending || hydratedRef.current !== agent || chat.length === 0) return;
+    const t = setTimeout(() => {
+      putConversation(agent, chat).catch(() => {
+        /* best-effort — a failed persist must never break the live turn */
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [chat, sending, agent]);
 
   const onConvoScroll = () => {
     const el = convoRef.current;

@@ -31,6 +31,10 @@ vi.mock("./bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({}),
   optimizeJudge: vi.fn().mockResolvedValue({}),
+  // PERSIST-CONV: CenterPane hydrates/persists its thread via these — stub so the mount
+  // hydrate is a clean empty thread (the existing scenarios are unchanged by it).
+  getConversation: vi.fn().mockResolvedValue({ agent: "ws0_default", thread: [] }),
+  putConversation: vi.fn().mockResolvedValue({ ok: true }),
   // The loop under test: drive the onEvent callback with a scripted SSE stream.
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;

@@ -100,6 +100,16 @@ export const putAgent = (agent, { actor, rationale = "" } = {}) =>
     headers: actor ? { "X-Actor": actor } : undefined,
   });
 
+/* GET/PUT /v1/conversation — PERSIST-CONV: the durable chat thread (the {role, text?, parts?}
+   message list) per agent, so a browser refresh no longer wipes the conversation. A PLAIN
+   (un-audited) per-turn upsert — no actor/X-Actor, $0; the config writes inside the chat are
+   audited on their own routes. GET on an agent with no stored thread returns {thread: []}. */
+export const getConversation = (agent = "ws0_default") =>
+  call(`/v1/conversation?agent=${encodeURIComponent(agent)}`);
+
+export const putConversation = (agent, thread) =>
+  call("/v1/conversation", { method: "PUT", body: { agent, thread } });
+
 /* ── CRUD-1: the config-plane agent switcher + the blank-slate create/delete ───── */
 
 /* GET /v1/agents — the config-plane agent names (the rail switcher). */
