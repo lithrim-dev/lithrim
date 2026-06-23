@@ -24,7 +24,7 @@ What lives here — the ACTIVE floor set is 3 codes (``FLOOR_EXECUTORS``):
     provenance off the case row via ``claim.source``, NOT the artifact).
   * ``value_presence``     — :class:`ValuePresenceTool` (FAUTH-4 / NARR-FLOOR-1): a value
     spoken in a ``source_path`` (default ``transcript``) is MISSING from the artifact — the
-    inverse of ``dosage_grounding``; the case-10 erased-refusal completeness mechanism.
+    the omission-completeness floor (the inverse of a presence-grounding check).
 
 ``length_violation`` is RETAINED-BUT-UNATTACHED (NARR-4 / S-BS-NARR3-3): the
 :class:`LengthViolationTool` class + ``_length_reference`` + the ``TOOL_LENGTH_VIOLATION``
