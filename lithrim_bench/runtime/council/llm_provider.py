@@ -17,7 +17,7 @@ is passed explicitly to ``client.chat.completions.create(model=..., ...)``.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AzureOpenAI, OpenAI
 
@@ -25,8 +25,8 @@ from .settings import settings
 
 Purpose = Literal["council", "mini", "validation_council", "mistral_judge", "meta_judge"]
 
-SyncClient = Union[OpenAI, AzureOpenAI]
-AsyncClient = Union[AsyncOpenAI, AsyncAzureOpenAI]
+SyncClient = OpenAI | AzureOpenAI
+AsyncClient = AsyncOpenAI | AsyncAzureOpenAI
 
 _PROVIDER_OPENAI = "openai"
 _PROVIDER_AZURE = "azure"

@@ -20,6 +20,7 @@ tests can patch them) without instantiating stateful collaborators.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -522,10 +523,8 @@ def _inject_turn_timestamps_for_spans(
             continue
         seg_by_id[sid] = seg
         # Also index stringified for resilience (judges sometimes return strings)
-        try:
+        with contextlib.suppress(Exception):
             seg_by_id[str(sid)] = seg
-        except Exception:
-            pass
 
     for span in spans:
         if not isinstance(span, dict):

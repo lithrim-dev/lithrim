@@ -120,12 +120,12 @@ class TunedMockBackend(BackendClient):
         modal_verdict = verdict_counts.most_common(1)[0][0]
 
         reject_flag_sets = [
-            set(flags) for d, flags in zip(member_decisions, member_flag_sets) if d == "reject"
+            set(flags) for d, flags in zip(member_decisions, member_flag_sets, strict=False) if d == "reject"
         ]
         composed_flags = sorted(set().union(*reject_flag_sets)) if reject_flag_sets else []
 
         per_judge: dict[str, JudgeOutput] = {}
-        for i, (d, flags) in enumerate(zip(member_decisions, member_flag_sets)):
+        for i, (d, flags) in enumerate(zip(member_decisions, member_flag_sets, strict=False)):
             name = f"tuned_member_{i}"
             per_judge[name] = JudgeOutput(judge_name=name, verdict=d, flags=list(flags))
 
