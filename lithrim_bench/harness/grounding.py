@@ -277,6 +277,89 @@ class KbGrounding(VerificationContract):
         )
 
 
+class WebSearchGrounding(VerificationContract):
+    """The web-search reference connector as a suppress-shaped contract (CONN-WEBSEARCH-1) —
+    that BY CONSTRUCTION CAN NEVER CLEAR A FINDING.
+
+    Unlike :class:`KbGrounding`, which clears a confident-but-wrong flag on a positive,
+    score-clearing, corroborated KB hit, this contract is structurally NON-AUTHORITATIVE: web
+    results are unverifiable, so it ALWAYS returns the non-suppressing verdict
+    (``disproved=False``). It runs the search, ATTACHES the retrieved citations/snippets +
+    ``web_support`` to the verdict's evidence/reason for the SME / withstands-gate to weigh, and
+    NEVER suppresses — present, absent, or erroring. This structurally enforces spec §4's
+    "evidence to weigh, not an authoritative floor that overrides the verdict" — a stronger
+    guarantee than a convention that one must not bind it to high-stakes flags. It can never flip
+    a verdict.
+
+    params = {"query": "<claim/query selector>",            # required (the SME-pinned query)
+              "service": "http://localhost:8585",           # default :8585 / env
+              "top_k": 5, "api_key": <opt>}
+    """
+
+    contract_type = "web_search"
+
+    def __init__(self, decl: VerificationContractDecl, *, http_client: Any | None = None) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+        self._http_client = http_client
+
+    def _reference(self, finding: dict[str, Any]) -> dict[str, Any]:
+        p = self._params
+        ref: dict[str, Any] = {"query": self._query(finding)}
+        for key in ("service", "top_k", "min_score", "api_key"):
+            if p.get(key) is not None:
+                ref[key] = p[key]
+        return ref
+
+    def _query(self, finding: dict[str, Any]) -> str:
+        if self._params.get("query"):
+            return str(self._params["query"])
+        field_name = self._params.get("claim_field") or "detail"
+        for key in (field_name, "detail", "message", "rationale"):
+            if finding.get(key):
+                return str(finding[key])
+        return ""
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.verification import (
+            REFERENCE_CONFORMANCE,
+            Claim,
+            VerificationSpec,
+            WebSearchTool,
+        )
+
+        ref = self._reference(finding)
+        spec = VerificationSpec(
+            tool="web_search",
+            applies_to_flags=(self.flag_code,),
+            locus=self._params.get("locus", ""),
+            reference=ref,
+            version=self.version,
+        )
+        claim = Claim(
+            claim_type=REFERENCE_CONFORMANCE,
+            flag_code=self.flag_code,
+            subject=ref["query"],
+            locus=self._params.get("locus", ""),
+            source=case,
+        )
+        result = WebSearchTool(http_client=self._http_client).verify(claim, spec)
+        citations = result.evidence.get("citations") or []
+        support = result.evidence.get("web_support")
+        # NON-AUTHORITATIVE BY CONSTRUCTION: never suppress. Attach the web evidence to the
+        # verdict (so the SME / withstands-gate can weigh it); the finding STAYS open regardless.
+        return Verdict(
+            disproved=False,
+            evidence=f"web_search citations={citations}" if citations else None,
+            reason=(
+                f"web_search is non-authoritative: attached {len(citations)} citation(s) "
+                f"(web_support={support}); evidence to weigh, the flag stays open"
+            ),
+        )
+
+
 # contract_type -> executor factory. This is the core-GENERIC SUPPRESS registry
 # (per-finding contracts that disprove an existing confident-but-wrong finding). The
 # structural FLOOR direction (artifact-level contracts that inject a BLOCK the council
@@ -296,8 +379,11 @@ class KbGrounding(VerificationContract):
 _CONTRACT_EXECUTORS = {
     "presence_check": PresenceCheck,
     "kb_grounding": KbGrounding,
+    # CONN-WEBSEARCH-1: non-authoritative by construction — it attaches web evidence but its
+    # ``check`` ALWAYS returns ``disproved=False``, so it can never suppress (clear) a finding.
+    "web_search": WebSearchGrounding,
 }
-_HTTP_CONTRACT_TYPES = {"kb_grounding"}
+_HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 
 
 @dataclass(frozen=True)

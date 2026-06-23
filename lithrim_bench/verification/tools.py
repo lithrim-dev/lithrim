@@ -36,6 +36,7 @@ from typing import Any
 from .spec import (
     TOOL_KB_RAG,
     TOOL_VALUE_PRESENCE,
+    TOOL_WEB_SEARCH,
     Claim,
     VerificationResult,
     VerificationSpec,
@@ -523,6 +524,154 @@ class KbRagTool(VerificationTool):
         if org_id:
             ref["org_id"] = org_id
         return self._search(base, namespace, query, int(top_k), ref)
+
+
+# --------------------------------------------------------------------------- #
+# WebSearchTool — the web-search reference connector (CONN-WEBSEARCH-1)
+# --------------------------------------------------------------------------- #
+class WebSearchTool(VerificationTool):
+    """Retrieve web citations/snippets for a claim — the community-release reference connector.
+
+    **NON-AUTHORITATIVE BY CONSTRUCTION.** Web results are unverifiable, so this tool can NEVER
+    clear or raise a finding: every code path returns ``conforms=None`` (inconclusive). It only
+    ATTACHES the retrieved ``citations`` / ``snippets`` + a structured ``web_support`` assessment
+    to the evidence, for the SME / withstands-gate to weigh. This *structurally* enforces "evidence
+    to weigh, not an authoritative floor that overrides the verdict" — a stronger guarantee than a
+    "don't bind it to high-stakes flags" convention. Present (citations attached) or absent
+    (unavailable note), it can never flip a verdict.
+
+    Like :class:`KbRagTool` this is bench-side wiring only: a lazy ``httpx`` call to the service
+    plus evidence assembly. ``http_client`` is injectable for tests; no heavy deps at import.
+
+    Configuration (secrets via env, never the manifest):
+      * base-url from ``reference.service`` or env ``LITHRIM_WEB_SEARCH_BASE_URL``;
+      * key from ``reference.api_key`` or env ``LITHRIM_WEB_SEARCH_API_KEY``
+        (fallback ``LITHRIM_API_KEY``); omitted when neither is set.
+
+    Tri-state — collapsed to a single value by design:
+      * conforms=None — ALWAYS. Present, absent, or erroring, the verdict is inconclusive.
+
+    reference = {"query": <claim/query selector>,            # required
+                 "service": "http://localhost:8585",         # default :8585 / env
+                 "top_k": 5, "min_score": 0.0,
+                 "api_key": <opt>}
+    """
+
+    name = TOOL_WEB_SEARCH
+
+    _DEFAULT_SERVICE = "http://localhost:8585"
+
+    def __init__(self, *, http_client: Any | None = None, timeout: float = 30.0) -> None:
+        self._client = http_client
+        self._timeout = timeout
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        query = self._query(claim, ref)
+        base = self._base_url(ref)
+        top_k = int(ref.get("top_k", 5))
+
+        manifest = {
+            "tool": self.name,
+            "deterministic": False,  # composes over a live web index
+            "non_authoritative": True,  # by construction: can never clear or raise a finding
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "service": base,
+            "top_k": top_k,
+        }
+
+        if not base:
+            # no endpoint configured (and no env) -> unavailable; NO network attempted, never clears.
+            return VerificationResult(
+                conforms=None,
+                evidence={
+                    "web_search": "unavailable",
+                    "reason": "no key/endpoint configured",
+                    "query": query,
+                },
+                manifest=manifest,
+            )
+
+        try:
+            payload = self._search(base, query, top_k, ref)
+        except Exception as exc:  # noqa: BLE001 - network/transport/HTTP -> inconclusive, never clears
+            manifest["error"] = f"{type(exc).__name__}: {exc}"
+            return VerificationResult(
+                conforms=None,
+                evidence={"query": query, "error": manifest["error"], "grounding": "web_search_v0"},
+                manifest=manifest,
+            )
+
+        results = payload.get("results") or [] if isinstance(payload, dict) else []
+        citations = [r.get("url") for r in results if isinstance(r, dict) and r.get("url")]
+        snippets = [r.get("snippet") for r in results if isinstance(r, dict) and r.get("snippet")]
+        web_support = self._support(payload)
+        # ALWAYS inconclusive: the web evidence is ATTACHED for weighing, never decisive.
+        return VerificationResult(
+            conforms=None,
+            evidence={
+                "query": query,
+                "citations": citations,
+                "snippets": snippets,
+                "web_support": web_support,
+                "retrieved": len(results),
+                "grounding": "web_search_v0",
+            },
+            manifest=manifest,
+        )
+
+    # --- query / endpoint / auth resolution --- #
+    @staticmethod
+    def _query(claim: Claim, ref: dict) -> str:
+        if ref.get("query"):
+            return str(ref["query"])
+        return str(claim.subject)
+
+    def _base_url(self, ref: dict) -> str:
+        base = ref.get("service") or os.environ.get("LITHRIM_WEB_SEARCH_BASE_URL")
+        return str(base).rstrip("/") if base else ""
+
+    @staticmethod
+    def _support(payload: Any) -> str:
+        """The service's structured stance, normalized to supports|contradicts|none. A service
+        that returns no ``web_support`` defaults to ``none`` (presence of citations is not support)."""
+        if isinstance(payload, dict):
+            val = str(payload.get("web_support") or "").strip().lower()
+            if val in ("supports", "contradicts", "none"):
+                return val
+        return "none"
+
+    # --- HTTP plumbing (GET {base}/search?q=&top_k=) --- #
+    def _search(self, base: str, query: str, top_k: int, ref: dict) -> dict:
+        client, owns = self._acquire()
+        try:
+            url = f"{base}/search"
+            params = {"q": query, "top_k": top_k}
+            headers = self._headers(ref)
+            resp = client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            payload = resp.json()
+            return payload if isinstance(payload, dict) else {}
+        finally:
+            if owns:
+                client.close()
+
+    @staticmethod
+    def _headers(ref: dict) -> dict:
+        key = (
+            ref.get("api_key")
+            or os.environ.get("LITHRIM_WEB_SEARCH_API_KEY")
+            or os.environ.get("LITHRIM_API_KEY")
+        )
+        return {"X-API-Key": key} if key else {}
+
+    def _acquire(self) -> tuple[Any, bool]:
+        if self._client is not None:
+            return self._client, False
+        import httpx
+
+        return httpx.Client(timeout=self._timeout), True
 
 
 # --------------------------------------------------------------------------- #

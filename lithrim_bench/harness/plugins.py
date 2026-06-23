@@ -209,6 +209,18 @@ _CORE_TOOL_PLUGINS: tuple[PluginManifest, ...] = (
         implements="tool.api_connector",
         service={"default_base_url": "http://localhost:3031"},
     ),
+    # CONN-WEBSEARCH-1: the web-search reference connector (community release, §4). The executor
+    # is NON-AUTHORITATIVE BY CONSTRUCTION (always ``conforms=None``; it attaches evidence, never
+    # clears/raises a finding) — see ``grounding.WebSearchGrounding`` / ``verification.WebSearchTool``.
+    # config only here; the API key rides env (``LITHRIM_WEB_SEARCH_API_KEY``), never the manifest.
+    PluginManifest(
+        id="web_search",
+        kind="tool",
+        tier="core",
+        transport="service",
+        implements="tool.mcp_server",
+        service={"default_base_url": "http://localhost:8585"},
+    ),
 )
 
 

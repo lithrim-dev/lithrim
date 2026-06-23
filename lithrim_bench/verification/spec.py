@@ -52,6 +52,13 @@ TOOL_VALUE_PRESENCE = "value_presence"
 # tool class + executor ship PACK-LOCAL; this NAME + its required-keys row are the one additive
 # core line (same minimal-registration pattern as value_presence). Domain-neutral by construction.
 TOOL_CONCEPT_PRESERVATION = "concept_preservation"
+# CONN-WEBSEARCH-1: the web-search reference connector (community release, §4). It is
+# NON-AUTHORITATIVE BY CONSTRUCTION — web results are unverifiable, so its executor ALWAYS
+# resolves ``conforms=None`` (inconclusive) and merely ATTACHES retrieved citations/snippets +
+# a ``web_support`` assessment as evidence for the SME/withstands-gate to weigh; it can never
+# clear or raise a finding. The tool class + executor are generic core; this NAME + its
+# required-keys row are the additive registration (the documented minimal pattern). Domain-neutral.
+TOOL_WEB_SEARCH = "web_search"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -64,6 +71,7 @@ _KNOWN_TOOLS = {
     TOOL_SILENT_DEGRADATION,
     TOOL_VALUE_PRESENCE,
     TOOL_CONCEPT_PRESERVATION,
+    TOOL_WEB_SEARCH,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -97,6 +105,10 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # (``inject_flag_code`` / ``inject_severity``) are contract PARAMS read by the floor injector,
     # not reference keys — exactly like dosage_grounding.
     TOOL_CONCEPT_PRESERVATION: {"stated_path", "noted_path"},
+    # web_search: the SME pins ``query`` (the claim/query selector); ``service`` / ``api_key`` /
+    # ``top_k`` / ``min_score`` / ``match`` are optional (mirrors kb_rag's ``{"namespace"}``).
+    # NON-AUTHORITATIVE: it attaches evidence, it never clears or raises a finding.
+    TOOL_WEB_SEARCH: {"query"},
 }
 
 

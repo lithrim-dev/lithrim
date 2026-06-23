@@ -52,6 +52,7 @@ from .spec import (
     TOOL_KB_RAG,
     TOOL_RECORD_RAG,
     TOOL_STRUCTURAL_JUTE,
+    TOOL_WEB_SEARCH,
     Claim,
     VerificationResult,
     VerificationSpec,
@@ -64,6 +65,7 @@ from .tools import (
     StructuralJuteTool,
     ValuePresenceTool,
     VerificationTool,
+    WebSearchTool,
 )
 
 # NOTE: the CLINICAL executors (the record-presence + dose-grounding tools) relocated into
@@ -82,10 +84,12 @@ __all__ = [
     "TOOL_KB_RAG",
     "TOOL_JUTE_GEN",
     "TOOL_DOSAGE_GROUNDING",
+    "TOOL_WEB_SEARCH",
     "VerificationTool",
     "StructuralJuteTool",
     "ValuePresenceTool",
     "KbRagTool",
+    "WebSearchTool",
     "RecordRagTool",
     "FakeRecordRagTool",
     "JuteGenValidatorTool",
