@@ -230,6 +230,11 @@ _NEEDS_PACK_FUNCS = {
         "test_ontology_read",
         "test_put_ontology_rejects_malformed",
         "test_run_eval_replay_returns_composite_and_calibration_check",
+        # GET /v1/case READS the clinical case fixture (relocated to the pack, PACK-DIST-2), so it
+        # 404s in a bare CE checkout. It passed in a dev tree only because pack_ws0_dir_or_none()
+        # reaches the SIBLING ../lithrim-pack-healthcare (path-based, not discovery-based) — a clean
+        # clone under /tmp can't, which the clean-clone smoke caught. NEEDS the pack.
+        "test_get_case_reports_labeled_flag",
     },
     # CYCLE-0 (release bare-CE green): the grounding-contract gate/route tests operate on healthcare
     # flags (MEDICATION_NOT_IN_TRANSCRIPT / WRONG_DOSAGE) + the pack's contract types — a bare CE
