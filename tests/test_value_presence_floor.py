@@ -97,16 +97,23 @@ def _spec(reference):
 
 
 def test_value_presence_is_a_core_floor_available_to_every_pack():
-    """CORE-FLOOR-1: value_presence is a domain-agnostic completeness floor — it must be a CORE
-    floor (merged into every pack's registry), NOT narrative-only, so a clinician can author it on
-    the healthcare (clinical) workspace. RED before the move (it was registered only in
-    packs/narrative/floors.py FLOOR_EXECUTORS, so absent from _core / healthcare)."""
+    """CORE-FLOOR-1: value_presence is a domain-agnostic completeness floor — a CORE floor merged
+    into every pack's registry, NOT narrative-only. The _core + in-repo narrative packs prove the
+    merge in ANY checkout (so a bare CE run still proves the floor is standalone-domain-agnostic);
+    the EXTERNAL healthcare pack is asserted separately (NEEDS_PACK — skips in bare CE)."""
     from lithrim_bench.harness.grounding import floor_executors
 
     assert "value_presence" in floor_executors("_core"), "must be a CORE floor, not pack-gated"
-    assert "value_presence" in floor_executors("healthcare"), "must be available on the clinical pack"
-    # still present on narrative (now via the core merge), so the governed-flip demo is unaffected
+    # narrative is in-repo (core tier): proves the core-merge reaches a domain pack in bare CE
     assert "value_presence" in floor_executors("narrative")
+
+
+def test_value_presence_available_on_the_healthcare_pack():
+    """The CORE-FLOOR-1 merge reaches the EXTERNAL clinical pack too, so a clinician can author the
+    floor on the healthcare workspace (NEEDS_PACK — skips in a bare CE checkout)."""
+    from lithrim_bench.harness.grounding import floor_executors
+
+    assert "value_presence" in floor_executors("healthcare"), "must be available on the clinical pack"
 
 
 # ── A1 — ValuePresenceTool fires on absence, clears on presence, inconclusive otherwise ──

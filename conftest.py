@@ -231,6 +231,25 @@ _NEEDS_PACK_FUNCS = {
         "test_put_ontology_rejects_malformed",
         "test_run_eval_replay_returns_composite_and_calibration_check",
     },
+    # CYCLE-0 (release bare-CE green): the grounding-contract gate/route tests operate on healthcare
+    # flags (MEDICATION_NOT_IN_TRANSCRIPT / WRONG_DOSAGE) + the pack's contract types — a bare CE
+    # checkout has neither, so the handler errors / pack-load FileNotFoundErrors → NEEDS the pack.
+    "test_grounding_contract_gate": {
+        "test_grounding_contract_types_endpoint_is_pack_registered",
+        "test_accessors_optional_pack_arg_is_additive",
+        "test_gate_resolves_the_active_workspace_pack_not_the_process_pack",
+    },
+    "test_eval_flow": {
+        "test_grounding_contract_persists_audited_and_404s",
+        "test_grounding_contract_route_reuses_the_bound_op",
+        "test_add_grounding_contract_tool_is_bounded_by_the_endpoint_guards",
+    },
+    # the CORE-FLOOR-1 merge reaching the EXTERNAL healthcare pack (the _core + in-repo narrative
+    # halves stay green in bare CE — they prove the floor is domain-agnostic standalone).
+    "test_value_presence_floor": {"test_value_presence_available_on_the_healthcare_pack"},
+    # binds the council from the sibling pack via discovery — already self-skips without the sibling;
+    # also skip when healthcare is undiscoverable so a local env-unset run matches the stranger.
+    "test_pack_dist": {"test_a1_council_binds_from_external_pack"},
 }
 
 
