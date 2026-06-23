@@ -136,4 +136,68 @@ describe("CenterPane — PERSIST-CONV: durable conversation persistence", () => 
     await waitFor(() => expect(getConversation).toHaveBeenCalled());
     expect(screen.queryByTitle(/Clear conversation/i)).not.toBeInTheDocument();
   });
+
+  it("A11 (non-vacuous): an `agent` prop change WITHOUT a remount swaps the thread (no bleed)", async () => {
+    // agent_A has a stored thread; agent_B has its OWN distinct thread.
+    getConversation.mockImplementation((a) =>
+      a === "agent_A"
+        ? Promise.resolve({
+            agent: a,
+            thread: [
+              { role: "user", text: "alpha question" },
+              { role: "assistant", text: "alpha answer", parts: [] },
+            ],
+          })
+        : Promise.resolve({
+            agent: a,
+            thread: [
+              { role: "user", text: "beta question" },
+              { role: "assistant", text: "beta answer", parts: [] },
+            ],
+          }),
+    );
+
+    // mount with A — A's thread hydrates
+    const { rerender } = render(<CenterPane {...props} agent="agent_A" />);
+    expect(await screen.findByText("alpha question")).toBeInTheDocument();
+
+    // flip the active agent to B on the SAME instance (no sessionKey/remount), as the live
+    // ws0_default→eval-1 auto-resolution does
+    rerender(<CenterPane {...props} agent="agent_B" />);
+    await waitFor(() => expect(getConversation).toHaveBeenCalledWith("agent_B"));
+
+    // A's turns are gone (the reported bleed) and B's thread is now shown
+    await waitFor(() => expect(screen.queryByText("alpha question")).not.toBeInTheDocument());
+    expect(screen.queryByText("alpha answer")).not.toBeInTheDocument();
+    expect(await screen.findByText("beta question")).toBeInTheDocument();
+    expect(await screen.findByText("beta answer")).toBeInTheDocument();
+  });
+
+  it("A12 (non-vacuous): an `agent` change to an EMPTY thread clears the prior thread (the live ws0→eval bug)", async () => {
+    // this is the exact reported live shape: the prior agent has a thread, the new one is empty.
+    // Without the synchronous reset, the no-clobber guard never re-applies (the empty thread's
+    // `if (thread.length)` is false), so the OLD thread would persist under the NEW agent.
+    getConversation.mockImplementation((a) =>
+      a === "ws0_default"
+        ? Promise.resolve({
+            agent: a,
+            thread: [
+              { role: "user", text: "seeded ws0 turn" },
+              { role: "assistant", text: "seeded ws0 reply", parts: [] },
+            ],
+          })
+        : Promise.resolve({ agent: a, thread: [] }),
+    );
+
+    const { rerender } = render(<CenterPane {...props} agent="ws0_default" />);
+    expect(await screen.findByText("seeded ws0 turn")).toBeInTheDocument();
+
+    rerender(<CenterPane {...props} agent="eval-1" />);
+    await waitFor(() => expect(getConversation).toHaveBeenCalledWith("eval-1"));
+
+    // the seeded ws0 thread is gone and eval-1's clean empty-state shows
+    await waitFor(() => expect(screen.queryByText("seeded ws0 turn")).not.toBeInTheDocument());
+    expect(screen.queryByText("seeded ws0 reply")).not.toBeInTheDocument();
+    expect(screen.getByText(/What do you want to evaluate\?/i)).toBeInTheDocument();
+  });
 });

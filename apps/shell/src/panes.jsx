@@ -310,9 +310,18 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   // PERSIST-CONV: HYDRATE the stored thread on mount / agent-change so a refresh restores the
   // conversation. Don't clobber an in-progress send (guard on !sending); a brand-new agent has no
   // stored thread → [] (correct empty-state). `hydratedRef` gates the persist effect below.
+  //
+  // Reset the displayed thread SYNCHRONOUSLY before fetching: the no-clobber guard below applies
+  // the new thread only onto a still-empty chat, so without this an `agent` change WITHOUT a
+  // remount (the active-agent auto-resolution flip, or any future swap that doesn't bump the
+  // sessionKey) would leave the OLD agent's thread on screen under the NEW agent — one
+  // evaluation's conversation bleeding into another (a conversational-first correctness/trust
+  // bug). The in-flight-send guard still holds: a send that lands AFTER this reset makes `chat`
+  // non-empty, and `c.length === 0 ? thread : c` then keeps the user's just-sent turn.
   useEffect(() => {
     let live = true;
     hydratedRef.current = null;
+    setChat([]);
     (async () => {
       let thread = [];
       try {
