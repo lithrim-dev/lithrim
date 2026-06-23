@@ -98,7 +98,9 @@ from lithrim_bench.harness.config import (  # noqa: E402
     delete_agent,
     list_agents,
     load_agent,
+    load_conversation,
     save_agent,
+    save_conversation,
     seed_config_db,
 )
 from lithrim_bench.harness.judges import (  # noqa: E402
@@ -143,6 +145,7 @@ DEFAULT_ONTOLOGY_WORKDIR = REPO_ROOT / "out" / "bff" / "ontology"
 _ONTOLOGY_BODY = Body(...)
 _AGENT_BODY = Body(...)
 _JUDGE_BODY = Body(...)
+_CONVERSATION_BODY = Body(...)
 
 # The persisted smart-contract validators a judge may REFERENCE + execute (never
 # generate) — the verification toolbox names (verification/spec.py). Ref-only this
@@ -359,6 +362,16 @@ class ChatRequest(BaseModel):
     # to it, so a conversational run grades the case on screen — not the agent's seed. A SELECTOR,
     # never a paid knob; None → the agent's own dataset.case_id (back-compat).
     active_case: str | None = None
+
+
+class ConversationRequest(BaseModel):
+    # PERSIST-CONV: the durable conversation thread — the chat prose (the {role, text?, parts?}
+    # message list the shell holds) persisted per-(workspace, agent) so a browser refresh no
+    # longer wipes it. NO paid knob + NO X-Actor: this is high-frequency per-turn UX state, a
+    # PLAIN upsert, NOT an audited config write (the config WRITES inside a conversation are
+    # audited on their own routes; auditing every turn would bloat the §2B log).
+    agent: str = DEFAULT_AGENT
+    thread: list = []
 
 
 class GroundingContractRequest(BaseModel):
@@ -1140,6 +1153,32 @@ def put_agent_endpoint(
         rationale=rationale,
     )
     return {"status": "ok", "name": ag.name, "actor": actor.model_dump()}
+
+
+# ── PERSIST-CONV: GET/PUT /v1/conversation — the durable chat thread (refresh-safe) ──
+
+
+@app.get("/v1/conversation")
+def get_conversation_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """Load the persisted conversation thread for ``agent`` (PERSIST-CONV). An agent with no
+    stored thread returns ``{"thread": []}`` (a clean default, NOT a 404 — a brand-new agent
+    simply has no prose yet). $0, no paid knob."""
+    return {"agent": agent, "thread": load_conversation(agent, db_path=db_path)}
+
+
+@app.put("/v1/conversation")
+def put_conversation_endpoint(
+    body: ConversationRequest = _CONVERSATION_BODY,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """Persist the conversation thread for ``body.agent`` (PERSIST-CONV). A PLAIN upsert (the
+    latest thread wins), NOT an audited write — no X-Actor, no audit record (high-frequency
+    per-turn UX state). $0, no paid knob."""
+    save_conversation(body.agent, body.thread, db_path=db_path)
+    return {"ok": True, "agent": body.agent, "n": len(body.thread)}
 
 
 # ── CRUD-1: GET /v1/agents (the rail switcher) + DELETE /v1/agent (guarded) ────

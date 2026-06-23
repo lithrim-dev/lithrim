@@ -66,6 +66,28 @@ def _ensure_agents(conn: Any, workspace_id: str) -> None:
     )
 
 
+# PERSIST-CONV: the durable conversation store — the chat thread (the conversational prose)
+# survives a browser refresh. Mirrors the agents table (a per-(workspace, agent) JSON blob)
+# but is a PLAIN upsert, NOT upsert_with_audit: the thread is high-frequency per-turn UX
+# state, not an audited config change (auditing every turn would bloat the §2B log; the config
+# WRITES inside a conversation are already audited on their own routes). No _history shadow.
+_CONVERSATIONS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS conversations (
+    workspace_id TEXT NOT NULL,
+    agent        TEXT NOT NULL,
+    thread       TEXT NOT NULL,
+    updated_at   TEXT,
+    PRIMARY KEY (workspace_id, agent)
+)
+"""
+
+
+def _ensure_conversations(conn: Any, workspace_id: str) -> None:  # noqa: ARG001
+    """Provision the conversations table. workspace_id is taken on the same param as
+    _ensure_agents (a uniform signature) though the plain table needs no migration."""
+    conn.executescript(_CONVERSATIONS_SCHEMA)
+
+
 def init_config_db(db_path: str | Path = DEFAULT_CONFIG_DB) -> None:
     """Create an EMPTY config DB (the agents schema, no rows). A fresh workspace starts
     blank so its isolation is visible ('create your first agent'); the existing-but-empty
@@ -330,6 +352,45 @@ def load_agent(name: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> Agent:
     if row is None:
         raise KeyError(f"agent {name!r} not found in config DB {db_path}")
     return agent_from_dict(json.loads(row[0]))
+
+
+def save_conversation(
+    agent: str, thread: list[Any], *, db_path: str | Path = DEFAULT_CONFIG_DB
+) -> str:
+    """Upsert a conversation thread for ``agent`` into the config DB (PERSIST-CONV).
+
+    A PLAIN INSERT-OR-REPLACE on (workspace_id, agent) — the latest thread wins (per-turn UX
+    state, NOT an audited config change; see ``_CONVERSATIONS_SCHEMA``). ``thread`` is the
+    shell's message list (``[{role, text?, parts?}]``); stored as ``json.dumps``. Returns the
+    db path."""
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
+
+    wsid = workspace_id_of(db_path)
+    payload = json.dumps(thread)
+    updated_at = datetime.now(timezone.utc).isoformat()
+    with connect(config_db_url(db_path)) as conn:
+        _ensure_conversations(conn, wsid)
+        conn.execute(
+            "INSERT OR REPLACE INTO conversations (workspace_id, agent, thread, updated_at) "
+            "VALUES (?, ?, ?, ?)",
+            (wsid, agent, payload, updated_at),
+        )
+    return str(db_path)
+
+
+def load_conversation(agent: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> list[Any]:
+    """Load ``agent``'s persisted conversation thread (PERSIST-CONV). An absent thread returns
+    ``[]`` (benign default — a brand-new agent has no stored prose; unlike ``load_agent`` this
+    never raises)."""
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
+
+    wsid = workspace_id_of(db_path)
+    with connect(config_db_url(db_path)) as conn:
+        _ensure_conversations(conn, wsid)
+        row = conn.execute(
+            "SELECT thread FROM conversations WHERE workspace_id = ? AND agent = ?", (wsid, agent)
+        ).fetchone()
+    return json.loads(row[0]) if row is not None else []
 
 
 def seed_config_db(
