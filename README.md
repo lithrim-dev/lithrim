@@ -1,144 +1,156 @@
 # Lithrim Bench
 
-Deterministically-labeled clinical-AI artifact verification benchmark generator.
+**A self-hostable evaluation harness for AI agents — with a tool-grounded verification *floor* that can override a confident LLM judge, and an immutable audit trail on every run.**
 
-This repo serves two purposes from one engine:
+> **Verifiable truth, not a promised win.** This README tells you exactly what Lithrim Bench does — *and where it doesn't work.* That boundary is the point.
 
-1. **Paper benchmark** — produces the synthetic, by-construction-labeled clinical artifact verification cases consumed by the Lithrim research paper (*A Deterministic Structural Floor Under LLM-as-Judge*). See `docs/PAPER_OUTLINE.md`.
-2. **Lithrim Bench (developer product)** — the same engine, exposed to AI-agent developers signing up on Lithrim, so they can generate targeted golden cases for their own scribe / coding / triage / intake / scheduling agents and benchmark them. See `docs/LITHRIM_BENCH_PRODUCT_SPEC.md`.
+Bring your own model key. Run it on your laptop or in your VPC. **Your data never leaves your machine.**
 
-## Open-core: this repo is the OSS Core — domain packs load from OUTSIDE it (PACK-DIST-1)
+---
 
-**This repo is the genuinely domain-agnostic CE / OSS core.** It ships NO clinical content. The
-engine (council orchestration, the grounding-floor mechanism, the SQLite config plane, `run_eval`,
-the eval-pack gate, all of JUTE, BYOK) + a neutral default pack (`packs/_core/`) + a non-clinical
-sample pack (`packs/support_ticket_qa/`) are everything the core needs to boot and grade standalone.
+## What it is
 
-A **domain** is a *pack* — a manifest (`pack.json`) bundling an ontology + taxonomy + council role
-prompts + grounding floors + dataset generators. The full **clinical `healthcare` pack is Pro and
-distributed separately** in its own repo (`../lithrim-pack-healthcare`), NOT in these OSS bits
-(SPEC_PLUGIN_ARCHITECTURE OQ-3). The core loads it from outside via the pack-discovery seam
-(`lithrim_bench/harness/pack.py`), which resolves a pack id in order:
+Most AI-eval tools end at an LLM-as-judge — a second model scoring the first. But a judge is as fallible as the thing it grades: it can confidently approve a fabricated fact, or confidently flag a correct one. Lithrim Bench adds the layer underneath:
 
-1. an installed **entry point** in the `lithrim_bench.packs` group (the idiomatic pip path);
-2. **`LITHRIM_BENCH_PACKS_DIR`** — `os.pathsep`-joined external dirs (the dev / airgap path);
-3. the in-repo `packs/` (the CE sample packs + fixtures).
+1. **A multi-model council** grades an artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags, with **logprob-calibrated confidence** (a real probability from the model's own tokens — not a self-reported number).
+2. **A deterministic, tool-grounded floor** then re-checks the council's findings against ground truth — a record, a schema, a terminology service — and can **override the verdict**: suppress a finding the council got confidently wrong, or block an output the council missed.
+3. **An immutable audit record** captures every run — the votes, the floor's decision, and the evidence — so you can see *why*, not just *what*.
 
-```bash
-# THE canonical dev / CI invocation — load the external healthcare pack AND pin it active:
-LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare LITHRIM_BENCH_PACK=healthcare python -m pytest
-# …or pip-install it (registers the entry point):
-pip install -e ../lithrim-pack-healthcare && LITHRIM_BENCH_PACK=healthcare …
-```
+The floor is **three-state by design**: a finding is grounded-true, grounded-false, or **inconclusive** — and an inconclusive check is *surfaced, never silently flipped*. The system never manufactures certainty it doesn't have.
 
-> **Both env vars are load-bearing.** `LITHRIM_BENCH_PACKS_DIR` alone (without `LITHRIM_BENCH_PACK`)
-> only makes the pack *discoverable* — the active pack stays on the neutral `_core` default, so the
-> frozen council binds `_core`'s taxonomy codes at import and the 12 healthcare test modules fail
-> collection with `PackConsistencyError` (clinical codes not in the active council). That is
-> fail-closed-correct, not a bug: pin `LITHRIM_BENCH_PACK=healthcare` to grade through the clinical pack.
+---
 
-With no pack on the path the core stays on the neutral `_core` default and grades fine — a Pro pack
-the operator can't reach is **absent**, not stubbed (fail-closed). To add your own domain, write a
-pack repo with a `pack.json` + the entry point and point the env var at it — **zero engine edits**.
+## Quickstart
 
-> **The rest of this README documents the engine through the *clinical* lens** (the paper's domain).
-> Those specifics now live in the `healthcare` pack; read them as "what a fully-built domain pack
-> looks like," not as content shipped in this repo.
-
-## Core idea
-
-The **Synthea-derived clinical encounter** is the single source of truth. Every modality — transcript, SOAP note, FHIR resource, HL7 v2 message, agent artifact — is a *projection* of that encounter. A defect is a typed mutation applied to a named projection, with `pre_value` / `post_value` recorded. **The label is true by construction.**
-
-```
-Synthea cohort (pinned)
-  └─ EncounterSpec
-       ├─→ TranscriptSynth   (dialogue grounded in encounter facts)
-       ├─→ ArtifactSynth     (per agent: SOAP / ICD bundle / RiskAssessment / Patient+intake / Appointment)
-       └─→ HL7Emitter        (simhospital pathway + post-emit mutator) [Phase 3]
-                ↓
-           DefectInjector  (typed library, modality-aware)
-                ↓
-           CasePackager → JSONL row {case_id, ground_truth, recipe, projections, expected_*}
-                ↓
-           Lint + OwnerMatrix gate (CI)
-```
-
-## Repo layout
-
-```
-lithrim-bench/
-├── lithrim_bench/             # the engine library
-│   ├── encounter_spec.py
-│   ├── synthea_loader.py
-│   ├── packager.py
-│   ├── taxonomy.py
-│   ├── injectors/
-│   │   ├── base.py
-│   │   └── wrong_dosage.py    # v1 reference injector
-│   └── synthesizers/
-│       ├── transcript.py
-│       └── scribe_artifact.py
-├── taxonomy/
-│   └── taxonomy_snapshot.json # frozen snapshot of compliance_council.py taxonomy
-├── scripts/
-│   ├── snapshot_taxonomy.py             # refresh the snapshot from lithrim-backend
-│   ├── lint_golden_against_taxonomy.py  # closes defect D1
-│   ├── build_label_owner_matrix.py      # closes defect D3
-│   └── generate_proof_case.py           # the v1 end-to-end demo
-├── docs/
-│   ├── PAPER_OUTLINE.md
-│   ├── EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md
-│   ├── ARCHITECTURE.md
-│   └── LITHRIM_BENCH_PRODUCT_SPEC.md
-├── data/
-│   └── synthea_sample_data_csv_latest/  # NOT checked in (147MB); see MANIFEST.md
-├── tests/
-└── examples/
-```
-
-## Quick start
-
-> **Want to run the conversational eval _product_** (the 3-pane shell + the in-process
-> council + the grounding floor, BYO Azure/Claude key, no `lithrim-backend`/Mongo)?
-> See [`docs/QUICKSTART.md`](docs/QUICKSTART.md). The steps below are the _engine_
-> (Synthea → labeled cases).
+**Zero-config demo — no keys, no network, runs in seconds.** See the full loop on a built-in case:
 
 ```bash
-# 1. Point at the Synthea sample CSV cohort
-ln -s ~/Workspace/github.com/synthea_sample_data_csv_latest data/synthea_sample_data_csv_latest
-
-# 2. Install
-pip install -e ".[dev]"
-
-# 3. Generate the v1 end-to-end proof case (Synthea row → SOAP note → WRONG_DOSAGE → JSONL)
-python scripts/generate_proof_case.py --out examples/proof_case.jsonl
-
-# 4. Lint the existing lithrim-backend golden set against the snapshotted taxonomy
-python scripts/lint_golden_against_taxonomy.py \
-  --golden /Users/aregee/Workspace/github.com/lithrim-backend/demo_dataset/eval_golden.jsonl
-
-# 5. Build the label → owner matrix
-python scripts/build_label_owner_matrix.py \
-  --golden /Users/aregee/Workspace/github.com/lithrim-backend/demo_dataset/eval_golden.jsonl \
-  --out docs/label_owner_matrix.md
-
-# 6. Refresh the taxonomy snapshot (when compliance_council.py changes upstream)
-python scripts/snapshot_taxonomy.py --backend-path /Users/aregee/Workspace/github.com/lithrim-backend
+git clone <repo> && cd lithrim-bench
+make demo        # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
 ```
 
-## Phasing
+`make demo` replays a captured council baseline (so no LLM call, $0) and runs the **live deterministic floor** on the neutral built-in `_core` case — so the verdict flip is real and reproducible, not a recording. No key, no network, no domain pack required.
 
-| Phase | Scope | Cases | Status |
-|---|---|---|---|
-| 1 | Scribe + scheduling, top 8 defects, transcript + artifact only | ~400 | **in progress** (v0.1 = WRONG_DOSAGE proof) |
-| 2 | + coding, triage, intake | ~1000 | not started |
-| 3 | + HL7 modality via simhospital pathways + MessageProcessor mutator | ~1500 | not started |
-| 4 | Lithrim Bench API surface (`POST /v1/bench/generate`) | n/a | not started |
+**Run it live on your own case (BYOK):**
 
-## Why this repo is independent of `lithrim-backend`
+```bash
+export LITHRIM_LLM_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+make up          # local BFF + UI; grade your own artifact, nothing leaves the box
+```
 
-The benchmark must be reproducible without the backend present. The contract surface is a single JSON snapshot of the council taxonomy (`taxonomy/taxonomy_snapshot.json`), refreshed by `scripts/snapshot_taxonomy.py`. Drift between this snapshot and the backend is caught by `scripts/lint_golden_against_taxonomy.py`, which can be run in CI on both sides.
+You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. (Azure is the alternative provider — `LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example).)
+
+---
+
+## The flagship loop
+
+```
+artifact ─▶ multi-model council ─▶ findings + calibrated confidence
+                                        │
+                                        ▼
+                          tool-grounded floor (record / schema / terminology)
+                                        │
+              ┌─────────────────────────┼─────────────────────────┐
+              ▼                         ▼                          ▼
+     suppress a wrong finding    block a missed defect    inconclusive → surfaced
+                                        │
+                                        ▼
+                          verdict  +  immutable audit record
+```
+
+`make demo` walks exactly this loop on the `_core_fabricated_claim` case: the council returns `PASS`, the deterministic floor catches the fabricated guarantee and flips the verdict to `BLOCK`, and the audit surfaces the `UNSUPPORTED_ASSERTION` / `SOURCE_CONTRADICTION` findings as the *why*.
+
+---
+
+## Architecture
+
+| Layer | What it does |
+|---|---|
+| **Council** | Multi-model LLM judges, evidence-based consensus, logprob-calibrated confidence. (Frozen, byte-stable core.) |
+| **Grounding floor** | `contract_type → executor` (in-process or service-transport); three-state, verdict-overriding, never silently flips. |
+| **Packs** | A pack supplies the domain (ontology, flags, prompts, floors). The shipped default is the neutral `_core`; domain packs are pluggable and load from outside the repo. |
+| **Plugins** | A unified registry (`kind: contract / provider / tool / pack`) — add a scorer, provider, or connector by manifest. |
+| **Audit spine** | Append-only audit records + run provenance (which models, which plugins, what evidence). |
+
+By-construction labeling is the bench's discipline: where it ships labeled cases, the label is *generated*, not annotated — the recipe that injects a defect **is** the label's justification.
+
+### Packs load from OUTSIDE the repo
+
+This repo is the genuinely domain-agnostic OSS core — it ships the engine plus the neutral `_core` pack and a non-clinical sample pack. A **domain** is a *pack*: a `pack.json` bundling an ontology + taxonomy + council role prompts + grounding floors + dataset generators. The core resolves a pack id in order:
+
+1. an installed **entry point** in the `lithrim_bench.packs` group (the pip path);
+2. **`LITHRIM_BENCH_PACKS_DIR`** — `os.pathsep`-joined external dirs (the dev / airgap path), pinned active with **`LITHRIM_BENCH_PACK`**;
+3. the in-repo `packs/` (the sample packs + fixtures).
+
+With no pack on the path the core stays on the neutral `_core` default and grades fine. To add your own domain, write a pack repo with a `pack.json` + the entry point and point the env var at it — **zero engine edits**.
+
+---
+
+## Connectors (MCP / tools)
+
+The floor and judges can call external services — a terminology server, a schema validator, a retrieval tool — as **connectors**. MCP is the transport standard. A connector is a manifest entry (`transport: service | in_process`) plus an executor; secrets ride env vars, never the manifest. See **[`docs/specs/SPEC_TOOL_CONNECTORS.md`](docs/specs/SPEC_TOOL_CONNECTORS.md)** for the contract and reference connectors (a SNOMED terminology grounder and a web-search retriever).
+
+**Graceful by default:** a connector that isn't configured or reachable resolves to *inconclusive* — the harness still grades, it just tells you what it couldn't verify. You don't need any sidecar to run.
+
+---
+
+## What Lithrim Bench honestly does — and does NOT do
+
+This is the part most tools omit. The floor's power is **bounded**, and we tested the boundary with a blind held-out experiment rather than asserting it:
+
+- **✅ Where the floor generalizes — closed-vocabulary / structured facts.** Dosage arithmetic, code/terminology membership (SNOMED/ICD), schema/FHIR conformance, record presence. The check is set-membership or arithmetic, so it generalizes to unseen cases and can reliably override a judge.
+- **❌ Where it does NOT generalize — open-ended discourse.** Detecting an open-ended concept in free text (e.g. "was a refusal documented?") is open NLU. A deterministic/lexical floor here either misses novel phrasings or false-flags paraphrases. **In a blind held-out test, a serious 30-pattern rule scored recall 0.375 / precision 0.75 — it does not generalize.** For that class, an LLM judge (or a human-in-the-loop) is the right tool, not a deterministic floor.
+
+So: **use the floor for grounded, structured claims; use the judge (and a human) for open-ended discourse.** Lithrim Bench is honest about which is which — and surfaces an inconclusive when it can't ground something, instead of guessing.
+
+This is not "a better judge." Judges are commodity. This is **the grounded floor underneath the judge, with an honest map of its own limits.**
+
+---
+
+## Your data & keys stay local
+
+Lithrim Bench is self-hosted. There is no Lithrim-hosted inference, no account, no telemetry.
+
+- **The demo needs nothing** — no key, no network.
+- **For a live grade you provide the key** (BYOK): copy [`.env.example`](.env.example) to `.env` and fill in `OPENAI_API_KEY` (or the `AZURE_OPENAI_*` vars). Your real `.env`, `.live_env`, and `.connector_env` are **gitignored** — they never enter the repo, and nothing leaves your machine.
+
+> **Auth is deferred.** A local self-hosted run doesn't need it. Authentication for *exposed* deployments is coming; for now, run it where you trust the network.
+
+---
+
+## Status
+
+This is a **community release** — a working harness and a runnable demo, not a finished product.
+
+- **Stable:** the council, the calibrated-confidence read, the grounding-floor mechanism, the by-construction labeling, the audit spine, the neutral `_core` pack, BYOK (single-provider).
+- **Experimental / evolving:** the full connector plane (reference connectors are wired; the SPEC is the design), the conversational UI surface, multi-provider councils.
+- **Not included here:** auth (a local self-hosted run doesn't need it — coming for exposed deployments).
+
+We'd rather ship a smaller honest thing than a broad one that over-promises.
+
+---
+
+## Open-core
+
+The engine, the harness, the neutral `_core` pack, the sample packs, and the plugin/connector interface are **all open** (see [`LICENSE`](LICENSE)) — because adoption beats protecting the bits, and the moat was never the cases. The full clinical `healthcare` domain pack is distributed separately (its own repo) and loads through the pack-discovery seam above. Future commercial value (calibration, the SME-calibration loop, larger curated corpora, hosted/VPC, support) is **deferred until there's pull** — and would be *new* value, not a re-closing of what ships open here. The free core is **genuinely useful standalone** — not a crippled teaser.
+
+---
+
+## Research
+
+Lithrim Bench backs the research paper *A Deterministic Structural Floor Under LLM-as-Judge* — the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. The locked outline is [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md); the engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+
+---
+
+## Contributing
+
+Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactured wins** — a benchmark result must be reproducible, a label must be justified by construction, and a claim must say where it *doesn't* hold. Tests are the gate (`make test`), lint is `ruff` (`make lint`).
 
 ## License
 
-Apache-2.0.
+See [`LICENSE`](LICENSE).
+
+---
+
+*Lithrim Bench is built on the premise that an AI system cannot be trusted to certify its own safety — the check has to live outside it, be grounded in something real, and be honest about its own blind spots. If you find a place it over-claims, open an issue. That's the contribution we value most.*

@@ -21,8 +21,9 @@ out/
 # Raw marketing/screen-capture footage — large local scratch, never commit (published cuts live under out/).
 marketing_raw/
 
-# Live-stack credentials — do not commit
+# Live-stack credentials — do not commit (the template is .env.example)
 .live_env
+.connector_env
 
 # Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
 .devstack/
