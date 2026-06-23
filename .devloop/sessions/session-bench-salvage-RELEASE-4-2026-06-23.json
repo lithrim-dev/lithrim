@@ -1,0 +1,119 @@
+{
+  "session_id": "session-bench-salvage-RELEASE-4-2026-06-23",
+  "stream": "bench-salvage",
+  "phase": "RELEASE-4",
+  "driver_bundle_id": "bench-salvage-phaseRELEASE-4-shippable-bar-driver",
+  "started_at": "2026-06-23T22:40:00Z",
+  "ended_at": "2026-06-23T22:55:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-23T22:42:00Z",
+    "user_approved_at": "2026-06-23T22:42:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Autonomous mode — the driver IS the standing plan-approval; no per-cycle human go. Driver unambiguous, citations re-verified on read, no escalation-worthy drift.",
+        "evidence": "kickoff: 'The driver is your standing plan-approval (autonomous mode — proceed through implementation; do not wait for a human go).'",
+        "decided_at": "2026-06-23T22:42:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "In-scope addition: .connector_env was NOT in .gitignore (driver §1.8/A3b assumes it). Added it (one line) so A3b can be green — required by the driver's own acceptance test.",
+        "evidence": ".gitignore had only .env (line 5) + .live_env (line 25); 'git check-ignore .connector_env' returned exit=1 (not ignored).",
+        "decided_at": "2026-06-23T22:50:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "514d04c4307cafb05567aaf2e10c90039b598a4f",
+      "repo": "lithrim-bench",
+      "title": "test(demo): zero-config make demo + README/secrets hygiene — red",
+      "summary": "tests/test_demo.py — A1/A2/A3a/A3b acceptance tests, RED before the wiring (clean-clone subprocess replay, tracked-inputs, secrets-gitignored, README-clean)."
+    },
+    {
+      "hash": "443a40fad5597fcbb3e349f31862547fc8d11460",
+      "repo": "lithrim-bench",
+      "title": "feat(demo): make demo — $0 flagship-loop replay on the _core case",
+      "summary": "Relocate the extracted PipelineResult to a TRACKED examples/_core baseline, point ws0_default at it, scripts/demo.py formatter, Makefile demo target. grade_replay byte-unchanged; frozen council untouched."
+    },
+    {
+      "hash": "31cb019756971ea727879d9dc1f8c8a79be63340",
+      "repo": "lithrim-bench",
+      "title": "docs(release): honest product README + .env.example",
+      "summary": "Replace the stale paper README (no /Users/ path, no lithrim-backend dep) adapting docs/RELEASE_README_DRAFT.md; preserve the does-NOT-generalize honesty boundary verbatim; .env.example template; .gitignore .connector_env."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest tests/test_demo.py -q -p no:cacheprovider -W ignore",
+    "red_evidence": "4 failed, 2 passed, 1 error. A1 error: 'demo agent has no committed baseline (clean clone would fail)' (dataset.baseline==''); A3a: 'dataset.baseline is empty'; A3b: '.connector_env is not gitignored' + '.env.example must be tracked'; A2: 'README.md still contains a hardcoded /Users/ personal path' (--golden /Users/aregee/.../lithrim-backend/...). The 2 passes (.env/.live_env gitignored) are correct-by-current-state, not vacuous.",
+    "green_command": "PYENV_VERSION=debuglithrim python -m pytest -q -p no:cacheprovider -W ignore  (full bare-CE suite)",
+    "green_evidence": "1 failed, 677 passed, 155 skipped in 11.83s. The single failure is the ONLY allowed pre-existing red: tests/test_pack_layer3.py::test_broad_domain_sweep_residual_is_the_closed_carveout — confirmed it points at the FOREIGN staged lithrim_bench/verification/spec.py (spec.py:51, spec.py:99 clinical prose), not my changes. tests/test_demo.py: 7 passed."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — make demo shows the flagship loop $0/no-key/no-pack on a clean-clone sim",
+      "test": "tests/test_demo.py::test_make_demo_replays_the_flagship_loop_zero_config",
+      "verdict": "PASS",
+      "evidence": "GREEN. Hermetic subprocess (no .env, no LITHRIM_BENCH_PACK[S_DIR], OPENAI_API_KEY='') replays the committed baseline -> verdict=reject, original PASS -> grounded/stage BLOCK, 3 judge votes {risk_judge,policy_judge,faithfulness_judge}, findings include UNSUPPORTED_ASSERTION + SOURCE_CONTRADICTION. `make demo` on the checkout renders the full council-votes -> floor-flip -> audit view."
+    },
+    {
+      "criterion": "A2 — README.md is the honest product README (no /Users/, make demo + BYOK quickstarts, honesty boundary preserved)",
+      "test": "tests/test_demo.py::test_readme_is_clean_and_current",
+      "verdict": "PASS",
+      "evidence": "GREEN. README replaced from docs/RELEASE_README_DRAFT.md: no /Users/ path, 'make demo' + 'LITHRIM_LLM_PROVIDER' present, the 'where the floor does / does NOT generalize' boundary preserved verbatim (recall 0.375 / precision 0.75 held-out result). Paper kept under a Research section; no lithrim-backend in the quickstart."
+    },
+    {
+      "criterion": "A3a — clean-clone inputs (case + baseline) git-tracked",
+      "test": "tests/test_demo.py::test_demo_inputs_are_tracked_for_a_clean_clone",
+      "verdict": "PASS",
+      "evidence": "GREEN. case fixture (tests/fixtures/standalone/case._core_fabricated_claim.jsonl) + the relocated baseline (examples/_core/baseline._core_fabricated_claim.json) are `git ls-files`-tracked and NOT gitignored. The baseline was extracted out of gitignored out/ws0/."
+    },
+    {
+      "criterion": "A3b — secrets gitignored + untracked; .env.example tracked",
+      "test": "tests/test_demo.py::test_secrets_are_gitignored / ::test_env_example_is_tracked",
+      "verdict": "PASS",
+      "evidence": "GREEN. .env / .live_env / .connector_env all gitignored + untracked (.connector_env was added to .gitignore this cycle — it was missing). .env.example tracked."
+    },
+    {
+      "criterion": "A4 (Gate 0) — full bare-CE suite GREEN + lint clean (touched) + seam-freeze 0-delta",
+      "test": "PYENV_VERSION=debuglithrim python -m pytest -q -p no:cacheprovider -W ignore",
+      "verdict": "PASS",
+      "evidence": "677 passed / 155 skipped / 1 failed; the 1 failure is the sanctioned foreign-spec.py carveout (test_pack_layer3). ruff check on scripts/demo.py + tests/test_demo.py: 'All checks passed!' (the repo-wide 309-error ruff backlog is the deferred mass-fix, none in my files). Seam-freeze: tests/test_6bclean_seam_guard.py + test_6bclean_attestation.py = 17 passed (0-delta)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "bare_ce_suite": "677 passed, 155 skipped, 1 failed (sanctioned foreign-spec.py red)",
+    "test_demo_py": "7 passed",
+    "demo_loop": "council PASS -> floor BLOCK -> composite reject; votes {risk:BLOCK, policy:WARN, faithfulness:BLOCK}; findings [UNSUPPORTED_ASSERTION, SOURCE_CONTRADICTION, MISSING_CONTEXT]",
+    "baseline_relocation": "out/ws0/_core_fabricated_claim.json (gitignored, run-record wrapper) -> examples/_core/baseline._core_fabricated_claim.json (tracked, extracted 'result' PipelineResult, 11887 bytes)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BENCH-SALVAGE-RELEASE4-1",
+      "title": "out/ws0/_core_fabricated_claim.json is a stale local SOURCE for the tracked baseline",
+      "severity": "low",
+      "fix_location": "examples/_core/baseline._core_fabricated_claim.json (now the SoT) vs out/ws0/ (gitignored, regenerable via --in-process)",
+      "impact": "The tracked baseline was hand-extracted from a gitignored in_process run-record. If the _core case/ontology/council changes, regenerate it (run --in-process then re-extract the 'result'). Low: the case+ontology are frozen for the demo; a future drift-guard could re-derive it in CI.",
+      "confidence": "CONFIRMED",
+      "evidence": "git check-ignore out/ws0/_core_fabricated_claim.json -> exit=0 (matched by 'out/' .gitignore:19); the tracked baseline is the extracted rec['result']."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "RELEASE-4 shippable bar is GREEN: `git clone` -> `make demo` shows the flagship loop at $0 (council votes -> deterministic floor flip PASS->BLOCK -> audit findings), no keys/network/external pack. The blocker (ws0_default dataset.baseline='' + the baseline data only under gitignored out/ws0/, both CONFIRMED) was fixed by relocating the extracted PipelineResult to a TRACKED examples/_core baseline (decision: relocate-file, NOT unwrap-in-grade_replay — keeps grade_replay a byte-frozen pure JSON read with grade_live signature-parity; the extracted shape is exactly what grade_live/grade_inprocess return). README replaced from the honest draft (no /Users/ path, honesty boundary preserved verbatim, no lithrim-backend dep). .env.example added; .connector_env added to .gitignore (it was missing). 3 scoped commits, no foreign spec.py/app.jsx swept. Gate 0: 677 pass / 155 skip / 1 fail (the sanctioned foreign-spec.py carveout); touched-file lint clean; seam-freeze 0-delta. Verdict PROCEED-WITH-CAVEATS only because the suite carries the pre-existing foreign-spec.py red (not introduced here, explicitly out of scope) — the cycle's own work is CLEAN. Monitor: on audit, confirm the foreign red is unchanged and review the README honesty boundary + no-over-claims (the critic's named check).",
+
+  "next_session_hint": "monitor should run /devloop-critique on the README (honesty boundary + no over-claims + no personal paths) then /devloop-audit bench-salvage RELEASE-4"
+}
