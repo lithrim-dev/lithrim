@@ -41,6 +41,10 @@ vi.mock("./bff.js", () => ({
   getConversation,
   putConversation,
   deleteConversation,
+  // UI-LOGIN-1: LeftRail reads these for the runtime sign-out affordance — stub them so the
+  // whole-surface mock covers every export the mounted components import.
+  hasStoredToken: vi.fn().mockReturnValue(false),
+  logout: vi.fn(),
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;
     onEvent({ event: "assistant_delta", text: "Authoring the risk judge, then running a replay." });

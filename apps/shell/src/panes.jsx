@@ -7,7 +7,7 @@ import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation } from "./bff.js"; // PERSIST-CONV: the durable-thread store
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1: the runtime auth token
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -111,6 +111,11 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
           <div className="who">You</div>
           <div className="org">Local workspace</div>
         </div>
+        {/* UI-LOGIN-1: sign-out is shown ONLY when a runtime token is stored (absent on an
+            open/local server) — it clears the token + re-raises the login gate. */}
+        {hasStoredToken() && (
+          <button className="icon-btn" title="Sign out" aria-label="Sign out" onClick={logout}><Icon name="key" size={16} /></button>
+        )}
         <button className="icon-btn"><Icon name="dots" size={16} /></button>
       </div>
     </aside>

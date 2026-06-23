@@ -11,6 +11,7 @@
 import { useState, useEffect } from "react";
 import App from "./app.jsx";
 import { JourneyApp } from "./journey/JourneyApp.jsx";
+import { AuthGate } from "./auth.jsx"; // UI-LOGIN-1: the reactive runtime BFF login gate
 
 // Entry mode: the product by default; honor an explicit query param so the demo stays
 // bookmarkable without making it the default surface.
@@ -31,5 +32,9 @@ export default function RootApp() {
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
 
   const shared = { theme, setTheme, mode, setMode };
-  return mode === "journey" ? <JourneyApp {...shared} /> : <App {...shared} />;
+  return (
+    <AuthGate>
+      {mode === "journey" ? <JourneyApp {...shared} /> : <App {...shared} />}
+    </AuthGate>
+  );
 }

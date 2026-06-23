@@ -4,19 +4,38 @@
    else "" so requests go through the vite dev proxy (/v1 → :8787). See SPEC §5. */
 
 const BASE = import.meta.env.VITE_BFF_URL ?? "";
-// BFF-AUTH-1: when the BFF is exposed with an inbound token (LITHRIM_BFF_TOKEN), the shell
-// presents it as a Bearer header. Unset (the local single-user default) → no header, unchanged.
-const AUTH = import.meta.env.VITE_BFF_TOKEN
-  ? { Authorization: `Bearer ${import.meta.env.VITE_BFF_TOKEN}` } : {};
+// UI-LOGIN-1: the BFF auth token is a RUNTIME client credential — entered/cleared from the UI
+// and stored in localStorage, never baked into the bundle (so it's rotatable without a rebuild
+// and stays out of the JS). A build-baked VITE_BFF_TOKEN still works as a fallback. When the
+// server gate is off (no LITHRIM_BFF_TOKEN) no 401 ever fires, so the login gate never shows.
+const TOKEN_KEY = "lithrim_bff_token";
+export const getToken = () => {
+  try { const t = localStorage.getItem(TOKEN_KEY); if (t) return t; } catch {}
+  return import.meta.env.VITE_BFF_TOKEN || "";
+};
+export const hasStoredToken = () => { try { return !!localStorage.getItem(TOKEN_KEY); } catch { return false; } };
+export const setToken = (t) => { try { localStorage.setItem(TOKEN_KEY, t); } catch {} };
+export const clearToken = () => { try { localStorage.removeItem(TOKEN_KEY); } catch {} };
+const authHeader = () => { const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; };
+// validate a candidate token against a gated route — non-401 (incl. 200/500) = the gate accepted it.
+export const validateToken = async (candidate) => {
+  try {
+    const r = await fetch(BASE + "/v1/meta", { headers: candidate ? { Authorization: `Bearer ${candidate}` } : {} });
+    return r.status !== 401;
+  } catch { return false; }
+};
+// logout = forget the token + raise the auth-required signal so the gate re-shows (no full reload).
+export const logout = () => { clearToken(); try { window.dispatchEvent(new Event("lithrim:auth-required")); } catch {} };
 
 async function call(path, { method = "GET", body, headers } = {}) {
-  const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...AUTH, ...(headers || {}) };
+  const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...authHeader(), ...(headers || {}) };
   const res = await fetch(BASE + path, {
     method,
     headers: Object.keys(merged).length ? merged : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    if (res.status === 401) { try { window.dispatchEvent(new Event("lithrim:auth-required")); } catch {} }
     const detail = await res.text().catch(() => "");
     throw new Error(`${method} ${path} → ${res.status}${detail ? `: ${detail}` : ""}`);
   }
@@ -288,7 +307,7 @@ export async function chatStream(
   // not the agent's seed. A selector, never a paid knob.
   const res = await fetch(BASE + "/v1/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...AUTH, ...(actor ? { "X-Actor": actor } : {}) },
+    headers: { "Content-Type": "application/json", ...authHeader(), ...(actor ? { "X-Actor": actor } : {}) },
     body: JSON.stringify({ message, agent, history, ...(active_case ? { active_case } : {}) }),
     signal,
   });
