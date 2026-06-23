@@ -42,10 +42,11 @@ vi.mock("./bff.js", () => {
     getJudge: vi.fn().mockResolvedValue({ role: "risk_judge", assigned_flags: [], questions: [] }),
     getAudit: vi.fn().mockResolvedValue({ records: [] }),
     getRunAudit: vi.fn().mockResolvedValue({}),
-    // UI-LOGIN-1: LeftRail (mounted via App) reads these for the runtime sign-out affordance —
-    // stub them so the rail renders without hitting an undefined export. No token => no button.
+    // UI-LOGIN-1 / SESSION-MENU-1: LeftRail (mounted via App) reads these for the session-menu
+    // affordance — stub them so the rail renders without hitting an undefined export.
     hasStoredToken: vi.fn().mockReturnValue(false),
     logout: vi.fn(),
+    signIn: vi.fn(),
     // the loop under test: stream a run_result (the $0 replay) + the pane directive
     chatStream: vi.fn(async (_req, { onEvent } = {}) => {
       if (!onEvent) return;

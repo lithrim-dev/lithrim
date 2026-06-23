@@ -36,10 +36,11 @@ vi.mock("./bff.js", () => ({
   getConversation: vi.fn().mockResolvedValue({ agent: "ws0_default", thread: [] }),
   putConversation: vi.fn().mockResolvedValue({ ok: true }),
   deleteConversation: vi.fn().mockResolvedValue({ ok: true, removed: false }),
-  // UI-LOGIN-1: LeftRail (mounted via App) reads these for the runtime sign-out affordance —
-  // stub them so the rail renders without hitting an undefined export. No token stored => no button.
+  // UI-LOGIN-1 / SESSION-MENU-1: LeftRail (mounted via App) reads these for the session-menu
+  // affordance — stub them so the rail renders without hitting an undefined export.
   hasStoredToken: vi.fn().mockReturnValue(false),
   logout: vi.fn(),
+  signIn: vi.fn(),
   // The loop under test: drive the onEvent callback with a scripted SSE stream.
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;

@@ -28,6 +28,10 @@ export const validateToken = async (candidate) => {
 };
 // logout = forget the token + raise the auth-required signal so the gate re-shows (no full reload).
 export const logout = () => { clearToken(); try { window.dispatchEvent(new Event("lithrim:auth-required")); } catch {} };
+// SESSION-MENU-1: a PROACTIVE sign-in trigger — raise the same gate signal AuthGate already listens
+// for, so the login screen opens on demand (not only on a 401). On an open server the entered token
+// validates against /v1/meta; cancel returns to the app (the LoginScreen is now cancelable).
+export const signIn = () => { try { window.dispatchEvent(new Event("lithrim:auth-required")); } catch {} };
 
 async function call(path, { method = "GET", body, headers } = {}) {
   const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...authHeader(), ...(headers || {}) };

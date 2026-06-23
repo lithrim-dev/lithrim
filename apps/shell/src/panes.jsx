@@ -7,7 +7,7 @@ import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1: the runtime auth token
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -43,6 +43,11 @@ const SETUP_PARTS = [
 export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDeleteAgent, onNewEval, steps, journeyCount }) {
   const planSteps = steps && steps.length ? steps : STEPS;
   const count = journeyCount || { done: planSteps.filter((s) => s.state === "done").length, total: planSteps.length };
+  // SESSION-MENU-1: an always-on session control. BFF auth is reactive-only (a 401 raises the gate),
+  // so on an open/local server there was no way to proactively sign in/out — and the footer "⋯" was a
+  // dead button. This is passive rail chrome: it never operates panes/top-bar to advance the product.
+  const [sessionMenu, setSessionMenu] = useState(false);
+  const authed = hasStoredToken();
   return (
     <aside className="rail" style={{ width }}>
       <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
@@ -105,18 +110,38 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
           ))}
         </div>
       </div>
-      <div className="rail-foot">
+      <div className="rail-foot" style={{ position: "relative" }}>
         <div className="avatar">L</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="who">You</div>
           <div className="org">Local workspace</div>
         </div>
-        {/* UI-LOGIN-1: sign-out is shown ONLY when a runtime token is stored (absent on an
-            open/local server) — it clears the token + re-raises the login gate. */}
-        {hasStoredToken() && (
-          <button className="icon-btn" title="Sign out" aria-label="Sign out" onClick={logout}><Icon name="key" size={16} /></button>
+        {/* SESSION-MENU-1: the always-on session menu — the footer "⋯" now toggles a small popover
+            with a proactive Sign in… / Sign out (folding in the old token-only key button). */}
+        <button className="icon-btn" aria-label="Session menu" title="Session" onClick={() => setSessionMenu((v) => !v)}>
+          <Icon name="dots" size={16} />
+        </button>
+        {sessionMenu && (
+          <>
+            <div data-testid="session-menu-backdrop" onClick={() => setSessionMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+            <div role="menu" style={{ position: "absolute", right: 12, bottom: "calc(100% + 6px)", zIndex: 41, minWidth: 188, padding: 6, borderRadius: 10, background: "var(--panel)", border: "1px solid var(--border)", boxShadow: "0 8px 28px rgba(0,0,0,0.18)" }}>
+              <div style={{ padding: "6px 8px", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4 }}>
+                {authed ? "Signed in with an access token" : "Not signed in · server is open"}
+              </div>
+              {authed ? (
+                <button className="icon-btn" role="menuitem" onClick={() => { setSessionMenu(false); logout(); }}
+                  style={{ width: "100%", justifyContent: "flex-start", height: 32, padding: "0 8px", fontSize: 13, color: "var(--text)" }}>
+                  Sign out
+                </button>
+              ) : (
+                <button className="icon-btn" role="menuitem" onClick={() => { setSessionMenu(false); signIn(); }}
+                  style={{ width: "100%", justifyContent: "flex-start", height: 32, padding: "0 8px", fontSize: 13, color: "var(--text)" }}>
+                  Sign in…
+                </button>
+              )}
+            </div>
+          </>
         )}
-        <button className="icon-btn"><Icon name="dots" size={16} /></button>
       </div>
     </aside>
   );

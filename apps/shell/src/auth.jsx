@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { Mark } from "./brand.jsx";
 import { setToken, validateToken } from "./bff.js";
 
-export function LoginScreen({ onSuccess }) {
+export function LoginScreen({ onSuccess, onCancel }) {
   const [token, setTok] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -52,6 +52,19 @@ export function LoginScreen({ onSuccess }) {
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        {/* SESSION-MENU-1: a PROACTIVE sign-in (esp. on an open server, where any token validates)
+            must not be a dead-end — a subtle escape returns to the app. On a genuine 401 the next
+            call simply re-raises the gate. */}
+        {onCancel && (
+          <button
+            data-testid="auth-cancel"
+            type="button"
+            onClick={onCancel}
+            style={{ marginTop: 12, width: "100%", padding: "6px 12px", borderRadius: 9, border: "none", background: "transparent", color: "var(--muted)", fontSize: 12.5, cursor: "pointer" }}
+          >
+            Continue without signing in
+          </button>
+        )}
       </form>
     </div>
   );
@@ -68,7 +81,10 @@ export function AuthGate({ children }) {
   }, []);
 
   return needsLogin ? (
-    <LoginScreen onSuccess={() => { setNeedsLogin(false); setEpoch((e) => e + 1); }} />
+    <LoginScreen
+      onSuccess={() => { setNeedsLogin(false); setEpoch((e) => e + 1); }}
+      onCancel={() => setNeedsLogin(false)}
+    />
   ) : (
     // bumping `epoch` REMOUNTS the children so the app re-fetches with the new token — no reload.
     <div key={epoch} style={{ display: "contents" }}>{children}</div>
