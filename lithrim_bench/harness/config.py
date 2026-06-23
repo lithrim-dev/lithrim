@@ -359,10 +359,10 @@ def save_conversation(
 ) -> str:
     """Upsert a conversation thread for ``agent`` into the config DB (PERSIST-CONV).
 
-    A PLAIN INSERT-OR-REPLACE on (workspace_id, agent) — the latest thread wins (per-turn UX
-    state, NOT an audited config change; see ``_CONVERSATIONS_SCHEMA``). ``thread`` is the
-    shell's message list (``[{role, text?, parts?}]``); stored as ``json.dumps``. Returns the
-    db path."""
+    A portable upsert (INSERT … ON CONFLICT DO UPDATE — works on Postgres AND SQLite, unlike
+    ``INSERT OR REPLACE``) on (workspace_id, agent) — the latest thread wins (per-turn UX state,
+    NOT an audited config change; see ``_CONVERSATIONS_SCHEMA``). ``thread`` is the shell's
+    message list (``[{role, text?, parts?}]``); stored as ``json.dumps``. Returns the db path."""
     from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
 
     wsid = workspace_id_of(db_path)
@@ -371,8 +371,10 @@ def save_conversation(
     with connect(config_db_url(db_path)) as conn:
         _ensure_conversations(conn, wsid)
         conn.execute(
-            "INSERT OR REPLACE INTO conversations (workspace_id, agent, thread, updated_at) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO conversations (workspace_id, agent, thread, updated_at) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (workspace_id, agent) DO UPDATE SET "
+            "thread = EXCLUDED.thread, updated_at = EXCLUDED.updated_at",
             (wsid, agent, payload, updated_at),
         )
     return str(db_path)
