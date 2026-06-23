@@ -4,7 +4,7 @@
    side that the Python tests/test_ws5_bff.py round-trip does not cover. */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { runEval, getOntology, listAgents, createAgent, deleteAgent, putJudge } from "./bff.js";
+import { runEval, getOntology, listAgents, createAgent, deleteAgent, putJudge, validateToken } from "./bff.js";
 import { ArtifactPane } from "./artifact.jsx";
 
 // A representative /v1/run-eval response: the S-BS-7 clinical story (reject; one
@@ -24,8 +24,8 @@ const COMPOSITE_RESPONSE = {
   calibration_check: { n_cases: 1, verdict_match_rate: "1/1", status: "PASS", ece: 0.5, caveat: "N=1 diagnostic only" },
 };
 
-function mockFetch(body, ok = true) {
-  return vi.fn().mockResolvedValue({ ok, status: ok ? 200 : 500, json: async () => body, text: async () => JSON.stringify(body) });
+function mockFetch(body, ok = true, status = ok ? 200 : 500) {
+  return vi.fn().mockResolvedValue({ ok, status, json: async () => body, text: async () => JSON.stringify(body) });
 }
 
 const paneProps = { width: 440, full: false, tab: "report", setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
@@ -138,5 +138,32 @@ describe("CRUD-1 bff.js config-plane client", () => {
     await putJudge("risk_judge", { model: "", assigned_flags: [], validator_refs: [] }, { rationale: "x" });
     const [url] = fetch.mock.calls[0];
     expect(url).not.toContain("agent=");
+  });
+});
+
+// UI-LOGIN-1: the runtime auth gate's signal + validate plumbing in bff.js.
+describe("UI-LOGIN-1 bff.js auth gate", () => {
+  it("call() on a 401 dispatches the lithrim:auth-required signal (before throwing)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ detail: "unauthorized" }, false, 401));
+    const spy = vi.fn();
+    window.addEventListener("lithrim:auth-required", spy);
+    // any call exercising the shared call() wrapper — a 401 must raise the gate signal then throw
+    await expect(listAgents()).rejects.toThrow(/agents/);
+    window.removeEventListener("lithrim:auth-required", spy);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("validateToken returns false on a 401 (the gate rejected the candidate)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ detail: "unauthorized" }, false, 401));
+    expect(await validateToken("bad")).toBe(false);
+    // it probed the gated route with the candidate as a Bearer header
+    const [url, opts] = fetch.mock.calls[0];
+    expect(url).toContain("/v1/meta");
+    expect(opts.headers).toMatchObject({ Authorization: "Bearer bad" });
+  });
+
+  it("validateToken returns true on a non-401 (200 = the gate accepted it)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ version: "x" }, true, 200));
+    expect(await validateToken("good")).toBe(true);
   });
 });
