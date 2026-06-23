@@ -33,6 +33,55 @@ from .jute_dspy import strip_fences
 _REQUIRED_KEYS = ("case_id", "response")
 
 
+# CRITERIA-AWARE INGEST (gap #4): the extraction target is NOT a fixed envelope — it is THIS
+# agent's evaluation criteria. The required in-case fields are derived from the active ontology's
+# ``verification_contracts``: each floor's ``*_path`` param names the field it grounds against (e.g.
+# ``oracle_path: patient_profile.conditions``, or ``stated_path: stated_refusals``). Generic —
+# driven by the ontology, not any source format.
+#
+# §4.1 already carries the artifact (response) and the grading context, so a criterion grounding
+# against one of THOSE names needs no extra extraction target; everything else a contract names —
+# INCLUDING single-segment fields like ``stated_refusals`` — IS a field ingestion must populate.
+_ENVELOPE_COVERED = frozenset({"transcript", "note", "response", "context", "artifact", "prompt"})
+
+
+def required_case_fields(ontology: Any) -> tuple[str, ...]:
+    """The in-case fields this agent's criteria ground against, derived from its contracts' params."""
+    fields: set[str] = set()
+    for c in getattr(ontology, "contracts", ()) or ():
+        params = getattr(c, "params", {}) or {}
+        for key, value in params.items():
+            if (
+                key.endswith("_path")
+                and isinstance(value, str)
+                and value
+                and value not in _ENVELOPE_COVERED
+            ):
+                fields.add(value)
+    return tuple(sorted(fields))
+
+
+def _dig(obj: Any, path: str) -> Any:
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _set_path(obj: dict, path: str, value: Any) -> None:
+    parts = path.split(".")
+    cur = obj
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[part] = nxt
+        cur = nxt
+    cur[parts[-1]] = value
+
+
 def _coerce_array(applied: Any) -> list | None:
     """Lift the per-scene array out of an apply/test-template response. The live apply returns
     ``{result: <array>}``; test-template returns ``{compiled, output, error}`` with ``output``
@@ -60,6 +109,22 @@ def _null_keys(record: Any) -> list[str]:
     return [k for k in _REQUIRED_KEYS if record.get(k) in (None, "")]
 
 
+# a criteria field is MISSING only when its key is absent or null/empty-string — an empty LIST/DICT
+# is a VALID extracted value (e.g. ``noted_refusals=[]`` IS the dissent-erasure the floor grades,
+# not a mis-join). Key-presence, not non-emptiness, is the structural invariant for criteria fields.
+_MISSING_VALUES = (None, "")
+
+
+def _missing_criteria(record: Any, required_fields: tuple[str, ...]) -> list[str]:
+    """The criteria-required in-case fields (gap #4) a record fails to populate — absent or null at
+    the dotted path. Empty list when ``required_fields`` is () — the default §4.1 behavior."""
+    if not required_fields:
+        return []
+    if not isinstance(record, dict):
+        return list(required_fields)
+    return [p for p in required_fields if _dig(record, p) in _MISSING_VALUES]
+
+
 # the empty-context sentinels: a `context` string the JUTE transform produced when it FAILED to
 # map the input (e.g. a clinical transcript). An empty object/array is "present but carries
 # nothing" — the SOAP would be graded against nothing, the silent-degradation we reject.
@@ -85,7 +150,7 @@ def _envelope_incomplete(record: Any) -> list[str]:
     return missing
 
 
-def _to_envelope(record: dict) -> dict:
+def _to_envelope(record: dict, required_fields: tuple[str, ...] = ()) -> dict:
     """Project one raw record into the §4.1 eval-case envelope. Ingested data is UNLABELED by
     construction (customer output is the SUT input, not gold): ``expected_safety_flags: []`` +
     ``injection_recipe: null`` (HONEST-1). ``response`` -> ``artifacts[0].content``.
@@ -112,7 +177,7 @@ def _to_envelope(record: dict) -> dict:
             if record.get(k) is not None
         }
         context = json.dumps(ctx_bits, sort_keys=True)
-    return {
+    env = {
         "case_id": record.get("case_id"),
         "artifacts": [
             {
@@ -137,13 +202,26 @@ def _to_envelope(record: dict) -> dict:
         "model": record.get("model"),
         "node": record.get("node"),
     }
+    # CRITERIA-AWARE (gap #4): carry the agent-criteria paths through VERBATIM so the floor's
+    # oracle (e.g. patient_profile.conditions) survives into the gradeable case. Default () =
+    # no change (the frozen §4.1 envelope the StoryWorld connector relies on).
+    for path in required_fields:
+        value = _dig(record, path)
+        if value not in (None, ""):
+            _set_path(env, path, value)
+    return env
 
 
 # --------------------------------------------------------------------------- #
 # the metric (the whole point): the hard structural output-invariant
 # --------------------------------------------------------------------------- #
 def score_extraction(
-    client: Any, template: str, sample_input: Any, *, expected_count: int
+    client: Any,
+    template: str,
+    sample_input: Any,
+    *,
+    expected_count: int,
+    required_fields: tuple[str, ...] = (),
 ) -> dict:
     """Score a candidate `jute_transform` against the structural output-invariant.
 
@@ -171,9 +249,10 @@ def score_extraction(
     count = len(array)
 
     def _incomplete(r: Any) -> list[str]:
-        # a record is incomplete if a required §4.1 key is null (mis-join) OR its ENVELOPE
-        # carries no graded content / no grading context (the transcript-drop).
-        return _null_keys(r) + _envelope_incomplete(r)
+        # a record is incomplete if a required §4.1 key is null (mis-join), its ENVELOPE carries
+        # no graded content / no grading context (the transcript-drop), OR it fails to populate a
+        # criteria-required path (gap #4 — the floor's oracle, e.g. patient_profile.conditions).
+        return _null_keys(r) + _envelope_incomplete(r) + _missing_criteria(r, required_fields)
 
     null_records = [r for r in array if _incomplete(r)]
     nulls = len(null_records)
@@ -185,7 +264,7 @@ def score_extraction(
     count_score = 1.0 if count_ok else (min(count, expected_count) / expected_count if expected_count else 0.0)
     null_score = (count - nulls) / count if count else 0.0
     graded = 1.0 if accepted else round(count_score * null_score, 3)
-    cases = [_to_envelope(r) for r in array] if accepted else []
+    cases = [_to_envelope(r, required_fields) for r in array] if accepted else []
     return {
         "accepted": accepted,
         "graded": graded,
@@ -235,7 +314,9 @@ def extraction_feedback_from(score: dict) -> str:
     return " ".join(parts) if parts else "all records present and complete"
 
 
-def make_extraction_metric(client: Any, sample_input: Any, expected_count: int):
+def make_extraction_metric(
+    client: Any, sample_input: Any, expected_count: int, *, required_fields: tuple[str, ...] = ()
+):
     """Build a DSPy-style metric(example, pred, trace=None) -> float|bool over the structural
     invariant (parallels `jute_dspy.make_bench_metric`). With `trace` set (the optimizer
     bootstrap gate) it returns the hard `accepted` bool — only fully invariant-satisfying
@@ -245,7 +326,10 @@ def make_extraction_metric(client: Any, sample_input: Any, expected_count: int):
         template = strip_fences(getattr(pred, "jute_transform", "") or "")
         if not template.strip():
             return False if trace is not None else 0.0
-        s = score_extraction(client, template, sample_input, expected_count=expected_count)
+        s = score_extraction(
+            client, template, sample_input, expected_count=expected_count,
+            required_fields=required_fields,
+        )
         if trace is not None:
             return bool(s["accepted"])
         return 1.0 if s["accepted"] else s["graded"]
@@ -299,6 +383,7 @@ def build_extractor_generator(
     predictor: Any = None,
     seed_template: str = "",
     seed_feedback: str = "",
+    required_fields: tuple[str, ...] = (),
 ):
     """Construct a JuteExtractorGenerator (parallels `jute_dspy.build_generator`). `predictor`
     is injectable for offline tests (a callable returning an object with `.jute_transform`);
@@ -322,6 +407,7 @@ def build_extractor_generator(
             self.max_iters = max_iters
             self.seed_template = seed_template
             self.seed_feedback = seed_feedback
+            self.required_fields = required_fields
 
         def forward(self, extraction_rules: str, sample_input: Any = None) -> Any:
             sample = sample_input if sample_input is not None else self.sample_input
@@ -342,7 +428,11 @@ def build_extractor_generator(
                 template = strip_fences(getattr(pred, "jute_transform", "") or "")
                 s = (
                     score_extraction(
-                        self.client, template, sample, expected_count=self.expected_count
+                        self.client,
+                        template,
+                        sample,
+                        expected_count=self.expected_count,
+                        required_fields=self.required_fields,
                     )
                     if template.strip()
                     else {

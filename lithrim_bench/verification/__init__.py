@@ -26,6 +26,7 @@ from .jute_extractor import (
     build_extractor_generator,
     extraction_feedback_from,
     make_extraction_metric,
+    required_case_fields,
     score_extraction,
 )
 from .jute_gen import JuteGenValidatorTool
@@ -107,6 +108,7 @@ __all__ = [
     "make_extraction_metric",
     "build_extractor_generator",
     "best_of_n_extractor",
+    "required_case_fields",
     "mutation_coverage",
     "joint_coverage",
     "mutants_to_cases",

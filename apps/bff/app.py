@@ -2658,6 +2658,7 @@ def _build_tool_context(
             best_of_n_extractor,
             build_extractor_generator,
             render_dsl_excerpt,
+            required_case_fields,
             score_extraction,
         )
 
@@ -2666,6 +2667,19 @@ def _build_tool_context(
             sample = json.loads(json_dump)
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"the ingested JSON did not parse: {exc}") from exc
+
+        # CRITERIA-AWARE INGEST (gap #4): the extraction target is THIS agent's evaluation criteria,
+        # not a fixed envelope. Derive the in-case fields its verification_contracts ground against
+        # (the floor's oracle, e.g. patient_profile.conditions); require them at BOTH gates AND name
+        # them in the rules the generator authors against. Graceful: an unresolvable ontology falls
+        # back to () — the §4.1 behavior — so ingestion never gets worse than before.
+        req_fields: tuple[str, ...] = ()
+        try:
+            _ag = _load_agent(ag_name, db_path)
+            _ont_path, _ = _resolve_ontology_path(_ag, workdir)
+            req_fields = required_case_fields(load_ontology(_ont_path))
+        except Exception:  # noqa: BLE001 — criteria-targeting is best-effort; never break ingest
+            req_fields = ()
         # expected_count = the number of source entries the transform must yield one case each
         # from. RESOLUTION ORDER (NARR-7 / G3 — the {issues,comments}-dict bug fix):
         #   1. an EXPLICIT expected_count (the connector / a precise caller names it);
@@ -2685,6 +2699,13 @@ def _build_tool_context(
             "text). A record with an empty context is rejected (the response would be graded "
             "against nothing)."
         )
+        if req_fields:
+            rules = rules + (
+                " In ADDITION, each record MUST populate these evaluation-criteria fields the grader "
+                "grounds against (nested dotted paths into the case; map them from the source JSON): "
+                + ", ".join(req_fields)
+                + ". A record missing any of these is rejected."
+            )
 
         client = EtlpJuteClient()
 
@@ -2702,7 +2723,8 @@ def _build_tool_context(
         _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
         if _existing and (_existing.get("content") or {}).get("yaml"):
             _pre = score_extraction(
-                client, _existing["content"]["yaml"], sample, expected_count=expected_count
+                client, _existing["content"]["yaml"], sample,
+                expected_count=expected_count, required_fields=req_fields,
             )
             if _pre["accepted"]:
                 template, scored, mapping_id, reused = (
@@ -2725,7 +2747,8 @@ def _build_tool_context(
 
             def make_gen():
                 return build_extractor_generator(
-                    client, excerpt, sample, expected_count=expected_count
+                    client, excerpt, sample,
+                    expected_count=expected_count, required_fields=req_fields,
                 )
 
             # GEN-LM (NARR-7.1): the generate->refine loop needs a DSPy LM to AUTHOR the transform YAML
@@ -2760,7 +2783,10 @@ def _build_tool_context(
                     f"(structural output-invariant unmet); nothing pinned"
                 )
             # apply-time re-gate: confirm the accepted template still satisfies the invariant on apply.
-            scored = score_extraction(client, template, sample, expected_count=expected_count)
+            scored = score_extraction(
+                client, template, sample,
+                expected_count=expected_count, required_fields=req_fields,
+            )
             if not scored["accepted"]:
                 raise RuntimeError(
                     f"the pinned transform failed the apply-time invariant "
