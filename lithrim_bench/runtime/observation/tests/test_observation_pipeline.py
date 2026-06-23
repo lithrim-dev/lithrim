@@ -13,6 +13,8 @@ Maps to the WS-6c-OBS acceptance criteria:
 """
 
 import asyncio
+import json
+import subprocess
 import sys
 import threading
 import time
@@ -39,10 +41,25 @@ from lithrim_bench.runtime.observation.state import _KPI_FIELDS, _SEAM_FIELDS
 from .conftest import StubLLM
 
 _PKG_DIR = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+def _subprocess_json(script: str) -> dict:
+    """Run an import-isolation probe in a CLEAN interpreter and return its ``__JSON__`` payload.
+    The in-process suite imports the council / openai elsewhere, polluting THIS interpreter's
+    sys.modules — so "a clean observation import/run pulls nothing heavy" is only honest in a fresh
+    subprocess (the same isolation pattern as test_pack_layer1b::test_pack_import_is_heavy_dep_free)."""
+    out = subprocess.run(
+        [sys.executable, "-c", script], cwd=_REPO_ROOT, capture_output=True, text=True
+    )
+    assert out.returncode == 0, f"isolation subprocess failed:\n{out.stdout}\n{out.stderr}"
+    line = next((ln for ln in out.stdout.splitlines() if ln.startswith("__JSON__")), None)
+    assert line is not None, f"no __JSON__ payload:\n{out.stdout}\n{out.stderr}"
+    return json.loads(line[len("__JSON__") :])
 
 
 # ── A1: in-process KPI pipeline end-to-end ──────────────────────────────────
@@ -213,13 +230,20 @@ def test_no_compliance_tail_imported_or_called():
 
 
 def test_importing_observation_does_not_load_compliance_modules():
-    # A3 (runtime): importing the package must not pull the recomposed compliance
-    # grade path (council / orchestrator) — they are a hand-off seam, not a dep.
-    import importlib
-
-    importlib.import_module("lithrim_bench.runtime.observation")
-    assert "lithrim_bench.runtime.council.compliance_council" not in sys.modules
-    assert "lithrim_bench.runtime.pipeline.orchestrator" not in sys.modules
+    # A3 (runtime): importing the package must not pull the recomposed compliance grade path
+    # (council / orchestrator) — a hand-off seam, not a dep. Checked in a CLEAN SUBPROCESS: the
+    # in-process suite imports the council elsewhere, so an in-process sys.modules check is
+    # order-dependent (passes alone, fails after a council test runs).
+    script = (
+        "import importlib, sys, json\n"
+        "importlib.import_module('lithrim_bench.runtime.observation')\n"
+        "print('__JSON__' + json.dumps({"
+        "'council': 'lithrim_bench.runtime.council.compliance_council' in sys.modules, "
+        "'orchestrator': 'lithrim_bench.runtime.pipeline.orchestrator' in sys.modules}))\n"
+    )
+    got = _subprocess_json(script)
+    assert got["council"] is False, "importing observation pulled compliance_council"
+    assert got["orchestrator"] is False, "importing observation pulled the pipeline orchestrator"
 
 
 def test_returned_state_has_no_compliance_seam_values(text_case, stub_llm):
@@ -231,11 +255,23 @@ def test_returned_state_has_no_compliance_seam_values(text_case, stub_llm):
 
 
 # ── A2: default install isolation + audio agents gated ──────────────────────
-def test_default_run_pulls_no_heavy_deps(text_case, stub_llm):
-    agents = ObservationAgents.build(llm_service=stub_llm)
-    _run(ObservationPipeline(agents).run(**text_case))
-    for mod in ("openai", "whisper", "torch", "librosa", "boto3", "pydantic_settings"):
-        assert mod not in sys.modules, f"{mod} must not be pulled into the default run"
+def test_default_run_pulls_no_heavy_deps():
+    # A DEFAULT run (text path, stub LLM) pulls none of the heavy/optional deps. Checked in a CLEAN
+    # SUBPROCESS — the broader in-process suite imports openai/pydantic_settings elsewhere, so the
+    # only honest check of "this run pulls nothing heavy" is a fresh interpreter (the canned StubLLM
+    # + text case are reused from the package conftest).
+    script = (
+        "import asyncio, sys, json\n"
+        "from lithrim_bench.runtime.observation import ObservationAgents, ObservationPipeline\n"
+        "from lithrim_bench.runtime.observation.tests.conftest import StubLLM, TEXT_CASE\n"
+        "agents = ObservationAgents.build(llm_service=StubLLM())\n"
+        "asyncio.run(ObservationPipeline(agents).run(**dict(TEXT_CASE)))\n"
+        "heavy = [m for m in ('openai','whisper','torch','librosa','boto3','pydantic_settings') "
+        "if m in sys.modules]\n"
+        "print('__JSON__' + json.dumps({'heavy': heavy}))\n"
+    )
+    got = _subprocess_json(script)
+    assert got["heavy"] == [], f"a default observation run pulled heavy deps: {got['heavy']}"
 
 
 def test_audio_agents_are_extra_gated():
