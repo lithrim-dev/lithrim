@@ -46,6 +46,12 @@ TOOL_SILENT_DEGRADATION = "silent_degradation"
 # class + executor ship pack-local (``packs/narrative/floors.py``). After this, authoring is
 # params-only and a second inverse floor needs no new code.
 TOOL_VALUE_PRESENCE = "value_presence"
+# CONCEPT-PRESERVATION: the generalizing successor to value_presence's lexical pin — it consumes
+# two ingest-pinned concept lists (a "stated" list vs a "noted" list) and grounds them by code
+# (equality or subsumption) via the pack's terminology tool, so a paraphrase still grounds. The
+# tool class + executor ship PACK-LOCAL; this NAME + its required-keys row are the one additive
+# core line (same minimal-registration pattern as value_presence). Domain-neutral by construction.
+TOOL_CONCEPT_PRESERVATION = "concept_preservation"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -57,6 +63,7 @@ _KNOWN_TOOLS = {
     TOOL_LENGTH_VIOLATION,
     TOOL_SILENT_DEGRADATION,
     TOOL_VALUE_PRESENCE,
+    TOOL_CONCEPT_PRESERVATION,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -85,6 +92,11 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # value_presence: the SME pins ``value_regex`` (the required token extractor); ``source_path``
     # is optional (default ``transcript``). The artifact under test is ``artifacts[0].content``.
     TOOL_VALUE_PRESENCE: {"value_regex"},
+    # concept_preservation: the SME pins the two concept-list paths (``stated_path`` / ``noted_path``);
+    # the terminology ``tool`` is optional (the pack defaults it). The inject coordinates
+    # (``inject_flag_code`` / ``inject_severity``) are contract PARAMS read by the floor injector,
+    # not reference keys — exactly like dosage_grounding.
+    TOOL_CONCEPT_PRESERVATION: {"stated_path", "noted_path"},
 }
 
 
