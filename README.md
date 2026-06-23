@@ -149,7 +149,7 @@ Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactu
 
 ## License
 
-See [`LICENSE`](LICENSE).
+**Apache-2.0** — see [`LICENSE`](LICENSE).
 
 ---
 
