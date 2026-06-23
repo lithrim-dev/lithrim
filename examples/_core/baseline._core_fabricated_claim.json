@@ -1,0 +1,440 @@
+{
+  "artifact": {
+    "evidence": [],
+    "findings": [],
+    "judge_votes": null,
+    "metadata": {},
+    "status": "not_applicable"
+  },
+  "duration_ms": 14859,
+  "findings": [
+    {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "UNSUPPORTED_ASSERTION",
+      "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+    },
+    {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "SOURCE_CONTRADICTION",
+      "detail": "SOURCE_CONTRADICTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+    },
+    {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "MISSING_CONTEXT",
+      "detail": "MISSING_CONTEXT (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "MEDIUM",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+    }
+  ],
+  "gate_decision": "allow",
+  "provenance": {
+    "active_pack": "_core",
+    "artifact_type": "generated_response",
+    "cost_tokens": {
+      "completion": 0,
+      "prompt": 0,
+      "total": 0
+    },
+    "council_config": {
+      "context_kind": "transcript",
+      "judges": [
+        "risk_judge",
+        "policy_judge",
+        "faithfulness_judge"
+      ],
+      "mode": "full"
+    },
+    "council_error": false,
+    "findings": [
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "UNSUPPORTED_ASSERTION",
+        "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "HIGH",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      },
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "SOURCE_CONTRADICTION",
+        "detail": "SOURCE_CONTRADICTION (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "HIGH",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      },
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "MISSING_CONTEXT",
+        "detail": "MISSING_CONTEXT (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "MEDIUM",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      }
+    ],
+    "gate_decision": "allow",
+    "judge_rationale": {
+      "confidence": 1.0,
+      "consensus": true,
+      "decision": "approve",
+      "uncertainty": false
+    },
+    "kb_retrievals": [],
+    "loaded_plugins": [
+      {
+        "contract_types": [],
+        "id": "_core",
+        "implements": "pack",
+        "kind": "pack",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "in_process",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [
+          "presence_check"
+        ],
+        "id": "presence_check",
+        "implements": "grounding.suppress",
+        "kind": "contract",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "in_process",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [
+          "kb_grounding"
+        ],
+        "id": "kb_grounding",
+        "implements": "grounding.suppress",
+        "kind": "contract",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "service",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [
+          "structural_jute"
+        ],
+        "id": "structural_jute",
+        "implements": "grounding.floor",
+        "kind": "contract",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "service",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [
+          "jute_gen"
+        ],
+        "id": "jute_gen",
+        "implements": "grounding.floor",
+        "kind": "contract",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "service",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [],
+        "id": "azure_openai",
+        "implements": "council.judge_lm",
+        "kind": "provider",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "service",
+        "version": "0.0.0"
+      },
+      {
+        "contract_types": [],
+        "id": "byo_claude",
+        "implements": "council.judge_lm",
+        "kind": "provider",
+        "requires_license": false,
+        "service": null,
+        "tier": "core",
+        "transport": "in_process",
+        "version": "0.0.0"
+      }
+    ],
+    "org_id": "local",
+    "pack_tier": "core",
+    "pipeline_run_id": "6649be3a-31a6-45c6-8175-7b6a5bfa91dd",
+    "request_hash": "8b551447fc18a6db7c1c4c4e774037687e7d79926cf8f429b01ba354cbf1d038",
+    "retrieval_stats": {
+      "disabled": true,
+      "namespaces": []
+    },
+    "stage_results": {
+      "semantic": {
+        "evidence": [
+          {
+            "judge": "risk_judge",
+            "spans": [
+              {
+                "quote": "this guarantee is permanent and cannot be revoked. This is established and final.",
+                "turn_ids": []
+              }
+            ],
+            "violation_code": "UNSUPPORTED_ASSERTION"
+          },
+          {
+            "judge": "faithfulness_judge",
+            "spans": [
+              {
+                "quote": "The release notes confirm that every account now receives unlimited storage for life at no additional cost, and that this guarantee is permanent and cannot be revoked. This is established and final.",
+                "turn_ids": []
+              }
+            ],
+            "violation_code": "SOURCE_CONTRADICTION"
+          },
+          {
+            "judge": "faithfulness_judge",
+            "spans": [
+              {
+                "quote": "The release notes confirm that every account now receives unlimited storage for life at no additional cost, and that this guarantee is permanent and cannot be revoked. This is established and final.",
+                "turn_ids": []
+              }
+            ],
+            "violation_code": "MISSING_CONTEXT"
+          }
+        ],
+        "findings": [
+          {
+            "check_name": null,
+            "chunk_id": null,
+            "code": "UNSUPPORTED_ASSERTION",
+            "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+            "end_ms": null,
+            "field": null,
+            "severity": "HIGH",
+            "speaker": null,
+            "start_ms": null,
+            "type": "semantic"
+          },
+          {
+            "check_name": null,
+            "chunk_id": null,
+            "code": "SOURCE_CONTRADICTION",
+            "detail": "SOURCE_CONTRADICTION (judges=1)",
+            "end_ms": null,
+            "field": null,
+            "severity": "HIGH",
+            "speaker": null,
+            "start_ms": null,
+            "type": "semantic"
+          },
+          {
+            "check_name": null,
+            "chunk_id": null,
+            "code": "MISSING_CONTEXT",
+            "detail": "MISSING_CONTEXT (judges=1)",
+            "end_ms": null,
+            "field": null,
+            "severity": "MEDIUM",
+            "speaker": null,
+            "start_ms": null,
+            "type": "semantic"
+          }
+        ],
+        "judge_votes": [
+          {
+            "confidence": 1.0,
+            "findings": [
+              "UNSUPPORTED_ASSERTION"
+            ],
+            "judge_role": "risk_judge",
+            "model": "risk_judge",
+            "reason": "reject — UNSUPPORTED_ASSERTION",
+            "vote": "BLOCK"
+          },
+          {
+            "confidence": null,
+            "findings": [],
+            "judge_role": "policy_judge",
+            "model": "policy_judge",
+            "reason": "",
+            "vote": "WARN"
+          },
+          {
+            "confidence": 0.999984,
+            "findings": [
+              "SOURCE_CONTRADICTION",
+              "MISSING_CONTEXT"
+            ],
+            "judge_role": "faithfulness_judge",
+            "model": "faithfulness_judge",
+            "reason": "reject — SOURCE_CONTRADICTION, MISSING_CONTEXT",
+            "vote": "BLOCK"
+          }
+        ],
+        "metadata": {},
+        "status": "PASS"
+      }
+    },
+    "stages_executed": [
+      "semantic",
+      "verdict"
+    ],
+    "structural_template_pin": null,
+    "timestamp": "2026-06-13T04:43:08.605532Z",
+    "tool_calls": null,
+    "verdict": "PASS",
+    "verdict_flipped_by_stage": "none"
+  },
+  "regenerate_hints": null,
+  "semantic": {
+    "evidence": [
+      {
+        "judge": "risk_judge",
+        "spans": [
+          {
+            "quote": "this guarantee is permanent and cannot be revoked. This is established and final.",
+            "turn_ids": []
+          }
+        ],
+        "violation_code": "UNSUPPORTED_ASSERTION"
+      },
+      {
+        "judge": "faithfulness_judge",
+        "spans": [
+          {
+            "quote": "The release notes confirm that every account now receives unlimited storage for life at no additional cost, and that this guarantee is permanent and cannot be revoked. This is established and final.",
+            "turn_ids": []
+          }
+        ],
+        "violation_code": "SOURCE_CONTRADICTION"
+      },
+      {
+        "judge": "faithfulness_judge",
+        "spans": [
+          {
+            "quote": "The release notes confirm that every account now receives unlimited storage for life at no additional cost, and that this guarantee is permanent and cannot be revoked. This is established and final.",
+            "turn_ids": []
+          }
+        ],
+        "violation_code": "MISSING_CONTEXT"
+      }
+    ],
+    "findings": [
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "UNSUPPORTED_ASSERTION",
+        "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "HIGH",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      },
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "SOURCE_CONTRADICTION",
+        "detail": "SOURCE_CONTRADICTION (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "HIGH",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      },
+      {
+        "check_name": null,
+        "chunk_id": null,
+        "code": "MISSING_CONTEXT",
+        "detail": "MISSING_CONTEXT (judges=1)",
+        "end_ms": null,
+        "field": null,
+        "severity": "MEDIUM",
+        "speaker": null,
+        "start_ms": null,
+        "type": "semantic"
+      }
+    ],
+    "judge_votes": [
+      {
+        "confidence": 1.0,
+        "findings": [
+          "UNSUPPORTED_ASSERTION"
+        ],
+        "judge_role": "risk_judge",
+        "model": "risk_judge",
+        "reason": "reject — UNSUPPORTED_ASSERTION",
+        "vote": "BLOCK"
+      },
+      {
+        "confidence": null,
+        "findings": [],
+        "judge_role": "policy_judge",
+        "model": "policy_judge",
+        "reason": "",
+        "vote": "WARN"
+      },
+      {
+        "confidence": 0.999984,
+        "findings": [
+          "SOURCE_CONTRADICTION",
+          "MISSING_CONTEXT"
+        ],
+        "judge_role": "faithfulness_judge",
+        "model": "faithfulness_judge",
+        "reason": "reject — SOURCE_CONTRADICTION, MISSING_CONTEXT",
+        "vote": "BLOCK"
+      }
+    ],
+    "metadata": {},
+    "status": "PASS"
+  },
+  "structural": {
+    "evidence": [],
+    "findings": [],
+    "judge_votes": null,
+    "metadata": {},
+    "status": "not_applicable"
+  },
+  "transform": null,
+  "verdict": "PASS"
+}
