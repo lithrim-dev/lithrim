@@ -81,7 +81,7 @@ def _mock_ingest_surface(monkeypatch):
         state["records"] = sample if isinstance(sample, list) else [sample]
         return SimpleNamespace(accepted=True, jute_transform="t")
 
-    def fake_score(client, template, sample, expected_count=1):
+    def fake_score(client, template, sample, expected_count=1, required_fields=()):
         records = state.get("records") or (sample if isinstance(sample, list) else [sample])
         return {
             "accepted": True,

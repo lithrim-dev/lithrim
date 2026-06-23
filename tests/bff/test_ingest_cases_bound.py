@@ -87,7 +87,7 @@ def _patch_extractor(monkeypatch, calls, *, accepted, score):
         calls["bon"] += 1
         return SimpleNamespace(accepted=accepted, jute_transform="t" if accepted else "")
 
-    def fake_score(client, template, sample, expected_count=1):
+    def fake_score(client, template, sample, expected_count=1, required_fields=()):
         calls["score"] += 1
         return score
 

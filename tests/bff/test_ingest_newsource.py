@@ -86,7 +86,7 @@ def _mock_verification_surface(monkeypatch, *, accepted=True, count_eq_expected=
         state["expected_count"] = None  # filled by score
         return SimpleNamespace(accepted=accepted, jute_transform="t" if accepted else "")
 
-    def fake_score(client, template, sample, expected_count=1):
+    def fake_score(client, template, sample, expected_count=1, required_fields=()):
         dump = json.loads(sample) if isinstance(sample, str) else sample
         records = _github_records(dump)
         # the live engine produces 6 comment-records REGARDLESS of expected_count; the gate
@@ -201,7 +201,7 @@ def test_github_reuses_pinned_transform_skips_generation(tmp_path, monkeypatch, 
         bon_calls["n"] += 1  # MUST stay 0 on the reuse path
         return SimpleNamespace(accepted=True, jute_transform="t")
 
-    def fake_score(client, template, sample, expected_count=1):
+    def fake_score(client, template, sample, expected_count=1, required_fields=()):
         records = _github_records(json.loads(sample) if isinstance(sample, str) else sample)
         return {
             "accepted": True,
@@ -301,7 +301,7 @@ def test_storyworld_enhanced_scenes_count_unchanged(tmp_path, monkeypatch):
         seen["bon"] = True
         return SimpleNamespace(accepted=True, jute_transform="t")
 
-    def fake_score(client, template, sample_, expected_count=1):
+    def fake_score(client, template, sample_, expected_count=1, required_fields=()):
         seen["expected_count"] = expected_count
         cases = [{"case_id": f"c{i}"} for i in range(expected_count)]
         return {
