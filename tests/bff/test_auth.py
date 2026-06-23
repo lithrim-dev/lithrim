@@ -23,6 +23,9 @@ Acceptance (driver §TESTS — RED first):
         constant-TIME property of ``compare_digest`` is a code-review invariant, not unit-testable).
   * I — the ``Bearer`` scheme is matched case-insensitively (RFC 7235) — a lowercase
         ``authorization: bearer <token>`` from a standard client still passes.
+  * J — a cross-origin 401 carries ``Access-Control-Allow-Origin`` (CORS is the OUTERMOST
+        middleware, wrapping the gate) so a browser SPA reads a clean 401, not an opaque
+        "Failed to fetch". (Surfaced by the live UI validation — the gate's 401 must not skip CORS.)
 
 Requires the ``[bff]`` extra (fastapi); skipped cleanly if absent. Hermetic — a tmp config
 DB via the get_config_db override (the tests/bff/ TestClient pattern); no network, no live
@@ -159,3 +162,21 @@ def test_bearer_scheme_is_case_insensitive(client, monkeypatch):
 
     mixed = client.get(_V1_ROUTE, headers={"Authorization": f"BeArEr {_TOKEN}"})
     assert mixed.status_code != 401, mixed.text
+
+
+def test_cross_origin_401_carries_cors_header(client, monkeypatch):
+    """J: a cross-origin request (browser ``Origin``) that the gate REJECTS must still carry
+    ``Access-Control-Allow-Origin`` — else the browser blocks the SPA from reading the 401 and it
+    surfaces as an opaque "Failed to fetch". This holds only because CORS is the OUTERMOST
+    middleware (wraps ``_auth_gate``); a regression that re-ordered them would strip the header
+    off the 401. (Surfaced by the live UI validation.) The granted 200 carries it too."""
+    monkeypatch.setenv("LITHRIM_BFF_TOKEN", _TOKEN)
+    origin = "http://localhost:5180"
+
+    rejected = client.get(_V1_ROUTE, headers={"Origin": origin})
+    assert rejected.status_code == 401, rejected.text
+    assert rejected.headers.get("access-control-allow-origin") == origin, dict(rejected.headers)
+
+    granted = client.get(_V1_ROUTE, headers={"Origin": origin, "Authorization": f"Bearer {_TOKEN}"})
+    assert granted.status_code != 401, granted.text
+    assert granted.headers.get("access-control-allow-origin") == origin

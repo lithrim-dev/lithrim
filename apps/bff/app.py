@@ -547,12 +547,10 @@ def _load_live_env() -> None:
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# NOTE: CORS is registered LAST (below ``_auth_gate``) on purpose. Starlette runs the
+# most-recently-added middleware OUTERMOST, and CORS must WRAP the auth gate so a cross-origin
+# browser client gets a READABLE 401 (carrying Access-Control-Allow-Origin) instead of an opaque
+# "Failed to fetch" when the gate rejects. See the CORS registration just below ``_auth_gate``.
 
 
 def _bff_auth_token() -> str:
@@ -586,6 +584,17 @@ async def _auth_gate(request, call_next):
                 headers={"WWW-Authenticate": "Bearer"},
             )
     return await call_next(request)
+
+
+# CORS registered LAST ⇒ OUTERMOST (see the note at app construction): it wraps ``_auth_gate`` so
+# even a 401 from the gate carries Access-Control-Allow-Origin — a cross-origin SPA reads a clean
+# 401 rather than an opaque CORS failure. Same-origin / vite-proxied clients are unaffected.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
