@@ -2,8 +2,10 @@
 # (recipes use the `target: ; cmd` inline form so no literal tabs are required)
 DEV := scripts/dev/devstack.sh
 
-.PHONY: up down restart status health probe logs-bff logs-ui bff ui help
+.PHONY: up down restart status health probe logs-bff logs-ui bff ui help test lint
 help:      ; @$(DEV) help
+test:      ; pytest -q                ## run the suite (bare-CE green; set LITHRIM_BENCH_PACKS_DIR for the clinical pack)
+lint:      ; ruff check .             ## lint (ruff; the frozen council seam is excluded in ruff.toml)
 up:        ; @$(DEV) start all      ## start BFF (:8787, watch) + UI (:5180, HMR)
 down:      ; @$(DEV) stop all       ## stop both
 restart:   ; @$(DEV) restart all    ## stop + start both
