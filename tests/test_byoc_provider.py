@@ -149,8 +149,11 @@ def test_byo_claude_confidence_is_none_not_faked():
 # ── A2: the selector — per-judge model + the global switch; Azure stays the default ────
 
 
-def test_selector_binds_byo_claude_per_judge_and_keeps_azure_default():
+def test_selector_binds_byo_claude_per_judge_and_keeps_azure_default(monkeypatch):
     assert type(J.build_judge_lm("risk_judge", model="byo-claude")).__name__ == "ClaudeCliLM"
+    # the Azure council is now selected explicitly: BYOK Cycle 1 made the default
+    # LITHRIM_LLM_PROVIDER=openai route to the single-key OpenAI council (tests/test_byok_openai.py).
+    monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "azure")
     default = J.build_judge_lm("risk_judge")
     assert type(default).__name__ == "LM"
     assert str(default.model).startswith("azure/")  # Azure path unchanged
@@ -162,6 +165,9 @@ def test_global_switch_binds_byo_claude_platform_wide(monkeypatch):
 
 
 def test_build_trio_models_assembles_a_mixed_provider_council(monkeypatch):
+    # the non-byo roles are the Azure trio — select it explicitly (the default openai provider
+    # now routes to the single-key OpenAI council, BYOK Cycle 1).
+    monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "azure")
     monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3", "m3")
     monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK", "l4")
     trio = J.build_trio(models={"risk_judge": "byo-claude"})
@@ -173,9 +179,15 @@ def test_build_trio_models_assembles_a_mixed_provider_council(monkeypatch):
     }
 
 
-def test_build_trio_no_models_is_all_azure_back_compat():
+def test_build_trio_no_models_is_all_azure_back_compat(monkeypatch):
+    # env-independent: select the Azure trio explicitly + set its two extra deployments, so this
+    # does not depend on an ambient OPENAI_API_KEY (the default openai provider now needs a key).
+    monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "azure")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3", "m3")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK", "l4")
     trio = J.build_trio()
     assert all(type(j.predict.lm).__name__ == "LM" for j in trio)
+    assert all(str(j.predict.lm.model).startswith("azure/") for j in trio)
 
 
 # ── A3 (the headline): the model-composition effect, MEASURED ──────────────────────────

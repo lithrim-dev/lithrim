@@ -55,8 +55,10 @@ def test_multimodel_seam_build_trio_models_routes_per_role_offline(monkeypatch):
     risk_judge → ClaudeCliLM and the other two roles → Azure dspy.LM, each constructed with NO
     network call ($0). This proves a Claude/GPT/Llama mixed council is config-only — the WIRING,
     not judge quality. Mirrors test_byoc_provider.py:164."""
-    # the two non-default-COUNCIL deployments must be set for the Azure construction (mirrors
-    # test_byoc_provider.py:165-166); these are config attrs, never a network call.
+    # the two non-byo roles are the Azure trio — select it explicitly (the default openai provider
+    # now routes to the single-key OpenAI council, BYOK Cycle 1). These are config attrs, never a
+    # network call (mirrors test_byoc_provider.py:165-166).
+    monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "azure")
     monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3", "mistral-large-3")
     monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK", "llama-4-maverick")
 

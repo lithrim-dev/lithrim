@@ -67,6 +67,16 @@ _ROLE_DEPLOYMENT = {
     "policy_judge": "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3",
     "faithfulness_judge": "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK",
 }
+# Role → the OpenAI-direct model setting key (BYOK single-provider, Cycle 1). When
+# LITHRIM_LLM_PROVIDER=openai and OPENAI_API_KEY is set, ``build_judge_lm`` binds each role to
+# ``settings.<this key>`` on the user's one key — preserving the multi-judge council + per-role
+# model diversity, with logprobs ON so calibrated confidence survives. A module-level constant
+# (not a top-level def/class), so it sits OUTSIDE the frozen consensus-seam symbol set.
+_OPENAI_ROLE_MODEL = {
+    "risk_judge": "OPENAI_MODEL_RISK",
+    "policy_judge": "OPENAI_MODEL_POLICY",
+    "faithfulness_judge": "OPENAI_MODEL_FAITHFULNESS",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -240,12 +250,38 @@ def build_judge_lm(role: str, **overrides: Any):
 
     import dspy
 
+    # BYOK single-provider (Cycle 1): OpenAI-direct is the DEFAULT provider (LITHRIM_LLM_PROVIDER=
+    # openai). Bind each role to its model on the user's ONE OPENAI_API_KEY (no Azure trio). The
+    # 3-judge council is preserved and each role keeps its OWN configurable model (OPENAI_MODEL_
+    # {RISK,POLICY,FAITHFULNESS}) — model diversity on a single provider — with logprobs ON so the
+    # calibrated-confidence read survives (the axis BYO-Claude loses). The Azure trio is opt-in via
+    # LITHRIM_LLM_PROVIDER=azure (the branch below); any non-openai/non-byo selector falls there too.
+    if global_provider == "openai":
+        if not settings.OPENAI_API_KEY:
+            raise ValueError(
+                f"OPENAI_API_KEY is unset; required to bind role={role!r} on the single-provider "
+                f"OpenAI council (LITHRIM_LLM_PROVIDER=openai). Set OPENAI_API_KEY, or select the "
+                f"Azure trio with LITHRIM_LLM_PROVIDER=azure."
+            )
+        model_attr = _OPENAI_ROLE_MODEL.get(role, "OPENAI_MODEL_RISK")
+        model = getattr(settings, model_attr, "") or "gpt-4o"
+        openai_kwargs: dict[str, Any] = {
+            "api_key": settings.OPENAI_API_KEY,
+            "temperature": 0,
+            "max_tokens": 4096,
+            "logprobs": True,
+            "cache": True,
+        }
+        openai_kwargs.update(overrides)
+        return dspy.LM(f"openai/{model}", **openai_kwargs)
+
     dep_attr = _ROLE_DEPLOYMENT.get(role, "AZURE_OPENAI_DEPLOYMENT_COUNCIL")
     deployment = getattr(settings, dep_attr, None)
     if not deployment:
         raise ValueError(
             f"{dep_attr} is unset; required to bind a live LM for role={role!r} "
-            f"(COMPLIANCE_COUNCIL_VERSION=v2)"
+            f"(COMPLIANCE_COUNCIL_VERSION=v2). For the single-provider OpenAI council set "
+            f"LITHRIM_LLM_PROVIDER=openai + OPENAI_API_KEY instead."
         )
     kwargs: dict[str, Any] = {
         "api_key": settings.AZURE_OPENAI_API_KEY,

@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # purpose). v2 HARD-requires "azure" for the Mistral/Llama judges.
     LITHRIM_LLM_PROVIDER: str = "openai"
     OPENAI_API_KEY: str = ""
+    # BYOK single-provider council (Cycle 1): when LITHRIM_LLM_PROVIDER=openai and OPENAI_API_KEY
+    # is set, each judge role binds to its model below on the user's ONE key (no Azure trio).
+    # Default gpt-4o for all three (reliable; supports logprobs+json so the calibrated-confidence
+    # path still works); override per role for intra-provider model diversity (KEEP THE MULTI-COUNCIL).
+    OPENAI_MODEL_RISK: str = "gpt-4o"
+    OPENAI_MODEL_POLICY: str = "gpt-4o"
+    OPENAI_MODEL_FAITHFULNESS: str = "gpt-4o"
 
     # ── Azure OpenAI ─────────────────────────────────────────────────────
     # The v2 cross-provider trio reaches Mistral-Large-3 + Llama-4-Maverick by
