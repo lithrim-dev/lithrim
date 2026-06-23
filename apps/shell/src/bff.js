@@ -4,9 +4,13 @@
    else "" so requests go through the vite dev proxy (/v1 → :8787). See SPEC §5. */
 
 const BASE = import.meta.env.VITE_BFF_URL ?? "";
+// BFF-AUTH-1: when the BFF is exposed with an inbound token (LITHRIM_BFF_TOKEN), the shell
+// presents it as a Bearer header. Unset (the local single-user default) → no header, unchanged.
+const AUTH = import.meta.env.VITE_BFF_TOKEN
+  ? { Authorization: `Bearer ${import.meta.env.VITE_BFF_TOKEN}` } : {};
 
 async function call(path, { method = "GET", body, headers } = {}) {
-  const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...(headers || {}) };
+  const merged = { ...(body ? { "Content-Type": "application/json" } : {}), ...AUTH, ...(headers || {}) };
   const res = await fetch(BASE + path, {
     method,
     headers: Object.keys(merged).length ? merged : undefined,
@@ -284,7 +288,7 @@ export async function chatStream(
   // not the agent's seed. A selector, never a paid knob.
   const res = await fetch(BASE + "/v1/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(actor ? { "X-Actor": actor } : {}) },
+    headers: { "Content-Type": "application/json", ...AUTH, ...(actor ? { "X-Actor": actor } : {}) },
     body: JSON.stringify({ message, agent, history, ...(active_case ? { active_case } : {}) }),
     signal,
   });

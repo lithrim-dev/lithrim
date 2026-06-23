@@ -53,6 +53,7 @@ Run:  uvicorn app:app --app-dir apps/bff --port 8787   (needs the [bff] extra)
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -64,7 +65,7 @@ from typing import Any, Literal, get_args
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -552,6 +553,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _bff_auth_token() -> str:
+    """The inbound auth token, read PER-REQUEST from ``LITHRIM_BFF_TOKEN`` (stripped). Empty
+    string ⇒ the gate is OFF. Reading env per request (not once at import) is deliberate: a
+    test (or an env reload) toggles the gate without re-instantiating the app."""
+    return os.environ.get("LITHRIM_BFF_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def _auth_gate(request, call_next):
+    """Configurable inbound auth gate (BFF-AUTH-1, Community Release v1 Cycle 4).
+
+    OFF by default — with ``LITHRIM_BFF_TOKEN`` unset/empty the gate is OPEN and every request
+    passes exactly as before, so the local single-user one-command run is unchanged. Set the
+    token to require it on an exposed server: every request then needs ``Authorization: Bearer
+    <token>`` (preferred) or ``X-API-Key: <token>``, compared constant-time (``hmac.compare_digest``).
+    The CORS preflight (``OPTIONS``) and the ``/health`` liveness probe always pass — gating them
+    would break CORS / ``make health``. On a miss → 401 with a ``WWW-Authenticate: Bearer`` hint."""
+    token = _bff_auth_token()
+    if token and request.method != "OPTIONS" and request.url.path != "/health":
+        auth = request.headers.get("authorization", "")
+        presented = auth[7:] if auth.startswith("Bearer ") else request.headers.get("x-api-key", "")
+        if not (presented and hmac.compare_digest(presented, token)):
+            return JSONResponse(
+                {"detail": "missing or invalid API token"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return await call_next(request)
 
 
 @app.on_event("startup")

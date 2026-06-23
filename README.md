@@ -41,6 +41,8 @@ make up          # local BFF + UI; grade your own artifact, nothing leaves the b
 
 You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. (Azure is the alternative provider — `LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example).)
 
+**Exposing the server.** Left unset, the BFF is open for local single-user — zero friction. Put it on a network and set `LITHRIM_BFF_TOKEN=<token>` to require a Bearer token on every request: callers pass `Authorization: Bearer <token>` (or `X-API-Key: <token>`); the shell reads it from `VITE_BFF_TOKEN`. `/health` and CORS preflight stay open.
+
 ---
 
 ## The flagship loop
