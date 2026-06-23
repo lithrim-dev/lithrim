@@ -50,6 +50,31 @@ evidence_spans:     "5 mg lisinopril daily." vs "Plan: lisinopril 50 mg once dai
 4. **The change stayed inside the authorized seam** — `build_judge_lm` body + a module constant; the
    seam-freeze guard is 0-delta (the moat is untouched).
 
+## Release validation — the FULL pipeline, live, on the shipped `_core` case (2026-06-23, post-sweep)
+
+The attestation above is a minimal `evaluate_dspy` trio call. The release validation is stronger: the
+**entire product grade pipeline** (`scripts/run_eval.py --agent ws0_default --in-process`, provider
+forced `openai`) on the **shipped, domain-neutral `_core` case** `_core_fabricated_claim` — the same
+case `make demo` replays — making **real OpenAI calls**:
+
+```
+case: _core_fabricated_claim | ontology: _core/1
+LIVE council votes:  risk_judge BLOCK conf=0.888676 · policy_judge BLOCK conf=0.999658 · faithfulness_judge BLOCK conf=0.554024
+grounding FLOOR:     original PASS -> after-ground BLOCK   (PASS->BLOCK flip, live)
+active findings:     UNSUPPORTED_ASSERTION, FABRICATED_CLAIM, SOURCE_CONTRADICTION
+composite:           reject (score 1.0) · ECE 0.1859 over 3 non-null confidences (0 None) · provenance blob persisted
+```
+
+Provider confirmed BYOK OpenAI: all three roles bind `openai/gpt-4o` (logprobs ON) under the run's
+env — and an azure grade would have *raised* on the unset `AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3`/
+`_LLAMA_4_MAVERICK`, which it didn't. What this adds over the dose-case run: (a) the **full pipeline**
+(council → deterministic floor → composite → calibration → persistence), (b) the **grounding floor
+overriding the council live** (the moat — `original PASS -> BLOCK`) on a real key, (c) the shipped
+OSS-core case, not a clinical one. The product API surface (`POST /v1/run-eval`) was independently
+confirmed functional (correct workspace resolution + precise errors). The release is also
+**clone-validated**: a fresh `git clone` runs `make test` (675p/0f) · `make lint` (clean) · `make demo`
+(the flagship loop) — see `docs/COMMUNITY_RELEASE_v1_PLAN.md`.
+
 ## Repro
 
 ```
