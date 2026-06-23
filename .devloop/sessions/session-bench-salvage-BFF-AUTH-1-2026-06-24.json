@@ -1,0 +1,123 @@
+{
+  "session_id": "session-bench-salvage-BFF-AUTH-1-2026-06-24",
+  "stream": "bench-salvage",
+  "phase": "BFF-AUTH-1",
+  "driver_bundle_id": "bench-salvage-BFF-AUTH-1-driver",
+  "started_at": "2026-06-23T22:25:00Z",
+  "ended_at": "2026-06-23T22:30:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-23T22:25:00Z",
+    "user_approved_at": "2026-06-23T22:25:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Autonomous mode: the driver DRIVER_bff_auth_1.md IS the pre-approved plan; executed as specified, no reinterpretation.",
+        "evidence": ".devloop/prompts/DRIVER_bff_auth_1.md",
+        "decided_at": "2026-06-23T22:25:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "JSONResponse imported from fastapi.responses (re-exports starlette's) alongside the existing StreamingResponse import, rather than a separate starlette.responses line — same class, cleaner import. Driver said 'use starlette.responses.JSONResponse'; functionally identical.",
+        "evidence": "apps/bff/app.py:67 — from fastapi.responses import JSONResponse, StreamingResponse",
+        "decided_at": "2026-06-23T22:27:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "e0d1d03531daa3d4e5b9e2efbd34f12687c79ba8",
+      "repo": "lithrim-bench",
+      "title": "test(bff-auth): inbound auth-gate acceptance criteria A-H - red",
+      "summary": "8 TestClient acceptance tests for the auth gate; 3/8 RED (B/C/H reject-behavior absent), 5/8 vacuously green pre-impl (no gate = pass-through)."
+    },
+    {
+      "hash": "2483ed3859a8eb75cb67b8db1dfbb3761fc5c122",
+      "repo": "lithrim-bench",
+      "title": "feat(bff-auth): configurable inbound auth gate (Community Release v1 Cycle 4) - green",
+      "summary": "Per-request FastAPI middleware after CORS: default-OFF (token unset) transparent; ON requires Bearer/X-API-Key compared via hmac.compare_digest; /health + OPTIONS always open; shell presents VITE_BFF_TOKEN; .env.example + README docs."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "Tests written + committed RED before any app.py/bff.js edit.",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest tests/bff/test_auth.py -q",
+    "red_evidence": "3 failed, 5 passed — FAILED test_on_no_token_rejects / test_on_wrong_token_rejects / test_near_miss_tokens_reject: 'AssertionError: {\"agents\":[\"ws0_default\"]} assert 200 == 401'. RED for the right reason: the rejection behavior is genuinely absent (no gate middleware) — the /v1 route returns 200 even with the token set. The 5 pass-through cases (A/D/E/F/G) are vacuously green because with no gate everything passes (the OFF-by-default contract).",
+    "green_command": "PYENV_VERSION=debuglithrim python -m pytest -q (repo root) ; PYENV_VERSION=debuglithrim ruff check . ; cd apps/shell && npx vitest run",
+    "green_evidence": "pytest: 706 passed, 156 skipped, 5 warnings (baseline 698 passed + my 8 = 706; 0 failed). ruff: All checks passed!. vitest: 1 failed | 23 passed (24 files); 1 failed | 183 passed (184 tests) — the ONLY fail is the pre-existing foreign app.test.jsx (ModeSwitch commented out at app.jsx:225, not mine). tests/bff/test_auth.py alone: 8 passed."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A — OFF by default: /health AND a /v1 route return non-401 (the critical non-regression)",
+      "test": "tests/bff/test_auth.py::test_off_by_default_health_and_v1_open",
+      "verdict": "PASS",
+      "evidence": "8 passed; default-OFF transparent — full tests/bff/ (111 passed) runs with no token set, unchanged."
+    },
+    {
+      "criterion": "B — ON, no token presented -> 401 on a /v1 route",
+      "test": "tests/bff/test_auth.py::test_on_no_token_rejects",
+      "verdict": "PASS",
+      "evidence": "401 + asserts www-authenticate == 'Bearer'."
+    },
+    {
+      "criterion": "C — ON, wrong token -> 401",
+      "test": "tests/bff/test_auth.py::test_on_wrong_token_rejects",
+      "verdict": "PASS",
+      "evidence": "Authorization: Bearer totally-wrong -> 401."
+    },
+    {
+      "criterion": "D — ON, correct Authorization: Bearer <token> -> passes (non-401)",
+      "test": "tests/bff/test_auth.py::test_on_correct_bearer_passes",
+      "verdict": "PASS",
+      "evidence": "non-401 with the configured token."
+    },
+    {
+      "criterion": "E — ON, correct X-API-Key: <token> -> passes",
+      "test": "tests/bff/test_auth.py::test_on_correct_x_api_key_passes",
+      "verdict": "PASS",
+      "evidence": "non-401 via the X-API-Key convenience header."
+    },
+    {
+      "criterion": "F — /health open even when ON (liveness never gated)",
+      "test": "tests/bff/test_auth.py::test_health_open_even_when_on",
+      "verdict": "PASS",
+      "evidence": "200 {\"status\":\"ok\"} with the token set + no auth header."
+    },
+    {
+      "criterion": "G — OPTIONS preflight passes even when ON (CORS not broken)",
+      "test": "tests/bff/test_auth.py::test_options_preflight_passes_even_when_on",
+      "verdict": "PASS",
+      "evidence": "OPTIONS with Origin + Access-Control-Request-Method -> non-401."
+    },
+    {
+      "criterion": "H — non-vacuous / constant-time intent: near-miss (prefix+suffix) + too-short token -> 401",
+      "test": "tests/bff/test_auth.py::test_near_miss_tokens_reject",
+      "verdict": "PASS",
+      "evidence": "TOKEN+'x', TOKEN[:-1], TOKEN[:8] all -> 401 (proves hmac.compare_digest whole-value semantics, not a prefix/== match)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "pytest_baseline": "698 passed / 0 failed",
+    "pytest_after": "706 passed / 156 skipped / 0 failed",
+    "tests_added": "8 (tests/bff/test_auth.py A-H)",
+    "files_changed_green_commit": "4 (apps/bff/app.py, apps/shell/src/bff.js, .env.example, README.md)",
+    "vitest": "183 passed / 1 pre-existing-foreign fail (app.test.jsx, ModeSwitch commented out in foreign app.jsx)",
+    "moat_diff": "empty (no runtime/council/ change, staged or unstaged)"
+  },
+
+  "seams_opened": [],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "BFF-AUTH-1 landed clean: a single per-request FastAPI middleware (registered right after the CORS block) gates the BFF behind LITHRIM_BFF_TOKEN. Default-OFF is byte-transparent — the token is read per request via _bff_auth_token(), so with it unset everything passes exactly as today (the existing tests/bff/* 111-pass suite confirms the non-regression). ON requires Authorization: Bearer or X-API-Key, hmac.compare_digest constant-time; /health + OPTIONS always pass. Tests-first RED->GREEN (3/8 genuinely RED for absent reject-behavior, then 8/8 green); full bare-CE 706 passed/0 failed, ruff clean, vitest only the pre-existing foreign app.test.jsx fail. Moat diff empty; apps/shell/src/app.jsx (foreign, modified) was NOT staged; commit scope is exactly the 4 intended files. The shell change (VITE_BFF_TOKEN -> Bearer in call() + chatStream) is header-only and not browser-observable when the token is unset (the local default), so it was verified via vitest rather than the preview.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage BFF-AUTH-1 next (verify moat diff empty + the default-OFF non-regression); this closes the net-new piece of Community Release v1 Cycle 4 (Basic auth)."
+}
