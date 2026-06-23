@@ -395,6 +395,31 @@ def load_conversation(agent: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) ->
     return json.loads(row[0]) if row is not None else []
 
 
+def delete_conversation(agent: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) -> bool:
+    """Clear ``agent``'s persisted conversation thread (PERSIST-CONV). Returns ``True`` iff a
+    row was removed; clearing an absent thread is an idempotent no-op returning ``False``.
+
+    A PLAIN delete (per-turn UX state), NOT an audited config change — no ``AuditRecord``,
+    mirroring :func:`save_conversation`. This clears the chat PROSE only; the config WRITES made
+    inside the conversation were audited on their own routes and are untouched. Presence is read
+    before the delete (portable, no driver-specific ``rowcount`` dependency)."""
+    from lithrim_bench.harness.db import config_db_url, connect, workspace_id_of
+
+    wsid = workspace_id_of(db_path)
+    with connect(config_db_url(db_path)) as conn:
+        _ensure_conversations(conn, wsid)
+        existed = (
+            conn.execute(
+                "SELECT 1 FROM conversations WHERE workspace_id = ? AND agent = ?", (wsid, agent)
+            ).fetchone()
+            is not None
+        )
+        conn.execute(
+            "DELETE FROM conversations WHERE workspace_id = ? AND agent = ?", (wsid, agent)
+        )
+    return existed
+
+
 def seed_config_db(
     *,
     seed_dir: str | Path = DEFAULT_AGENT_SEED_DIR,

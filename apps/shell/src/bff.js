@@ -110,6 +110,12 @@ export const getConversation = (agent = "ws0_default") =>
 export const putConversation = (agent, thread) =>
   call("/v1/conversation", { method: "PUT", body: { agent, thread } });
 
+/* DELETE /v1/conversation — the "clear conversation" affordance: drop this agent's stored
+   thread. A PLAIN, idempotent clear (un-audited per-turn UX state); clearing an absent thread
+   is a benign no-op ({removed: false}), never a 404. */
+export const deleteConversation = (agent = "ws0_default") =>
+  call(`/v1/conversation?agent=${encodeURIComponent(agent)}`, { method: "DELETE" });
+
 /* ── CRUD-1: the config-plane agent switcher + the blank-slate create/delete ───── */
 
 /* GET /v1/agents — the config-plane agent names (the rail switcher). */

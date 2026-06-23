@@ -7,7 +7,7 @@ import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation } from "./bff.js"; // PERSIST-CONV: the durable-thread store
+import { getConversation, putConversation, deleteConversation } from "./bff.js"; // PERSIST-CONV: the durable-thread store
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -204,6 +204,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   // empty-thread clobber of a stored one). CenterPane remounts per-agent on the sessionKey bump,
   // so a fresh mount = a fresh hydrate; the `agent` dep also re-hydrates a same-instance swap.
   const hydratedRef = useRef(null); // the agent the current chat was hydrated for
+  const [clearing, setClearing] = useState(false); // PERSIST-CONV: in-DOM confirm for the destructive clear
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
   const taRef = useRef(null);
   const convoRef = useRef(null); // the scroll container
@@ -346,6 +347,21 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     return () => clearTimeout(t);
   }, [chat, sending, agent]);
 
+  // PERSIST-CONV: the "clear conversation" affordance — reset the thread to the empty-state AND
+  // clear the durable store (so the cleared thread survives a refresh too). The now-empty chat
+  // writes nothing back (the persist effect early-returns on length 0); `hydratedRef` stays this
+  // agent so a later turn persists straight away. Best-effort delete — the UI is already reset.
+  const clearChat = async () => {
+    setClearing(false);
+    setChat([]);
+    hydratedRef.current = agent;
+    try {
+      await deleteConversation(agent);
+    } catch {
+      /* the store self-heals on the next turn's persist; never block the reset on a failed delete */
+    }
+  };
+
   const onConvoScroll = () => {
     const el = convoRef.current;
     if (!el) return;
@@ -414,6 +430,22 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
             <button className="btn btn-ghost" title="Hide the example conversation" onClick={() => setShowExample(false)}>
               <Icon name="close" size={14} /> Hide example
             </button>
+          )}
+          {/* PERSIST-CONV: clear this conversation (durable store + on-screen thread). Only when
+              there's a settled thread to clear; an in-DOM two-step confirm (never window.confirm —
+              it freezes the renderer to CDP), since a cleared thread does not come back. */}
+          {!showExample && chat.length > 0 && !sending && (
+            clearing ? (
+              <span className="chip" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                Clear conversation?
+                <button className="btn btn-ghost" data-testid="chat-clear-confirm" onClick={clearChat}>Clear</button>
+                <button className="btn btn-ghost" onClick={() => setClearing(false)}>Cancel</button>
+              </span>
+            ) : (
+              <button className="btn btn-ghost" title="Clear conversation" aria-label="Clear conversation" onClick={() => setClearing(true)}>
+                <Icon name="close" size={14} /> Clear
+              </button>
+            )
           )}
           <button className="icon-btn" title="Refresh"><Icon name="refresh" size={16} /></button>
           {!artifactOpen && (

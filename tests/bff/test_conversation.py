@@ -12,6 +12,9 @@ Acceptance (driver §TESTS FIRST):
   * A2 — PUT a thread then GET returns it byte-equivalent (the round-trip survives).
   * A3 — workspace isolation: a thread saved under one config DB is absent under another.
   * A4 — save_conversation/load_conversation unit round-trip (the store primitive itself).
+  * A5 — DELETE clears the thread (the "clear conversation" affordance): next GET → ``[]``.
+  * A6 — DELETE on an agent with no stored thread is an idempotent no-op (200, ``removed=False``).
+  * A7 — delete_conversation unit: True iff a row was removed; idempotent; workspace-isolated.
 
 Requires the ``[bff]`` extra (fastapi); skipped cleanly if absent so the default suite stays
 green. Hermetic — a tmp config DB via the get_config_db dependency override (the tests/bff/
@@ -25,7 +28,11 @@ from pathlib import Path
 
 import pytest
 
-from lithrim_bench.harness.config import load_conversation, save_conversation
+from lithrim_bench.harness.config import (
+    delete_conversation,
+    load_conversation,
+    save_conversation,
+)
 
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi)")
 from fastapi.testclient import TestClient  # noqa: E402
@@ -102,3 +109,45 @@ def test_save_load_conversation_unit_round_trip(tmp_path):
     shorter = _THREAD[:1]
     save_conversation("ws0_default", shorter, db_path=db_path)
     assert load_conversation("ws0_default", db_path=db_path) == shorter
+
+
+def test_delete_then_get_conversation_is_empty(client):
+    """A5: a DELETE clears the stored thread — the next GET returns the empty default (the
+    'clear conversation' affordance round-trips through the store)."""
+    client.put("/v1/conversation", json={"agent": "ws0_default", "thread": _THREAD})
+    assert client.get("/v1/conversation", params={"agent": "ws0_default"}).json()["thread"] == _THREAD
+
+    deleted = client.delete("/v1/conversation", params={"agent": "ws0_default"})
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"ok": True, "agent": "ws0_default", "removed": True}
+
+    after = client.get("/v1/conversation", params={"agent": "ws0_default"})
+    assert after.status_code == 200, after.text
+    assert after.json()["thread"] == []
+
+
+def test_delete_absent_conversation_is_idempotent(client):
+    """A6: clearing an agent with no stored thread is an idempotent no-op (200, removed=False) —
+    a brand-new chat's clear affordance never 404s."""
+    resp = client.delete("/v1/conversation", params={"agent": "never_saved"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "agent": "never_saved", "removed": False}
+
+
+def test_delete_conversation_unit_present_then_absent(tmp_path):
+    """A7: the delete primitive itself — True iff a row was removed; idempotent on a second call;
+    workspace-isolated (clearing one config DB leaves another's thread intact)."""
+    db_a = tmp_path / "a" / "bench_config.sqlite"
+    db_b = tmp_path / "b" / "bench_config.sqlite"
+    db_a.parent.mkdir(parents=True)
+    db_b.parent.mkdir(parents=True)
+
+    save_conversation("ws0_default", _THREAD, db_path=db_a)
+    save_conversation("ws0_default", _THREAD, db_path=db_b)
+
+    assert delete_conversation("ws0_default", db_path=db_a) is True
+    assert load_conversation("ws0_default", db_path=db_a) == []
+    # idempotent — a second clear removes nothing
+    assert delete_conversation("ws0_default", db_path=db_a) is False
+    # workspace isolation — db_b's thread is untouched by clearing db_a
+    assert load_conversation("ws0_default", db_path=db_b) == _THREAD

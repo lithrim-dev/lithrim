@@ -96,6 +96,7 @@ from lithrim_bench.harness.config import (  # noqa: E402
     agent_from_dict,
     agent_to_dict,
     delete_agent,
+    delete_conversation,
     list_agents,
     load_agent,
     load_conversation,
@@ -1179,6 +1180,20 @@ def put_conversation_endpoint(
     per-turn UX state). $0, no paid knob."""
     save_conversation(body.agent, body.thread, db_path=db_path)
     return {"ok": True, "agent": body.agent, "n": len(body.thread)}
+
+
+@app.delete("/v1/conversation")
+def delete_conversation_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """Clear the persisted conversation thread for ``agent`` (PERSIST-CONV — the "clear
+    conversation" affordance). A PLAIN, idempotent delete (the per-turn UX-state twin of the
+    PUT) — no X-Actor, no audit record, NOT a 404 on an absent thread (a brand-new chat's clear
+    is a benign no-op). Clears the chat PROSE only; the audited config writes made inside the
+    conversation are untouched. $0, no paid knob."""
+    removed = delete_conversation(agent, db_path=db_path)
+    return {"ok": True, "agent": agent, "removed": removed}
 
 
 # ── CRUD-1: GET /v1/agents (the rail switcher) + DELETE /v1/agent (guarded) ────

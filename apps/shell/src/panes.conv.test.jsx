@@ -10,9 +10,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 // vi.mock is hoisted above module scope, so the conversation spies live in vi.hoisted
 // (the only state the factory may close over).
-const { getConversation, putConversation } = vi.hoisted(() => ({
+const { getConversation, putConversation, deleteConversation } = vi.hoisted(() => ({
   getConversation: vi.fn(),
   putConversation: vi.fn(),
+  deleteConversation: vi.fn(),
 }));
 
 vi.mock("./bff.js", () => ({
@@ -36,9 +37,10 @@ vi.mock("./bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({}),
   optimizeJudge: vi.fn().mockResolvedValue({}),
-  // PERSIST-CONV: the durable-conversation pair under test.
+  // PERSIST-CONV: the durable-conversation accessors under test.
   getConversation,
   putConversation,
+  deleteConversation,
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;
     onEvent({ event: "assistant_delta", text: "Authoring the risk judge, then running a replay." });
@@ -51,6 +53,7 @@ import { CenterPane } from "./panes.jsx";
 beforeEach(() => {
   getConversation.mockClear().mockResolvedValue({ agent: "ws0_default", thread: [] });
   putConversation.mockClear().mockResolvedValue({ ok: true });
+  deleteConversation.mockClear().mockResolvedValue({ ok: true, removed: true });
 });
 
 const props = { onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
@@ -103,5 +106,34 @@ describe("CenterPane — PERSIST-CONV: durable conversation persistence", () => 
     expect(putConversation).not.toHaveBeenCalled();
     // and the clean empty-state shows
     expect(screen.getByText(/What do you want to evaluate\?/i)).toBeInTheDocument();
+  });
+
+  it("A9: 'Clear conversation' clears the store (deleteConversation) and empties the thread", async () => {
+    getConversation.mockResolvedValueOnce({
+      agent: "ws0_default",
+      thread: [
+        { role: "user", text: "my domain is radiology" },
+        { role: "assistant", text: "Got it — radiology it is.", parts: [] },
+      ],
+    });
+    render(<CenterPane {...props} agent="ws0_default" />);
+    // the thread hydrated...
+    expect(await screen.findByText("my domain is radiology")).toBeInTheDocument();
+
+    // ...arm the in-DOM confirm (no window.confirm — it freezes the renderer), then confirm
+    fireEvent.click(screen.getByTitle(/Clear conversation/i));
+    fireEvent.click(await screen.findByTestId("chat-clear-confirm"));
+
+    // the durable store is cleared for THIS agent...
+    await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith("ws0_default"));
+    // ...and the on-screen thread empties back to the clean empty-state
+    await waitFor(() => expect(screen.queryByText("my domain is radiology")).not.toBeInTheDocument());
+    expect(screen.getByText(/What do you want to evaluate\?/i)).toBeInTheDocument();
+  });
+
+  it("A10 (non-vacuous): the clear affordance is absent on an empty thread (nothing to clear)", async () => {
+    render(<CenterPane {...props} agent="ws0_default" />);
+    await waitFor(() => expect(getConversation).toHaveBeenCalled());
+    expect(screen.queryByTitle(/Clear conversation/i)).not.toBeInTheDocument();
   });
 });
