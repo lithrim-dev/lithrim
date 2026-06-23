@@ -19,7 +19,10 @@ Acceptance (driver §TESTS — RED first):
   * F — ``/health`` open even when ON (liveness never gated).
   * G — ``OPTIONS`` preflight passes even when ON (CORS not broken).
   * H — non-vacuous: a near-miss (correct prefix + extra suffix) and a too-short token
-        → 401 (proves ``compare_digest`` semantics, not a prefix/``==`` match).
+        → 401 (proves WHOLE-VALUE matching — no prefix/length/``==`` partial match; the
+        constant-TIME property of ``compare_digest`` is a code-review invariant, not unit-testable).
+  * I — the ``Bearer`` scheme is matched case-insensitively (RFC 7235) — a lowercase
+        ``authorization: bearer <token>`` from a standard client still passes.
 
 Requires the ``[bff]`` extra (fastapi); skipped cleanly if absent. Hermetic — a tmp config
 DB via the get_config_db override (the tests/bff/ TestClient pattern); no network, no live
@@ -129,9 +132,10 @@ def test_options_preflight_passes_even_when_on(client, monkeypatch):
 
 def test_near_miss_tokens_reject(client, monkeypatch):
     """H: non-vacuous — a near-miss (correct prefix + extra suffix) and a too-short token both
-    401. This proves ``compare_digest`` semantics: a prefix/length-prefix ``==`` bug that
-    accepted ``_TOKEN + 'x'`` or ``_TOKEN[:8]`` would PASS this test only if the gate is whole-
-    value constant-time. Guards against a partial-match regression."""
+    401. This proves WHOLE-VALUE matching: a prefix/length partial-``==`` bug that accepted
+    ``_TOKEN + 'x'`` or ``_TOKEN[:8]`` would fail here. (The constant-TIME property of
+    ``compare_digest`` — that it doesn't leak via response timing — is a code-review invariant,
+    not expressible as a unit test; this asserts the functional whole-value guarantee.)"""
     monkeypatch.setenv("LITHRIM_BFF_TOKEN", _TOKEN)
 
     longer = client.get(_V1_ROUTE, headers={"Authorization": f"Bearer {_TOKEN}x"})
@@ -142,3 +146,16 @@ def test_near_miss_tokens_reject(client, monkeypatch):
 
     short = client.get(_V1_ROUTE, headers={"Authorization": f"Bearer {_TOKEN[:8]}"})
     assert short.status_code == 401, short.text
+
+
+def test_bearer_scheme_is_case_insensitive(client, monkeypatch):
+    """I: the auth-scheme token is case-insensitive per RFC 7235 — a lowercase ``bearer`` (and a
+    mixed-case ``BeArEr``) with the correct credential still passes, so a standard client isn't
+    wrongly rejected. The credential after the scheme stays case-sensitive (it's the secret)."""
+    monkeypatch.setenv("LITHRIM_BFF_TOKEN", _TOKEN)
+
+    lower = client.get(_V1_ROUTE, headers={"Authorization": f"bearer {_TOKEN}"})
+    assert lower.status_code != 401, lower.text
+
+    mixed = client.get(_V1_ROUTE, headers={"Authorization": f"BeArEr {_TOKEN}"})
+    assert mixed.status_code != 401, mixed.text

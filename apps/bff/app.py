@@ -575,7 +575,10 @@ async def _auth_gate(request, call_next):
     token = _bff_auth_token()
     if token and request.method != "OPTIONS" and request.url.path != "/health":
         auth = request.headers.get("authorization", "")
-        presented = auth[7:] if auth.startswith("Bearer ") else request.headers.get("x-api-key", "")
+        # the auth-scheme token is case-insensitive per RFC 7235 (`bearer`/`Bearer`/`BEARER`);
+        # match it case-folded so a standard client isn't wrongly rejected. The credential after
+        # the scheme stays verbatim. Any non-Bearer scheme falls back to the X-API-Key header.
+        presented = auth[7:] if auth[:7].lower() == "bearer " else request.headers.get("x-api-key", "")
         if not (presented and hmac.compare_digest(presented, token)):
             return JSONResponse(
                 {"detail": "missing or invalid API token"},
