@@ -24,9 +24,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
+from ..council._compat import emit_timing
 from .models import (
     Finding,
     GateDecision,
@@ -43,14 +45,13 @@ from .stages import (
     run_semantic,
     run_structural,
 )
-from ..council._compat import emit_timing
 
 logger = logging.getLogger(__name__)
 
 # Stage-callable types (DI-friendly).
 StructuralStage = Callable[[PipelineRequest], Awaitable[StageResult]]
-SemanticStage = Callable[[PipelineRequest], Awaitable[Tuple[StageResult, dict]]]
-ArtifactStage = Callable[[PipelineRequest], Awaitable[Tuple[StageResult, dict]]]
+SemanticStage = Callable[[PipelineRequest], Awaitable[tuple[StageResult, dict]]]
+ArtifactStage = Callable[[PipelineRequest], Awaitable[tuple[StageResult, dict]]]
 
 
 # ── Verdict + gate_decision helpers ───────────────────────────────────────
@@ -122,7 +123,7 @@ def _verdict_flipped_by_stage(
     """
     if final_verdict == "PASS":
         return "none"
-    by_stage: List[Tuple[str, StageResult]] = []
+    by_stage: list[tuple[str, StageResult]] = []
     if structural.status != "not_applicable":
         by_stage.append(("structural", structural))
     if semantic.status != "not_applicable":
@@ -135,11 +136,11 @@ def _verdict_flipped_by_stage(
     return name
 
 
-def _has_high_severity(findings: List[Finding]) -> bool:
+def _has_high_severity(findings: list[Finding]) -> bool:
     return any(f.severity == "HIGH" for f in findings)
 
 
-def _derive_gate_decision(verdict: Verdict, findings: List[Finding], gate_mode: bool) -> GateDecision:
+def _derive_gate_decision(verdict: Verdict, findings: list[Finding], gate_mode: bool) -> GateDecision:
     """SPEC §3.3 gate_decision derivation."""
     if verdict == "PASS":
         return "allow"
@@ -153,11 +154,11 @@ def _derive_gate_decision(verdict: Verdict, findings: List[Finding], gate_mode: 
     return "regenerate"
 
 
-def _regenerate_hints(findings: List[Finding]) -> Optional[List[str]]:
+def _regenerate_hints(findings: list[Finding]) -> list[str] | None:
     """Return a prompt-oriented hint list when regeneration is actionable."""
     if not findings:
         return None
-    hints: List[str] = []
+    hints: list[str] = []
     for f in findings:
         prefix = f.code or f.check_name or f.type
         hint = f"[{prefix}] {f.detail}"
@@ -197,10 +198,10 @@ class PipelineOrchestrator:
     def __init__(
         self,
         *,
-        structural_stage: Optional[StructuralStage] = None,
-        semantic_stage: Optional[SemanticStage] = None,
-        artifact_stage: Optional[ArtifactStage] = None,
-        provenance_store: Optional[ProvenanceStore] = None,
+        structural_stage: StructuralStage | None = None,
+        semantic_stage: SemanticStage | None = None,
+        artifact_stage: ArtifactStage | None = None,
+        provenance_store: ProvenanceStore | None = None,
     ) -> None:
         self._structural_stage: StructuralStage = structural_stage or run_structural
         # Phase C: default semantic stage is the dispatcher that routes on
@@ -253,7 +254,7 @@ class PipelineOrchestrator:
         # missing context); the orchestrator-side gate here is a fast-path
         # short-circuit so we don't even invoke the stage callable when we
         # already know it would skip.
-        artifact_meta: Dict[str, Any] = {}
+        artifact_meta: dict[str, Any] = {}
         artifact_eligible = request.context_kind == "transcript" and has_context and not request.gate_mode
         if artifact_eligible:
             artifact, artifact_meta = await self._artifact_stage(request)
@@ -266,7 +267,7 @@ class PipelineOrchestrator:
         # ``_worst_of_with_artifact``; findings still surface uniformly so
         # the audit-view three-column render carries every signal even when
         # an artifact WARN didn't move the final verdict.
-        unioned_findings: List[Finding] = []
+        unioned_findings: list[Finding] = []
         unioned_findings.extend(structural.findings)
         unioned_findings.extend(semantic.findings)
         unioned_findings.extend(artifact.findings)
@@ -286,7 +287,7 @@ class PipelineOrchestrator:
             else None
         )
 
-        stages_executed: List[str] = []
+        stages_executed: list[str] = []
         stage_results: dict = {}
         if structural.status != "not_applicable":
             stages_executed.append("structural")
@@ -318,7 +319,7 @@ class PipelineOrchestrator:
         # ran). None when stage status = not_applicable. The dict is built
         # in stages.py:run_structural from the single existing
         # /mappings/:id/apply response — no second etlp-mapper call here.
-        structural_template_pin: Optional[StructuralTemplatePin] = None
+        structural_template_pin: StructuralTemplatePin | None = None
         if structural.status != "not_applicable":
             pin_data = structural.metadata.get("structural_template_pin")
             if isinstance(pin_data, dict):
@@ -327,7 +328,7 @@ class PipelineOrchestrator:
         # BRS council-reliability: surface whether the council semantic stage
         # errored (fallback WARN) so a WARN-on-error never counts as a graded
         # verdict. None when semantic didn't run (structural-only / none).
-        council_error: Optional[bool] = (
+        council_error: bool | None = (
             bool(semantic_meta.get("council_error"))
             if semantic.status != "not_applicable"
             else None

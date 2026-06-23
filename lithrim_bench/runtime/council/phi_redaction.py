@@ -6,12 +6,11 @@ observation agents)."""
 from __future__ import annotations
 
 import re
-from typing import Iterable, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 from .settings import settings
 
-
-PHI_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
+PHI_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
     ("phone", re.compile(r"\b\+?1?\s*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")),
@@ -86,7 +85,7 @@ def sanitize_messages(messages: Sequence[object], provider: str) -> Sequence[obj
     for message in messages:
         content = getattr(message, "content", None)
         if isinstance(content, str):
-            setattr(message, "content", redact_text(content))
+            message.content = redact_text(content)
     return messages
 
 

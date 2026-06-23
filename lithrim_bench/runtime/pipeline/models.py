@@ -7,7 +7,7 @@ orchestrator, route, SDK, and tests all share a single source of truth.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Sequence, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -16,7 +16,7 @@ StageStatus = Literal["PASS", "WARN", "BLOCK", "not_applicable"]
 Verdict = Literal["PASS", "WARN", "BLOCK"]
 
 # Map council decision vocabulary to pipeline verdict vocabulary.
-_DECISION_TO_VOTE: Dict[str, Verdict] = {
+_DECISION_TO_VOTE: dict[str, Verdict] = {
     "approve": "PASS",
     "needs_review": "WARN",
     "reject": "BLOCK",
@@ -37,15 +37,15 @@ class JudgeVote(BaseModel):
     # None = no calibrated confidence available (e.g. Mistral exposes no
     # logprobs under v2). Must NOT be coerced to 0.0 — that conflates "no
     # signal" with "0% confident". See PIPELINE_GRADING_AUDIT_2026-05-28 §3.
-    confidence: Optional[float] = None
+    confidence: float | None = None
     reason: str = ""
     model: str = ""  # LLM model id, e.g. "gpt-4.1" (NOT the role name)
-    findings: List[str] = Field(default_factory=list)  # taxonomy codes
+    findings: list[str] = Field(default_factory=list)  # taxonomy codes
 
 
 def _coerce_legacy_judge_votes(
     raw: Any,
-) -> Optional[List[JudgeVote]]:
+) -> list[JudgeVote] | None:
     """Convert legacy dict-keyed-by-role judge_votes to List[JudgeVote].
 
     Legacy shape (pre-B7-2):
@@ -60,7 +60,7 @@ def _coerce_legacy_judge_votes(
     if isinstance(raw, list):
         return raw  # already new shape or List[JudgeVote]
     if isinstance(raw, dict):
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for role, entry in raw.items():
             if not isinstance(entry, dict):
                 continue
@@ -86,16 +86,16 @@ class Finding(BaseModel):
     type: str  # "structural" | "semantic" | "transform"
     severity: Severity = "MEDIUM"
     detail: str
-    field: Optional[str] = None
-    check_name: Optional[str] = None
-    code: Optional[str] = None
+    field: str | None = None
+    check_name: str | None = None
+    code: str | None = None
     # Phase 5 Cycle 14 (S30): first evidence span's chunk_id, post Tier A/B
     # linkback (stages._inject_chunk_ids). Surfaces the KB citation the judge
     # leaned on — allows the audit view to render a traceable
     # quote → chunk pivot without denormalising ``evidence`` back from the
     # persisted stage_results. ``None`` when no span in the consensus
     # carried a chunk_id (truthful absence, not a fabricated slug).
-    chunk_id: Optional[str] = None
+    chunk_id: str | None = None
     # Audio-source linkback: first evidence span's audio segment timestamps
     # and speaker label, propagated from the transcript segment that fed the
     # span (``transcription_service.py``: ``word_timestamps=True``;
@@ -105,18 +105,18 @@ class Finding(BaseModel):
     # source segment matches the artifact span). Closes the leak at
     # ``compliance.py:380`` where ``TranscriptSnippetResponse.timestamp_ms``
     # rendered ``None`` because the findings ETL had dropped it.
-    start_ms: Optional[int] = None
-    end_ms: Optional[int] = None
-    speaker: Optional[str] = None
+    start_ms: int | None = None
+    end_ms: int | None = None
+    speaker: str | None = None
 
 
 class StageResult(BaseModel):
     """Uniform stage output for structural + semantic stages."""
 
     status: StageStatus
-    findings: List[Finding] = Field(default_factory=list)
-    evidence: List[Dict[str, Any]] = Field(default_factory=list)
-    judge_votes: Optional[List[JudgeVote]] = None  # semantic-stage only
+    findings: list[Finding] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    judge_votes: list[JudgeVote] | None = None  # semantic-stage only
 
     @model_validator(mode="before")
     @classmethod
@@ -134,15 +134,15 @@ class StageResult(BaseModel):
     #   semantic stage: (none today)
     #   artifact stage: faithfulness_score, completeness_score, safety_flags
     # Optional + additive — callers that don't populate it stay backward-compat.
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TransformResult(BaseModel):
     """Output of the optional transform stage."""
 
     applied: bool
-    transformer_id: Optional[str] = None
-    output_summary: Optional[Dict[str, Any]] = None
+    transformer_id: str | None = None
+    output_summary: dict[str, Any] | None = None
 
 
 class StructuralTemplatePin(BaseModel):
@@ -168,9 +168,9 @@ class StructuralTemplatePin(BaseModel):
 
     mapping_id: int
     validator_name: str
-    profile_version: Optional[int] = None
-    check_ids_run: List[str] = Field(default_factory=list)
-    check_ids_failed: List[str] = Field(default_factory=list)
+    profile_version: int | None = None
+    check_ids_run: list[str] = Field(default_factory=list)
+    check_ids_failed: list[str] = Field(default_factory=list)
 
 
 class PipelineProvenance(BaseModel):
@@ -180,17 +180,17 @@ class PipelineProvenance(BaseModel):
     org_id: str
     timestamp: datetime
     request_hash: str
-    stages_executed: List[str]
+    stages_executed: list[str]
     # stage_results persists the per-stage verdict/findings/evidence so
     # downstream audit, eval harness §5.1 demo rendering, and compliance
     # reporting don't have to replay the pipeline to inspect stage-level
     # outcomes. Keyed by stage name ("structural" | "semantic"); stages
     # with status="not_applicable" are omitted to keep docs compact.
     # Added in Phase 5 Cycle 7 (seam S21).
-    stage_results: Dict[str, StageResult] = Field(default_factory=dict)
-    council_config: Dict[str, Any] = Field(default_factory=dict)
-    judge_rationale: Optional[Dict[str, Any]] = None
-    kb_retrievals: List[Dict[str, Any]] = Field(default_factory=list)
+    stage_results: dict[str, StageResult] = Field(default_factory=dict)
+    council_config: dict[str, Any] = Field(default_factory=dict)
+    judge_rationale: dict[str, Any] | None = None
+    kb_retrievals: list[dict[str, Any]] = Field(default_factory=list)
     # Retrieval orchestrator stats surfaced for empirical observability of
     # the S20 retry-on-empty path. Populated by
     # ``app/services/pipeline/stages.py::_run_council_and_map``; keys come
@@ -198,9 +198,9 @@ class PipelineProvenance(BaseModel):
     # failed namespaces, total_matches, duration_ms, and from Cycle 10
     # ``retry_attempted`` / ``retry_recovered`` when the retry path fires).
     # Added in Phase 5 Cycle 10 (seam S20).
-    retrieval_stats: Dict[str, Any] = Field(default_factory=dict)
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    cost_tokens: Dict[str, int] = Field(default_factory=dict)
+    retrieval_stats: dict[str, Any] = Field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] | None = None
+    cost_tokens: dict[str, int] = Field(default_factory=dict)
     # Phase 5 Cycle 16: top-level summary fields persisted alongside
     # stage_results so the audit-view denormaliser (and external eval
     # surfaces) can read final orchestration outcomes without re-deriving
@@ -212,10 +212,10 @@ class PipelineProvenance(BaseModel):
     # surfacing them as ``None`` on every council-path doc would be a
     # lying-by-default field. Those scores belong in a separate stage when
     # artifact_evaluator co-runs alongside the council.
-    artifact_type: Optional[str] = None
-    verdict: Optional[str] = None
-    gate_decision: Optional[str] = None
-    findings: List[Finding] = Field(default_factory=list)
+    artifact_type: str | None = None
+    verdict: str | None = None
+    gate_decision: str | None = None
+    findings: list[Finding] = Field(default_factory=list)
     # BRS-1 (post-audit reframe, 2026-05-27): observability surfaces for
     # validator coverage + per-stage verdict attribution. Both default to
     # None so older persisted docs read cleanly through Pydantic v2 (mirrors
@@ -224,14 +224,14 @@ class PipelineProvenance(BaseModel):
     # is a derived query pattern over (verdict_flipped_by_stage,
     # stage_results.structural.status, stage_results.semantic.status). See
     # ``docs/research/AUDIT_bench_driven_reliability_2026-05-26.md`` §5.1.
-    structural_template_pin: Optional[StructuralTemplatePin] = None
-    verdict_flipped_by_stage: Optional[Literal["structural", "semantic", "artifact", "none"]] = None
+    structural_template_pin: StructuralTemplatePin | None = None
+    verdict_flipped_by_stage: Literal["structural", "semantic", "artifact", "none"] | None = None
     # True when the council semantic stage errored (429/timeout) or every judge
     # errored (insufficient_valid_models) — the surfaced WARN is a fallback, not
     # a graded verdict. None when the semantic stage didn't run (structural-only
     # / context_kind=none) or on pre-existing docs. Lets downstream eval rollups
     # compute council_error_rate and exclude WARN-on-error from accuracy.
-    council_error: Optional[bool] = None
+    council_error: bool | None = None
     # Plugin Phase-1 (D5): the loaded-plugin set + active pack/tier, recorded per run so an
     # audit can answer "which Core/Pro plugins were active for this eval" (SPEC §Data Contracts:
     # the load-time gate records the loaded set in the provenance blob). Default-safe:
@@ -246,17 +246,17 @@ class PipelineProvenance(BaseModel):
 class PipelineRequest(BaseModel):
     """Input to PipelineOrchestrator.evaluate. See §3.1."""
 
-    artifact: Union[Dict[str, Any], str]
+    artifact: dict[str, Any] | str
     artifact_type: str
     context_kind: ContextKind = "transcript"
-    context: Optional[Union[Dict[str, Any], str]] = None
+    context: dict[str, Any] | str | None = None
     org_id: str
-    agent_id: Optional[str] = None
-    transformer_id: Optional[str] = None
-    validator_id: Optional[str] = None
+    agent_id: str | None = None
+    transformer_id: str | None = None
+    validator_id: str | None = None
     gate_mode: bool = False
-    conversation_id: Optional[str] = None
-    idempotency_key: Optional[str] = None
+    conversation_id: str | None = None
+    idempotency_key: str | None = None
     # B7-5 sub (c): when True the council derives a per-(case, judge) seed
     # from ``conversation_id`` so re-running the same case produces byte-
     # identical reason paragraphs + votes. Live-conversation paths construct
@@ -268,7 +268,7 @@ class PipelineRequest(BaseModel):
     # build_prompt was deleted in CE-PACK-6b-CLEAN and the authored path does not branch on
     # category — retained for provenance; the analyze flow (ObservationWorkflow) still
     # passes it via agent_metadata.
-    agent_metadata: Optional[Dict[str, Any]] = None
+    agent_metadata: dict[str, Any] | None = None
 
 
 class PipelineResult(BaseModel):
@@ -276,7 +276,7 @@ class PipelineResult(BaseModel):
 
     verdict: Verdict
     gate_decision: GateDecision
-    findings: List[Finding] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     duration_ms: int
     structural: StageResult
     semantic: StageResult
@@ -286,9 +286,9 @@ class PipelineResult(BaseModel):
     # ``not_applicable`` for backward compat with callers / tests that
     # constructed a ``PipelineResult`` without an artifact field.
     artifact: StageResult = Field(default_factory=lambda: StageResult(status="not_applicable"))
-    transform: Optional[TransformResult] = None
+    transform: TransformResult | None = None
     provenance: PipelineProvenance
-    regenerate_hints: Optional[List[str]] = None
+    regenerate_hints: list[str] | None = None
 
 
 # ── Audit-view response models (Phase 5 Cycle 14 / S31) ─────────────────────
@@ -312,19 +312,19 @@ class AuditSpan(BaseModel):
 
     column: AuditColumn
     quote: str
-    chunk_id: Optional[str] = None
-    turn_ids: List[str] = Field(default_factory=list)
-    path: Optional[str] = None
-    source_label: Optional[str] = None
+    chunk_id: str | None = None
+    turn_ids: list[str] = Field(default_factory=list)
+    path: str | None = None
+    source_label: str | None = None
     # Phase 2 audio-linkback fields. Populated by
     # ``_inject_turn_timestamps_for_spans`` (council path) or by
     # ``artifact_evaluator._semantic_stage`` (legacy path) when a
     # transcript segment matches the span. ``None`` is truthful absence:
     # the span has no source segment, which is itself the negative-audit
     # signal for fabricated content. Mirror of the chunk_id pattern.
-    start_ms: Optional[int] = None
-    end_ms: Optional[int] = None
-    speaker: Optional[str] = None
+    start_ms: int | None = None
+    end_ms: int | None = None
+    speaker: str | None = None
 
 
 class AuditFinding(BaseModel):
@@ -332,17 +332,17 @@ class AuditFinding(BaseModel):
 
     failure_type: str
     severity: Severity
-    judge: Optional[str] = None
-    chunk_id: Optional[str] = None
-    spans: List[AuditSpan] = Field(default_factory=list)
+    judge: str | None = None
+    chunk_id: str | None = None
+    spans: list[AuditSpan] = Field(default_factory=list)
     # Phase 2 audio-linkback fields, hoisted to finding level. Picked from
     # the first span that carries a timestamp (mirrors the chunk_id hoist
     # in ``_findings_from_evidence_summary._mk``). Lets the eight-link UI
     # surface a single "audio segment" anchor per finding without making
     # the renderer scan the spans array.
-    start_ms: Optional[int] = None
-    end_ms: Optional[int] = None
-    speaker: Optional[str] = None
+    start_ms: int | None = None
+    end_ms: int | None = None
+    speaker: str | None = None
 
 
 class ArtifactProfileRef(BaseModel):
@@ -360,11 +360,11 @@ class ArtifactProfileRef(BaseModel):
     stays ``None`` when ``ETLP_MAPPER_PUBLIC_URL`` is unset.
     """
 
-    artifact_type: Optional[str] = None
-    profile_name: Optional[str] = None
-    etlp_mapping_id: Optional[int] = None
-    etlp_mapping_url: Optional[str] = None
-    profile_version: Optional[int] = None
+    artifact_type: str | None = None
+    profile_name: str | None = None
+    etlp_mapping_id: int | None = None
+    etlp_mapping_url: str | None = None
+    profile_version: int | None = None
 
 
 class StructuralCheck(BaseModel):
@@ -372,9 +372,9 @@ class StructuralCheck(BaseModel):
 
     name: str
     passed: bool
-    severity: Optional[str] = None
-    extracted_value: Optional[Any] = None
-    detail: Optional[str] = None
+    severity: str | None = None
+    extracted_value: Any | None = None
+    detail: str | None = None
 
 
 class StructuralFinding(BaseModel):
@@ -399,14 +399,14 @@ class StructuralFinding(BaseModel):
     (mapping_id populated, url null; internal IP never leaks).
     """
 
-    field_path: Optional[str] = None
-    validator_name: Optional[str] = None
+    field_path: str | None = None
+    validator_name: str | None = None
     severity: str
-    message: Optional[str] = None
-    expected: Optional[str] = None
-    actual: Optional[str] = None
-    etlp_mapping_id: Optional[int] = None
-    etlp_mapping_url: Optional[str] = None
+    message: str | None = None
+    expected: str | None = None
+    actual: str | None = None
+    etlp_mapping_id: int | None = None
+    etlp_mapping_url: str | None = None
 
 
 class PillarsSummary(BaseModel):
@@ -414,14 +414,14 @@ class PillarsSummary(BaseModel):
     findings panel. Each field defaults to ``None`` / empty so the UI can
     render a graceful "Not applicable" state on runs missing a stage."""
 
-    faithfulness_score: Optional[float] = None
-    completeness_score: Optional[float] = None
+    faithfulness_score: float | None = None
+    completeness_score: float | None = None
     safety_flags_count: int = 0
-    safety_flags: List[str] = Field(default_factory=list)
-    structural_passed: Optional[int] = None
-    structural_total: Optional[int] = None
+    safety_flags: list[str] = Field(default_factory=list)
+    structural_passed: int | None = None
+    structural_total: int | None = None
     grounded_citations_count: int = 0
-    combined_verdict: Optional[str] = None
+    combined_verdict: str | None = None
 
 
 class AuditView(BaseModel):
@@ -429,29 +429,29 @@ class AuditView(BaseModel):
 
     run_id: str
     org_id: str
-    agent_id: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    verdicts: Dict[str, Optional[str]] = Field(default_factory=dict)
-    aggregates: Dict[str, int] = Field(default_factory=dict)
-    findings: List[AuditFinding] = Field(default_factory=list)
+    agent_id: str | None = None
+    timestamp: datetime | None = None
+    verdicts: dict[str, str | None] = Field(default_factory=dict)
+    aggregates: dict[str, int] = Field(default_factory=dict)
+    findings: list[AuditFinding] = Field(default_factory=list)
     # EVAL-CLARITY-B7-2: structured per-judge votes from the semantic stage.
     # Surfaces judge attribution (role, vote, confidence, rationale, findings)
     # so the UI's CouncilSummaryRow can render per-judge breakdown without
     # cross-referencing the compliance_report. None on pre-B7-2 docs and on
     # runs where the semantic stage was skipped.
-    judge_votes: Optional[List[JudgeVote]] = None
+    judge_votes: list[JudgeVote] | None = None
     # Cycle 14 fast-follow scope extension: 5-pillar summary + profile ref
     # so the Playground + ConversationDetail can render the full evaluation
     # scorecard without refetching the compliance_report. All three are
     # Optional / empty-default for backward-compat with pre-extension runs
     # and with test fixtures built before this change (HALT (f)).
-    artifact_profile: Optional[ArtifactProfileRef] = None
-    pillars: Optional[PillarsSummary] = None
-    structural_checks: List[StructuralCheck] = Field(default_factory=list)
+    artifact_profile: ArtifactProfileRef | None = None
+    pillars: PillarsSummary | None = None
+    structural_checks: list[StructuralCheck] = Field(default_factory=list)
     # B7-6: typed structural failures with field attribution. Backward-compat:
     # default empty list so pre-B7-6 docs and runs without a structural stage
     # render cleanly. Coexists with the untyped ``findings`` surface above.
-    structural_findings: List[StructuralFinding] = Field(default_factory=list)
+    structural_findings: list[StructuralFinding] = Field(default_factory=list)
     # BRS-5: hoist BRS-1's per-stage observability fields onto the audit-view
     # response. ``structural_template_pin`` + ``verdict_flipped_by_stage`` are
     # read verbatim from the persisted PipelineProvenance doc; on pre-BRS-1
@@ -461,10 +461,10 @@ class AuditView(BaseModel):
     # True when ``verdict_flipped_by_stage="artifact"`` AND structural=PASS
     # AND semantic in {PASS, WARN}; None when ``verdict_flipped_by_stage``
     # is absent (pre-BRS-1 doc).
-    structural_template_pin: Optional[StructuralTemplatePin] = None
-    verdict_flipped_by_stage: Optional[Literal["structural", "semantic", "artifact", "none"]] = None
-    silent_confident_certification: Optional[bool] = None
+    structural_template_pin: StructuralTemplatePin | None = None
+    verdict_flipped_by_stage: Literal["structural", "semantic", "artifact", "none"] | None = None
+    silent_confident_certification: bool | None = None
     # True when the council semantic stage errored / all judges errored — the
     # verdict is a fallback WARN, not a graded result. None on pre-existing docs
     # and structural-only runs. Read verbatim from the persisted provenance.
-    council_error: Optional[bool] = None
+    council_error: bool | None = None

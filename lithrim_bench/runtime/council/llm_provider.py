@@ -17,7 +17,7 @@ is passed explicitly to ``client.chat.completions.create(model=..., ...)``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Tuple, Union
+from typing import Any, Literal, Union
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AzureOpenAI, OpenAI
 
@@ -32,7 +32,7 @@ _PROVIDER_OPENAI = "openai"
 _PROVIDER_AZURE = "azure"
 
 # (kind, provider, purpose) → client instance
-_client_cache: Dict[Tuple[str, str, str], Any] = {}
+_client_cache: dict[tuple[str, str, str], Any] = {}
 
 
 def _resolve_model(provider: str, purpose: Purpose) -> str:
@@ -94,7 +94,7 @@ def _current_provider() -> str:
     return provider
 
 
-def get_sync_openai_client(purpose: Purpose) -> Tuple[SyncClient, str]:
+def get_sync_openai_client(purpose: Purpose) -> tuple[SyncClient, str]:
     """Return a sync OpenAI/AzureOpenAI client + model string for the purpose."""
     provider = _current_provider()
     cache_key = ("sync", provider, purpose)
@@ -118,7 +118,7 @@ def get_sync_openai_client(purpose: Purpose) -> Tuple[SyncClient, str]:
     return client, model
 
 
-def get_async_openai_client(purpose: Purpose) -> Tuple[AsyncClient, str]:
+def get_async_openai_client(purpose: Purpose) -> tuple[AsyncClient, str]:
     """Return an async OpenAI/AzureOpenAI client + model string for the purpose."""
     provider = _current_provider()
     cache_key = ("async", provider, purpose)

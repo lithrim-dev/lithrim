@@ -22,9 +22,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from ..services.artifact_evaluator import validate_artifact_structural
 from ..council.compliance_council import (
     CONTEXT_KIND_SOURCE_MESSAGE,
     CONTEXT_KIND_TRANSCRIPT,
@@ -32,13 +32,14 @@ from ..council.compliance_council import (
     CouncilModel,
 )
 from ..council.llm_provider import get_sync_openai_client
+from ..services.artifact_evaluator import validate_artifact_structural
 from .models import (
+    _DECISION_TO_VOTE,
     Finding,
     JudgeVote,
     PipelineRequest,
     StageResult,
     Verdict,
-    _DECISION_TO_VOTE,
 )
 from .retrieval import retrieve_for_request
 
@@ -46,8 +47,8 @@ logger = logging.getLogger(__name__)
 
 
 # Type aliases for DI in tests.
-StructuralValidator = Callable[..., Awaitable[Dict[str, Any]]]
-CouncilEvaluator = Callable[[Dict[str, Any]], Dict[str, Any]]
+StructuralValidator = Callable[..., Awaitable[dict[str, Any]]]
+CouncilEvaluator = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 # ── Severity + verdict mapping helpers ────────────────────────────────────
@@ -67,7 +68,7 @@ def _normalize_severity(raw: Any) -> str:
     return _SEVERITY_MAP.get(raw.lower(), "MEDIUM")
 
 
-def _decision_to_status(decision: Optional[str]) -> Verdict:
+def _decision_to_status(decision: str | None) -> Verdict:
     """Map council decision → pipeline Verdict (PASS/WARN/BLOCK)."""
     if decision == "approve":
         return "PASS"
@@ -83,7 +84,7 @@ def _decision_to_status(decision: Optional[str]) -> Verdict:
 async def run_structural(
     request: PipelineRequest,
     *,
-    validator: Optional[StructuralValidator] = None,
+    validator: StructuralValidator | None = None,
 ) -> StageResult:
     """Run structural validation against a Jute template.
 
@@ -144,7 +145,7 @@ async def run_structural(
         for f in raw_findings
     ]
 
-    evidence: List[Dict[str, Any]] = []
+    evidence: list[dict[str, Any]] = []
     for check in result.get("structural_checks") or []:
         evidence.append(
             {
@@ -163,15 +164,15 @@ async def run_structural(
     # side-benefit). Pre-BRS-1 docs still hit the resolved_profile fallback;
     # both paths now coexist.
     mapping_id_raw = result.get("etlp_mapping_id")
-    mapping_id: Optional[int] = (
+    mapping_id: int | None = (
         int(mapping_id_raw) if isinstance(mapping_id_raw, (int, float)) else None
     )
     version_raw = result.get("profile_version")
-    profile_version: Optional[int] = (
+    profile_version: int | None = (
         int(version_raw) if isinstance(version_raw, (int, float)) else None
     )
     profile_name = result.get("profile_name")
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "profile_name": profile_name,
         "etlp_mapping_id": mapping_id,
         "profile_version": profile_version,
@@ -229,7 +230,7 @@ def _context_as_transcript(context: Any) -> str:
 
 async def _build_transcript_payload(
     request: PipelineRequest,
-) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Build council context for ``context_kind=transcript``.
 
     Returns ``(payload, retrieval_meta)`` where ``retrieval_meta`` is the
@@ -247,14 +248,14 @@ async def _build_transcript_payload(
     # judge-emitted ``turn_ids`` to millisecond boundaries. Absent on
     # transcript-string callers (legacy / eval harness); the linkback
     # noops in that case.
-    transcript_segments: Optional[List[Dict[str, Any]]] = None
+    transcript_segments: list[dict[str, Any]] | None = None
     if isinstance(request.context, dict):
         segs = request.context.get("segments")
         if isinstance(segs, list) and segs:
             transcript_segments = segs
     retrieval = await retrieve_for_request(request)
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "organization_id": request.org_id,
         "conversation_item_id": request.conversation_id or "pipeline_run",
         "query": "pipeline.evaluate(context_kind=transcript)",
@@ -297,10 +298,10 @@ async def _build_transcript_payload(
 
 
 def _findings_from_evidence_summary(
-    evidence_summary: Dict[str, Any],
-    retrieval_matches: Optional[List[Dict[str, Any]]] = None,
-    transcript_segments: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[List[Finding], List[Dict[str, Any]]]:
+    evidence_summary: dict[str, Any],
+    retrieval_matches: list[dict[str, Any]] | None = None,
+    transcript_segments: list[dict[str, Any]] | None = None,
+) -> tuple[list[Finding], list[dict[str, Any]]]:
     """Collapse council tier-triggered violations into (findings, evidence_rows).
 
     S24 (Phase 5 Cycle 9): consensus aggregation in
@@ -328,10 +329,10 @@ def _findings_from_evidence_summary(
     chunk_ids (Tier 0, when the judge already encoded one) survive unchanged.
     """
 
-    findings: List[Finding] = []
-    evidence_rows: List[Dict[str, Any]] = []
+    findings: list[Finding] = []
+    evidence_rows: list[dict[str, Any]] = []
 
-    def _mk(severity: str, tier_entries: List[Dict[str, Any]]) -> None:
+    def _mk(severity: str, tier_entries: list[dict[str, Any]]) -> None:
         for entry in tier_entries or []:
             violation = entry.get("violation") or "UNKNOWN_VIOLATION"
             judge_count = entry.get("judge_count")
@@ -346,10 +347,10 @@ def _findings_from_evidence_summary(
             # Mirror of the chunk_id linkback right above.
             if transcript_segments and spans:
                 _inject_turn_timestamps_for_spans(spans, transcript_segments)
-            chunk_id: Optional[str] = None
-            start_ms: Optional[int] = None
-            end_ms: Optional[int] = None
-            speaker: Optional[str] = None
+            chunk_id: str | None = None
+            start_ms: int | None = None
+            end_ms: int | None = None
+            speaker: str | None = None
             # Pick first span that carries each value. Mirrors the chunk_id
             # pattern: truthful absence is fine (None propagates). For
             # fabricated content, no transcript span will match the artifact
@@ -402,8 +403,8 @@ _MIN_CHUNK_ID_TOKEN_LEN = 3
 
 
 def _inject_chunk_ids_for_spans(
-    spans: List[Dict[str, Any]],
-    retrieval_matches: List[Dict[str, Any]],
+    spans: list[dict[str, Any]],
+    retrieval_matches: list[dict[str, Any]],
 ) -> None:
     """Mutate ``spans`` in-place — inject ``chunk_id`` on each span whose
     quote string-contains a retrieval match's ``metadata.code`` or
@@ -457,8 +458,8 @@ def _inject_chunk_ids_for_spans(
 
 
 def _inject_chunk_ids(
-    evidence_rows: List[Dict[str, Any]],
-    retrieval_matches: List[Dict[str, Any]],
+    evidence_rows: list[dict[str, Any]],
+    retrieval_matches: list[dict[str, Any]],
 ) -> None:
     """Evidence-row-level wrapper — preserved for existing call sites and
     tests. Delegates to :func:`_inject_chunk_ids_for_spans`. New call sites
@@ -471,8 +472,8 @@ def _inject_chunk_ids(
 
 
 def _inject_turn_timestamps_for_spans(
-    spans: List[Dict[str, Any]],
-    transcript_segments: List[Dict[str, Any]],
+    spans: list[dict[str, Any]],
+    transcript_segments: list[dict[str, Any]],
 ) -> None:
     """Mutate ``spans`` in-place — inject ``start_ms`` / ``end_ms`` /
     ``speaker`` on each span whose ``turn_ids`` reference a transcript segment.
@@ -512,7 +513,7 @@ def _inject_turn_timestamps_for_spans(
         return
     # Index segments by id (str + int variants) for fast lookup. Whisper
     # emits int ids; some upstream serializers may stringify them.
-    seg_by_id: Dict[Any, Dict[str, Any]] = {}
+    seg_by_id: dict[Any, dict[str, Any]] = {}
     for seg in transcript_segments:
         if not isinstance(seg, dict):
             continue
@@ -561,7 +562,7 @@ def _inject_turn_timestamps_for_spans(
             break  # first-match-wins, like chunk_id pattern
 
 
-def _synth_reason(decision: str, finding_codes: List[str]) -> str:
+def _synth_reason(decision: str, finding_codes: list[str]) -> str:
     """Synthesize a legible one-line justification when the per-judge seam carries
     no prose. The DSPy judge seam (``judges_dspy.Judge.forward``, FROZEN) emits
     ``{model, decision, confidence, findings, errors}`` — it has no ``summary`` /
@@ -576,9 +577,9 @@ def _synth_reason(decision: str, finding_codes: List[str]) -> str:
 
 
 def _judge_votes_from_models(
-    models: List[Dict[str, Any]],
-    model_lookup: Optional[Dict[str, str]] = None,
-) -> List[JudgeVote]:
+    models: list[dict[str, Any]],
+    model_lookup: dict[str, str] | None = None,
+) -> list[JudgeVote]:
     """Build structured per-judge votes from council model results.
 
     EVAL-CLARITY-B7-2: preserves the full attribution data (rationale,
@@ -592,7 +593,7 @@ def _judge_votes_from_models(
     """
     if not model_lookup:
         model_lookup = {}
-    votes: List[JudgeVote] = []
+    votes: list[JudgeVote] = []
     for m in models or []:
         role = m.get("model") or "unknown"
         decision = m.get("decision") or ""
@@ -646,7 +647,7 @@ def _council_for_mode(gate_mode: bool) -> ComplianceCouncil:
 
 async def _build_source_message_payload(
     request: PipelineRequest,
-) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Council payload for ``context_kind=source_message`` (SPEC §3.2).
 
     ``request.context`` is the raw or parsed source (FHIR bundle dict,
@@ -678,7 +679,7 @@ async def _build_source_message_payload(
 
     retrieval = await retrieve_for_request(request)
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "organization_id": request.org_id,
         "conversation_item_id": request.conversation_id or "pipeline_run",
         "query": "pipeline.evaluate(context_kind=source_message)",
@@ -711,11 +712,11 @@ async def _build_source_message_payload(
 def _run_council_and_map(
     *,
     request: PipelineRequest,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     context_kind: str,
-    council_evaluate: Optional[CouncilEvaluator],
-    retrieval: Optional[Dict[str, Any]] = None,
-) -> Callable[[], Awaitable[Tuple[StageResult, Dict[str, Any]]]]:
+    council_evaluate: CouncilEvaluator | None,
+    retrieval: dict[str, Any] | None = None,
+) -> Callable[[], Awaitable[tuple[StageResult, dict[str, Any]]]]:
     """Shared machinery: invoke council, map result → (StageResult, meta).
 
     ``retrieval`` is the per-request retrieval payload produced by the
@@ -733,14 +734,14 @@ def _run_council_and_map(
         # populates ``conversation_id`` as ``run:{run_id}:case:{case_id}``
         # — strip the run prefix so the seed is stable across runs. Live
         # paths build their own ComplianceCouncil and never reach this seam.
-        eval_case_id: Optional[str] = None
+        eval_case_id: str | None = None
         if request.eval_mode and request.conversation_id:
             cid = request.conversation_id
             marker = ":case:"
             idx = cid.find(marker)
             eval_case_id = cid[idx + len(marker):] if idx >= 0 else cid
 
-        def _call(p: Dict[str, Any]) -> Dict[str, Any]:
+        def _call(p: dict[str, Any]) -> dict[str, Any]:
             return council.evaluate(
                 p,
                 context_kind=context_kind,
@@ -755,7 +756,7 @@ def _run_council_and_map(
             "judges": [m.name for m in council.models],
         }
         # B7-2: map role name -> LLM model string for JudgeVote.model
-        _model_lookup: Dict[str, str] = {m.name: m.model for m in council.models}
+        _model_lookup: dict[str, str] = {m.name: m.model for m in council.models}
     else:
         evaluator = council_evaluate
         council_config = {
@@ -768,8 +769,8 @@ def _run_council_and_map(
     # Flatten retrieval for provenance. kb_retrievals records (namespace,
     # score, source, chunk_id-ish) tuples — enough for the acceptance Mongo
     # query to confirm retrieval fired without round-tripping chunk text.
-    kb_retrievals: List[Dict[str, Any]] = []
-    retrieval_stats: Dict[str, Any] = {}
+    kb_retrievals: list[dict[str, Any]] = []
+    retrieval_stats: dict[str, Any] = {}
     if retrieval:
         retrieval_stats = retrieval.get("stats") or {}
         for m in retrieval.get("matches") or []:
@@ -800,9 +801,9 @@ def _run_council_and_map(
                 }
             )
 
-    async def _runner() -> Tuple[StageResult, Dict[str, Any]]:
+    async def _runner() -> tuple[StageResult, dict[str, Any]]:
         try:
-            council_result: Dict[str, Any] = await asyncio.to_thread(evaluator, payload)
+            council_result: dict[str, Any] = await asyncio.to_thread(evaluator, payload)
         except Exception as exc:
             logger.warning(
                 "pipeline_semantic_stage_error",
@@ -942,8 +943,8 @@ def _default_authored_evaluator() -> CouncilEvaluator:
 async def run_semantic_transcript(
     request: PipelineRequest,
     *,
-    council_evaluate: Optional[CouncilEvaluator] = None,
-) -> Tuple[StageResult, Dict[str, Any]]:
+    council_evaluate: CouncilEvaluator | None = None,
+) -> tuple[StageResult, dict[str, Any]]:
     """Run the compliance council for ``context_kind=transcript``.
 
     When no evaluator is injected, the council grades via the AUTHORED stage — each
@@ -969,8 +970,8 @@ async def run_semantic_transcript(
 async def run_semantic_source_message(
     request: PipelineRequest,
     *,
-    council_evaluate: Optional[CouncilEvaluator] = None,
-) -> Tuple[StageResult, Dict[str, Any]]:
+    council_evaluate: CouncilEvaluator | None = None,
+) -> tuple[StageResult, dict[str, Any]]:
     """Run the compliance council for ``context_kind=source_message`` (Lane 2).
 
     When no evaluator is injected, the council grades via the AUTHORED stage — each
@@ -996,8 +997,8 @@ async def run_semantic_source_message(
 async def run_semantic(
     request: PipelineRequest,
     *,
-    council_evaluate: Optional[CouncilEvaluator] = None,
-) -> Tuple[StageResult, Dict[str, Any]]:
+    council_evaluate: CouncilEvaluator | None = None,
+) -> tuple[StageResult, dict[str, Any]]:
     """Dispatch semantic stage based on ``request.context_kind``.
 
     ``none`` never reaches this function — the orchestrator short-circuits
@@ -1030,10 +1031,10 @@ async def run_semantic(
 # BLOCK escalates the final verdict. Mirrors the live rule documented at
 # ``observation_workflow.py:888-896``.
 
-ArtifactJudgeRunner = Callable[..., Dict[str, Any]]
+ArtifactJudgeRunner = Callable[..., dict[str, Any]]
 
 
-def _artifact_evaluator_for_request() -> Tuple[Any, ComplianceCouncil]:
+def _artifact_evaluator_for_request() -> tuple[Any, ComplianceCouncil]:
     """Build a single-judge council instance for the artifact stage.
 
     Lazy-imports ``_run_artifact_judge`` to avoid a circular import: the
@@ -1056,9 +1057,9 @@ def _artifact_evaluator_for_request() -> Tuple[Any, ComplianceCouncil]:
 
 
 def _findings_from_artifact_judge(
-    legacy_findings: List[Dict[str, Any]],
-    transcript_segments: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[List[Finding], List[Dict[str, Any]]]:
+    legacy_findings: list[dict[str, Any]],
+    transcript_segments: list[dict[str, Any]] | None = None,
+) -> tuple[list[Finding], list[dict[str, Any]]]:
     """Map artifact_judge findings to (Finding[], evidence_rows[]).
 
     Mirrors the shape produced by :func:`_findings_from_evidence_summary` so
@@ -1068,10 +1069,10 @@ def _findings_from_artifact_judge(
     matcher is deterministic substring (same pattern as the artifact_
     evaluator's custom semantic stage in ``artifact_evaluator.py``).
     """
-    findings: List[Finding] = []
-    evidence_rows: List[Dict[str, Any]] = []
+    findings: list[Finding] = []
+    evidence_rows: list[dict[str, Any]] = []
 
-    def _match_quote_to_segment(quote: str) -> Optional[Dict[str, Any]]:
+    def _match_quote_to_segment(quote: str) -> dict[str, Any] | None:
         if not quote or not transcript_segments:
             return None
         quote_norm = quote.strip().lower()
@@ -1094,7 +1095,7 @@ def _findings_from_artifact_judge(
     for f in legacy_findings:
         if not isinstance(f, dict):
             continue
-        finding_kwargs: Dict[str, Any] = {
+        finding_kwargs: dict[str, Any] = {
             "type": f.get("type", "semantic"),
             "severity": _normalize_severity(f.get("severity")),
             "detail": f.get("detail", "artifact check"),
@@ -1123,11 +1124,11 @@ def _findings_from_artifact_judge(
         vcode = f.get("code") or f.get("check_name") or f.get("type")
         if not vcode:
             continue
-        spans: List[Dict[str, Any]] = []
+        spans: list[dict[str, Any]] = []
         t_span = f.get("transcript_span")
         a_span = f.get("artifact_span")
         if isinstance(t_span, str) and t_span.strip():
-            transcript_span_dict: Dict[str, Any] = {"quote": t_span, "turn_ids": []}
+            transcript_span_dict: dict[str, Any] = {"quote": t_span, "turn_ids": []}
             seg = _match_quote_to_segment(t_span)
             if seg:
                 if seg.get("id") is not None:
@@ -1153,8 +1154,8 @@ def _findings_from_artifact_judge(
 async def run_artifact(
     request: PipelineRequest,
     *,
-    artifact_judge_runner: Optional[ArtifactJudgeRunner] = None,
-) -> Tuple[StageResult, Dict[str, Any]]:
+    artifact_judge_runner: ArtifactJudgeRunner | None = None,
+) -> tuple[StageResult, dict[str, Any]]:
     """Run the single-model artifact_judge for ``context_kind=transcript``.
 
     Skips when the request is not eligible (source_message lane, gate-mode
@@ -1173,7 +1174,7 @@ async def run_artifact(
         return StageResult(status="not_applicable"), {}
 
     transcript = _context_as_transcript(request.context)
-    transcript_segments: Optional[List[Dict[str, Any]]] = None
+    transcript_segments: list[dict[str, Any]] | None = None
     if isinstance(request.context, dict):
         segs = request.context.get("segments")
         if isinstance(segs, list) and segs:
@@ -1182,7 +1183,7 @@ async def run_artifact(
     if not transcript:
         return StageResult(status="not_applicable"), {}
 
-    artifact_payload: Dict[str, Any] = {
+    artifact_payload: dict[str, Any] = {
         "type": request.artifact_type,
         "content": request.artifact,
         "target_system": request.artifact_type,
@@ -1191,7 +1192,7 @@ async def run_artifact(
     if artifact_judge_runner is None:
         runner, council = _artifact_evaluator_for_request()
 
-        def _call(t: str, a: Dict[str, Any], idx: int) -> Dict[str, Any]:
+        def _call(t: str, a: dict[str, Any], idx: int) -> dict[str, Any]:
             return runner(council, t, a, idx)
 
         invoke = _call
@@ -1232,7 +1233,7 @@ async def run_artifact(
     legacy_findings = [f for f in legacy.get("findings", []) if isinstance(f, dict)]
     findings, evidence_rows = _findings_from_artifact_judge(legacy_findings, transcript_segments)
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "faithfulness_score": legacy.get("faithfulness_score"),
         "completeness_score": legacy.get("completeness_score"),
         "safety_flags": list(legacy.get("safety_flags") or []),
@@ -1246,7 +1247,7 @@ async def run_artifact(
         metadata=metadata,
     )
 
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         "cost_tokens": {"prompt": 0, "completion": 0, "total": 0},
     }
     return stage_result, meta
@@ -1254,7 +1255,7 @@ async def run_artifact(
 
 async def _skipped_artifact_stage(
     _request: PipelineRequest,
-) -> Tuple[StageResult, Dict[str, Any]]:
+) -> tuple[StageResult, dict[str, Any]]:
     """Opt-out callable for callers that don't want the artifact stage to run.
 
     Used by ``artifact_evaluator.evaluate_artifacts`` (which already runs the

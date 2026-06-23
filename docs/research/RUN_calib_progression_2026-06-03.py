@@ -5,7 +5,9 @@
 Two by-construction cases: E (20->40, doubling) and W (20->30, within safe range, unstated).
 Prompts are swapped at runtime via _load_role_prompts (no committed edit); results are kept.
 """
-import os, json, copy
+import copy
+import json
+import os
 from pathlib import Path
 
 NEEDED = {"AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_API_VERSION",
@@ -20,11 +22,11 @@ for line in Path("../lithrim-backend/.env").read_text().splitlines():
 os.environ["LITHRIM_LLM_PROVIDER"] = "azure"
 os.environ["COMPLIANCE_COUNCIL_VERSION"] = "v2"
 
-from lithrim_bench.runtime.council.compliance_council import ComplianceCouncil
-from lithrim_bench.runtime.council import llm_provider
 from lithrim_bench.harness.grade import grade_inprocess
-from lithrim_bench.harness.ontology import from_dict
 from lithrim_bench.harness.grounding import ground
+from lithrim_bench.harness.ontology import from_dict
+from lithrim_bench.runtime.council import llm_provider
+from lithrim_bench.runtime.council.compliance_council import ComplianceCouncil
 
 ROLE_DIR = Path("lithrim_bench/runtime/council/council_roles")
 BASE = {f.stem: f.read_text(encoding="utf-8").strip() for f in ROLE_DIR.glob("*.txt")}

@@ -1,5 +1,6 @@
 """Observability stubs for the vendored council (salvaged from app/utils; no-ops)."""
 from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -19,7 +20,7 @@ class _StructuredLogger:
     def warning(self, m: Any, *a: Any, **k: Any) -> None: self._emit(logging.WARNING, m, *a, **k)
     def error(self, m: Any, *a: Any, **k: Any) -> None: self._emit(logging.ERROR, m, *a, **k)
     def exception(self, m: Any, *a: Any, **k: Any) -> None: self._l.exception(str(m))
-    def bind(self, **k: Any) -> "_StructuredLogger": return self
+    def bind(self, **k: Any) -> _StructuredLogger: return self
 
 
 def get_structured_logger(name: str, **_ctx: Any) -> _StructuredLogger:
@@ -30,7 +31,7 @@ class _Timer:
     def __init__(self, name: str) -> None: self.name = name
     def stop(self, *a: Any, **k: Any) -> float: return 0.0
     def observe(self, *a: Any, **k: Any) -> None: return None
-    def __enter__(self) -> "_Timer": return self
+    def __enter__(self) -> _Timer: return self
     def __exit__(self, *e: Any) -> bool: return False
 
 

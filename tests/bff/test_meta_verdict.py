@@ -34,10 +34,8 @@ if str(_BFF) not in sys.path:
 
 pytest.importorskip("fastapi")
 import app as bff  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
 from agent import tools as agent_tools  # noqa: E402
-
+from fastapi.testclient import TestClient  # noqa: E402
 
 # ── HTTP endpoint (the canonical write + read) ───────────────────────────────────
 
