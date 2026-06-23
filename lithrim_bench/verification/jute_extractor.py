@@ -36,7 +36,7 @@ _REQUIRED_KEYS = ("case_id", "response")
 # CRITERIA-AWARE INGEST (gap #4): the extraction target is NOT a fixed envelope — it is THIS
 # agent's evaluation criteria. The required in-case fields are derived from the active ontology's
 # ``verification_contracts``: each floor's ``*_path`` param names the field it grounds against (e.g.
-# ``oracle_path: patient_profile.conditions``, or ``stated_path: stated_refusals``). Generic —
+# ``oracle_path: record.entities``, or ``stated_path: stated_refusals``). Generic —
 # driven by the ontology, not any source format.
 #
 # §4.1 already carries the artifact (response) and the grading context, so a criterion grounding
@@ -126,8 +126,8 @@ def _missing_criteria(record: Any, required_fields: tuple[str, ...]) -> list[str
 
 
 # the empty-context sentinels: a `context` string the JUTE transform produced when it FAILED to
-# map the input (e.g. a clinical transcript). An empty object/array is "present but carries
-# nothing" — the SOAP would be graded against nothing, the silent-degradation we reject.
+# map the input (e.g. a source document). An empty object/array is "present but carries
+# nothing" — the artifact would be graded against nothing, the silent-degradation we reject.
 _EMPTY_CONTEXT = {"", "{}", "[]", "null", "none"}
 
 
@@ -157,10 +157,10 @@ def _to_envelope(record: dict, required_fields: tuple[str, ...] = ()) -> dict:
 
     DOMAIN-AGNOSTIC context (the 2026-06-17 fix): the grade needs the input the response was
     produced against. An explicit per-record ``context`` (or its ``transcript`` alias — e.g. a
-    clinical scribe's dialogue) is carried VERBATIM; only when neither is present does the
+    source transcript) is carried VERBATIM; only when neither is present does the
     envelope fall back to assembling the narrative scene keys (StoryWorld §4.2, back-compat).
     A transform that drops the context entirely is caught by ``score_extraction`` (it never
-    silently grades a SOAP against ``{}``)."""
+    silently grades an artifact against ``{}``)."""
     response = record.get("response") or ""
     explicit = record.get("context")
     if explicit in (None, ""):
@@ -203,7 +203,7 @@ def _to_envelope(record: dict, required_fields: tuple[str, ...] = ()) -> dict:
         "node": record.get("node"),
     }
     # CRITERIA-AWARE (gap #4): carry the agent-criteria paths through VERBATIM so the floor's
-    # oracle (e.g. patient_profile.conditions) survives into the gradeable case. Default () =
+    # oracle (e.g. record.entities) survives into the gradeable case. Default () =
     # no change (the frozen §4.1 envelope the StoryWorld connector relies on).
     for path in required_fields:
         value = _dig(record, path)
@@ -251,7 +251,7 @@ def score_extraction(
     def _incomplete(r: Any) -> list[str]:
         # a record is incomplete if a required §4.1 key is null (mis-join), its ENVELOPE carries
         # no graded content / no grading context (the transcript-drop), OR it fails to populate a
-        # criteria-required path (gap #4 — the floor's oracle, e.g. patient_profile.conditions).
+        # criteria-required path (gap #4 — the floor's oracle, e.g. record.entities).
         return _null_keys(r) + _envelope_incomplete(r) + _missing_criteria(r, required_fields)
 
     null_records = [r for r in array if _incomplete(r)]
