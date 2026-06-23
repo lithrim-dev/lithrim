@@ -17,11 +17,13 @@ export const hasStoredToken = () => { try { return !!localStorage.getItem(TOKEN_
 export const setToken = (t) => { try { localStorage.setItem(TOKEN_KEY, t); } catch {} };
 export const clearToken = () => { try { localStorage.removeItem(TOKEN_KEY); } catch {} };
 const authHeader = () => { const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; };
-// validate a candidate token against a gated route — non-401 (incl. 200/500) = the gate accepted it.
+// validate a candidate token against a gated route — only a SUCCESSFUL (2xx) response confirms it
+// (the token actually worked). A 401 is an explicit reject; a 5xx/transport error is inconclusive and
+// must NOT store an unvalidated token (the next real call re-raises the gate if so) — so require r.ok.
 export const validateToken = async (candidate) => {
   try {
     const r = await fetch(BASE + "/v1/meta", { headers: candidate ? { Authorization: `Bearer ${candidate}` } : {} });
-    return r.status !== 401;
+    return r.ok;
   } catch { return false; }
 };
 // logout = forget the token + raise the auth-required signal so the gate re-shows (no full reload).

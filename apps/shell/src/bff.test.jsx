@@ -162,8 +162,15 @@ describe("UI-LOGIN-1 bff.js auth gate", () => {
     expect(opts.headers).toMatchObject({ Authorization: "Bearer bad" });
   });
 
-  it("validateToken returns true on a non-401 (200 = the gate accepted it)", async () => {
+  it("validateToken returns true on a 2xx success (the token actually worked)", async () => {
     vi.stubGlobal("fetch", mockFetch({ version: "x" }, true, 200));
     expect(await validateToken("good")).toBe(true);
+  });
+
+  it("validateToken returns false on a 5xx (an inconclusive server error must NOT accept the token)", async () => {
+    // a transient BFF 500 on the probe is NOT a token confirmation — requiring a 2xx success means
+    // an unvalidated token is never stored on a hiccup (the next real call would re-raise the gate).
+    vi.stubGlobal("fetch", mockFetch({ detail: "boom" }, false, 500));
+    expect(await validateToken("maybe")).toBe(false);
   });
 });
