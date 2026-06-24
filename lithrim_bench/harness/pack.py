@@ -507,13 +507,26 @@ def assert_judges_known(
 
 @lru_cache(maxsize=8)
 def assert_pack_judges_consistent(pack: str) -> None:
-    """Assert the pack's declared judges have relocated prompts ∧ ⊆ the frozen council
-    roster, and that no relocated prompt is for a non-roster role (cached; runs once per
-    pack on first prompts resolution). The bridge that lets the council stay frozen while
-    its role prompts live in the pack."""
+    """Assert the pack's declared judges have relocated prompts ∧ ⊆ the council roster, and that
+    no relocated prompt is for a non-roster role (cached; runs once per pack on first prompts
+    resolution). The bridge that lets the council stay frozen while its role prompts live in the
+    pack.
+
+    **Wall-#4 relaxation (PHASE2-A, ADDITIVE).** The roster checked here is the canonical
+    :func:`council_roster` (the AST-parsed ``CouncilModel`` names ∪ ``DEFAULT_PACK`` owner roles)
+    UNION the ACTIVE pack's own ``production_judges`` — so a self-authored production judge spliced
+    into THIS pack's snapshot (``harness.judge_authoring.splice_production_judge``) is roster-known
+    for THIS pack. This matches the PACK-2c source-of-truth flips: the snapshot ``production_judges``
+    already IS the runtime roster authority the frozen council iterates (:func:`pack_production_judges`),
+    so its entries are roster-known by definition. It is purely ADDITIVE — the canonical leg is
+    unchanged, so every existing pack (declared judges ⊆ the canonical roster) still validates
+    exactly as before; :func:`council_roster` itself stays pack-independent (untouched), and the
+    pure :func:`assert_judges_known` with an explicit ``roster=`` still fails closed on an unknown
+    role (non-vacuous)."""
     prompts_dir = _pack_ref(pack, "council_roles")
     stems = [p.stem for p in prompts_dir.glob("*.txt")]
-    assert_judges_known(_manifest(pack)["judges"], stems, pack=pack)
+    roster = council_roster() | frozenset(pack_production_judges(pack))
+    assert_judges_known(_manifest(pack)["judges"], stems, roster=roster, pack=pack)
 
 
 def pack_prompts_path(pack: str | None = None) -> Path:
