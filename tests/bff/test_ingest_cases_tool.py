@@ -238,7 +238,9 @@ def _configure_dummy_lm(monkeypatch):
 
 def test_ingest_fastfails_on_extractor_timeout(monkeypatch, tmp_path):
     """A: when the extractor grinds past LITHRIM_INGEST_TIMEOUT, ingest raises a BOUNDED
-    RuntimeError within ~the timeout — NOT the full sleep (the ~2-min hang)."""
+    TimeoutError within ~the timeout — NOT the full sleep (the ~2-min hang). TimeoutError
+    is an Exception (caught by the handler's existing nothing-pinned except) AND lets the
+    handler discriminate the timeout from a converge failure for a tailored remediation."""
     monkeypatch.setenv("LITHRIM_INGEST_TIMEOUT", "1")
     _configure_dummy_lm(monkeypatch)
 
@@ -251,7 +253,7 @@ def test_ingest_fastfails_on_extractor_timeout(monkeypatch, tmp_path):
     )
 
     t0 = time.monotonic()
-    with pytest.raises(RuntimeError) as exc:
+    with pytest.raises(TimeoutError) as exc:
         call('{"a": 1}')
     elapsed = time.monotonic() - t0
 
@@ -273,7 +275,7 @@ def test_ingest_timeout_pins_nothing_no_audit(monkeypatch, tmp_path):
         monkeypatch, tmp_path, extractor=slow_extractor, score_accepts=False
     )
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(TimeoutError):
         call('{"a": 1}')
 
     assert not (ws.out_dir / "ingested_cases.jsonl").exists(), "corpus pinned on timeout"

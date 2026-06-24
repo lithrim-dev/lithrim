@@ -260,6 +260,55 @@ def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
 _ITERATED_COLLECTION_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 
 
+def _ingest_timeout_s() -> float:
+    """The bound on the BYO-data ingest extractor (CE-INGEST-FASTFAIL). Default 30s,
+    configurable via ``LITHRIM_INGEST_TIMEOUT`` (seconds). A non-numeric / <=0 value
+    falls back to the 30s default — the bound is never silently disabled."""
+    raw = os.environ.get("LITHRIM_INGEST_TIMEOUT")
+    if not raw:
+        return 30.0
+    try:
+        val = float(raw)
+    except ValueError:
+        return 30.0
+    return val if val > 0 else 30.0
+
+
+def _run_bounded(fn: Any, timeout_s: float) -> Any:
+    """Run ``fn()`` with a hard wall-clock bound (CE-INGEST-FASTFAIL).
+
+    A DAEMON worker thread + ``thread.join(timeout)`` — NOT ``signal.alarm`` (which is
+    main-thread-only and would not fire under a uvicorn worker thread, the live deploy).
+    On timeout we raise ``TimeoutError``; the worker is a daemon, so the abandoned
+    runaway attempt blocks neither this caller (we fast-fail now) NOR process exit (its
+    result is never read and it cannot pin — the PIN is downstream of this call). An
+    exception raised inside ``fn`` is re-raised on the calling thread (the convergence
+    paths surface exactly as before).
+    """
+    import threading
+
+    box: dict[str, Any] = {}
+
+    def _runner() -> None:
+        try:
+            box["value"] = fn()
+        except BaseException as exc:  # noqa: BLE001 — re-raised on the caller below
+            box["error"] = exc
+
+    worker = threading.Thread(target=_runner, daemon=True)
+    worker.start()
+    worker.join(timeout_s)
+    if worker.is_alive():
+        raise TimeoutError(
+            f"ingest timed out after {timeout_s:g}s — the extractor could not converge "
+            f"to a valid case structure; simplify the extraction rules, reduce the JSON, "
+            f"or name the join key explicitly; nothing pinned"
+        )
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
 def _infer_iterated_count(sample: Any, extraction_rules: str = "") -> int:
     """Infer expected_count = the iterated SOURCE collection's length (NARR-7 / G3).
 
@@ -2934,8 +2983,17 @@ def _build_tool_context(
             # convergence mechanism — n is redundant INDEPENDENT restarts. BYO-Claude is ~13s/attempt,
             # so n=2 (one restart for insurance) keeps the interactive chat-ingest responsive
             # (~13-26s) vs n=3's ~40s+; a batch caller can pass a higher n later.
-            with dspy.context(lm=gen_lm):
-                pred = best_of_n_extractor(make_gen, rules, sample, n=2)
+            # CE-INGEST-FASTFAIL: bound the generate→refine grind (up to n*max_iters live-
+            # gated LM attempts, ~13s each on BYO-Claude) — without a bound a non-converging
+            # BYO-JSON shape grinds ~2min before failing. On the bound we raise TimeoutError
+            # into the handler's except path: nothing is pinned (the PIN is below this), no
+            # audit row (the AuditLog write is on the success path). The dspy.context is set
+            # INSIDE the worker thread (it is thread-local). worker-safe, not signal-based.
+            def _extract():
+                with dspy.context(lm=gen_lm):
+                    return best_of_n_extractor(make_gen, rules, sample, n=2)
+
+            pred = _run_bounded(_extract, _ingest_timeout_s())
             template = getattr(pred, "jute_transform", "") or ""
             if not getattr(pred, "accepted", False):
                 raise RuntimeError(

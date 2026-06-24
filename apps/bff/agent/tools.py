@@ -768,6 +768,14 @@ async def ingest_cases_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
         res = ctx.ingest_cases(
             json_dump=json_dump, extraction_rules=extraction_rules, agent=agent
         )
+    except TimeoutError as exc:  # CE-INGEST-FASTFAIL: the bounded extractor did not converge in time
+        detail = getattr(exc, "detail", None) or str(exc)
+        return _error(
+            f"Could not ingest cases: {detail}. NOTHING was pinned or upserted. The extractor "
+            f"couldn't converge to a valid case structure within the bound — simplify the "
+            f"extraction rules, reduce the JSON dump, or name the join key explicitly (the "
+            f"timeout is configurable via LITHRIM_INGEST_TIMEOUT), then retry."
+        )
     except Exception as exc:  # invariant failure / :3031 down / persist error — surface, never pin
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(
