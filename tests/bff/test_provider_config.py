@@ -47,6 +47,7 @@ def provider_env(tmp_path, monkeypatch):
     settings singleton, so the test reads the on-disk write without touching the real repo root or
     leaking env mutations into the rest of the suite."""
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
+    monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
 
     # an isolated audit DB so the redaction assertion reads exactly this test's records
     import importlib
@@ -191,7 +192,7 @@ def test_provider_config_takes_effect_with_no_restart(provider_env, monkeypatch)
     #    with NO restart (this is exactly the field build_judge_lm reads at judges_dspy.py:260/267)
     from lithrim_bench.runtime.council import judges_dspy
 
-    assert judges_dspy.settings.OPENAI_API_KEY == secret
+    assert secret == judges_dspy.settings.OPENAI_API_KEY
     assert str(judges_dspy.settings.LITHRIM_LLM_PROVIDER).lower() == "openai"
 
 

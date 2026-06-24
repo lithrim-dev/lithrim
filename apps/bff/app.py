@@ -422,6 +422,21 @@ class ConnectorConfigRequest(BaseModel):
     x_api_key: str
 
 
+class ProviderConfigRequest(BaseModel):
+    # CE-PROVIDER-BACKEND (Build A, SPEC_COMMUNITY_EDITION §3): configure the user's LLM
+    # provider key IN-APP. Mirrors ConnectorConfigRequest's secret hygiene — the key is
+    # read-only test-probed, then written ONLY to the gitignored repo-root .provider_env
+    # (never SQLite/manifest/git/the response/logs). `plane`: "grading" binds the council's
+    # judge LM; "assistant" binds the chat-authoring provider. `role` (optional) targets one
+    # grading judge's per-role model; absent → all three roles share `model`.
+    plane: Literal["grading", "assistant"] = "grading"
+    provider: Literal["openai", "azure", "anthropic"]
+    api_key: str
+    endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
+    model: str | None = None
+    role: Literal["risk_judge", "policy_judge", "faithfulness_judge"] | None = None
+
+
 class StoryworldIngestRequest(BaseModel):
     # NARR-6 P1b: the real-field batch ingest. base_url + key load from .connector_env / env;
     # no secret rides the request body.
@@ -436,6 +451,15 @@ _CONNECTOR_SIDECAR_NAME = "connector.json"
 _STORYWORLD_KEY_VAR = "STORYWORLD_API_KEY"
 # §8.1 PII: structurally-dropped session keys (child identity + reader free-text) — never enveloped.
 _STORYWORLD_PII_KEYS = ("child_name", "age", "reader_note", "reader_feedback", "child_age")
+
+# CE-PROVIDER-BACKEND (Build A, SPEC §3.1): the user's LLM provider key is written ONLY to a
+# gitignored repo-root `.provider_env` (NEVER SQLite/manifest/git/the response/logs). Loaded into
+# os.environ at BFF startup (mirrors _load_live_env) so subprocess grades inherit it; the in-process
+# council `settings` singleton is refreshed in place on each write so build_judge_lm sees a new key
+# with no restart. Per-plane non-secret status (provider/model/endpoint/last_tested) lives in a
+# gitignored `.provider_status.json` sidecar so GET /v1/provider/status survives a restart.
+_PROVIDER_ENV_PATH = REPO_ROOT / ".provider_env"
+_PROVIDER_STATUS_PATH = REPO_ROOT / ".provider_status.json"
 
 
 def _load_connector_env(ws) -> dict[str, str]:
@@ -546,6 +570,31 @@ def _load_live_env() -> None:
         os.environ.setdefault(key.strip(), val.strip().strip("'\""))
 
 
+def _parse_env_file(path: Path) -> dict[str, str]:
+    """Parse a ``KEY=value`` env file (skip blanks/comments; strip wrapping quotes). Absent → {}."""
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        out[key.strip()] = val.strip().strip("'\"")
+    return out
+
+
+def _load_provider_env() -> None:
+    """CE-PROVIDER-BACKEND (SPEC §3.1 step 5): load the gitignored repo-root ``.provider_env`` (the
+    in-app-configured LLM provider key + LITHRIM_LLM_PROVIDER + per-role models) into ``os.environ``
+    at BFF startup, BEFORE any council import — so a restarted BFF still hands the key to subprocess
+    grades AND, on first import, the council ``settings`` singleton reads it from env. Unlike
+    ``_load_live_env`` this OVERWRITES (the env file is the user's last explicit in-app choice, the
+    source of truth for the provider plane). Absent file → no-op."""
+    for key, val in _parse_env_file(_PROVIDER_ENV_PATH).items():
+        os.environ[key] = val
+
+
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
 # NOTE: CORS is registered LAST (below ``_auth_gate``) on purpose. Starlette runs the
 # most-recently-added middleware OUTERMOST, and CORS must WRAP the auth gate so a cross-origin
@@ -599,9 +648,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup_load_live_env() -> None:
-    """Load ``.live_env`` at SERVER startup, NOT at import — so importing app.py never mutates the
-    process-global env. Keeps the KB wire-contract test hermetic regardless of import order; the
-    running BFF (and the grade subprocess it spawns) still gets the kb:read credential."""
+    """Load ``.live_env`` + ``.provider_env`` at SERVER startup, NOT at import — so importing app.py
+    never mutates the process-global env. Keeps the KB wire-contract test hermetic regardless of
+    import order; the running BFF (and the grade subprocess it spawns) still gets the kb:read
+    credential AND the in-app-configured LLM provider key (CE-PROVIDER-BACKEND §3.1 step 5). Provider
+    env loads BEFORE any council import so the council settings singleton reads it on first import."""
+    _load_provider_env()
     _load_live_env()
 
 
@@ -3120,6 +3172,219 @@ def connector_config_endpoint(
         "status": status,
         "last_tested": last_tested,
     }
+
+
+# CE-PROVIDER-BACKEND (Build A) ────────────────────────────────────────────────────────────────
+# Per-role OpenAI model keys (mirrors judges_dspy._OPENAI_ROLE_MODEL — kept local so app.py stays
+# council-import-free). A config without `role` sets all three; with `role` only that judge's model.
+_PROVIDER_OPENAI_ROLE_MODEL = {
+    "risk_judge": "OPENAI_MODEL_RISK",
+    "policy_judge": "OPENAI_MODEL_POLICY",
+    "faithfulness_judge": "OPENAI_MODEL_FAITHFULNESS",
+}
+# Which env vars carry the SECRET per plane — these never leave .provider_env / os.environ.
+_PROVIDER_SECRET_VARS = ("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+
+
+def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
+    """Map a validated provider-config request to the env vars the council/chat planes read
+    (settings.py + the chat-author provider). The api_key rides one of _PROVIDER_SECRET_VARS; the
+    rest (provider selector + model + endpoint) are non-secret. Raises ValueError on a missing
+    required field so the endpoint surfaces a 400 BEFORE probing/writing."""
+    env: dict[str, str] = {}
+    if req.plane == "grading":
+        if req.provider == "openai":
+            env["LITHRIM_LLM_PROVIDER"] = "openai"
+            env["OPENAI_API_KEY"] = req.api_key
+            if req.model:
+                if req.role:
+                    env[_PROVIDER_OPENAI_ROLE_MODEL[req.role]] = req.model
+                else:
+                    for var in _PROVIDER_OPENAI_ROLE_MODEL.values():
+                        env[var] = req.model
+        elif req.provider == "azure":
+            if not req.endpoint:
+                raise ValueError("provider='azure' requires `endpoint` (the Azure OpenAI endpoint)")
+            env["LITHRIM_LLM_PROVIDER"] = "azure"
+            env["AZURE_OPENAI_API_KEY"] = req.api_key
+            env["AZURE_OPENAI_ENDPOINT"] = req.endpoint
+        else:
+            raise ValueError(f"provider={req.provider!r} is not a grading provider (use openai|azure)")
+    else:  # assistant plane
+        if req.provider != "anthropic":
+            raise ValueError("the assistant plane provider must be 'anthropic'")
+        env["LITHRIM_CHAT_PROVIDER"] = "anthropic"
+        env["ANTHROPIC_API_KEY"] = req.api_key
+    return env
+
+
+def _probe_provider(*, plane, provider, api_key, endpoint=None, model=None, role=None) -> dict:
+    """Read-only validate the key BEFORE any write (SPEC §3.1 step 1). A bounded 1-token completion
+    on the SAME litellm/openai path build_judge_lm grades through (grading) / a cheap Anthropic ping
+    (assistant). Returns ``{ok: bool, error?: str}``; NEVER raises (network/auth errors → ok=False).
+    Patched in tests so the green bar is $0/offline (no live call). Lazy imports keep app.py free of
+    the [council] LM deps at module load."""
+    try:
+        if plane == "assistant" or provider == "anthropic":
+            import anthropic  # type: ignore
+
+            client = anthropic.Anthropic(api_key=api_key)
+            client.messages.create(
+                model=model or "claude-3-5-haiku-latest",
+                max_tokens=1,
+                messages=[{"role": "user", "content": "ping"}],
+            )
+            return {"ok": True}
+        # grading plane — probe via litellm (the path dspy.LM uses under build_judge_lm)
+        import litellm  # type: ignore
+
+        if provider == "azure":
+            litellm.completion(
+                model=f"azure/{model or 'gpt-4.1'}",
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1, temperature=0, api_key=api_key, api_base=endpoint,
+            )
+        else:
+            litellm.completion(
+                model=f"openai/{model or 'gpt-4o'}",
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1, temperature=0, api_key=api_key,
+            )
+        return {"ok": True}
+    except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
+        return {"ok": False, "error": type(exc).__name__}
+
+
+def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
+    """SPEC §3.1 steps 2-4: WRITE-ONLY the provider env vars to the gitignored repo-root
+    ``.provider_env`` (merging with any prior plane's vars so a grading + an assistant key coexist),
+    set ``os.environ`` (subprocess grades inherit it at spawn), and REFRESH the in-process council
+    ``settings`` singleton IN PLACE so ``build_judge_lm`` reads the new key with NO restart. The
+    singleton is mutated in place (not reassigned) because every consumer did ``from .settings import
+    settings`` — a holder of the object, not the module attribute — so a reassignment would not reach
+    them; setting attributes on the live object does. The module global is also reassigned to a fresh
+    Settings() for any consumer that reads ``settings_module.settings`` directly."""
+    # 2) merge + write-only to .provider_env (never SQLite/manifest/response/logs)
+    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged.update(env_vars)
+    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+    # 3) os.environ → inherited by the next subprocess grade
+    for key, val in env_vars.items():
+        os.environ[key] = val
+    # 4) refresh the in-process council settings singleton with NO restart
+    try:
+        from lithrim_bench.runtime.council import settings as council_settings
+
+        for key, val in env_vars.items():
+            if hasattr(council_settings.settings, key):
+                _coerce_set(council_settings.settings, key, val)
+        council_settings.settings = council_settings.Settings()  # fresh read for attr-via-module
+    except Exception:  # noqa: BLE001 — the [council] extra may be absent in a bare BFF; env still set
+        pass
+
+
+def _coerce_set(obj, key: str, raw: str) -> None:
+    """Set ``obj.key = raw`` coercing to the field's declared type (bool/int) so a string from the
+    env file round-trips into the pydantic-typed council Settings without a validation surprise."""
+    current = getattr(obj, key)
+    if isinstance(current, bool):
+        setattr(obj, key, raw.strip().lower() in ("1", "true", "yes", "on"))
+    elif isinstance(current, int) and not isinstance(current, bool):
+        try:
+            setattr(obj, key, int(raw))
+        except ValueError:
+            setattr(obj, key, raw)
+    else:
+        setattr(obj, key, raw)
+
+
+def _read_provider_status() -> dict:
+    """Read the gitignored ``.provider_status.json`` non-secret sidecar (provider/model/endpoint/
+    last_tested per plane). Absent → both planes unconfigured. NEVER carries a key."""
+    base = {"grading": {"configured": False}, "assistant": {"configured": False}}
+    if _PROVIDER_STATUS_PATH.exists():
+        try:
+            stored = json.loads(_PROVIDER_STATUS_PATH.read_text())
+            for plane in ("grading", "assistant"):
+                if plane in stored:
+                    base[plane] = stored[plane]
+        except (json.JSONDecodeError, OSError):
+            pass
+    return base
+
+
+@app.post("/v1/provider/config")
+def provider_config_endpoint(
+    req: ProviderConfigRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CE-PROVIDER-BACKEND (Build A, SPEC §3): configure the user's LLM provider key IN-APP. Mirrors
+    ``connector_config_endpoint``: a READ-ONLY probe (a bounded 1-token completion via the same
+    litellm/openai path build_judge_lm grades through; a cheap Anthropic ping for the assistant
+    plane) gates the write. On a clean probe the key is written ONLY to the gitignored repo-root
+    ``.provider_env`` (§3.1 step 2 — NEVER SQLite/manifest/git/the response/logs), ``os.environ`` is
+    set (subprocess grades inherit it) AND the in-process council ``settings`` singleton is refreshed
+    in place (build_judge_lm reads the new key with NO restart). On probe failure the status is
+    surfaced (4xx) and NOTHING is written. The change is audited with the key REDACTED."""
+    try:
+        env_vars = _provider_env_vars(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    probe = _probe_provider(
+        plane=req.plane, provider=req.provider, api_key=req.api_key,
+        endpoint=req.endpoint, model=req.model, role=req.role,
+    )
+    if not probe.get("ok"):
+        # surface the failing probe; do NOT write the key (non-vacuous vs the clean path)
+        raise HTTPException(
+            status_code=400,
+            detail=f"provider test failed ({probe.get('error', 'unknown error')})",
+        )
+
+    last_tested = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    _persist_and_reload_provider(env_vars)
+
+    # the non-secret status sidecar (provider/model/endpoint/last_tested) — NEVER the key
+    status = _read_provider_status()
+    status[req.plane] = {
+        "configured": True,
+        "provider": req.provider,
+        "model": req.model,
+        "endpoint": req.endpoint,
+        "role": req.role,
+        "last_tested": last_tested,
+    }
+    _PROVIDER_STATUS_PATH.write_text(json.dumps(status, indent=2) + "\n")
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ws = workspace.get_active_workspace()
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="provider_config",
+            target=Target(type="provider", id=f"{req.plane}:{req.provider}"),
+            why={"rationale": f"configured + tested the {req.provider} {req.plane} provider"},
+            before=None,
+            # NEVER the key — only the non-secret selectors (mirrors connector_config)
+            after={"plane": req.plane, "provider": req.provider, "model": req.model,
+                   "role": req.role, "last_tested": last_tested},
+        )
+    )
+    return {
+        "ok": True,
+        "plane": req.plane,
+        "provider": req.provider,
+        "last_tested": last_tested,
+    }
+
+
+@app.get("/v1/provider/status")
+def provider_status_endpoint() -> dict:
+    """CE-PROVIDER-BACKEND (Build A, SPEC §3.2): which planes are configured + provider/model/
+    last_tested — so the UI shows connected/needs-setup. NEVER the key."""
+    return {"planes": _read_provider_status()}
 
 
 def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:

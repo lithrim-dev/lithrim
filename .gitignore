@@ -25,6 +25,11 @@ marketing_raw/
 .live_env
 .connector_env
 
+# CE-PROVIDER-BACKEND: the in-app-configured LLM provider key (write-only; never SQLite/manifest)
+# + its non-secret status sidecar (provider/model/last_tested). Repo-root, gitignored by design.
+.provider_env
+.provider_status.json
+
 # Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
 .devstack/
 
