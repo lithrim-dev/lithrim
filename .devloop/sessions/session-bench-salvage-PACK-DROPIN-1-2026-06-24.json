@@ -1,0 +1,110 @@
+{
+  "session_id": "session-bench-salvage-PACK-DROPIN-1-2026-06-24",
+  "stream": "bench-salvage",
+  "phase": "CE",
+  "driver_bundle_id": "bench-salvage-CE-pack-dropin-driver",
+  "started_at": "2026-06-24T00:00:00Z",
+  "ended_at": "2026-06-24T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-24T00:00:00Z",
+    "user_approved_at": "2026-06-24T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "GET /v1/packs already existed (list_packs_endpoint); this build ADDED the per-pack `active` boolean rather than creating the endpoint. Top-level `active` name retained for back-compat.",
+        "evidence": "apps/bff/app.py:1457 @app.get('/v1/packs') pre-existed; driver context lines 40-41 asked for the endpoint to 'list ... marks active'.",
+        "decided_at": "2026-06-24T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Used pack_ontology_path(pack, check_consistency=False) in the seed (driver context line 12 names exactly this), so the fake/dropped pack needs no full taxonomy snapshot for the seed to resolve its ontology path; the codes gate still fires at grade time.",
+        "evidence": "lithrim_bench/harness/pack.py:402 pack_ontology_path docstring — 'check_consistency=False skips the codes-subset gate ... for resolving a NON-active pack's ontology PATH'.",
+        "decided_at": "2026-06-24T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "c7726c9",
+      "repo": "lithrim-bench",
+      "title": "test(pack): pack-dropin seed_agents + GET /v1/packs active marker — red",
+      "summary": "4 acceptance tests (A no-pack-clean, B dropin-agent-seeded+ontology-resolved, C ws0_default-collision-skip, D /v1/packs per-pack active) — RED."
+    },
+    {
+      "hash": "b2e3039",
+      "repo": "lithrim-bench",
+      "title": "feat(pack): drop-in pack volume + pack-aware seed_agents + GET /v1/packs active — green",
+      "summary": "seed_config_db seeds discoverable packs' seed_agents (ontology_path + dataset refs resolved to current env, collision-skip); pack_root() accessor; /v1/packs per-pack active; docker-compose /dropin-packs dir mount + default PACKS_DIR; gitignored packs-dropin/ with .gitkeep + contract README; README stanza."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest tests/test_pack_dropin.py -q",
+    "red_evidence": "2 failed, 2 passed — B: AssertionError: assert 'fake_default' in ['ws0_default'] (pack-aware seed absent); D: KeyError: 'active' (per-pack active field absent). A + C PASS (A is the clean-by-construction invariant; C is vacuously satisfied pre-impl and constrains the collision-skip post-impl).",
+    "green_command": "PYENV_VERSION=debuglithrim python -m pytest -q ; ruff check .",
+    "green_evidence": "723 passed, 158 skipped, 5 warnings in 15.03s ; ruff: All checks passed! (baseline was 719 passed/0 failed; 719+4 new = 723, 0 failed — bare-CE clean-by-construction preserved)."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A — no discoverable pack -> seed_config_db seeds ONLY the core agent (clean default unchanged)",
+      "test": "tests/test_pack_dropin.py::test_a_no_pack_seeds_only_core",
+      "verdict": "PASS",
+      "evidence": "seed_config_db on a tmp PACKS_DIR with no pack subdirs -> ['ws0_default']; list_agents == ['ws0_default']."
+    },
+    {
+      "criterion": "B — fake drop-in pack with seed_agents -> agent seeded AND ontology_path resolves to the tmp pack (not a stale path)",
+      "test": "tests/test_pack_dropin.py::test_b_dropin_pack_agent_seeded_with_resolved_ontology",
+      "verdict": "PASS",
+      "evidence": "seeded {ws0_default, fake_default}; load_agent('fake_default').ontology_path == <pack_root>/ontology.json (absolute, no 'packs/dropin_demo' literal); dataset.source/baseline resolved against pack root."
+    },
+    {
+      "criterion": "C — a seed-agent named ws0_default is skipped (never clobbers the core seed)",
+      "test": "tests/test_pack_dropin.py::test_c_seed_agent_named_ws0_default_is_skipped",
+      "verdict": "PASS",
+      "evidence": "after seeding a pack whose seed-agent is named ws0_default, load_agent('ws0_default').ontology_path == 'packs/_core/ontology.json' (the committed core seed survives)."
+    },
+    {
+      "criterion": "D — GET /v1/packs lists _core + the fake pack when discoverable; marks active",
+      "test": "tests/test_pack_dropin.py::test_d_get_packs_lists_core_and_dropin_marks_active",
+      "verdict": "PASS",
+      "evidence": "{_core, dropin_demo} <= ids; by_id['_core']['active'] is True, by_id['dropin_demo']['active'] is False, body['active'] == '_core'. (Test isolates WORKSPACES_DIR so the active marker is not ordering-dependent — see seam.)"
+    }
+  ],
+
+  "diagnostic_stats": {
+    "bare_ce_passed": "723",
+    "bare_ce_failed": "0",
+    "bare_ce_skipped": "158",
+    "baseline_passed": "719",
+    "new_tests": "4",
+    "ruff": "clean",
+    "docker_compose_config": "OK (lints; daemon-up smoke is owner-run)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BENCH-SALVAGE-PACKDROPIN-1",
+      "title": "/v1/packs active marker is ordering-dependent on the shared real out/workspaces under the full suite",
+      "severity": "low",
+      "fix_location": "tests/test_pack_dropin.py (test_d) — WORKSPACES_DIR isolation, applied",
+      "impact": "Test D's `_core` active-marker assertion only holds when WORKSPACES_DIR is isolated; otherwise an earlier suite test that switches the active workspace to a non-_core pack leaks (active=False). Fixed by monkeypatching W.WORKSPACES_DIR in test D (mirrors test_workspace.py ws_root). The ENDPOINT is correct; this is a test-hermeticity seam, not a product bug.",
+      "confidence": "CONFIRMED",
+      "evidence": "Full-suite run: test D failed `assert False is True` on by_id['_core']['active'] while discovery (`dropin_demo` present) succeeded — i.e. workspace.get_active_workspace().pack != '_core' due to leaked out/workspaces state. Isolating WORKSPACES_DIR -> 723 passed/0 failed."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "PACK-DROPIN-1 landed: the CE seeds a dropped-in pack's portable agents. seed_config_db now, AFTER the committed core agents, enumerates discover_packs() and seeds each pack's optional pack.json 'seed_agents' — each agent's ontology_path resolved via pack_ontology_path(pack, check_consistency=False) (never a stale literal), pack-relative dataset.source/baseline resolved against pack_root(), and any name colliding with an existing agent skip-with-logged (ws0_default is never clobbered). Bare CE (no in-repo pack declares seed_agents) seeds only ws0_default — the clean-by-construction invariant is preserved by construction, pinned by test A. GET /v1/packs (which already existed) now marks each pack 'active'; docker-compose binds ./packs-dropin -> /dropin-packs (ro dir) with default LITHRIM_BENCH_PACKS_DIR=/dropin-packs, and a gitignored packs-dropin/ ships a tracked .gitkeep + the seed_agents contract README. Frozen council seam untouched; app.jsx never staged. Monitor: on audit, mutation-check test A (delete the collision-skip / the discover_packs loop -> A or C must fail) to confirm non-vacuity, and confirm the per-pack 'active' field doesn't break any FE consumer of /v1/packs.",
+
+  "next_session_hint": "monitor should run /devloop-critique bench-salvage PACK-DROPIN-1 next (cold critic: Gate 0 re-run + non-vacuity by mutation on tests A/C)"
+}
