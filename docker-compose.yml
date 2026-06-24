@@ -6,9 +6,10 @@
 # (offline, $0, no keys) runs without any of the env vars below. Bring a model key (BYOK) to
 # grade live — set it in your shell or a repo-root `.env` (docker compose auto-loads `.env`).
 #
-# Persistence: the `out/` bind-mount keeps the config SQLite + run blobs + per-workspace
-# `.connector_env` (which live under out/workspaces/<ws>/) across `up`/`down`. The repo-root
-# `.provider_env`/`.connector_env` bind-mounts persist the BYOK provider sidecars Build A writes.
+# Clean by construction: state lives in a Docker-managed named volume (`lithrim_out`), NOT a host
+# bind — so a fresh `up` seeds only the neutral `_core` sample and never inherits the maintainer's
+# host `out/` (dev workspaces + agents pinned to packs the container doesn't ship). State persists
+# across `up`/`down`; `docker compose down -v` wipes it back to the clean seed.
 #
 # Chat: the `claude` CLI assistant cannot run in a container — set LITHRIM_CHAT_PROVIDER=anthropic
 # + ANTHROPIC_API_KEY (below) to drive the conversational surface via the Anthropic API. Grading
@@ -38,12 +39,14 @@ services:
       # Optional Pro pack discovery (a path INSIDE the container; bind-mount it if you set this).
       LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-}
     volumes:
-      # Persist the config SQLite + run blobs + per-workspace .connector_env sidecars. The
-      # in-app-configured provider key (.provider_env, repo root) lives in the container for the
-      # session — written by POST /v1/provider/config + applied live (no restart); for persistence
-      # across `down` pass keys via env (below). NB: do NOT bind-mount single files that may not
-      # exist on the host — docker creates them as DIRECTORIES and crashes the BFF env-loader.
-      - ./out:/app/out
+      # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
+      # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
+      # Persists config SQLite + run blobs + per-workspace .connector_env across `up`/`down`;
+      # `docker compose down -v` resets to the clean seed. The in-app provider key (.provider_env)
+      # lives in the container for the session (applied live, no restart); pass keys via env for
+      # cross-`down` persistence. (Never bind-mount single files that may not exist on the host —
+      # docker creates them as DIRECTORIES and crashes the env-loader.)
+      - lithrim_out:/app/out
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
       interval: 15s
@@ -75,3 +78,6 @@ services:
 networks:
   lithrim:
     driver: bridge
+
+volumes:
+  lithrim_out:   # clean-seeded CE state; `docker compose down -v` resets it
