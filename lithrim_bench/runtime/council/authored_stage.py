@@ -86,7 +86,7 @@ def build_authored_evaluator(
     behaviour (the no-gate baseline the moat exhibit contrasts against). ``http_client``
     is injectable for the validator-output signals' executors (offline tests).
     """
-    from .compliance_council import ComplianceCouncil
+    from .compliance_council import ComplianceCouncil, CouncilModel
     from .judges_dspy import build_trio
     from .withstands import apply_withstands_gate
 
@@ -97,7 +97,16 @@ def build_authored_evaluator(
         models=models,
         roles=roles,
     )
-    council = council or ComplianceCouncil()
+    # PHASE2-B: construct the council with an EXPLICIT models list (the trio's roles) so the
+    # FROZEN default-council `__init__` branch (models is None → `_ROLE_DEPLOYMENT[role]` for each
+    # `pack_production_judges()` entry) is SKIPPED. That branch KeyErrors on an AUTHORED judge
+    # spliced into `production_judges` but absent from the core-side `_ROLE_DEPLOYMENT` trio
+    # (PHASE2-A's splice creates exactly this). The authored stage runs its OWN trio and only needs
+    # `_apply_consensus` (which ignores `self.models`), so a name-only `CouncilModel` per role is
+    # sufficient — the frozen seam (`compliance_council.py` / `_apply_consensus`) is UNTOUCHED.
+    council = council or ComplianceCouncil(
+        models=[CouncilModel(name=j.role, provider="authored", model=j.role) for j in trio]
+    )
 
     def _evaluator(payload: dict[str, Any]) -> dict[str, Any]:
         # The council context_payload carries the transcript under call_context and

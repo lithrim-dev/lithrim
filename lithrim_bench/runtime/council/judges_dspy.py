@@ -399,18 +399,35 @@ def build_trio(
     is assemblable. ``None``/empty (the default) is byte-identical to before — each
     judge binds ``build_judge_lm(role)`` with no override (A5 back-compat).
 
-    ``roles`` (DOGFOOD-1 D2b): an optional ordered subset of :data:`V2_ROLES` to build a
-    SMALLER roster (the judge-set-ladder rungs). ``None`` (the default) builds the full
-    trio, byte-identical to before. NOTE: the frozen ``_apply_consensus`` requires
-    ``len(valid) >= 2`` in full-council mode, so a 2- or 3-role roster grades normally
-    but a SINGLE-role roster returns ``insufficient_valid_models`` (a degenerate
-    ``needs_review``) — single-judge support is a consensus-policy decision, not a
-    ``build_trio`` change. Each name must be in :data:`V2_ROLES`.
+    ``roles`` (DOGFOOD-1 D2b / PHASE2-B): an optional ordered roster — a SMALLER subset (the
+    judge-set-ladder rungs) OR a LARGER roster carrying an AUTHORED judge (PHASE2-B). ``None``
+    (the default) builds the active pack's full ``production_judges`` roster, byte-identical to
+    before when ``production_judges == V2_ROLES`` (the ``_core``/support default). NOTE: the
+    frozen ``_apply_consensus`` requires ``len(valid) >= 2`` in full-council mode, so a 2- or
+    3-role roster grades normally but a SINGLE-role roster returns ``insufficient_valid_models``
+    (a degenerate ``needs_review``) — single-judge support is a consensus-policy decision, not a
+    ``build_trio`` change.
+
+    PHASE2-B relaxed the allowlist from the fixed :data:`V2_ROLES` to the active pack's
+    ``pack_production_judges()`` UNION any explicitly-authored role (a key in ``assignments`` /
+    ``models``) — so an authored judge spliced into the pack snapshot joins the trio→N-tet. A
+    role that is NEITHER a production judge NOR an authored key is a truly-unknown identity and
+    raises (the caller derives ``roles`` via :func:`harness.judges.derive_roster_order`).
+    ``build_judge_lm`` already binds any role via ``.get(role, default)`` (PROBE Q5), so no
+    deployment-map edit is needed. :data:`V2_ROLES` is kept as the back-compat constant.
     """
-    selected = tuple(roles) if roles else V2_ROLES
-    unknown = [r for r in selected if r not in V2_ROLES]
+    from lithrim_bench.harness.pack import pack_production_judges  # lazy: keep import acyclic
+
+    production = tuple(pack_production_judges())
+    selected = tuple(roles) if roles else production
+    # admissible = the active roster ∪ the explicitly-authored extras (assignments/models keys).
+    admissible = set(production) | set(assignments or {}) | set(models or {})
+    unknown = [r for r in selected if r not in admissible]
     if unknown:
-        raise ValueError(f"roles {unknown!r} not in V2_ROLES {V2_ROLES!r}")
+        raise ValueError(
+            f"roles {unknown!r} are neither production judges {production!r} nor "
+            "authored (assignments/models keys)"
+        )
     judges: list[Judge] = []
     for role in selected:
         if ontology is not None:

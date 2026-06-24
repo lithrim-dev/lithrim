@@ -219,3 +219,22 @@ def list_judges(*, db_path: str | Path = DEFAULT_CONFIG_DB) -> dict[str, JudgeCo
         jc = judge_from_dict(json.loads(j))
         out[jc.role] = jc
     return out
+
+
+def derive_roster_order(
+    production: list[str],
+    assignments: dict[str, Any] | None,
+    models: dict[str, Any] | None,
+) -> list[str]:
+    """The grade-call-site roster order (PHASE2-B): the active pack's ``production_judges``
+    FIRST (in pack order — load-bearing), then any AUTHORED extra role (a key in
+    ``assignments`` or ``models`` that is not already a production judge) appended.
+
+    Stdlib-only (no pack/council import): the caller passes ``pack_production_judges()`` in,
+    so this module stays importable on the default core. Dedup-stable — a production role that
+    is ALSO authored appears once (from ``production``). The result is what ``run(roles=)``
+    threads → ``build_authored_semantic_stage`` → ``build_trio``, so an authored judge actually
+    joins the trio→N-tet that the frozen ``_apply_consensus`` grades."""
+    authored = set(assignments or {}) | set(models or {})
+    extras = [r for r in sorted(authored) if r not in production]
+    return [*production, *extras]

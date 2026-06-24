@@ -6,8 +6,8 @@ role reach that consensus:
 
   * E — ``build_trio(roles=[4 roles], assignments={new_role:[code]}, predictors={…4…})`` returns
         4 ``Judge``s (the ``V2_ROLES`` allowlist was relaxed to the active pack's
-        ``pack_production_judges()`` + the explicitly-passed roles), no ``ValueError``.
-  * F — ``build_authored_semantic_stage(… roles=4 …)`` with injected predictors → the frozen
+        ``pack_production_judges()`` UNION the authored extras), no ``ValueError``.
+  * F — the authored stage (``roles=4``) with injected predictors → the frozen
         ``_apply_consensus`` returns a CLEAN verdict (NOT ``insufficient_valid_models``) and the
         new role's vote is in ``consensus["models"]``. The frozen consensus is UNCHANGED — we only
         FEED it 4 results.
@@ -17,9 +17,16 @@ role reach that consensus:
         old 3-role trio (the ``selected == V2_ROLES`` byte-identity), so every existing
         trio/consensus test stays green.
 
-Bare-CE, $0 (no dspy/network): every judge is a mocked predictor, the probe's injection pattern.
+E + F seed the authored role into a THROWAWAY ``packs/_core`` copy (the BFF endpoint's exact
+splice + ``write_role_prompt`` seed) so the prompt-render wall is satisfied the way the live
+authoring path satisfies it — no repo-source mutation. Bare-CE, $0 (mocked predictors).
 """
 from __future__ import annotations
+
+import json
+import os
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -28,6 +35,8 @@ pytest.importorskip("tenacity")
 
 from lithrim_bench.harness.judges import derive_roster_order  # noqa: E402
 from lithrim_bench.runtime.council.judges_dspy import V2_ROLES, build_trio  # noqa: E402
+
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _pred(decision, *, code=None):
@@ -43,8 +52,43 @@ def _pred(decision, *, code=None):
     return _call
 
 
+@pytest.fixture()
+def core_pack_with_authored_role(tmp_path, monkeypatch):
+    """A throwaway ``packs/_core`` copy made the ACTIVE pack, with ``escalation_judge``
+    spliced (roster + lens + owner) and its role prompt seeded — the BFF create-judge
+    endpoint's exact author-time writes, so the build path sees a real authored judge."""
+    from lithrim_bench.harness import pack as pack_mod
+    from lithrim_bench.harness.judge_authoring import splice_production_judge, write_role_prompt
+
+    dst = tmp_path / "corepack"
+    shutil.copytree(_REPO_ROOT / "packs" / "_core", dst)
+    m = json.loads((dst / "pack.json").read_text())
+    m["pack_id"] = "corepack"
+    (dst / "pack.json").write_text(json.dumps(m, indent=2))
+
+    existing = os.environ.get("LITHRIM_BENCH_PACKS_DIR", "")
+    monkeypatch.setenv(
+        "LITHRIM_BENCH_PACKS_DIR", str(tmp_path) + (os.pathsep + existing if existing else "")
+    )
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", "corepack")
+    pack_mod._pack_root.cache_clear()
+    pack_mod._council_known_codes.cache_clear()
+    pack_mod.assert_pack_judges_consistent.cache_clear()
+    # the prompt module caches the dir at import — point it at the throwaway pack
+    import lithrim_bench.runtime.council.judge_assignment as ja
+
+    monkeypatch.setattr(ja, "_ROLE_PROMPTS_DIR", dst / "council_roles", raising=False)
+
+    splice_production_judge("corepack", "escalation_judge", ["STYLE_VIOLATION"], ["STYLE_VIOLATION"])
+    write_role_prompt("corepack", "escalation_judge", "Escalation judge: raise STYLE_VIOLATION only.")
+    yield "corepack"
+    pack_mod._pack_root.cache_clear()
+    pack_mod._council_known_codes.cache_clear()
+    pack_mod.assert_pack_judges_consistent.cache_clear()
+
+
 # ── E: build_trio admits an authored 4th role when it is passed in `roles=` ────────────────
-def test_build_trio_admits_authored_fourth_role():
+def test_build_trio_admits_authored_fourth_role(core_pack_with_authored_role):
     new_role = "escalation_judge"
     roster = [*V2_ROLES, new_role]
     predictors = {r: _pred("approve") for r in roster}
@@ -59,13 +103,13 @@ def test_build_trio_admits_authored_fourth_role():
 
 def test_build_trio_rejects_a_truly_unknown_role():
     """The relaxed allowlist still REFUSES a role that is neither a production judge nor an
-    explicitly-derived authored role — it must be a real, validated identity."""
+    explicitly-authored (assignments/models) key — it must be a real, validated identity."""
     with pytest.raises(ValueError):
         build_trio(predictors={"not_a_judge": _pred("approve")}, roles=["not_a_judge"])
 
 
 # ── F: the authored 4-judge stage votes through the UNCHANGED _apply_consensus ─────────────
-def test_four_judge_authored_stage_votes_through_frozen_consensus():
+def test_four_judge_authored_stage_votes_through_frozen_consensus(core_pack_with_authored_role):
     from lithrim_bench.runtime.council.authored_stage import build_authored_evaluator
 
     new_role = "escalation_judge"
@@ -103,7 +147,7 @@ def test_derive_roster_order_unions_production_then_authored():
     assert len(roles) == len(set(roles))
 
 
-def test_derive_roster_order_is_none_when_only_production():
+def test_derive_roster_order_is_production_only_when_unauthored():
     """No authored judges → the helper returns the bare production roster (callers may pass
     ``None`` instead, but the helper is honest: production-only in, production-only out)."""
     production = ["risk_judge", "policy_judge", "faithfulness_judge"]
