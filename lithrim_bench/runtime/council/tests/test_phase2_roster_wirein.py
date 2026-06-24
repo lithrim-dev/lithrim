@@ -74,13 +74,14 @@ def core_pack_with_authored_role(tmp_path, monkeypatch):
     pack_mod._pack_root.cache_clear()
     pack_mod._council_known_codes.cache_clear()
     pack_mod.assert_pack_judges_consistent.cache_clear()
-    # the prompt module caches the dir at import — point it at the throwaway pack
-    import lithrim_bench.runtime.council.judge_assignment as ja
-
-    monkeypatch.setattr(ja, "_ROLE_PROMPTS_DIR", dst / "council_roles", raising=False)
 
     splice_production_judge("corepack", "escalation_judge", ["STYLE_VIOLATION"], ["STYLE_VIOLATION"])
     write_role_prompt("corepack", "escalation_judge", "Escalation judge: raise STYLE_VIOLATION only.")
+    # the prompt module caches the dir at import — point it at the throwaway pack, resolved via the
+    # pack discovery seam (not a hardcoded path: the layer-2 guard forbids a literal join here).
+    import lithrim_bench.runtime.council.judge_assignment as ja
+
+    monkeypatch.setattr(ja, "_ROLE_PROMPTS_DIR", pack_mod.pack_prompts_path("corepack"), raising=False)
     yield "corepack"
     pack_mod._pack_root.cache_clear()
     pack_mod._council_known_codes.cache_clear()

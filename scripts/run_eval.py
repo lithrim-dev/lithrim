@@ -604,6 +604,15 @@ def main() -> int:
     judges_cfg = list_judges(db_path=db_path)
     assignments = {role: jc.assigned_flags for role, jc in judges_cfg.items() if jc.assigned_flags}
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
+    # PHASE2-B: derive the grade roster — production_judges FIRST, then any authored extra role
+    # (created via POST /v1/judges) appended — so the authored judge reaches build_trio and votes.
+    # ``None`` when there are no extras (the default trio). run() threads roles= → build_trio.
+    from lithrim_bench.harness.judges import derive_roster_order
+    from lithrim_bench.harness.pack import pack_production_judges
+
+    _production = pack_production_judges()
+    _roster = derive_roster_order(_production, assignments, models)
+    roles = _roster if _roster != _production else None
 
     record = run(
         agent,
@@ -613,6 +622,7 @@ def main() -> int:
         ontology_path=args.ontology_path,
         assignments=assignments or None,
         models=models or None,
+        roles=roles,
         collections_db=args.collections_db,
     )
     if args.emit_json:

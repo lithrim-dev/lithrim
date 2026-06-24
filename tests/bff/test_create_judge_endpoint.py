@@ -63,9 +63,16 @@ def core_ws(tmp_path, monkeypatch):
     pack_mod._pack_root.cache_clear()
     pack_mod._council_known_codes.cache_clear()
     pack_mod.assert_pack_judges_consistent.cache_clear()
+    # the prompt-render dir is cached at judge_assignment import → the shipped _core; point it at the
+    # throwaway pack so the role prompt the endpoint seeds (write_role_prompt) is what build_trio reads.
+    import lithrim_bench.runtime.council.judge_assignment as _ja
+
+    monkeypatch.setattr(_ja, "_ROLE_PROMPTS_DIR", tmp_path / "corepack" / "council_roles", raising=False)
     monkeypatch.setattr(bff.workspace, "get_active_workspace", lambda: Workspace(name="t", pack=name))
     records: list = []
-    monkeypatch.setattr(bff.AuditLog, "record", lambda self, rec: records.append(rec))
+    # save_judge audits via the transactional upsert_with_audit, which calls
+    # AuditLog.record(rec, conn=...) — accept the kwarg (the criterion twin calls record(rec) bare).
+    monkeypatch.setattr(bff.AuditLog, "record", lambda self, rec, **kw: records.append(rec))
     yield name, records
     pack_mod._pack_root.cache_clear()
     pack_mod._council_known_codes.cache_clear()
@@ -220,10 +227,15 @@ def test_put_judge_accepts_the_newly_created_role(core_ws, tmp_path):
 #  role reaches a clean 4-judge consensus via the authored stage with injected predictors.)
 
 
-def test_created_role_votes_in_four_judge_consensus(core_ws, tmp_path):
+def test_created_role_votes_in_four_judge_consensus(core_ws, tmp_path, monkeypatch):
+    # offline council construct (no real call — injected predictors); the sync openai client the
+    # frozen __init__ builds reads the council settings singleton, so patch THAT (not just env).
+    # $0: no completion is issued (every judge is a mocked predictor).
+    from lithrim_bench.runtime.council import settings as council_settings
     from lithrim_bench.runtime.council.authored_stage import build_authored_evaluator
     from lithrim_bench.runtime.council.judges_dspy import V2_ROLES
 
+    monkeypatch.setattr(council_settings.settings, "OPENAI_API_KEY", "test-offline-key", raising=False)
     pack, _ = core_ws
     _call(
         tmp_path,

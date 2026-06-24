@@ -813,6 +813,17 @@ def _grade_case(
     # roles with no/empty model stay Azure (the default, byte-identical to before).
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
     ws = workspace.get_active_workspace()
+    # PHASE2-B: derive the grade roster — the active pack's production_judges FIRST, then any
+    # AUTHORED extra role (a judge created via POST /v1/judges, now in the pack snapshot + carrying
+    # an assignment/model) appended — so the authored judge reaches build_trio and votes. ``None``
+    # when there are no extras (the default trio, byte-identical to before). run() threads roles= →
+    # build_authored_semantic_stage → build_trio.
+    from lithrim_bench.harness import pack as _pack_mod
+    from lithrim_bench.harness.judges import derive_roster_order
+
+    _production = _pack_mod.pack_production_judges(ws.pack)
+    _roster = derive_roster_order(_production, assignments, models)
+    roles = _roster if _roster != _production else None
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
     # can't rebind it per-workspace. REPLAY is included: its ground() needs the pack's grounding
@@ -838,6 +849,7 @@ def _grade_case(
                 ontology_path=ontology_path,
                 assignments=assignments or None,
                 models=models or None,
+                roles=roles,
                 collections_db=collections_db,
             )
         except SystemExit as exc:  # run_eval raises this when the case is missing
@@ -2160,6 +2172,140 @@ def create_criterion_endpoint(
         "owner_role": body.owner_role,
         "pack": pack,
         "working_copy": str(out_path),
+    }
+
+
+class CreateJudgeRequest(BaseModel):
+    # PHASE2-B: author a NEW production judge self-serve. ``role`` is a lowercase-led snake judge-id
+    # (the writer ALSO guards, defense-in-depth). ``lens_codes`` = the codes it may raise (its lens /
+    # withstands scope, non-empty); ``owned_codes`` ⊆ lens_codes = the Tier-1 one-strike codes it
+    # OWNS (owner↔emit). ``model_id`` (optional) binds a registered pool model to the role.
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    lens_codes: list[str]
+    owned_codes: list[str] = Field(default_factory=list)
+    model_id: str | None = None
+    role_prompt: str | None = None
+
+
+def _bind_model_to_role(model_id: str, role: str) -> dict:
+    """Bind a registered pool model to an ARBITRARY (incl. authored) role, REUSING the
+    ``models_bind_endpoint`` internals (``_read_models_registry`` → ``_read_model_key`` →
+    ``_provider_env_vars`` → ``_persist_and_reload_provider``) — NOT duplicated. The global
+    provider + key are set (the load-bearing part: ``build_judge_lm`` then routes the new role to
+    that provider via its ``.get(role, default)`` fallback, PROBE Q6). A per-role MODEL var for an
+    arbitrary new role is the flagged 3→N seam (``_PROVIDER_*_ROLE_*`` are the fixed trio); honored
+    only when ``role`` is one of the three. Records ``bound_roles += [role]``. NEVER returns a key."""
+    reg = _read_models_registry()
+    entry = next((m for m in reg["models"] if m.get("id") == model_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"model {model_id!r} not in the pool")
+    api_key = _read_model_key(model_id)
+    if not api_key:
+        raise HTTPException(
+            status_code=409, detail=f"model {model_id!r} has no persisted key (re-register it)"
+        )
+    # role-targeted only for the fixed trio (the per-role env-var maps); else a global provider+key
+    # bind (no per-role model clobber) — the new role runs on the bound provider's default model.
+    targeted = role in _PROVIDER_OPENAI_ROLE_MODEL
+    cfg = ProviderConfigRequest(
+        plane="grading", provider=entry["provider"], api_key=api_key,
+        endpoint=entry.get("endpoint"), model=entry.get("model") if targeted else None,
+        role=role if targeted else None,
+    )
+    try:
+        env_vars = _provider_env_vars(cfg)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _persist_and_reload_provider(env_vars)
+    bound = sorted(set(entry.get("bound_roles", [])) | {role})
+    entry["bound_roles"] = bound
+    _write_models_registry(reg)
+    # NEVER the key — only the non-secret binding facts
+    return {"id": model_id, "provider": entry["provider"], "model": entry.get("model"),
+            "bound_roles": bound}
+
+
+@app.post("/v1/judges")
+def create_judge_endpoint(
+    body: CreateJudgeRequest,
+    rationale: str = Query("", description="The SME's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """PHASE2-B: author a NEW production judge self-serve — the sanctioned, AUDITED writer above
+    the CLAUDE.md "never hand-edit the snapshot" invariant (owner sign-off 2026-06-25, after the
+    ``docs/research/PROBE_phase2_arbitrary_judges_2026-06-25.md`` §8 gate: the FROZEN consensus
+    admits arbitrary judges at N≥2). The STRUCTURAL TWIN of ``POST /v1/criterion``.
+
+    Splices the role into the active WORKSPACE pack's taxonomy snapshot — ``production_judges``
+    (roster identity) + ``lenses[role]`` (withstands scope) + ``tier1_owners`` (the one-strike
+    owner-map, for owned codes) — via the tier:core-gated harness writer, seeds the role prompt,
+    optionally binds a registered pool model to the role, and persists a ``JudgeConfig`` — ONE
+    audited action, atomic (the snapshot is rolled back on any later failure). The frozen council
+    (``_apply_consensus``) is UNTOUCHED — it resolves the spliced roster/lens/owner at runtime and
+    grades the larger council with no engine edit.
+
+    Body = ``{role, lens_codes[], owned_codes[]=[], model_id?, role_prompt?}``. Maps the writer's
+    admissibility rejections to HTTP: non-core pack / bad role-id / empty lens / unknown code /
+    inert owner (owned⊄lens) → 422; role collision → 409. NEVER leaks a model key.
+    """
+    from lithrim_bench.harness import judge_authoring as ja_mod
+    from lithrim_bench.harness import workspace as ws_mod
+
+    pack = ws_mod.get_active_workspace().pack
+    try:
+        snap_before, _snap_after = ja_mod.splice_production_judge(
+            pack, body.role, body.lens_codes, body.owned_codes
+        )
+    except ja_mod.RoleCollisionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ja_mod.JudgeAuthoringError as exc:  # NonCorePack/BadRoleId/EmptyLens/UnknownCode/InertOwner
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Post-splice writes: the role prompt, the optional model bind, the JudgeConfig + its audit.
+    # ATOMIC — on ANY failure (incl. the model bind 404/409, or the audit, F2) roll the snapshot
+    # back AND remove the seeded prompt so no un-audited mutation of the contract-of-record lands.
+    # The save_judge audit (action="author", target.type="judge") is the SOLE audit (one action).
+    from lithrim_bench.harness import pack as _pack_mod_w
+
+    prompt_path = _pack_mod_w._pack_ref(pack, "council_roles") / f"{body.role}.txt"
+    prompt_existed = prompt_path.exists()
+    bound = None
+    try:
+        ja_mod.write_role_prompt(
+            pack,
+            body.role,
+            body.role_prompt
+            or f"{body.role}: raise only its assigned lens, each grounded in an evidence span.",
+        )
+        if body.model_id:
+            bound = _bind_model_to_role(body.model_id, body.role)
+        actor = _resolve_actor(x_actor, default_actor)
+        jc = JudgeConfig(
+            role=body.role,
+            model=(bound or {}).get("model", "") or "",
+            assigned_flags=tuple(body.lens_codes),
+            validator_refs=(),
+        )
+        save_judge(
+            jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
+        )
+    except Exception:  # HTTPException is an Exception — one rollback for every failure
+        ja_mod.restore_snapshot(pack, snap_before)
+        if not prompt_existed and prompt_path.exists():
+            prompt_path.unlink()
+        raise
+
+    return {
+        "role": body.role,
+        "lens_codes": list(body.lens_codes),
+        "owned_codes": list(body.owned_codes),
+        "model": (bound or {}).get("model"),  # never a key
+        "bound_roles": (bound or {}).get("bound_roles", []),
+        "pack": pack,
+        "actor": actor.model_dump(),
+        "audit_id": f"judge:{body.role}",
     }
 
 
