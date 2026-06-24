@@ -234,12 +234,26 @@ binding a role→registered-model writes the same `LITHRIM_LLM_PROVIDER` / key /
 env vars `build_judge_lm` reads (`_provider_env_vars` + `_persist_and_reload_provider`). **Frozen council
 untouched.**
 
-**API (proposed):** `GET /v1/models/catalog` (presets ⊕ live) · `POST /v1/models` (register: test-probe +
-write-only + capability annotate) · `GET /v1/models` (the pool, never keys) · `DELETE /v1/models/{id}` ·
-role→model bind reuses `/v1/provider/config`.
+**API (as built, MR-1a/1b):** `GET /v1/models/catalog` (presets; `?live=true` merges the provider's live
+`/models` for OpenAI/Anthropic, graceful-absent → presets-only, Azure deployment-based — MR-1b) · `POST
+/v1/models` (register: test-probe + write-only + capability annotate) · `GET /v1/models` (the pool, never
+keys) · `DELETE /v1/models/{id}` · role→model bind is a **dedicated** `POST /v1/models/{id}/bind {role}`
+(it internally reuses Build A's `_provider_env_vars` + `_persist_and_reload_provider` — the same env vars
+`/v1/provider/config` writes — so `build_judge_lm` re-routes that role with no restart; the earlier
+"reuses `/v1/provider/config`" phrasing was the proposal, superseded by the dedicated endpoint in 1a).
+
+**Build status (2026-06-25):** MR-1a (pool + catalog + bind, backend) · MR-1b (live `/models` fetch) ·
+MR-1c (the Model pool UI — register, the pool list with a logprobs chip + delete, pick-from-pool role
+bind, the ⚠ no-logprobs hint, composed into Connect AI) — **all DONE, merged on `bench-salvage/ws6c-dspy`,
+deterministic-green (pytest 745/0, ModelRegistry 8/8).** **SEAM (1a, carried):** `build_judge_lm` reads a
+GLOBAL `LITHRIM_LLM_PROVIDER` — a role's bind sets only its per-role *model*/*deployment*, NOT a per-role
+*provider*; so binding role A→OpenAI and role B→Azure simultaneously is unsupported (the 1c UI shows an
+honest inline note, does not fake it). Cross-provider-per-role is the next backend unlock (a focused
+`build_judge_lm` extension, the foundation for Phase 2's arbitrary judges).
 
 **Phase 1 scope:** the registry + catalog + the **3 fixed roles bind to pool entries** (pick-from-pool,
-not re-type). **Phase 2 — DEFERRED (the fork):** *arbitrary* user-created judges referencing the pool.
+not re-type) — **DELIVERED (MR-1a/1b/1c).** **Phase 2 — DEFERRED (the fork):** *arbitrary* user-created
+judges referencing the pool.
 **Riskiest assumption, test cheaply BEFORE committing:** does the frozen `_apply_consensus` handle N≠3
 votes, AND does every new judge get a **lens + a Tier-1 owner** (the owner↔emit invariant forbids an
 inert owner)? Registry-first means we answer this on solid ground, not speculatively.
