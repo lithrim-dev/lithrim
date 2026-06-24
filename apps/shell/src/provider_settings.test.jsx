@@ -12,15 +12,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { configProvider, getProviderStatus, hasStoredToken, logout, signIn } = vi.hoisted(() => ({
+const { configProvider, getProviderStatus, hasStoredToken, logout, signIn,
+  getModelCatalog, registerModel, listModels, deleteModel, bindModel } = vi.hoisted(() => ({
   configProvider: vi.fn(),
   getProviderStatus: vi.fn(),
   hasStoredToken: vi.fn(),
   logout: vi.fn(),
   signIn: vi.fn(),
+  // MODEL-REGISTRY-1c: ProviderSettings now composes <ModelRegistry/>, which calls these on mount.
+  // Stub them so mounting the panel never reaches a real fetch (the model-pool surface itself is
+  // covered by ModelRegistry.test.jsx).
+  getModelCatalog: vi.fn(),
+  registerModel: vi.fn(),
+  listModels: vi.fn(),
+  deleteModel: vi.fn(),
+  bindModel: vi.fn(),
 }));
 
-vi.mock("./bff.js", () => ({ configProvider, getProviderStatus, hasStoredToken, logout, signIn }));
+vi.mock("./bff.js", () => ({
+  configProvider, getProviderStatus, hasStoredToken, logout, signIn,
+  getModelCatalog, registerModel, listModels, deleteModel, bindModel,
+}));
 
 import ProviderSettings from "./genui/ProviderSettings.jsx";
 import { LeftRail } from "./panes.jsx";
@@ -33,6 +45,11 @@ beforeEach(() => {
   hasStoredToken.mockReset().mockReturnValue(false);
   logout.mockReset();
   signIn.mockReset();
+  getModelCatalog.mockReset().mockResolvedValue({ providers: { openai: [], anthropic: [], azure: { models: [], note: "" } } });
+  registerModel.mockReset().mockResolvedValue({});
+  listModels.mockReset().mockResolvedValue({ models: [] });
+  deleteModel.mockReset().mockResolvedValue({});
+  bindModel.mockReset().mockResolvedValue({});
 });
 
 describe("ProviderSettings — CE-PROVIDER-UI Build B", () => {

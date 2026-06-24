@@ -199,6 +199,44 @@ export const configProvider = ({ plane = "grading", provider, api_key, endpoint,
    key), so the panel shows connected / needs-setup per capability. $0 read, via call(). */
 export const getProviderStatus = () => call("/v1/provider/status");
 
+/* ── MODEL-REGISTRY-1c: the configured-model pool (pick-from-pool role bind) ──────
+   The reusable model pool that backs Connect AI's "Model pool" section: register a
+   capability-annotated model once, then BIND each fixed judge role to a pool entry
+   instead of re-typing provider/model/key per role. All via call() (auth header).
+   `logprobs` is the load-bearing capability — a logprobs:false model drives the ⚠
+   "no logprobs — confidence dark" hint at pick time. NEVER a key on any response. */
+
+/* GET /v1/models/catalog?live=… — the capability-aware catalog: curated presets per
+   provider ({model, logprobs, context_window, cost_tier}) + the Azure {models, note}.
+   `live=true` opts into a fresh provider-listed fetch (MODEL-REGISTRY-1b) when supported;
+   the panel renders gracefully whether or not a source/live field comes back. $0 read. */
+export const getModelCatalog = ({ live = false } = {}) =>
+  call(`/v1/models/catalog${live ? "?live=true" : ""}`);
+
+/* POST /v1/models — register a model into the pool. The key is read-only test-probed,
+   then written write-only to .provider_env (never SQLite/the response). Returns the
+   non-secret public entry ({id, provider, model, endpoint, capabilities, bound_roles}) —
+   NEVER the key. `endpoint` is required for provider="azure". 400 on a failing probe. */
+export const registerModel = ({ id, provider, model, endpoint, api_key } = {}) =>
+  call("/v1/models", {
+    method: "POST",
+    body: { id, provider, model, ...(endpoint ? { endpoint } : {}), api_key },
+  });
+
+/* GET /v1/models — the configured-model pool (non-secret metadata + capabilities only). */
+export const listModels = () => call("/v1/models");
+
+/* DELETE /v1/models/{id} — drop a pool entry AND its write-only key. */
+export const deleteModel = (id) =>
+  call(`/v1/models/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/* POST /v1/models/{id}/bind {role} — bind a pool entry to one of the 3 fixed roles
+   (risk_judge|policy_judge|faithfulness_judge); the role references the entry instead of
+   re-typing it. Phase-1 binds the same-provider trio (cross-provider-per-role is a backend
+   seam). 404 unknown id · 409 entry with no persisted key · 400 bad config. */
+export const bindModel = (id, role) =>
+  call(`/v1/models/${encodeURIComponent(id)}/bind`, { method: "POST", body: { role } });
+
 /* CONN-1: POST /v1/connector/ingest — generic batch ingest, dispatched by connector_id to a
    per-connector pull adapter (the key loads server-side from .connector_env, never sent). Returns
    {count, sessions, cases, errors_trapped}. $0 (no paid council; the floor-grade is NARR-7). */

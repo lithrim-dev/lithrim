@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { configProvider, getProviderStatus } from "../bff.js";
+import ModelRegistry from "./ModelRegistry.jsx";
 
 const GRADING_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
 
@@ -185,6 +186,9 @@ export default function ProviderSettings({ onClose }) {
           <div style={{ fontSize: 11.5, color: saveColor(gSave) }}>{gSave.msg}</div>
         )}
       </section>
+
+      {/* ── Model pool (MODEL-REGISTRY-1c): register once, pick-from-pool per role ── */}
+      <ModelRegistry />
 
       {/* ── Authoring assistant (OPTIONAL) ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
