@@ -257,6 +257,45 @@ judges referencing the pool.
 **Riskiest assumption, test cheaply BEFORE committing:** does the frozen `_apply_consensus` handle N≠3
 votes, AND does every new judge get a **lens + a Tier-1 owner** (the owner↔emit invariant forbids an
 inert owner)? Registry-first means we answer this on solid ground, not speculatively.
+**Gate DISCHARGED 2026-06-25** (`docs/research/PROBE_phase2_arbitrary_judges_2026-06-25.md`): the frozen
+`_apply_consensus` is `len(valid)`-driven → N≥2 needs no seam edit; a new judge needs an authored bundle
+(roster + lens + optional owner) over the snapshot; corroboration is an ABSOLUTE 2 (frozen). Phase-2 is
+in build (owner-signed-off): the audited tier:core-only judge writer + the `build_trio` roster relax + the
+`JudgeBuilder` UI.
+
+## 9. The default council — three eval axes (opinionated, generalizable)
+
+**Decision (2026-06-25, owner-affirmed):** ship the `risk_judge` / `policy_judge` / `faithfulness_judge`
+triad as the **opinionated, batteries-included default council** — NOT clinical baggage, but **three
+generalizable eval axes**. Strong calibrated defaults beat a blank canvas; a stated POV is a selling
+point. Lead with the opinion; be explicit that **faithfulness is the grounding anchor**.
+
+**Proven generalizable, not aspirational:** the SAME triad ships in THREE packs with disjoint
+taxonomies — only the per-pack codes change, the axes are stable:
+- **faithfulness_judge** = *groundedness / faithful-to-source* (the universal RAG-eval axis) — AND the
+  v2 **veto judge**, i.e. the structural home of the tool-grounded floor. `_core`: SOURCE_CONTRADICTION,
+  MISSING_CONTEXT · support_ticket_qa: CONTRADICTS_THREAD, UNRESOLVED_ISSUE · healthcare: MISSING_ALLERGY.
+- **policy_judge** = *rules / claims / required disclosures*. `_core`: FABRICATED_CLAIM · support:
+  FABRICATED_POLICY, MISSING_DISCLOSURE · healthcare: fabricated consent / PHI.
+- **risk_judge** = *harm / unsupported assertions / inconsistency*. `_core`: UNSUPPORTED_ASSERTION,
+  INTERNAL_INCONSISTENCY · support: UNSUPPORTED_COMMITMENT · healthcare: dosage/risk.
+
+The decomposition maps onto the eval literature (faithfulness/groundedness · policy/safety · risk/harm)
+and is more actionable than "helpful/harmless/honest" because each axis carries a by-construction
+taxonomy + an owner + a lens, not a vibe.
+
+**The opinionated parts we OWN (the brand), not hide:** (1) faithfulness is first-among-equals — the
+veto/grounding anchor (the moat thesis: "by-construction + tool-grounded floor, not a better judge"); (2)
+the default model diversity (gpt→risk, mistral→policy, llama→faithfulness) is an opinion — "different
+families catch different errors" — now **rebind-able** via the model registry (§8); (3) the names carry
+mild flavor — Phase-2 (§8) is the escape hatch for domain-specific axes / renames.
+
+**What ships — the honest caveat (docs MUST state):** in `_core` out of the box, **2 of the 5 Tier-1
+never-events** (`OUT_OF_SCOPE_ACTION`, `SOURCE_MISATTRIBUTION`) are owned only by *dormant* judges
+(the snapshot's `declared_but_not_running` = `behavior_judge`/`source_message_judge`). By design (not a
+bug) they rely on **corroboration, not solo one-strike**, out of the box — and authoring a judge that
+*owns* them (Phase-2) is exactly how a user arms them. State this so nobody assumes all five are
+solo-armed.
 
 ## References
 - `docs/COMMUNITY_RELEASE_v1_PLAN.md` (the 5 release cycles, all done + clone-validated).
