@@ -38,11 +38,12 @@ beforeEach(() => {
 describe("ProviderSettings — CE-PROVIDER-UI Build B", () => {
   it("A: renders both capability slots — grading required, assistant optional", async () => {
     render(<ProviderSettings />);
-    // grading engine, marked required
-    expect(await screen.findByText(/Grading engine/i)).toBeInTheDocument();
+    // grading engine, marked required (exact-match the heading — "grading engine" also appears in
+    // the degradation copy, so a loose /Grading engine/i would collide with our own description).
+    expect(await screen.findByText("Grading engine")).toBeInTheDocument();
     expect(screen.getByText(/required/i)).toBeInTheDocument();
     // authoring assistant, marked optional
-    expect(screen.getByText(/Authoring assistant/i)).toBeInTheDocument();
+    expect(screen.getByText("Authoring assistant")).toBeInTheDocument();
     expect(screen.getByText(/optional/i)).toBeInTheDocument();
     // graceful-degradation copy
     expect(screen.getByText(/grade now/i)).toBeInTheDocument();
@@ -101,19 +102,20 @@ describe("LeftRail — CE-PROVIDER-UI Build B (D): the 'Connect AI' session-menu
   it("D: the session-menu shows 'Connect AI' and clicking it opens the ProviderSettings panel", async () => {
     render(<LeftRail {...rail} />);
     fireEvent.click(screen.getByLabelText("Session menu"));
-    const item = screen.getByText(/Connect AI/i);
+    const item = screen.getByRole("menuitem", { name: /Connect AI/i });
     expect(item).toBeInTheDocument();
     fireEvent.click(item);
-    // the panel mounts — its grading slot heading appears
-    expect(await screen.findByText(/Grading engine/i)).toBeInTheDocument();
+    // the panel mounts — its grading slot heading appears (exact-match: "Grading engine" recurs in
+    // the panel's own degradation copy, so a regex would match more than the heading)
+    expect(await screen.findByText("Grading engine")).toBeInTheDocument();
   });
 
   it("D2: the Connect-AI panel has a close affordance that dismisses it", async () => {
     render(<LeftRail {...rail} />);
     fireEvent.click(screen.getByLabelText("Session menu"));
-    fireEvent.click(screen.getByText(/Connect AI/i));
-    expect(await screen.findByText(/Grading engine/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Connect AI/i }));
+    expect(await screen.findByText("Grading engine")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("provider-settings-close"));
-    await waitFor(() => expect(screen.queryByText(/Grading engine/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Grading engine")).toBeNull());
   });
 });

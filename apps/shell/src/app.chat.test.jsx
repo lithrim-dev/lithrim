@@ -47,6 +47,10 @@ vi.mock("./bff.js", () => {
     hasStoredToken: vi.fn().mockReturnValue(false),
     logout: vi.fn(),
     signIn: vi.fn(),
+    // CE-PROVIDER-UI (Build B): LeftRail statically imports ProviderSettings, which imports these —
+    // stub so the whole-surface mock covers every export the mounted rail pulls in.
+    configProvider: vi.fn().mockResolvedValue({ ok: true, plane: "grading", provider: "openai", last_tested: "" }),
+    getProviderStatus: vi.fn().mockResolvedValue({ planes: {} }),
     // the loop under test: stream a run_result (the $0 replay) + the pane directive
     chatStream: vi.fn(async (_req, { onEvent } = {}) => {
       if (!onEvent) return;

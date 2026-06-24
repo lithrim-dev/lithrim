@@ -6,6 +6,7 @@ import { ConfigCard } from "./cards.jsx";
 import { renderTool } from "./genui/index.js";
 import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
+import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
 import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in
 
@@ -47,6 +48,9 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
   // so on an open/local server there was no way to proactively sign in/out — and the footer "⋯" was a
   // dead button. This is passive rail chrome: it never operates panes/top-bar to advance the product.
   const [sessionMenu, setSessionMenu] = useState(false);
+  // CE-PROVIDER-UI (Build B): the "Connect AI" provider-connect panel, opened from the session
+  // menu. Passive rail chrome — a modal settings panel; it never operates panes/top-bar to advance.
+  const [connectAI, setConnectAI] = useState(false);
   const authed = hasStoredToken();
   // DELETE-CONFIRM-1: a two-step in-DOM confirm before deleting an evaluation — deleting an agent
   // also drops its audit row, so a stray click must not destroy it (never window.confirm).
@@ -143,6 +147,12 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
               <div style={{ padding: "6px 8px", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4 }}>
                 {authed ? "Signed in with an access token" : "Not signed in · server is open"}
               </div>
+              {/* CE-PROVIDER-UI (Build B): a passive "Connect AI" entry — opens the provider-connect
+                  panel (grading engine + authoring assistant). It never operates panes/top-bar. */}
+              <button className="icon-btn" role="menuitem" onClick={() => { setSessionMenu(false); setConnectAI(true); }}
+                style={{ width: "100%", justifyContent: "flex-start", height: 32, padding: "0 8px", fontSize: 13, color: "var(--text)" }}>
+                Connect AI
+              </button>
               {authed ? (
                 <button className="icon-btn" role="menuitem" onClick={() => { setSessionMenu(false); logout(); }}
                   style={{ width: "100%", justifyContent: "flex-start", height: 32, padding: "0 8px", fontSize: 13, color: "var(--text)" }}>
@@ -154,6 +164,21 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
                   Sign in…
                 </button>
               )}
+            </div>
+          </>
+        )}
+        {/* CE-PROVIDER-UI (Build B): the "Connect AI" panel — a centered modal over a backdrop
+            (reuses the session-menu backdrop idiom). Passive settings surface; closing it returns
+            to the app, it never opens an artifact pane. */}
+        {connectAI && (
+          <>
+            <div data-testid="connect-ai-backdrop" onClick={() => setConnectAI(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.32)" }} />
+            <div role="dialog" aria-label="Connect AI" data-testid="connect-ai-panel"
+              style={{ position: "fixed", zIndex: 61, top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                width: "min(560px, 92vw)", maxHeight: "86vh", overflowY: "auto", padding: 18, borderRadius: 14,
+                background: "var(--bg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-pop)" }}>
+              <ProviderSettings onClose={() => setConnectAI(false)} />
             </div>
           </>
         )}

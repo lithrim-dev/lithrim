@@ -177,6 +177,28 @@ export const testConnector = ({ base_url, x_api_key, connector_id = "storyworld_
    default_base_url, transport}); never a key. The picker renders this list — no hardcoded source. */
 export const listConnectors = () => call("/v1/connectors");
 
+/* ── CE-PROVIDER-UI (Build B): the in-app "Connect AI" surface (SPEC_COMMUNITY_EDITION §3.2) ──
+   POST /v1/provider/config — configure the user's LLM provider key IN-APP, capability-oriented:
+   `plane` is "grading" (the council judge LM, required) | "assistant" (chat-authoring, optional).
+   The endpoint TEST-probes the key read-only, then writes it ONLY to the gitignored .provider_env
+   (never SQLite/the response). `endpoint` (Azure api_base), `model`, `role` (one grading judge)
+   are optional. Returns {ok, plane, provider, last_tested} — NEVER the key. Via call() so it carries
+   the auth header. A failing probe / bad config (4xx) throws so the panel can surface it. */
+export const configProvider = ({ plane = "grading", provider, api_key, endpoint, model, role } = {}) =>
+  call("/v1/provider/config", {
+    method: "POST",
+    body: {
+      plane, provider, api_key,
+      ...(endpoint ? { endpoint } : {}),
+      ...(model ? { model } : {}),
+      ...(role ? { role } : {}),
+    },
+  });
+
+/* GET /v1/provider/status — which planes are configured + provider/model/last_tested (never the
+   key), so the panel shows connected / needs-setup per capability. $0 read, via call(). */
+export const getProviderStatus = () => call("/v1/provider/status");
+
 /* CONN-1: POST /v1/connector/ingest — generic batch ingest, dispatched by connector_id to a
    per-connector pull adapter (the key loads server-side from .connector_env, never sent). Returns
    {count, sessions, cases, errors_trapped}. $0 (no paid council; the floor-grade is NARR-7). */
