@@ -241,3 +241,35 @@ def test_load_provider_env_noop_when_path_is_a_directory(tmp_path, monkeypatch):
     d.mkdir()
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", d, raising=False)
     bff._load_provider_env()  # must return cleanly, not raise
+
+
+def test_azure_per_role_deployment_wires_the_heterogeneous_trio(provider_env, monkeypatch):
+    """Connect AI → Advanced (Azure): provider=azure + role=policy_judge + model=<deployment> must
+    write AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3 so the council routes the policy judge to that
+    Azure deployment (the heterogeneous GPT/Mistral/Llama trio). Previously the Azure branch set only
+    the key + endpoint and DROPPED the per-role deployment."""
+    tmp_path, ws = provider_env
+    _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+    secret = "az-secret-do-not-leak"
+    resp = client.post(
+        "/v1/provider/config",
+        json={"plane": "grading", "provider": "azure", "api_key": secret,
+              "endpoint": "https://my.openai.azure.com/", "role": "policy_judge",
+              "model": "my-mistral-large-deployment"},
+    )
+    assert resp.status_code == 200, resp.text
+    written = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    assert written["LITHRIM_LLM_PROVIDER"] == "azure"
+    assert written["AZURE_OPENAI_ENDPOINT"] == "https://my.openai.azure.com/"
+    assert written["AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3"] == "my-mistral-large-deployment"
+    assert secret not in resp.text  # the key never leaks
+
+
+def test_azure_endpoint_required(provider_env, monkeypatch):
+    """provider=azure without an endpoint → 400 before any probe/write (mirrors _provider_env_vars)."""
+    _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+    resp = client.post("/v1/provider/config",
+                       json={"plane": "grading", "provider": "azure", "api_key": "az"})
+    assert resp.status_code == 400, resp.text

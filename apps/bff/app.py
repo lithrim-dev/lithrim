@@ -3247,6 +3247,14 @@ _PROVIDER_OPENAI_ROLE_MODEL = {
     "policy_judge": "OPENAI_MODEL_POLICY",
     "faithfulness_judge": "OPENAI_MODEL_FAITHFULNESS",
 }
+# Azure: a per-role DEPLOYMENT name (``model`` carries the deployment, not a model id). Mirrors
+# runtime/council/judges_dspy._ROLE_DEPLOYMENT — the heterogeneous trio (risk→GPT, policy→Mistral,
+# faithfulness→Llama) the owner runs. Set via Connect AI → Advanced; absent role → all three share it.
+_PROVIDER_AZURE_ROLE_DEPLOYMENT = {
+    "risk_judge": "AZURE_OPENAI_DEPLOYMENT_COUNCIL",
+    "policy_judge": "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3",
+    "faithfulness_judge": "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK",
+}
 # Which env vars carry the SECRET per plane — these never leave .provider_env / os.environ.
 _PROVIDER_SECRET_VARS = ("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 
@@ -3273,6 +3281,12 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["LITHRIM_LLM_PROVIDER"] = "azure"
             env["AZURE_OPENAI_API_KEY"] = req.api_key
             env["AZURE_OPENAI_ENDPOINT"] = req.endpoint
+            if req.model:  # the Azure DEPLOYMENT name (e.g. policy_judge → your Mistral deployment)
+                if req.role:
+                    env[_PROVIDER_AZURE_ROLE_DEPLOYMENT[req.role]] = req.model
+                else:
+                    for var in _PROVIDER_AZURE_ROLE_DEPLOYMENT.values():
+                        env[var] = req.model
         else:
             raise ValueError(f"provider={req.provider!r} is not a grading provider (use openai|azure)")
     else:  # assistant plane
