@@ -341,6 +341,27 @@ export const putJudge = (role, judge, { actor, rationale = "", agent } = {}) => 
   });
 };
 
+/* POST /v1/judges — PHASE2-C: mint a NEW first-class judge over the active pack's taxonomy
+   snapshot. The authoring bundle is {role, lens_codes (codes it may raise), owned_codes (⊆ lens —
+   the one-strike owner set; empty = corroborate-only), model_id?, role_prompt?, rationale}. The
+   snapshot stays the by-construction contract — the server splices production_judges + lenses +
+   tier1_owners (audited) and binds the deployment; the frozen consensus seam is untouched. Returns
+   the non-secret entry {role, lens_codes, owned_codes, model, bound_roles, audit_id} — NEVER a key.
+   422 on admissibility failure (owned⊄lens / code∉taxonomy / empty lens / role collision / non-core
+   pack) with a `detail` string; the card surfaces it inline. $0 — authoring, never a paid run. */
+export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prompt, rationale } = {}) =>
+  call("/v1/judges", {
+    method: "POST",
+    body: {
+      role,
+      lens_codes,
+      owned_codes,
+      rationale,
+      ...(model_id ? { model_id } : {}),
+      ...(role_prompt ? { role_prompt } : {}),
+    },
+  });
+
 /* ── UAP-4: the calibration trainer — optimize a judge, see the honest held-out Δ ── */
 
 /* POST /v1/judges/{role}/optimize — PAID. Optimize the judge against the bench-accept
