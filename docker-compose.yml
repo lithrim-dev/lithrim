@@ -38,11 +38,12 @@ services:
       # Optional Pro pack discovery (a path INSIDE the container; bind-mount it if you set this).
       LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-}
     volumes:
-      # Persist the config SQLite + run blobs + per-workspace .connector_env sidecars.
+      # Persist the config SQLite + run blobs + per-workspace .connector_env sidecars. The
+      # in-app-configured provider key (.provider_env, repo root) lives in the container for the
+      # session — written by POST /v1/provider/config + applied live (no restart); for persistence
+      # across `down` pass keys via env (below). NB: do NOT bind-mount single files that may not
+      # exist on the host — docker creates them as DIRECTORIES and crashes the BFF env-loader.
       - ./out:/app/out
-      # Persist the repo-root BYOK provider/connector sidecars (created lazily; touch-safe).
-      - ./.provider_env:/app/.provider_env
-      - ./.connector_env:/app/.connector_env
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
       interval: 15s

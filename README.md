@@ -44,15 +44,14 @@ You provide the key; Lithrim provides the harness. No accounts, no hosted infere
 **Run it in containers — `docker compose up`.** No local Python/Node toolchain needed; a stranger gets the whole stack in two commands:
 
 ```bash
-touch .provider_env .connector_env   # one-time: the BYOK sidecars persist as files, not dirs
-docker compose up                    # builds + starts BFF (:8787) and UI (:5180)
+docker compose up   # builds + starts BFF (:8787) and UI (:5180)
 ```
 
 Then open **http://localhost:5180**, connect your own LLM key from the UI (or pass it as env — see below), and grade a case. The BFF auto-seeds the neutral `_core` sample on first boot, so the loop works immediately.
 
 - **BYOK via env** — set keys in your shell or a repo-root `.env` (compose auto-loads `.env`); the `bff` service passes through `OPENAI_API_KEY`, the `AZURE_OPENAI_*` vars, `LITHRIM_LLM_PROVIDER`, `LITHRIM_BFF_TOKEN`, and `LITHRIM_BENCH_PACKS_DIR`. None are required for the offline demo.
 - **Chat (conversational assistant)** — the local `claude` CLI can't run in a container, so set `LITHRIM_CHAT_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` to drive the assistant via the Anthropic API. **Grading and the offline demo do not need it.**
-- **Persistence** — the config SQLite, run blobs, and per-workspace connector sidecars persist in `./out/` (a bind-mount); the repo-root `.provider_env`/`.connector_env` BYOK sidecars persist across `up`/`down` too. Nothing leaves your machine.
+- **Persistence** — the config SQLite, run blobs, and per-workspace connector sidecars persist in `./out/` (a bind-mount). A key you connect from the UI applies immediately and lasts for the running container; to keep it across `docker compose down`, pass it via env (above). Nothing leaves your machine.
 - **Offline `$0` smoke** — `make demo` (no keys, no network) still runs on the host exactly as above; it does not require the containers.
 
 > The browser talks to the BFF at `http://localhost:8787` (host-published + CORS-allowed) — *not* the container-internal `bff` hostname. Both ports are published to the host. To point the UI at a different published BFF origin, set `VITE_BFF_URL` before `docker compose up --build`.

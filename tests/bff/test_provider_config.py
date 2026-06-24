@@ -224,3 +224,20 @@ def test_provider_status_reflects_config_without_leaking_key(provider_env, monke
     assert grading["model"] == "gpt-4o"
     assert grading["last_tested"]
     assert secret not in post.text  # the key NEVER leaks via status
+
+
+def test_parse_env_file_skips_a_directory(tmp_path):
+    """CE-DOCKER hotfix: a ``docker compose`` bind-mount of a non-existent host file creates the
+    target as a DIRECTORY; ``_parse_env_file`` must skip it (the ``is_file`` guard), not raise
+    ``IsADirectoryError`` — which crashed BFF startup on a plain ``docker compose up``."""
+    d = tmp_path / ".provider_env"
+    d.mkdir()
+    assert bff._parse_env_file(d) == {}  # no IsADirectoryError
+
+
+def test_load_provider_env_noop_when_path_is_a_directory(tmp_path, monkeypatch):
+    """The startup provider-env loader must not crash when ``.provider_env`` is a directory."""
+    d = tmp_path / ".provider_env"
+    d.mkdir()
+    monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", d, raising=False)
+    bff._load_provider_env()  # must return cleanly, not raise

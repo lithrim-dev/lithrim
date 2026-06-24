@@ -609,7 +609,7 @@ def _load_live_env() -> None:
     ``setdefault``: an explicit env var still wins; ``.live_env`` only FILLS what is unset. Secrets
     stay in the gitignored file, never the config plane. Absent file → no-op."""
     live = Path(__file__).resolve().parents[2] / ".live_env"
-    if not live.exists():
+    if not live.is_file():  # is_file (not exists): a bind-mount can create the path as a directory
         return
     for raw in live.read_text().splitlines():
         line = raw.strip()
@@ -620,9 +620,12 @@ def _load_live_env() -> None:
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
-    """Parse a ``KEY=value`` env file (skip blanks/comments; strip wrapping quotes). Absent → {}."""
+    """Parse a ``KEY=value`` env file (skip blanks/comments; strip wrapping quotes). Absent → {}.
+    Guards ``is_file`` (not ``exists``): a ``docker compose`` bind-mount of a non-existent host file
+    creates the target as a DIRECTORY, and ``read_text()`` on a dir raises ``IsADirectoryError`` —
+    which would crash BFF startup. A non-regular-file path is treated as absent."""
     out: dict[str, str] = {}
-    if not path.exists():
+    if not path.is_file():
         return out
     for raw in path.read_text().splitlines():
         line = raw.strip()
