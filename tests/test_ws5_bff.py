@@ -179,6 +179,28 @@ def test_run_eval_carries_realized_council_votes(house_client):
     assert isinstance(council["configured"], list)
 
 
+def test_judges_lists_roster_when_default_agent_absent(house_client):
+    """JUDGES-EMPTY-WS: GET /v1/judges must NOT 404 in a workspace that lacks the default
+    agent (an empty/just-created workspace). It falls back to the active pack's ontology
+    to render the role questions and still returns the saved roster — consistent with
+    /v1/meta's judge count, which counts saved judges independent of any agent. The
+    house_client db has 'ws5_bff_house' but NOT 'ws0_default' (the default agent param)."""
+    res = house_client.get("/v1/judges")  # no ?agent → defaults to the absent ws0_default
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert set(body["roles"]) == {"risk_judge", "policy_judge", "faithfulness_judge"}
+    assert len(body["judges"]) == len(body["roles"])
+    assert "validators" in body
+
+
+def test_judges_still_resolves_an_existing_agent(house_client):
+    """Regression: the agent-bound path is unchanged — an explicit existing agent resolves 200
+    (the empty-workspace fallback must not change behavior when the agent IS present)."""
+    res = house_client.get("/v1/judges", params={"agent": "ws5_bff_house"})
+    assert res.status_code == 200, res.text
+    assert set(res.json()["roles"]) == {"risk_judge", "policy_judge", "faithfulness_judge"}
+
+
 # ── D1: PUT /v1/ontology — clobber-safe + validated ──────────────────────────
 
 

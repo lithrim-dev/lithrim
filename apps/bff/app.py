@@ -1568,8 +1568,19 @@ def list_judges_endpoint(
     so authored flags are reflected. Does NOT render prompts (no [council] pull) —
     the rendered preview is the per-role GET."""
     saved = list_judges(db_path=db_path)
-    ag = _load_agent(agent, db_path)
-    ont_path, _src = _resolve_ontology_path(ag, workdir)
+    try:
+        ag = _load_agent(agent, db_path)
+        ont_path, _src = _resolve_ontology_path(ag, workdir)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        # JUDGES-EMPTY-WS: an empty/just-created workspace has no default agent to bind, but the
+        # saved judge roster still exists (and /v1/meta counts it). Fall back to the active pack's
+        # ontology to render the role questions rather than 404 — meta and /v1/judges must agree.
+        from lithrim_bench.harness import pack as pack_mod
+
+        pack = workspace.get_active_workspace().pack or "_core"
+        ont_path = pack_mod.pack_ontology_path(pack, check_consistency=False)
     ontology = load_ontology(ont_path)
     # S-BS-154: enumerate the ACTIVE-WORKSPACE pack's roles (healthcare's production_judges
     # = the same trio, so this is a no-op for healthcare, but it keeps offer + gate on one
