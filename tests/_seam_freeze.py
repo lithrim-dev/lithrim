@@ -29,7 +29,16 @@ _BYOC1_PROVIDER_SEAM = frozenset({"build_judge_lm", "build_trio"})
 # ``evaluate_dspy`` (the unchanged ``_apply_consensus`` call), ``Judge``, ``Finding`` + the
 # normalizers — stays byte-frozen vs acc4973 (the C4 non-vacuity test proves the rest still fails).
 _SIGNATURE_GENERICIZE_SEAM = frozenset({"_build_signature"})
-_AUTHORIZED_JUDGES_SEAM = _BYOC1_PROVIDER_SEAM | _SIGNATURE_GENERICIZE_SEAM
+# PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the cross-provider-per-role unlock layers a per-role
+# provider override ON TOP of ``build_judge_lm`` (already in the seam) + adds two pure provider-seam
+# helpers — ``_litellm_prefix`` (the provider/model prefix) + ``_provider_supports_logprobs`` (the
+# honest logprobs gate). They are provider-binder support, NOT the consensus seam; ``_apply_consensus``
+# / ``evaluate_dspy`` / ``Judge`` / the finding shape stay byte-frozen vs acc4973 (the C4 non-vacuity
+# still fires on any edit to those).
+_PROVIDER_CENTER_SEAM = frozenset({"_litellm_prefix", "_provider_supports_logprobs"})
+_AUTHORIZED_JUDGES_SEAM = (
+    _BYOC1_PROVIDER_SEAM | _SIGNATURE_GENERICIZE_SEAM | _PROVIDER_CENTER_SEAM
+)
 
 # PACK-2 (layer 2): the clinical council role prompts relocated into the healthcare pack.
 # The live council globs the prompt files ITSELF, so relocating them requires repointing

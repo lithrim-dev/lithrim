@@ -77,6 +77,53 @@ _OPENAI_ROLE_MODEL = {
     "policy_judge": "OPENAI_MODEL_POLICY",
     "faithfulness_judge": "OPENAI_MODEL_FAITHFULNESS",
 }
+# Role → the GENERIC per-role provider-override setting keys (PROVIDER-CENTER-A,
+# S-BS-MR1a-CROSSPROVIDER). When ``settings.<provider key>`` is set, ``build_judge_lm`` LAYERS a
+# per-role provider override ON TOP of the global path — so risk→OpenAI, policy→Gemini,
+# faithfulness→Anthropic coexist (a TRUE cross-provider council). The registry bind writes these
+# vars (LITHRIM_LLM_{PROVIDER,MODEL,API_KEY,API_BASE}_<ROLE>). A module-level constant (not a
+# top-level def/class), so it sits OUTSIDE the frozen consensus-seam symbol set, like the maps above.
+_ROLE_PROVIDER_KEYS = {
+    "risk_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_RISK", "model": "LITHRIM_LLM_MODEL_RISK",
+        "api_key": "LITHRIM_LLM_API_KEY_RISK", "api_base": "LITHRIM_LLM_API_BASE_RISK",
+    },
+    "policy_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_POLICY", "model": "LITHRIM_LLM_MODEL_POLICY",
+        "api_key": "LITHRIM_LLM_API_KEY_POLICY", "api_base": "LITHRIM_LLM_API_BASE_POLICY",
+    },
+    "faithfulness_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_FAITHFULNESS", "model": "LITHRIM_LLM_MODEL_FAITHFULNESS",
+        "api_key": "LITHRIM_LLM_API_KEY_FAITHFULNESS", "api_base": "LITHRIM_LLM_API_BASE_FAITHFULNESS",
+    },
+}
+# The litellm provider/model PREFIX per provider id. ``openai_compatible`` rides the ``openai``
+# prefix + a per-role ``api_base`` (vLLM / Together / a local OpenAI-shaped server). litellm routes
+# ``openai/`` / ``azure/`` / ``anthropic/`` / ``gemini/`` / ``bedrock/`` natively.
+_LITELLM_PREFIX = {
+    "openai": "openai",
+    "azure": "azure",
+    "anthropic": "anthropic",
+    "gemini": "gemini",
+    "bedrock": "bedrock",
+    "openai_compatible": "openai",
+}
+# Only openai + azure return token logprobs → the calibrated-confidence read. The rest are honest
+# confidence-dark (logprobs OFF in the LM kwargs), exactly like the BYO-Claude path.
+_LOGPROBS_PROVIDERS = frozenset({"openai", "azure"})
+
+
+def _litellm_prefix(provider: str) -> str:
+    """The litellm provider/model prefix for ``provider`` (``openai_compatible`` → ``openai``).
+    An unknown provider falls back to its own lower-cased id (litellm decides)."""
+    p = (provider or "").strip().lower()
+    return _LITELLM_PREFIX.get(p, p)
+
+
+def _provider_supports_logprobs(provider: str) -> bool:
+    """True iff ``provider`` exposes token logprobs (openai/azure → calibrated confidence). Every
+    other provider (anthropic/gemini/bedrock/openai_compatible/unknown) → False (confidence dark)."""
+    return (provider or "").strip().lower() in _LOGPROBS_PROVIDERS
 
 
 # --------------------------------------------------------------------------- #
@@ -249,6 +296,34 @@ def build_judge_lm(role: str, **overrides: Any):
     overrides.pop("provider", None)
 
     import dspy
+
+    # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): a PER-ROLE provider override LAYERED ON TOP of the
+    # global path. When ``settings.LITHRIM_LLM_PROVIDER_<ROLE>`` is set, THIS role runs on its own
+    # provider (risk→OpenAI, policy→Gemini, faithfulness→Anthropic — a true cross-provider council),
+    # routed via litellm's provider/model string. When UNSET → fall through to the byte-identical
+    # global branches below (the regression guard, tests/test_provider_center_crossprovider.py::
+    # test_no_per_role_* + the byte-frozen byo-claude routing above). logprobs ride
+    # ``_provider_supports_logprobs`` (openai/azure True, else off — honest confidence-dark).
+    role_keys = _ROLE_PROVIDER_KEYS.get(role)
+    role_provider = ""
+    if role_keys is not None:
+        role_provider = str(getattr(settings, role_keys["provider"], "") or "").strip().lower()
+    if role_provider:
+        role_model = str(getattr(settings, role_keys["model"], "") or "").strip()
+        role_api_key = str(getattr(settings, role_keys["api_key"], "") or "").strip()
+        role_api_base = str(getattr(settings, role_keys["api_base"], "") or "").strip()
+        per_role_kwargs: dict[str, Any] = {
+            "temperature": 0,
+            "max_tokens": 4096,
+            "logprobs": _provider_supports_logprobs(role_provider),
+            "cache": True,
+        }
+        if role_api_key:
+            per_role_kwargs["api_key"] = role_api_key
+        if role_api_base:  # azure / openai_compatible (vLLM, Together, a local server)
+            per_role_kwargs["api_base"] = role_api_base
+        per_role_kwargs.update(overrides)
+        return dspy.LM(f"{_litellm_prefix(role_provider)}/{role_model}", **per_role_kwargs)
 
     # BYOK single-provider (Cycle 1): OpenAI-direct is the DEFAULT provider (LITHRIM_LLM_PROVIDER=
     # openai). Bind each role to its model on the user's ONE OPENAI_API_KEY (no Azure trio). The

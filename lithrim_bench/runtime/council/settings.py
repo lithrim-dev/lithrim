@@ -37,6 +37,30 @@ class Settings(BaseSettings):
     OPENAI_MODEL_POLICY: str = "gpt-4o"
     OPENAI_MODEL_FAITHFULNESS: str = "gpt-4o"
 
+    # ── Per-role provider override (PROVIDER-CENTER-A, S-BS-MR1a-CROSSPROVIDER) ──────────
+    # The cross-provider-per-role UNLOCK: each judge role may run on ANY configured provider
+    # (risk→OpenAI, policy→Gemini, faithfulness→Anthropic). A GENERIC per-role binding the registry
+    # bind writes (LITHRIM_LLM_{PROVIDER,MODEL,API_KEY,API_BASE}_<ROLE>). Defaults "" so when NONE is
+    # set ``build_judge_lm`` falls through to the byte-identical global path (the regression guard).
+    # PROVIDER values: openai | azure | anthropic | gemini | bedrock | openai_compatible (the litellm
+    # path speaks them all). The per-role MAP keyed by role lives in ``judges_dspy._ROLE_PROVIDER_KEYS``
+    # (a module constant, OUTSIDE the frozen consensus seam).
+    LITHRIM_LLM_PROVIDER_RISK: str = ""
+    LITHRIM_LLM_MODEL_RISK: str = ""
+    LITHRIM_LLM_API_KEY_RISK: str = ""
+    LITHRIM_LLM_API_BASE_RISK: str = ""
+    LITHRIM_LLM_PROVIDER_POLICY: str = ""
+    LITHRIM_LLM_MODEL_POLICY: str = ""
+    LITHRIM_LLM_API_KEY_POLICY: str = ""
+    LITHRIM_LLM_API_BASE_POLICY: str = ""
+    LITHRIM_LLM_PROVIDER_FAITHFULNESS: str = ""
+    LITHRIM_LLM_MODEL_FAITHFULNESS: str = ""
+    LITHRIM_LLM_API_KEY_FAITHFULNESS: str = ""
+    LITHRIM_LLM_API_BASE_FAITHFULNESS: str = ""
+
+    # Gemini (litellm reads GEMINI_API_KEY from env when a per-role api_key is not threaded in).
+    GEMINI_API_KEY: str = ""
+
     # ── Azure OpenAI ─────────────────────────────────────────────────────
     # The v2 cross-provider trio reaches Mistral-Large-3 + Llama-4-Maverick by
     # deployment-id substitution on the AzureOpenAI SDK (smoke-verified, Q2).
