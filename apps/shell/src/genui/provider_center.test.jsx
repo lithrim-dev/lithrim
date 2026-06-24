@@ -135,13 +135,15 @@ describe("PROVIDER-CENTER-B — the provider-first surface", () => {
     expect(within(risk).getByText(/openai/i)).toBeInTheDocument();
     expect(within(policy).getByText(/gemini/i)).toBeInTheDocument();
 
-    // the conversation picker is Anthropic-only: it lists the anthropic pool entry, NOT the openai/gemini ones
-    const conv = await screen.findByTestId("conversation-model-select");
-    expect(within(conv).getByRole("option", { name: /chat-sonnet/i })).toBeInTheDocument();
-    expect(within(conv).queryByRole("option", { name: /grader-gpt4o/i })).toBeNull();
-    expect(within(conv).queryByRole("option", { name: /policy-gemini/i })).toBeNull();
-    // the honest inline note: chat is Anthropic-only today
-    expect(screen.getByTestId("conversation-anthropic-note")).toHaveTextContent(/anthropic/i);
+    // the conversation is Anthropic-only + DEFERS to the working "Authoring assistant" control —
+    // it is NOT an actionable picker (no silent-discard no-op; critic S-BS-PCB-2).
+    expect(screen.queryByTestId("conversation-model-select")).toBeNull();
+    const note = screen.getByTestId("conversation-anthropic-note");
+    expect(note).toHaveTextContent(/anthropic/i);
+    expect(note).toHaveTextContent(/authoring assistant/i);  // points to the real control
+    // it surfaces the configured anthropic model read-only, NOT the openai/gemini grading models
+    expect(screen.getByTestId("conversation-anthropic-models")).toHaveTextContent(/claude-3-5-sonnet/i);
+    expect(note).not.toHaveTextContent(/gpt-4o|gemini-1\.5/i);
   });
 
   it("E: secret hygiene — a typed provider key is never rendered after save (cleared); no key text in the DOM", async () => {

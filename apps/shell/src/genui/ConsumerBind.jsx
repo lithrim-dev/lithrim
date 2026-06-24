@@ -33,7 +33,6 @@ export default function ConsumerBind() {
   const [pool, setPool] = useState([]);
   const [bindSel, setBindSel] = useState({}); // per-role selected pool id
   const [bindMsg, setBindMsg] = useState({});
-  const [convSel, setConvSel] = useState("");
 
   const refresh = () => listModels().then((r) => setPool(r?.models || [])).catch(() => {});
   useEffect(() => { refresh(); }, []);
@@ -96,19 +95,22 @@ export default function ConsumerBind() {
         })}
       </div>
 
-      {/* ── Conversation: Anthropic-only ── */}
+      {/* ── Conversation: Anthropic-only. READ-ONLY note that defers to the working "Authoring
+          assistant" control (which persists the chat model via configProvider plane=assistant).
+          Deliberately NOT an actionable picker: there is no endpoint to set the assistant model
+          ALONE, so an editable control here would silently discard the choice + shadow the real
+          one below — a misleading no-op. Honest > a fake picker (critic S-BS-PCB-2). ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={labelStyle}>Conversation — the chat assistant (Anthropic only)</span>
-        <select value={convSel} onChange={(e) => setConvSel(e.target.value)}
-          aria-label="conversation model" data-testid="conversation-model-select" style={inputStyle}>
-          <option value="">— pick an Anthropic model —</option>
-          {anthropicPool.map((m) => (
-            <option key={m.id} value={m.id}>{m.id} ({m.model})</option>
-          ))}
-        </select>
         <div data-testid="conversation-anthropic-note" style={{ fontSize: 10.5, color: "var(--muted)", lineHeight: 1.5 }}>
-          The assistant runs on the Anthropic Agent SDK, so the conversation is Anthropic-only today.
-          Other providers grade (per-judge above) but don't yet drive the chat.
+          The assistant runs on the Anthropic Agent SDK, so the conversation is Anthropic-only today —
+          set its model in the Authoring assistant section below. Other providers grade (per-judge
+          above) but don't yet drive the chat.
+          {anthropicPool.length ? (
+            <span data-testid="conversation-anthropic-models">
+              {" "}Configured Anthropic models: {anthropicPool.map((m) => m.model).join(", ")}.
+            </span>
+          ) : null}
         </div>
       </div>
     </section>
