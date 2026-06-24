@@ -79,8 +79,12 @@ def _write_provider_env(tmp_path, **vars):
 
 def _install_live(monkeypatch, mapping):
     """Patch ``_fetch_live_models`` so no SDK/network call happens. ``mapping`` maps a provider to
-    either a list of live model ids (returned, capability-annotated) or an Exception instance to
-    RAISE (simulate network/401). Returns the captured calls."""
+    either a list of RAW provider model ids (as a real ``/models`` call would return them) or an
+    Exception instance to RAISE (simulate network/401). The mock MIRRORS the real helper's
+    documented contract — it applies the SAME chat-model filter (OpenAI ``_is_openai_chat_model`` /
+    Anthropic ``claude-*``) + capability annotation + ``source:"live"`` tag — so the endpoint-level
+    tests assert the merge/filter contract, while the two ``test_fetch_live_models_*`` tests pin the
+    real helper against a mocked SDK. Returns the captured calls."""
     calls: list[dict] = []
 
     def _fake_fetch(provider, api_key):
@@ -88,10 +92,14 @@ def _install_live(monkeypatch, mapping):
         outcome = mapping.get(provider)
         if isinstance(outcome, Exception):
             raise outcome
-        return [
-            {"model": mid, **bff.capabilities_for(provider, mid), "source": "live"}
-            for mid in (outcome or [])
-        ]
+        rows = []
+        for mid in (outcome or []):
+            if provider == "openai" and not bff._is_openai_chat_model(mid):
+                continue
+            if provider == "anthropic" and not str(mid).lower().startswith("claude-"):
+                continue
+            rows.append({"model": mid, **bff.capabilities_for(provider, mid), "source": "live"})
+        return rows
 
     monkeypatch.setattr(bff, "_fetch_live_models", _fake_fetch)
     return calls

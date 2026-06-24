@@ -3457,6 +3457,72 @@ def capabilities_for(provider: str, model: str) -> dict:
     return {"logprobs": False, "context_window": None, "cost_tier": "unknown"}
 
 
+# MODEL-REGISTRY-1b (SPEC §8 — "the catalog = presets + custom + live"): the LIVE axis. For the
+# providers that expose a ``/models`` API (OpenAI, Anthropic) we fetch the live list with the
+# ALREADY-CONFIGURED key (read server-side from ``.provider_env`` — never a query param, never the
+# response, never logged), annotate each via ``capabilities_for``, and merge with the presets.
+# Azure is deployment-name-based → never fetched.
+def _is_openai_chat_model(model_id: str) -> bool:
+    """The OpenAI chat-model filter: KEEP ``gpt-*`` / ``o1*``/``o3*``/``o4*`` / ``chatgpt-*``; DROP
+    embeddings / whisper / tts / dall-e / moderation / ``text-*`` (and the legacy completion
+    families). ``text-*`` is dropped first so ``text-embedding-*`` / ``text-moderation-*`` can never
+    sneak in via a ``gpt`` substring."""
+    name = (model_id or "").strip().lower()
+    if name.startswith("text-"):
+        return False
+    if any(name.startswith(bad) for bad in
+           ("whisper", "tts", "dall-e", "dalle", "moderation", "omni-moderation",
+            "babbage", "davinci", "ada", "curie")):
+        return False
+    return (
+        name.startswith("gpt-")
+        or name.startswith("gpt")
+        or name.startswith("chatgpt-")
+        or name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+    )
+
+
+def _fetch_live_models(provider: str, api_key: str) -> list[dict]:
+    """Fetch the provider's live model list via the lazy SDK (no LM dep at module load; trivially
+    mockable, like ``_probe_provider``). Filters to the chat-capable ids the council can grade
+    through — OpenAI keeps ``gpt-*`` / ``o1*``/``o3*``/``o4*`` / ``chatgpt-*`` and DROPS embeddings /
+    whisper / tts / dall-e / moderation / ``text-*``; Anthropic keeps ``claude-*``. Each entry is
+    capability-annotated + tagged ``source:"live"``. RAISES on any SDK/network/auth error — the
+    caller traps it per-provider so the catalog endpoint NEVER 500s."""
+    provider = (provider or "").strip().lower()
+
+    def _ids(listed) -> list[str]:
+        rows = getattr(listed, "data", listed)
+        out_ids: list[str] = []
+        for m in rows:
+            mid = getattr(m, "id", None)
+            if mid is None and isinstance(m, dict):
+                mid = m.get("id")
+            if mid:
+                out_ids.append(str(mid))
+        return out_ids
+
+    if provider == "openai":
+        import openai  # type: ignore
+
+        listed = openai.OpenAI(api_key=api_key).models.list()
+        return [
+            {"model": mid, **capabilities_for("openai", mid), "source": "live"}
+            for mid in _ids(listed) if _is_openai_chat_model(mid)
+        ]
+    if provider == "anthropic":
+        import anthropic  # type: ignore
+
+        listed = anthropic.Anthropic(api_key=api_key).models.list()
+        return [
+            {"model": mid, **capabilities_for("anthropic", mid), "source": "live"}
+            for mid in _ids(listed) if mid.lower().startswith("claude-")
+        ]
+    return []
+
+
 def _model_key_var(model_id: str) -> str:
     """The per-model namespaced WRITE-ONLY env var carrying the secret on ``.provider_env`` (e.g.
     ``LITHRIM_MODEL__gpt4o_prod__KEY``). Sanitized so an arbitrary id can't inject an env-file line."""
@@ -3533,19 +3599,66 @@ def _model_entry_public(entry: dict) -> dict:
     }
 
 
+def _live_provider_catalog(provider: str, presets: list[dict]) -> tuple[list[dict], dict]:
+    """MODEL-REGISTRY-1b: merge a provider's presets with its LIVE ``/models`` fetch. Reads the
+    already-configured key SERVER-SIDE from ``.provider_env`` (Build A's ``OPENAI_API_KEY`` /
+    ``ANTHROPIC_API_KEY``) — NEVER a query param. Graceful-absent is the contract: no key OR any
+    fetch error → presets-only (each ``source:"preset"``) + a per-provider status note; never 500,
+    never the key in the note. On success: preset ⊕ live, deduped by ``model`` (preset wins the
+    capability row), each tagged ``source``. Returns ``(rows, status)``."""
+    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    key_var = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}.get(provider)
+    api_key = (env.get(key_var) if key_var else None) or None
+
+    preset_rows = [{**dict(m), "source": "preset"} for m in presets]
+    if not api_key:
+        return preset_rows, {"ok": False, "fetched": 0, "source": "presets",
+                             "note": "no configured key — presets only"}
+    try:
+        live_rows = _fetch_live_models(provider, api_key)
+    except Exception as exc:  # noqa: BLE001 — graceful per-provider fallback, never a 500
+        # only the exception TYPE, never str(exc) — an SDK can echo the key into a message
+        return preset_rows, {"ok": False, "fetched": 0, "source": "presets",
+                             "error": type(exc).__name__,
+                             "note": "live fetch failed — presets only"}
+
+    seen = {r["model"] for r in preset_rows}
+    merged = preset_rows + [r for r in live_rows if r["model"] not in seen]
+    return merged, {"ok": True, "fetched": len(live_rows), "source": "presets+live"}
+
+
 @app.get("/v1/models/catalog")
-def models_catalog_endpoint() -> dict:
-    """MODEL-REGISTRY-1a: the capability-aware catalog — curated presets per provider (each with a
+def models_catalog_endpoint(live: bool = Query(False)) -> dict:
+    """MODEL-REGISTRY-1a/1b: the capability-aware catalog — curated presets per provider (each with a
     ``logprobs`` flag + context/cost) plus the Azure deployment-based note. ``logprobs`` is the
     load-bearing differentiator vs a cosmetic dropdown (OpenAI yes → calibrated confidence; Claude
     no → confidence dark). A CUSTOM model not in the presets is still honestly annotated client-side
-    via ``capabilities_for`` (exposed at register time)."""
+    via ``capabilities_for`` (exposed at register time).
+
+    ``?live=true`` (1b) opts in to a LIVE ``/models`` fetch for OpenAI + Anthropic using the
+    already-configured key (read SERVER-SIDE from ``.provider_env`` — never a query param, never the
+    response, never logged); each provider falls back to presets-only on absent-key/error (a 200,
+    never a 500). The default (``live`` absent/false) returns the EXACT 1a JSON — no ``source``/
+    ``live`` keys — so the additive axis cannot perturb the 1a contract. Azure is never fetched."""
+    if not live:
+        return {
+            "providers": {
+                "openai": [dict(m) for m in _MODEL_CATALOG_PRESETS["openai"]],
+                "anthropic": [dict(m) for m in _MODEL_CATALOG_PRESETS["anthropic"]],
+                "azure": {"models": [], "note": _MODEL_CATALOG_AZURE_NOTE},
+            }
+        }
+    openai_rows, openai_status = _live_provider_catalog("openai", _MODEL_CATALOG_PRESETS["openai"])
+    anthropic_rows, anthropic_status = _live_provider_catalog(
+        "anthropic", _MODEL_CATALOG_PRESETS["anthropic"]
+    )
     return {
         "providers": {
-            "openai": [dict(m) for m in _MODEL_CATALOG_PRESETS["openai"]],
-            "anthropic": [dict(m) for m in _MODEL_CATALOG_PRESETS["anthropic"]],
-            "azure": {"models": [], "note": _MODEL_CATALOG_AZURE_NOTE},
-        }
+            "openai": openai_rows,
+            "anthropic": anthropic_rows,
+            "azure": {"models": [], "note": _MODEL_CATALOG_AZURE_NOTE},  # never fetched
+        },
+        "live": {"openai": openai_status, "anthropic": anthropic_status},
     }
 
 
