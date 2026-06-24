@@ -206,6 +206,44 @@ Lane 3 (frontend · panes.jsx/genui/bff.js — after A):
 - Hosted inference / accounts / the healthcare pack (Pro / separately distributed).
 - Per-workspace provider config (v1 = one global grading engine + one assistant; revisit if needed).
 
+## 8. Model registry (CE increment — brainstormed + decided 2026-06-25)
+
+**The reframe:** today provider config is **welded to the judge role** (`POST /v1/provider/config?role=
+policy_judge`) — the model is a property of the judge. Decouple them: a **configured model becomes a
+first-class, reusable, capability-aware entity** (the LiteLLM `model_list` pattern); a judge *references*
+one. This is the diverse-council thesis (GPT/Mistral/Llama catch different errors) handed to the user.
+
+**Owner decision (2026-06-25):** build the **registry FIRST** (it de-risks the judge-scope fork — see
+Phase 2 — and cleans up the per-role-config mess); the catalog is **presets + custom + live-fetch**.
+
+**The entity — a configured model:** `{id, provider (openai|azure|anthropic|…), model_or_deployment,
+endpoint?, key (write-only), capabilities {logprobs, context_window, cost_tier}}`. Secret →
+`.provider_env` (REUSE Build A); non-secret metadata → a registry sidecar (extend `.provider_status.json`).
+
+**The catalog = presets + custom + live (never stale, never a wall):**
+- **Presets** — a small curated per-provider list, capability-annotated.
+- **Custom** — always-available free-text model/deployment; never blocks an unknown model. **Azure stays
+  deployment-name-based** (a model catalog doesn't apply — it's *your* deployments).
+- **Live** — fetch the provider's `/models` where supported (OpenAI, Anthropic).
+- **Capabilities are the load-bearing part, not names** — esp. **`logprobs`** (OpenAI yes → calibrated
+  confidence; Claude / Mistral-via-Azure no → confidence dark). Surface it at pick time; that's the
+  differentiated catalog vs. a cosmetic dropdown.
+
+**Reuse, don't re-architect:** the registry is an **authoring layer over Build A's env-var mechanism** —
+binding a role→registered-model writes the same `LITHRIM_LLM_PROVIDER` / key / per-role model/deployment
+env vars `build_judge_lm` reads (`_provider_env_vars` + `_persist_and_reload_provider`). **Frozen council
+untouched.**
+
+**API (proposed):** `GET /v1/models/catalog` (presets ⊕ live) · `POST /v1/models` (register: test-probe +
+write-only + capability annotate) · `GET /v1/models` (the pool, never keys) · `DELETE /v1/models/{id}` ·
+role→model bind reuses `/v1/provider/config`.
+
+**Phase 1 scope:** the registry + catalog + the **3 fixed roles bind to pool entries** (pick-from-pool,
+not re-type). **Phase 2 — DEFERRED (the fork):** *arbitrary* user-created judges referencing the pool.
+**Riskiest assumption, test cheaply BEFORE committing:** does the frozen `_apply_consensus` handle N≠3
+votes, AND does every new judge get a **lens + a Tier-1 owner** (the owner↔emit invariant forbids an
+inert owner)? Registry-first means we answer this on solid ground, not speculatively.
+
 ## References
 - `docs/COMMUNITY_RELEASE_v1_PLAN.md` (the 5 release cycles, all done + clone-validated).
 - Scout seams (2026-06-24): `judges_dspy.py:65-79,215-299` · `runtime/council/settings.py:23-76` ·
