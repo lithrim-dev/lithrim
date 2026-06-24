@@ -257,3 +257,33 @@ def test_created_role_votes_in_four_judge_consensus(core_ws, tmp_path, monkeypat
     assert out["consensus"]["decision"] in {"approve", "needs_review", "reject"}
     assert out["consensus"].get("reason") != "insufficient_valid_models"
     assert "escalation_judge" in {m["model"] for m in out["models"]}
+
+
+# ── I — REGRESSION (P2-B critic Q6): rationale rides the QUERY param through REAL HTTP binding ──
+# The _call tests above invoke the endpoint as a plain function with rationale= passed explicitly
+# (the FieldInfo-sentinel trap), bypassing FastAPI's body/query binding — so they cannot catch the
+# UI↔endpoint contract: the UI's createJudge sends rationale as a QUERY param (mirroring putJudge),
+# the endpoint reads it via Query(). This drives a real TestClient request to PIN that the SME's
+# audit "why" survives the round-trip (it was silently dropped when the UI sent it in the body).
+def test_rationale_query_param_reaches_the_audit_why(core_ws, tmp_path):
+    from fastapi.testclient import TestClient
+
+    pack, records = core_ws
+    db = tmp_path / "tc_config.sqlite"
+    bff.app.dependency_overrides[bff.get_config_db] = lambda: db
+    try:
+        client = TestClient(bff.app)
+        resp = client.post(
+            "/v1/judges?rationale=escalation+lane",  # query param, as the UI now sends it
+            json={
+                "role": "escalation_judge",
+                "lens_codes": ["STYLE_VIOLATION"],
+                "owned_codes": ["STYLE_VIOLATION"],
+            },
+        )
+    finally:
+        bff.app.dependency_overrides.pop(bff.get_config_db, None)
+
+    assert resp.status_code == 200, resp.text
+    judge_whys = [r.why for r in records if r.target.type == "judge"]
+    assert {"rationale": "escalation lane"} in judge_whys, judge_whys  # NOT "" — the why survived

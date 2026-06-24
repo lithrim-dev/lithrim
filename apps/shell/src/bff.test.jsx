@@ -156,7 +156,9 @@ describe("PHASE2-C bff.js createJudge", () => {
       rationale: "support escalations",
     });
     const [url, opts] = fetch.mock.calls[0];
-    expect(url).toBe("/v1/judges");
+    // rationale rides the query param (mirrors putJudge; the endpoint reads it via Query()).
+    expect(url).toContain("/v1/judges?");
+    expect(url).toContain("rationale=support+escalations");
     expect(opts.method).toBe("POST");
     const body = JSON.parse(opts.body);
     expect(body).toMatchObject({
@@ -164,8 +166,8 @@ describe("PHASE2-C bff.js createJudge", () => {
       lens_codes: ["MISSED_ESCALATION", "WRONG_RESOLUTION"],
       owned_codes: ["MISSED_ESCALATION"],
       model_id: "grader-gpt4o",
-      rationale: "support escalations",
     });
+    expect(body).not.toHaveProperty("rationale");  // not in the body — it's the query param
     expect(out.audit_id).toBe("aud-1");
     expect(out).not.toHaveProperty("api_key");
   });

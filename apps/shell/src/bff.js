@@ -349,18 +349,22 @@ export const putJudge = (role, judge, { actor, rationale = "", agent } = {}) => 
    the non-secret entry {role, lens_codes, owned_codes, model, bound_roles, audit_id} — NEVER a key.
    422 on admissibility failure (owned⊄lens / code∉taxonomy / empty lens / role collision / non-core
    pack) with a `detail` string; the card surfaces it inline. $0 — authoring, never a paid run. */
-export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prompt, rationale } = {}) =>
-  call("/v1/judges", {
+export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prompt, rationale = "" } = {}) => {
+  // rationale rides the query param (the §2B audit "why"), mirroring putJudge/deleteJudge — the
+  // endpoint reads it via Query(); the authoring bundle stays in the body. (Sending it in the body
+  // silently dropped the audit why — P2-B critic Q6.)
+  const q = new URLSearchParams({ rationale });
+  return call(`/v1/judges?${q.toString()}`, {
     method: "POST",
     body: {
       role,
       lens_codes,
       owned_codes,
-      rationale,
       ...(model_id ? { model_id } : {}),
       ...(role_prompt ? { role_prompt } : {}),
     },
   });
+};
 
 /* ── UAP-4: the calibration trainer — optimize a judge, see the honest held-out Δ ── */
 
