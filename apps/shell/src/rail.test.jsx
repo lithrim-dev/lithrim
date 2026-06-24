@@ -17,12 +17,33 @@ describe("CRUD-1 LeftRail agents switcher", () => {
     expect(onSwitchAgent).toHaveBeenCalledWith("eval-1"); // the raw id still drives the switch
   });
 
-  it("hides delete for the seed default, shows + fires it for a deletable agent", () => {
+  it("hides delete for the seed default, two-step confirms a deletable agent", () => {
     const onDeleteAgent = vi.fn();
     render(<LeftRail {...base} agents={["ws0_default", "eval-1"]} activeAgent="eval-1" onDeleteAgent={onDeleteAgent} />);
     expect(screen.queryByLabelText("Delete ws0_default")).toBeNull(); // seed default guarded
+    // DELETE-CONFIRM-1: a single click ARMS the confirm — it must NOT delete (the audit row dies with it).
     fireEvent.click(screen.getByLabelText("Delete eval-1"));
+    expect(onDeleteAgent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Confirm delete eval-1"));
     expect(onDeleteAgent).toHaveBeenCalledWith("eval-1");
+  });
+
+  it("DELETE-CONFIRM-1: cancel disarms the confirm and never deletes", () => {
+    const onDeleteAgent = vi.fn();
+    render(<LeftRail {...base} agents={["ws0_default", "eval-1"]} activeAgent="eval-1" onDeleteAgent={onDeleteAgent} />);
+    fireEvent.click(screen.getByLabelText("Delete eval-1")); // arm
+    expect(screen.getByLabelText("Confirm delete eval-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Cancel delete eval-1")); // disarm
+    expect(screen.queryByLabelText("Confirm delete eval-1")).toBeNull(); // back to the delete button
+    expect(screen.getByLabelText("Delete eval-1")).toBeInTheDocument();
+    expect(onDeleteAgent).not.toHaveBeenCalled();
+  });
+
+  it("DELETE-CONFIRM-1: arming a delete does not switch the active agent (stopPropagation)", () => {
+    const onSwitchAgent = vi.fn();
+    render(<LeftRail {...base} agents={["ws0_default", "eval-1"]} activeAgent="ws0_default" onSwitchAgent={onSwitchAgent} />);
+    fireEvent.click(screen.getByLabelText("Delete eval-1")); // arming must not bubble to the row switch
+    expect(onSwitchAgent).not.toHaveBeenCalled();
   });
 
   it("hides delete when only one agent remains (last-agent guard reflected)", () => {

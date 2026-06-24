@@ -48,6 +48,9 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
   // dead button. This is passive rail chrome: it never operates panes/top-bar to advance the product.
   const [sessionMenu, setSessionMenu] = useState(false);
   const authed = hasStoredToken();
+  // DELETE-CONFIRM-1: a two-step in-DOM confirm before deleting an evaluation — deleting an agent
+  // also drops its audit row, so a stray click must not destroy it (never window.confirm).
+  const [confirmDelete, setConfirmDelete] = useState(null);
   return (
     <aside className="rail" style={{ width }}>
       <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
@@ -81,12 +84,24 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
                   <div className="ti" title={name}>{agentLabel(name)}</div>
                   <div className="ts">{seed ? "Sample · start here" : "Your evaluation"}</div>
                 </div>
-                {canDelete && (
+                {canDelete && (confirmDelete === name ? (
+                  <span onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
+                    <button className="icon-btn" data-testid={`agent-delete-confirm-${name}`} title="Confirm delete" aria-label={`Confirm delete ${name}`}
+                      style={{ color: "var(--accent)" }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); onDeleteAgent?.(name); }}>
+                      <Icon name="check" size={14} />
+                    </button>
+                    <button className="icon-btn" title="Keep" aria-label={`Cancel delete ${name}`}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}>
+                      <Icon name="close" size={14} />
+                    </button>
+                  </span>
+                ) : (
                   <button className="icon-btn" title="Delete this evaluation" aria-label={`Delete ${name}`}
-                    onClick={(e) => { e.stopPropagation(); onDeleteAgent?.(name); }}>
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(name); }}>
                     <Icon name="close" size={14} />
                   </button>
-                )}
+                ))}
               </div>
             );
           })}
