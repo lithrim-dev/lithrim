@@ -197,7 +197,10 @@ def test_live_fetch_error_is_graceful_presets_only(registry_env, monkeypatch):
     live.<p> carries ok False + an error, HTTP 200 (NEVER a 500)."""
     tmp_path, ws = registry_env
     _write_provider_env(tmp_path, OPENAI_API_KEY="sk-openai-WILL-RAISE")
-    _install_live(monkeypatch, {"openai": RuntimeError("401 Unauthorized")})
+    # The exception MESSAGE embeds the key — the realistic "SDK echoes the api_key in its error"
+    # vector — so the `key not in error` assert below is NON-VACUOUS: it goes RED if the code ever
+    # regresses from `type(exc).__name__` to `str(exc)` (critic MR1b-Q2, hardening test D).
+    _install_live(monkeypatch, {"openai": RuntimeError("401 Unauthorized: invalid api_key sk-openai-WILL-RAISE")})
     client = TestClient(bff.app)
 
     resp = client.get("/v1/models/catalog?live=true")
