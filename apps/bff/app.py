@@ -478,8 +478,12 @@ class ProviderConfigRequest(BaseModel):
     # (never SQLite/manifest/git/the response/logs). `plane`: "grading" binds the council's
     # judge LM; "assistant" binds the chat-authoring provider. `role` (optional) targets one
     # grading judge's per-role model; absent → all three roles share `model`.
+    # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the provider set broadens to gemini / bedrock /
+    # openai_compatible (the litellm path speaks them). A grading config WITH a `role` + one of these
+    # new types writes the GENERIC per-role binding (LITHRIM_LLM_{PROVIDER,MODEL,API_KEY,API_BASE}_
+    # <ROLE>) so each judge can run on ANY configured provider — the cross-provider-per-role unlock.
     plane: Literal["grading", "assistant"] = "grading"
-    provider: Literal["openai", "azure", "anthropic"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
     api_key: str
     endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
     model: str | None = None
@@ -3411,14 +3415,54 @@ _PROVIDER_AZURE_ROLE_DEPLOYMENT = {
 # Which env vars carry the SECRET per plane — these never leave .provider_env / os.environ.
 _PROVIDER_SECRET_VARS = ("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 
+# PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the GENERIC per-role binding (mirrors
+# judges_dspy._ROLE_PROVIDER_KEYS — kept local so app.py stays council-import-free). When a grading
+# config carries a `role`, ``_provider_env_vars`` writes these four vars so ``build_judge_lm``'s
+# per-role provider override fires for that judge — the cross-provider-per-role unlock (risk→OpenAI,
+# policy→Gemini, faithfulness→Anthropic coexist). The api_key var is the per-role SECRET.
+_PROVIDER_ROLE_BINDING = {
+    "risk_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_RISK", "model": "LITHRIM_LLM_MODEL_RISK",
+        "api_key": "LITHRIM_LLM_API_KEY_RISK", "api_base": "LITHRIM_LLM_API_BASE_RISK",
+    },
+    "policy_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_POLICY", "model": "LITHRIM_LLM_MODEL_POLICY",
+        "api_key": "LITHRIM_LLM_API_KEY_POLICY", "api_base": "LITHRIM_LLM_API_BASE_POLICY",
+    },
+    "faithfulness_judge": {
+        "provider": "LITHRIM_LLM_PROVIDER_FAITHFULNESS", "model": "LITHRIM_LLM_MODEL_FAITHFULNESS",
+        "api_key": "LITHRIM_LLM_API_KEY_FAITHFULNESS", "api_base": "LITHRIM_LLM_API_BASE_FAITHFULNESS",
+    },
+}
+# The broadened grading provider set litellm speaks (PROVIDER-CENTER-A). These have NO global
+# grading selector — they are per-role ONLY (require a `role`). ``anthropic`` is here for the GRADING
+# plane (faithfulness→Anthropic, the mixed council); the assistant-plane anthropic stays global.
+_PER_ROLE_ONLY_PROVIDERS = ("gemini", "bedrock", "openai_compatible", "anthropic")
+
 
 def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
     """Map a validated provider-config request to the env vars the council/chat planes read
-    (settings.py + the chat-author provider). The api_key rides one of _PROVIDER_SECRET_VARS; the
-    rest (provider selector + model + endpoint) are non-secret. Raises ValueError on a missing
-    required field so the endpoint surfaces a 400 BEFORE probing/writing."""
+    (settings.py + the chat-author provider). The api_key rides one of _PROVIDER_SECRET_VARS (global)
+    or the per-role LITHRIM_LLM_API_KEY_<ROLE> (PROVIDER-CENTER-A); the rest (provider selector +
+    model + endpoint) are non-secret. Raises ValueError on a missing required field so the endpoint
+    surfaces a 400 BEFORE probing/writing.
+
+    PROVIDER-CENTER-A: a grading config WITH a `role` ALSO writes the GENERIC per-role binding
+    (LITHRIM_LLM_{PROVIDER,MODEL,API_KEY,API_BASE}_<ROLE>) so ``build_judge_lm``'s per-role override
+    routes that judge to ANY provider — and a different role on a different provider coexists. The
+    existing no-role/global openai+azure writes are BYTE-IDENTICAL (the per-role binding is additive,
+    gated on `role`). gemini/bedrock/openai_compatible are per-role ONLY (no global selector)."""
     env: dict[str, str] = {}
     if req.plane == "grading":
+        # PROVIDER-CENTER-A: the generic per-role binding (additive; only when a role is given).
+        if req.role:
+            binding = _PROVIDER_ROLE_BINDING[req.role]
+            env[binding["provider"]] = req.provider
+            if req.model:
+                env[binding["model"]] = req.model
+            env[binding["api_key"]] = req.api_key  # the per-role SECRET (write-only on .provider_env)
+            if req.endpoint:  # azure / openai_compatible api_base
+                env[binding["api_base"]] = req.endpoint
         if req.provider == "openai":
             env["LITHRIM_LLM_PROVIDER"] = "openai"
             env["OPENAI_API_KEY"] = req.api_key
@@ -3440,8 +3484,23 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                 else:
                     for var in _PROVIDER_AZURE_ROLE_DEPLOYMENT.values():
                         env[var] = req.model
+        elif req.provider in _PER_ROLE_ONLY_PROVIDERS:
+            # gemini / bedrock / openai_compatible: there is no global provider selector — the
+            # per-role binding (written above) IS the whole config, so a role is REQUIRED.
+            if not req.role:
+                raise ValueError(
+                    f"provider={req.provider!r} is per-role only — pass a `role` "
+                    f"(risk_judge|policy_judge|faithfulness_judge) to bind this provider to a judge"
+                )
+            if req.provider == "openai_compatible" and not req.endpoint:
+                raise ValueError(
+                    "provider='openai_compatible' requires `endpoint` (the OpenAI-compatible api_base)"
+                )
         else:
-            raise ValueError(f"provider={req.provider!r} is not a grading provider (use openai|azure)")
+            raise ValueError(
+                f"provider={req.provider!r} is not a grading provider "
+                f"(use openai|azure|gemini|bedrock|openai_compatible)"
+            )
     else:  # assistant plane
         if req.provider != "anthropic":
             raise ValueError("the assistant plane provider must be 'anthropic'")
@@ -3467,21 +3526,28 @@ def _probe_provider(*, plane, provider, api_key, endpoint=None, model=None, role
                 messages=[{"role": "user", "content": "ping"}],
             )
             return {"ok": True}
-        # grading plane — probe via litellm (the path dspy.LM uses under build_judge_lm)
+        # grading plane — probe via litellm (the path dspy.LM uses under build_judge_lm).
+        # PROVIDER-CENTER-A: the broadened types route by their litellm prefix (openai_compatible →
+        # openai + an api_base; gemini/bedrock native). Default model per provider keeps the probe
+        # bounded when none is given.
         import litellm  # type: ignore
 
-        if provider == "azure":
-            litellm.completion(
-                model=f"azure/{model or 'gpt-4.1'}",
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1, temperature=0, api_key=api_key, api_base=endpoint,
-            )
-        else:
-            litellm.completion(
-                model=f"openai/{model or 'gpt-4o'}",
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1, temperature=0, api_key=api_key,
-            )
+        prefix = {
+            "openai": "openai", "azure": "azure", "anthropic": "anthropic",
+            "gemini": "gemini", "bedrock": "bedrock", "openai_compatible": "openai",
+        }.get(provider, "openai")
+        default_model = {
+            "azure": "gpt-4.1", "gemini": "gemini-1.5-pro",
+            "bedrock": "anthropic.claude-3-sonnet-v1", "anthropic": "claude-3-5-haiku-latest",
+        }.get(provider, "gpt-4o")
+        completion_kwargs = {
+            "model": f"{prefix}/{model or default_model}",
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1, "temperature": 0, "api_key": api_key,
+        }
+        if endpoint:  # azure / openai_compatible api_base
+            completion_kwargs["api_base"] = endpoint
+        litellm.completion(**completion_kwargs)
         return {"ok": True}
     except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
         return {"ok": False, "error": type(exc).__name__}
@@ -3494,8 +3560,14 @@ def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
     ``settings`` singleton IN PLACE so ``build_judge_lm`` reads the new key with NO restart. The
     singleton is mutated in place (not reassigned) because every consumer did ``from .settings import
     settings`` — a holder of the object, not the module attribute — so a reassignment would not reach
-    them; setting attributes on the live object does. The module global is also reassigned to a fresh
-    Settings() for any consumer that reads ``settings_module.settings`` directly."""
+    them; setting attributes on the live object does.
+
+    PROVIDER-CENTER-A: the LIVE object is mutated and the module attr is REPOINTED back to that SAME
+    object (it is NOT swapped for a fresh ``Settings()``). The earlier reassign orphaned the holders
+    after the FIRST call — so a SECOND per-role bind (the cross-provider council: role A→gemini, then
+    role B→openai) mutated a fresh object the holders no longer referenced, silently breaking the
+    no-restart guarantee. To still pick up env keys not in ``env_vars`` (other planes), a throwaway
+    ``Settings()`` is read from env and its declared fields are copied ONTO the live holder in place."""
     # 2) merge + write-only to .provider_env (never SQLite/manifest/response/logs)
     merged = _parse_env_file(_PROVIDER_ENV_PATH)
     merged.update(env_vars)
@@ -3507,10 +3579,16 @@ def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
     try:
         from lithrim_bench.runtime.council import settings as council_settings
 
+        live = council_settings.settings
+        # copy a fresh env-read of EVERY declared field onto the live holder in place (picks up env
+        # keys outside env_vars, e.g. another plane's), then overlay the explicit env_vars (coerced).
+        fresh = council_settings.Settings()
+        for field in type(live).model_fields:
+            setattr(live, field, getattr(fresh, field))
         for key, val in env_vars.items():
-            if hasattr(council_settings.settings, key):
-                _coerce_set(council_settings.settings, key, val)
-        council_settings.settings = council_settings.Settings()  # fresh read for attr-via-module
+            if hasattr(live, key):
+                _coerce_set(live, key, val)
+        council_settings.settings = live  # repoint to the SAME object the holders reference
     except Exception:  # noqa: BLE001 — the [council] extra may be absent in a bare BFF; env still set
         pass
 
@@ -3718,10 +3796,12 @@ class ModelRegisterRequest(BaseModel):
     # MODEL-REGISTRY-1a: register a configured model into the pool. ``model`` is the model id (OpenAI/
     # Anthropic) or the DEPLOYMENT name (Azure). The key is read-only test-probed (REUSING Build A's
     # ``_probe_provider``), then written ONLY write-only to ``.provider_env`` — never the response.
+    # PROVIDER-CENTER-A: the provider set broadens to gemini/bedrock/openai_compatible (the litellm
+    # path speaks them) — register a model on ANY of these, then bind it per-role.
     id: str
-    provider: Literal["openai", "azure", "anthropic"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
     model: str
-    endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
+    endpoint: str | None = None  # api_base — required for azure / openai_compatible
     api_key: str
 
 

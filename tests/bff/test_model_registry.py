@@ -54,6 +54,7 @@ def registry_env(tmp_path, monkeypatch):
     monkeypatch.setattr(bff, "_MODELS_REGISTRY_PATH", tmp_path / ".models_registry.json", raising=False)
 
     import importlib
+    import os
 
     from lithrim_bench.harness import workspace as ws_mod
 
@@ -63,11 +64,31 @@ def registry_env(tmp_path, monkeypatch):
     ws = ws_mod.create_workspace("model_registry", pack="_core", seed=False)
     ws_mod.set_active_workspace(ws.name)
 
+    # ``_persist_and_reload_provider`` mutates the live council-settings singleton IN PLACE (and no
+    # longer reassigns it — PROVIDER-CENTER-A) + sets the REAL os.environ. Snapshot the LLM provider
+    # fields (global + the per-role LITHRIM_LLM_* bind writes) and os.environ keys, and fully restore
+    # them so a bind doesn't leak into another test (e.g. test_byok_openai's azure regression).
     original = council_settings.settings
+    _llm_fields = [
+        f"LITHRIM_LLM_{kind}_{role}"
+        for role in ("RISK", "POLICY", "FAITHFULNESS")
+        for kind in ("PROVIDER", "MODEL", "API_KEY", "API_BASE")
+    ] + ["LITHRIM_LLM_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL_POLICY", "OPENAI_MODEL_RISK",
+         "OPENAI_MODEL_FAITHFULNESS"]
+    _settings_snapshot = {f: getattr(original, f, "") for f in _llm_fields}
+    _env_snapshot = {f: os.environ.get(f) for f in _llm_fields}
     try:
         yield tmp_path, ws
     finally:
         council_settings.settings = original
+        for f, v in _settings_snapshot.items():
+            if hasattr(original, f):
+                setattr(original, f, v)
+        for f, v in _env_snapshot.items():
+            if v is None:
+                os.environ.pop(f, None)
+            else:
+                os.environ[f] = v
         importlib.reload(ws_mod)
 
 

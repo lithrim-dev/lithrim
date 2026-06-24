@@ -51,6 +51,7 @@ def provider_env(tmp_path, monkeypatch):
 
     # an isolated audit DB so the redaction assertion reads exactly this test's records
     import importlib
+    import os
 
     from lithrim_bench.harness import workspace as ws_mod
 
@@ -60,12 +61,30 @@ def provider_env(tmp_path, monkeypatch):
     ws = ws_mod.create_workspace("provider_cfg", pack="_core", seed=False)
     ws_mod.set_active_workspace(ws.name)
 
-    # snapshot + restore the council settings singleton (test D mutates it)
+    # snapshot + restore the council settings singleton (test D mutates it). ``_persist_and_reload_
+    # provider`` mutates the live singleton IN PLACE (PROVIDER-CENTER-A: no longer reassigned) + sets
+    # the REAL os.environ, so also restore the LLM provider fields/env so a config doesn't leak across.
     original = council_settings.settings
+    _llm_fields = [
+        f"LITHRIM_LLM_{kind}_{role}"
+        for role in ("RISK", "POLICY", "FAITHFULNESS")
+        for kind in ("PROVIDER", "MODEL", "API_KEY", "API_BASE")
+    ] + ["LITHRIM_LLM_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL_POLICY", "OPENAI_MODEL_RISK",
+         "OPENAI_MODEL_FAITHFULNESS"]
+    _settings_snapshot = {f: getattr(original, f, "") for f in _llm_fields}
+    _env_snapshot = {f: os.environ.get(f) for f in _llm_fields}
     try:
         yield tmp_path, ws
     finally:
         council_settings.settings = original
+        for f, v in _settings_snapshot.items():
+            if hasattr(original, f):
+                setattr(original, f, v)
+        for f, v in _env_snapshot.items():
+            if v is None:
+                os.environ.pop(f, None)
+            else:
+                os.environ[f] = v
         importlib.reload(ws_mod)
 
 

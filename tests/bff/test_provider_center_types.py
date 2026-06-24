@@ -43,12 +43,16 @@ from lithrim_bench.runtime.council import settings as council_settings  # noqa: 
 @pytest.fixture()
 def registry_env(tmp_path, monkeypatch):
     """Redirect the sidecars + the audit DB at tmp_path and isolate os.environ + the council
-    settings singleton (the pattern from tests/bff/test_model_registry.py)."""
+    settings singleton (the pattern from tests/bff/test_model_registry.py). The per-role
+    LITHRIM_LLM_* env vars (which ``_persist_and_reload_provider`` writes to the REAL os.environ +
+    mutates onto the live council-settings singleton IN PLACE) are snapshotted and fully restored so
+    no per-role binding leaks across tests (the cross-provider binds touch many env keys)."""
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
     monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
     monkeypatch.setattr(bff, "_MODELS_REGISTRY_PATH", tmp_path / ".models_registry.json", raising=False)
 
     import importlib
+    import os
 
     from lithrim_bench.harness import workspace as ws_mod
 
@@ -58,11 +62,33 @@ def registry_env(tmp_path, monkeypatch):
     ws = ws_mod.create_workspace("provider_center", pack="_core", seed=False)
     ws_mod.set_active_workspace(ws.name)
 
+    # ``_persist_and_reload_provider`` mutates the live council-settings singleton IN PLACE + sets the
+    # REAL os.environ (the no-restart path), neither of which monkeypatch tracks. Snapshot the per-role
+    # LITHRIM_LLM_* fields + os.environ keys the cross-provider binds touch and fully restore them so
+    # nothing leaks across tests.
     original = council_settings.settings
+    _per_role_fields = [
+        f"LITHRIM_LLM_{kind}_{role}"
+        for role in ("RISK", "POLICY", "FAITHFULNESS")
+        for kind in ("PROVIDER", "MODEL", "API_KEY", "API_BASE")
+    ]
+    _settings_snapshot = {
+        f: getattr(original, f, "")
+        for f in [*_per_role_fields, "LITHRIM_LLM_PROVIDER", "OPENAI_API_KEY"]
+    }
+    _env_snapshot = {f: os.environ.get(f) for f in [*_per_role_fields, "LITHRIM_LLM_PROVIDER"]}
     try:
         yield tmp_path, ws
     finally:
         council_settings.settings = original
+        for f, v in _settings_snapshot.items():
+            if hasattr(original, f):
+                setattr(original, f, v)
+        for f, v in _env_snapshot.items():
+            if v is None:
+                os.environ.pop(f, None)
+            else:
+                os.environ[f] = v
         importlib.reload(ws_mod)
 
 
