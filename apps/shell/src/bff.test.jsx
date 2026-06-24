@@ -4,7 +4,7 @@
    side that the Python tests/test_ws5_bff.py round-trip does not cover. */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { runEval, getOntology, listAgents, createAgent, deleteAgent, putJudge, validateToken } from "./bff.js";
+import { runEval, getOntology, listAgents, createAgent, deleteAgent, putJudge, createJudge, validateToken } from "./bff.js";
 import { ArtifactPane } from "./artifact.jsx";
 
 // A representative /v1/run-eval response: the S-BS-7 clinical story (reject; one
@@ -138,6 +138,51 @@ describe("CRUD-1 bff.js config-plane client", () => {
     await putJudge("risk_judge", { model: "", assigned_flags: [], validator_refs: [] }, { rationale: "x" });
     const [url] = fetch.mock.calls[0];
     expect(url).not.toContain("agent=");
+  });
+});
+
+// PHASE2-C: createJudge mints a NEW first-class judge over the active pack's snapshot.
+describe("PHASE2-C bff.js createJudge", () => {
+  it("createJudge() POSTs /v1/judges with the authoring body (never a key in the response)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({ role: "escalation_judge", lens_codes: ["MISSED_ESCALATION"], owned_codes: [], model: "grader-gpt4o", bound_roles: ["escalation_judge"], audit_id: "aud-1" }),
+    );
+    const out = await createJudge({
+      role: "escalation_judge",
+      lens_codes: ["MISSED_ESCALATION", "WRONG_RESOLUTION"],
+      owned_codes: ["MISSED_ESCALATION"],
+      model_id: "grader-gpt4o",
+      rationale: "support escalations",
+    });
+    const [url, opts] = fetch.mock.calls[0];
+    expect(url).toBe("/v1/judges");
+    expect(opts.method).toBe("POST");
+    const body = JSON.parse(opts.body);
+    expect(body).toMatchObject({
+      role: "escalation_judge",
+      lens_codes: ["MISSED_ESCALATION", "WRONG_RESOLUTION"],
+      owned_codes: ["MISSED_ESCALATION"],
+      model_id: "grader-gpt4o",
+      rationale: "support escalations",
+    });
+    expect(out.audit_id).toBe("aud-1");
+    expect(out).not.toHaveProperty("api_key");
+  });
+
+  it("createJudge() omits model_id / role_prompt when unset (spread-only-when-present)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ role: "qa_judge", lens_codes: ["WRONG_RESOLUTION"], owned_codes: [], model: "", bound_roles: ["qa_judge"], audit_id: "a2" }));
+    await createJudge({ role: "qa_judge", lens_codes: ["WRONG_RESOLUTION"], owned_codes: [], rationale: "qa" });
+    const [, opts] = fetch.mock.calls[0];
+    const body = JSON.parse(opts.body);
+    expect(body).not.toHaveProperty("model_id");
+    expect(body).not.toHaveProperty("role_prompt");
+    expect(body.lens_codes).toEqual(["WRONG_RESOLUTION"]);
+  });
+
+  it("createJudge() surfaces a 422 admissibility detail (owner⊄lens / collision)", async () => {
+    vi.stubGlobal("fetch", mockFetch({ detail: "owned code not in lens" }, false, 422));
+    await expect(createJudge({ role: "x", lens_codes: [], owned_codes: ["Y"], rationale: "r" })).rejects.toThrow(/judges/);
   });
 });
 
