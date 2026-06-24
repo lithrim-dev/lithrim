@@ -78,9 +78,10 @@ describe("PROVIDER-CENTER-B — the provider-first surface", () => {
   it("A: the provider picker lists the broadened set incl. Gemini / Bedrock / OpenAI-compatible", async () => {
     render(<ProviderSettings />);
     const picker = await screen.findByTestId("provider-picker");
-    // the broadened provider set is selectable
+    // the broadened provider set is selectable — match the unique "(id)" suffix so openai vs
+    // openai_compatible don't collide (a bare /openai/ matches both labels).
     for (const p of ["openai", "anthropic", "azure", "gemini", "bedrock", "openai_compatible"]) {
-      expect(within(picker).getByRole("option", { name: new RegExp(p.replace("_", "[ _-]?"), "i") })).toBeInTheDocument();
+      expect(within(picker).getByRole("option", { name: new RegExp(`\\(${p}\\)`, "i") })).toBeInTheDocument();
     }
   });
 

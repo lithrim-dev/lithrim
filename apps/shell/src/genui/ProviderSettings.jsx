@@ -15,6 +15,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { configProvider, getProviderStatus } from "../bff.js";
 import ModelRegistry from "./ModelRegistry.jsx";
+import ProviderPicker from "./ProviderPicker.jsx";
+import ConsumerBind from "./ConsumerBind.jsx";
 
 const GRADING_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
 
@@ -122,6 +124,9 @@ export default function ProviderSettings({ onClose }) {
         )}
       </div>
 
+      {/* ── Provider-FIRST (PROVIDER-CENTER-B): pick a provider, authenticate; its models join the pool ── */}
+      <ProviderPicker onSaved={refresh} />
+
       {/* ── Grading engine (REQUIRED) ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--surface-muted)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -189,6 +194,9 @@ export default function ProviderSettings({ onClose }) {
 
       {/* ── Model pool (MODEL-REGISTRY-1c): register once, pick-from-pool per role ── */}
       <ModelRegistry />
+
+      {/* ── Per-consumer pickers (PROVIDER-CENTER-B): grading per-judge (any provider) · conversation (Anthropic) ── */}
+      <ConsumerBind />
 
       {/* ── Authoring assistant (OPTIONAL) ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
