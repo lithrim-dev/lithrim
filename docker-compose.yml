@@ -1,0 +1,76 @@
+# Lithrim Bench — Community Edition local stack (CE Build C).
+#
+#   docker compose up        # → BFF on :8787, UI on :5180
+#
+# Zero-config: the BFF auto-seeds the neutral `_core` sample on first boot and `make demo`
+# (offline, $0, no keys) runs without any of the env vars below. Bring a model key (BYOK) to
+# grade live — set it in your shell or a repo-root `.env` (docker compose auto-loads `.env`).
+#
+# Persistence: the `out/` bind-mount keeps the config SQLite + run blobs + per-workspace
+# `.connector_env` (which live under out/workspaces/<ws>/) across `up`/`down`. The repo-root
+# `.provider_env`/`.connector_env` bind-mounts persist the BYOK provider sidecars Build A writes.
+#
+# Chat: the `claude` CLI assistant cannot run in a container — set LITHRIM_CHAT_PROVIDER=anthropic
+# + ANTHROPIC_API_KEY (below) to drive the conversational surface via the Anthropic API. Grading
+# and `make demo` do NOT need it.
+
+services:
+  bff:
+    build:
+      context: .
+      dockerfile: Dockerfile.bff
+    image: lithrim-bench-bff
+    ports:
+      - "8787:8787"
+    environment:
+      # BYOK — grading provider (all unset by default; the demo/replay needs none).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+      LITHRIM_LLM_PROVIDER: ${LITHRIM_LLM_PROVIDER:-}
+      # Conversational assistant (containerized chat → Anthropic API, not the local claude CLI).
+      LITHRIM_CHAT_PROVIDER: ${LITHRIM_CHAT_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
+      LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
+      # Optional Pro pack discovery (a path INSIDE the container; bind-mount it if you set this).
+      LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-}
+    volumes:
+      # Persist the config SQLite + run blobs + per-workspace .connector_env sidecars.
+      - ./out:/app/out
+      # Persist the repo-root BYOK provider/connector sidecars (created lazily; touch-safe).
+      - ./.provider_env:/app/.provider_env
+      - ./.connector_env:/app/.connector_env
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    networks:
+      - lithrim
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        # The browser hits this origin directly (CORS-allowed, host-published). NOT http://bff:8787
+        # — that is container-internal and unreachable from the host browser.
+        VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
+    image: lithrim-bench-ui
+    ports:
+      - "5180:5180"
+    environment:
+      VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
+    depends_on:
+      bff:
+        condition: service_started
+    networks:
+      - lithrim
+
+networks:
+  lithrim:
+    driver: bridge

@@ -1,0 +1,33 @@
+# Lithrim Bench — BFF (judge-capability API v1, apps/bff) container.
+# CE Build C. Mirrors scripts/dev/devstack.sh: uvicorn app:app from the repo root,
+# --app-dir apps/bff, on :8787. The [bff,council] extras (pyproject.toml) are the
+# FastAPI/uvicorn surface + the vendored compliance council; the core install stays
+# the offline pydantic+pandas base. No clinical pack is baked in — a bare image boots
+# on the neutral `_core` default; mount/point LITHRIM_BENCH_PACKS_DIR for a Pro pack.
+FROM python:3.10-slim
+
+# git: setuptools editable install + any VCS dep resolution. curl: the HEALTHCHECK probe.
+# build-essential: source builds for any wheel without a slim-platform binary (pandas et al.).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the whole repo (the editable install resolves lithrim_bench + apps/bff from here).
+# .dockerignore keeps node_modules / out / .git / caches / dist out of the build context.
+COPY . /app
+
+# The default install stays offline pydantic+pandas; [bff] adds FastAPI/uvicorn/httpx,
+# [council] adds the vendored council's openai/tenacity/pydantic-settings.
+RUN pip install --no-cache-dir -e ".[bff,council]"
+
+EXPOSE 8787
+
+# The same liveness path make/devstack probe. /health stays open even with LITHRIM_BFF_TOKEN set.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+    CMD curl -sf http://localhost:8787/health || exit 1
+
+# Repo root is CWD so the council resolves config exactly as devstack.sh runs it.
+# No --reload: a container is a fixed image, not a watched dev tree.
+CMD ["uvicorn", "app:app", "--app-dir", "apps/bff", "--host", "0.0.0.0", "--port", "8787"]
