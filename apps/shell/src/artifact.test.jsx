@@ -406,3 +406,31 @@ describe("ReportTab error copy — honest, not 'service down' for a structured 5
     expect(screen.getByText(/unreachable.*restart it/i)).toBeInTheDocument();
   });
 });
+
+describe("ReportTab — GRADE-GUARD-2: a no-baseline $0-replay failure → actionable guidance, not a raw 500", () => {
+  // the VERBATIM error a baseline-less agent's $0 "Run eval" produces (walkthrough 2026-06-24): the
+  // $0 replay has nothing to replay, so guide to Run live (which captures a baseline) instead of dumping
+  // the 500. Distinct phrasing from the GRADE-GUARD-1 string above, so the two don't collide.
+  const NO_BASELINE =
+    "POST /v1/run-eval → 500: {\"detail\":\"grade subprocess failed (pack=healthcare): agent 'eval-1' " +
+    "has no captured baseline — $0 replay is unavailable for imported/live-only cases; run it live or " +
+    "in_process instead.\"}";
+
+  it("renders 'No saved run to replay yet' + a Run-live next-step (no raw 'Run failed' / 500 dump)", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={NO_BASELINE} />,
+    );
+    expect(screen.getByText(/No saved run to replay yet/i)).toBeInTheDocument();
+    expect(container.textContent).toMatch(/Run live/);
+    expect(screen.queryByText(/Run failed/i)).toBeNull(); // not a raw failure dump
+    expect(container.textContent).not.toMatch(/grade subprocess failed/); // the raw detail is hidden
+  });
+
+  it("(non-vacuous) a DIFFERENT error still shows the raw 'Run failed' detail", () => {
+    const other = 'POST /v1/run-eval → 422: {"detail":"malformed contract"}';
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={other} />);
+    expect(screen.getByText(/Run failed/i)).toBeInTheDocument();
+    expect(screen.getByText((t) => t.includes("malformed contract"))).toBeInTheDocument();
+    expect(screen.queryByText(/No saved run to replay yet/i)).toBeNull();
+  });
+});

@@ -37,25 +37,41 @@ function ReportMessage({ children }) {
   );
 }
 
-function ReportTab({ runStatus, runResult, runError }) {
-  if (runStatus === "loading")
-    return <ReportMessage>Running the evaluation…</ReportMessage>;
-  if (runStatus === "error") {
-    // GRADE-GUARD-1: the BFF error format is "POST <path> → <status>: <detail>". A structured HTTP
-    // response means the service IS responding (the detail is the actionable truth — e.g. "no $0
-    // replay baseline — run live", or "malformed contract") — so DON'T claim it's down. Only show
-    // the "unreachable, restart it" hint for a genuine no-response/network failure.
-    const isHttp = /→\s*\d{3}\b/.test(String(runError || ""));
+// GRADE-GUARD-2: render a run failure. A "no captured baseline" failure is NOT a raw error to dump —
+// it's actionable guidance: this eval has nothing to $0-replay yet, so grade it live ONCE to capture a
+// baseline (then Run eval replays it for $0). Everything else keeps GRADE-GUARD-1: show the HTTP detail
+// verbatim (the service IS responding — the detail is the actionable truth), and only hint "unreachable,
+// restart it" for a genuine no-response/network failure.
+function RunFailed({ runError }) {
+  const errStr = String(runError || "");
+  if (/no captured baseline|\$0 replay is unavailable|run it live or in_process/i.test(errStr)) {
     return (
       <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
-        {!isHttp && (
-          <div style={{ marginTop: 10 }}>The evaluation service may be unreachable — ask the host to restart it.</div>
-        )}
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>No saved run to replay yet</div>
+        <div style={{ marginTop: 4, lineHeight: 1.5 }}>
+          This evaluation has no captured baseline, so the $0 replay (<strong>Run eval</strong>) has nothing
+          to replay. Use <strong>Run live</strong> to grade it once on your configured model — that captures a
+          baseline, after which <strong>Run eval</strong> replays it for $0.
+        </div>
       </ReportMessage>
     );
   }
+  const isHttp = /→\s*\d{3}\b/.test(errStr);
+  return (
+    <ReportMessage>
+      <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
+      {!isHttp && (
+        <div style={{ marginTop: 10 }}>The evaluation service may be unreachable — ask the host to restart it.</div>
+      )}
+    </ReportMessage>
+  );
+}
+
+function ReportTab({ runStatus, runResult, runError }) {
+  if (runStatus === "loading")
+    return <ReportMessage>Running the evaluation…</ReportMessage>;
+  if (runStatus === "error") return <RunFailed runError={runError} />;
   if (!runResult)
     return (
       <ReportMessage>
@@ -217,13 +233,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
 
   if (runStatus === "loading")
     return <ReportMessage>Collecting the judges' votes…</ReportMessage>;
-  if (runStatus === "error")
-    return (
-      <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
-      </ReportMessage>
-    );
+  if (runStatus === "error") return <RunFailed runError={runError} />;
   if (!runResult)
     return (
       <ReportMessage>
