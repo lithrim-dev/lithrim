@@ -3990,16 +3990,15 @@ def models_bind_endpoint(
     default_actor: Actor = Depends(get_actor),
     x_actor: str | None = Header(None, alias="X-Actor"),
 ) -> dict:
-    """MODEL-REGISTRY-1a: bind a pool entry to one of the 3 fixed roles. Maps the entry's
-    {provider, model, endpoint, key} to the role's env vars via the SAME mechanism as Build A's
-    ``_provider_env_vars`` + ``_persist_and_reload_provider`` — so ``build_judge_lm`` routes that
-    role to the chosen model with NO restart. SEAM (verified against ``judges_dspy.build_judge_lm``):
-    ``build_judge_lm`` reads a GLOBAL ``settings.LITHRIM_LLM_PROVIDER`` to select the provider, with
-    only a per-role *model* (OpenAI) / *deployment* (Azure) split — there is NO per-role *provider*
-    override (the BYO-Claude ``model``/``provider`` override selects the claude-cli LM, not a generic
-    per-role provider). So binding role A→openai and role B→azure simultaneously is NOT supported;
-    each bind sets the global provider. Phase-1 binds the SAME-provider case (the trio within one
-    provider); cross-provider-per-role is a flagged seam (1b/1c), not faked here."""
+    """MODEL-REGISTRY-1a / PROVIDER-CENTER-A: bind a pool entry to one of the 3 fixed roles. Maps the
+    entry's {provider, model, endpoint, key} to the role's env vars via the SAME mechanism as Build A's
+    ``_provider_env_vars`` + ``_persist_and_reload_provider`` — so ``build_judge_lm`` routes that role
+    to the chosen model with NO restart. CROSS-PROVIDER-PER-ROLE (PROVIDER-CENTER-A, S-BS-MR1a-
+    CROSSPROVIDER closed): ``build_judge_lm`` now reads a PER-ROLE provider override
+    (``LITHRIM_LLM_PROVIDER_<ROLE>`` + the per-role model/key/api_base), so binding role A→openai and
+    role B→gemini and role C→anthropic SIMULTANEOUSLY is supported — a genuinely mixed council. When no
+    per-role provider is bound, the global ``LITHRIM_LLM_PROVIDER`` path is byte-identical to before.
+    (BYO-Claude's ``model``/``provider`` override still selects the claude-cli LM.)"""
     reg = _read_models_registry()
     entry = next((m for m in reg["models"] if m.get("id") == model_id), None)
     if entry is None:
