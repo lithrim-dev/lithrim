@@ -420,16 +420,97 @@ def delete_conversation(agent: str, *, db_path: str | Path = DEFAULT_CONFIG_DB) 
     return existed
 
 
+def _seed_pack_agents(
+    db_path: str | Path, *, already: set[str]
+) -> list[str]:
+    """PACK-DROPIN-1: AFTER the committed core agents, seed the PORTABLE agents declared by every
+    DISCOVERABLE pack (its ``pack.json`` ``seed_agents`` — pack-relative paths to agent JSONs).
+
+    The CONTRACT this seeds (the pack-side build conforms): each ``seed_agents`` entry's JSON uses
+    LOGICAL refs, not host/repo-absolute paths — an ``ontology_ref`` + a pack-relative ``dataset``.
+    Here the seed RESOLVES those refs to the CURRENT environment so a dropped pack's agent is valid
+    wherever it landed (container or local):
+      - ``eval_profile.ontology_path`` is overwritten with ``pack_ontology_path(pack)`` (absolute,
+        ``check_consistency=False`` — we resolve the PATH of a non-active pack; the codes gate still
+        fires for real at grade time), NEVER a stale ``packs/<x>/...`` literal;
+      - a pack-relative ``dataset.source`` / ``dataset.baseline`` is resolved against the pack ROOT
+        (an absolute or ``mode: in_process`` ref is left as-is).
+
+    Collision-safe: a seed-agent whose name is ``already`` seeded (a core agent OR an earlier pack's
+    agent) is SKIPPED with a stderr log — a pack NEVER clobbers ``ws0_default`` or any existing agent.
+    Pack names are the pack's responsibility (e.g. ``healthcare_default``). A pack that declares no
+    ``seed_agents`` contributes nothing — so a bare CE (no discoverable pack, or only packs without
+    ``seed_agents``) seeds ONLY the core agent, unchanged."""
+    from lithrim_bench.harness.pack import discover_packs, pack_ontology_path, pack_root
+
+    names: list[str] = []
+    for entry in discover_packs():
+        pack = entry["id"]
+        try:
+            manifest = json.loads((pack_root(pack) / "pack.json").read_text())
+        except (OSError, ValueError):
+            continue
+        refs = manifest.get("seed_agents") or []
+        if not refs:
+            continue
+        try:
+            root = pack_root(pack)
+            ontology_path = str(pack_ontology_path(pack, check_consistency=False))
+        except Exception as exc:  # noqa: BLE001 - a malformed/denied pack must not break the seed
+            print(
+                f"WARNING: pack {pack!r} seed_agents skipped — cannot resolve ontology path: {exc}",
+                file=sys.stderr,
+            )
+            continue
+        for ref in refs:
+            agent_file = (root / ref) if not Path(ref).is_absolute() else Path(ref)
+            try:
+                data = json.loads(agent_file.read_text())
+            except (OSError, ValueError) as exc:
+                print(
+                    f"WARNING: pack {pack!r} seed-agent {ref!r} skipped — unreadable: {exc}",
+                    file=sys.stderr,
+                )
+                continue
+            name = data.get("name")
+            if not name or name in already:
+                print(
+                    f"WARNING: pack {pack!r} seed-agent {name!r} skipped — "
+                    f"{'name collides with an existing agent' if name else 'no name'} "
+                    "(a pack never clobbers an existing agent).",
+                    file=sys.stderr,
+                )
+                continue
+            ep = data.setdefault("eval_profile", {})
+            ep["ontology_path"] = ontology_path
+            ds = data.get("dataset") or {}
+            for key in ("source", "baseline"):
+                val = ds.get(key)
+                if val and not Path(val).is_absolute():
+                    ds[key] = str((root / val).resolve())
+            data["dataset"] = ds
+            save_agent(agent_from_dict(data), db_path=db_path)
+            already.add(name)
+            names.append(name)
+    return names
+
+
 def seed_config_db(
     *,
     seed_dir: str | Path = DEFAULT_AGENT_SEED_DIR,
     db_path: str | Path = DEFAULT_CONFIG_DB,
 ) -> list[str]:
-    """Build the config DB from the committed agent seed JSONs. Returns agent names."""
+    """Build the config DB from the committed agent seed JSONs, then (PACK-DROPIN-1) the portable
+    ``seed_agents`` of every discoverable pack. Returns the seeded agent names.
+
+    The core (committed) seeds run FIRST and own their names — a pack seed-agent can never clobber
+    them (the collision check). A bare CE (no discoverable pack declaring ``seed_agents``) seeds
+    ONLY the core agent — the clean-by-construction CE default is unchanged."""
     seed_dir = Path(seed_dir)
     names: list[str] = []
     for seed_file in sorted(seed_dir.glob("*.json")):
         agent = agent_from_dict(json.loads(seed_file.read_text()))
         save_agent(agent, db_path=db_path)
         names.append(agent.name)
+    names.extend(_seed_pack_agents(db_path, already=set(names)))
     return names

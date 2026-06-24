@@ -39,3 +39,10 @@ marketing_raw/
 
 # MCP server config — may hold the Zyng API token (do not commit)
 .mcp.json
+
+# PACK-DROPIN-1: the pack drop-in volume — drop a pack FOLDER here (mounted to /dropin-packs) and
+# restart. The dropped packs are local DATA, never committed; only the tracked .gitkeep + README
+# keep the directory present so the compose bind-mount has a target.
+packs-dropin/*
+!packs-dropin/.gitkeep
+!packs-dropin/README.md

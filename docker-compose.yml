@@ -36,8 +36,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
       LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
-      # Optional Pro pack discovery (a path INSIDE the container; bind-mount it if you set this).
-      LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-}
+      # PACK-DROPIN-1: the pack drop-in path INSIDE the container, default /dropin-packs (the host
+      # ./packs-dropin DIRECTORY bind-mounted below). EMPTY drop-in → discovery falls through to the
+      # in-repo packs/_core → a clean `_core` CE. Drop a pack FOLDER into ./packs-dropin/ (e.g.
+      # `healthcare/`) and restart → it is discoverable, GET /v1/packs shows it, and its `seed_agents`
+      # are seeded into the rail. Pro packs are tier:pro (license-gated; default permit-all).
+      LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-/dropin-packs}
     volumes:
       # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
       # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
@@ -47,6 +51,10 @@ services:
       # cross-`down` persistence. (Never bind-mount single files that may not exist on the host —
       # docker creates them as DIRECTORIES and crashes the env-loader.)
       - lithrim_out:/app/out
+      # PACK-DROPIN-1: the pack drop-in volume. A DIRECTORY bind (host ./packs-dropin, gitignored,
+      # empty by default — a tracked .gitkeep keeps it present). Read-only: packs are DATA the
+      # container loads, never state it writes. Drop a pack folder here + restart to load it.
+      - ./packs-dropin:/dropin-packs:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
       interval: 15s

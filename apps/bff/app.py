@@ -1458,15 +1458,19 @@ def create_workspace_endpoint(req: CreateWorkspaceRequest) -> dict:
 def list_packs_endpoint() -> dict:
     """The discoverable DOMAIN packs a workspace can pin (tier core|pro, non-fixture) + the
     active workspace's pack. 'Install a pack' = make it discoverable (pip-install the wheel or
-    point LITHRIM_BENCH_PACKS_DIR at it); it then appears here for selection."""
+    point LITHRIM_BENCH_PACKS_DIR at it — e.g. drop a pack folder into the CE drop-in volume);
+    it then appears here for selection. Each pack carries an ``active`` boolean (PACK-DROPIN-1:
+    the active workspace's pinned pack) so the UI can show what loaded; the top-level ``active``
+    name is retained for back-compat."""
     from lithrim_bench.harness import pack as pack_mod
 
+    active = workspace.get_active_workspace().pack
     packs = [
-        p
+        {**p, "active": p["id"] == active}
         for p in pack_mod.discover_packs()
         if p["tier"] in ("core", "pro") and p.get("domain") != "fixture"
     ]
-    return {"packs": packs, "active": workspace.get_active_workspace().pack}
+    return {"packs": packs, "active": active}
 
 
 @app.get("/v1/packs/{pack}/cases")

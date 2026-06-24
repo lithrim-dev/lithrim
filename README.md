@@ -104,6 +104,8 @@ This repo is the genuinely domain-agnostic OSS core — it ships the engine plus
 
 With no pack on the path the core stays on the neutral `_core` default and grades fine. To add your own domain, write a pack repo with a `pack.json` + the entry point and point the env var at it — **zero engine edits**.
 
+**Add a pack (drop-in).** With `docker compose`, drop a pack **folder** into `packs-dropin/` (bind-mounted to `/dropin-packs`, the default `LITHRIM_BENCH_PACKS_DIR`) — or point `LITHRIM_BENCH_PACKS_DIR` at any directory — then restart. `GET /v1/packs` then shows it (with the active pack marked), and any portable agents it declares (`pack.json` → optional `seed_agents`) are seeded into the config DB so they appear in the rail. An empty `packs-dropin/` ⇒ a clean `_core` CE. Pro packs are `tier: pro` (license-gated via `LITHRIM_BENCH_LICENSE`; the default is permit-all). The `seed_agents` contract is documented in [`packs-dropin/README.md`](packs-dropin/README.md).
+
 ---
 
 ## Connectors (MCP / tools)

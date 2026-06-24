@@ -135,6 +135,15 @@ def _pack_root(pack: str) -> Path:
     )
 
 
+def pack_root(pack: str | None = None) -> Path:
+    """The ROOT dir of the active (or named) discoverable pack — the dir holding its ``pack.json``,
+    resolved via the PACK-DIST-1 discovery search (entry point → ``LITHRIM_BENCH_PACKS_DIR`` →
+    in-repo ``packs/``). The public accessor for callers that need to resolve a pack-relative DATA
+    ref against the dropped pack's location (PACK-DROPIN-1: ``seed_config_db`` resolving a portable
+    seed-agent's pack-relative dataset). Raises ``FileNotFoundError`` if the pack is undiscoverable."""
+    return _pack_root(pack or active_pack())
+
+
 def discover_packs() -> list[dict]:
     """Every DISCOVERABLE pack — the union of installed entry points, ``LITHRIM_BENCH_PACKS_DIR``
     dirs, and the in-repo ``packs/`` — deduped by id (first-wins, matching ``_pack_root``'s

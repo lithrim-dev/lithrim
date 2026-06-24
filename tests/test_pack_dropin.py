@@ -168,6 +168,12 @@ def test_d_get_packs_lists_core_and_dropin_marks_active(tmp_path, monkeypatch, c
     and marks the active pack."""
     pytest.importorskip("fastapi", reason="needs the [bff] extra")
     from lithrim_bench.harness import pack as pack_mod
+    from lithrim_bench.harness import workspace as W
+
+    # Isolate WORKSPACES_DIR so the active workspace is the clean `_core` default — NOT a non-_core
+    # workspace another suite test switched to in the shared real out/workspaces (the active marker
+    # would otherwise be ordering-dependent). Mirrors test_workspace.py's ``ws_root`` fixture.
+    monkeypatch.setattr(W, "WORKSPACES_DIR", tmp_path / "workspaces")
 
     packs_dir = tmp_path / "dropin"
     _write_fake_pack(packs_dir, "dropin_demo", seed_agents=["agents/dropin_default.json"])
