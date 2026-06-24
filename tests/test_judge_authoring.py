@@ -286,12 +286,14 @@ def test_wall4_relaxation_admits_spliced_role(core_pack):
     pack_mod.assert_pack_judges_consistent(core_pack)
 
     # NON-VACUOUS: a still-unknown role (declared but never spliced, off the canonical roster)
-    # still fails the pure gate against this pack's relaxed roster.
+    # still fails the pure gate against this pack's relaxed roster. prompt_stems is EMPTY so ONLY
+    # the declared-∉-roster leg can raise — otherwise the stray-prompt leg would mask a regression
+    # in the fail-closed leg (critic P2A Q3, sharpening test H's targeting).
     roster = pack_mod.council_roster() | set(pack_mod.pack_production_judges(core_pack))
     assert "escalation_judge" in roster  # the relaxation added it
     with pytest.raises(pack_mod.PackConsistencyError) as ei:
         pack_mod.assert_judges_known(
-            ["never_spliced_judge"], ["never_spliced_judge"], roster=frozenset(roster)
+            ["never_spliced_judge"], [], roster=frozenset(roster)
         )
     assert "never_spliced_judge" in str(ei.value)
 
