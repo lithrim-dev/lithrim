@@ -509,6 +509,13 @@ _STORYWORLD_PII_KEYS = ("child_name", "age", "reader_note", "reader_feedback", "
 # gitignored `.provider_status.json` sidecar so GET /v1/provider/status survives a restart.
 _PROVIDER_ENV_PATH = REPO_ROOT / ".provider_env"
 _PROVIDER_STATUS_PATH = REPO_ROOT / ".provider_status.json"
+# MODEL-REGISTRY-1a (SPEC_COMMUNITY_EDITION §8): the configured-model POOL — a registered model is a
+# first-class, reusable, capability-aware entity (the LiteLLM ``model_list`` pattern), decoupled from
+# the judge role. The non-secret metadata (id/provider/model/endpoint/capabilities/last_tested/
+# bound_roles) lives in this gitignored repo-root sidecar; the SECRET rides Build A's ``.provider_env``
+# under a per-model namespaced WRITE-ONLY var (``_model_key_var`` — never SQLite/manifest/git/the
+# response/logs/this sidecar). A role BINDS to a pool entry, reusing the Build A env-var mechanism.
+_MODELS_REGISTRY_PATH = REPO_ROOT / ".models_registry.json"
 
 
 def _load_connector_env(ws) -> dict[str, str]:
@@ -3390,6 +3397,316 @@ def _read_provider_status() -> dict:
         except (json.JSONDecodeError, OSError):
             pass
     return base
+
+
+# MODEL-REGISTRY-1a (SPEC_COMMUNITY_EDITION §8) ─────────────────────────────────────────────────
+# A configured model is a first-class, reusable, CAPABILITY-AWARE entity, decoupled from the judge
+# role (the LiteLLM ``model_list`` pattern). Capabilities — esp. ``logprobs`` — are the load-bearing
+# differentiator (OpenAI yes → calibrated confidence; Claude / Mistral-via-Azure no → confidence
+# dark), surfaced at pick time. The catalog = curated presets + a ``capabilities_for`` family-infer
+# so a CUSTOM (non-preset) model still gets an honest flag; Azure is deployment-name-based (no model
+# catalog applies — it's the user's deployments). The registry REUSES Build A's env mechanism: the
+# key is write-only on ``.provider_env``; a role binds via the same ``_provider_env_vars`` +
+# ``_persist_and_reload_provider`` path ``build_judge_lm`` reads. The frozen council is untouched.
+
+# Curated per-provider presets, each capability-annotated. A small HONEST map — names are cosmetic,
+# the capabilities are the product. ``logprobs`` gates the calibrated-confidence read.
+_MODEL_CATALOG_PRESETS: dict[str, list[dict]] = {
+    "openai": [
+        {"model": "gpt-4o", "logprobs": True, "context_window": 128000, "cost_tier": "mid"},
+        {"model": "gpt-4o-mini", "logprobs": True, "context_window": 128000, "cost_tier": "low"},
+        {"model": "gpt-4.1", "logprobs": True, "context_window": 1000000, "cost_tier": "mid"},
+        # o-series reasoning models do not return token logprobs → confidence dark
+        {"model": "o3-mini", "logprobs": False, "context_window": 200000, "cost_tier": "mid"},
+    ],
+    "anthropic": [
+        {"model": "claude-3-5-sonnet-latest", "logprobs": False, "context_window": 200000,
+         "cost_tier": "mid"},
+        {"model": "claude-3-5-haiku-latest", "logprobs": False, "context_window": 200000,
+         "cost_tier": "low"},
+    ],
+}
+# Azure has no model catalog — it's deployment-name-based (bring YOUR deployment). Kept as an explicit
+# empty-list-plus-note so the UI renders an honest "type your deployment" affordance, not a wall.
+_MODEL_CATALOG_AZURE_NOTE = (
+    "deployment-name-based — Azure has no model catalog; register your deployment name as the "
+    "`model` (e.g. your gpt-4.1 / Mistral / Llama deployment)."
+)
+
+
+def capabilities_for(provider: str, model: str) -> dict:
+    """Infer a model's capabilities by family so a CUSTOM (non-preset) model still gets an HONEST
+    ``logprobs`` flag — the differentiated-catalog point. A preset hit returns its curated row;
+    otherwise the family heuristic decides. OpenAI ``gpt-*`` (non-reasoning) → logprobs True;
+    ``o*`` reasoning → False; Anthropic ``claude-*`` → False; Azure → deployment-based (unknown →
+    conservatively False, the user can't rely on logprobs from an arbitrary deployment)."""
+    provider = (provider or "").strip().lower()
+    name = (model or "").strip().lower()
+    for preset in _MODEL_CATALOG_PRESETS.get(provider, []):
+        if preset["model"].lower() == name:
+            return {k: preset[k] for k in ("logprobs", "context_window", "cost_tier")}
+    if provider == "openai":
+        # gpt-* return token logprobs; o-series reasoning models do not.
+        logprobs = name.startswith("gpt-") or name.startswith("gpt")
+        if name.startswith("o1") or name.startswith("o3") or name.startswith("o4"):
+            logprobs = False
+        return {"logprobs": bool(logprobs), "context_window": None, "cost_tier": "unknown"}
+    if provider == "anthropic":
+        return {"logprobs": False, "context_window": None, "cost_tier": "unknown"}
+    # azure / anything else: deployment-based — don't promise logprobs we can't guarantee
+    return {"logprobs": False, "context_window": None, "cost_tier": "unknown"}
+
+
+def _model_key_var(model_id: str) -> str:
+    """The per-model namespaced WRITE-ONLY env var carrying the secret on ``.provider_env`` (e.g.
+    ``LITHRIM_MODEL__gpt4o_prod__KEY``). Sanitized so an arbitrary id can't inject an env-file line."""
+    safe = re.sub(r"[^A-Za-z0-9]", "_", (model_id or "").strip())
+    return f"LITHRIM_MODEL__{safe}__KEY"
+
+
+def _read_models_registry() -> dict:
+    """Read the gitignored ``.models_registry.json`` pool sidecar (a list of non-secret entries).
+    Absent / malformed → an empty pool. NEVER carries a key."""
+    if _MODELS_REGISTRY_PATH.exists():
+        try:
+            stored = json.loads(_MODELS_REGISTRY_PATH.read_text())
+            if isinstance(stored, dict) and isinstance(stored.get("models"), list):
+                return stored
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"models": []}
+
+
+def _write_models_registry(reg: dict) -> None:
+    _MODELS_REGISTRY_PATH.write_text(json.dumps(reg, indent=2) + "\n")
+
+
+def _persist_model_key(model_id: str, api_key: str) -> None:
+    """WRITE-ONLY persist the model's key under its namespaced var on ``.provider_env`` (REUSING
+    Build A's secret hygiene — never SQLite/manifest/git/the response/logs/the registry sidecar)."""
+    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged[_model_key_var(model_id)] = api_key
+    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+
+
+def _drop_model_key(model_id: str) -> None:
+    """Remove a model's namespaced key var from ``.provider_env`` (the DELETE path)."""
+    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged.pop(_model_key_var(model_id), None)
+    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+
+
+def _read_model_key(model_id: str) -> str | None:
+    """Read a model's persisted key back from ``.provider_env`` (the BIND path needs it to wire the
+    role's env). Stays on-disk: the key is never returned to a caller or logged."""
+    return _parse_env_file(_PROVIDER_ENV_PATH).get(_model_key_var(model_id))
+
+
+class ModelRegisterRequest(BaseModel):
+    # MODEL-REGISTRY-1a: register a configured model into the pool. ``model`` is the model id (OpenAI/
+    # Anthropic) or the DEPLOYMENT name (Azure). The key is read-only test-probed (REUSING Build A's
+    # ``_probe_provider``), then written ONLY write-only to ``.provider_env`` — never the response.
+    id: str
+    provider: Literal["openai", "azure", "anthropic"]
+    model: str
+    endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
+    api_key: str
+
+
+class ModelBindRequest(BaseModel):
+    # MODEL-REGISTRY-1a: bind a pool entry to one of the 3 fixed roles. Phase-1 keeps the 3 roles;
+    # the role REFERENCES the entry instead of re-typing provider/model/key.
+    role: Literal["risk_judge", "policy_judge", "faithfulness_judge"]
+
+
+def _model_entry_public(entry: dict) -> dict:
+    """The non-secret public projection of a pool entry — NEVER a key (defensive: a key field never
+    lands in the registry, but this projection is the single response shape the API returns)."""
+    return {
+        "id": entry["id"],
+        "provider": entry["provider"],
+        "model": entry.get("model"),
+        "endpoint": entry.get("endpoint"),
+        "capabilities": entry.get("capabilities", {}),
+        "last_tested": entry.get("last_tested"),
+        "bound_roles": entry.get("bound_roles", []),
+    }
+
+
+@app.get("/v1/models/catalog")
+def models_catalog_endpoint() -> dict:
+    """MODEL-REGISTRY-1a: the capability-aware catalog — curated presets per provider (each with a
+    ``logprobs`` flag + context/cost) plus the Azure deployment-based note. ``logprobs`` is the
+    load-bearing differentiator vs a cosmetic dropdown (OpenAI yes → calibrated confidence; Claude
+    no → confidence dark). A CUSTOM model not in the presets is still honestly annotated client-side
+    via ``capabilities_for`` (exposed at register time)."""
+    return {
+        "providers": {
+            "openai": [dict(m) for m in _MODEL_CATALOG_PRESETS["openai"]],
+            "anthropic": [dict(m) for m in _MODEL_CATALOG_PRESETS["anthropic"]],
+            "azure": {"models": [], "note": _MODEL_CATALOG_AZURE_NOTE},
+        }
+    }
+
+
+@app.post("/v1/models")
+def models_register_endpoint(
+    req: ModelRegisterRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """MODEL-REGISTRY-1a: register a configured model into the reusable pool. A READ-ONLY probe
+    (REUSING Build A's ``_probe_provider`` — the same litellm/openai path ``build_judge_lm`` grades
+    through) gates the write. On a clean probe: the non-secret metadata + inferred capabilities are
+    stored in ``.models_registry.json`` and the key is persisted WRITE-ONLY under a namespaced var on
+    ``.provider_env`` (NEVER SQLite/manifest/git/the response/logs/the registry sidecar). On probe
+    failure → 400 and NOTHING is written. The response NEVER carries the key."""
+    if req.provider == "azure" and not req.endpoint:
+        raise HTTPException(status_code=400, detail="provider='azure' requires `endpoint`")
+
+    probe = _probe_provider(
+        plane="grading" if req.provider != "anthropic" else "assistant",
+        provider=req.provider, api_key=req.api_key, endpoint=req.endpoint, model=req.model,
+    )
+    if not probe.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"model test failed ({probe.get('error', 'unknown error')})",
+        )
+
+    last_tested = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    capabilities = capabilities_for(req.provider, req.model)
+    entry = {
+        "id": req.id,
+        "provider": req.provider,
+        "model": req.model,
+        "endpoint": req.endpoint,
+        "capabilities": capabilities,
+        "last_tested": last_tested,
+        "bound_roles": [],
+    }
+
+    reg = _read_models_registry()
+    reg["models"] = [m for m in reg["models"] if m.get("id") != req.id] + [entry]
+    _write_models_registry(reg)  # non-secret only — no key field exists on ``entry``
+    _persist_model_key(req.id, req.api_key)  # the key, write-only on .provider_env
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ws = workspace.get_active_workspace()
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="model_register",
+            target=Target(type="model", id=req.id),
+            why={"rationale": f"registered + tested the {req.provider} model {req.model!r}"},
+            before=None,
+            # NEVER the key — only the non-secret selectors + capabilities
+            after={"id": req.id, "provider": req.provider, "model": req.model,
+                   "capabilities": capabilities, "last_tested": last_tested},
+        )
+    )
+    return _model_entry_public(entry)
+
+
+@app.get("/v1/models")
+def models_list_endpoint() -> dict:
+    """MODEL-REGISTRY-1a: the configured-model pool — non-secret metadata + capabilities only,
+    NEVER a key (the key lives write-only on ``.provider_env``)."""
+    reg = _read_models_registry()
+    return {"models": [_model_entry_public(m) for m in reg["models"]]}
+
+
+@app.delete("/v1/models/{model_id}")
+def models_delete_endpoint(
+    model_id: str,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """MODEL-REGISTRY-1a: drop a pool entry AND its write-only key from ``.provider_env``."""
+    reg = _read_models_registry()
+    if not any(m.get("id") == model_id for m in reg["models"]):
+        raise HTTPException(status_code=404, detail=f"model {model_id!r} not in the pool")
+    reg["models"] = [m for m in reg["models"] if m.get("id") != model_id]
+    _write_models_registry(reg)
+    _drop_model_key(model_id)
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ws = workspace.get_active_workspace()
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="model_delete",
+            target=Target(type="model", id=model_id),
+            why={"rationale": f"removed model {model_id!r} from the pool"},
+            before={"id": model_id}, after=None,
+        )
+    )
+    return {"ok": True, "id": model_id, "deleted": True}
+
+
+@app.post("/v1/models/{model_id}/bind")
+def models_bind_endpoint(
+    model_id: str,
+    req: ModelBindRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """MODEL-REGISTRY-1a: bind a pool entry to one of the 3 fixed roles. Maps the entry's
+    {provider, model, endpoint, key} to the role's env vars via the SAME mechanism as Build A's
+    ``_provider_env_vars`` + ``_persist_and_reload_provider`` — so ``build_judge_lm`` routes that
+    role to the chosen model with NO restart. SEAM (verified against ``judges_dspy.build_judge_lm``):
+    ``build_judge_lm`` reads a GLOBAL ``settings.LITHRIM_LLM_PROVIDER`` to select the provider, with
+    only a per-role *model* (OpenAI) / *deployment* (Azure) split — there is NO per-role *provider*
+    override (the BYO-Claude ``model``/``provider`` override selects the claude-cli LM, not a generic
+    per-role provider). So binding role A→openai and role B→azure simultaneously is NOT supported;
+    each bind sets the global provider. Phase-1 binds the SAME-provider case (the trio within one
+    provider); cross-provider-per-role is a flagged seam (1b/1c), not faked here."""
+    reg = _read_models_registry()
+    entry = next((m for m in reg["models"] if m.get("id") == model_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"model {model_id!r} not in the pool")
+
+    api_key = _read_model_key(model_id)
+    if not api_key:
+        raise HTTPException(
+            status_code=409,
+            detail=f"model {model_id!r} has no persisted key (re-register it)",
+        )
+
+    # Reuse the Build A env-var mapper: a ProviderConfigRequest carrying this entry's selectors,
+    # role-targeted so only this judge's per-role model/deployment is set.
+    cfg = ProviderConfigRequest(
+        plane="grading", provider=entry["provider"], api_key=api_key,
+        endpoint=entry.get("endpoint"), model=entry.get("model"), role=req.role,
+    )
+    try:
+        env_vars = _provider_env_vars(cfg)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _persist_and_reload_provider(env_vars)  # os.environ + the council settings singleton, no restart
+
+    bound = sorted(set(entry.get("bound_roles", [])) | {req.role})
+    entry["bound_roles"] = bound
+    _write_models_registry(reg)
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ws = workspace.get_active_workspace()
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="model_bind",
+            target=Target(type="model", id=model_id),
+            why={"rationale": f"bound model {model_id!r} to role {req.role}"},
+            before=None,
+            # NEVER the key — only the non-secret binding facts
+            after={"id": model_id, "role": req.role, "provider": entry["provider"],
+                   "model": entry.get("model")},
+        )
+    )
+    return {
+        "ok": True, "id": model_id, "role": req.role,
+        "provider": entry["provider"], "model": entry.get("model"), "bound_roles": bound,
+    }
 
 
 @app.post("/v1/provider/config")

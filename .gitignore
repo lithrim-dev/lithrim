@@ -30,6 +30,10 @@ marketing_raw/
 .provider_env
 .provider_status.json
 
+# MODEL-REGISTRY-1a: the configured-model POOL sidecar — non-secret metadata + capabilities only
+# (the key lives write-only on .provider_env). Repo-root, gitignored by design.
+.models_registry.json
+
 # Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
 .devstack/
 
