@@ -1,0 +1,124 @@
+{
+  "session_id": "session-bench-salvage-RUN-EVAL-FRESH-1-2026-06-25",
+  "stream": "bench-salvage",
+  "phase": "RUN-EVAL-FRESH-1",
+  "driver_bundle_id": "bench-salvage-RUN-EVAL-FRESH-1-driver",
+  "started_at": "2026-06-25T17:50:00Z",
+  "ended_at": "2026-06-25T18:09:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-25T17:50:00Z",
+    "user_approved_at": "2026-06-25T17:50:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Corrected my own RED assertion 'replay not in text' — it contradicted the driver's verbatim deliverable-1 guidance text ('a $0 replay of a stored run is no longer the default'). Re-pinned to the meaningful contract: no replay-VERDICT narration ('Ran a $0 REPLAY eval' / 'VERDICT =' absent), still RED under the old handler.",
+        "evidence": "DRIVER §DELIVERABLES 1 specifies the text containing 'replay'; tests/bff/test_run_eval_fresh.py::test_run_eval_guidance_text_is_a_fresh_grade_not_a_replay_verdict",
+        "decided_at": "2026-06-25T17:58:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Updated 8 existing tests that encoded the now-retired run_eval=replay contract (across 6 files) to the new contract — required to reach a clean BARE-CE green; in-scope as the deliverable changes the run_eval handler contract these tests pinned.",
+        "evidence": "tests/test_uap5b_chat.py, tests/test_uap5c_journey.py, tests/test_chatbind2_pane.py, tests/bff/test_chat_fresh_grade.py, tests/bff/test_chat_case_flow.py, tests/bff/test_verdict_part_impact.py, tests/test_conv_runtime.py",
+        "decided_at": "2026-06-25T18:02:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "1b8a5668cd89b047ce79282690d8d6f8b07cf277",
+      "repo": "lithrim-bench",
+      "title": "test(bff,shell): run_eval surfaces the cost-confirm (fresh grade), never replays — red",
+      "summary": "RED: tests/bff/test_run_eval_fresh.py (handler emits propose_live_run directive, no replay via a raise-on-call run_eval_replay stub, sets active_case, A-SAFE no-paid-knob sweep) + panes.chat.test.jsx chip reads 'Surfacing the cost-confirm…'."
+    },
+    {
+      "hash": "0833a0576681cb16452badde48abbbb074b2a653",
+      "repo": "lithrim-bench",
+      "title": "fix(bff,shell): run_eval surfaces the cost-confirm for a FRESH grade, retiring the stale $0 replay — green",
+      "summary": "run_eval_handler now sets ctx.active_case + emits propose_live_run_part() (calls NO bound op); _TOOL_SPECS description + loop.py _SYSTEM_PROMPT reframed (run/grade/evaluate/run eval -> fresh cost-confirmed grade); panes.jsx TOOL_LABELS chip relabel; 8 contract-pinning tests updated. run_eval_replay retained (not deleted), no schema widening."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "RED committed at 1b8a566 before any source edit; GREEN at 0833a05.",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest tests/bff/test_run_eval_fresh.py -v  &&  (cd apps/shell && npx vitest run src/panes.chat.test.jsx -t 'working indicator shows the latest in-flight')",
+    "red_evidence": "BFF: 6 failed, 2 passed — test_run_eval_emits_the_cost_confirm_directive_never_replays FAILED (ctx.parts == [] vs the expected tool-propose_live_run directive; the old handler routed to run_eval_replay -> the raise-on-call stub tripped 'Replay run failed ... must NOT call run_eval_replay'). The 2 green are A-SAFE invariants (no PAID_KEY) that must NOT regress. MUTATION proof: reverting the handler to call run_eval_replay trips the raise-on-call stub ('MUTATION reddens as expected: called replay'). Shell: 1 failed — Expected 'Surfacing the cost-confirm…' / Received 'Running a $0 replay…'.",
+    "green_command": "unset LITHRIM_BENCH_PACKS_DIR; PYENV_VERSION=debuglithrim python -m pytest -q  &&  PYENV_VERSION=debuglithrim ruff check .  &&  (cd apps/shell && npx vitest run && npm run build)",
+    "green_evidence": "BARE-CE pytest: 906 passed, 158 skipped, 0 failed in 14.93s. ruff: All checks passed!. vitest: 1 failed | 237 passed (the sole failure is the pre-existing app.test.jsx:14 Shell/Journey segmented-control chrome test, unrelated to this change). build: ✓ built in 742ms (dist/assets/index-*.js 646.57 kB; the >500kB chunk warning is pre-existing/advisory)."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "run_eval emits a tool-propose_live_run directive (not a verdict_card) and never calls run_eval_replay (the named RED->GREEN; revert-to-replay mutation reddens)",
+      "test": "tests/bff/test_run_eval_fresh.py::test_run_eval_emits_the_cost_confirm_directive_never_replays",
+      "verdict": "PASS",
+      "evidence": "GREEN; raise-on-call run_eval_replay stub never tripped; ctx.parts == [tool-propose_live_run]; ctx.run_results == []. Mutation check: handler reverted to call run_eval_replay -> 'MUTATION reddens as expected: called replay'."
+    },
+    {
+      "criterion": "run_eval sets ctx.active_case to the passed case_id (mirroring show_case)",
+      "test": "tests/bff/test_run_eval_fresh.py::test_run_eval_sets_the_active_case_to_the_requested_case",
+      "verdict": "PASS",
+      "evidence": "ctx.active_case == 'run_002_faithful' after run_eval(case_id='run_002_faithful')."
+    },
+    {
+      "criterion": "A-SAFE: RUN_EVAL_SCHEMA carries no PAID_KEY; the all-_TOOL_SPECS sweep stays clean; run_eval reaches no paid op even with an injected knob",
+      "test": "tests/bff/test_run_eval_fresh.py::test_run_eval_schema_carries_no_paid_knob_and_stays_a_selector + ::test_no_tool_schema_carries_a_paid_knob_after_the_change + ::test_run_eval_never_reaches_a_paid_op_even_with_an_injected_knob",
+      "verdict": "PASS",
+      "evidence": "RUN_EVAL_SCHEMA == {agent, case_id}; no schema in _TOOL_SPECS exposes confirm/in_process/live; with {in_process,live,confirm} injected the raise-on-call replay stub is never reached and only the directive is emitted."
+    },
+    {
+      "criterion": "_TOOL_SPECS run_eval description = grade fresh / surfaces the cost-confirm / not a replay (route-away wording gone)",
+      "test": "tests/bff/test_run_eval_fresh.py::test_run_eval_description_is_grade_fresh_surfaces_the_cost_confirm_not_a_replay",
+      "verdict": "PASS",
+      "evidence": "desc contains fresh + cost-confirm + 'does not replay' + grade; 'use propose_live_run instead' and 'replay only' are absent."
+    },
+    {
+      "criterion": "Shell: run_eval TOOL_LABELS chip reads 'Surfacing the cost-confirm'; CHAT-FRESH-GRADE-1 confirmPaidRun path unchanged/green",
+      "test": "apps/shell/src/panes.chat.test.jsx (chip label + the CHAT-FRESH-GRADE-1 cost-confirm -> fresh in_process grade + appended verdict card)",
+      "verdict": "PASS",
+      "evidence": "panes.chat.test.jsx: 23 passed (chip 'Surfacing the cost-confirm…' + the 3 CHAT-FRESH-GRADE-1 cases unchanged green)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "bare_ce_pytest": "906 passed / 158 skipped / 0 failed",
+    "ruff": "clean",
+    "vitest": "237 passed / 1 failed (pre-existing app.test.jsx:14)",
+    "build": "ok (742ms)",
+    "files_changed": "11 (3 source: tools.py/loop.py/panes.jsx; 8 test) + 1 new test file",
+    "frozen_seam": "untouched — no app.jsx, no compliance_council.py in either commit"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-RUN-EVAL-FRESH-1a",
+      "title": "Explicit $0-replay tool not yet built; the stale-replay-resolution bug (replay picked a fixed old run 6649be3a) is now moot on the default route but uncleaned for a future replay tool",
+      "severity": "low",
+      "fix_location": "apps/bff/agent/tools.py (run_eval_replay bound op + a future explicit replay tool spec)",
+      "impact": "run_eval_replay + the emit_run/run_results lift channel are retained but dead on the live path; an explicit 'show the last stored result' tool would need its own resolution fix (not the fixed-run bug).",
+      "confidence": "CONFIRMED",
+      "evidence": "tools.py run_eval_handler comment: 'ctx.run_eval_replay ... is intentionally NOT called from this route — retained for a future explicit replay tool'; ToolContext.emit_run docstring notes no live handler calls it today."
+    },
+    {
+      "id": "S-BS-RUN-EVAL-FRESH-1b",
+      "title": "Live owner-check still owed: rebuild -> chat 'run eval on run_002_faithful' -> cost-confirm -> a FRESH PASS card, matching 'run live', no stale 6649be3a",
+      "severity": "medium",
+      "fix_location": "live BFF :8787 + UI :5180 (owner run; services were not started this cycle per no-autostart)",
+      "impact": "The deterministic handler fix + all gates are green offline, but the end-to-end live flip (model picks run_eval -> fresh PASS, not stale REJECT) is unverified live.",
+      "confidence": "INFERRED",
+      "evidence": "DRIVER RETURN §5 names this as the still-owed live check; no service was curl'd/started this cycle (no-autostart standing rule)."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "CLEAN",
+
+  "report": "RUN-EVAL-FRESH-1 lands: the agent's run_eval handler now SURFACES the cost-confirm (emits propose_live_run_part, sets ctx.active_case) for a FRESH live grade instead of doing the stale $0 replay that rendered a frozen wrong REJECT (the fixed pre-calibration run 6649be3a). Whichever tool the model picks (run_eval OR propose_live_run), 'run eval'/'run'/'grade' all land on one fresh cost-confirmed grade. A-SAFE is intact and non-vacuously pinned: RUN_EVAL_SCHEMA has no paid knob, the all-schemas sweep stays clean, and run_eval reaches NO bound op (a raise-on-call run_eval_replay stub proves the no-replay negative; the revert-to-replay mutation reddens). run_eval_replay is retained (not deleted) and the CHAT-FRESH-GRADE-1 confirmPaidRun wiring is unchanged. 8 existing tests that encoded the retired replay contract were updated to the new contract. Gates: BARE-CE 906/0-fail, ruff clean, vitest 237 pass (only the pre-existing app.test.jsx:14 chrome red), build ok; frozen seam (app.jsx, compliance_council.py) untouched. On audit, the monitor should check the floor-INJECTION attribution still surfaces on the live (fresh) path via verdict_part.floorBlocks (test_verdict_part_threads_floor_blocks_attribution) and schedule the owed live owner-run (S-BS-RUN-EVAL-FRESH-1b).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage RUN-EVAL-FRESH-1, then schedule the owed live owner-run (rebuild -> chat 'run eval on run_002_faithful' -> cost-confirm -> fresh PASS, no stale 6649be3a)."
+}
