@@ -1,0 +1,129 @@
+{
+  "session_id": "session-bench-salvage-JUTE-ADDON-1-2026-06-25",
+  "stream": "bench-salvage",
+  "phase": "JUTE-ADDON-1",
+  "driver_bundle_id": "DRIVER_jute_addon_1",
+  "started_at": "2026-06-25T00:00:00Z",
+  "ended_at": "2026-06-25T00:00:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-25T00:00:00Z",
+    "user_approved_at": "2026-06-25T00:00:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "EtlpStructuralBackend 'from the same resolver' implemented as a core-module env→manifest resolver (_default_base_url) since the backend cannot import the BFF app; same LITHRIM_JUTE_URL→manifest precedence, explicit-arg path intact.",
+        "evidence": "lithrim_bench/backends/etlp_structural.py:_default_base_url",
+        "decided_at": "2026-06-25T00:00:00Z"
+      },
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Stale _StubClient in test_ingest_cases_tool.py took no ctor args; gave it base_url kwarg the real client already accepts — a stub catch-up, not a behavior change (called out in the GREEN commit body).",
+        "evidence": "tests/bff/test_ingest_cases_tool.py:182 — class _StubClient.__init__",
+        "decided_at": "2026-06-25T00:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "0d327acb65d06672f8b3f8c29fa1700ad7f6bcf0",
+      "repo": "lithrim-bench",
+      "title": "test(jute): LITHRIM_JUTE_URL resolver + ingest threads it into EtlpJuteClient — red",
+      "summary": "RED acceptance tests: the _jute_base_url() resolver, the manifest-default accessor, the EtlpStructuralBackend env-default, and the spy-construction regression (the named mutation EtlpJuteClient() → override assertion red)."
+    },
+    {
+      "hash": "6492047fd9bb207aa58bfb06c17d507f6273b265",
+      "repo": "lithrim-bench",
+      "title": "feat(jute): make the :3031 mapper a configurable add-on (LITHRIM_JUTE_URL) — green",
+      "summary": "_jute_base_url() (env→etlp_jute manifest default→localhost:3031); _ingest_cases constructs EtlpJuteClient(base_url=...); EtlpStructuralBackend defaults from the same resolution; compose passthrough + opt-in `jute` profile; .env.example + docs/JUTE_MAPPER_ADDON.md; _StubClient kwarg catch-up. Byte-compat when unset."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest -q tests/test_jute_base_url_resolver.py tests/bff/test_jute_addon_url.py",
+    "red_evidence": "6 failed, 3 passed. Right reasons: AttributeError module 'lithrim_bench.harness.plugins' has no attribute 'etlp_jute_default_base_url'; AttributeError module 'app' has no attribute '_jute_base_url'; AssertionError EtlpStructuralBackend().base_url == 'http://localhost:3031' != 'http://jute-host:9999'; AssertionError seen['base_url'] == 'http://localhost:3031' != 'http://jute-host:9999' (the spy-construction regression — url hardcoded, not threaded). The 3 passing are the byte-compat unset==localhost pins.",
+    "green_command": "PYENV_VERSION=debuglithrim python -m pytest -q  &&  PYENV_VERSION=debuglithrim ruff check .",
+    "green_evidence": "862 passed, 158 skipped, 5 warnings in 16.68s; ruff: All checks passed! (The 4 transient failures in tests/bff/test_ingest_cases_tool.py from the stale _StubClient were fixed in the same GREEN commit and pass.)"
+  },
+
+  "acceptance": [
+    {
+      "criterion": "_jute_base_url() returns LITHRIM_JUTE_URL when set; falls back to the manifest default (localhost:3031) when unset",
+      "test": "tests/test_jute_base_url_resolver.py::test_jute_base_url_env_override_wins, ::test_jute_base_url_unset_is_manifest_default, ::test_manifest_default_base_url_is_localhost_3031, ::test_jute_base_url_read_at_call_time",
+      "verdict": "PASS",
+      "evidence": "9 passed in tests/test_jute_base_url_resolver.py + tests/bff/test_jute_addon_url.py"
+    },
+    {
+      "criterion": "_ingest_cases constructs the JUTE client with the RESOLVED url (spy proves it is threaded, not hardcoded); mutation EtlpJuteClient() → red",
+      "test": "tests/bff/test_jute_addon_url.py::test_ingest_threads_env_override_into_jute_client",
+      "verdict": "PASS",
+      "evidence": "GREEN: spy sees override http://jute-host:9999. RED at parent (EtlpJuteClient()): spy saw http://localhost:3031 != override — AssertionError captured."
+    },
+    {
+      "criterion": "EtlpStructuralBackend default base_url honors the env override (unset → localhost:3031, byte-compat; explicit-arg path intact)",
+      "test": "tests/test_jute_base_url_resolver.py::test_structural_backend_default_unset_is_localhost, ::test_structural_backend_default_honors_env, ::test_structural_backend_explicit_arg_overrides_env",
+      "verdict": "PASS",
+      "evidence": "all three pass; explicit base_url='http://explicit:1234' wins over the env override"
+    },
+    {
+      "criterion": "secret/log hygiene: the resolver is a plain return, never logs the url at import; no test needs network",
+      "test": "code review + offline test suite (no :3031)",
+      "verdict": "PASS",
+      "evidence": "_jute_base_url() / _default_base_url() are plain returns; live :3031 tests skip (LITHRIM_NARR_LIVE unset); the new tests mock the verification surface."
+    },
+    {
+      "criterion": "docker-compose: LITHRIM_JUTE_URL passthrough + opt-in `jute` profile (configurable JUTE_IMAGE, no hard-pin); core stack unaffected",
+      "test": "docker compose config (manual)",
+      "verdict": "PASS",
+      "evidence": "`docker compose config --services` → bff, ui (jute absent); `JUTE_IMAGE=x docker compose --profile jute config --services` → bff, jute, ui; LITHRIM_JUTE_URL passthrough present in the bff env."
+    },
+    {
+      "criterion": ".env.example documents LITHRIM_JUTE_URL + JUTE_IMAGE; docs/JUTE_MAPPER_ADDON.md explains run-the-add-on + point-the-CE-at-it; core works without it",
+      "test": "doc review",
+      "verdict": "PASS",
+      "evidence": ".env.example JUTE mapper add-on section; docs/JUTE_MAPPER_ADDON.md (what needs it table, host/compose/remote URL table, the unchanged paste-JSON flow)."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "pytest": "862 passed, 158 skipped, 0 failed",
+    "ruff": "clean",
+    "files_changed": "7 (app.py, plugins.py, etlp_structural.py, docker-compose.yml, .env.example, docs/JUTE_MAPPER_ADDON.md, test_ingest_cases_tool.py) + 2 new test files",
+    "byte_compat_proof": "unset LITHRIM_JUTE_URL → manifest default / _jute_base_url() / EtlpJuteClient().base / EtlpStructuralBackend().base_url all == http://localhost:3031",
+    "frozen_seam": "compliance_council.py untouched; no apps/shell/ touched"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BS-JUTE-ADDON-1-A",
+      "title": "Live Docker ingest against a running mapper not yet exercised (A-LIVE owed)",
+      "severity": "low",
+      "fix_location": "owner A-LIVE smoke",
+      "impact": "Unit/offline proves the url is threaded; a real `docker compose up` + a host/compose mapper at LITHRIM_JUTE_URL + a real paste-JSON ingest is still owed to confirm reachability end-to-end (the original live failure).",
+      "confidence": "CONFIRMED",
+      "evidence": "no real :3031 in this cycle (tests mock the verification surface; live :3031 tests skip on LITHRIM_NARR_LIVE)"
+    },
+    {
+      "id": "S-BS-JUTE-ADDON-1-B",
+      "title": "`jute` compose profile with an EMPTY JUTE_IMAGE errors at config-resolution (under --profile jute)",
+      "severity": "low",
+      "fix_location": "docker-compose.yml jute service",
+      "impact": "`docker compose --profile jute ...` with JUTE_IMAGE unset errors 'neither an image nor a build context'. The CORE stack (no profile) is unaffected — the driver's 'core stack unaffected' guarantee holds; opting into the profile without an image is an actionable error, documented in the comment + docs. No hard-pin was added (driver constraint).",
+      "confidence": "CONFIRMED",
+      "evidence": "docker compose --profile jute config --services → 'service \"jute\" has neither an image nor a build context specified'; base stack → bff, ui"
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "JUTE-ADDON-1 made the :3031 JUTE mapper a configurable opt-in add-on via LITHRIM_JUTE_URL. RED→GREEN clean: the spy-construction regression went red at the hardcoded EtlpJuteClient() and green once threaded. _jute_base_url() resolves env→etlp_jute manifest default→localhost:3031; _ingest_cases threads it; EtlpStructuralBackend defaults from the same env→manifest resolution; the DSPy gen/apply/pin logic is byte-stable. Compose has the passthrough + an opt-in `jute` profile (no hard-pinned image); .env.example + docs/JUTE_MAPPER_ADDON.md cover the user flow. Full suite 862 passed / 158 skipped / 0 failed, ruff clean. Byte-compat proven: unset env == localhost:3031 everywhere. Frozen council seam + apps/shell untouched. Two low seams: a real Docker ingest against a running mapper is owed live (A-LIVE), and the `jute` profile with an empty JUTE_IMAGE errors at config-time (core stack unaffected; no hard-pin per driver).",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage JUTE-ADDON-1 next; A-LIVE owes a real Docker ingest against ../etlp-mapper at LITHRIM_JUTE_URL."
+}
