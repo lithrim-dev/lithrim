@@ -517,12 +517,14 @@ describe("CenterPane — CONV-UX-1 W1: thinking / working stages", () => {
     });
     render(<CenterPane {...props} />);
     const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
-    fireEvent.change(ta, { target: { value: "run a replay" } });
+    fireEvent.change(ta, { target: { value: "run eval on this case" } });
     fireEvent.click(screen.getByTestId("chat-send"));
 
-    // MID-FLIGHT: the non-static indicator shows the running tool's label, not a bare "Thinking…"
+    // MID-FLIGHT: the non-static indicator shows the running tool's label, not a bare "Thinking…".
+    // RUN-EVAL-FRESH-1: run_eval now SURFACES the cost-confirm (a fresh grade), so its chip reads
+    // "Surfacing the cost-confirm…" — never "Running a $0 replay" (the stale-replay route is gone).
     const ind = await screen.findByTestId("working-indicator");
-    expect(ind).toHaveTextContent(/Running a \$0 replay…/);
+    expect(ind).toHaveTextContent(/Surfacing the cost-confirm…/);
     release();
     await waitFor(() => expect(screen.queryByTestId("working-indicator")).toBeNull());
   });
