@@ -180,6 +180,9 @@ def _build_ingest(monkeypatch, tmp_path, *, extractor, score_accepts: bool):
     # stub the :3031 client — find_mapping returns nothing (force generate), test_template
     # echoes a valid 1-record envelope so score_extraction accepts on the happy path.
     class _StubClient:
+        def __init__(self, base_url="http://localhost:3031", **_k):
+            self.base_url = base_url
+
         def find_mapping_by_title(self, _title):
             return None
 

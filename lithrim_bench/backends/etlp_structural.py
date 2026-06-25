@@ -1,7 +1,8 @@
 """EtlpStructuralBackend: HTTP client for the etlp-mapper Jute validator.
 
 Posts HL7 messages or FHIR resources to a running etlp-mapper service
-(default localhost:3031). The validator is the deterministic structural
+(default localhost:3031, overridable via ``LITHRIM_JUTE_URL`` — the mapper
+is an opt-in add-on). The validator is the deterministic structural
 layer in the paper's worst-of composition — it produces a structural
 verdict (BLOCK if any field-level check fails) independently of any
 semantic judge.
@@ -39,6 +40,7 @@ compliance_verdict='approve', flags=[]. Compose with a semantic backend
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from .base import BackendClient, BackendPin, BackendVerdict
@@ -50,11 +52,21 @@ _FHIR_MAPPING: dict[str, int] = {
 }
 
 
+def _default_base_url() -> str:
+    """The configurable JUTE mapper (:3031) URL: ``LITHRIM_JUTE_URL`` if set, else the ``etlp_jute``
+    plugin manifest default (``http://localhost:3031``). The mapper is an opt-in add-on; this is the
+    SAME env→manifest resolution the BFF ingest uses, so an unset env is byte-compat with the old
+    hardcoded localhost:3031. Read at call time, never logged."""
+    from lithrim_bench.harness import plugins
+
+    return os.environ.get("LITHRIM_JUTE_URL") or plugins.etlp_jute_default_base_url()
+
+
 class EtlpStructuralBackend(BackendClient):
     def __init__(
         self,
         *,
-        base_url: str = "http://localhost:3031",
+        base_url: str | None = None,
         api_key: str | None = None,
         timeout: float = 30.0,
         treat_unknown_artifact_as: str = "PASS",
@@ -63,7 +75,7 @@ class EtlpStructuralBackend(BackendClient):
     ):
         import httpx  # noqa: F401
 
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url if base_url is not None else _default_base_url()).rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
         self.treat_unknown_artifact_as = treat_unknown_artifact_as

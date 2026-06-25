@@ -203,6 +203,21 @@ def get_kb_http_client() -> Any | None:
     return None
 
 
+def _jute_base_url() -> str:
+    """The JUTE mapper (:3031) base URL the ingest connects to. The mapper is an OPT-IN add-on
+    (a separate ``../etlp-mapper`` service the user runs), so the URL is configurable:
+    ``LITHRIM_JUTE_URL`` if set (e.g. ``http://host.docker.internal:3031`` for a host-run mapper,
+    or ``http://jute:3031`` for a compose-network service), else the ``etlp_jute`` plugin
+    manifest's default (``http://localhost:3031`` — the ONE place the default lives).
+
+    Read at CALL time (no import-time capture) so Docker env / a live override is honored.
+    BYTE-COMPAT: unset → the manifest default, identical to the prior hardcoded localhost:3031.
+    It is configuration, not a secret — and never logged."""
+    from lithrim_bench.harness import plugins
+
+    return os.environ.get("LITHRIM_JUTE_URL") or plugins.etlp_jute_default_base_url()
+
+
 def _resolve_run_backend(req: RunEvalRequest) -> tuple[bool, bool]:
     """LAUNCH-PREP D1: map a run request to the (live_http, in_process) backend pair.
 
@@ -3085,7 +3100,10 @@ def _build_tool_context(
                 + ". A record missing any of these is rejected."
             )
 
-        client = EtlpJuteClient()
+        # The JUTE mapper is an OPT-IN add-on at a CONFIGURABLE url (_jute_base_url():
+        # LITHRIM_JUTE_URL → the etlp_jute manifest default). In Docker localhost:3031 is the BFF
+        # container itself, so a host/compose/remote mapper is only reachable via the override.
+        client = EtlpJuteClient(base_url=_jute_base_url())
 
         # REUSE (NARR-7.1, generate-at-authoring → pin → REUSE): if a transform is ALREADY pinned for
         # this agent AND it still satisfies the structural invariant on THIS sample (the source shape

@@ -224,6 +224,17 @@ _CORE_TOOL_PLUGINS: tuple[PluginManifest, ...] = (
 )
 
 
+def etlp_jute_default_base_url() -> str:
+    """The JUTE mapper (:3031) default base URL — the SINGLE source of the default, declared on the
+    ``etlp_jute`` plugin manifest. The mapper is an opt-in add-on (a separate ``../etlp-mapper``
+    service); callers resolve the live URL from ``LITHRIM_JUTE_URL`` and fall back HERE so the
+    default lives in one place. A plain lookup — no env, no logging."""
+    for p in _CORE_TOOL_PLUGINS:
+        if p.id == "etlp_jute":
+            return (p.service or {}).get("default_base_url", "http://localhost:3031")
+    return "http://localhost:3031"
+
+
 def tool_plugins(pack: str | None = None) -> list[PluginManifest]:
     """The tool registry (core ∪ a pack) as ``kind: tool`` plugins — the TOOL-1 declaration layer.
     Core tools are the static :data:`_CORE_TOOL_PLUGINS` (the JUTE connector, all-Core); a pack
