@@ -33,22 +33,44 @@ if str(_BFF) not in sys.path:
 
 import app as bff  # noqa: E402
 
-_AGENT = _BFF / "agent"
-if str(_AGENT) not in sys.path:
-    sys.path.insert(0, str(_AGENT))
+# loop.py uses package-relative imports (``from .tools import ...``) — import it as ``agent.loop``
+# (apps/bff is on sys.path above, so ``agent`` is the package). Needs the [agent] extra.
+loop = pytest.importorskip("agent.loop", reason="needs the [agent] extra (loop.py imports the SDK)")
 
 
-def _isolate_provider_env(monkeypatch):
-    """Drop the provider/LLM/chat env keys these tests touch so a write doesn't leak into the rest of
-    the suite (monkeypatch restores them on teardown)."""
-    keys = [
-        "OPENAI_API_KEY", "LITHRIM_LLM_PROVIDER", "LITHRIM_LLM_PROVIDER_RISK",
-        "LITHRIM_LLM_MODEL_RISK", "LITHRIM_CHAT_PROVIDER", "LITHRIM_CHAT_API_KEY",
-        "LITHRIM_CHAT_MODEL", "LITHRIM_CHAT_API_BASE",
-    ]
-    for k in keys:
-        if k in os.environ:
-            monkeypatch.delenv(k, raising=False)
+_PLANE_KEYS = [
+    "OPENAI_API_KEY", "LITHRIM_LLM_PROVIDER", "LITHRIM_LLM_PROVIDER_RISK",
+    "LITHRIM_LLM_MODEL_RISK", "LITHRIM_CHAT_PROVIDER", "LITHRIM_CHAT_API_KEY",
+    "LITHRIM_CHAT_MODEL", "LITHRIM_CHAT_API_BASE",
+]
+
+
+@pytest.fixture()
+def isolate_provider_env(monkeypatch):
+    """Fully isolate the provider plane so a ``_persist_and_reload_provider`` call in a test doesn't
+    leak into the rest of the suite. ``_persist_and_reload_provider`` writes the REAL ``os.environ``
+    (subprocess grades inherit it) AND mutates the council ``settings`` singleton IN PLACE — neither
+    is reverted by monkeypatch — so we snapshot + restore both, mirroring
+    ``test_provider_config.py``'s fixture. Clears the plane keys up front so a test starts clean."""
+    from lithrim_bench.runtime.council import settings as council_settings
+
+    original = council_settings.settings
+    settings_snapshot = {f: getattr(original, f, "") for f in _PLANE_KEYS}
+    env_snapshot = {f: os.environ.get(f) for f in _PLANE_KEYS}
+    for k in _PLANE_KEYS:
+        os.environ.pop(k, None)
+    try:
+        yield
+    finally:
+        council_settings.settings = original
+        for f, v in settings_snapshot.items():
+            if hasattr(original, f):
+                setattr(original, f, v)
+        for f, v in env_snapshot.items():
+            if v is None:
+                os.environ.pop(f, None)
+            else:
+                os.environ[f] = v
 
 
 # ---------------------------------------------------------------------------
@@ -82,11 +104,10 @@ def test_provider_env_dir_non_vacuous(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # 2) the persistence round-trip (the regression for the live bug)
 # ---------------------------------------------------------------------------
-def test_persistence_round_trip_volume_kept_container_gone(tmp_path, monkeypatch):
+def test_persistence_round_trip_volume_kept_container_gone(tmp_path, monkeypatch, isolate_provider_env):
     """With ``LITHRIM_PROVIDER_ENV_DIR=<tmp>``, a write lands in ``<tmp>/.provider_env`` and a FRESH
     read returns the same vars — simulating ``down`` (container/os.environ gone) then ``up`` (volume
-    kept). MUTATION (the RED): point the dir back at REPO_ROOT → the <tmp> read returns empty."""
-    _isolate_provider_env(monkeypatch)
+    kept). MUTATION (the RED): point the dir at a fresh empty dir (the wiped writable layer) → empty."""
     monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(tmp_path))
 
     bff._persist_and_reload_provider(
@@ -108,25 +129,27 @@ def test_persistence_round_trip_volume_kept_container_gone(tmp_path, monkeypatch
     assert fresh["LITHRIM_LLM_PROVIDER_RISK"] == "openai"
     assert fresh["LITHRIM_LLM_MODEL_RISK"] == "gpt-4o"
 
-    # MUTATION proof (would-be RED): a read keyed at REPO_ROOT (the OLD location, the container's
-    # writable layer) returns NONE of the persisted vars — i.e. the bug.
-    monkeypatch.delenv("LITHRIM_PROVIDER_ENV_DIR", raising=False)
-    repo_root_read = bff._parse_env_file(bff._provider_env_path())
-    assert "sk-persist-ROUNDTRIP-do-not-leak" not in repo_root_read.values()
+    # MUTATION proof (the bug, hermetically): the OLD behavior wrote to the container's writable layer
+    # — a DIFFERENT dir than the named volume. Point the resolver at a fresh empty dir (the wiped
+    # writable layer the container is "born with" after a `down`) → the persisted vars are GONE. With
+    # the bug (write keyed at the writable layer, read keyed at the volume) this is exactly what the
+    # user saw: keys/judges reset. Uses an empty tmp dir, NEVER the real repo root.
+    wiped_layer = tmp_path.parent / "container_writable_layer_after_down"
+    wiped_layer.mkdir()
+    monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(wiped_layer))
+    assert not bff._provider_env_path().exists()
+    assert bff._parse_env_file(bff._provider_env_path()) == {}
 
 
 # ---------------------------------------------------------------------------
 # 3) app + loop agree — the chat binding round-trips through the relocated file
 # ---------------------------------------------------------------------------
-def test_app_and_loop_agree_on_the_relocated_provider_env(tmp_path, monkeypatch):
+def test_app_and_loop_agree_on_the_relocated_provider_env(tmp_path, monkeypatch, isolate_provider_env):
     """loop.py's ``.provider_env`` fallback resolves to the SAME <tmp> dir when
     ``LITHRIM_PROVIDER_ENV_DIR`` is set: a ``LITHRIM_CHAT_*`` bind written by the app round-trips to
     ``_chat_provider_config()`` reading the relocated file (os.environ cleared first to force the
     file path). loop.py cannot import app.py — it reads the env var directly."""
-    _isolate_provider_env(monkeypatch)
     monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(tmp_path))
-
-    import loop  # apps/bff/agent/loop.py
 
     bff._persist_and_reload_provider(
         {
@@ -136,9 +159,13 @@ def test_app_and_loop_agree_on_the_relocated_provider_env(tmp_path, monkeypatch)
         }
     )
 
-    # clear os.environ for these so loop.py MUST read the on-disk relocated file
+    # clear os.environ for these so loop.py MUST read the on-disk relocated file. Use a raw
+    # os.environ.pop (NOT monkeypatch.delenv): _persist_and_reload_provider already wrote these to
+    # the real os.environ, and monkeypatch.delenv would CAPTURE that "openai" value and RE-SET it on
+    # teardown (leaking LITHRIM_CHAT_PROVIDER=openai into later chat tests). The isolate_provider_env
+    # fixture owns the full snapshot/restore of the plane.
     for k in ("LITHRIM_CHAT_PROVIDER", "LITHRIM_CHAT_MODEL", "LITHRIM_CHAT_API_KEY"):
-        monkeypatch.delenv(k, raising=False)
+        os.environ.pop(k, None)
 
     cfg = loop._chat_provider_config()
     assert cfg is not None, "loop.py did not find the relocated chat binding"
@@ -152,7 +179,6 @@ def test_loop_keeps_reading_dev_env_files_at_repo_root(tmp_path, monkeypatch):
     repo root. loop.py's repo-root resolver is unchanged; the relocatable ``.provider_env`` dir
     follows the env var."""
     monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(tmp_path))
-    import loop
 
     assert loop._provider_config_root() == bff.REPO_ROOT
     assert loop._relocatable_provider_env_dir() == tmp_path
@@ -163,11 +189,10 @@ def test_loop_keeps_reading_dev_env_files_at_repo_root(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # 4) boot restore — _load_provider_env() restores os.environ from the persisted file
 # ---------------------------------------------------------------------------
-def test_boot_restore_repopulates_os_environ_from_persisted_file(tmp_path, monkeypatch):
+def test_boot_restore_repopulates_os_environ_from_persisted_file(tmp_path, monkeypatch, isolate_provider_env):
     """Writing to ``<tmp>/.provider_env`` then calling ``_load_provider_env()`` (the
     ``@app.on_event('startup')`` path) repopulates ``os.environ`` — the ``up``-restores-config proof.
     A post-``up`` BFF restores keys + bindings into os.environ → grading + chat come back."""
-    _isolate_provider_env(monkeypatch)
     monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(tmp_path))
 
     (tmp_path / ".provider_env").write_text(
@@ -199,16 +224,15 @@ def test_back_compat_unset_is_byte_identical_to_today(monkeypatch):
     assert bff._models_registry_path() == bff.REPO_ROOT / ".models_registry.json"
 
 
-def test_relocated_file_is_still_write_only_no_key_in_a_response(tmp_path, monkeypatch):
+def test_relocated_file_is_still_write_only_no_key_in_a_response(tmp_path, monkeypatch, isolate_provider_env):
     """Secret hygiene is unchanged by the relocation: the relocated ``.provider_env`` carries the key
     write-only and the key is NEVER in any response. Non-vacuous: the key IS on disk, NOT in the
     endpoint body."""
-    _isolate_provider_env(monkeypatch)
     monkeypatch.setenv("LITHRIM_PROVIDER_ENV_DIR", str(tmp_path))
 
-    from fastapi.testclient import TestClient
-
     import importlib
+
+    from fastapi.testclient import TestClient
 
     from lithrim_bench.harness import workspace as ws_mod
 

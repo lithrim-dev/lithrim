@@ -39,6 +39,12 @@ services:
       # the Anthropic-API path only; the litellm chat binding is configured in-app, not here.
       LITHRIM_CHAT_PROVIDER: ${LITHRIM_CHAT_PROVIDER:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # CONFIG-PERSIST-1: where the in-app-configured provider KEYS + per-role/chat bindings
+      # (.provider_env + the .models_registry.json sidecar) persist. Defaulted to /app/out = the
+      # named volume below, so the keys + judge/chat bindings configured in the Connect AI panel
+      # SURVIVE `docker compose down`/`up` (wiped only by `down -v`, exactly like the config DB +
+      # .connector_env). Unset locally → the BFF falls back to the repo root (dev back-compat).
+      LITHRIM_PROVIDER_ENV_DIR: ${LITHRIM_PROVIDER_ENV_DIR:-/app/out}
       # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
       LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
       # PACK-DROPIN-1: the pack drop-in path INSIDE the container, default /dropin-packs (the host
@@ -60,10 +66,12 @@ services:
       # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
       # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
       # Persists config SQLite + run blobs + per-workspace .connector_env across `up`/`down`;
-      # `docker compose down -v` resets to the clean seed. The in-app provider key (.provider_env)
-      # lives in the container for the session (applied live, no restart); pass keys via env for
-      # cross-`down` persistence. (Never bind-mount single files that may not exist on the host —
-      # docker creates them as DIRECTORIES and crashes the env-loader.)
+      # `docker compose down -v` resets to the clean seed. CONFIG-PERSIST-1: the in-app provider
+      # keys + judge/chat bindings (.provider_env + the .models_registry.json sidecar) ALSO persist
+      # here now — LITHRIM_PROVIDER_ENV_DIR defaults to /app/out (this volume), so UI-configured keys
+      # + bindings survive `up`/`down` and are wiped back to the clean seed only by `down -v`, exactly
+      # like the config DB + .connector_env. (Never bind-mount single files that may not exist on the
+      # host — docker creates them as DIRECTORIES and crashes the env-loader.)
       - lithrim_out:/app/out
       # PACK-DROPIN-1: the pack drop-in volume. A DIRECTORY bind (host ./packs-dropin, gitignored,
       # empty by default — a tracked .gitkeep keeps it present). Read-only: packs are DATA the

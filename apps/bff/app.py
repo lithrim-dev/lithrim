@@ -526,20 +526,73 @@ _STORYWORLD_KEY_VAR = "STORYWORLD_API_KEY"
 _STORYWORLD_PII_KEYS = ("child_name", "age", "reader_note", "reader_feedback", "child_age")
 
 # CE-PROVIDER-BACKEND (Build A, SPEC §3.1): the user's LLM provider key is written ONLY to a
-# gitignored repo-root `.provider_env` (NEVER SQLite/manifest/git/the response/logs). Loaded into
+# gitignored `.provider_env` (NEVER SQLite/manifest/git/the response/logs). Loaded into
 # os.environ at BFF startup (mirrors _load_live_env) so subprocess grades inherit it; the in-process
 # council `settings` singleton is refreshed in place on each write so build_judge_lm sees a new key
 # with no restart. Per-plane non-secret status (provider/model/endpoint/last_tested) lives in a
 # gitignored `.provider_status.json` sidecar so GET /v1/provider/status survives a restart.
-_PROVIDER_ENV_PATH = REPO_ROOT / ".provider_env"
-_PROVIDER_STATUS_PATH = REPO_ROOT / ".provider_status.json"
+#
+# CONFIG-PERSIST-1: WHERE these live is a configurable directory (``LITHRIM_PROVIDER_ENV_DIR``),
+# default ``REPO_ROOT`` for dev back-compat. docker-compose defaults it to ``/app/out`` (the named
+# volume) so the in-app-configured keys + judge/chat bindings SURVIVE ``docker compose down``/``up``
+# (wiped only by ``down -v``, exactly like the config DB + ``.connector_env``). Previously these sat
+# at ``REPO_ROOT/.provider_env`` = ``/app/.provider_env`` = the container's writable layer, which
+# ``down`` removes — so the keys/judges reset after ``up``. The constants below are the UNSET-DEFAULT
+# anchors (== today when ``LITHRIM_PROVIDER_ENV_DIR`` is unset). Every read/write resolves at CALL
+# time via the helpers (so the env var is honored without an import-time freeze).
+_PROVIDER_ENV_NAME = ".provider_env"
+_PROVIDER_STATUS_NAME = ".provider_status.json"
+_MODELS_REGISTRY_NAME = ".models_registry.json"
+
+
+def _provider_env_dir() -> Path:
+    """The directory the in-app provider keys/bindings sidecars live in. ``LITHRIM_PROVIDER_ENV_DIR``
+    if set (docker-compose defaults it to ``/app/out`` = the named volume → survives ``down``/``up``),
+    else ``REPO_ROOT`` (dev back-compat, byte-identical to today). Read at call time."""
+    override = os.environ.get("LITHRIM_PROVIDER_ENV_DIR")
+    return Path(override) if override else REPO_ROOT
+
+
+def _provider_env_path() -> Path:
+    """The resolved ``.provider_env`` path (the provider keys + per-role/chat bindings). When unset
+    == ``_PROVIDER_ENV_PATH`` (so existing tests that monkeypatch that constant still work)."""
+    override = os.environ.get("LITHRIM_PROVIDER_ENV_DIR")
+    return Path(override) / _PROVIDER_ENV_NAME if override else _PROVIDER_ENV_PATH
+
+
+def _provider_status_path() -> Path:
+    """The resolved ``.provider_status.json`` sidecar path (non-secret per-plane status)."""
+    override = os.environ.get("LITHRIM_PROVIDER_ENV_DIR")
+    return Path(override) / _PROVIDER_STATUS_NAME if override else _PROVIDER_STATUS_PATH
+
+
+def _models_registry_path() -> Path:
+    """The resolved ``.models_registry.json`` model-pool sidecar path."""
+    override = os.environ.get("LITHRIM_PROVIDER_ENV_DIR")
+    return Path(override) / _MODELS_REGISTRY_NAME if override else _MODELS_REGISTRY_PATH
+
+
+def _write_sidecar(path: Path, text: str) -> None:
+    """Write a provider-plane sidecar, creating the parent dir if missing (the volume root exists, but
+    a custom ``LITHRIM_PROVIDER_ENV_DIR`` may not). NEVER logs the content — these carry secrets."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+# The unset-default anchors (== today). Existing tests monkeypatch these; the resolvers above fall
+# back to them whenever ``LITHRIM_PROVIDER_ENV_DIR`` is unset, so a write/read is byte-identical to
+# the pre-CONFIG-PERSIST-1 behavior unless the env var relocates the dir.
+_PROVIDER_ENV_PATH = REPO_ROOT / _PROVIDER_ENV_NAME
+_PROVIDER_STATUS_PATH = REPO_ROOT / _PROVIDER_STATUS_NAME
 # MODEL-REGISTRY-1a (SPEC_COMMUNITY_EDITION §8): the configured-model POOL — a registered model is a
 # first-class, reusable, capability-aware entity (the LiteLLM ``model_list`` pattern), decoupled from
 # the judge role. The non-secret metadata (id/provider/model/endpoint/capabilities/last_tested/
 # bound_roles) lives in this gitignored repo-root sidecar; the SECRET rides Build A's ``.provider_env``
 # under a per-model namespaced WRITE-ONLY var (``_model_key_var`` — never SQLite/manifest/git/the
 # response/logs/this sidecar). A role BINDS to a pool entry, reusing the Build A env-var mechanism.
-_MODELS_REGISTRY_PATH = REPO_ROOT / ".models_registry.json"
+# CONFIG-PERSIST-1: the unset-default anchor (== today); resolved at call time via
+# ``_models_registry_path()`` so it follows ``LITHRIM_PROVIDER_ENV_DIR`` into the volume.
+_MODELS_REGISTRY_PATH = REPO_ROOT / _MODELS_REGISTRY_NAME
 
 
 def _load_connector_env(ws) -> dict[str, str]:
@@ -673,8 +726,10 @@ def _load_provider_env() -> None:
     at BFF startup, BEFORE any council import — so a restarted BFF still hands the key to subprocess
     grades AND, on first import, the council ``settings`` singleton reads it from env. Unlike
     ``_load_live_env`` this OVERWRITES (the env file is the user's last explicit in-app choice, the
-    source of truth for the provider plane). Absent file → no-op."""
-    for key, val in _parse_env_file(_PROVIDER_ENV_PATH).items():
+    source of truth for the provider plane). Absent file → no-op. CONFIG-PERSIST-1: reads the resolved
+    path (``LITHRIM_PROVIDER_ENV_DIR`` → the named volume in Docker), so a post-``up`` BFF restores the
+    persisted keys + bindings into os.environ on boot."""
+    for key, val in _parse_env_file(_provider_env_path()).items():
         os.environ[key] = val
 
 
@@ -3505,7 +3560,7 @@ def _stored_provider_api_version(provider: str) -> str | None:
     reuses it — no re-entry). Only azure stores one; other providers return None."""
     if provider != "azure":
         return None
-    return _parse_env_file(_PROVIDER_ENV_PATH).get("AZURE_OPENAI_API_VERSION") or None
+    return _parse_env_file(_provider_env_path()).get("AZURE_OPENAI_API_VERSION") or None
 
 
 def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
@@ -3691,9 +3746,9 @@ def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
     no-restart guarantee. To still pick up env keys not in ``env_vars`` (other planes), a throwaway
     ``Settings()`` is read from env and its declared fields are copied ONTO the live holder in place."""
     # 2) merge + write-only to .provider_env (never SQLite/manifest/response/logs)
-    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged = _parse_env_file(_provider_env_path())
     merged.update(env_vars)
-    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+    _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in merged.items()))
     # 3) os.environ → inherited by the next subprocess grade
     for key, val in env_vars.items():
         os.environ[key] = val
@@ -3734,9 +3789,10 @@ def _read_provider_status() -> dict:
     """Read the gitignored ``.provider_status.json`` non-secret sidecar (provider/model/endpoint/
     last_tested per plane). Absent → both planes unconfigured. NEVER carries a key."""
     base = {"grading": {"configured": False}, "assistant": {"configured": False}}
-    if _PROVIDER_STATUS_PATH.exists():
+    status_path = _provider_status_path()
+    if status_path.exists():
         try:
-            stored = json.loads(_PROVIDER_STATUS_PATH.read_text())
+            stored = json.loads(status_path.read_text())
             for plane in ("grading", "assistant"):
                 if plane in stored:
                     base[plane] = stored[plane]
@@ -3879,9 +3935,10 @@ def _model_key_var(model_id: str) -> str:
 def _read_models_registry() -> dict:
     """Read the gitignored ``.models_registry.json`` pool sidecar (a list of non-secret entries).
     Absent / malformed → an empty pool. NEVER carries a key."""
-    if _MODELS_REGISTRY_PATH.exists():
+    registry_path = _models_registry_path()
+    if registry_path.exists():
         try:
-            stored = json.loads(_MODELS_REGISTRY_PATH.read_text())
+            stored = json.loads(registry_path.read_text())
             if isinstance(stored, dict) and isinstance(stored.get("models"), list):
                 return stored
         except (json.JSONDecodeError, OSError):
@@ -3890,28 +3947,28 @@ def _read_models_registry() -> dict:
 
 
 def _write_models_registry(reg: dict) -> None:
-    _MODELS_REGISTRY_PATH.write_text(json.dumps(reg, indent=2) + "\n")
+    _write_sidecar(_models_registry_path(), json.dumps(reg, indent=2) + "\n")
 
 
 def _persist_model_key(model_id: str, api_key: str) -> None:
     """WRITE-ONLY persist the model's key under its namespaced var on ``.provider_env`` (REUSING
     Build A's secret hygiene — never SQLite/manifest/git/the response/logs/the registry sidecar)."""
-    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged = _parse_env_file(_provider_env_path())
     merged[_model_key_var(model_id)] = api_key
-    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+    _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in merged.items()))
 
 
 def _drop_model_key(model_id: str) -> None:
     """Remove a model's namespaced key var from ``.provider_env`` (the DELETE path)."""
-    merged = _parse_env_file(_PROVIDER_ENV_PATH)
+    merged = _parse_env_file(_provider_env_path())
     merged.pop(_model_key_var(model_id), None)
-    _PROVIDER_ENV_PATH.write_text("".join(f"{k}={v}\n" for k, v in merged.items()))
+    _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in merged.items()))
 
 
 def _read_model_key(model_id: str) -> str | None:
     """Read a model's persisted key back from ``.provider_env`` (the BIND path needs it to wire the
     role's env). Stays on-disk: the key is never returned to a caller or logged."""
-    return _parse_env_file(_PROVIDER_ENV_PATH).get(_model_key_var(model_id))
+    return _parse_env_file(_provider_env_path()).get(_model_key_var(model_id))
 
 
 class ModelRegisterRequest(BaseModel):
@@ -3954,7 +4011,7 @@ def _live_provider_catalog(provider: str, presets: list[dict]) -> tuple[list[dic
     fetch error → presets-only (each ``source:"preset"``) + a per-provider status note; never 500,
     never the key in the note. On success: preset ⊕ live, deduped by ``model`` (preset wins the
     capability row), each tagged ``source``. Returns ``(rows, status)``."""
-    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    env = _parse_env_file(_provider_env_path())
     key_var = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}.get(provider)
     api_key = (env.get(key_var) if key_var else None) or None
 
@@ -4212,7 +4269,7 @@ def provider_config_endpoint(
         "role": req.role,
         "last_tested": last_tested,
     }
-    _PROVIDER_STATUS_PATH.write_text(json.dumps(status, indent=2) + "\n")
+    _write_sidecar(_provider_status_path(), json.dumps(status, indent=2) + "\n")
 
     actor = _resolve_actor(x_actor, default_actor)
     ws = workspace.get_active_workspace()
@@ -4272,7 +4329,7 @@ def _stored_provider_key(provider: str) -> str | None:
     var = _PROVIDER_SECRET_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_PROVIDER_ENV_PATH).get(var) or None
+    return _parse_env_file(_provider_env_path()).get(var) or None
 
 
 def _stored_provider_endpoint(provider: str) -> str | None:
@@ -4280,12 +4337,12 @@ def _stored_provider_endpoint(provider: str) -> str | None:
     var = _PROVIDER_ENDPOINT_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_PROVIDER_ENV_PATH).get(var) or None
+    return _parse_env_file(_provider_env_path()).get(var) or None
 
 
 def _connected_providers() -> list[str]:
     """The providers with a stored key on .provider_env (Section 1's connected list). NO key."""
-    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    env = _parse_env_file(_provider_env_path())
     return [p for p, var in _PROVIDER_SECRET_VAR.items() if env.get(var)]
 
 
@@ -4293,7 +4350,7 @@ def _read_role_bindings() -> dict:
     """The non-secret per-consumer readout — which {provider, model} each of the 4 roles is bound to,
     derived from .provider_env (the per-role LITHRIM_LLM_*_<ROLE> for judges; LITHRIM_CHAT_* for
     chat). An unbound role is None. NEVER carries a key."""
-    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    env = _parse_env_file(_provider_env_path())
     roles: dict[str, dict | None] = {}
     for role, suffix in _ROLE_BIND_JUDGE_ENV.items():
         prov = env.get(f"LITHRIM_LLM_PROVIDER_{suffix}")

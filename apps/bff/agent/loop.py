@@ -351,26 +351,42 @@ async def _deny_non_lithrim(input_data, tool_use_id, context):
 
 
 def _provider_config_root():
-    """The repo-root directory the chat-provider env-file fallback reads (``.env`` / ``.live_env``
-    / ``.provider_env``). Factored out so tests can point it at a tmp dir (no real .env leaks in)."""
+    """The repo-root directory the chat-provider env-file fallback reads the DEV-AUTHOR files
+    (``.env`` / ``.live_env``) from. Factored out so tests can point it at a tmp dir (no real .env
+    leaks in). NOTE: ``.provider_env`` is NOT read from here — it is relocatable (CONFIG-PERSIST-1);
+    see ``_relocatable_provider_env_dir``."""
     from pathlib import Path
 
     return Path(__file__).resolve().parents[3]  # apps/bff/agent/loop.py → repo root
 
 
+def _relocatable_provider_env_dir():
+    """CONFIG-PERSIST-1: the dir the in-app ``.provider_env`` (provider keys + ``LITHRIM_CHAT_*``)
+    lives in — ``LITHRIM_PROVIDER_ENV_DIR`` if set (docker-compose defaults it to ``/app/out`` = the
+    named volume, so a restarted/``down``-``up``ed BFF still finds the persisted chat binding), else
+    the repo root (dev back-compat). loop.py cannot import app.py — it reads the env var directly,
+    mirroring ``app._provider_env_dir``."""
+    import os
+    from pathlib import Path
+
+    override = os.environ.get("LITHRIM_PROVIDER_ENV_DIR")
+    return Path(override) if override else _provider_config_root()
+
+
 def _read_chat_env(name: str) -> str | None:
-    """Read ``name`` from os.environ, else the gitignored repo-root ``.env`` / ``.live_env`` /
-    ``.provider_env``, at TURN time — so flipping a chat-provider var needs no BFF restart. The
-    chat api_key (``LITHRIM_CHAT_API_KEY``) is written to ``.provider_env`` by the provider endpoint;
-    we read it here. NEVER logs the value."""
+    """Read ``name`` from os.environ, else the gitignored ``.env`` / ``.live_env`` (dev-author files,
+    repo-root) / ``.provider_env`` (the relocatable in-app sidecar, CONFIG-PERSIST-1), at TURN time —
+    so flipping a chat-provider var needs no BFF restart. The chat api_key
+    (``LITHRIM_CHAT_API_KEY``) is written to ``.provider_env`` by the provider endpoint; we read it
+    here. NEVER logs the value."""
     import os
 
     v = os.environ.get(name)
     if v:
         return v
     root = _provider_config_root()
-    for fname in (".env", ".live_env", ".provider_env"):
-        f = root / fname
+    candidates = [root / ".env", root / ".live_env", _relocatable_provider_env_dir() / ".provider_env"]
+    for f in candidates:
         if not f.exists() or not f.is_file():
             continue
         for raw in f.read_text().splitlines():
