@@ -51,9 +51,15 @@ async function call(path, { method = "GET", body, headers } = {}) {
 /* POST /v1/run-eval — drive one case end-to-end. replay (live=false) is the $0
    default; live=true opts into one real, paid council run on the configured backend
    (LITHRIM_COUNCIL_BACKEND: in_process [the OSS default, BYO key] | http [:8002]);
-   in_process=true forces the in-process v2 council — the path an authored judge re-votes on. */
-export const runEval = ({ agent = "ws0_default", live = false, in_process = false, case_id = null } = {}) =>
-  call("/v1/run-eval", { method: "POST", body: { agent, live, in_process, ...(case_id ? { case_id } : {}) } });
+   in_process=true forces the in-process v2 council — the path an authored judge re-votes on.
+   CHAT-FRESH-GRADE-1: `confirm` carries the human's in-DOM cost-confirm so a chat "run eval"
+   grades FRESH (the same cost-gated path the TopBar "Run live" button takes); it is sent only
+   when set (the $0 replay never carries it) and rides the run-eval body harmlessly. */
+export const runEval = ({ agent = "ws0_default", live = false, in_process = false, confirm = false, case_id = null } = {}) =>
+  call("/v1/run-eval", {
+    method: "POST",
+    body: { agent, live, in_process, ...(confirm ? { confirm } : {}), ...(case_id ? { case_id } : {}) },
+  });
 
 /* GET /v1/runs — the run-history list (newest-first). Each row's run_id round-trips
    to getRunAudit(run_id). (UAP-3 R6/S-BS-56; all via BASE, no hardcoded :8787.) */

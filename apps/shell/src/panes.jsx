@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -250,6 +250,50 @@ const STEP_PROMPTS = {
 };
 const GUIDED_SETUP_PROMPT = "Help me set up my first evaluation from scratch";
 
+// CHAT-FRESH-GRADE-1: project a run-eval RECORD into the verdict-card output, the SAME way the
+// agent-emitted card is built (apps/bff/agent/adapter.py verdict_part) — so a fresh grade the human
+// cost-confirmed renders the IDENTICAL inline VerdictCard the agent's run_eval card does. Mirrors
+// verdict_part's fields: verdict/confidence/agreement/answer/votes/floorBlocks/faithfulness pillar.
+function verdictShape(rec) {
+  const composite = rec?.composite || {};
+  const council = rec?.council || {};
+  const votes = council.votes || [];
+  const verdict = String(composite.verdict || composite.stage_verdict || "—");
+  const findings = (composite.active_findings || []).map((f) =>
+    typeof f === "object" && f ? String(f.flag_code || f.code || f) : String(f),
+  );
+  const n = votes.length;
+  const agree = n
+    ? votes.filter((v) => (v.vote || "").toLowerCase() === (votes[0].vote || "").toLowerCase()).length
+    : 0;
+  const confs = votes.map((v) => v.confidence).filter((c) => typeof c === "number");
+  const conf = confs.length ? (confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2) : "—";
+  const out = {
+    id: rec?.pipeline_run_id || rec?.case_id || "run",
+    verdict: verdict.toUpperCase(),
+    confidence: conf,
+    agreement: n ? `${agree} / ${n}` : "—",
+    answer: findings.length ? `${findings.length} finding(s): ${findings.slice(0, 6).join(", ")}` : "No findings — passes the quality gate.",
+    runId: rec?.pipeline_run_id || "",
+    votes: votes.map((v) => ({
+      role: String(v.judge_role || v.role || "judge"),
+      vote: String(v.vote || ""),
+      ...(typeof v.confidence === "number" ? { confidence: v.confidence } : {}),
+      ...(v.reason ? { reason: String(v.reason) } : {}),
+    })),
+  };
+  const floorBlocks = (composite.floor_adjustments || [])
+    .filter((fa) => fa.action === "floor_block")
+    .map((fa) => ({ flag: fa.flag, contract_type: fa.contract_type, contract: fa.contract, disposition: fa.disposition }));
+  if (floorBlocks.length) out.floorBlocks = floorBlocks;
+  const faith = votes.find((v) => String(v.judge_role || "").toLowerCase().includes("faith"));
+  if (faith) {
+    out.pillar = "Faithfulness";
+    out.pillarStatus = ["PASS", "APPROVE"].includes(String(faith.vote || "").toUpperCase()) ? "clear ✓" : "flagged";
+  }
+  return out;
+}
+
 export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
@@ -470,13 +514,28 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     taRef.current?.focus();
   };
 
-  // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by
-  // the in-DOM CostModal (never window.confirm). On confirm, hit the EXISTING
-  // confirm-gated endpoint via the app's run handler.
+  // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by the in-DOM
+  // CostModal (never window.confirm). CHAT-FRESH-GRADE-1: confirming GRADES THE CASE FRESH — one
+  // cost-gated in_process grade (the SAME paid path the TopBar "Run live" button takes) — then
+  // (a) appends the fresh verdict card to the chat thread (so the conversation shows the fresh
+  // result, not a stale replay) and (b) lifts the SAME rec to the report via onRunResult. It runs
+  // the grade ITSELF (not onRunEval) so it gets the rec back without editing app.jsx, and it never
+  // ALSO calls onRunEval — a single paid call, no double-spend. The TopBar "Run live" path is
+  // unchanged (it still calls onRunEval directly).
   const confirmPaidRun = async () => {
     setPaid((p) => ({ ...p, busy: true }));
     try {
-      await onRunEval?.(true); // the existing live/paid path (TopBar's "Run live")
+      const rec = await runEval({ agent, in_process: true, confirm: true, ...(activeCase ? { case_id: activeCase } : {}) });
+      // (a) the fresh result renders as a verdict card INLINE in the chat (the same card the agent
+      // emits) — appended as a fresh assistant turn so it survives + persists with the thread.
+      setChat((c) => [
+        ...c,
+        { role: "assistant", text: "", parts: [{ type: "tool-verdict_card", state: "output-available", output: verdictShape(rec) }] },
+      ]);
+      // (b) lift the SAME rec to the shared report (Report/Judge tabs + run history) — consistent.
+      onRunResult?.(rec);
+    } catch (err) {
+      setChat((c) => [...c, { role: "assistant", text: `⚠ ${String(err.message || err)}`, parts: [] }]);
     } finally {
       setPaid({ open: false, busy: false });
     }
