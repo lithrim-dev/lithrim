@@ -19,8 +19,12 @@ WORKDIR /app
 COPY . /app
 
 # The default install stays offline pydantic+pandas; [bff] adds FastAPI/uvicorn/httpx,
-# [council] adds the vendored council's openai/tenacity/pydantic-settings.
-RUN pip install --no-cache-dir -e ".[bff,council]"
+# [council] adds the vendored council's openai/tenacity/pydantic-settings, and
+# [verification] adds dspy + litellm — the LIVE multi-provider plane: the provider probe
+# (POST /v1/provider/config), per-role grading (build_judge_lm), and the provider-agnostic
+# conversation loop (_litellm_loop) all import litellm. WITHOUT it a live Azure/OpenAI/Gemini
+# connect 400s with ModuleNotFoundError (the offline $0 demo/replay needs none of it).
+RUN pip install --no-cache-dir -e ".[bff,council,verification]"
 
 EXPOSE 8787
 

@@ -11,9 +11,12 @@
 # host `out/` (dev workspaces + agents pinned to packs the container doesn't ship). State persists
 # across `up`/`down`; `docker compose down -v` wipes it back to the clean seed.
 #
-# Chat: the `claude` CLI assistant cannot run in a container — set LITHRIM_CHAT_PROVIDER=anthropic
-# + ANTHROPIC_API_KEY (below) to drive the conversational surface via the Anthropic API. Grading
-# and `make demo` do NOT need it.
+# Chat: the local `claude` CLI (BYO-Claude) assistant cannot run in a container. Instead, assign the
+# chat_assistant a provider in the Connect AI panel (Azure/OpenAI/Gemini/… — the cross-provider
+# conversation runs through litellm, no CLI needed); the UI writes the binding to .provider_env live.
+# An Anthropic-API chat (LITHRIM_CHAT_PROVIDER=anthropic + ANTHROPIC_API_KEY) needs the [agent] extra +
+# the claude CLI binary, neither baked into this image — so in Docker, drive chat via a litellm provider.
+# Grading and `make demo` do NOT need any of this.
 
 services:
   bff:
@@ -31,7 +34,9 @@ services:
       AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-}
       AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
       LITHRIM_LLM_PROVIDER: ${LITHRIM_LLM_PROVIDER:-}
-      # Conversational assistant (containerized chat → Anthropic API, not the local claude CLI).
+      # Conversational assistant. Preferred: assign chat_assistant a provider in the Connect AI panel
+      # (cross-provider via litellm — written to .provider_env live, no CLI). These pass-throughs cover
+      # the Anthropic-API path only; the litellm chat binding is configured in-app, not here.
       LITHRIM_CHAT_PROVIDER: ${LITHRIM_CHAT_PROVIDER:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
