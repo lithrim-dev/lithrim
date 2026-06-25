@@ -177,6 +177,143 @@ class PresenceCheck(VerificationContract):
         )
 
 
+# A small, domain-neutral English stopword set: the connective/function words that carry
+# no asserted claim (so an answer made entirely of them grounds vacuously). Kept deliberately
+# minimal — only words that are never themselves a faithfulness claim — so we don't drop a real
+# content token. The numeric-salience rule below means figures ("100","20") are ALWAYS salient.
+_STOPWORDS = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "did", "do",
+        "does", "for", "from", "had", "has", "have", "her", "here", "his", "how", "into", "its",
+        "may", "not", "now", "off", "our", "out", "per", "she", "should", "so", "some", "such",
+        "than", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those",
+        "through", "thus", "to", "too", "was", "were", "what", "when", "where", "which", "while",
+        "who", "whom", "why", "will", "with", "would", "yes", "you", "your", "yours",
+    }
+)
+
+
+def _light_stem(token: str) -> str:
+    """A LIGHT morphology normalizer so ``includes``≈``include`` and ``storing``≈``store``
+    match without a real stemmer. Strip ``ing``/``ed`` first, then a single trailing ``s``
+    (the plural ``s``: ``includes``→``include`` — NOT an ``es`` strip, which would over-cut
+    ``includes``→``includ`` and DESYNC from the source's ``include``). Never stem below 3
+    chars (so ``is``/``as`` stay intact). Both the answer and the source pass through this,
+    so the normalization is symmetric by construction."""
+    for suffix in ("ing", "ed"):
+        if token.endswith(suffix) and len(token) - len(suffix) >= 3:
+            return token[: -len(suffix)]
+    if token.endswith("s") and not token.endswith("ss") and len(token) - 1 >= 3:
+        return token[:-1]
+    return token
+
+
+class SourceGrounding(VerificationContract):
+    """The answer⊆source faithfulness floor — the S-BS-7 presence-check GENERALIZED.
+
+    Where :class:`PresenceCheck` clears ``"X not in transcript"`` by finding X in the
+    transcript, this clears ``"the answer contradicts / asserts beyond the source"`` by
+    proving the inverse: EVERY salient claim the ANSWER makes is present in the SOURCE.
+    If the answer says nothing the source does not also state, it can neither contradict
+    the source (SOURCE_CONTRADICTION) nor assert beyond it (UNSUPPORTED_ASSERTION) — the
+    finding is disproved.
+
+    Conservative / anti-masking by construction: SUPPRESS ONLY on FULL grounding — every
+    salient (stemmed) answer token must appear in the (stemmed) source token set. ANY
+    ungrounded salient token ⇒ the finding STANDS (the ungrounded tokens ARE the potential
+    fabrication). A real fabrication (a claim absent from the source — "unlimited storage,
+    lifetime guarantee") is therefore NEVER cleared. Never raises on a missing field: an
+    absent artifact/source is treated as ``""`` → nothing grounds → ``disproved=False``
+    (never clear by silence).
+
+    Pure-stdlib / ``in_process`` (no network, no LM). All params optional:
+      params = {"source_path":  "transcript",   # dotted path to the source material
+                "token_min_len": 4,              # min len for an ALPHA token to be salient
+                "noise_tokens":  []}             # extra tokens to treat as non-salient
+    """
+
+    contract_type = "source_grounding"
+
+    def __init__(self, decl: VerificationContractDecl) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        params = decl.params
+        self._source_path = params.get("source_path", "transcript")
+        self._token_min_len = int(params.get("token_min_len", 4))
+        self._noise = {t.lower() for t in (params.get("noise_tokens") or [])}
+
+    def _salient_answer_tokens(self, answer: str) -> dict[str, str]:
+        """The salient tokens of the answer, mapped ``stem -> surface`` (the surface form is
+        kept for a human-readable reason). Numeric tokens are ALWAYS salient ("100"/"20"); an
+        alpha token is salient iff len ≥ token_min_len and not a stopword / declared noise.
+        Light-stemmed for morphology robustness — the stem is the grounding-comparison key."""
+        out: dict[str, str] = {}
+        for tok in re.split(r"[^a-z0-9]+", answer.lower()):
+            if not tok:
+                continue
+            if tok.isdigit():
+                out.setdefault(tok, tok)
+                continue
+            if len(tok) < self._token_min_len:
+                continue
+            if tok in _STOPWORDS or tok in self._noise:
+                continue
+            out.setdefault(_light_stem(tok), tok)
+        return out
+
+    def _source_token_set(self, source: str) -> set[str]:
+        """Every token of the source, stemmed — the grounding vocabulary an answer token must
+        hit. Digits kept verbatim; alpha tokens light-stemmed to match the answer side."""
+        out: set[str] = set()
+        for tok in re.split(r"[^a-z0-9]+", source.lower()):
+            if not tok:
+                continue
+            out.add(tok if tok.isdigit() else _light_stem(tok))
+        return out
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        answer = (
+            _artifact_content(case)
+            or case.get("artifact")
+            or case.get("artifact_text")
+            or ""
+        )
+        source = (
+            _resolve_path(case, self._source_path)
+            or case.get("transcript")
+            or case.get("context")
+            or ""
+        )
+        salient = self._salient_answer_tokens(str(answer))
+        source_tokens = self._source_token_set(str(source))
+
+        # The ungrounded surface forms — the potential fabrication — sorted for determinism.
+        ungrounded = sorted(surface for stem, surface in salient.items() if stem not in source_tokens)
+        # Conservative: with NO salient tokens, nothing is grounded -> never clear by silence.
+        if not salient or ungrounded:
+            sample = ungrounded[:5] if ungrounded else ["<no salient claim grounded>"]
+            return Verdict(
+                disproved=False,
+                # ``evidence`` carries the FULL ungrounded set for audit; ``reason`` a ≤5 sample.
+                evidence=", ".join(ungrounded) if ungrounded else None,
+                reason=(
+                    f"answer contains content absent from the source: {sample} — "
+                    f"the finding stands"
+                ),
+            )
+        grounded = sorted(salient.values())
+        return Verdict(
+            disproved=True,
+            matched_token=next(iter(grounded), None),
+            evidence=", ".join(grounded[:5]),
+            reason=(
+                "every salient claim in the answer is present in the source — the answer "
+                f"asserts nothing the source does not state; {self.flag_code} is disproved"
+            ),
+        )
+
+
 class KbGrounding(VerificationContract):
     """Disprove a confident-but-wrong council flag by GROUNDING its claim in the
     knowledge base — the S-BS-7 presence-check generalized from the transcript to
@@ -382,6 +519,9 @@ _CONTRACT_EXECUTORS = {
     # CONN-WEBSEARCH-1: non-authoritative by construction — it attaches web evidence but its
     # ``check`` ALWAYS returns ``disproved=False``, so it can never suppress (clear) a finding.
     "web_search": WebSearchGrounding,
+    # GROUND-FLOOR-SOURCE-1: the answer⊆source faithfulness floor — pure-stdlib/in_process, the
+    # S-BS-7 presence-check generalized (suppress-only-on-FULL-grounding, anti-masking).
+    "source_grounding": SourceGrounding,
 }
 _HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 

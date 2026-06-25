@@ -80,10 +80,14 @@ def test_a2_fabricating_answer_is_never_suppressed():
     sg = SourceGrounding(_decl("SOURCE_CONTRADICTION"))
     v = sg.check({"code": "SOURCE_CONTRADICTION"}, _case(_FABRICATING_ANSWER))
     assert v.disproved is False
-    reason_lc = v.reason.lower()
-    assert "unlimited" in reason_lc
-    assert "lifetime" in reason_lc
-    assert "guarantee" in reason_lc
+    # The verdict NAMES the ungrounded fabrications: the reason carries a sample, the evidence
+    # the full set. The distinctive fabricated claims must be surfaced for the SME / audit.
+    surfaced = f"{v.reason} {v.evidence}".lower()
+    assert "unlimited" in surfaced
+    assert "lifetime" in surfaced
+    assert "guarantee" in surfaced
+    # the reason states the finding stands (never clear by silence)
+    assert "the finding stands" in v.reason
 
 
 # ─────────────── A3 — ground() integration, the GOVERNED FLIP, both directions ───────────────
@@ -252,11 +256,27 @@ def test_a4_source_path_override_honored():
 
 
 def test_a4_token_min_len_override_honored():
-    """A4: token_min_len changes which short alpha tokens count as salient. Lowering to 2 makes
-    short alpha tokens salient; they still ground (the faithful answer's short tokens are in the
-    source), so the override is accepted and behavior stays conservative."""
-    sg = SourceGrounding(_decl("SOURCE_CONTRADICTION", params={"token_min_len": 2}))
-    assert sg.check({"code": "SOURCE_CONTRADICTION"}, _case(_FAITHFUL_ANSWER)).disproved is True
+    """A4: token_min_len changes which short alpha tokens count as salient. With the default
+    (4) a 2-char answer word ("hi") is below the floor → not salient → an otherwise-faithful
+    answer suppresses; lowering the floor to 2 makes "hi" salient and — absent from the source
+    — keeps the finding open. So the override is honored AND the conservative posture holds."""
+    src = "Greetings. The plan exists."
+    answer = "Hi the plan exists."  # "hi" is the only token below the default len-4 floor
+    case = {"transcript": src, "artifacts": [{"content": answer}]}
+    # default floor (4): "hi" not salient, "plan"/"exists"(→"exist") ground -> suppress
+    assert (
+        SourceGrounding(_decl("SOURCE_CONTRADICTION"))
+        .check({"code": "SOURCE_CONTRADICTION"}, case)
+        .disproved
+        is True
+    )
+    # floor lowered to 2: "hi" now salient + absent from source -> finding STANDS (override honored)
+    assert (
+        SourceGrounding(_decl("SOURCE_CONTRADICTION", params={"token_min_len": 2}))
+        .check({"code": "SOURCE_CONTRADICTION"}, case)
+        .disproved
+        is False
+    )
 
 
 # ─────────────────────────── A5 — registry + plugin enumeration ───────────────────────────
