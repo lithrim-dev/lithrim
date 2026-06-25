@@ -34,6 +34,7 @@ from .adapter import (
     contract_builder_part,
     criterion_builder_part,
     flag_part,
+    judge_builder_part,
     judge_part,
     open_artifact_part,
     propose_live_run_part,
@@ -168,6 +169,13 @@ AUTHOR_CRITERION_SCHEMA: dict[str, Any] = {
     "owner_role": str,
     "definition": str,
 }
+# PHASE2-WIRE — SURFACE the JudgeBuilder inline so the HUMAN mints a NEW judge ROLE (a new council
+# voice) over the active pack's taxonomy snapshot by filling a card (role id + lens + owned + model
+# + role prompt). The SEED is the role id ONLY — the agent never composes the snapshot write; the
+# card's own "Create judge" Save rides POST /v1/judges (the sanctioned snapshot writer). EMIT-ONLY,
+# NO PAID_KEY (the A-SAFE sweep asserts this). Distinct from AUTHOR_JUDGE_SCHEMA (assign a lens to an
+# EXISTING role); this CREATES a new role via the card.
+CREATE_JUDGE_SCHEMA: dict[str, Any] = {"role": str}
 # KB-CONTEXT-1 — the honest CONTEXT AID ($0/read-only): retrieve the relevant HIPAA-KB section(s)
 # for a topic/finding and SHOW them, WITHOUT touching the verdict (kb_grounding-as-suppress over-
 # clears on these flags, so this is retrieval-only — informative, never a clear). No PAID_KEY.
@@ -704,6 +712,29 @@ async def author_criterion_handler(ctx: ToolContext, args: dict[str, Any]) -> di
     )
 
 
+async def create_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # PHASE2-WIRE: SURFACE the JudgeBuilder INPUT widget inline, seeded with the in-context role id +
+    # agent — the conversational "create a NEW judge role by filling a card" move (the mirror of
+    # author_criterion). EMIT-ONLY by design (the SPINE/CONTAINMENT invariant): this calls NO bound
+    # write op; the card's "Create judge" Save rides the sanctioned snapshot writer POST /v1/judges
+    # (which gates role shape + owner↔emit + code∈taxonomy + role collision + tier:core pack, and
+    # audits) — the HUMAN's Save is the SOLE write of the new council voice. The agent never mints the
+    # judge itself. $0, no PAID_KEY. The role seed is optional; an omitted role opens an empty card
+    # (the card's own validation gates Save). Distinct from author_judge (which ASSIGNS a lens to an
+    # EXISTING role); this CREATES a new role over the snapshot.
+    role = str(args.get("role") or "")
+    ctx.emit(judge_builder_part(ctx.default_agent, role=role))
+    return _text(
+        f"Surfaced the create-judge card inline on agent {ctx.default_agent!r}"
+        f"{f' (seeded role {role})' if role else ''}. Fill in the lens (the codes this judge may "
+        f"raise), any owned codes (⊆ lens), the model, and an optional role prompt, then click "
+        f"Create judge — your Save is the SOLE write (POST /v1/judges mints the NEW judge role into "
+        f"the active pack's taxonomy snapshot, owner↔emit + snapshot gated, audited). I only surface "
+        f"the card; I do NOT mint the judge for you, and this is $0 (never a paid run). To ASSIGN a "
+        f"lens to an EXISTING role instead, use author_judge."
+    )
+
+
 async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # META-VERDICT-1 (audited WRITE): record the clinician's INDEPENDENT verdict + judge meta-audit
     # on a run — ClinVerdict Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
@@ -918,9 +949,10 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         author_judge_handler,
         "author_judge",
-        "Author a judge by ASSIGNING ontology flag lenses to a role (audited config "
-        "write). Rejects (422) an off-lens / off-snapshot assignment — surface the "
-        "error, do not retry blindly.",
+        "ASSIGN a lens (ontology flag codes the judge may raise) to an EXISTING judge role — an "
+        "audited config write. Use it to bind/adjust the lens of a role that already exists; it does "
+        "NOT create a new role (for a NEW council voice use create_judge). Rejects (422) an off-lens "
+        "/ off-snapshot assignment — surface the error, do not retry blindly.",
         AUTHOR_JUDGE_SCHEMA,
     ),
     (
@@ -1088,6 +1120,21 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "For a NON-gradeable reference flag use create_flag; for a grounding contract use "
         "author_contract. Never a paid run.",
         AUTHOR_CRITERION_SCHEMA,
+    ),
+    (
+        create_judge_handler,
+        "create_judge",
+        "SURFACE the interactive create-judge widget INLINE so the HUMAN mints a NEW judge ROLE — a "
+        "new voice on the council — over the active pack's taxonomy snapshot by FILLING A CARD in the "
+        "chat ($0, read-only; the mirror of author_criterion). Use it when the human wants to CREATE / "
+        "add a NEW judge / a new council voice / a new reviewer role. Shape: {role} — the new "
+        "lower_snake role id to seed the card with (e.g. escalation_judge); the human fills the lens "
+        "(codes the judge may raise), any owned codes (⊆ lens), the model, and an optional role "
+        "prompt. Their 'Create judge' Save is the SOLE audited write (POST /v1/judges mints the new "
+        "role into the snapshot, owner↔emit + snapshot gated); you do NOT mint the judge yourself. "
+        "Contrast with author_judge, which ASSIGNS a lens to an EXISTING role — use create_judge to "
+        "CREATE a new role, author_judge to RE-LENS an existing one. Never a paid run.",
+        CREATE_JUDGE_SCHEMA,
     ),
     (
         kb_context_handler,

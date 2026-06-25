@@ -133,6 +133,20 @@ def criterion_builder_part(
     )
 
 
+def judge_builder_part(
+    agent: str, role: str = "", *, show_intent: str = "auto"
+) -> dict[str, Any]:
+    """PHASE2-WIRE: create_judge -> the JudgeBuilder INPUT widget, surfaced INLINE and SEEDED with
+    the in-context ``role`` id + ``agent`` so the human MINTS a NEW judge role (a new council voice)
+    over the active pack's taxonomy snapshot by filling the card in the chat. The mirror is
+    criterion_builder_part. The SPINE/CONTAINMENT invariant: this is emit-only — the card's "Create
+    judge" Save rides ``POST /v1/judges`` (the sanctioned snapshot writer), the human's Save is the
+    SOLE write of the new judge; the agent never mints the judge itself. Distinct from judge_part
+    (author_judge → tool-judge_editor, which ASSIGNS a lens to an EXISTING role). ``auto`` (an
+    authoring card the agent leads with)."""
+    return _part("judge_builder", {"agent": agent, "role": role}, show_intent=show_intent)
+
+
 def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
     """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
     card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
