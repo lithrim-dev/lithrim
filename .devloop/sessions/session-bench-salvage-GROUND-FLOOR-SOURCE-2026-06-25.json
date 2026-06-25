@@ -1,0 +1,128 @@
+{
+  "session_id": "session-bench-salvage-GROUND-FLOOR-SOURCE-2026-06-25",
+  "stream": "bench-salvage",
+  "phase": "GROUND-FLOOR-SOURCE",
+  "driver_bundle_id": "DRIVER_ground_floor_source",
+  "started_at": "2026-06-25T15:40:00Z",
+  "ended_at": "2026-06-25T16:08:00Z",
+  "executor": "claude-code",
+  "target_repos": ["lithrim-bench"],
+
+  "plan_review": {
+    "posted_at": "2026-06-25T15:40:00Z",
+    "user_approved_at": "2026-06-25T15:40:00Z",
+    "deviations": [
+      {
+        "kind": "APPROVED-AT-PLAN",
+        "summary": "Driver is the standing approval (autonomous mode). Implemented exactly the additive grounding.py deliverable; no scope creep.",
+        "evidence": ".devloop/prompts/DRIVER_ground_floor_source.md DELIVERABLES 1-3",
+        "decided_at": "2026-06-25T15:40:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "Light stemmer changed from a literal s/es/ing/ed strip to ing/ed-then-single-trailing-s. The driver's es rule over-cut 'includes'->'includ' and DESYNCED from source 'include'->'include'; a single trailing-s strip is the symmetric, driver-intent-preserving normalization ('includes'->'include' matches). Both sides pass through the same fn, so normalization is symmetric by construction.",
+        "evidence": "lithrim_bench/harness/grounding.py _light_stem; the 'includes'/'include' desync caught at first GREEN run",
+        "decided_at": "2026-06-25T15:55:00Z"
+      },
+      {
+        "kind": "APPROVED-MID-CYCLE",
+        "summary": "A2 asserts the named fabrications via reason+evidence (not reason alone). The reason carries a deterministic <=5 sample (driver said <=5); the FULL ungrounded set goes on Verdict.evidence for audit. 'lifetime'/'unlimited' sort after the 5-sample cutoff, so the union (reason+evidence) is the honest surface.",
+        "evidence": "tests/test_source_grounding.py::test_a2_fabricating_answer_is_never_suppressed",
+        "decided_at": "2026-06-25T16:00:00Z"
+      }
+    ]
+  },
+
+  "commits": [
+    {
+      "hash": "3dd875700bebd5f07fff81ccb9fb5d3abb77076d",
+      "repo": "lithrim-bench",
+      "title": "test(grounding): source_grounding answer⊆source floor + anti-masking guarantee — red",
+      "summary": "RED acceptance tests A1-A5; SourceGrounding absent from grounding.py (the deliverable class)."
+    },
+    {
+      "hash": "8d4299a13b09a33b1570b358bfb30160f9dbd2c2",
+      "repo": "lithrim-bench",
+      "title": "feat(grounding): source_grounding answer⊆source faithfulness floor — green",
+      "summary": "Adds SourceGrounding (pure-stdlib in_process suppress executor) + registry entry; suppress-only-on-FULL-grounding; anti-masking non-vacuous; test_plugin_phase1 expected sets gain the core entry."
+    }
+  ],
+
+  "tests": {
+    "tests_first": true,
+    "tests_first_note": "RED committed before any grounding.py change (3dd8757). SourceGrounding genuinely absent => ImportError is the absent-behavior RED for the deliverable class; A2 anti-masking non-vacuity separately proven by the ALL->ANY mutation reddening it.",
+    "red_command": "PYENV_VERSION=debuglithrim python -m pytest -q tests/test_source_grounding.py",
+    "red_evidence": "ImportError: cannot import name 'SourceGrounding' from 'lithrim_bench.harness.grounding' (1 error during collection). A2 non-vacuity: under the driver-named ALL->ANY mutation (disproved=True whenever ANY salient token grounds), test_a2_fabricating_answer_is_never_suppressed + test_a3_governed_flip_fabricating_case_suppresses_nothing both FAIL (2 failed) — the fabrication shares grounded tokens (storage/plan) so ANY would falsely clear it; mutation reverted byte-identical (diff -q clean).",
+    "green_command": "PYENV_VERSION=debuglithrim ruff check . && PYENV_VERSION=debuglithrim python -m pytest -q",
+    "green_evidence": "ruff: All checks passed!  pytest: 891 passed, 158 skipped, 5 warnings (0 failed). New tests: 12 passed in tests/test_source_grounding.py."
+  },
+
+  "acceptance": [
+    {
+      "criterion": "A1 — suppress the faithful FP (SOURCE_CONTRADICTION + UNSUPPORTED_ASSERTION, includes/storage matched via the stemmer)",
+      "test": "tests/test_source_grounding.py::test_a1_faithful_answer_suppresses_source_contradiction / ::test_a1_faithful_answer_suppresses_unsupported_assertion",
+      "verdict": "PASS",
+      "evidence": "disproved is True for both flag codes on the FAITHFUL case; salient stems {100,20,email,month,plan,storage,support,includ-via-s-strip->include} all in source."
+    },
+    {
+      "criterion": "A2 — THE ANTI-MASKING GUARANTEE (load-bearing, non-vacuous): fabricating case NOT suppressed; reason names unlimited/lifetime/guarantee; ALL->ANY mutation reddens it",
+      "test": "tests/test_source_grounding.py::test_a2_fabricating_answer_is_never_suppressed",
+      "verdict": "PASS",
+      "evidence": "disproved is False; ungrounded surface set = back,come,forever,free,guarantee,lifetime,money,plu,unlimited; reason+evidence names unlimited/lifetime/guarantee + 'the finding stands'. Mutation (ALL->ANY) -> RED (verified, reverted)."
+    },
+    {
+      "criterion": "A3 — ground() governed flip both directions: faithful suppresses BOTH TIER-1, MISSING_CONTEXT stays active; fabricating suppresses nothing",
+      "test": "tests/test_source_grounding.py::test_a3_governed_flip_faithful_case_suppresses_both_tier1_keeps_missing_context / ::test_a3_governed_flip_fabricating_case_suppresses_nothing",
+      "verdict": "PASS",
+      "evidence": "faithful: suppressed={SOURCE_CONTRADICTION,UNSUPPORTED_ASSERTION}, active={MISSING_CONTEXT}, verdict=BLOCK (lone MEDIUM 0.5 >= block_at_or_above 0.5). fabricating: suppressed=[], all 3 active, verdict=BLOCK."
+    },
+    {
+      "criterion": "A4 — defaults/robustness: empty params constructs; missing artifact/source => disproved=False; noise_tokens/source_path/token_min_len honored",
+      "test": "tests/test_source_grounding.py::test_a4_constructs_with_empty_params / ::test_a4_missing_artifact_or_source_never_clears_by_silence / ::test_a4_noise_tokens_override_honored / ::test_a4_source_path_override_honored / ::test_a4_token_min_len_override_honored",
+      "verdict": "PASS",
+      "evidence": "SourceGrounding({}) constructs; missing artifact/source/empty-case all disproved=False (never raise); overrides honored. validate_contract_params accepts empty + full params (dry-construct)."
+    },
+    {
+      "criterion": "A5 — registry + plugin: source_grounding in suppress_executors(); contract_plugins() = kind:contract tier:core transport:in_process implements:grounding.suppress",
+      "test": "tests/test_source_grounding.py::test_a5_registered_in_suppress_executors / ::test_a5_enumerated_as_core_in_process_suppress_plugin",
+      "verdict": "PASS",
+      "evidence": "'source_grounding' in suppress_executors() and maps to SourceGrounding; plugin tuple == ('contract','core','in_process','grounding.suppress')."
+    }
+  ],
+
+  "diagnostic_stats": {
+    "bare_ce_suite": "891 passed, 158 skipped, 0 failed",
+    "new_tests": "12 passed (tests/test_source_grounding.py)",
+    "residual_verdict_faithful_case": "BLOCK on the lone MEDIUM MISSING_CONTEXT (weight 0.5 >= block_at_or_above 0.5). A clean PASS needs option 3 (MISSING_CONTEXT judge-calibration / not-attaching the omission flag) ON TOP — out of scope for this floor.",
+    "files_changed": "lithrim_bench/harness/grounding.py, tests/test_plugin_phase1.py, tests/test_source_grounding.py (no app.jsx / compliance_council.py / signals.py / packs/_core/ontology.json)"
+  },
+
+  "seams_opened": [
+    {
+      "id": "S-BENCH-SALVAGE-GFS-1",
+      "title": "Faithful-case residual is BLOCK, not PASS — MISSING_CONTEXT (lone MEDIUM) still blocks at 0.5",
+      "severity": "medium",
+      "fix_location": "MISSING_CONTEXT judge calibration OR the live-authored contract not attaching the omission flag (option 3); NOT the source_grounding floor.",
+      "impact": "After source_grounding suppresses both TIER-1 FPs on the verbatim-faithful answer, the lone residual MEDIUM MISSING_CONTEXT re-scores to BLOCK (0.5 >= block_at_or_above 0.5). The floor honestly does NOT touch the omission flag (omission is judgmental — honest scope). The owner will see a WARN-shaped BLOCK live, not a clean PASS, until the MISSING_CONTEXT judge is calibrated down or that flag is not raised on this case.",
+      "confidence": "CONFIRMED",
+      "evidence": "tests/test_source_grounding.py::test_a3_governed_flip_faithful_case_suppresses_both_tier1_keeps_missing_context: active={MISSING_CONTEXT}, g.verdict=='BLOCK'; SeverityMap.rescore (ontology.py:90) weight 0.5 >= 0.5."
+    },
+    {
+      "id": "S-BENCH-SALVAGE-GFS-2",
+      "title": "Pre-existing pack-ON drift in test_plugin_phase1 A1 (web_search + concept_preservation) — NOT this cycle",
+      "severity": "low",
+      "fix_location": "tests/test_plugin_phase1.py _EXPECTED_SUPPRESS/_EXPECTED_FLOOR/_EXPECTED_CONTRACT_PLUGINS (pack-repo CI territory).",
+      "impact": "Under the healthcare pack the two A1 value-equality tests already failed on the pristine parent (f4d0f9c) because the expected sets lack web_search (core suppress) + concept_preservation (pack floor). I added the source_grounding entry (correct); I deliberately did NOT touch the unrelated pre-existing drift. Bare-CE skips these (NEEDS_PACK), so the gate is unaffected.",
+      "confidence": "CONFIRMED",
+      "evidence": "On pristine shared checkout pre-change: 'Left contains 2 more items: concept_preservation, web_search'; same diff post-change minus source_grounding (now matched)."
+    }
+  ],
+
+  "seams_closed": [],
+
+  "verdict": "PROCEED-WITH-CAVEATS",
+
+  "report": "GROUND-FLOOR-SOURCE-1 landed: a core-generic, pure-stdlib SourceGrounding suppress executor (the answer⊆source faithfulness floor, the S-BS-7 mechanism generalized) added additively to grounding.py + registered in _CONTRACT_EXECUTORS. It suppresses SOURCE_CONTRADICTION/UNSUPPORTED_ASSERTION ONLY when every salient (stemmed, numeric-aware, stopword-filtered) answer token is present in the source; ANY ungrounded salient token leaves the finding standing. The load-bearing anti-masking guarantee (A2) is NON-VACUOUS — under the driver-named ALL->ANY mutation the fabricating case ('unlimited storage, lifetime guarantee') goes RED at both executor and ground() levels (verified + reverted byte-identical). Frozen seam (compliance_council/_apply_consensus, signals.py) and packs/_core/ontology.json are untouched — the contract is meant to be authored live. CAVEAT (S-BENCH-SALVAGE-GFS-1): on the faithful case the residual lone MEDIUM MISSING_CONTEXT still re-scores to BLOCK at the 0.5 threshold — a clean PASS needs MISSING_CONTEXT judge calibration on top (option 3), which the floor honestly does not provide. Bare-CE gate green (891/158/0); ruff clean. Monitor should audit the A2 non-vacuity evidence first.",
+
+  "next_session_hint": "monitor should run /devloop-audit bench-salvage GROUND-FLOOR-SOURCE next; then the OWED live step (author source_grounding on ws0_default via PUT ontology, rebuild, re-run run_001/run_002 on Azure to observe the flip)."
+}
