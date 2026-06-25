@@ -87,14 +87,17 @@ _ROLE_PROVIDER_KEYS = {
     "risk_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_RISK", "model": "LITHRIM_LLM_MODEL_RISK",
         "api_key": "LITHRIM_LLM_API_KEY_RISK", "api_base": "LITHRIM_LLM_API_BASE_RISK",
+        "api_version": "LITHRIM_LLM_API_VERSION_RISK",
     },
     "policy_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_POLICY", "model": "LITHRIM_LLM_MODEL_POLICY",
         "api_key": "LITHRIM_LLM_API_KEY_POLICY", "api_base": "LITHRIM_LLM_API_BASE_POLICY",
+        "api_version": "LITHRIM_LLM_API_VERSION_POLICY",
     },
     "faithfulness_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_FAITHFULNESS", "model": "LITHRIM_LLM_MODEL_FAITHFULNESS",
         "api_key": "LITHRIM_LLM_API_KEY_FAITHFULNESS", "api_base": "LITHRIM_LLM_API_BASE_FAITHFULNESS",
+        "api_version": "LITHRIM_LLM_API_VERSION_FAITHFULNESS",
     },
 }
 # The litellm provider/model PREFIX per provider id. ``openai_compatible`` rides the ``openai``
@@ -322,6 +325,14 @@ def build_judge_lm(role: str, **overrides: Any):
             per_role_kwargs["api_key"] = role_api_key
         if role_api_base:  # azure / openai_compatible (vLLM, Together, a local server)
             per_role_kwargs["api_base"] = role_api_base
+        if role_provider == "azure":
+            # CONNECT-AI-AZURE-1: a per-role azure judge needs an api_version (the GLOBAL azure
+            # branch threads it; without it litellm hits the api-version / DeploymentNotFound wall).
+            # Read the per-role LITHRIM_LLM_API_VERSION_<ROLE>; default to the council default.
+            per_role_kwargs["api_version"] = (
+                str(getattr(settings, role_keys["api_version"], "") or "").strip()
+                or settings.AZURE_OPENAI_API_VERSION
+            )
         per_role_kwargs.update(overrides)
         return dspy.LM(f"{_litellm_prefix(role_provider)}/{role_model}", **per_role_kwargs)
 

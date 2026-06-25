@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     LITHRIM_LLM_API_KEY_FAITHFULNESS: str = ""
     LITHRIM_LLM_API_BASE_FAITHFULNESS: str = ""
 
+    # CONNECT-AI-AZURE-1: the per-role Azure ``api_version`` for a per-role azure provider override.
+    # The GLOBAL azure trio threads ``AZURE_OPENAI_API_VERSION``; a UI-bound per-role azure judge (the
+    # cross-provider unlock) needs its OWN version or litellm hits the api-version / DeploymentNotFound
+    # wall. Default "" → ``build_judge_lm``'s per-role azure branch falls back to
+    # ``AZURE_OPENAI_API_VERSION`` (the council default). Only the per-role azure path reads these.
+    LITHRIM_LLM_API_VERSION_RISK: str = ""
+    LITHRIM_LLM_API_VERSION_POLICY: str = ""
+    LITHRIM_LLM_API_VERSION_FAITHFULNESS: str = ""
+
     # Gemini (litellm reads GEMINI_API_KEY from env when a per-role api_key is not threaded in).
     GEMINI_API_KEY: str = ""
 

@@ -431,6 +431,8 @@ def _chat_provider_config() -> dict | None:
         "model": _read_chat_env("LITHRIM_CHAT_MODEL"),
         "api_key": _read_chat_env("LITHRIM_CHAT_API_KEY"),
         "api_base": _read_chat_env("LITHRIM_CHAT_API_BASE"),
+        # CONNECT-AI-AZURE-1: an azure chat needs an api_version (litellm wall); empty for non-azure.
+        "api_version": _read_chat_env("LITHRIM_CHAT_API_VERSION"),
     }
 
 
@@ -712,6 +714,7 @@ async def _litellm_loop(
     model: str,
     api_key: str | None,
     api_base: str | None,
+    api_version: str | None = None,
     _completion: Callable[..., Any] | None = None,
 ) -> AsyncIterator[dict]:
     """CONV-RUNTIME-1 — the provider-agnostic conversation loop on litellm (OpenAI tools). Drives
@@ -759,6 +762,8 @@ async def _litellm_loop(
         completion_kwargs["api_key"] = api_key
     if api_base:  # azure / openai_compatible
         completion_kwargs["api_base"] = api_base
+    if api_version:  # CONNECT-AI-AZURE-1: azure needs an api_version (empty/None for non-azure)
+        completion_kwargs["api_version"] = api_version
 
     cost_usd: float | None = None
     try:
@@ -889,6 +894,7 @@ async def run_chat(
         message, ctx, history,
         provider=cfg["provider"], model=cfg.get("model") or "",
         api_key=cfg.get("api_key"), api_base=cfg.get("api_base"),
+        api_version=cfg.get("api_version"),
     ):
         yield event
 

@@ -488,6 +488,11 @@ class ProviderConfigRequest(BaseModel):
     endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
     model: str | None = None
     role: Literal["risk_judge", "policy_judge", "faithfulness_judge"] | None = None
+    # CONNECT-AI-AZURE-1: the OPTIONAL Azure ``api_version`` — the global trio threads it; a UI-only
+    # Azure setup (per-role grading / chat) needs it too or litellm hits the api-version /
+    # DeploymentNotFound wall. None ⇒ leave the settings default (AZURE_OPENAI_API_VERSION).
+    # Non-azure providers ignore it.
+    api_version: str | None = None
 
 
 class StoryworldIngestRequest(BaseModel):
@@ -3442,20 +3447,47 @@ _PROVIDER_ROLE_BINDING = {
     "risk_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_RISK", "model": "LITHRIM_LLM_MODEL_RISK",
         "api_key": "LITHRIM_LLM_API_KEY_RISK", "api_base": "LITHRIM_LLM_API_BASE_RISK",
+        "api_version": "LITHRIM_LLM_API_VERSION_RISK",
     },
     "policy_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_POLICY", "model": "LITHRIM_LLM_MODEL_POLICY",
         "api_key": "LITHRIM_LLM_API_KEY_POLICY", "api_base": "LITHRIM_LLM_API_BASE_POLICY",
+        "api_version": "LITHRIM_LLM_API_VERSION_POLICY",
     },
     "faithfulness_judge": {
         "provider": "LITHRIM_LLM_PROVIDER_FAITHFULNESS", "model": "LITHRIM_LLM_MODEL_FAITHFULNESS",
         "api_key": "LITHRIM_LLM_API_KEY_FAITHFULNESS", "api_base": "LITHRIM_LLM_API_BASE_FAITHFULNESS",
+        "api_version": "LITHRIM_LLM_API_VERSION_FAITHFULNESS",
     },
 }
 # The broadened grading provider set litellm speaks (PROVIDER-CENTER-A). These have NO global
 # grading selector — they are per-role ONLY (require a `role`). ``anthropic`` is here for the GRADING
 # plane (faithfulness→Anthropic, the mixed council); the assistant-plane anthropic stays global.
 _PER_ROLE_ONLY_PROVIDERS = ("gemini", "bedrock", "openai_compatible", "anthropic")
+
+# CONNECT-AI-AZURE-1: the council-default Azure api_version (lazy — keep app.py free of the [council]
+# LM deps at module load). A bare BFF without the extra falls back to the literal default.
+_DEFAULT_AZURE_API_VERSION = "2024-10-21"
+
+
+def _settings_azure_api_version() -> str:
+    """The council settings default ``AZURE_OPENAI_API_VERSION`` (lazy import; the literal fallback
+    when the [council] extra is absent). The last-resort default for an azure path with no explicit
+    or stored version — never an empty version (litellm requires one for azure)."""
+    try:
+        from lithrim_bench.runtime.council import settings as council_settings
+
+        return council_settings.settings.AZURE_OPENAI_API_VERSION or _DEFAULT_AZURE_API_VERSION
+    except Exception:  # noqa: BLE001 — the [council] extra may be absent in a bare BFF
+        return _DEFAULT_AZURE_API_VERSION
+
+
+def _stored_provider_api_version(provider: str) -> str | None:
+    """Read a provider's already-stored Azure ``api_version`` back from .provider_env (the bind
+    reuses it — no re-entry). Only azure stores one; other providers return None."""
+    if provider != "azure":
+        return None
+    return _parse_env_file(_PROVIDER_ENV_PATH).get("AZURE_OPENAI_API_VERSION") or None
 
 
 def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
@@ -3481,6 +3513,16 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env[binding["api_key"]] = req.api_key  # the per-role SECRET (write-only on .provider_env)
             if req.endpoint:  # azure / openai_compatible api_base
                 env[binding["api_base"]] = req.endpoint
+            if req.provider == "azure":
+                # CONNECT-AI-AZURE-1: a per-role azure judge needs an api_version or litellm hits the
+                # api-version / DeploymentNotFound wall. Reuse the request's version (the roles-bind
+                # passes the STORED AZURE_OPENAI_API_VERSION in); fall back to the stored value, then
+                # the council default — never an empty version.
+                env[binding["api_version"]] = (
+                    (req.api_version or "").strip()
+                    or _stored_provider_api_version("azure")
+                    or _settings_azure_api_version()
+                )
         if req.provider == "openai":
             env["LITHRIM_LLM_PROVIDER"] = "openai"
             env["OPENAI_API_KEY"] = req.api_key
@@ -3496,6 +3538,8 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["LITHRIM_LLM_PROVIDER"] = "azure"
             env["AZURE_OPENAI_API_KEY"] = req.api_key
             env["AZURE_OPENAI_ENDPOINT"] = req.endpoint
+            if req.api_version:  # CONNECT-AI-AZURE-1: additive — else the settings default stands
+                env["AZURE_OPENAI_API_VERSION"] = req.api_version.strip()
             if req.model:  # the Azure DEPLOYMENT name (e.g. policy_judge → your Mistral deployment)
                 if req.role:
                     env[_PROVIDER_AZURE_ROLE_DEPLOYMENT[req.role]] = req.model
@@ -3544,15 +3588,31 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["LITHRIM_CHAT_API_KEY"] = req.api_key  # the chat SECRET (write-only on .provider_env)
             if req.endpoint:  # azure / openai_compatible api_base
                 env["LITHRIM_CHAT_API_BASE"] = req.endpoint
+            if req.provider == "azure":
+                # CONNECT-AI-AZURE-1: an azure chat needs an api_version (litellm wall). Reuse the
+                # request's version (the roles-bind passes the STORED one in); fall back to the stored
+                # value, then the council default — never an empty version.
+                env["LITHRIM_CHAT_API_VERSION"] = (
+                    (req.api_version or "").strip()
+                    or _stored_provider_api_version("azure")
+                    or _settings_azure_api_version()
+                )
     return env
 
 
-def _probe_provider(*, plane, provider, api_key, endpoint=None, model=None, role=None) -> dict:
+def _probe_provider(
+    *, plane, provider, api_key, endpoint=None, model=None, role=None, api_version=None
+) -> dict:
     """Read-only validate the key BEFORE any write (SPEC §3.1 step 1). A bounded 1-token completion
     on the SAME litellm/openai path build_judge_lm grades through (grading) / a cheap Anthropic ping
     (assistant). Returns ``{ok: bool, error?: str}``; NEVER raises (network/auth errors → ok=False).
     Patched in tests so the green bar is $0/offline (no live call). Lazy imports keep app.py free of
-    the [council] LM deps at module load."""
+    the [council] LM deps at module load.
+
+    CONNECT-AI-AZURE-1: for ``azure`` the litellm probe REQUIRES an ``api_version`` — without it the
+    Azure probe itself fails (so a UI-only Azure connect / roles-bind re-probe never validated). The
+    version defaults to ``settings.AZURE_OPENAI_API_VERSION`` when not threaded in. Non-azure
+    providers never send it."""
     try:
         # CONV-RUNTIME-1: route the probe by PROVIDER, not by plane — a non-anthropic assistant
         # (the litellm chat) probes via the litellm branch below, exactly like a grading provider.
@@ -3589,6 +3649,8 @@ def _probe_provider(*, plane, provider, api_key, endpoint=None, model=None, role
         }
         if endpoint:  # azure / openai_compatible api_base
             completion_kwargs["api_base"] = endpoint
+        if provider == "azure":  # CONNECT-AI-AZURE-1: the azure probe needs an api_version
+            completion_kwargs["api_version"] = api_version or _settings_azure_api_version()
         litellm.completion(**completion_kwargs)
         return {"ok": True}
     except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
@@ -4110,7 +4172,7 @@ def provider_config_endpoint(
 
     probe = _probe_provider(
         plane=req.plane, provider=req.provider, api_key=req.api_key,
-        endpoint=req.endpoint, model=req.model, role=req.role,
+        endpoint=req.endpoint, model=req.model, role=req.role, api_version=req.api_version,
     )
     if not probe.get("ok"):
         # surface the failing probe; do NOT write the key (non-vacuous vs the clean path)
@@ -4251,11 +4313,17 @@ def roles_bind_endpoint(
             status_code=422,
             detail=f"provider {req.provider!r} has no stored endpoint (re-connect it with an endpoint)",
         )
+    # CONNECT-AI-AZURE-1: REUSE the stored Azure api_version (no re-entry — the bind body carries
+    # NO version, just like NO key); default to the council default. None for non-azure.
+    api_version = _stored_provider_api_version(req.provider) or (
+        _settings_azure_api_version() if req.provider == "azure" else None
+    )
 
     # re-probe the chosen model with the REUSED stored key BEFORE writing (mirrors Build A)
     probe = _probe_provider(
         plane="assistant" if req.provider == "anthropic" else "grading",
         provider=req.provider, api_key=api_key, endpoint=endpoint, model=req.model,
+        api_version=api_version,
     )
     if not probe.get("ok"):
         raise HTTPException(
@@ -4264,10 +4332,11 @@ def roles_bind_endpoint(
         )
 
     if req.role in _ROLE_BIND_JUDGE_ENV:
-        # a JUDGE → the per-role binding via Build A's mapper (the REUSED key fills the per-role var)
+        # a JUDGE → the per-role binding via Build A's mapper (the REUSED key fills the per-role var);
+        # the REUSED stored api_version threads via the cfg for an azure per-role judge.
         cfg = ProviderConfigRequest(
             plane="grading", provider=req.provider, api_key=api_key,
-            endpoint=endpoint, model=req.model, role=req.role,
+            endpoint=endpoint, model=req.model, role=req.role, api_version=api_version,
         )
         env_vars = _provider_env_vars(cfg)
     else:
@@ -4279,6 +4348,8 @@ def roles_bind_endpoint(
         }
         if endpoint:
             env_vars["LITHRIM_CHAT_API_BASE"] = endpoint
+        if req.provider == "azure" and api_version:  # the REUSED stored version (no re-entry)
+            env_vars["LITHRIM_CHAT_API_VERSION"] = api_version
         if req.provider == "anthropic":
             env_vars["ANTHROPIC_API_KEY"] = api_key  # the SDK path reads this, exactly as the assistant plane
 

@@ -96,10 +96,10 @@ def _install_probe(monkeypatch, *, ok, error=None):
     """Patch the provider test-probe so no live LM/API call happens. Returns the captured calls."""
     calls: list[dict] = []
 
-    def _fake_probe(*, plane, provider, api_key, endpoint=None, model=None, role=None):
+    def _fake_probe(*, plane, provider, api_key, endpoint=None, model=None, role=None, api_version=None):
         calls.append(
             {"plane": plane, "provider": provider, "api_key": api_key,
-             "endpoint": endpoint, "model": model, "role": role}
+             "endpoint": endpoint, "model": model, "role": role, "api_version": api_version}
         )
         if not ok:
             return {"ok": False, "error": error or "probe failed"}
