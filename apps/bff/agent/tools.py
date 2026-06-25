@@ -967,10 +967,13 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         run_eval_handler,
         "run_eval",
-        "Run a $0 REPLAY evaluation and render the verdict card. Pass case_id to grade a SPECIFIC "
-        "ingested case (from list_cases); omit it to grade the case the human is exploring. REPLAY "
-        "ONLY — this tool can never fire a paid (live/in-process) run; a paid run is the human's "
-        "explicit cost-confirmed action.",
+        "Show a $0 REPLAY of the LAST STORED run for the case (a frozen PAST result, NOT a fresh "
+        "grade) and render the verdict card. Use it ONLY on an EXPLICIT 'replay / show the last "
+        "result without paying / $0' ask — and SAY you are replaying a stored past run, not a fresh "
+        "judgment. To actually GRADE a case (the default for 'run / grade / evaluate / run eval'), "
+        "use propose_live_run instead (a fresh, cost-confirmed grade). Pass case_id for a SPECIFIC "
+        "ingested case (from list_cases); omit it for the case the human is exploring. REPLAY ONLY — "
+        "this tool can never fire a paid (live/in-process) run.",
         RUN_EVAL_SCHEMA,
     ),
     (
@@ -1075,10 +1078,12 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         propose_live_run_handler,
         "propose_live_run",
-        "Surface the cost-confirm modal so the HUMAN can authorize a LIVE (paid, in-process) "
-        "council run — use it when they want the real verdict (not a $0 replay), e.g. on a case "
-        "with no replay baseline. You only PROPOSE: this opens the modal; the human's confirm is "
-        "the only thing that spends. You can NEVER fire a paid run yourself. No params.",
+        "The way to GRADE A CASE FRESH — the DEFAULT for 'run / grade / evaluate / run eval [this "
+        "case|case X]'. It surfaces the cost-confirm modal; the human's confirm runs the fresh paid "
+        "(live, in-process) grade. A fresh grade makes real (paid) model calls, so you only PROPOSE: "
+        "this opens the modal, the human's confirm is the only thing that spends. You can NEVER fire "
+        "a paid run yourself. (For an explicit '$0 replay / show the last stored result' ask, use "
+        "run_eval instead.) No params.",
         PROPOSE_LIVE_RUN_SCHEMA,
     ),
     (
