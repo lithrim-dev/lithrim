@@ -293,18 +293,16 @@ def test_asafe_whitelist_resolves_the_mcp_prefix(ctx):
 # ── 4. A-SAFE: no paid run on the litellm engine ───────────────────────────────────────
 
 
-def test_litellm_engine_never_forwards_a_paid_knob_to_run_eval(ctx):
-    """A-SAFE: the litellm engine drives run_eval as REPLAY-ONLY — even if the model emits
-    confirm/in_process/live in the tool arguments, NO paid knob reaches ``ctx.run_eval_replay``.
-    MUTATION: forward **args verbatim into the bound op and this goes RED (a paid knob arrives)."""
-    seen = {}
+def test_litellm_engine_run_eval_surfaces_the_cost_confirm_reaches_no_paid_op(ctx):
+    """A-SAFE (RUN-EVAL-FRESH-1): the litellm engine drives run_eval as a FRESH-GRADE PROPOSAL —
+    even if the model emits confirm/in_process/live in the tool arguments, run_eval reaches NO bound
+    op at all (it only surfaces the cost-confirm directive), so no paid knob can reach a paid run.
+    NON-VACUOUS: a raise-on-call spy for run_eval_replay would trip if the engine routed to a replay."""
 
-    def _spy(*, agent, **kw):
-        seen["agent"] = agent
-        seen["extra"] = kw
-        return {"composite": {"verdict": "reject"}, "council": {"votes": []}}
+    def _raise(**_kw):
+        raise AssertionError("run_eval must NOT call run_eval_replay (the stale $0 replay)")
 
-    ctx.run_eval_replay = _spy
+    ctx.run_eval_replay = _raise
     completion = _stub_completion(
         [
             [
@@ -320,10 +318,12 @@ def test_litellm_engine_never_forwards_a_paid_knob_to_run_eval(ctx):
             [_text_chunk("graded"), _finish_chunk("stop")],
         ]
     )
-    _run_litellm(ctx, completion)
-    assert seen["agent"] == AGENT
-    assert not any(k in seen["extra"] for k in agent_tools.PAID_KEYS)
-    assert set(seen["extra"]) <= {"case_id"}  # only the case selector may ride along
+    events = _run_litellm(ctx, completion)
+    # the engine surfaced the cost-confirm directive as a tool_result part (no paid op was reached)
+    assert any(
+        e["event"] == "tool_result" and e["part"]["type"] == "tool-propose_live_run"
+        for e in events
+    )
 
 
 # ── 5. one-step pacing (non-vacuous) ───────────────────────────────────────────────────

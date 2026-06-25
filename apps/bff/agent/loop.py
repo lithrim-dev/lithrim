@@ -114,11 +114,12 @@ _SYSTEM_PROMPT = (
     "focus_artifact('corpus') for it (the corpus tab is the correction flywheel -- a different thing, "
     "not the knowledge base). Leave the namespace unset (it defaults to 'hipaa'); never pass the "
     "index name 'hipaa-compliancev2'.\n"
-    "  - run_eval: show a $0 REPLAY of the LAST STORED run for the case -- a frozen PAST result, "
-    "NOT a fresh grade. Use it ONLY on an EXPLICIT 'replay / show the last result without paying / "
-    "$0' ask, and when you do, SAY you are replaying a stored past run (not a fresh judgment) so the "
-    "human is never misled. To actually GRADE the case (the default for 'run / grade / evaluate / "
-    "run eval [this case|case X]'), use propose_live_run instead (a fresh, cost-confirmed grade).\n"
+    "  - run_eval: GRADE the case FRESH -- THE way to run / grade / evaluate / run eval a case. It "
+    "surfaces the cost-confirm modal so the human authorizes the fresh paid (live) grade; you only "
+    "PROPOSE, you never spend. It does NOT replay a stored run (that stale-verdict replay was a bug). "
+    "Pass case_id (from list_cases) for a SPECIFIC case; omit it for the case they're exploring. "
+    "(propose_live_run opens the SAME cost-confirm -- both run_eval and propose_live_run are the "
+    "fresh-grade path, so 'run eval' and 'run it' both land on a fresh cost-confirmed grade.)\n"
     "  - run_eval_pack: run a $0 REPLAY eval-pack BATCH over one or more agents and show "
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
@@ -255,7 +256,8 @@ _SHEPHERD_STANZA = (
     "    - Ground truth: at least one grounding/verification contract is attached "
     "(add_grounding_contract binds a flag to a tool-grounded floor).\n"
     "    - Knowledge base (OPTIONAL -- never block on it): a KB binding exists.\n"
-    "    - Run: at least one run exists for this agent (run_eval, a $0 replay).\n"
+    "    - Run: at least one run exists for this agent (a fresh cost-confirmed grade — run_eval or "
+    "propose_live_run surfaces the cost-confirm, the human's confirm runs it).\n"
     "    - Review: the human has seen a verdict/report.\n"
     "  At the START of a turn, READ the live state first (get_agent for the roster/ontology, "
     "review_runs for the run history) to find the FIRST incomplete REQUIRED step (skip the "
@@ -274,11 +276,11 @@ _SHEPHERD_STANZA = (
     "verification contract that binds a flag to a tool-grounded floor (add_grounding_contract), "
     "so the judge's verdict has an oracle to withstand. A saved contract ticks Ground truth.\n"
     "  GROUND TRUTH -> RUN (EVAL-FLOW): once a verification contract is attached (Ground truth "
-    "done), guide the human to RUN their eval. To GRADE the case, propose a FRESH grade "
-    "(propose_live_run) -- that surfaces the cost-confirm and the human's confirm runs the fresh "
-    "paid grade; you can never spend. run_eval only REPLAYS the last stored run ($0, a frozen past "
-    "result) and is for an explicit replay ask, not the default 'run it'. A run for this agent "
-    "ticks Run; reviewing its verdict ticks Review.\n"
+    "done), guide the human to RUN their eval. To GRADE the case, propose a FRESH grade -- run_eval "
+    "OR propose_live_run both surface the cost-confirm, and the human's confirm runs the fresh paid "
+    "grade; you can never spend. 'run / grade / evaluate / run eval [this case|case X]' ALWAYS means "
+    "this fresh cost-confirmed grade -- never a stale stored replay. A run for this agent ticks Run; "
+    "reviewing its verdict ticks Review.\n"
     "  If setup is already COMPLETE (every required step done), do NOT lead -- drop back to the "
     "reactive operator posture and simply answer what the human asks."
 )
@@ -292,9 +294,10 @@ COST_LABEL = "subscription-equivalent estimate (BYO-Claude desktop — not a per
 # card == one journey step (Domain/Judges/Ground-truth/etc.; one step == one write, confirmed at
 # plan-review). The turn-scoped pacing hook (_pace_one_step) caps these to 1/turn so the shepherd
 # proposes exactly one step and waits. NOT counted (free): reads (get_agent/get_judge/review_runs),
-# the $0 replays (run_eval/run_eval_pack — a $0 run after an edit is the natural payoff, not a
-# second proposal), and the look/teach directives (show_case/focus_artifact/kb_context/
-# propose_live_run). This is a SET of tool NAMES; tools.py is byte-stable.
+# run_eval (RUN-EVAL-FRESH-1: now a cost-confirm DIRECTIVE — a fresh-grade proposal, not a spend)
+# and the run_eval_pack $0 replay batch (the natural payoff after an edit, not a second step), and
+# the look/teach directives (show_case/focus_artifact/kb_context/propose_live_run). This is a SET
+# of tool NAMES; tools.py is byte-stable.
 _STEP_PROPOSING_WRITES = frozenset(
     {
         "author_judge",

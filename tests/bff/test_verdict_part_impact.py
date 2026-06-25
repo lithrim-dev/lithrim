@@ -99,18 +99,15 @@ def test_verdict_part_omits_floor_blocks_when_none():
     assert "floorBlocks" not in out
 
 
-# ── run_eval narration names the floor INJECTION (not only suppressions) ──
+# ── the floor INJECTION attribution lives on verdict_part (run_eval no longer narrates a verdict) ──
 
 
-def _spy_ctx(record):
-    def _replay(**_kw):
-        return record
-
+def _spy_ctx():
     def _forbidden(*_a, **_k):
-        raise AssertionError("run_eval must not call any other bound op")
+        raise AssertionError("run_eval must not call any bound op (it only proposes)")
 
     return agent_tools.ToolContext(
-        author_judge=_forbidden, get_judge=_forbidden, run_eval_replay=_replay,
+        author_judge=_forbidden, get_judge=_forbidden, run_eval_replay=_forbidden,
         get_agent=_forbidden, author_flag=_forbidden, review_runs=_forbidden,
         run_eval_pack=_forbidden, assemble_agent=_forbidden, delete_judge=_forbidden,
         create_flag=_forbidden, delete_flag=_forbidden, put_grounding_contract=_forbidden,
@@ -119,14 +116,17 @@ def _spy_ctx(record):
     )
 
 
-def test_run_eval_narration_names_the_floor_injection():
-    """The agent must be able to say a deterministic floor caught it — so the handler's return text
-    names the injected floor finding(s), mirroring the existing suppression line."""
-    ctx = _spy_ctx(_record(floor=True))
+def test_run_eval_surfaces_the_cost_confirm_not_a_verdict_narration():
+    """RUN-EVAL-FRESH-1 (supersedes the handler floor-narration): run_eval no longer renders a verdict
+    or narrates findings — it surfaces the cost-confirm for a FRESH grade (it calls NO bound op). The
+    floor-INJECTION attribution the demo needs now lives on verdict_part.floorBlocks (rendered after
+    the fresh grade via confirmPaidRun), pinned by test_verdict_part_threads_floor_blocks_attribution
+    above — so the 'a deterministic floor caught it' thesis is preserved on the live (fresh) path."""
+    ctx = _spy_ctx()
     out = asyncio.run(agent_tools.run_eval_handler(ctx, {"agent": "ws0_default", "case_id": "c"}))
-    text = out.get("content", [{}])[0].get("text", "") if isinstance(out.get("content"), list) else str(out)
-    assert "DISSENT_ERASURE" in text
-    assert "floor" in text.lower()
+    text = out["content"][0]["text"].lower()
+    assert "fresh" in text and ("cost-confirm" in text or "cost confirm" in text)
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
 # ── show_case narration stops pushing to the pane ──

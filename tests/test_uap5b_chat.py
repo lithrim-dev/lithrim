@@ -81,40 +81,37 @@ def env(tmp_path, monkeypatch):
         bff.app.dependency_overrides.clear()
 
 
-def test_run_eval_tool_is_replay_only_and_renders_the_verdict_card(env):
-    """A1 + A4 + A-SAFE: run_eval drives a real $0 REPLAY grade and renders the verdict
-    card; the schema carries NO paid knob."""
+def test_run_eval_tool_surfaces_the_cost_confirm_fresh_not_a_replay(env):
+    """RUN-EVAL-FRESH-1 (supersedes the old replay assertion): run_eval SURFACES the cost-confirm
+    for a FRESH live grade — it emits a tool-propose_live_run DIRECTIVE (NOT a verdict_card / a
+    replay), and the schema still carries NO paid knob. The agent proposes; the human confirms."""
     ctx, _client = env
     res = asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
     assert not res.get("is_error")
-    assert "REPLAY" in res["content"][0]["text"]
+    assert "fresh" in res["content"][0]["text"].lower()
     assert len(ctx.parts) == 1
     part = ctx.parts[0]
-    assert part["type"] == "tool-verdict_card" and part["state"] == "output-available"
-    assert part["output"]["verdict"] == "REJECT"  # the WS-0 baseline grounded outcome
+    assert part["type"] == "tool-propose_live_run" and part["state"] == "output-available"
+    assert part["output"] == {}  # the directive carries no smuggled run/paid field
     # A-SAFE — the agent literally cannot ask for a paid run through this tool.
     assert not any(k in RUN_EVAL_SCHEMA for k in PAID_KEYS)
 
 
-def test_run_eval_handler_never_forwards_a_paid_knob(env):
-    """A-SAFE (the load-bearing negative): even if a paid key is injected into the tool
-    args, the handler drops it — ctx.run_eval_replay receives the agent + the case_id SELECTOR
-    (NARR-CHAT-LOOP) but NO paid knob (live/in_process/confirm)."""
+def test_run_eval_handler_never_reaches_the_paid_op(env):
+    """A-SAFE (the load-bearing negative, RUN-EVAL-FRESH-1): even if a paid key is injected into
+    the tool args, the handler fires NO op at all — it only emits the cost-confirm directive. The
+    bound run_eval_replay (a raise-on-call spy) is never reached, so nothing can spend here."""
     ctx, _client = env
-    seen = {}
 
-    def _spy(*, agent, **kw):
-        seen["agent"] = agent
-        seen["extra"] = kw
-        return {"composite": {"verdict": "reject"}, "council": {"votes": []}}
+    def _raise(**_kw):
+        raise AssertionError("run_eval must NOT call run_eval_replay (the stale $0 replay)")
 
-    ctx.run_eval_replay = _spy
-    asyncio.run(
+    ctx.run_eval_replay = _raise
+    res = asyncio.run(
         run_eval_handler(ctx, {"agent": AGENT, "in_process": True, "live": True, "confirm": True})
     )
-    assert seen["agent"] == AGENT
-    assert not any(k in seen["extra"] for k in PAID_KEYS)  # no live/in_process/confirm reached the op
-    assert set(seen["extra"]) <= {"case_id"}  # only the case selector may ride along (None here)
+    assert not res.get("is_error")
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
 def test_off_lens_assignment_is_surfaced_not_bypassed(env):

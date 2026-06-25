@@ -101,16 +101,21 @@ def test_run_eval_sets_the_active_case_to_the_requested_case():
     assert ctx.active_case == "run_002_faithful"
 
 
-def test_run_eval_guidance_text_is_a_fresh_grade_not_a_replay():
-    """RUN-EVAL-FRESH-1: the returned text names a FRESH/LIVE grade + the cost-confirm, and does
-    NOT call itself a replay (so the agent narrates a fresh grade, never a stale stored verdict)."""
+def test_run_eval_guidance_text_is_a_fresh_grade_not_a_replay_verdict():
+    """RUN-EVAL-FRESH-1: the returned text names a FRESH/LIVE grade + the cost-confirm. It does NOT
+    narrate a STORED replay VERDICT — no "Ran a $0 REPLAY eval" framing and no "VERDICT =" line (the
+    handler produced no verdict; it only surfaced the cost-confirm). The driver-specified text may
+    mention "$0 replay" to NEGATE it ("no longer the default"), which is the honest framing."""
     ctx = _stub_ctx(_raise_on_call)
     res = asyncio.run(run_eval_handler(ctx, {"agent": "a", "case_id": "run_002_faithful"}))
-    text = res["content"][0]["text"].lower()
-    assert "fresh" in text
-    assert "cost-confirm" in text or "cost confirm" in text
-    assert "live" in text
-    assert "replay" not in text  # the handler no longer narrates a stored replay
+    text = res["content"][0]["text"]
+    low = text.lower()
+    assert "fresh" in low
+    assert "cost-confirm" in low or "cost confirm" in low
+    assert "live" in low
+    # the handler does NOT claim a replay verdict was rendered (it produced no verdict at all)
+    assert "ran a $0 replay eval" not in low
+    assert "VERDICT =" not in text
 
 
 def test_run_eval_without_a_case_id_keeps_the_active_case_and_still_proposes():

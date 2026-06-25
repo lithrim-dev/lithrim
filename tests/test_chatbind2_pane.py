@@ -26,7 +26,6 @@ from lithrim_bench.harness.config import save_agent
 
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 
-from tests._house_fixture import HOUSE_CASE_ID as CASE_ID  # noqa: E402
 from tests._house_fixture import house_agent  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -213,26 +212,29 @@ def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byt
     assert opts.max_turns == 12
 
 
-# ── D4 — the run_result lift (replay-only; byte-same to the manual Run-eval) ───
+# ── D4 — the run_result lift channel (retained; run_eval no longer feeds it) ───
 
 
-def test_run_eval_handler_stashes_the_replay_record_for_the_lift(ctx):
-    """D4: run_eval lifts its $0 replay into ctx.run_results — the SAME record run_eval_replay
-    returned (byte-same to the manual Run-eval result the shell renders). A spy stands in for
-    the bound op so the asserted identity is exact."""
-    record = {"composite": {"verdict": "reject"}, "council": {"votes": []}, "case_id": CASE_ID}
-    ctx.run_eval_replay = lambda *, agent, **kw: record  # noqa: ARG005
+def test_run_eval_handler_surfaces_the_cost_confirm_and_lifts_no_replay(ctx):
+    """RUN-EVAL-FRESH-1 (supersedes the D4 replay-lift): run_eval no longer routes to the $0 replay,
+    so it stashes NOTHING into ctx.run_results — it emits the cost-confirm directive instead. A
+    raise-on-call spy proves the bound run_eval_replay is never reached (no record exists to lift)."""
+
+    def _raise(*, agent, **kw):  # noqa: ARG001
+        raise AssertionError("run_eval must NOT call run_eval_replay (the stale $0 replay)")
+
+    ctx.run_eval_replay = _raise
     res = asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
     assert not res.get("is_error")
-    # the EXACT replay record is queued for the lift (identity, not a copy/projection)
-    assert ctx.run_results == [record]
-    assert ctx.run_results[0] is record
+    assert ctx.run_results == []  # nothing lifted — no replay record was produced
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
 def test_run_chat_drains_a_run_result_event_after_the_parts(ctx):
-    """D4 (the loop wire): run_chat drains ctx.run_results into a run_result event, AFTER the
-    tool_result parts of the same turn. NON-VACUOUS — the stub populates run_results exactly
-    as run_eval would; without the drain there is no run_result event."""
+    """D4 (the loop wire, retained): run_chat drains ctx.run_results into a run_result event, AFTER
+    the tool_result parts of the same turn. The drain CHANNEL is unchanged by RUN-EVAL-FRESH-1; this
+    stub populates run_results directly (as a future explicit replay tool would). NON-VACUOUS —
+    without the drain there is no run_result event."""
     sdk = pytest.importorskip("claude_agent_sdk", reason="needs the [agent] extra")
     from agent import run_chat
 
@@ -242,13 +244,13 @@ def test_run_chat_drains_a_run_result_event_after_the_parts(ctx):
     async def _stub(_message, c, _history=None):
         yield sdk.AssistantMessage(
             content=[
-                sdk.TextBlock(text="Running a $0 replay and focusing the council."),
-                sdk.ToolUseBlock(id="t1", name="mcp__lithrim__run_eval", input={"agent": AGENT}),
+                sdk.TextBlock(text="Showing a stored run and focusing the council."),
+                sdk.ToolUseBlock(id="t1", name="mcp__lithrim__review_runs", input={}),
             ],
             model="claude",
         )
-        c.parts.append(verdict_part)  # the verdict card streams as a tool_result...
-        c.run_results.append(record)  # ...and run_eval stashes the record for the lift
+        c.parts.append(verdict_part)  # a verdict card streams as a tool_result...
+        c.run_results.append(record)  # ...and a run-bearing tool stashes the record for the lift
         yield sdk.ResultMessage(
             subtype="success",
             duration_ms=1,

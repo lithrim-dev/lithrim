@@ -209,7 +209,7 @@ const TOOL_LABELS = {
   create_flag: "Creating the flag",
   delete_flag: "Deleting the flag",
   add_grounding_contract: "Adding a grounding contract",
-  run_eval: "Running a $0 replay",
+  run_eval: "Surfacing the cost-confirm",
   run_eval_pack: "Running a $0 replay batch",
   review_runs: "Reviewing the run history",
   list_cases: "Listing the cases",

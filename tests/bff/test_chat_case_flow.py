@@ -156,62 +156,53 @@ def test_show_case_defaults_to_the_active_case(env):
     assert part["output"]["case_id"] == "c2_ok"
 
 
-# ── run_eval(case_id=X) — grades the explored case, not the seed ──────────────
+# ── run_eval(case_id=X) — targets the explored case for a FRESH grade, not the seed ──
 
 
-def test_run_eval_threads_case_id_to_the_replay(env):
-    """CRITICAL #3: run_eval(case_id=X) grades X. A spy stands in for the bound replay op so
-    the threaded case_id is observed exactly."""
+def _forbid_replay(**_kw):
+    """RUN-EVAL-FRESH-1: run_eval must NOT call the bound replay op — it surfaces the cost-confirm."""
+    raise AssertionError("run_eval must NOT call run_eval_replay (the stale $0 replay)")
+
+
+def test_run_eval_targets_case_id_via_the_active_case(env):
+    """CRITICAL #3 (RUN-EVAL-FRESH-1): run_eval(case_id=X) makes X the active case so the FRESH grade
+    the human confirms (confirmPaidRun runs runEval(case_id=activeCase)) targets X — and it surfaces
+    the cost-confirm directive (never the stale replay; a raise-on-call spy proves the op is unused)."""
     db, out = env
     ctx = _build_ctx(db, out)
-    seen = {}
-
-    def _spy(*, agent, case_id=None, **kw):
-        seen.update(agent=agent, case_id=case_id, extra=kw)
-        return {"composite": {"verdict": "approve"}, "council": {"votes": []}}
-
-    ctx.run_eval_replay = _spy
+    ctx.run_eval_replay = _forbid_replay
     asyncio.run(run_eval_handler(ctx, {"agent": AGENT, "case_id": "c1_ok"}))
-    assert seen["agent"] == AGENT
-    assert seen["case_id"] == "c1_ok"  # the explored case is graded
-    assert not any(k in seen["extra"] for k in PAID_KEYS)
+    assert ctx.active_case == "c1_ok"  # the explored case is the one the fresh grade will target
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
-def test_run_eval_defaults_case_id_to_the_active_case(env):
-    """run_eval with NO case_id grades the shared active case (decoupling fix), not the seed."""
+def test_run_eval_with_no_case_id_keeps_the_active_case(env):
+    """run_eval with NO case_id leaves the shared active case in place (the case the human is
+    exploring), and still surfaces the cost-confirm — never the seed, never a replay."""
     db, out = env
     ctx = _build_ctx(db, out, active_case="c2_ok")
-    seen = {}
-
-    def _spy(*, agent, case_id=None, **kw):
-        seen["case_id"] = case_id
-        return {"composite": {"verdict": "approve"}, "council": {"votes": []}}
-
-    ctx.run_eval_replay = _spy
+    ctx.run_eval_replay = _forbid_replay
     asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
-    assert seen["case_id"] == "c2_ok"
+    assert ctx.active_case == "c2_ok"
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
-def test_run_eval_drops_paid_knobs_but_keeps_case_id(env):
-    """A-SAFE (load-bearing negative): even with paid knobs injected alongside case_id, the
-    handler forwards case_id but NO paid knob — case_id is a selector, never a spend."""
+def test_run_eval_reaches_no_paid_op_with_an_injected_knob(env):
+    """A-SAFE (load-bearing negative): even with paid knobs injected alongside case_id, run_eval
+    reaches NO op at all (the raise-on-call replay spy is never hit) — it only proposes; the case_id
+    is a selector that updates the active case, never a spend."""
     db, out = env
     ctx = _build_ctx(db, out)
-    seen = {}
-
-    def _spy(*, agent, case_id=None, **kw):
-        seen.update(case_id=case_id, extra=kw)
-        return {"composite": {"verdict": "approve"}, "council": {"votes": []}}
-
-    ctx.run_eval_replay = _spy
-    asyncio.run(
+    ctx.run_eval_replay = _forbid_replay
+    res = asyncio.run(
         run_eval_handler(
             ctx,
             {"agent": AGENT, "case_id": "c1_ok", "live": True, "in_process": True, "confirm": True},
         )
     )
-    assert seen["case_id"] == "c1_ok"
-    assert not any(k in seen["extra"] for k in PAID_KEYS)
+    assert not res.get("is_error")
+    assert ctx.active_case == "c1_ok"
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
 # ── the bound list_cases op reaches the real corpus ───────────────────────────

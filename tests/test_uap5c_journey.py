@@ -44,7 +44,6 @@ from agent.tools import (  # noqa: E402
     assemble_agent_handler,
     author_flag_handler,
     review_runs_handler,
-    run_eval_handler,
     run_eval_pack_handler,
 )
 
@@ -101,10 +100,11 @@ def env(tmp_path, monkeypatch):
 
 
 def test_review_runs_threads_the_latest_run_id_to_the_audit_card(env):
-    """A3 (Review): after a $0 replay, review_runs lists it and passes its run_id to the
-    audit_log card so AuditView can load that run's provenance."""
+    """A3 (Review): after a stored run exists, review_runs lists it and passes its run_id to the
+    audit_log card so AuditView can load that run's provenance. RUN-EVAL-FRESH-1: run_eval no longer
+    creates a run (it surfaces the cost-confirm), so seed a real stored run via the bound $0 op."""
     ctx, _client = env
-    asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
+    ctx.run_eval_replay(agent=AGENT)  # the bound $0 op still seeds a real stored run
     ctx.parts.clear()
     res = asyncio.run(review_runs_handler(ctx, {}))
     assert not res.get("is_error")
@@ -131,7 +131,7 @@ def test_w3_review_runs_part_is_tagged_ondemand(env):
     collapses it to a compact affordance — exactly the orientation read the live drive rendered
     off-context as a full Audit-trail card next to the 404."""
     ctx, _client = env
-    asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
+    ctx.run_eval_replay(agent=AGENT)  # seed a real stored run (run_eval no longer creates one)
     ctx.parts.clear()
     asyncio.run(review_runs_handler(ctx, {}))
     part = ctx.parts[-1]

@@ -9,11 +9,13 @@ the audit log). The CORE set (D-A, resolved at plan-review):
                     + validator-ref gates INTACT — a bad assignment 422s and the
                     agent SURFACES it, never bypasses).
     get_judge    -> the $0 GET /v1/judges/{role} preview (read-only).
-    run_eval     -> REPLAY ONLY ($0). The A-SAFE crux: this tool's input schema has
-                    NO confirm/in_process/live field and the handler hardcodes
-                    replay, so the AGENT HAS NO PATH TO A PAID RUN. A paid run is
-                    100% the human's in-DOM modal-confirm calling the existing
-                    confirm-gated endpoint. The agent proposes; only the human spends.
+    run_eval     -> GRADE A CASE FRESH (RUN-EVAL-FRESH-1). The A-SAFE crux: this tool's
+                    input schema has NO confirm/in_process/live field and the handler
+                    SURFACES THE COST-CONFIRM directive (it fires no op at all), so the
+                    AGENT HAS NO PATH TO A PAID RUN. A paid run is 100% the human's in-DOM
+                    modal-confirm calling the existing confirm-gated endpoint. The agent
+                    proposes; only the human spends. (It no longer routes to the stale $0
+                    replay — that resolved a fixed pre-calibration stored run.)
 
 The handler bodies + schemas here are SDK-FREE (no claude_agent_sdk import) so the
 A-SAFE / audited-write tests exercise them without the SDK. ``build_sdk_tools``
@@ -38,7 +40,6 @@ from .adapter import (
     judge_part,
     open_artifact_part,
     propose_live_run_part,
-    verdict_part,
 )
 from .assist import suggest_contract_params
 
@@ -289,10 +290,11 @@ class ToolContext:
         self.parts.append(part)
 
     def emit_run(self, record: dict) -> None:
-        """CHATBIND-2 (D4): stash the chat's $0 REPLAY record so the loop LIFTS it into the
-        shell's shared ``runResult`` (the run-bearing Report/Judge tabs render it). The record
-        is byte-same to the manual Run-eval result; ONLY run_eval (replay-only) ever calls this,
-        so no paid path is ever lifted."""
+        """CHATBIND-2 (D4): stash a $0 REPLAY record so the loop LIFTS it into the shell's shared
+        ``runResult`` (the run-bearing Report/Judge tabs render it). The record is byte-same to the
+        manual Run-eval result. RUN-EVAL-FRESH-1 retired the "run eval" -> $0 replay route, so no
+        live handler calls this today; the lift channel is retained for a future EXPLICIT replay
+        tool. It only ever carries a $0 replay record, so no paid path is ever lifted."""
         self.run_results.append(record)
 
 
@@ -341,68 +343,30 @@ async def get_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str,
 
 
 async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    # A-SAFE: replay ONLY. No confirm/in_process/live is read or honored — the bound
-    # ctx.run_eval_replay hardcodes the $0 path. The agent cannot spend here.
-    agent = str(args.get("agent") or ctx.default_agent)
-    # NARR-CHAT-LOOP: grade the case the human is exploring (an explicit case_id, else the shared
-    # active case), not the agent's seed. ``case_id`` is a SELECTOR (the spy test proves no PAID_KEY
-    # reaches the op alongside it); ``None`` keeps the agent's own dataset.case_id (back-compat).
-    case_id = args.get("case_id") or ctx.active_case
-    try:
-        record = ctx.run_eval_replay(agent=agent, case_id=case_id)
-    except Exception as exc:
-        detail = getattr(exc, "detail", None) or str(exc)
-        return _error(f"Replay run failed for {agent!r}: {detail}.")
-    ctx.emit(verdict_part(record))
-    ctx.emit_run(record)  # CHATBIND-2 (D4): lift this $0 replay into the shell's runResult
-    composite = record.get("composite") or {}
-    # Surface the grounding corrections so the agent can REASON about them (and narrate
-    # which tool suppressed which false positive) — not just the top-line verdict. The
-    # grounded_adjustments are tool-verified suppressions (a confident council finding
-    # disproved by a deterministic floor, e.g. SNOMED subsumption over Hermes).
-    adj = composite.get("grounded_adjustments") or []
-    sup = (
-        "; ".join(
-            f"{a.get('flag')} suppressed by {a.get('contract')} — {(a.get('reason') or '').strip()[:120]}"
-            for a in adj
-        )
-        or "none"
-    )
-    # active_findings entries are flag-code STRINGS (or finding dicts) — normalize either shape.
-    # (The prior dict-only filter silently dropped string findings, telling the agent "none stand"
-    # on a reject verdict — a manufactured-win data bug the agent then faithfully relayed.)
-    active = [
-        (f.get("flag_code") or f.get("code")) if isinstance(f, dict) else f
-        for f in (composite.get("active_findings") or [])
-    ]
-    active = [a for a in active if a]
-    # INLINE-IMPACT-1: narrate the structural-floor INJECTIONS (the deterministic rule the human
-    # authored that BLOCKED what the council missed) — the demo's thesis. Mirror the suppressions
-    # line so the agent says a FLOOR caught it (attribution), not only that false-positives were
-    # cleared. floor_adjustments[action==floor_block] are the injections that drove the verdict.
-    floor_inj = [
-        f"{fa.get('flag')} injected by the {fa.get('contract_type')} floor "
-        f"({fa.get('contract')}) — {(fa.get('disposition') or '').strip()[:120]}"
-        for fa in (composite.get("floor_adjustments") or [])
-        if fa.get("action") == "floor_block"
-    ]
-    floor_line = "; ".join(floor_inj) or "none"
-    verdict = composite.get("verdict", "—")
-    meaning = {
-        "reject": "the case was REJECTED",
-        "approve": "the case was APPROVED",
-        "needs_review": "the case NEEDS REVIEW",
-    }.get(str(verdict), str(verdict))
+    # RUN-EVAL-FRESH-1: "run / grade / evaluate / run eval [a case]" must produce a FRESH grade, not
+    # a stale $0 replay. The prompt-only routing (CHAT-FRESH-GRADE-1) failed — the model grabs run_eval
+    # for the words "run eval." So make it deterministic AT THE HANDLER: run_eval now SURFACES the
+    # cost-confirm (the propose_live_run directive) for a FRESH live grade of the named/active case —
+    # whichever tool the model picks (run_eval OR propose_live_run), the result is one fresh, cost-
+    # confirmed grade, never the stale stored replay (which had been resolving a fixed pre-calibration
+    # run, e.g. 6649be3a -> a frozen wrong REJECT while "run live" graded fresh -> PASS).
+    #
+    # A-SAFE: the agent STILL cannot spend. This emits the DIRECTIVE only — NO op runs here; the
+    # human's in-DOM cost-confirm (confirmPaidRun -> runEval(in_process,confirm)) is the SOLE spend.
+    # The schema stays paid-knob-free; any injected confirm/in_process/live is simply ignored (no op
+    # is reached). ``ctx.run_eval_replay`` (the bound $0 op) is intentionally NOT called from this
+    # route — it is retained for a future explicit replay tool, just no longer how "run eval" routes.
+    case_id = args.get("case_id")
+    if case_id:
+        # Mirror show_case_handler: an EXPLICIT case_id updates the shared active case so the FRESH
+        # grade the human confirms (confirmPaidRun runs runEval(case_id=activeCase)) targets it.
+        ctx.active_case = str(case_id)
+    target = ctx.active_case or "the current evaluation's case"
+    ctx.emit(propose_live_run_part())  # surface the cost-confirm (the same door as propose_live_run)
     return _text(
-        f"Ran a $0 REPLAY eval for {agent!r}. VERDICT = {str(verdict).upper()} ({meaning}). "
-        f"{len(active)} finding(s) STILL STAND and drive this verdict — do NOT call the case clean or "
-        f"say 'nothing stands' when this list is non-empty: {active or 'none'}. "
-        f"{len(floor_inj)} deterministic FLOOR block(s) injected — a grounding rule caught what the "
-        f"council missed (these DROVE the verdict; attribute them to the floor, not a judge): {floor_line}. "
-        f"{len(adj)} false-positive(s) were tool-corrected (this corrects ONLY these; it does NOT "
-        f"clear the standing findings above): {sup}. "
-        f"Narrate the verdict + the standing findings honestly. "
-        f"(A live/in-process PAID run is the human's call — confirm it in the cost modal.)"
+        f"Surfaced the cost-confirm for a FRESH live grade of {target!r} — confirm in the modal to "
+        f"run it (a $0 replay of a stored run is no longer the default; the verdict you see must be "
+        f"fresh). I can't fire a paid run myself; your confirm authorizes it."
     )
 
 
@@ -967,13 +931,13 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         run_eval_handler,
         "run_eval",
-        "Show a $0 REPLAY of the LAST STORED run for the case (a frozen PAST result, NOT a fresh "
-        "grade) and render the verdict card. Use it ONLY on an EXPLICIT 'replay / show the last "
-        "result without paying / $0' ask — and SAY you are replaying a stored past run, not a fresh "
-        "judgment. To actually GRADE a case (the default for 'run / grade / evaluate / run eval'), "
-        "use propose_live_run instead (a fresh, cost-confirmed grade). Pass case_id for a SPECIFIC "
-        "ingested case (from list_cases); omit it for the case the human is exploring. REPLAY ONLY — "
-        "this tool can never fire a paid (live/in-process) run.",
+        "GRADE a case FRESH — this is THE way to run / grade / evaluate / run eval a case. It "
+        "surfaces the cost-confirm modal for a real (paid) live council run on the case; the human's "
+        "confirm spends. It does NOT replay a stored run (that stale-verdict replay was the bug). "
+        "Pass case_id for a SPECIFIC ingested case (from list_cases) — it becomes the active case the "
+        "fresh grade targets; omit it for the case the human is exploring. No paid knob — you only "
+        "PROPOSE (surface the modal); the human authorizes the spend. (propose_live_run opens the "
+        "same modal — both are the fresh-grade path.)",
         RUN_EVAL_SCHEMA,
     ),
     (

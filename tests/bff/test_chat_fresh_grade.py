@@ -1,15 +1,16 @@
-"""CHAT-FRESH-GRADE-1: chat "run eval" routes to a FRESH cost-confirmed grade, NOT a $0 replay.
+"""CHAT-FRESH-GRADE-1 -> RUN-EVAL-FRESH-1: chat "run eval" grades FRESH, not a $0 replay.
 
-The bug (CONFIRMED live): "run eval on case X" called the agent's ``run_eval`` tool = a $0
-REPLAY of a STALE stored run. The fix reframes the AGENT's routing (prompt + tool descriptions)
-so its DEFAULT response to "run / grade / evaluate / run eval [case X]" is to PROPOSE a fresh
-(live) grade via ``propose_live_run`` (which opens the cost-confirm) — ``run_eval`` ($0 replay)
-is reserved for an EXPLICIT "replay / show the last result without paying" ask.
+The bug (CONFIRMED live): "run eval on case X" called the agent's ``run_eval`` tool = a $0 REPLAY
+of a STALE stored run. CHAT-FRESH-GRADE-1 tried a PROMPT-ONLY fix (route the model to
+``propose_live_run``) — it FAILED live (the model grabs ``run_eval`` for the words "run eval").
+RUN-EVAL-FRESH-1 makes it deterministic AT THE HANDLER: ``run_eval`` itself now SURFACES the
+cost-confirm directive for a FRESH grade — whichever tool the model picks, "run eval" lands on a
+fresh cost-confirmed grade, never the stale stored replay. (The handler-level RED->GREEN lives in
+tests/bff/test_run_eval_fresh.py; this file pins the A-SAFE floor + the description/prompt routing.)
 
-A-SAFE (NON-NEGOTIABLE — the S-BS-81 floor, re-pinned here): NO schema change. ``run_eval``
-stays paid-knob-free + replay-only, and ``propose_live_run`` still emits the directive only.
-The agent PROPOSES; the human's in-DOM cost-confirm spends. These are PROMPT + DESCRIPTION
-edits — the handler bodies are unchanged.
+A-SAFE (NON-NEGOTIABLE — the S-BS-81 floor, re-pinned here): NO schema change. ``run_eval`` stays
+paid-knob-free and now reaches NO op at all (it only emits the directive); ``propose_live_run``
+still emits the directive only. The agent PROPOSES; the human's in-DOM cost-confirm spends.
 
 SDK-free: the schemas + descriptions + the prompt string are exercised without claude_agent_sdk.
 """
@@ -61,24 +62,20 @@ def test_propose_live_run_schema_still_takes_no_params():
     assert not any(k in PROPOSE_LIVE_RUN_SCHEMA for k in PAID_KEYS)
 
 
-def test_run_eval_handler_is_still_replay_only_and_drops_paid_knobs():
-    """Even if a paid key is injected into the tool args, the handler drops it — the bound
-    run_eval_replay receives the agent + the case_id SELECTOR but NO paid knob (the agent
-    cannot silently spend through run_eval)."""
-    seen: dict = {}
+def test_run_eval_handler_reaches_no_paid_op_even_with_an_injected_knob():
+    """RUN-EVAL-FRESH-1 (supersedes the replay-spy): even if a paid key is injected into the tool
+    args, run_eval fires NO op at all — it only surfaces the cost-confirm directive. The bound
+    run_eval_replay (raise-on-call) is never reached, so the agent cannot silently spend."""
 
-    def _spy(*, agent, **kw):
-        seen["agent"] = agent
-        seen["extra"] = kw
-        return {"composite": {"verdict": "reject"}, "council": {"votes": []}}
+    def _raise(**_kw):
+        raise AssertionError("run_eval must NOT call run_eval_replay (the stale $0 replay)")
 
-    ctx = _stub_ctx(_spy)
-    asyncio.run(
+    ctx = _stub_ctx(_raise)
+    res = asyncio.run(
         run_eval_handler(ctx, {"agent": "a", "in_process": True, "live": True, "confirm": True})
     )
-    assert seen["agent"] == "a"
-    assert not any(k in seen["extra"] for k in PAID_KEYS)
-    assert set(seen["extra"]) <= {"case_id"}
+    assert not res.get("is_error")
+    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
 
 
 def test_propose_live_run_handler_emits_the_directive_only_never_spends():
@@ -98,17 +95,18 @@ def test_propose_live_run_handler_emits_the_directive_only_never_spends():
     assert ctx.parts[0]["type"] == "tool-propose_live_run"
 
 
-# ── the new semantics: run_eval = explicit $0 replay; propose_live_run = grade fresh ──
+# ── the new semantics: run_eval AND propose_live_run both grade fresh (RUN-EVAL-FRESH-1) ──
 
 
-def test_run_eval_description_is_an_explicit_stored_replay_not_a_fresh_grade():
-    """The agent must route "run / grade a case" to a FRESH grade, so run_eval's description
-    states it is a $0 REPLAY of the LAST STORED run (a frozen past result), used only on an
-    EXPLICIT replay ask — NOT a fresh judgment."""
+def test_run_eval_description_is_grade_fresh_not_a_stored_replay():
+    """RUN-EVAL-FRESH-1 (supersedes the explicit-replay description): run_eval is now THE way to
+    grade a case FRESH — its description says it grades fresh + surfaces the cost-confirm and does
+    NOT replay a stored run (the prior replay-only description was the stale-verdict routing bug)."""
     desc = _desc("run_eval").lower()
-    assert "$0 replay" in desc
-    assert "stored" in desc  # "the last stored run" — a frozen past result, not fresh
-    assert "fresh" in desc  # it contrasts itself against a fresh grade
+    assert "fresh" in desc
+    assert "cost-confirm" in desc or "cost confirm" in desc
+    assert "does not replay" in desc or "not replay" in desc
+    assert "replay only" not in desc  # run_eval is no longer described as replay-only
 
 
 def test_propose_live_run_description_is_the_way_to_grade_a_case_fresh():
