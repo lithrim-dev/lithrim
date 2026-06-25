@@ -199,6 +199,22 @@ export const configProvider = ({ plane = "grading", provider, api_key, endpoint,
    key), so the panel shows connected / needs-setup per capability. $0 read, via call(). */
 export const getProviderStatus = () => call("/v1/provider/status");
 
+/* ── CONNECT-AI-CONSOLIDATE-1: the 2-section "Connect AI" — assign a {provider, model} to ONE
+   consumer (a judge or the compulsory chat_assistant) REUSING the provider's already-stored key.
+   The bind body carries NO key (keys entered once in the Providers section); the response carries
+   NO key. role ∈ {risk_judge, policy_judge, faithfulness_judge, chat_assistant}. */
+
+/* POST /v1/roles/bind {role, provider, model} — bind a consumer to an already-connected provider's
+   model, reusing the stored key. A judge writes LITHRIM_LLM_*_<ROLE>; chat_assistant writes the
+   LITHRIM_CHAT_* contract. 422 if the provider isn't connected / unknown role / a bad endpoint /
+   a failing probe. Returns {ok, role, provider, model} — NEVER a key. */
+export const bindRole = ({ role, provider, model } = {}) =>
+  call("/v1/roles/bind", { method: "POST", body: { role, provider, model } });
+
+/* GET /v1/roles/bindings — the non-secret per-consumer readout ({roles: {role → {provider, model} |
+   null}}) + connected_providers (those with a stored key, for the Providers list). NEVER a key. */
+export const getRoleBindings = () => call("/v1/roles/bindings");
+
 /* ── MODEL-REGISTRY-1c: the configured-model pool (pick-from-pool role bind) ──────
    The reusable model pool that backs Connect AI's "Model pool" section: register a
    capability-annotated model once, then BIND each fixed judge role to a pool entry

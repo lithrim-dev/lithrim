@@ -41,9 +41,13 @@ vi.mock("./bff.js", () => ({
   hasStoredToken: vi.fn().mockReturnValue(false),
   logout: vi.fn(),
   signIn: vi.fn(),
-  // CE-PROVIDER-UI (Build B): LeftRail statically imports ProviderSettings, which imports these.
+  // CONNECT-AI-CONSOLIDATE-1: LeftRail statically imports ProviderSettings (2-section), which
+  // imports these — stub so mounting the rail never reaches a real fetch.
   configProvider: vi.fn().mockResolvedValue({ ok: true, plane: "grading", provider: "openai", last_tested: "" }),
   getProviderStatus: vi.fn().mockResolvedValue({ planes: {} }),
+  getModelCatalog: vi.fn().mockResolvedValue({ providers: { openai: [], anthropic: [], azure: { models: [], note: "" } } }),
+  bindRole: vi.fn().mockResolvedValue({ ok: true }),
+  getRoleBindings: vi.fn().mockResolvedValue({ roles: {}, connected_providers: [] }),
   // The loop under test: drive the onEvent callback with a scripted SSE stream.
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;
