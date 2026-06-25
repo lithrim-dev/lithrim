@@ -66,9 +66,12 @@ vi.mock("./bff.js", () => ({
 
 import { CenterPane } from "./panes.jsx";
 import App from "./app.jsx";
-import { chatStream } from "./bff.js";
+import { chatStream, runEval } from "./bff.js";
 
-beforeEach(() => chatStream.mockClear());
+beforeEach(() => {
+  chatStream.mockClear();
+  runEval.mockClear();
+});
 
 describe("CenterPane — the R11 conversational loop", () => {
   it("streams a chat turn: user msg + assistant text + the verdict card render inline", async () => {
@@ -190,15 +193,21 @@ describe("CenterPane — the R11 conversational loop", () => {
   });
 
   it("opening the in-DOM cost modal exposes the human-only paid confirm (the agent cannot)", async () => {
+    // CHAT-FRESH-GRADE-1: confirming the cost modal now grades FRESH (one cost-gated in_process
+    // grade via runEval), not the old onRunEval(true) replay-as-paid path.
+    runEval.mockResolvedValueOnce({ composite: { verdict: "approve" }, council: { votes: [] } });
     const onRunEval = vi.fn().mockResolvedValue();
-    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={onRunEval} runStatus="idle" />);
+    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={onRunEval} onRunResult={vi.fn()} runStatus="idle" />);
 
     // the cost gate is the human's; trigger the modal via the composer's paid affordance
     fireEvent.click(screen.getByTitle(/Run a live, paid evaluation/i));
     const confirm = await screen.findByTestId("cost-confirm");
     fireEvent.click(confirm);
-    // confirm calls the EXISTING paid path (live=true) — the modal is the only door
-    await waitFor(() => expect(onRunEval).toHaveBeenCalledWith(true));
+    // confirm fires ONE fresh, cost-gated grade — the modal is the only door, and the agent cannot.
+    await waitFor(() =>
+      expect(runEval).toHaveBeenCalledWith(expect.objectContaining({ in_process: true, confirm: true })),
+    );
+    expect(runEval).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -288,9 +297,107 @@ describe("CenterPane — CHATBIND-4: the consented live-run hand-off", () => {
     expect(await screen.findByTestId("cost-confirm")).toBeInTheDocument();
     // A-SAFE (NON-VACUOUS): opening the modal did NOT spend — onRunEval is untouched until the HUMAN confirms
     expect(onRunEval).not.toHaveBeenCalled();
-    // the human's confirm is the ONLY thing that fires the paid (live=true) run
+    // the human's confirm is the ONLY thing that fires the paid run (and it grades FRESH —
+    // CHAT-FRESH-GRADE-1: a cost-gated in_process grade, not the $0 replay).
     fireEvent.click(screen.getByTestId("cost-confirm"));
-    await waitFor(() => expect(onRunEval).toHaveBeenCalledWith(true));
+    await waitFor(() =>
+      expect(runEval).toHaveBeenCalledWith(
+        expect.objectContaining({ in_process: true, confirm: true }),
+      ),
+    );
+  });
+});
+
+// CHAT-FRESH-GRADE-1: chat "run eval" GRADES FRESH (cost-confirmed) and the fresh grade shows up
+// consistently in the chat verdict card + the report. The bug: confirming the cost modal showed
+// NO fresh card in the chat thread (only the report lifted, via app.jsx), and the verdict could be
+// a stale replay. The fix: confirmPaidRun runs ONE cost-gated in_process grade itself, appends a
+// fresh verdict card to the chat thread, and lifts the SAME rec to the report — without app.jsx.
+describe("CenterPane — CHAT-FRESH-GRADE-1: chat run-eval grades fresh + shows up", () => {
+  const freshRec = {
+    pipeline_run_id: "run_fresh_99",
+    case_id: "run_002",
+    composite: { verdict: "approve", active_findings: [] },
+    council: { votes: [{ judge_role: "risk_judge", vote: "approve", confidence: 0.97 }] },
+  };
+
+  it("a propose_live_run confirm fires ONE fresh in_process grade + appends a fresh verdict card to the chat (NON-VACUOUS)", async () => {
+    runEval.mockResolvedValueOnce(freshRec);
+    const onRunEval = vi.fn().mockResolvedValue();
+    const onRunResult = vi.fn();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "assistant_delta", text: "Confirm a fresh, paid grade for this case." });
+      onEvent({ event: "tool_result", part: { type: "tool-propose_live_run", state: "output-available", output: {} } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(
+      <CenterPane agent="ws0_default" activeCase="run_002" onActiveCase={vi.fn()}
+        onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={onRunEval} onRunResult={onRunResult} runStatus="idle" />,
+    );
+
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "run eval on this case" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // BEFORE the confirm: no fresh verdict card in the chat thread (non-vacuous baseline).
+    await screen.findByTestId("paid-directive");
+    expect(screen.queryByText("APPROVE")).toBeNull();
+
+    // the human's confirm is the ONLY paid path; it grades FRESH (in_process+confirm), exactly once.
+    fireEvent.click(screen.getByTestId("cost-confirm"));
+    await waitFor(() => expect(runEval).toHaveBeenCalledTimes(1));
+    expect(runEval).toHaveBeenCalledWith(
+      expect.objectContaining({ agent: "ws0_default", case_id: "run_002", in_process: true, confirm: true }),
+    );
+    // EXACTLY ONCE — the fresh grade must not double-spend (no second runEval, no onRunEval(true)).
+    expect(onRunEval).not.toHaveBeenCalled();
+
+    // the fresh rec renders as a verdict card in the CHAT thread (the same verdict-card render).
+    expect(await screen.findByText("APPROVE")).toBeInTheDocument();
+    expect(screen.getAllByText("Verdict").length).toBeGreaterThan(0);
+  });
+
+  it("the appended chat card reflects the FRESH rec (APPROVE), not a prior/stale card", async () => {
+    runEval.mockResolvedValueOnce(freshRec);
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-propose_live_run", state: "output-available", output: {} } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(
+      <CenterPane agent="ws0_default" activeCase="run_002"
+        onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} onRunResult={vi.fn()} runStatus="idle" />,
+    );
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "grade it fresh" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    fireEvent.click(await screen.findByTestId("cost-confirm"));
+
+    // the FRESH rec's verdict shows; the run id of the fresh grade is carried (not a stale id).
+    expect(await screen.findByText("APPROVE")).toBeInTheDocument();
+    expect(screen.getByText("run_fresh_99")).toBeInTheDocument();
+  });
+
+  it("onRunResult is called with the SAME fresh rec (chat ⇄ report consistency)", async () => {
+    runEval.mockResolvedValueOnce(freshRec);
+    const onRunResult = vi.fn();
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "tool_result", part: { type: "tool-propose_live_run", state: "output-available", output: {} } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(
+      <CenterPane agent="ws0_default" activeCase="run_002"
+        onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} onRunResult={onRunResult} runStatus="idle" />,
+    );
+    const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
+    fireEvent.change(ta, { target: { value: "grade it fresh" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+    fireEvent.click(await screen.findByTestId("cost-confirm"));
+
+    // the EXACT fresh rec lifts to the report — the chat card and the report show the same grade.
+    await waitFor(() => expect(onRunResult).toHaveBeenCalledWith(freshRec));
   });
 });
 
