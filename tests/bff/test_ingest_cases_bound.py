@@ -95,12 +95,22 @@ def _patch_extractor(monkeypatch, calls, *, accepted, score):
     monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
 
 
+def _inject_authoring_lm(monkeypatch):
+    """INGEST-LM-1: stub ``_build_authoring_lm`` so the ingest generation path has an LM without
+    a configured provider (unconfigured in bare CE → an actionable RuntimeError BEFORE the
+    extractor runs). The extractor (``best_of_n_extractor``) is mocked, so the stub is never
+    invoked; patching the helper (not the global ``dspy.settings.lm``) keeps downstream dspy
+    state untouched."""
+    monkeypatch.setattr(bff, "_build_authoring_lm", lambda: object())
+
+
 def test_real_ingest_pins_nothing_on_null_apply(tmp_path, monkeypatch):
     """The seam: the extractor converges but the apply-time invariant FAILS (short/null
     apply) → ``RuntimeError`` 'nothing pinned'; the gate ran (``score_extraction`` called)
     yet ``persist_or_update`` + ``AuditLog.record`` are each called ZERO times."""
     calls = {"persist": 0, "audit": 0, "score": 0, "bon": 0}
     _patch_audit(monkeypatch, calls)
+    _inject_authoring_lm(monkeypatch)
     _patch_client(monkeypatch, calls)
     _patch_extractor(
         monkeypatch,
@@ -125,6 +135,7 @@ def test_real_ingest_pins_nothing_when_extractor_does_not_converge(tmp_path, mon
     first)."""
     calls = {"persist": 0, "audit": 0, "score": 0, "bon": 0}
     _patch_audit(monkeypatch, calls)
+    _inject_authoring_lm(monkeypatch)
     _patch_client(monkeypatch, calls)
     _patch_extractor(
         monkeypatch,
@@ -150,6 +161,7 @@ def test_real_ingest_spies_fire_once_on_success(tmp_path, monkeypatch):
     calls = {"persist": 0, "audit": 0, "score": 0, "bon": 0}
     cases = [{"case_id": "a", "response": "x"}, {"case_id": "b", "response": "y"}]
     _patch_audit(monkeypatch, calls)
+    _inject_authoring_lm(monkeypatch)
     _patch_client(monkeypatch, calls, pin_id=555)
     _patch_extractor(
         monkeypatch,

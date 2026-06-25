@@ -324,6 +324,80 @@ def _run_bounded(fn: Any, timeout_s: float) -> Any:
     return box.get("value")
 
 
+def _build_authoring_lm():
+    """The DSPy LM that AUTHORS the ingest JUTE transform — the user's CONFIGURED provider.
+
+    INGEST-LM-1. The generate→refine loop needs a DSPy LM to write the transform YAML (the
+    live gate is :3031; the LM only writes YAML, never grades). The BFF sets no global LM, so
+    we resolve one from the configured provider IN ORDER:
+
+      1. ``dspy.settings.lm`` — an explicit global LM (offline tests / an injected predictor).
+         UNCHANGED short-circuit (byte-identical to before).
+      2. the configured CHAT/assistant provider (``_chat_provider_config()`` → a litellm
+         ``dspy.LM``: ``azure``/``openai``/``gemini``/``bedrock``/``openai_compatible``). Azure
+         threads ``api_version`` (the litellm DeploymentNotFound wall); ``None`` (anthropic-SDK
+         chat / unset) skips to (3).
+      3. the configured GRADING provider via ``build_judge_lm("risk_judge")`` — respects the
+         per-role/global binding the user set (azure → azure with api_version; explicit
+         byo-claude → the CLI LM). The v2 default is Azure, NOT the CLI.
+
+    The blind ``build_claude_cli_lm()`` default is GONE — ``claude`` is reached ONLY via an
+    EXPLICIT byo-claude config through ``build_judge_lm`` (step 3), never as the fallback. If
+    NOTHING is configured / no LM is constructible, raise a clear ``RuntimeError`` telling the
+    human to configure a provider in Connect AI (the ingest handler surfaces it as guidance and
+    pins nothing) — never a cryptic ``FileNotFoundError: 'claude'``.
+
+    SDK-free at app.py import: ``dspy`` / the agent-loop chat config / ``build_judge_lm`` are
+    all imported lazily HERE, so importing ``app`` stays litellm/dspy-free.
+    """
+    import dspy
+
+    settings_lm = dspy.settings.lm
+    if settings_lm is not None:
+        return settings_lm  # explicit global LM — offline / injected; byte-identical short-circuit
+
+    # the configured CHAT provider (the conversational authoring brain) — a litellm dspy.LM.
+    from agent.loop import _chat_provider_config, _litellm_prefix  # lazy: keep [agent] off import
+
+    chat_cfg = _chat_provider_config()
+    if chat_cfg:
+        provider = (chat_cfg.get("provider") or "").strip().lower()
+        model = chat_cfg.get("model") or ""
+        lm_kwargs: dict[str, Any] = {"temperature": 0, "max_tokens": 4096}
+        if chat_cfg.get("api_key"):
+            lm_kwargs["api_key"] = chat_cfg["api_key"]
+        if chat_cfg.get("api_base"):  # azure / openai_compatible
+            lm_kwargs["api_base"] = chat_cfg["api_base"]
+        if provider == "azure":
+            # CONNECT-AI-AZURE-1 parity: an azure LM needs an api_version (the chat loop threads
+            # it too); default to the council default when the chat config left it empty.
+            from lithrim_bench.runtime.council.settings import settings as _council_settings
+
+            lm_kwargs["api_version"] = (
+                (chat_cfg.get("api_version") or "").strip()
+                or _council_settings.AZURE_OPENAI_API_VERSION
+            )
+        try:
+            return dspy.LM(f"{_litellm_prefix(provider)}/{model}", **lm_kwargs)
+        except Exception as exc:  # noqa: BLE001 — surfaced as actionable guidance below
+            raise RuntimeError(
+                f"could not build the ingest authoring LM from the configured chat provider "
+                f"({provider!r}): {exc}. Configure a provider in Connect AI; nothing pinned."
+            ) from exc
+
+    # the configured GRADING provider — respects the per-role/global binding (azure → azure;
+    # explicit byo-claude → the CLI LM). claude is reachable ONLY via this explicit config.
+    from lithrim_bench.runtime.council.judges_dspy import build_judge_lm
+
+    try:
+        return build_judge_lm("risk_judge")
+    except Exception as exc:  # noqa: BLE001 — no provider configured → actionable guidance
+        raise RuntimeError(
+            f"no LM available to author the ingest transform — configure a provider in "
+            f"Connect AI (chat or grading): {exc}; nothing pinned"
+        ) from exc
+
+
 def _infer_iterated_count(sample: Any, extraction_rules: str = "") -> int:
     """Infer expected_count = the iterated SOURCE collection's length (NARR-7 / G3).
 
@@ -3202,25 +3276,18 @@ def _build_tool_context(
                     expected_count=expected_count, required_fields=req_fields,
                 )
 
-            # GEN-LM (NARR-7.1): the generate->refine loop needs a DSPy LM to AUTHOR the transform YAML
-            # (the live gate is :3031; the LM only writes YAML, never grades). The BFF configures no
-            # global LM (the council builds its own per-role LMs), so default to BYO-Claude ($0 — the
-            # same build_claude_cli_lm the live G2 test uses) when none is set, SCOPED to this call so
+            # GEN-LM (NARR-7.1 / INGEST-LM-1): the generate->refine loop needs a DSPy LM to AUTHOR
+            # the transform YAML (the live gate is :3031; the LM only writes YAML, never grades).
+            # The BFF configures no global LM (the council builds its own per-role LMs), so
+            # _build_authoring_lm() resolves the user's CONFIGURED provider — settings.lm (offline)
+            # -> the configured chat litellm LM -> the configured grading LM (build_judge_lm) -> a
+            # clear RuntimeError. The blind build_claude_cli_lm default is GONE (claude reachable
+            # ONLY via an explicit byo-claude config). SCOPED to this call (dspy.context below) so
             # it never perturbs the council. INGESTION-ONLY; moat untouched. An injected predictor
-            # (offline tests) short-circuits the LM, so this stays $0/offline there.
+            # (offline tests) short-circuits via settings.lm, so this stays $0/offline there.
             import dspy
 
-            gen_lm = dspy.settings.lm
-            if gen_lm is None:
-                try:
-                    from lithrim_bench.runtime.council.byo_claude_lm import build_claude_cli_lm
-
-                    gen_lm = build_claude_cli_lm()
-                except Exception as exc:
-                    raise RuntimeError(
-                        f"no generation LM available to author the ingest transform "
-                        f"(BYO-Claude unavailable: {exc}); nothing pinned"
-                    ) from exc
+            gen_lm = _build_authoring_lm()
             # n=2 (NARR-7.1): the within-generator refine loop (up to 3 iters, live-gated each) IS the
             # convergence mechanism — n is redundant INDEPENDENT restarts. BYO-Claude is ~13s/attempt,
             # so n=2 (one restart for insurance) keeps the interactive chat-ingest responsive

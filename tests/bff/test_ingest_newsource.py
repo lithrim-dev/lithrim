@@ -116,6 +116,15 @@ def _mock_verification_surface(monkeypatch, *, accepted=True, count_eq_expected=
     monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
     monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
     monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
+    _inject_authoring_lm(monkeypatch)
+
+
+def _inject_authoring_lm(monkeypatch):
+    """INGEST-LM-1: stub _build_authoring_lm so the ingest generation path has an LM without a
+    configured provider (unconfigured in bare CE → an actionable RuntimeError BEFORE the
+    extractor runs). The extractor is mocked, so the stub is never invoked; patching the helper
+    (not the global dspy.settings.lm) keeps the downstream grade's dspy state untouched."""
+    monkeypatch.setattr(bff, "_build_authoring_lm", lambda: object())
 
 
 # --------------------------------------------------------------------------- #
@@ -326,6 +335,7 @@ def test_storyworld_enhanced_scenes_count_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr("lithrim_bench.verification.score_extraction", fake_score)
     monkeypatch.setattr("lithrim_bench.verification.render_dsl_excerpt", lambda *a, **k: "")
     monkeypatch.setattr("lithrim_bench.verification.EtlpJuteClient", FakeJute)
+    _inject_authoring_lm(monkeypatch)
     ws_out = tmp_path / "wsout"
     monkeypatch.setattr(
         "lithrim_bench.harness.workspace.get_active_workspace",
