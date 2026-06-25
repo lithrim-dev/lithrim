@@ -74,7 +74,20 @@ def roles_env(tmp_path, monkeypatch):
     _chat_fields = [
         "LITHRIM_CHAT_PROVIDER", "LITHRIM_CHAT_MODEL", "LITHRIM_CHAT_API_KEY", "LITHRIM_CHAT_API_BASE",
     ]
-    _global_fields = ["LITHRIM_LLM_PROVIDER", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"]
+    # ``_persist_and_reload_provider`` writes to the REAL os.environ + mutates the live
+    # council-settings singleton IN PLACE (the no-restart path), neither of which monkeypatch
+    # tracks. A role-less azure/openai connect sets the GLOBAL azure deployment vars + endpoint; an
+    # openai connect sets the per-role OPENAI_MODEL_* vars. Snapshot EVERY field a connect/bind in
+    # this file can touch and fully restore them so nothing leaks across tests (it bit
+    # tests/test_byok_openai.py::test_azure_path_unchanged via AZURE_OPENAI_DEPLOYMENT_COUNCIL).
+    _global_fields = [
+        "LITHRIM_LLM_PROVIDER", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY",
+        "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_DEPLOYMENT_COUNCIL", "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3",
+        "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK",
+        "OPENAI_MODEL_RISK", "OPENAI_MODEL_POLICY", "OPENAI_MODEL_FAITHFULNESS",
+        "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_API_BASE", "AWS_ACCESS_KEY_ID",
+    ]
     _watch = [*_per_role_fields, *_chat_fields, *_global_fields]
     _settings_snapshot = {f: getattr(original, f, "") for f in _watch if hasattr(original, f)}
     _env_snapshot = {f: os.environ.get(f) for f in _watch}

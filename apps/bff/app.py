@@ -3414,6 +3414,24 @@ _PROVIDER_AZURE_ROLE_DEPLOYMENT = {
 }
 # Which env vars carry the SECRET per plane — these never leave .provider_env / os.environ.
 _PROVIDER_SECRET_VARS = ("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+# CONNECT-AI-CONSOLIDATE-1: the GLOBAL secret var per provider — the one a provider-level connect
+# (Section 1, key entered once, NO role) writes, and the one a /v1/roles/bind reads back to REUSE the
+# stored key (never re-keying). openai/azure/anthropic keep their existing global vars byte-identical;
+# the broadened set gets a distinct namespaced var so openai vs openai_compatible never collide.
+_PROVIDER_SECRET_VAR = {
+    "openai": "OPENAI_API_KEY",
+    "azure": "AZURE_OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "bedrock": "AWS_ACCESS_KEY_ID",
+    "openai_compatible": "OPENAI_COMPATIBLE_API_KEY",
+}
+# Where a provider stores its api_base/endpoint (azure / openai_compatible) so a role-bind can REUSE
+# the already-stored endpoint — no re-endpointing. Other providers have no stored endpoint.
+_PROVIDER_ENDPOINT_VAR = {
+    "azure": "AZURE_OPENAI_ENDPOINT",
+    "openai_compatible": "OPENAI_COMPATIBLE_API_BASE",
+}
 
 # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the GENERIC per-role binding (mirrors
 # judges_dspy._ROLE_PROVIDER_KEYS — kept local so app.py stays council-import-free). When a grading
@@ -3485,17 +3503,19 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                     for var in _PROVIDER_AZURE_ROLE_DEPLOYMENT.values():
                         env[var] = req.model
         elif req.provider in _PER_ROLE_ONLY_PROVIDERS:
-            # gemini / bedrock / openai_compatible: there is no global provider selector — the
-            # per-role binding (written above) IS the whole config, so a role is REQUIRED.
-            if not req.role:
-                raise ValueError(
-                    f"provider={req.provider!r} is per-role only — pass a `role` "
-                    f"(risk_judge|policy_judge|faithfulness_judge) to bind this provider to a judge"
-                )
+            # CONNECT-AI-CONSOLIDATE-1: a provider-level connect (Section 1 — key entered once, NO
+            # role) now stores the provider's GLOBAL secret so a later /v1/roles/bind can REUSE it
+            # (no re-keying). With a `role` the per-role binding above is still the live wiring; the
+            # global secret is additive (the bind reads it back). openai_compatible still needs an
+            # endpoint (stored as the provider's api_base for reuse).
             if req.provider == "openai_compatible" and not req.endpoint:
                 raise ValueError(
                     "provider='openai_compatible' requires `endpoint` (the OpenAI-compatible api_base)"
                 )
+            env[_PROVIDER_SECRET_VAR[req.provider]] = req.api_key  # the GLOBAL stored key (reused at bind)
+            endpoint_var = _PROVIDER_ENDPOINT_VAR.get(req.provider)
+            if endpoint_var and req.endpoint:
+                env[endpoint_var] = req.endpoint
         else:
             raise ValueError(
                 f"provider={req.provider!r} is not a grading provider "
@@ -4141,6 +4161,151 @@ def provider_status_endpoint() -> dict:
     """CE-PROVIDER-BACKEND (Build A, SPEC §3.2): which planes are configured + provider/model/
     last_tested — so the UI shows connected/needs-setup. NEVER the key."""
     return {"planes": _read_provider_status()}
+
+
+# CONNECT-AI-CONSOLIDATE-1 ──────────────────────────────────────────────────────────────────────
+# The 2-section Connect AI panel: Section 1 connects a provider with JUST a key (above); Section 2
+# binds a {provider, model} to ONE consumer REUSING the provider's already-stored key — keys are
+# entered ONCE. The four consumers are the 3 judges (the council) + a now-COMPULSORY cross-provider
+# chat_assistant (CONV-RUNTIME-1 made the chat runtime provider-agnostic). The bind REUSES the
+# stored key (read from .provider_env via _PROVIDER_SECRET_VAR[provider]) — the request body carries
+# NO key, the response carries NO key. The judge bind reuses Build A's per-role LITHRIM_LLM_*_<ROLE>
+# writer; the chat bind writes the CONV-RUNTIME-1 LITHRIM_CHAT_* contract loop.py consumes.
+_ROLE_BIND_JUDGE_ENV = {  # role → the per-role JUDGE env (reuses _PROVIDER_ROLE_BINDING above)
+    "risk_judge": "RISK", "policy_judge": "POLICY", "faithfulness_judge": "FAITHFULNESS",
+}
+_ROLE_BIND_CHAT = "chat_assistant"
+_ROLE_BIND_CONSUMERS = (*_ROLE_BIND_JUDGE_ENV.keys(), _ROLE_BIND_CHAT)
+
+
+class RoleBindRequest(BaseModel):
+    # CONNECT-AI-CONSOLIDATE-1: bind a {provider, model} to ONE consumer. NO api_key — the key is
+    # REUSED from the provider's already-stored secret on .provider_env (keys entered once).
+    role: Literal["risk_judge", "policy_judge", "faithfulness_judge", "chat_assistant"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
+    model: str
+
+
+def _stored_provider_key(provider: str) -> str | None:
+    """Read a provider's already-stored GLOBAL key back from .provider_env (the bind reuses it).
+    None ⇒ the provider is not connected. The key stays on-disk — never returned to a caller."""
+    var = _PROVIDER_SECRET_VAR.get(provider)
+    if not var:
+        return None
+    return _parse_env_file(_PROVIDER_ENV_PATH).get(var) or None
+
+
+def _stored_provider_endpoint(provider: str) -> str | None:
+    """Read a provider's already-stored endpoint (azure / openai_compatible api_base) for reuse."""
+    var = _PROVIDER_ENDPOINT_VAR.get(provider)
+    if not var:
+        return None
+    return _parse_env_file(_PROVIDER_ENV_PATH).get(var) or None
+
+
+def _connected_providers() -> list[str]:
+    """The providers with a stored key on .provider_env (Section 1's connected list). NO key."""
+    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    return [p for p, var in _PROVIDER_SECRET_VAR.items() if env.get(var)]
+
+
+def _read_role_bindings() -> dict:
+    """The non-secret per-consumer readout — which {provider, model} each of the 4 roles is bound to,
+    derived from .provider_env (the per-role LITHRIM_LLM_*_<ROLE> for judges; LITHRIM_CHAT_* for
+    chat). An unbound role is None. NEVER carries a key."""
+    env = _parse_env_file(_PROVIDER_ENV_PATH)
+    roles: dict[str, dict | None] = {}
+    for role, suffix in _ROLE_BIND_JUDGE_ENV.items():
+        prov = env.get(f"LITHRIM_LLM_PROVIDER_{suffix}")
+        roles[role] = {"provider": prov, "model": env.get(f"LITHRIM_LLM_MODEL_{suffix}")} if prov else None
+    chat_prov = env.get("LITHRIM_CHAT_PROVIDER")
+    roles[_ROLE_BIND_CHAT] = (
+        {"provider": chat_prov, "model": env.get("LITHRIM_CHAT_MODEL")} if chat_prov else None
+    )
+    return roles
+
+
+@app.post("/v1/roles/bind")
+def roles_bind_endpoint(
+    req: RoleBindRequest,
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CONNECT-AI-CONSOLIDATE-1: assign a {provider, model} to ONE consumer (a judge or the
+    compulsory chat_assistant), REUSING the provider's already-stored key — the request body carries
+    NO key, and the key is read SERVER-SIDE from .provider_env (keys entered once). Re-probes with
+    the stored key + chosen model BEFORE writing; a JUDGE bind writes the per-role
+    LITHRIM_LLM_*_<ROLE> (Build A's writer); a chat_assistant bind writes the CONV-RUNTIME-1
+    LITHRIM_CHAT_* contract (anthropic ALSO writes ANTHROPIC_API_KEY for the SDK path). 422 if the
+    provider has no stored key / unknown role / azure|openai_compatible without a stored endpoint / a
+    failing probe. The response is non-secret ({ok, role, provider, model}) — NO key."""
+    api_key = _stored_provider_key(req.provider)
+    if not api_key:
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider {req.provider!r} is not connected (connect it in Providers first)",
+        )
+    endpoint = _stored_provider_endpoint(req.provider)
+    if req.provider in ("azure", "openai_compatible") and not endpoint:
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider {req.provider!r} has no stored endpoint (re-connect it with an endpoint)",
+        )
+
+    # re-probe the chosen model with the REUSED stored key BEFORE writing (mirrors Build A)
+    probe = _probe_provider(
+        plane="assistant" if req.provider == "anthropic" else "grading",
+        provider=req.provider, api_key=api_key, endpoint=endpoint, model=req.model,
+    )
+    if not probe.get("ok"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider test failed ({probe.get('error', 'unknown error')})",
+        )
+
+    if req.role in _ROLE_BIND_JUDGE_ENV:
+        # a JUDGE → the per-role binding via Build A's mapper (the REUSED key fills the per-role var)
+        cfg = ProviderConfigRequest(
+            plane="grading", provider=req.provider, api_key=api_key,
+            endpoint=endpoint, model=req.model, role=req.role,
+        )
+        env_vars = _provider_env_vars(cfg)
+    else:
+        # chat_assistant → the CONV-RUNTIME-1 LITHRIM_CHAT_* contract (cross-provider chat)
+        env_vars = {
+            "LITHRIM_CHAT_PROVIDER": req.provider,
+            "LITHRIM_CHAT_MODEL": req.model,
+            "LITHRIM_CHAT_API_KEY": api_key,  # the REUSED stored key (write-only)
+        }
+        if endpoint:
+            env_vars["LITHRIM_CHAT_API_BASE"] = endpoint
+        if req.provider == "anthropic":
+            env_vars["ANTHROPIC_API_KEY"] = api_key  # the SDK path reads this, exactly as the assistant plane
+
+    _persist_and_reload_provider(env_vars)
+
+    actor = _resolve_actor(x_actor, default_actor)
+    ws = workspace.get_active_workspace()
+    AuditLog(db_path=ws.config_db).record(
+        AuditRecord(
+            actor=actor,
+            action="role_bind",
+            target=Target(type="role", id=req.role),
+            why={"rationale": f"bound {req.role} to {req.provider} {req.model!r} (reused stored key)"},
+            before=None,
+            # NEVER the key — only the non-secret binding facts
+            after={"role": req.role, "provider": req.provider, "model": req.model},
+        )
+    )
+    return {"ok": True, "role": req.role, "provider": req.provider, "model": req.model}
+
+
+@app.get("/v1/roles/bindings")
+def roles_bindings_endpoint() -> dict:
+    """CONNECT-AI-CONSOLIDATE-1: the non-secret per-consumer readout the Assign-models section
+    renders — which {provider, model} each of the 4 roles is bound to (None when unbound) + the list
+    of CONNECTED providers (those with a stored key) for the Providers list. NEVER a key."""
+    return {"roles": _read_role_bindings(), "connected_providers": _connected_providers()}
 
 
 def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
