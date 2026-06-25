@@ -16,6 +16,7 @@ discipline), and the secret-hygiene assertion is the typed key string ABSENT fro
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import types
 from pathlib import Path
@@ -309,7 +310,9 @@ def test_litellm_engine_never_forwards_a_paid_knob_to_run_eval(ctx):
             [
                 _toolcall_chunk(
                     index=0, name="run_eval",
-                    arguments='{"agent": "%s", "in_process": true, "live": true, "confirm": true}' % AGENT,
+                    arguments=json.dumps(
+                        {"agent": AGENT, "in_process": True, "live": True, "confirm": True}
+                    ),
                     call_id="r",
                 ),
                 _finish_chunk("tool_calls"),

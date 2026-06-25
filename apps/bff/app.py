@@ -3502,10 +3502,28 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                 f"(use openai|azure|gemini|bedrock|openai_compatible)"
             )
     else:  # assistant plane
-        if req.provider != "anthropic":
-            raise ValueError("the assistant plane provider must be 'anthropic'")
-        env["LITHRIM_CHAT_PROVIDER"] = "anthropic"
-        env["ANTHROPIC_API_KEY"] = req.api_key
+        # CONV-RUNTIME-1: the assistant (chat) plane is un-gated to the broadened provider set.
+        # anthropic stays BYTE-IDENTICAL — ANTHROPIC_API_KEY + LITHRIM_CHAT_PROVIDER=anthropic — so
+        # the Agent-SDK / BYO-Claude chat path keeps working. Any OTHER provider writes the chat
+        # env-var contract LITHRIM_CHAT_{PROVIDER,MODEL,API_KEY[,API_BASE]} the litellm conversation
+        # loop reads (the api_key is the chat SECRET, write-only on .provider_env, never echoed).
+        if req.provider == "anthropic":
+            env["LITHRIM_CHAT_PROVIDER"] = "anthropic"
+            env["ANTHROPIC_API_KEY"] = req.api_key
+        else:
+            if not req.model:
+                raise ValueError(
+                    f"the assistant plane provider {req.provider!r} requires `model` (the chat model)"
+                )
+            if req.provider in ("azure", "openai_compatible") and not req.endpoint:
+                raise ValueError(
+                    f"the assistant plane provider {req.provider!r} requires `endpoint` (the api_base)"
+                )
+            env["LITHRIM_CHAT_PROVIDER"] = req.provider
+            env["LITHRIM_CHAT_MODEL"] = req.model
+            env["LITHRIM_CHAT_API_KEY"] = req.api_key  # the chat SECRET (write-only on .provider_env)
+            if req.endpoint:  # azure / openai_compatible api_base
+                env["LITHRIM_CHAT_API_BASE"] = req.endpoint
     return env
 
 
@@ -3516,7 +3534,11 @@ def _probe_provider(*, plane, provider, api_key, endpoint=None, model=None, role
     Patched in tests so the green bar is $0/offline (no live call). Lazy imports keep app.py free of
     the [council] LM deps at module load."""
     try:
-        if plane == "assistant" or provider == "anthropic":
+        # CONV-RUNTIME-1: route the probe by PROVIDER, not by plane — a non-anthropic assistant
+        # (the litellm chat) probes via the litellm branch below, exactly like a grading provider.
+        # Only anthropic (either plane: the SDK chat / the mixed-council faithfulness seat) pings via
+        # the anthropic SDK.
+        if provider == "anthropic":
             import anthropic  # type: ignore
 
             client = anthropic.Anthropic(api_key=api_key)

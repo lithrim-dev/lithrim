@@ -32,6 +32,15 @@ from typing import Any
 
 from .tools import _TOOL_SPECS, ToolContext, build_sdk_tools
 
+# CONV-RUNTIME-1: the verbatim one-step-per-turn pacing message. Hoisted to module scope so BOTH
+# pacing enforcers — the SDK PreToolUse ``_pace_one_step`` hook AND the litellm-loop turn-local
+# counter — feed back the IDENTICAL text (one-step parity across the two conversation engines).
+_ONE_STEP_PACING_MESSAGE = (
+    "One setup step per turn: you've already proposed a step this turn. "
+    "Surface that one card, ask the human to review/save it and tell you to "
+    "continue, then set up the next step on the following turn."
+)
+
 _SYSTEM_PROMPT = (
     "You are Lithrim's setup assistant inside an eval-config product. You drive the whole "
     "journey from a blank slate by calling the provided tools, in the natural order "
@@ -341,6 +350,39 @@ async def _deny_non_lithrim(input_data, tool_use_id, context):
     }
 
 
+def _provider_config_root():
+    """The repo-root directory the chat-provider env-file fallback reads (``.env`` / ``.live_env``
+    / ``.provider_env``). Factored out so tests can point it at a tmp dir (no real .env leaks in)."""
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[3]  # apps/bff/agent/loop.py → repo root
+
+
+def _read_chat_env(name: str) -> str | None:
+    """Read ``name`` from os.environ, else the gitignored repo-root ``.env`` / ``.live_env`` /
+    ``.provider_env``, at TURN time — so flipping a chat-provider var needs no BFF restart. The
+    chat api_key (``LITHRIM_CHAT_API_KEY``) is written to ``.provider_env`` by the provider endpoint;
+    we read it here. NEVER logs the value."""
+    import os
+
+    v = os.environ.get(name)
+    if v:
+        return v
+    root = _provider_config_root()
+    for fname in (".env", ".live_env", ".provider_env"):
+        f = root / fname
+        if not f.exists() or not f.is_file():
+            continue
+        for raw in f.read_text().splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, val = line.split("=", 1)
+            if k.strip() == name:
+                return val.strip().strip("'\"")
+    return None
+
+
 def _chat_provider_env() -> tuple[str | None, str | None]:
     """CONV-PROVIDER-1 — OPT-IN hot-switch of the conversational layer to the Anthropic API.
 
@@ -357,33 +399,67 @@ def _chat_provider_env() -> tuple[str | None, str | None]:
     ``LITHRIM_CHAT_MODEL`` pins the model (alias "sonnet"/"opus" or a full id; default "sonnet").
     Returns (api_key, model). NEVER logs the key.
 
-    NOTE: Anthropic only. The Agent SDK drives Claude; an Azure GPT/Mistral/Llama conversational
-    agent would need a different (OpenAI-tools) loop engine, not this seam.
+    NOTE: Anthropic only — this seam binds the Agent SDK to Claude. A non-anthropic conversational
+    agent (Azure GPT / Mistral / Llama / Gemini / ...) is driven by the litellm OpenAI-tools loop
+    (``_litellm_loop``), selected via ``_chat_provider_config`` (CONV-RUNTIME-1).
     """
-    import os
-    from pathlib import Path
-
-    def _read(name: str) -> str | None:
-        v = os.environ.get(name)
-        if v:
-            return v
-        root = Path(__file__).resolve().parents[3]  # apps/bff/agent/loop.py → repo root
-        for fname in (".env", ".live_env"):
-            f = root / fname
-            if not f.exists():
-                continue
-            for raw in f.read_text().splitlines():
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, val = line.split("=", 1)
-                if k.strip() == name:
-                    return val.strip().strip("'\"")
-        return None
-
-    if (_read("LITHRIM_CHAT_PROVIDER") or "").strip().lower() not in ("anthropic", "anthropic-api", "api"):
+    if (_read_chat_env("LITHRIM_CHAT_PROVIDER") or "").strip().lower() not in (
+        "anthropic", "anthropic-api", "api",
+    ):
         return None, None  # credit-safe default: $0 BYO-Claude (desktop auth), key on disk ignored
-    return (_read("ANTHROPIC_API_KEY") or None), (_read("LITHRIM_CHAT_MODEL") or "sonnet")
+    return (_read_chat_env("ANTHROPIC_API_KEY") or None), (_read_chat_env("LITHRIM_CHAT_MODEL") or "sonnet")
+
+
+def _chat_provider_config() -> dict | None:
+    """CONV-RUNTIME-1 — which conversation ENGINE drives the chat, selected by the configured
+    chat provider. Read at TURN time from os.environ else the repo-root ``.env`` / ``.live_env`` /
+    ``.provider_env`` (no BFF restart needed).
+
+    **Credit-safe default.** No ``LITHRIM_CHAT_PROVIDER`` set, OR set to ``anthropic`` →
+    returns ``None`` → the EXISTING Anthropic Agent-SDK / BYO-Claude path is taken UNCHANGED (a key
+    on disk NEVER silently picks a billing engine; ``_chat_provider_env`` independently governs
+    whether the SDK path uses the paid Anthropic API or desktop auth).
+
+    For any OTHER provider (openai / azure / gemini / bedrock / openai_compatible) → returns
+    ``{provider, model, api_key, api_base}`` read from ``LITHRIM_CHAT_{PROVIDER,MODEL,API_KEY,API_BASE}``
+    → the litellm OpenAI-tools loop drives the chat. NEVER logs the key."""
+    provider = (_read_chat_env("LITHRIM_CHAT_PROVIDER") or "").strip().lower()
+    if provider in ("", "anthropic", "anthropic-api", "api"):
+        return None  # credit-safe default → the SDK / BYO-Claude path, unchanged
+    return {
+        "provider": provider,
+        "model": _read_chat_env("LITHRIM_CHAT_MODEL"),
+        "api_key": _read_chat_env("LITHRIM_CHAT_API_KEY"),
+        "api_base": _read_chat_env("LITHRIM_CHAT_API_BASE"),
+    }
+
+
+# CONV-RUNTIME-1: map a plain-dict tool schema's python type → its JSON-schema type string.
+_JSON_SCHEMA_TYPES = {str: "string", int: "integer", bool: "boolean", list: "array", dict: "object"}
+
+
+def _openai_tool_schemas() -> list[dict]:
+    """CONV-RUNTIME-1 — build the OpenAI / litellm function-tool list from ``_TOOL_SPECS``. Each
+    ``(handler, name, desc, {param: pytype})`` → ``{"type":"function","function":{name, description,
+    parameters: <JSON-schema object>}}``. ALL params are OPTIONAL (no ``required``): the handlers
+    default every omitted arg, mirroring the SDK plain-dict schema semantics. Covers all 22 tools."""
+    schemas: list[dict] = []
+    for _handler, name, desc, schema in _TOOL_SPECS:
+        properties = {
+            param: {"type": _JSON_SCHEMA_TYPES.get(pytype, "string")}
+            for param, pytype in schema.items()
+        }
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": desc,
+                    "parameters": {"type": "object", "properties": properties, "required": []},
+                },
+            }
+        )
+    return schemas
 
 
 def _build_options(ctx: ToolContext):
@@ -425,11 +501,7 @@ def _build_options(ctx: ToolContext):
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
-                    "permissionDecisionReason": (
-                        "One setup step per turn: you've already proposed a step this turn. "
-                        "Surface that one card, ask the human to review/save it and tell you to "
-                        "continue, then set up the next step on the following turn."
-                    ),
+                    "permissionDecisionReason": _ONE_STEP_PACING_MESSAGE,
                 }
             }
         except Exception:
@@ -511,17 +583,20 @@ async def _real_source(
             yield msg
 
 
-async def run_chat(
+async def _run_sdk_chat(
     message: str,
     ctx: ToolContext,
     *,
     history: list[dict] | None = None,
     source: Callable[[str, ToolContext, list[dict] | None], AsyncIterator[Any]] | None = None,
 ) -> AsyncIterator[dict]:
-    """Drive the loop and yield SSE event dicts. ``history`` is the client-replayed prior
-    turns (text-only; default ``None`` -> no preamble -> back-compatible). ``source`` defaults
-    to the real SDK; tests pass a stub async generator factory
-    ``(message, ctx, history) -> AsyncIterator[msg]``."""
+    """The Anthropic Agent-SDK / BYO-Claude consumer: normalize a ClaudeSDKClient message stream
+    into SSE event dicts. ``history`` is the client-replayed prior turns (text-only; default
+    ``None`` -> no preamble -> back-compatible). ``source`` defaults to the real SDK; tests pass a
+    stub async generator factory ``(message, ctx, history) -> AsyncIterator[msg]``.
+
+    CONV-RUNTIME-1: this is the regression-guard path — BYTE-IDENTICAL to the pre-CONV-RUNTIME-1
+    ``run_chat`` for the anthropic/unset case (``run_chat`` now dispatches here vs ``_litellm_loop``)."""
     from claude_agent_sdk import (
         AssistantMessage,
         ResultMessage,
@@ -591,6 +666,231 @@ async def run_chat(
         yield {"event": "error", "detail": str(exc)}
         return
     yield {"event": "done", "cost_usd": cost_usd, "cost_label": COST_LABEL}
+
+
+# CONV-RUNTIME-1 — the bare tool names the whitelist admits (the A-SAFE floor of the litellm
+# engine: ONLY a name in this set is ever dispatched; a Bash / unknown call is fed back as an error
+# and NEVER executed). Resolves a bare OR ``mcp__lithrim__``-prefixed name to its bare form.
+_LITHRIM_TOOL_NAMES = frozenset(name for _h, name, *_ in _TOOL_SPECS)
+_LITHRIM_HANDLERS = {name: handler for handler, name, *_ in _TOOL_SPECS}
+_LITELLM_MAX_TURNS = 12  # parity with _build_options.max_turns (the Domain→Judge→Flag→Run→Review journey)
+
+# CONV-RUNTIME-1: the honest BYO-key chat cost label (the user's own provider key pays for the chat).
+_LITELLM_COST_LABEL = "your-BYO-key conversation cost"
+
+# CONV-RUNTIME-1: the litellm provider/model prefix (mirrors judges_dspy._LITELLM_PREFIX — inlined so
+# the agent package stays import-isolated: no dspy/openai pulled at import). ``openai_compatible``
+# rides the ``openai`` prefix + an ``api_base``; an unknown provider falls back to its own id.
+_LITELLM_PREFIX = {
+    "openai": "openai",
+    "azure": "azure",
+    "anthropic": "anthropic",
+    "gemini": "gemini",
+    "bedrock": "bedrock",
+    "openai_compatible": "openai",
+}
+
+
+def _litellm_prefix(provider: str) -> str:
+    p = (provider or "").strip().lower()
+    return _LITELLM_PREFIX.get(p, p)
+
+
+def _resolve_lithrim_tool(name: str) -> str | None:
+    """Resolve a tool-call name to a whitelisted bare lithrim tool name, else None (NOT a Lithrim
+    tool → never dispatched). Strips the ``mcp__lithrim__`` prefix the SDK naming would carry."""
+    bare = name[len("mcp__lithrim__") :] if name.startswith("mcp__lithrim__") else name
+    return bare if bare in _LITHRIM_TOOL_NAMES else None
+
+
+async def _litellm_loop(
+    message: str,
+    ctx: ToolContext,
+    history: list[dict] | None = None,
+    *,
+    provider: str,
+    model: str,
+    api_key: str | None,
+    api_base: str | None,
+    _completion: Callable[..., Any] | None = None,
+) -> AsyncIterator[dict]:
+    """CONV-RUNTIME-1 — the provider-agnostic conversation loop on litellm (OpenAI tools). Drives
+    the SAME ``_TOOL_SPECS`` handlers and yields the SAME SSE event contract as ``_run_sdk_chat``
+    (assistant_delta / tool_call / tool_result / run_result / error / done), so OpenAI / Gemini /
+    Bedrock / Azure / openai_compatible can drive the chat for a non-anthropic configured provider.
+
+    A-SAFE FLOOR (this engine's whole security bound — there are no built-ins on this path; litellm
+    only ever sees the tools we pass): (a) WHITELIST dispatch — only a name resolving into
+    ``_TOOL_SPECS`` runs; a Bash / unknown call is fed back as a "not a Lithrim tool" tool-result and
+    NEVER executed; (b) one-step pacing parity with ``_pace_one_step`` — the 2nd+ step-proposing
+    write in a turn is paced (fed back the verbatim ``_ONE_STEP_PACING_MESSAGE``, not executed);
+    (c) ``run_eval`` stays REPLAY-ONLY — the handler drops every paid knob, so no ``confirm`` /
+    ``in_process`` / ``live`` ever reaches a bound op. ``_completion`` is injected by tests
+    (a mocked ``litellm.completion``) so the loop runs $0 / offline.
+    """
+    completion = _completion
+    if completion is None:  # pragma: no cover — the live path; tests inject a mocked completion
+        import litellm
+
+        completion = litellm.completion
+
+    tools = _openai_tool_schemas()
+    messages: list[dict] = [
+        {"role": "system", "content": _system_prompt(ctx.default_agent, ctx.active_case)}
+    ]
+    for turn in history or []:
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        role = "user" if turn.get("role") == "user" else "assistant"
+        messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": message})
+
+    model_id = f"{_litellm_prefix(provider)}/{model}"
+    completion_kwargs: dict[str, Any] = {
+        "model": model_id,
+        "tools": tools,
+        "tool_choice": "auto",
+        "stream": True,
+        "temperature": 0,
+        "max_tokens": 4096,
+    }
+    if api_key:
+        completion_kwargs["api_key"] = api_key
+    if api_base:  # azure / openai_compatible
+        completion_kwargs["api_base"] = api_base
+
+    cost_usd: float | None = None
+    try:
+        for _turn in range(_LITELLM_MAX_TURNS):
+            resp = completion(messages=list(messages), **completion_kwargs)
+            text_parts: list[str] = []
+            # accumulate tool_calls by index (name + the chunked `arguments` JSON string)
+            tool_calls: dict[int, dict] = {}
+            for chunk in resp:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                delta = getattr(choices[0], "delta", None)
+                content = getattr(delta, "content", None)
+                if content:
+                    text_parts.append(content)
+                    yield {"event": "assistant_delta", "text": content}
+                for tc in getattr(delta, "tool_calls", None) or []:
+                    idx = getattr(tc, "index", 0) or 0
+                    slot = tool_calls.setdefault(idx, {"id": None, "name": None, "arguments": ""})
+                    if getattr(tc, "id", None):
+                        slot["id"] = tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn is not None:
+                        if getattr(fn, "name", None):
+                            slot["name"] = fn.name
+                        if getattr(fn, "arguments", None):
+                            slot["arguments"] += fn.arguments
+
+            if not tool_calls:
+                break  # a plain assistant turn with no tool call ends the loop
+
+            # append the assistant tool_calls message (so the model sees what it asked for)
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": "".join(text_parts) or None}
+            ordered = [tool_calls[i] for i in sorted(tool_calls)]
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": c["id"] or f"call_{i}",
+                    "type": "function",
+                    "function": {"name": c["name"] or "", "arguments": c["arguments"] or "{}"},
+                }
+                for i, c in enumerate(ordered)
+            ]
+            messages.append(assistant_msg)
+
+            writes_this_turn = 0  # one-step pacing: turn-local counter (parity with _pace_one_step)
+            for i, call in enumerate(ordered):
+                call_id = call["id"] or f"call_{i}"
+                raw_name = call["name"] or ""
+                bare = _resolve_lithrim_tool(raw_name)
+                # (a) WHITELIST: a non-lithrim / unknown name is NEVER executed — fed back as error.
+                if bare is None:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": (
+                                f"{raw_name or '<unknown>'} is not a Lithrim tool; this agent is "
+                                "bounded to the loaded tools (it can never fire a paid run or touch "
+                                "the host). Call a loaded tool by its exact name instead."
+                            ),
+                        }
+                    )
+                    continue
+                # parse arguments (a malformed JSON string → feed an error tool-result, never crash)
+                try:
+                    args = json.loads(call["arguments"] or "{}")
+                    if not isinstance(args, dict):
+                        raise ValueError("tool arguments must be a JSON object")
+                except (ValueError, TypeError) as exc:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": f"Could not parse the arguments for {bare}: {exc}. Resend valid JSON.",
+                        }
+                    )
+                    continue
+                # (b) ONE-STEP PACING: the 2nd+ step-proposing write this turn is paced, not run.
+                if bare in _STEP_PROPOSING_WRITES:
+                    writes_this_turn += 1
+                    if writes_this_turn > 1:
+                        messages.append(
+                            {"role": "tool", "tool_call_id": call_id, "content": _ONE_STEP_PACING_MESSAGE}
+                        )
+                        continue
+                # dispatch the whitelisted handler (it drops paid knobs by construction; run_eval is replay)
+                yield {"event": "tool_call", "name": bare, "input": args}
+                handler = _LITHRIM_HANDLERS[bare]
+                result = await handler(ctx, args)
+                # drain the gen-UI parts + any $0 replay record this handler emitted
+                while ctx.parts:
+                    yield {"event": "tool_result", "part": ctx.parts.pop(0)}
+                while ctx.run_results:
+                    yield {"event": "run_result", "result": ctx.run_results.pop(0)}
+                # feed the handler's text summary back to the model as the tool-result
+                summary = ""
+                for block in (result or {}).get("content", []):
+                    if block.get("type") == "text":
+                        summary += block.get("text", "")
+                messages.append(
+                    {"role": "tool", "tool_call_id": call_id, "content": summary or "(done)"}
+                )
+    except Exception as exc:  # surface a loop/transport failure to the pane, don't 500
+        yield {"event": "error", "detail": str(exc)}
+        return
+    yield {"event": "done", "cost_usd": cost_usd, "cost_label": _LITELLM_COST_LABEL}
+
+
+async def run_chat(
+    message: str,
+    ctx: ToolContext,
+    *,
+    history: list[dict] | None = None,
+    source: Callable[[str, ToolContext, list[dict] | None], AsyncIterator[Any]] | None = None,
+) -> AsyncIterator[dict]:
+    """CONV-RUNTIME-1 — the conversation-engine DISPATCHER (the public entry; ``chat_endpoint``
+    stays a thin caller). When ``_chat_provider_config()`` is ``None`` (anthropic / BYO-Claude /
+    unset) → the EXISTING Anthropic Agent-SDK consumer (``_run_sdk_chat``), byte-identical (the
+    ``source`` stub still threads through it). Otherwise → the provider-agnostic ``_litellm_loop``.
+    BOTH yield the identical SSE event contract, so ``sse_format`` / ``chat_endpoint`` are unchanged."""
+    cfg = _chat_provider_config()
+    if cfg is None:
+        async for event in _run_sdk_chat(message, ctx, history=history, source=source):
+            yield event
+        return
+    async for event in _litellm_loop(
+        message, ctx, history,
+        provider=cfg["provider"], model=cfg.get("model") or "",
+        api_key=cfg.get("api_key"), api_base=cfg.get("api_base"),
+    ):
+        yield event
 
 
 def sse_format(event: dict) -> str:
