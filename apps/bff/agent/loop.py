@@ -172,7 +172,71 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _system_prompt(active_agent: str, active_case: str | None = None) -> str:
+def _latest_run_context(ctx: ToolContext) -> str:
+    """EXPLAIN-RESULT-PARITY-1: the deterministic "latest run" context block injected into the
+    system prompt BOTH chat engines build, so every provider can explain "this result" without a
+    tool call. The verdict renders as an inline gen-UI card (not text) and the replayed history is
+    text-only, so the result is otherwise NEVER in the model's text context — Claude proactively
+    re-fetches it via review_runs; a temperature-0 / tool_choice-auto Azure model does not. This
+    injects it for everyone.
+
+    A-SAFE: a ``$0`` read + context injection ONLY. It calls ONLY ``ctx.review_runs`` (the existing
+    $0 op) and NEVER any paid/run/grade op — the agent still cannot spend. PRESENT-ONLY: a fresh
+    agent with NO runs ⇒ ``""`` ⇒ the prompt is byte-identical to today (the regression guard).
+    DEFENSIVE / never-raises: a read failure returns ``""`` (it must never break chat). HONEST-Δ:
+    it reports the REAL stored verdict/findings verbatim — never a cleaner result than the run gave.
+    """
+    try:
+        res = ctx.review_runs(limit=1)
+    except Exception:
+        return ""  # a read failure NEVER breaks chat
+    runs = (res or {}).get("runs") or []
+    if not runs:
+        return ""  # PRESENT-ONLY: no run ⇒ no block ⇒ byte-identical prompt (the regression guard)
+    audit = (res or {}).get("latest_audit") or {}
+    run_id = (res or {}).get("latest_run_id") or runs[0].get("run_id") or ""
+    verdict = audit.get("verdict") or runs[0].get("verdict") or "—"
+
+    findings = audit.get("findings") or []
+    finding_lines: list[str] = []
+    for f in findings[:5]:
+        if isinstance(f, dict):
+            code = f.get("code") or f.get("flag_code") or f.get("flag") or "finding"
+            reason = f.get("reason") or f.get("description") or f.get("detail") or ""
+        else:
+            code, reason = "finding", str(f)
+        reason = (reason or "").strip().replace("\n", " ")
+        if len(reason) > 140:
+            reason = reason[:137] + "…"
+        finding_lines.append(f"{code} — {reason}" if reason else str(code))
+    findings_rendered = "; ".join(finding_lines) if finding_lines else "none — approved / nothing stands"
+
+    judges = audit.get("judges") or []
+    vote_lines: list[str] = []
+    for j in judges:
+        if not isinstance(j, dict):
+            continue
+        role = j.get("judge_role") or j.get("role") or "judge"
+        vote = j.get("vote") or "—"
+        conf = j.get("confidence")
+        vote_lines.append(f"{role}={vote}({conf})" if conf is not None else f"{role}={vote}")
+    votes_rendered = "; ".join(vote_lines) if vote_lines else "—"
+
+    return (
+        "LATEST RUN CONTEXT (the result currently on screen — this IS \"this result\"/\"the "
+        "verdict\"/\"this run\"):\n"
+        f"  Run {run_id[:8] or '—'} on `{ctx.default_agent}`: verdict={verdict}.\n"
+        f"  Findings still standing: {findings_rendered}\n"
+        f"  Judge votes: {votes_rendered}\n"
+        "When the human asks you to explain / interpret / break down this result, verdict, or run, "
+        "ANSWER FROM THIS (call review_runs for full provenance). NEVER reply that you don't see a "
+        "verdict or findings — you have them here."
+    )
+
+
+def _system_prompt(
+    active_agent: str, active_case: str | None = None, latest_run: str | None = None
+) -> str:
     """CHATBIND-1 (S-BS-103): the active-agent-aware system prompt. ``_SYSTEM_PROMPT`` is
     the static base; this appends a stanza NAMING the rail-selected agent so the model
     targets it BY DEFAULT. The live bug was a static prompt with no active-agent context:
@@ -187,7 +251,14 @@ def _system_prompt(active_agent: str, active_case: str | None = None) -> str:
     "active case"). Naming it here makes run_eval/show_case default to THAT case (the chat↔UI
     decoupling fix) -- without it the chat graded the agent's seed regardless of what was on
     screen. ``None`` (no case selected yet) appends a list_cases nudge instead. A selector, never
-    a spend -- the A-SAFE surface is unchanged."""
+    a spend -- the A-SAFE surface is unchanged.
+
+    EXPLAIN-RESULT-PARITY-1: ``latest_run`` is the optional ``_latest_run_context(ctx)`` block. When
+    it is a non-empty string it is appended as a TRAILING stanza (after ``_SHEPHERD_STANZA``), so the
+    verdict + findings of the run on screen are IN context and every provider can explain "this
+    result" without a tool call. ``None``/``""`` ⇒ the return is BYTE-IDENTICAL to today (the no-run
+    path + the regression guard). It is a context read, never a spend — the A-SAFE surface is
+    unchanged."""
     case_stanza = (
         f"The case the human is currently exploring is `{active_case}`. show_case and run_eval "
         f"operate on `{active_case}` BY DEFAULT (you may omit case_id) unless the user names another "
@@ -230,6 +301,9 @@ def _system_prompt(active_agent: str, active_case: str | None = None) -> str:
         "surfacing the card, the human spends; you can never optimize yourself). The card then shows "
         "the honest baseline->optimized held-out delta to compare.\n\n"
         + _SHEPHERD_STANZA
+        # EXPLAIN-RESULT-PARITY-1: append the latest-run context ONLY when a run exists. A no-run
+        # turn passes None/"" → this concatenation is byte-identical to the pre-PARITY return.
+        + (f"\n\n{latest_run}" if latest_run else "")
     )
 
 
@@ -557,7 +631,12 @@ def _build_options(ctx: ToolContext):
         },
         setting_sources=[],  # SDK isolation: no inherited ~/.claude settings / MCP servers
         skills=[],  # suppress skill listing (the hook denies Read/Bash regardless)
-        system_prompt=_system_prompt(ctx.default_agent, ctx.active_case),  # CHATBIND-1 + NARR-CHAT-LOOP: name the active agent + case
+        # CHATBIND-1 + NARR-CHAT-LOOP: name the active agent + case. EXPLAIN-RESULT-PARITY-1:
+        # inject the latest-run context ($0 review_runs read) so Claude explains "this result"
+        # from context too — present-only (no-run ⇒ byte-identical to the pre-PARITY prompt).
+        system_prompt=_system_prompt(
+            ctx.default_agent, ctx.active_case, latest_run=_latest_run_context(ctx)
+        ),
         max_turns=12,  # the 5-step Domain->Judge->Flag->Run->Review journey (was 8 for the spine)
         # CONV-UX-1 (W2): fine-grained streaming. The SDK (>=0.2.90) interleaves StreamEvent
         # objects whose `event` dict carries the Anthropic content_block_delta/text_delta chunks,
@@ -764,8 +843,16 @@ async def _litellm_loop(
         completion = litellm.completion
 
     tools = _openai_tool_schemas()
+    # EXPLAIN-RESULT-PARITY-1: inject the latest-run context ($0 review_runs read) so the
+    # litellm provider (azure/openai/gemini/bedrock) explains "this result" from context too —
+    # the PARITY with the SDK path. Present-only (no-run ⇒ byte-identical to the pre-PARITY prompt).
     messages: list[dict] = [
-        {"role": "system", "content": _system_prompt(ctx.default_agent, ctx.active_case)}
+        {
+            "role": "system",
+            "content": _system_prompt(
+                ctx.default_agent, ctx.active_case, latest_run=_latest_run_context(ctx)
+            ),
+        }
     ]
     for turn in history or []:
         content = (turn.get("content") or "").strip()
