@@ -27,9 +27,11 @@ SSE event shapes (D-B, resolved at plan-review):
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from .adapter import propose_live_run_part
 from .tools import _TOOL_SPECS, ToolContext, build_sdk_tools
 
 # CONV-RUNTIME-1: the verbatim one-step-per-turn pacing message. Hoisted to module scope so BOTH
@@ -810,6 +812,41 @@ def _resolve_lithrim_tool(name: str) -> str | None:
     return bare if bare in _LITHRIM_TOOL_NAMES else None
 
 
+# CONFIRM-MODAL-FALLBACK-1: a question/explain opener that means "tell me ABOUT the run", never
+# "run it" — so the deterministic cost-confirm fallback stays off when the human is asking, not
+# requesting. Conservative on purpose (the fallback only OPENS a modal the human confirms, but a
+# false-open is still noise).
+_RUN_REQUEST_QUESTION_OPENERS = (
+    "how", "what", "why", "when", "where", "who", "which", "can", "could", "would",
+    "should", "do", "does", "is", "are", "explain", "tell", "show me",
+)
+# the imperative grade verb + a run/case object cue (both must be present): an unambiguous
+# "grade THIS" request, not a stray "run" inside prose.
+_RUN_REQUEST_VERB = re.compile(r"\b(run|re-?run|grade|evaluate|score)\b")
+_RUN_REQUEST_OBJECT = re.compile(r"\b(eval|evaluation|case|live|grade|run|it|this)\b")
+
+
+def _is_run_request(message: str) -> bool:
+    """CONFIRM-MODAL-FALLBACK-1 — a CONSERVATIVE run-intent matcher for the litellm-path cost-confirm
+    fallback. True only for an unambiguous imperative "grade the case" request; questions and
+    explain/show asks are excluded (they mean "tell me about the run", not "run it"). Empty → False.
+
+    A run-request iff: the message is NOT a question (no ``?``, not opened by a question/explain word)
+    AND it contains an imperative grade verb (run/re-run/grade/evaluate/score) AND a run/case object
+    cue (eval/evaluation/case/live/grade/run/it/this). Pure (no I/O); the fallback in ``_litellm_loop``
+    calls it post-loop to decide whether to deterministically surface the cost-confirm directive."""
+    text = (message or "").strip().lower()
+    if not text:
+        return False
+    if "?" in text:
+        return False
+    if any(
+        text == opener or text.startswith(opener + " ") for opener in _RUN_REQUEST_QUESTION_OPENERS
+    ):
+        return False
+    return bool(_RUN_REQUEST_VERB.search(text)) and bool(_RUN_REQUEST_OBJECT.search(text))
+
+
 async def _litellm_loop(
     message: str,
     ctx: ToolContext,
@@ -879,6 +916,14 @@ async def _litellm_loop(
         completion_kwargs["api_version"] = api_version
 
     cost_usd: float | None = None
+    # CONFIRM-MODAL-FALLBACK-1: track whether a cost-confirm directive (tool-propose_live_run) was
+    # emitted this turn — by run_eval OR propose_live_run. If the model narrates "I'll surface the
+    # modal" but calls NO tool (the live gpt-4.1 failure), no directive reaches the shell and no modal
+    # opens; the post-loop fallback below deterministically emits one IFF the user asked to run AND
+    # none was emitted. Self-limiting: when the model DID call the tool, the handler already set this
+    # True → no double-open. A-SAFE: the fallback emits ONLY the directive (opens the modal); it
+    # never fires a paid op — the human's modal-confirm stays the sole spend.
+    directive_emitted = False
     try:
         for _turn in range(_LITELLM_MAX_TURNS):
             resp = completion(messages=list(messages), **completion_kwargs)
@@ -969,7 +1014,12 @@ async def _litellm_loop(
                 result = await handler(ctx, args)
                 # drain the gen-UI parts + any $0 replay record this handler emitted
                 while ctx.parts:
-                    yield {"event": "tool_result", "part": ctx.parts.pop(0)}
+                    part = ctx.parts.pop(0)
+                    # CONFIRM-MODAL-FALLBACK-1: a cost-confirm directive from run_eval/propose_live_run
+                    # — record it so the post-loop fallback is SKIPPED (no double-open).
+                    if part.get("type") == "tool-propose_live_run":
+                        directive_emitted = True
+                    yield {"event": "tool_result", "part": part}
                 while ctx.run_results:
                     yield {"event": "run_result", "result": ctx.run_results.pop(0)}
                 # feed the handler's text summary back to the model as the tool-result
@@ -980,6 +1030,16 @@ async def _litellm_loop(
                 messages.append(
                     {"role": "tool", "tool_call_id": call_id, "content": summary or "(done)"}
                 )
+        # CONFIRM-MODAL-FALLBACK-1 — the self-limiting cost-confirm fallback. Azure gpt-4.1 narrates
+        # "I will surface the cost-confirm modal" ~40-60% of run-requests WITHOUT calling any tool
+        # (8 live trials), so no directive reaches the shell and no modal opens. If the user clearly
+        # asked to run AND no directive was emitted this turn, the BFF deterministically emits one —
+        # making the agent's narrated intent TRUE (honest-Δ). SELF-LIMITING: when the model DID call
+        # run_eval/propose_live_run, ``directive_emitted`` is already True → this is skipped (no
+        # double-open). A-SAFE: ``propose_live_run_part()`` only OPENS the in-DOM CostModal — it fires
+        # NO paid op; the human's modal-confirm remains the sole spend.
+        if not directive_emitted and _is_run_request(message):
+            yield {"event": "tool_result", "part": propose_live_run_part()}
     except Exception as exc:  # surface a loop/transport failure to the pane, don't 500
         yield {"event": "error", "detail": str(exc)}
         return
