@@ -38,20 +38,24 @@ export default function ProvidersSection({ connected = [], onSaved }) {
   const [provider, setProvider] = useState("openai");
   const [key, setKey] = useState("");
   const [endpoint, setEndpoint] = useState("");
+  const [apiVersion, setApiVersion] = useState(""); // CONNECT-AI-AZURE-1: OPTIONAL azure api-version
   const [save, setSave] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
 
   const needsEndpoint = NEEDS_ENDPOINT.has(provider);
-  const onProvider = (p) => { setProvider(p); setEndpoint(""); setSave({ state: "idle", msg: "" }); };
+  const isAzure = provider === "azure";
+  const onProvider = (p) => { setProvider(p); setEndpoint(""); setApiVersion(""); setSave({ state: "idle", msg: "" }); };
 
   const testSave = async () => {
     setSave({ state: "saving", msg: "testing…" });
     try {
       // anthropic rides the assistant plane (the Agent-SDK ping); everything else grades — exactly
-      // as the prior provider-first picker. NO model — model assignment is Section 2.
+      // as the prior provider-first picker. NO model — model assignment is Section 2. Azure may
+      // carry an OPTIONAL api_version (CONNECT-AI-AZURE-1; non-azure providers never send it).
       const r = await configProvider({
         plane: provider === "anthropic" ? "assistant" : "grading",
         provider, api_key: key.trim(),
         endpoint: endpoint.trim() || undefined,
+        ...(isAzure && apiVersion.trim() ? { api_version: apiVersion.trim() } : {}),
       });
       setSave({ state: "saved", msg: `Connected · tested ${r.last_tested || ""}` });
       setKey(""); // secret hygiene — clear the typed key on success (never re-render it)
@@ -89,6 +93,11 @@ export default function ProvidersSection({ connected = [], onSaved }) {
           <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} aria-label="endpoint"
             data-testid="providers-endpoint"
             placeholder={provider === "azure" ? "https://…azure endpoint (api_base)" : "https://…OpenAI-compatible api_base"}
+            style={inputStyle} />
+        )}
+        {isAzure && (
+          <input value={apiVersion} onChange={(e) => setApiVersion(e.target.value)} aria-label="api version"
+            data-testid="providers-api-version" placeholder="API version (optional · default 2024-10-21)"
             style={inputStyle} />
         )}
         <input data-testid="providers-key" type="password" autoComplete="off" value={key}

@@ -130,9 +130,9 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel", () => {
     for (const role of ["risk_judge", "policy_judge", "faithfulness_judge", "chat_assistant"]) {
       expect(await screen.findByTestId(`role-bind-row-${role}`)).toBeInTheDocument();
     }
-    // pick {openai · gpt-4o} for risk_judge → bindRole
-    const sel = screen.getByTestId("role-bind-select-risk_judge");
-    fireEvent.change(sel, { target: { value: "openai::gpt-4o" } });
+    // CONNECT-AI-AZURE-1: pick the provider, then pick/type the model → bindRole
+    fireEvent.change(screen.getByTestId("role-bind-provider-risk_judge"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByTestId("role-bind-model-risk_judge"), { target: { value: "gpt-4o" } });
     fireEvent.click(screen.getByTestId("role-bind-submit-risk_judge"));
     await waitFor(() => expect(bindRole).toHaveBeenCalledWith({ role: "risk_judge", provider: "openai", model: "gpt-4o" }));
   });
@@ -154,12 +154,16 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel", () => {
     expect(ready).not.toHaveTextContent(/still needs/i);
   });
 
-  it("E: the chat row is CROSS-PROVIDER (lists non-anthropic options); the old Anthropic-only note is gone", async () => {
+  it("E: the chat row is CROSS-PROVIDER (lists non-anthropic providers); the old Anthropic-only note is gone", async () => {
     render(<ProviderSettings />);
-    const chatSel = await screen.findByTestId("role-bind-select-chat_assistant");
-    // cross-provider: an openai option AND a gemini option are listed for the chat row
-    expect(within(chatSel).getByRole("option", { name: /gpt-4o/i })).toBeInTheDocument();
-    expect(within(chatSel).getByRole("option", { name: /gemini-1\.5-pro/i })).toBeInTheDocument();
+    // CONNECT-AI-AZURE-1: cross-provider = the chat provider <select> lists openai AND gemini
+    const chatProv = await screen.findByTestId("role-bind-provider-chat_assistant");
+    expect(within(chatProv).getByRole("option", { name: "openai" })).toBeInTheDocument();
+    expect(within(chatProv).getByRole("option", { name: "gemini" })).toBeInTheDocument();
+    // picking openai surfaces its preset model (gpt-4o) in the chat row's datalist
+    fireEvent.change(chatProv, { target: { value: "openai" } });
+    const chatList = screen.getByTestId("role-bind-modellist-chat_assistant");
+    expect(chatList.querySelector('option[value="gpt-4o"]')).not.toBeNull();
     // the chat row is labelled required
     expect(screen.getByTestId("role-bind-row-chat_assistant")).toHaveTextContent(/required/i);
     // the old Anthropic-only deferral note is gone
@@ -169,13 +173,13 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel", () => {
   it("F: a no-logprobs model shows the ⚠ hint; 'use one model for all judges' binds the 3 judge rows", async () => {
     render(<ProviderSettings />);
     // pick a gemini (logprobs:false) model for policy_judge → the ⚠ hint
-    const sel = await screen.findByTestId("role-bind-select-policy_judge");
-    fireEvent.change(sel, { target: { value: "gemini::gemini-1.5-pro" } });
+    fireEvent.change(await screen.findByTestId("role-bind-provider-policy_judge"), { target: { value: "gemini" } });
+    fireEvent.change(screen.getByTestId("role-bind-model-policy_judge"), { target: { value: "gemini-1.5-pro" } });
     expect(await screen.findByTestId("role-bind-logprobs-hint-policy_judge")).toHaveTextContent(/no logprobs|confidence dark/i);
 
     // the "use one model for all judges" shortcut → binds risk + policy + faithfulness (NOT chat)
-    const allSel = screen.getByTestId("all-judges-select");
-    fireEvent.change(allSel, { target: { value: "openai::gpt-4o" } });
+    fireEvent.change(screen.getByTestId("all-judges-provider-*"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByTestId("all-judges-model-*"), { target: { value: "gpt-4o" } });
     fireEvent.click(screen.getByTestId("all-judges-submit"));
     await waitFor(() => {
       expect(bindRole).toHaveBeenCalledWith({ role: "risk_judge", provider: "openai", model: "gpt-4o" });
