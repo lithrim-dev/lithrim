@@ -184,6 +184,11 @@ _COUNCIL_AUTHORIZED_MARKERS = (
     "pack_production_judges",
     "6b-CLEAN",              # CE-PACK-6b-CLEAN: the transcript-branch raise sentinel (see below)
     "CE-PACK-6c",            # CE-PACK-6c: the source_message-branch raise sentinel (see below)
+    "_CONSENSUS_PILLAR_1",   # CONSENSUS-PILLAR-INVARIANT-1 freeze amendment: the pillar-invariant
+                             # carve-out — a module-level, pack-derived dual-pillar default for
+                             # tiered codes the hardcoded healthcare pillar sets never covered (the
+                             # DATA-classification completion the acc4973 freeze predated; in-spirit
+                             # with the TIER_* carve-out, _apply_consensus's BODY stays byte-frozen).
 )
 # CE-PACK-6b-CLEAN: the FROZEN council sheds its last clinical residue. ``build_prompt`` (the
 # legacy clinical default-council prompt builder) + its ``safety_flags`` import are DELETED, and

@@ -311,7 +311,27 @@ CONVERSATION_CODES = {
     "IMPLICIT_CONFIRMATION_OF_RECORD",  # T3 — CONV
 }
 # Codes that appear in both pillars
-DUAL_PILLAR_CODES = {"MISSED_ESCALATION", "SEVERITY_ESCALATION"}
+# CONSENSUS-PILLAR-INVARIANT-1 — realize the deferred DP-SPRINT-01-B2-FIX-INVARIANT.
+# The ARTIFACT_CODES / CONVERSATION_CODES / DUAL_PILLAR_CODES literals above are the
+# HARDCODED healthcare pillar sets; they never covered the neutral _core / support_ticket_qa
+# tiered codes (UNSUPPORTED_ASSERTION, SOURCE_CONTRADICTION, …) — nor even healthcare's own
+# PROXY_MISATTRIBUTION (Tier 1) / HISTORY_OMISSION. But TIER_1_NEVER_EVENTS / TIER_2_HIGH_RISK /
+# TIER_3_MEDIUM are pack-resolved (the PACK-1b carve-out above), so they DO contain those codes.
+# _apply_consensus splits findings into the conversation/artifact pillars by membership in these
+# pillar sets and takes the per-pillar worst-of; a tiered code in NEITHER pillar is filtered out
+# of BOTH conv_tier1 and art_tier1 → _pillar_verdict([], …) → approve/PASS → the one-strike reject
+# is silently dropped → the verdict defaults to PASS (CONFIRMED: live audit of run f5754825).
+# The invariant the VALUE_MISMATCH comment in ARTIFACT_CODES already documented: every tiered code
+# must be pillar-classified. A tiered code in neither pillar is dual-pillar (it counts in both,
+# the safe default — it cannot be silently dropped). This is pack-derived (computed from the same
+# pack_tiers() that feeds TIER_*), so it tracks the active pack exactly like the TIER_* carve-out;
+# and because compliance_council.py is acc4973-frozen (the consensus IP is byte-stable), it lives
+# at module level — the literal {"MISSED_ESCALATION", "SEVERITY_ESCALATION"} is kept as the seed
+# and the unclassified tiered codes are folded in BEFORE any _apply_consensus call, so
+# _apply_consensus's BODY is untouched. NO _apply_consensus edit; the moat stays byte-frozen.
+_CONSENSUS_PILLAR_1_DUAL_SEED = {"MISSED_ESCALATION", "SEVERITY_ESCALATION"}  # _CONSENSUS_PILLAR_1
+_CONSENSUS_PILLAR_1_UNCLASSIFIED = (set(TIER_1_NEVER_EVENTS) | set(TIER_2_HIGH_RISK) | set(TIER_3_MEDIUM)) - ARTIFACT_CODES - CONVERSATION_CODES  # _CONSENSUS_PILLAR_1
+DUAL_PILLAR_CODES = _CONSENSUS_PILLAR_1_DUAL_SEED | _CONSENSUS_PILLAR_1_UNCLASSIFIED  # _CONSENSUS_PILLAR_1
 
 # F30-ext-5 (B1): omission-type taxonomy codes assert "the artifact omits X
 # that was discussed in the transcript". For these codes, valid evidence MUST

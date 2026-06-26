@@ -132,7 +132,8 @@ def test_t3_carveout_is_exactly_the_unclassified_set():
     assert unclassified <= cc.DUAL_PILLAR_CODES
     # And the carve-out did not pull a non-tiered, non-original code into dual.
     original_dual = {"MISSED_ESCALATION", "SEVERITY_ESCALATION"}
-    assert cc.DUAL_PILLAR_CODES == original_dual | unclassified
+    expected_dual = original_dual | unclassified
+    assert expected_dual == cc.DUAL_PILLAR_CODES
 
 
 # ── T4 — the seam guard still passes (the amendment is valid + non-vacuous) ───
