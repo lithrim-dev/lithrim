@@ -1265,6 +1265,59 @@ def _merge_byo_labels(cases: list[dict], sample: Any) -> int:
     return n
 
 
+# INGEST-TEMPLATE-1: a registry of hand-authored, DETERMINISTIC JUTE templates for KNOWN ingest
+# source shapes, routed in PREFERENCE to LM-generation. The LM re-derives the mapping for every
+# shape and silently drops fields (it dropped the BYO labels — INGEST-LABELS-1 patched that in
+# Python, a split-layer compromise). For a KNOWN shape a curated JUTE template is better on every
+# axis: deterministic, carries the labels BY CONSTRUCTION (JUTE-pure), pinned + auditable. It is
+# STILL live-gated (score_extraction) before use; a non-matching variant falls through to the
+# existing REUSE/LM-gen path. LM-gen stays the fallback for NOVEL shapes (unchanged).
+#
+# The agent message-trace shape ``{runs:[{id, messages, final, expected_*}]}``. Proven LIVE on
+# :3031 (compiles error=None; emits both labeled cases). ``joinStr("\n\n", e.messages.*.content)``
+# joins system+user+tool and SKIPS the null-content assistant tool-call message — robust to
+# message count (a 2-message no-tool trace maps cleanly). ``joinStr`` is an IMPLEMENTED :3031
+# builtin (the jute-runtime-builtin-gap memory).
+_AGENT_TRACE_TEMPLATE = "\n".join(
+    [
+        "$map: $ resource.runs",
+        "$as: e",
+        "$body:",
+        "  case_id: $ e.id",
+        "  response: $ e.final.content",
+        '  context: $ joinStr("\\n\\n", e.messages.*.content)',
+        "  expected_compliance_verdict: $ e.expected_compliance_verdict",
+        "  expected_safety_flags: $ e.expected_safety_flags",
+    ]
+)
+
+
+def _known_shape_template(sample: Any) -> str | None:
+    """Curated-template registry/matcher: return a hand-authored JUTE template for a KNOWN source
+    shape, else ``None``. The template is STILL live-gated (``score_extraction``) before use, and
+    LM-generation is the fallback for NOVEL shapes — so this only short-circuits the shapes it is
+    SURE about. Pure; conservative (a near-miss → ``None`` → the existing REUSE/LM-gen path).
+
+    v1 knows ONE shape: the agent message-trace ``{runs:[{id, messages, final, expected_*}]}`` —
+    a dict with a non-empty ``runs`` list whose every entry is a dict carrying a truthy ``id``, a
+    list ``messages``, and a dict ``final``."""
+    if not isinstance(sample, dict):
+        return None
+    runs = sample.get("runs")
+    if not isinstance(runs, list) or not runs:
+        return None
+    for e in runs:
+        if not isinstance(e, dict):
+            return None
+        if not e.get("id"):
+            return None
+        if not isinstance(e.get("messages"), list):
+            return None
+        if not isinstance(e.get("final"), dict):
+            return None
+    return _AGENT_TRACE_TEMPLATE
+
+
 def _ctx_nonempty(value: Any) -> bool:
     return bool(value) and str(value).strip().lower() not in ("", "{}", "[]", "null", "none")
 
@@ -3311,32 +3364,57 @@ def _build_tool_context(
         # container itself, so a host/compose/remote mapper is only reachable via the override.
         client = EtlpJuteClient(base_url=_jute_base_url())
 
-        # REUSE (NARR-7.1, generate-at-authoring → pin → REUSE): if a transform is ALREADY pinned for
-        # this agent AND it still satisfies the structural invariant on THIS sample (the source shape
-        # is unchanged), apply it deterministically and SKIP generation — $0, instant, NO LM. A shape
-        # change fails the invariant → fall through to (re)generate+pin. Self-validating: a mis-applying
-        # pin is NEVER reused (a mis-join returns null → not accepted). Only the FIRST ingest of a shape
-        # pays the generation cost; a repeat "pull" is instant.
+        # 3-WAY transform selection (INGEST-TEMPLATE-1 prepends (1) to the NARR-7.1 reuse/gen pair):
+        #   (1) KNOWN SHAPE → a hand-authored, DETERMINISTIC curated JUTE template (labels carried
+        #       BY CONSTRUCTION) — still live-gated on THIS sample before use;
+        #   (2) REUSE a pinned transform if it still satisfies the invariant on this sample;
+        #   (3) LM-GEN for a NOVEL shape (the unchanged generate→refine→pin path).
+        # Each falls through to the next only when it leaves `template` None.
         reused = False
+        hand_authored = False
         template = scored = mapping_id = None
-        # graceful: a client that can't list mappings (a minimal/test stub) simply can't reuse →
-        # falls through to generate. Reuse is an optimization, never a requirement.
-        _find = getattr(client, "find_mapping_by_title", None)
-        _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
-        if _existing and (_existing.get("content") or {}).get("yaml"):
-            _pre = score_extraction(
-                client, _existing["content"]["yaml"], sample,
+
+        # (1) KNOWN SHAPE — a curated template for a recognized source shape, preferred over
+        # REUSE/LM-gen. STILL live-gated (score_extraction on THIS sample): a near-miss variant that
+        # does not accept leaves `template` None → falls through. PIN it (idempotent) so the corpus is
+        # resolvable + auditable exactly like the reuse/gen paths.
+        _known = _known_shape_template(sample)
+        if _known is not None:
+            _k = score_extraction(
+                client, _known, sample,
                 expected_count=expected_count, required_fields=req_fields,
             )
-            if _pre["accepted"]:
-                template, scored, mapping_id, reused = (
-                    _existing["content"]["yaml"],
-                    _pre,
-                    _existing.get("id"),
-                    True,
-                )
+            if _k["accepted"]:
+                template, scored = _known, _k
+                mapping_id = client.persist_or_update(f"ingest-{ag_name}", _known).get("id")
+                hand_authored = True
 
-        if not reused:
+        # (2) REUSE (NARR-7.1, generate-at-authoring → pin → REUSE): if a transform is ALREADY pinned
+        # for this agent AND it still satisfies the structural invariant on THIS sample (the source
+        # shape is unchanged), apply it deterministically and SKIP generation — $0, instant, NO LM. A
+        # shape change fails the invariant → fall through to (re)generate+pin. Self-validating: a
+        # mis-applying pin is NEVER reused (a mis-join returns null → not accepted). Only the FIRST
+        # ingest of a shape pays the generation cost; a repeat "pull" is instant.
+        # graceful: a client that can't list mappings (a minimal/test stub) simply can't reuse →
+        # falls through to generate. Reuse is an optimization, never a requirement.
+        if template is None:
+            _find = getattr(client, "find_mapping_by_title", None)
+            _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
+            if _existing and (_existing.get("content") or {}).get("yaml"):
+                _pre = score_extraction(
+                    client, _existing["content"]["yaml"], sample,
+                    expected_count=expected_count, required_fields=req_fields,
+                )
+                if _pre["accepted"]:
+                    template, scored, mapping_id, reused = (
+                        _existing["content"]["yaml"],
+                        _pre,
+                        _existing.get("id"),
+                        True,
+                    )
+
+        # (3) LM-GEN — runs only when neither the curated template nor a pinned reuse set one.
+        if template is None:
             # live-gate at generation time: the loop scores every candidate against :3031 via
             # test_template (a :3031-down / non-compiling candidate scores 0 and never accepts).
             # for_extractor=True (NARR-7 / G1): the EXTRACTOR-only relational-JOIN grounding addendum
@@ -3442,7 +3520,8 @@ def _build_tool_context(
                 target=Target(type="corpus", id=ag_name),
                 why={
                     "rationale": f"ingested {len(cases)} cases via "
-                    f"{'REUSED' if reused else 'generated+pinned'} mapping {mapping_id}"
+                    f"{'hand-authored' if hand_authored else 'REUSED' if reused else 'generated+pinned'} "
+                    f"mapping {mapping_id}"
                 },
                 before=None,
                 after={

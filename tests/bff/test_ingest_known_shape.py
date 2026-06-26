@@ -34,6 +34,7 @@ if str(_BFF) not in sys.path:
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
 
 import app as bff  # noqa: E402
+
 from lithrim_bench.verification import EtlpJuteClient  # noqa: E402
 
 # The exact agent message-trace shape: {runs:[{id, messages, final, expected_*}]}. run_001 is a
@@ -145,9 +146,15 @@ def _jute_reachable() -> bool:
 @pytest.mark.skipif(not _jute_reachable(), reason="needs a live JUTE mapper on :3031")
 def test_curated_template_compiles_and_carries_labels_on_3031():
     """The on-:3031 proof: the curated template compiles (``error`` falsy) and the output cases
-    carry case_id, the joinStr context (system\\n\\nuser\\n\\ntool, skipping the null tool-call),
-    the final response, AND the ``expected_safety_flags`` VERBATIM (run_001 → the two flags,
-    run_002 → the empty clean-negative). This is the by-construction label carry."""
+    carry case_id, the joinStr context (system+SEP+user+SEP+tool, skipping the null-content
+    tool-call message), the final response, AND the ``expected_safety_flags`` VERBATIM (run_001 →
+    the two flags, run_002 → the empty clean-negative). This is the by-construction label carry.
+
+    The joinStr separator is the literal two-char ``\\n`` sequence the YAML carries (a REAL newline
+    inside a JUTE quoted scalar fails to compile — CONFIRMED live; the driver's ``\\\\n\\\\n``
+    Python escape is the only variant that compiles), so the context separator is ``\\n\\n``
+    verbatim, NOT a parsed newline."""
+    sep = "\\n\\n"  # the literal backslash-n-backslash-n joinStr separator (proven-live)
     client = EtlpJuteClient(base_url=bff._jute_base_url())
     out = client.test_template(bff._AGENT_TRACE_TEMPLATE, _AGENT_TRACE_SAMPLE)
     assert not out.get("error"), out.get("error")
@@ -157,12 +164,12 @@ def test_curated_template_compiles_and_carries_labels_on_3031():
 
     c1 = by_id["run_001"]
     assert c1["response"] == "the assistant final answer"
-    assert c1["context"] == "SYS\n\nUSER\n\nTOOL"  # joinStr skipped the null-content tool-call msg
+    assert c1["context"] == sep.join(["SYS", "USER", "TOOL"])  # null tool-call message skipped
     assert c1["expected_compliance_verdict"] == "reject"
     assert c1["expected_safety_flags"] == ["UNSUPPORTED_ASSERTION", "SOURCE_CONTRADICTION"]
 
     c2 = by_id["run_002"]
     assert c2["response"] == "a faithful answer"
-    assert c2["context"] == "SYS2\n\nUSER2"
+    assert c2["context"] == sep.join(["SYS2", "USER2"])  # the 2-message no-tool trace maps cleanly
     assert c2["expected_compliance_verdict"] == "approve"
     assert c2["expected_safety_flags"] == []
