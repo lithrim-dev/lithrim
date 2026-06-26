@@ -1265,6 +1265,30 @@ def _merge_byo_labels(cases: list[dict], sample: Any) -> int:
     return n
 
 
+def _normalize_case_source(cases: list[dict]) -> int:
+    """FLOOR-SOURCE-1: copy the source onto the canonical ``transcript`` field at INGEST so the
+    graded case is self-contained. The council grade path + the per-judge withstands gate read the
+    source from ``transcript`` ONLY (``ab_harness`` ``call_context.transcript``, the
+    ``authored_stage`` ``case_view.transcript``, ``SourceGrounding``); an ingested agent-trace case
+    carries it on ``context``. Without this copy a faithful case is graded against an EMPTY source —
+    a judge spuriously raises ``UNSUPPORTED_ASSERTION`` and ``SourceGrounding`` returns
+    ``disproved=False`` (its own answer tokens all ungrounded) → a WRONG BLOCK that disagrees with
+    the report ``composite`` (which alone falls back ``transcript → context``).
+
+    Normalizing ONCE here — rather than adding yet another per-consumer ``or context`` mapping (the
+    anti-pattern) — makes every consumer (judges, withstands gate, ``grounding.ground()``) read ONE
+    populated source. Pure, no LM, idempotent: a case that already has a non-empty ``transcript``,
+    or has no/empty ``context``, is left byte-unchanged. Returns the count normalized."""
+    n = 0
+    for c in cases:
+        if not isinstance(c, dict):
+            continue
+        if not _ctx_nonempty(c.get("transcript")) and _ctx_nonempty(c.get("context")):
+            c["transcript"] = c["context"]
+            n += 1
+    return n
+
+
 # INGEST-TEMPLATE-1: a registry of hand-authored, DETERMINISTIC JUTE templates for KNOWN ingest
 # source shapes, routed in PREFERENCE to LM-generation. The LM re-derives the mapping for every
 # shape and silently drops fields (it dropped the BYO labels — INGEST-LABELS-1 patched that in
@@ -1285,6 +1309,11 @@ _AGENT_TRACE_TEMPLATE = "\n".join(
         "$body:",
         "  case_id: $ e.id",
         "  response: $ e.final.content",
+        # FLOOR-SOURCE-1: emit the canonical source under BOTH `transcript` (what the council grade
+        # + withstands gate read) and `context` (kept for back-compat/display). The Python
+        # `_normalize_case_source` is the load-bearing fix that survives `_to_envelope` stripping;
+        # this keeps the curated JUTE self-contained at its own output layer.
+        '  transcript: $ joinStr("\\n\\n", e.messages.*.content)',
         '  context: $ joinStr("\\n\\n", e.messages.*.content)',
         "  expected_compliance_verdict: $ e.expected_compliance_verdict",
         "  expected_safety_flags: $ e.expected_safety_flags",
@@ -3482,6 +3511,12 @@ def _build_tool_context(
         # INGEST-LABELS-1: carry author-supplied ground-truth labels (expected_compliance_verdict /
         # expected_safety_flags) the JUTE transform does not extract — deterministic, no LM/grade.
         labeled = _merge_byo_labels(cases, sample)
+        # FLOOR-SOURCE-1: copy the ingested source (on `context`) onto the canonical `transcript`
+        # BEFORE persistence, so the SSOT-stored case is self-contained and the judges + withstands
+        # gate + `grounding.ground()` all read ONE populated source (retiring the per-consumer
+        # `or context` mapping). A faithful case then grades PASS at the council instead of a false
+        # BLOCK; a real fabrication stays ungrounded → still BLOCK.
+        normalized = _normalize_case_source(cases)
 
         # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
         # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
@@ -3521,7 +3556,7 @@ def _build_tool_context(
                 why={
                     "rationale": f"ingested {len(cases)} cases via "
                     f"{'hand-authored' if hand_authored else 'REUSED' if reused else 'generated+pinned'} "
-                    f"mapping {mapping_id}"
+                    f"mapping {mapping_id}; normalized source→transcript on {normalized} case(s)"
                 },
                 before=None,
                 after={
@@ -3532,7 +3567,7 @@ def _build_tool_context(
                 },
             )
         )
-        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "labeled": labeled, "reused": reused}
+        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "labeled": labeled, "normalized_source": normalized, "reused": reused}
 
     # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
     def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
