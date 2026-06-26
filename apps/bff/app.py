@@ -1172,6 +1172,30 @@ def _read_ingested_corpus() -> list[dict]:
     return rows
 
 
+def _resolve_named_case(message: str | None) -> str | None:
+    """CHAT-CASE-RESOLVE-1: resolve the case the human NAMED in the chat message to a known
+    ingested ``case_id``, DETERMINISTICALLY — so the grade targets that case regardless of
+    whether the model passes it through ``run_eval(case_id=…)``.
+
+    Conservative by construction: only an EXACTLY-NAMED known case resolves (an exact
+    ``case_id`` substring of the message). Longest-match disambiguation — the most specific id
+    wins, so a generic ``run_001`` known-case never shadows ``run_001_fabricates`` when the
+    message names the latter. Pure $0 read (the ingested-case list); NEVER raises — a resolution
+    failure must not break the chat (any read failure → ``None``). ``None`` on no match → the
+    caller falls back to the client's ``active_case`` (byte-identical to today)."""
+    try:
+        known = [
+            str(r.get("case_id")) for r in _read_ingested_corpus() if r.get("case_id")
+        ]
+    except Exception:  # noqa: BLE001 — a resolution failure must never break the chat
+        return None
+    msg = message or ""
+    hits = [cid for cid in known if cid and cid in msg]
+    if not hits:
+        return None
+    return max(hits, key=len)  # the most specific named case (longest match)
+
+
 def _ssot_upsert_cases(ws, cases: list[dict]) -> None:
     """Dual-write newly-ingested cases into the SSOT ``cases`` table (PERSIST-3a). The jsonl
     write stays for the transition; this makes the corpus resolvable from the one DB (and, under
@@ -3457,9 +3481,13 @@ async def chat_endpoint(
     # CONV-UX-1 (W0): coerce a stale/invalid agent (e.g. a ws0_default literal in a
     # demo-clinical workspace) to the active workspace's agent; a valid one is honored.
     resolved_agent = _resolve_chat_agent(req.agent, db_path)
+    # CHAT-CASE-RESOLVE-1: the case the human NAMED in the message wins (the explicit name is the
+    # intent) — resolved DETERMINISTICALLY here so the grade targets it regardless of the model's
+    # tool-calling; with no named case, fall back to the client's active_case (byte-identical).
+    resolved_case = _resolve_named_case(req.message) or req.active_case
     ctx = _build_tool_context(
         resolved_agent, db_path, out_dir, workdir, collections_db, actor, x_actor,
-        active_case=req.active_case,  # NARR-CHAT-LOOP: the shared active case the shell sends
+        active_case=resolved_case,  # NARR-CHAT-LOOP / CHAT-CASE-RESOLVE-1: the shared active case
     )
 
     # ONB-0: text-only prior turns, replayed as context (folded into the loop's query preamble)
