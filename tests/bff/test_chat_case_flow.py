@@ -173,18 +173,25 @@ def test_run_eval_targets_case_id_via_the_active_case(env):
     ctx.run_eval_replay = _forbid_replay
     asyncio.run(run_eval_handler(ctx, {"agent": AGENT, "case_id": "c1_ok"}))
     assert ctx.active_case == "c1_ok"  # the explored case is the one the fresh grade will target
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    # CHAT-CASE-TARGET-1: the directive CARRIES the targeted case so the shell grades X, not the
+    # stale client activeCase (the prior `output: {}` assertion encoded the dropped-case bug).
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "c1_ok"}}
+    ]
 
 
 def test_run_eval_with_no_case_id_keeps_the_active_case(env):
     """run_eval with NO case_id leaves the shared active case in place (the case the human is
-    exploring), and still surfaces the cost-confirm — never the seed, never a replay."""
+    exploring), and still surfaces the cost-confirm — never the seed, never a replay. CHAT-CASE-
+    TARGET-1: the directive carries that active case so confirmPaidRun targets it."""
     db, out = env
     ctx = _build_ctx(db, out, active_case="c2_ok")
     ctx.run_eval_replay = _forbid_replay
     asyncio.run(run_eval_handler(ctx, {"agent": AGENT}))
     assert ctx.active_case == "c2_ok"
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "c2_ok"}}
+    ]
 
 
 def test_run_eval_reaches_no_paid_op_with_an_injected_knob(env):
@@ -202,7 +209,12 @@ def test_run_eval_reaches_no_paid_op_with_an_injected_knob(env):
     )
     assert not res.get("is_error")
     assert ctx.active_case == "c1_ok"
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    # CHAT-CASE-TARGET-1: the directive carries ONLY the case SELECTOR — no injected paid knob ever
+    # reaches the wire (the selector is not a spend; the human's confirm is still the sole paid path).
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "c1_ok"}}
+    ]
+    assert not any(k in ctx.parts[0]["output"] for k in PAID_KEYS)
 
 
 # ── the bound list_cases op reaches the real corpus ───────────────────────────

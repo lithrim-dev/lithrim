@@ -126,7 +126,11 @@ def test_run_eval_surfaces_the_cost_confirm_not_a_verdict_narration():
     out = asyncio.run(agent_tools.run_eval_handler(ctx, {"agent": "ws0_default", "case_id": "c"}))
     text = out["content"][0]["text"].lower()
     assert "fresh" in text and ("cost-confirm" in text or "cost confirm" in text)
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    # CHAT-CASE-TARGET-1: the directive carries the targeted case (the prior `output: {}` assertion
+    # encoded the dropped-case bug — the shell graded the stale client activeCase instead).
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "c"}}
+    ]
 
 
 # ── show_case narration stops pushing to the pane ──

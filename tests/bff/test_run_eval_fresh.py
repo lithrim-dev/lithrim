@@ -85,8 +85,12 @@ def test_run_eval_emits_the_cost_confirm_directive_never_replays():
     ctx = _stub_ctx(_raise_on_call)
     res = asyncio.run(run_eval_handler(ctx, {"agent": "a", "case_id": "run_002_faithful"}))
     assert not res.get("is_error")
-    # exactly the cost-confirm directive — never a verdict card (a verdict card = a rendered replay)
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    # exactly the cost-confirm directive — never a verdict card (a verdict card = a rendered replay).
+    # CHAT-CASE-TARGET-1: the directive now CARRIES the targeted case_id (the prior `output: {}`
+    # assertion encoded the dropped-case bug — the shell graded the stale client activeCase).
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "run_002_faithful"}}
+    ]
     assert all(p["type"] != "tool-verdict_card" for p in ctx.parts)
     # nothing was stashed for a run_result lift (no $0 replay record exists to lift)
     assert ctx.run_results == []
@@ -120,12 +124,15 @@ def test_run_eval_guidance_text_is_a_fresh_grade_not_a_replay_verdict():
 
 def test_run_eval_without_a_case_id_keeps_the_active_case_and_still_proposes():
     """RUN-EVAL-FRESH-1 back-compat: with NO case_id, ctx.active_case is unchanged (the case the
-    human is exploring) and the handler still emits the cost-confirm directive (never a replay)."""
+    human is exploring) and the handler still emits the cost-confirm directive (never a replay).
+    CHAT-CASE-TARGET-1: the directive now carries that active case so confirmPaidRun targets it."""
     ctx = _stub_ctx(_raise_on_call)
     ctx.active_case = "already_active"
     asyncio.run(run_eval_handler(ctx, {"agent": "a"}))
     assert ctx.active_case == "already_active"  # an omitted case_id never clears the active case
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "already_active"}}
+    ]
 
 
 # ── A-SAFE re-pin (non-vacuous): no paid knob; the agent only PROPOSES ──
@@ -141,7 +148,8 @@ def test_run_eval_schema_carries_no_paid_knob_and_stays_a_selector():
 def test_run_eval_never_reaches_a_paid_op_even_with_an_injected_knob():
     """A-SAFE (the load-bearing negative): even if a paid key is injected into the args, run_eval
     fires NO op at all (it only PROPOSES) — run_eval_replay (raise-on-call) is never reached, so
-    there is no path for a smuggled live/in_process/confirm to spend."""
+    there is no path for a smuggled live/in_process/confirm to spend. CHAT-CASE-TARGET-1: the
+    directive carries ONLY the case SELECTOR (no injected paid knob ever reaches the wire)."""
     ctx = _stub_ctx(_raise_on_call)
     res = asyncio.run(
         run_eval_handler(
@@ -149,7 +157,10 @@ def test_run_eval_never_reaches_a_paid_op_even_with_an_injected_knob():
         )
     )
     assert not res.get("is_error")
-    assert ctx.parts == [{"type": "tool-propose_live_run", "state": "output-available", "output": {}}]
+    assert ctx.parts == [
+        {"type": "tool-propose_live_run", "state": "output-available", "output": {"case_id": "c"}}
+    ]
+    assert not any(k in ctx.parts[0]["output"] for k in PAID_KEYS)
 
 
 def test_no_tool_schema_carries_a_paid_knob_after_the_change():
