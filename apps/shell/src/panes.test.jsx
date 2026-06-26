@@ -57,7 +57,7 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
     fireEvent.click(screen.getByText(/Show example conversation/i)); // S-BS-89: reveal the opt-in showcase
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
     // the live $0 prompt-preview surface (the assignment→prompt bridge, no model call)
-    expect(screen.getByText(/the exact role_key_questions/)).toBeInTheDocument();
+    expect(screen.getByText(/the exact questions this reviewer will ask/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save judge/i })).toBeInTheDocument();
   });
 });

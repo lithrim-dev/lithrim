@@ -75,12 +75,12 @@ describe("CHATBIND-2 (A4) — the chat opens + focuses the pane and shows THIS r
     fireEvent.change(ta, { target: { value: "run a $0 replay and show me the judge council" } });
     fireEvent.click(screen.getByTestId("chat-send"));
 
-    // the directive focused the Judge council tab AND the lifted run rendered its realized
-    // vote there — risk_judge / BLOCK are JudgeTab-only (per-judge votes), so this proves
-    // both the open+focus and the run-data lift end-to-end.
-    expect(await screen.findByText("risk_judge")).toBeInTheDocument();
-    expect(screen.getByText("BLOCK")).toBeInTheDocument();
-    // the council header pins the focused tab as the Judge council (not the default report)
-    expect(screen.getByText(/Council members/)).toBeInTheDocument();
+    // the directive focused the Reviewers tab AND the lifted run rendered its realized
+    // vote there — the Risk reviewer / Flagged are JudgeTab-only (per-reviewer votes), so this
+    // proves both the open+focus and the run-data lift end-to-end.
+    expect(await screen.findByText("Risk reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Flagged")).toBeInTheDocument();
+    // the reviewers header pins the focused tab as the Reviewers tab (not the default report)
+    expect(screen.getAllByText(/Reviewers/).length).toBeGreaterThan(0);
   });
 });

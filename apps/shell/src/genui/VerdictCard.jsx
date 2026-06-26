@@ -6,6 +6,7 @@
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import ClinicianVerdict from "./ClinicianVerdict.jsx";
+import { verdictLabel, roleLabel, flagLabel } from "./copy.js";
 
 // verdict -> tone (badge class + header icon + icon color). Accepts PASS/REJECT or
 // approve/reject (and a few synonyms); unknown -> neutral warn.
@@ -40,10 +41,10 @@ export default function VerdictCard({
   if (!verdict && !question) {
     return (
       <div className="icard">
-        <div className="icard-hd"><span className="ttl">Verdict</span></div>
+        <div className="icard-hd"><span className="ttl">Result</span></div>
         <div className="icard-bd">
           <div style={{ color: "var(--muted)", fontSize: 12.5, padding: "8px 2px" }}>
-            No verdict yet — run an eval to see the council's real verdict here.
+            No result yet — run an evaluation to see the reviewers' result here.
           </div>
         </div>
       </div>
@@ -55,9 +56,9 @@ export default function VerdictCard({
     <div className="icard">
       <div className="icard-hd">
         <span className="ic" style={{ color: t.color }}><Icon name={t.icon} size={15} /></span>
-        <span className="ttl">Verdict</span>
+        <span className="ttl">Result</span>
         {id && <span className="sub">{id}</span>}
-        <span className="right"><span className={"tag " + t.cls}>{verdict}</span></span>
+        <span className="right"><span className={"tag " + t.cls}>{verdictLabel(verdict)}</span></span>
       </div>
       <div className="icard-bd">
         <div className="verdict">
@@ -71,7 +72,7 @@ export default function VerdictCard({
             )}
             {agreement != null && (
               <div className="vstat">
-                <div className="k">Judge agreement</div>
+                <div className="k">Reviewer agreement</div>
                 <div className="v">{agreement}</div>
                 <div className="agree-dots">
                   {agreeDots(agreement).map((on, i) => <i key={i} className={on ? "ad" : "ad no"} />)}
@@ -89,10 +90,10 @@ export default function VerdictCard({
             so a clean pass never shows a fabricated attribution. */}
         {Array.isArray(floorBlocks) && floorBlocks.length > 0 && (
           <div className="ifloor" style={{ margin: "10px 0", padding: "8px 10px", borderRadius: 8, background: "var(--accent-bg, rgba(240,90,70,0.07))", borderLeft: "3px solid var(--accent)" }}>
-            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--accent)", marginBottom: 5 }}>Caught by floor rule</div>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--accent)", marginBottom: 5 }}>Caught by a fact-check</div>
             {floorBlocks.map((b, i) => (
               <div key={b.flag || i} style={{ marginBottom: i < floorBlocks.length - 1 ? 6 : 0 }}>
-                <span className="tag fail" style={{ marginRight: 6 }}>{b.flag}</span>
+                <span className="tag fail" style={{ marginRight: 6 }}>{flagLabel(b.flag)}</span>
                 <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
                   {b.contract_type}{b.contract ? ` · ${b.contract}` : ""}
                 </span>
@@ -109,16 +110,16 @@ export default function VerdictCard({
             renders under the vote so the verdict reads as reasoned judgment, not a bare scorecard. */}
         {Array.isArray(votes) && votes.length > 0 && (
           <div className="ivotes">
-            <div className="ivotes-h">Council votes</div>
+            <div className="ivotes-h">How each reviewer voted</div>
             {votes.map((v, i) => {
               const c = VOTE_COLOR[String(v.vote || "").toUpperCase()] || "var(--muted)";
               const conf = typeof v.confidence === "number" ? v.confidence : null;
               return (
                 <div key={v.role || i} style={{ marginBottom: v.reason ? 7 : 0 }}>
                   <div className="ivote">
-                    <span className="ivote-av" style={{ background: c }}>{(v.role || "?").charAt(0).toUpperCase()}</span>
-                    <span className="ivote-role">{v.role || "judge"}</span>
-                    <span className="ivote-vote" style={{ color: c }}>{v.vote}</span>
+                    <span className="ivote-av" style={{ background: c }}>{roleLabel(v.role).charAt(0).toUpperCase()}</span>
+                    <span className="ivote-role">{roleLabel(v.role)}</span>
+                    <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>
                     {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
                   </div>
                   {v.reason && (

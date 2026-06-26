@@ -45,10 +45,12 @@ describe("RunPanel (tool-run_panel)", () => {
     expect(runEval).toHaveBeenCalledWith({ agent: "ws0_default", live: false, in_process: false });
     expect(confirmSpy).not.toHaveBeenCalled();
 
-    // the composite verdict + the realized council votes render
-    expect(await screen.findByText("reject")).toBeInTheDocument();
+    // the composite result + the realized reviewer votes render (verdict relabeled via copy.js)
+    expect(await screen.findByText("Result")).toBeInTheDocument();
     const votes = await screen.findAllByTestId("council-vote");
     expect(votes).toHaveLength(2);
+    expect(screen.getAllByText("Flagged").length).toBeGreaterThan(0); // reject/BLOCK → plain outcome
+    expect(screen.getByText("Risk reviewer")).toBeInTheDocument(); // risk_judge → roleLabel
     expect(screen.getByText("WRONG_DOSAGE", { exact: false })).toBeInTheDocument();
     // history refreshed after the run (mount + post-run)
     expect(getRuns.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -92,7 +94,7 @@ describe("RunPanel (tool-run_panel)", () => {
     render(<RunPanel />);
     await waitFor(() => expect(getRuns).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Live :8002/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Live run/i }));
     fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
     fireEvent.click(await screen.findByTestId("cost-confirm"));
 

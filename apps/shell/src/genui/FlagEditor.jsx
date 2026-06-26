@@ -22,6 +22,7 @@ import { Slider } from "../components/ui/slider.jsx";
 import { Switch } from "../components/ui/switch.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 import { Icon } from "../icons.jsx";
+import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
 const TIERS = ["TIER_1", "TIER_2", "TIER_3", "none"];
@@ -67,19 +68,19 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
       })
       .catch((e) => {
         if (!live) return;
-        setError(String(e.message || e));
+        setError(friendlyError(e));
         setStatus("error");
       });
     return () => { live = false; };
   }, [agent]);
 
   if (status === "loading")
-    return <Card><CardContent className="text-xs text-muted-foreground">Loading ontology…</CardContent></Card>;
+    return <Card><CardContent className="text-xs text-muted-foreground">Loading your checks…</CardContent></Card>;
   if (status === "error")
     return (
       <Card>
         <CardContent className="text-xs text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">
-          Could not read ontology: {error}
+          We couldn't load your checks. Please try again.
         </CardContent>
       </Card>
     );
@@ -120,7 +121,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
       setPersist({ state: "saved", msg: "draft saved ✓" });
       return res;
     } catch (e) {
-      setPersist({ state: "error", msg: String(e.message || e) });
+      setPersist({ state: "error", msg: friendlyError(e) });
     }
   };
 
@@ -128,7 +129,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
     <Card className="my-3">
       <CardHeader>
         <span className="text-primary"><Icon name="flag" size={15} /></span>
-        <CardTitle>Flags &amp; severity</CardTitle>
+        <CardTitle>Checks &amp; severity</CardTitle>
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
           {flags.length} flags · editable draft
         </span>
@@ -182,7 +183,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
           {persist.state !== "idle"
             ? persist.msg
             : returned
-              ? "applied to setup ✓"
+              ? "saved ✓"
               : "returns into setup · draft-persists to a working copy"}
         </span>
         <Button

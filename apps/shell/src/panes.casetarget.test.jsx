@@ -162,7 +162,7 @@ describe("CenterPane — CHAT-CASE-TARGET-1: the directive's case is the case gr
     fireEvent.click(await screen.findByTestId("cost-confirm"));
 
     // the fresh rec renders inline as a verdict card AND lifts to the report — ONE spend (no onRunEval).
-    expect(await screen.findByText("REJECT")).toBeInTheDocument();
+    expect(await screen.findByText("Flagged", { selector: ".tag" })).toBeInTheDocument(); // the verdict chip
     await waitFor(() => expect(onRunResult).toHaveBeenCalledWith(freshRec));
     expect(runEval).toHaveBeenCalledTimes(1);
     expect(onRunEval).not.toHaveBeenCalled();

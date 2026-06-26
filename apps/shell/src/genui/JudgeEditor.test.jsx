@@ -77,8 +77,8 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     await screen.findByText(/AUTHORED REFINEMENT/);
 
     // attribute + save the assignment
-    fireEvent.change(screen.getByLabelText(/Your handle/i), { target: { value: "sme@acme" } });
-    fireEvent.change(screen.getByLabelText(/Rationale/i), { target: { value: "assign dosage lens" } });
+    fireEvent.change(screen.getByLabelText(/Your name/i), { target: { value: "sme@acme" } });
+    fireEvent.change(screen.getByLabelText(/Reason/i), { target: { value: "assign dosage lens" } });
     fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
 
     await waitFor(() => expect(putJudge).toHaveBeenCalledTimes(1));
@@ -105,7 +105,7 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     render(<JudgeEditor role="risk_judge" />);
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
-    expect(await screen.findByText(/owner↔emit/)).toBeInTheDocument();
+    expect(await screen.findByText(/owner↔emit/i)).toBeInTheDocument();
   });
 
   it("optimize: cost modal gates the PAID run, then renders a WIN Δ", async () => {

@@ -33,9 +33,9 @@ describe("tool-judge_builder is wired into the gen-UI registry (PHASE2-WIRE)", (
       </div>,
     );
     // a stable on-card string proves the part resolved to the component (not the fallback).
-    // "Create judge" is the card title AND the Save button — assert both render (>=2),
+    // "Create reviewer" is the card title AND the Save button — assert both render (>=2),
     // plus the verbatim absolute-2 honesty note that only the JudgeBuilder card carries.
-    expect(screen.getAllByText("Create judge").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Create reviewer").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/corroboration is an absolute 2 votes/i)).toBeInTheDocument();
     expect(screen.queryByText(/Unsupported component/i)).not.toBeInTheDocument();
   });

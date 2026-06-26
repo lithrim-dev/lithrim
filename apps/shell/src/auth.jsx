@@ -9,6 +9,7 @@
 import { useState, useEffect } from "react";
 import { Mark } from "./brand.jsx";
 import { setToken, validateToken } from "./bff.js";
+import { friendlyError } from "./genui/copy.js";
 
 export function LoginScreen({ onSuccess, onCancel }) {
   const [token, setTok] = useState("");
@@ -43,7 +44,7 @@ export function LoginScreen({ onSuccess, onCancel }) {
           placeholder="Access token"
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 14, outline: "none" }}
         />
-        {err && <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--accent)" }}>{err}</div>}
+        {err && <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--accent)" }}>{friendlyError(err)}</div>}
         <button
           data-testid="auth-signin"
           type="submit"

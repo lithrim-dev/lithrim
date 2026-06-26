@@ -14,19 +14,35 @@ import { Input } from "../components/ui/input.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
+import { roleLabel, verdictLabel, friendlyError } from "./copy.js";
+
+// "{action} {type}:{id}" -> a plain sentence, e.g. "Edited the Faithfulness reviewer".
+function auditSentence(rec) {
+  const verb = sentenceCase(String(rec?.action || "").replace(/_/g, " ").trim()) || "Changed";
+  const type = String(rec?.target?.type || "").toLowerCase();
+  const id = rec?.target?.id;
+  if (!type && !id) return verb;
+  const subject = /judge|reviewer/.test(type) && id ? roleLabel(id) : (id || type);
+  return `${verb} the ${subject}`;
+}
+
+function sentenceCase(s) {
+  const str = String(s || "").trim();
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+}
 
 function AuditRow({ rec }) {
   return (
     <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-[family-name:var(--font-mono)] text-[11.5px] font-medium text-foreground">
-          {rec.action} · {rec.target?.type}:{rec.target?.id}
+        <span className="text-[11.5px] font-medium text-foreground">
+          {auditSentence(rec)}
         </span>
         <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">{rec.ts}</span>
       </div>
       <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+        {rec.why?.rationale ? <>“{rec.why.rationale}” · </> : null}
         by <span className="text-foreground">{rec.actor?.id}</span>
-        {rec.why?.rationale ? <> · “{rec.why.rationale}”</> : null}
       </div>
     </div>
   );
@@ -44,7 +60,7 @@ export default function AuditView({ runId: runIdProp = "" }) {
     let live = true;
     getAudit()
       .then((r) => { if (live) { setRecords(r.records || []); setStatus("ready"); } })
-      .catch((e) => { if (live) { setError(String(e.message || e)); setStatus("error"); } });
+      .catch((e) => { if (live) { setError(friendlyError(e)); setStatus("error"); } });
     return () => { live = false; };
   }, []);
 
@@ -53,7 +69,7 @@ export default function AuditView({ runId: runIdProp = "" }) {
     try {
       setRun(await getRunAudit(runId));
     } catch (e) {
-      setRunErr(String(e.message || e));
+      setRunErr(friendlyError(e));
     }
   };
 
@@ -62,8 +78,8 @@ export default function AuditView({ runId: runIdProp = "" }) {
       <CardHeader>
         <span className="text-primary"><Icon name="note" size={15} /></span>
         <CardTitle>Audit trail</CardTitle>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          why · when · who · what
+        <span className="text-[10.5px] text-muted-foreground">
+          What · When · Why · Who
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -71,7 +87,7 @@ export default function AuditView({ runId: runIdProp = "" }) {
           <span className="text-[11px] font-semibold text-foreground">Config changes</span>
           {status === "loading" && <span className="text-xs text-muted-foreground">Loading audit…</span>}
           {status === "error" && (
-            <span className="text-xs text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">{error}</span>
+            <span className="text-xs text-[color:var(--accent-ink)]">{error}</span>
           )}
           {status === "ready" && records.length === 0 && (
             <span className="text-xs text-muted-foreground">No config changes recorded yet.</span>
@@ -88,21 +104,21 @@ export default function AuditView({ runId: runIdProp = "" }) {
         <section className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold text-foreground">Run provenance</span>
           <div className="flex items-center gap-2">
-            <Input value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="pipeline_run_id"
+            <Input value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="run id"
               aria-label="run id" />
             <Button size="sm" variant="ghost" onClick={loadRun} disabled={!runId}>Load run</Button>
           </div>
           {runErr && (
-            <span className="text-[10.5px] text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">{runErr}</span>
+            <span className="text-[10.5px] text-[color:var(--accent-ink)]">{runErr}</span>
           )}
           {run && (
             <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2 text-[11px]">
-              <div className="font-[family-name:var(--font-mono)] font-medium text-foreground">
-                verdict: {run.verdict} · by agent:{run.actor?.id}
+              <div className="font-medium text-foreground">
+                Result: {verdictLabel(run.verdict)} · by {run.actor?.id}
               </div>
               {(run.judges || []).map((j, i) => (
                 <div key={i} className="mt-1 text-[10.5px] text-muted-foreground">
-                  <span className="text-foreground">{j.judge_role}</span> {j.vote}
+                  <span className="text-foreground">{roleLabel(j.judge_role)}</span> {verdictLabel(j.vote)}
                   {j.reasoning ? <> — {j.reasoning}</> : null}
                 </div>
               ))}

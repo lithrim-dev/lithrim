@@ -38,12 +38,12 @@ describe("AgentEditor (tool-agent_editor)", () => {
     expect(getAgent).toHaveBeenCalledTimes(1);
 
     // edit the roster + tools, attribute the write, save
-    fireEvent.change(screen.getByLabelText(/Judges/i), {
+    fireEvent.change(screen.getByLabelText(/Reviewers/i), {
       target: { value: "risk_judge, policy_judge, faithfulness_judge" },
     });
-    fireEvent.change(screen.getByLabelText(/Tools/i), { target: { value: "dosage_grounding" } });
-    fireEvent.change(screen.getByLabelText(/Your handle/i), { target: { value: "sme@acme" } });
-    fireEvent.change(screen.getByLabelText(/Rationale/i), { target: { value: "add faithfulness" } });
+    fireEvent.change(screen.getByLabelText(/Fact-checks/i), { target: { value: "dosage_grounding" } });
+    fireEvent.change(screen.getByLabelText(/Your name/i), { target: { value: "sme@acme" } });
+    fireEvent.change(screen.getByLabelText(/Reason/i), { target: { value: "add faithfulness" } });
     fireEvent.click(screen.getByRole("button", { name: /Save agent/i }));
 
     await waitFor(() => expect(putAgent).toHaveBeenCalledTimes(1));

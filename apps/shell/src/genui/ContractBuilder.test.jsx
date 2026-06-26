@@ -91,9 +91,9 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
     openTypeSelect();
     // the fetched (pack-true) set drives the options; record_presence (static fallback only) is
-    // NOT offered, since the fetch returned a narrower set.
-    expect((await screen.findAllByText("snomed_subsumption")).length).toBeGreaterThan(0);
-    expect(screen.queryAllByText("record_presence")).toHaveLength(0);
+    // NOT offered, since the fetch returned a narrower set. (UX-COPY: keys render as plain labels.)
+    expect((await screen.findAllByText("Medical-term match")).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Was actually recorded")).toHaveLength(0);
   });
 
   it("falls back to the static CONTRACT_TYPES when the fetch REJECTS (offline-safe, no crash)", async () => {
@@ -104,9 +104,14 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     await waitFor(() => expect(getGroundingContractTypes).toHaveBeenCalledTimes(1));
     openTypeSelect();
     // the rejected fetch keeps the static fallback selectable (never crashes) — every static type
-    // is offered.
+    // is offered. (UX-COPY: the type KEY is preserved as the option value but renders as a plain label.)
+    const TYPE_LABEL = {
+      presence_check: "Must be in the record",
+      snomed_subsumption: "Medical-term match",
+      record_presence: "Was actually recorded",
+    };
     for (const t of CONTRACT_TYPES) {
-      expect((await screen.findAllByText(t)).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText(TYPE_LABEL[t])).length).toBeGreaterThan(0);
     }
   });
 });
@@ -195,9 +200,9 @@ describe("ContractBuilder — reads as rule authorship, not form-filling (INLINE
       />,
     );
     const en = screen.getByTestId("rule-in-english").textContent;
-    expect(en).toMatch(/DISSENT_ERASURE/); // the flag the rule guards
+    expect(en).toMatch(/Dissent erasure/i); // the flag the rule guards (rendered as a plain label)
     expect(en).toMatch(/refusal preserved/i); // the question, restated
-    expect(en).toMatch(/block/i); // the verdict direction in plain words
+    expect(en).toMatch(/flag the result/i); // the result direction in plain words
   });
 
   it("the 'Rule in English' restatement updates LIVE as the human edits", () => {
@@ -218,8 +223,10 @@ describe("ContractBuilder — reads as rule authorship, not form-filling (INLINE
     expect(screen.queryByText(/AI-suggested/i)).toBeNull();
   });
 
-  it("frames it as a Deterministic floor prominently (not a buried caption)", () => {
+  it("frames it as an Automated fact-check prominently (not a buried caption)", () => {
     render(<ContractBuilder agent="x" flagCode="F" onResult={vi.fn()} />);
-    expect(screen.getByText(/Deterministic floor/i)).toBeInTheDocument();
+    // the prominent header chip (capitalized) — distinct from the lowercase "automated fact-check"
+    // that also appears in the Result-direction line.
+    expect(screen.getByText("Automated fact-check")).toBeInTheDocument();
   });
 });

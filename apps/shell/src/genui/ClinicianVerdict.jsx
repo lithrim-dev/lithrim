@@ -10,6 +10,7 @@
    verdict_part fields straight through. [[SPEC_CONVERSATIONAL_FIRST]] */
 import { useState } from "react";
 import { recordMetaVerdict } from "../bff.js";
+import { friendlyError } from "./copy.js";
 
 // META-VERDICT-1: the closed judge-fallacy taxonomy (ClinVerdict's "Judge Fallacy" column) —
 // a clinician naming WHY the automated judge erred. Mirrors the BFF's JudgeFallacyCode enum.
@@ -50,7 +51,7 @@ export default function ClinicianVerdict({ runId, councilVerdict }) {
       });
       setSave({ state: "saved", msg: "Recorded — immutable + audited." });
     } catch (e) {
-      setSave({ state: "error", msg: String(e.message || e) });
+      setSave({ state: "error", msg: friendlyError(e) });
     }
   }
 

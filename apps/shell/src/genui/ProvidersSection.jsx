@@ -10,6 +10,7 @@
    PASSIVE rail chrome — never operates panes / the top-bar. Inline styles on the shell CSS vars. */
 import { useState } from "react";
 import { configProvider } from "../bff.js";
+import { friendlyError } from "./copy.js";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -61,7 +62,7 @@ export default function ProvidersSection({ connected = [], onSaved }) {
       setKey(""); // secret hygiene — clear the typed key on success (never re-render it)
       onSaved?.();
     } catch (e) {
-      setSave({ state: "error", msg: String(e.message || e) });
+      setSave({ state: "error", msg: friendlyError(e) });
     }
   };
 
@@ -86,13 +87,13 @@ export default function ProvidersSection({ connected = [], onSaved }) {
         </select>
         {NO_LOGPROBS.has(provider) && (
           <div data-testid="providers-logprobs-hint" style={{ fontSize: 10.5, color: "var(--amber)" }}>
-            ⚠ no logprobs — confidence will be dark for this provider (no calibrated per-token confidence)
+            ⚠ this provider doesn't report a confidence signal — models from it won't show a confidence number
           </div>
         )}
         {needsEndpoint && (
           <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} aria-label="endpoint"
             data-testid="providers-endpoint"
-            placeholder={provider === "azure" ? "https://…azure endpoint (api_base)" : "https://…OpenAI-compatible api_base"}
+            placeholder={provider === "azure" ? "Azure endpoint URL" : "Endpoint URL (OpenAI-compatible)"}
             style={inputStyle} />
         )}
         {isAzure && (
@@ -101,7 +102,7 @@ export default function ProvidersSection({ connected = [], onSaved }) {
             style={inputStyle} />
         )}
         <input data-testid="providers-key" type="password" autoComplete="off" value={key}
-          onChange={(e) => setKey(e.target.value)} placeholder="API key (write-only, masked)" style={inputStyle} />
+          onChange={(e) => setKey(e.target.value)} placeholder="API key (stored securely, never shown again)" style={inputStyle} />
         <div>
           <button data-testid="providers-save" onClick={testSave}
             disabled={save.state === "saving" || !canSave} style={btn(true)}>

@@ -93,8 +93,8 @@ describe("CenterPane — the R11 conversational loop", () => {
     expect(await screen.findByText("Author a risk judge and run it")).toBeInTheDocument();
     // the streamed assistant text renders
     expect(await screen.findByText(/Authoring the risk judge/)).toBeInTheDocument();
-    // the tool-result renders the EXISTING verdict card (no new component) — REJECT shows
-    expect(await screen.findByText("REJECT")).toBeInTheDocument();
+    // the tool-result renders the EXISTING verdict card (no new component) — REJECT → "Flagged"
+    expect(await screen.findByText("Flagged")).toBeInTheDocument();
   });
 
   it("CHATBIND-1: threads the ACTIVE (rail-selected) agent into chatStream, not ws0_default", async () => {
@@ -342,7 +342,7 @@ describe("CenterPane — CHAT-FRESH-GRADE-1: chat run-eval grades fresh + shows 
 
     // BEFORE the confirm: no fresh verdict card in the chat thread (non-vacuous baseline).
     await screen.findByTestId("paid-directive");
-    expect(screen.queryByText("APPROVE")).toBeNull();
+    expect(screen.queryByText("Passed")).toBeNull();
 
     // the human's confirm is the ONLY paid path; it grades FRESH (in_process+confirm), exactly once.
     fireEvent.click(screen.getByTestId("cost-confirm"));
@@ -354,8 +354,8 @@ describe("CenterPane — CHAT-FRESH-GRADE-1: chat run-eval grades fresh + shows 
     expect(onRunEval).not.toHaveBeenCalled();
 
     // the fresh rec renders as a verdict card in the CHAT thread (the same verdict-card render).
-    expect(await screen.findByText("APPROVE")).toBeInTheDocument();
-    expect(screen.getAllByText("Verdict").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Passed", { selector: ".tag" })).toBeInTheDocument(); // the verdict chip
+    expect(screen.getAllByText("Result").length).toBeGreaterThan(0);
   });
 
   it("the appended chat card reflects the FRESH rec (APPROVE), not a prior/stale card", async () => {
@@ -375,7 +375,7 @@ describe("CenterPane — CHAT-FRESH-GRADE-1: chat run-eval grades fresh + shows 
     fireEvent.click(await screen.findByTestId("cost-confirm"));
 
     // the FRESH rec's verdict shows; the run id of the fresh grade is carried (not a stale id).
-    expect(await screen.findByText("APPROVE")).toBeInTheDocument();
+    expect(await screen.findByText("Passed", { selector: ".tag" })).toBeInTheDocument(); // the verdict chip
     expect(screen.getByText("run_fresh_99")).toBeInTheDocument();
   });
 
@@ -502,7 +502,7 @@ describe("CenterPane — CONV-UX-1 W1: thinking / working stages", () => {
     // the activity timeline mounted with the present-progressive labels mapped off the tool names
     const activity = await screen.findByTestId("activity");
     expect(activity).toHaveTextContent(/Reading the agent…/);
-    expect(activity).toHaveTextContent(/Authoring the judge…/);
+    expect(activity).toHaveTextContent(/Setting up the reviewer…/);
   });
 
   it("the working indicator shows the latest in-flight tool label during the turn (not a static 'Thinking…')", async () => {
@@ -551,7 +551,7 @@ describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () =
     fireEvent.click(screen.getByTestId("chat-send"));
 
     // ONE card despite two same-type parts (and never the fallback)
-    await waitFor(() => expect(screen.getAllByText("Verdict").length).toBe(1));
+    await waitFor(() => expect(screen.getAllByText("Result").length).toBe(1));
     expect(screen.queryByText(/Unsupported component/)).toBeNull();
   });
 
@@ -583,8 +583,9 @@ describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () =
     fireEvent.change(ta, { target: { value: "create a risk judge" } });
     fireEvent.click(screen.getByTestId("chat-send"));
 
-    // the error text shows...
-    expect(await screen.findByText(/404/)).toBeInTheDocument();
+    // a calm, leak-free error line shows (friendlyError — never the raw verb/path/404)...
+    expect(await screen.findByText(/⚠/)).toBeInTheDocument();
+    expect(screen.queryByText(/404|\/v1\/case/)).toBeNull(); // the raw HTTP detail never leaks
     // ...and NO card (the audit_log part) rendered alongside it — the W3 error-guard held
     expect(screen.queryByDisplayValue("run-x")).toBeNull();
     expect(screen.queryByText(/Unsupported component/)).toBeNull();

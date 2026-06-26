@@ -45,11 +45,11 @@ const COUNCIL_RESULT = {
 };
 
 describe("JudgeTab — realized council votes (A1)", () => {
-  it("renders the per-judge votes threaded via props (not data.jsx JUDGES)", () => {
+  it("renders the per-reviewer votes threaded via props (not data.jsx JUDGES), names via copy.js", () => {
     render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runResult={COUNCIL_RESULT} runError={null} />);
-    expect(screen.getByText("risk_judge")).toBeInTheDocument();
-    expect(screen.getByText("policy_judge")).toBeInTheDocument();
-    expect(screen.getByText("faithfulness_judge")).toBeInTheDocument();
+    expect(screen.getByText("Risk reviewer")).toBeInTheDocument(); // risk_judge → roleLabel
+    expect(screen.getByText("Policy reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Faithfulness reviewer")).toBeInTheDocument();
     expect(screen.getByText("1 blocking vote(s)")).toBeInTheDocument(); // the FAIL
     // confidence:null tolerated (WS-6a D-E) — rendered as n/a, not a crash
     expect(screen.getByText(/confidence n\/a/)).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("JudgeTab — realized council votes (A1)", () => {
 
   it("prompts to run when there is no run yet", () => {
     render(<ArtifactPane {...paneProps} tab="judges" runStatus="idle" runResult={null} runError={null} />);
-    expect(screen.getByText(/per-case votes/i)).toBeInTheDocument();
+    expect(screen.getByText(/how each reviewer voted/i)).toBeInTheDocument();
   });
 
   // TRANSPARENCY-1 (the ClinVerdict contrast): the Judges pane shows each judge's LENS — the
@@ -94,11 +94,12 @@ describe("JudgeTab — realized council votes (A1)", () => {
     );
     // the JudgeTab self-fetched the lens by the run id
     await waitFor(() => expect(getRunAudit).toHaveBeenCalledWith("run-xyz"));
-    // the flags in each judge's lens render (what it COULD have raised) — the out-of-lens one does not
-    await waitFor(() => expect(screen.getByText("WRONG_DOSAGE")).toBeInTheDocument());
-    expect(screen.getByText("MISSED_ESCALATION")).toBeInTheDocument();
-    expect(screen.getByText("FABRICATED_CONSENT")).toBeInTheDocument();
-    expect(screen.queryByText("OUT_OF_LENS")).toBeNull(); // in_lens=false is excluded
+    // the flags in each reviewer's lens render (what it COULD have raised), relabeled via flagLabel —
+    // the out-of-lens one does not
+    await waitFor(() => expect(screen.getByText("Wrong dosage")).toBeInTheDocument());
+    expect(screen.getByText("Missed escalation")).toBeInTheDocument();
+    expect(screen.getByText("Fabricated consent")).toBeInTheDocument();
+    expect(screen.queryByText("Out of lens")).toBeNull(); // in_lens=false is excluded
     expect(container.querySelectorAll(".judge-lens").length).toBe(3);
     expect(container.textContent).toMatch(/raised none/i); // the blind spot, named
   });
@@ -120,10 +121,10 @@ describe("ConfigTab — ontology config from GET /v1/ontology (A1)", () => {
     });
     render(<ArtifactPane {...paneProps} tab="config" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText(/clinical · clinical\/1/)).toBeInTheDocument();
-    expect(screen.getByText("FABRICATED_ALLERGY")).toBeInTheDocument();
-    expect(screen.getByText("gradeable")).toBeInTheDocument();
+    expect(screen.getByText("Fabricated allergy")).toBeInTheDocument(); // FABRICATED_ALLERGY → flagLabel
+    expect(screen.getByText("scored")).toBeInTheDocument(); // gradeable flag, plainer label
     expect(screen.getByText("reference")).toBeInTheDocument(); // the non-gradeable flag
-    expect(screen.getByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument(); // contract
+    expect(screen.getByText("Medication not in transcript")).toBeInTheDocument(); // contract → flagLabel
   });
 
   it("CHATBIND-2: fetches the ACTIVE agent's ontology (the agent thread), not ws0_default", async () => {
@@ -154,9 +155,9 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
       ],
     });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
-    expect(await screen.findByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument();
+    expect(await screen.findByText("Medication not in transcript")).toBeInTheDocument(); // flag_code → flagLabel
     expect(screen.getByText("false alarm cleared")).toBeInTheDocument();
-    expect(screen.getByText(/BLOCK → PASS/)).toBeInTheDocument();
+    expect(screen.getByText(/Flagged → Passed/)).toBeInTheDocument(); // BLOCK→PASS relabeled via verdictLabel
   });
 
   it("renders a clean empty-state when the corpus is empty (no crash)", async () => {
@@ -178,7 +179,7 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText("clinverdict_01_neurology")).toBeInTheDocument();
     expect(screen.getByText("clinverdict_10_splinter")).toBeInTheDocument();
-    expect(screen.getByText(/2 ingested · 1 with transcript/)).toBeInTheDocument(); // fidelity signal
+    expect(screen.getByText(/2 loaded · 1 include a transcript/)).toBeInTheDocument(); // fidelity signal
     expect(screen.getByText("transcript ✓")).toBeInTheDocument(); // case 01 carries its transcript
   });
 });
@@ -197,7 +198,7 @@ describe("CaseTab — GET /v1/case, the SOURCE INPUT (CHATBIND-3)", () => {
     render(<ArtifactPane {...paneProps} tab="case" runStatus="idle" runResult={null} runError={null} />);
     expect(await screen.findByText(/here for a sprain/)).toBeInTheDocument(); // the transcript
     expect(screen.getByText(/SUBJECTIVE: 28M presents/)).toBeInTheDocument(); // the readable note (decoded)
-    expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // the by-construction ground truth
+    expect(screen.getByText("Fabricated history")).toBeInTheDocument(); // the by-construction ground truth → flagLabel
     expect(screen.getByText("raw · structured")).toBeInTheDocument(); // a note present -> the artifact is the raw view
     expect(screen.getByText(/Diabetes mellitus type 2/)).toBeInTheDocument(); // the patient record
     expect(getCase).toHaveBeenCalledWith("ws0_default", null); // active agent · no specific case selected
@@ -263,8 +264,8 @@ describe("ReportTab — HONEST-1 unlabeled mode (A4)", () => {
     const { container } = render(
       <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={UNLABELED_RUN} runError={null} />,
     );
-    // the verdict + finding still render (label-free, real)
-    expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument();
+    // the result + finding still render (label-free, real), flag relabeled via flagLabel
+    expect(screen.getByText("Fabricated history")).toBeInTheDocument();
     // honest copy — NOT a fabricated accuracy number
     expect(screen.getByText(/accuracy can.t be measured yet/i)).toBeInTheDocument();
     expect(container.textContent).not.toContain("WARN");
@@ -321,17 +322,17 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
     const { container } = render(
       <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={FLOOR_BLOCK_RUN} runError={null} />,
     );
-    expect(screen.getByText(/Hard-rule failures/i)).toBeInTheDocument();
-    // the flag code, contract type, and disposition all render
-    const flagHits = screen.getAllByText("SILENT_DEGRADATION");
+    expect(screen.getByText(/Automated fact-check failures/i)).toBeInTheDocument();
+    // the flag (relabeled via flagLabel), contract type, and disposition all render
+    const flagHits = screen.getAllByText("Silent degradation");
     expect(flagHits.length).toBeGreaterThan(0);
-    expect(container.textContent).toContain("silent_degradation"); // contract_type
-    expect(container.textContent).toContain("inject_block"); // disposition
+    expect(container.textContent).toContain("silent_degradation"); // contract_type (raw, unchanged)
+    expect(container.textContent).toContain("inject_block"); // disposition (raw, unchanged)
   });
 
   it("does NOT render a Floor blocks section (no false BLOCK styling) when floor_adjustments is empty", () => {
     render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={NO_FLOOR_RUN} runError={null} />);
-    expect(screen.queryByText(/Hard-rule failures/i)).toBeNull();
+    expect(screen.queryByText(/Automated fact-check failures/i)).toBeNull();
   });
 });
 
@@ -393,17 +394,19 @@ describe("ReportTab — clinician verdict (META-VERDICT-1)", () => {
   });
 });
 
-describe("ReportTab error copy — honest, not 'service down' for a structured 500 (GRADE-GUARD-1)", () => {
-  it("a structured HTTP 500 shows the real detail WITHOUT the misleading 'unreachable/restart' line", () => {
+describe("ReportTab error copy — calm + leak-free for a structured 500 (UX-COPY-ERR-1)", () => {
+  it("a structured HTTP 500 shows a calm sentence WITHOUT the raw detail/verb/path/status or the 'unreachable/restart' line", () => {
     const err = 'POST /v1/run-eval → 500: {"detail":"no $0 replay baseline — run live or in_process"}';
-    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError={err} />);
-    expect(screen.getByText((t) => t.includes("no $0 replay baseline"))).toBeInTheDocument(); // the truth
-    expect(screen.queryByText(/unreachable|isn.t responding|restart it/i)).toBeNull(); // NOT claimed down
+    const { container } = render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError={err} />);
+    expect(screen.getByText(/something went wrong on the server/i)).toBeInTheDocument(); // friendlyError 5xx line
+    expect(container.textContent).not.toMatch(/POST \/v1|500|detail|no \$0 replay baseline/); // no raw leak
+    expect(screen.queryByText(/unreachable|isn.t responding|restart it/i)).toBeNull(); // NOT claimed down (HTTP envelope present)
   });
 
-  it("a genuine no-response (network) error DOES show the 'unreachable, restart' hint", () => {
-    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError="Failed to fetch" />);
+  it("a genuine no-response (network) error DOES show the 'unreachable, restart' hint, calmly", () => {
+    const { container } = render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runError="Failed to fetch" />);
     expect(screen.getByText(/unreachable.*restart it/i)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Failed to fetch/); // raw network string never rendered
   });
 });
 
@@ -422,15 +425,16 @@ describe("ReportTab — GRADE-GUARD-2: a no-baseline $0-replay failure → actio
     );
     expect(screen.getByText(/No saved run to replay yet/i)).toBeInTheDocument();
     expect(container.textContent).toMatch(/Run live/);
-    expect(screen.queryByText(/Run failed/i)).toBeNull(); // not a raw failure dump
+    expect(screen.queryByText(/We couldn't finish that run/i)).toBeNull(); // not a raw failure dump
     expect(container.textContent).not.toMatch(/grade subprocess failed/); // the raw detail is hidden
   });
 
-  it("(non-vacuous) a DIFFERENT error still shows the raw 'Run failed' detail", () => {
+  it("(non-vacuous) a DIFFERENT error keeps the short validation reason (calm, no HTTP envelope)", () => {
     const other = 'POST /v1/run-eval → 422: {"detail":"malformed contract"}';
-    render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={other} />);
-    expect(screen.getByText(/Run failed/i)).toBeInTheDocument();
-    expect(screen.getByText((t) => t.includes("malformed contract"))).toBeInTheDocument();
+    const { container } = render(<ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={other} />);
+    expect(screen.getByText(/We couldn't finish that run/i)).toBeInTheDocument();
+    expect(screen.getByText(/malformed contract/i)).toBeInTheDocument(); // friendlyError KEEPS the short reason
+    expect(container.textContent).not.toMatch(/POST \/v1|→ 422|detail/); // but drops the HTTP envelope / JSON
     expect(screen.queryByText(/No saved run to replay yet/i)).toBeNull();
   });
 });

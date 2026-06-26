@@ -8,15 +8,16 @@ import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
 import { getOntology, getCorpus, getCase, listCases, getRunAudit } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
+import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./genui/copy.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
 const VERDICT_UI = {
-  approve: { icon: "check", label: "Passed quality gate", color: "var(--teal)" },
-  needs_review: { icon: "flag", label: "Needs review", color: "var(--amber)" },
-  reject: { icon: "flag", label: "Blocked by quality gate", color: "var(--accent)" },
+  approve: { icon: "check", label: "Passed", color: "var(--teal)" },
+  needs_review: { icon: "flag", label: "Needs a look", color: "var(--amber)" },
+  reject: { icon: "flag", label: "Flagged", color: "var(--accent)" },
 };
 
-// a judge vote (PASS|WARN|FAIL|BLOCK) → chip color.
+// a reviewer vote (PASS|WARN|FAIL|BLOCK) → chip color.
 const VOTE_COLOR = {
   PASS: "var(--teal)",
   WARN: "var(--amber)",
@@ -25,9 +26,9 @@ const VOTE_COLOR = {
 };
 
 // grade_path → the cost tag. in_process is the OSS-standalone PAID default (LAUNCH-PREP);
-// only an actual replay is $0 — never label a paid run "$0" (S-BS-110).
+// only an actual replay is free — never label a paid run "free" (S-BS-110).
 const gradeTag = (gp) =>
-  gp === "replay" ? "Preview · $0" : gp === "in_process" ? "Full run · paid" : "Live · paid";
+  gp === "replay" ? "Saved replay · free" : gp === "in_process" ? "Full run · paid" : "Live run · paid";
 
 function ReportMessage({ children }) {
   return (
@@ -39,9 +40,9 @@ function ReportMessage({ children }) {
 
 // GRADE-GUARD-2: render a run failure. A "no captured baseline" failure is NOT a raw error to dump —
 // it's actionable guidance: this eval has nothing to $0-replay yet, so grade it live ONCE to capture a
-// baseline (then Run eval replays it for $0). Everything else keeps GRADE-GUARD-1: show the HTTP detail
-// verbatim (the service IS responding — the detail is the actionable truth), and only hint "unreachable,
-// restart it" for a genuine no-response/network failure.
+// baseline (then Run eval replays it for $0). Everything else renders the error through friendlyError
+// (a calm sentence — never the raw HTTP verb/path/status/detail), and only hints "unreachable, restart
+// it" for a genuine no-response/network failure.
 function RunFailed({ runError }) {
   const errStr = String(runError || "");
   if (/no captured baseline|\$0 replay is unavailable|run it live or in_process/i.test(errStr)) {
@@ -59,8 +60,8 @@ function RunFailed({ runError }) {
   const isHttp = /→\s*\d{3}\b/.test(errStr);
   return (
     <ReportMessage>
-      <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Run failed</div>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{runError}</div>
+      <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>We couldn't finish that run.</div>
+      <div style={{ fontSize: 12.5 }}>{friendlyError(runError)}</div>
       {!isHttp && (
         <div style={{ marginTop: 10 }}>The evaluation service may be unreachable — ask the host to restart it.</div>
       )}
@@ -91,10 +92,10 @@ function ReportTab({ runStatus, runResult, runError }) {
         <div style={{ minWidth: 0 }}>
           <div className="rb-t">{ui.label}</div>
           <div className="rb-s">
-            {comp.active_findings.length} issue(s) flagged · {comp.grounded_adjustments.length} false alarm(s) removed by a tool · {runResult.case_id}
+            {comp.active_findings.length} issues found · {comp.grounded_adjustments.length} false alarms cleared by a fact-check · {runResult.case_id}
           </div>
         </div>
-        <div className="rb-grade" style={{ color: ui.color }}>{comp.stage_verdict}</div>
+        <div className="rb-grade" style={{ color: ui.color }}>{verdictLabel(comp.stage_verdict)}</div>
       </div>
 
       <div className="art-sec">
@@ -105,8 +106,8 @@ function ReportTab({ runStatus, runResult, runError }) {
         <div className="tiles">
           {[
             { k: "Risk score", v: String(comp.score), d: "0–1 · higher is riskier" },
-            { k: "Issues flagged", v: String(comp.active_findings.length), d: "after fact-checks" },
-            { k: "False alarms removed", v: String(comp.grounded_adjustments.length), d: "cleared by a tool" },
+            { k: "Issues found", v: String(comp.active_findings.length), d: "after fact-checks" },
+            { k: "False alarms cleared", v: String(comp.grounded_adjustments.length), d: "cleared by a fact-check" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -119,7 +120,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       <div className="art-sec">
         <div className="art-h2">
-          Issues flagged <span className="cnt">{comp.active_findings.length}</span>
+          Issues found <span className="cnt">{comp.active_findings.length}</span>
         </div>
         {comp.active_findings.length === 0 && (
           <div style={{ fontSize: 12.5, color: "var(--muted)" }}>None.</div>
@@ -127,22 +128,22 @@ function ReportTab({ runStatus, runResult, runError }) {
         {comp.active_findings.map((f, i) => (
           <div key={i} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
             <ICN name="flag" size={14} style={{ color: "var(--accent)", flex: "0 0 auto", marginTop: 2 }} />
-            <span style={{ fontFamily: "var(--mono)" }}>{f}</span>
+            <span>{flagLabel(f)}</span>
           </div>
         ))}
       </div>
 
       {(comp.floor_adjustments || []).length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Hard-rule failures <span className="cnt">a tool changed the verdict</span></div>
+          <div className="art-h2">Automated fact-check failures <span className="cnt">a fact-check changed the result</span></div>
           {(comp.floor_adjustments || []).map((a, i) => {
             const isBlock = a.action === "floor_block";
             return (
               <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: isBlock ? "var(--accent)" : "var(--muted)" }}>{a.flag}</span>
+                  <span style={{ fontWeight: 600, color: isBlock ? "var(--accent)" : "var(--muted)" }}>{flagLabel(a.flag)}</span>
                   <span style={{ color: isBlock ? "var(--accent)" : "var(--muted)", whiteSpace: "nowrap" }}>
-                    {isBlock ? "floor_block" : "floor_inconclusive"} · {a.contract_type}
+                    {isBlock ? "Blocked by a fact-check" : "Fact-check inconclusive"} · {a.contract_type}
                   </span>
                 </div>
                 <div style={{ color: "var(--muted)", marginTop: 3 }}>
@@ -156,11 +157,11 @@ function ReportTab({ runStatus, runResult, runError }) {
 
       {comp.grounded_adjustments.length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Corrected by a tool <span className="cnt">fact-checked</span></div>
+          <div className="art-h2">Cleared by a fact-check <span className="cnt">fact-checked</span></div>
           {comp.grounded_adjustments.map((a, i) => (
             <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{a.flag}</span>
+                <span style={{ fontWeight: 600 }}>{flagLabel(a.flag)}</span>
                 <span style={{ color: "var(--teal)", whiteSpace: "nowrap" }}>{a.action} · {a.contract}</span>
               </div>
               {a.reason && <div style={{ color: "var(--muted)", marginTop: 3 }}>{a.reason}</div>}
@@ -232,19 +233,19 @@ function JudgeTab({ runStatus, runResult, runError }) {
   }, [runId]);
 
   if (runStatus === "loading")
-    return <ReportMessage>Collecting the judges' votes…</ReportMessage>;
+    return <ReportMessage>Gathering the reviewers' results…</ReportMessage>;
   if (runStatus === "error") return <RunFailed runError={runError} />;
   if (!runResult)
     return (
       <ReportMessage>
-        No run yet. Press <strong>Run eval</strong> to see the council's per-case votes.
+        No run yet. Press <strong>Run eval</strong> to see how each reviewer voted on this case.
       </ReportMessage>
     );
 
   const council = runResult.council || { votes: [], configured: [] };
   const votes = council.votes || [];
   if (votes.length === 0)
-    return <ReportMessage>This run carried no per-judge council votes.</ReportMessage>;
+    return <ReportMessage>This run carried no per-reviewer votes.</ReportMessage>;
 
   const blocking = votes.filter((v) => v.vote === "FAIL" || v.vote === "BLOCK").length;
   // TRANSPARENCY-1: cohort lens coverage — how many distinct flags the whole council COULD raise
@@ -260,17 +261,17 @@ function JudgeTab({ runStatus, runResult, runError }) {
         <div>
           <div className="ct">{blocking ? `${blocking} blocking vote(s)` : "No blocking votes"}</div>
           <div className="cs">
-            Realized votes on {runResult.case_id} · {gradeTag(runResult.grade_path)}
+            How each reviewer voted on {runResult.case_id} · {gradeTag(runResult.grade_path)}
           </div>
           {lensCodes.size > 0 && (
             <div className="cs" style={{ marginTop: 2 }}>
-              Council could flag <strong>{lensCodes.size}</strong> issue type(s) on this case ·{" "}
+              The reviewers could flag <strong>{lensCodes.size}</strong> issue type(s) on this case ·{" "}
               <strong style={{ color: raisedCount ? "var(--accent)" : "var(--muted)" }}>raised {raisedCount}</strong>
             </div>
           )}
         </div>
       </div>
-      <div className="art-h2">Council members <span className="cnt">vote · what it can flag</span></div>
+      <div className="art-h2">Reviewers <span className="cnt">vote · what it checks for</span></div>
       {votes.map((v, i) => {
         const color = VOTE_COLOR[v.vote] || "var(--muted)";
         const conf = typeof v.confidence === "number" ? v.confidence : null;
@@ -283,12 +284,12 @@ function JudgeTab({ runStatus, runResult, runError }) {
                 {(v.judge_role || "?").charAt(0).toUpperCase()}
               </div>
               <div style={{ minWidth: 0 }}>
-                <div className="judge-name">{v.judge_role || "judge"}</div>
+                <div className="judge-name">{roleLabel(v.judge_role)}</div>
                 <div className="judge-model">{v.model || "—"}</div>
               </div>
               <div className="judge-w">
                 <div className="k">vote</div>
-                <div className="v" style={{ color }}>{v.vote}</div>
+                <div className="v" style={{ color }}>{verdictLabel(v.vote)}</div>
               </div>
             </div>
             <div className="vbar">
@@ -303,12 +304,12 @@ function JudgeTab({ runStatus, runResult, runError }) {
             </div>
             {lens.length > 0 && (
               <div className="judge-lens">
-                <span className="jl-k">Can flag</span>
+                <span className="jl-k">Checks for</span>
                 {lens.map((c) => (
-                  <span key={c.code} className={"jl-code" + (c.raised ? " raised" : "")}>{c.code}</span>
+                  <span key={c.code} className={"jl-code" + (c.raised ? " raised" : "")}>{flagLabel(c.code)}</span>
                 ))}
                 <span className="jl-note" style={{ color: raised.length ? "var(--accent)" : "var(--muted)" }}>
-                  {raised.length ? `raised ${raised.map((c) => c.code).join(", ")}` : "raised none"}
+                  {raised.length ? `raised ${raised.map((c) => flagLabel(c.code)).join(", ")}` : "raised none"}
                 </span>
               </div>
             )}
@@ -340,8 +341,7 @@ function ConfigTab({ agent = "ws0_default" }) {
   if (status === "error")
     return (
       <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Couldn’t read the setup</div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>We couldn’t load the setup. Please try again.</div>
       </ReportMessage>
     );
 
@@ -354,12 +354,12 @@ function ConfigTab({ agent = "ws0_default" }) {
     <div>
       <div className="art-sec">
         <div className="art-h2">
-          What the judges check <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
+          What the reviewers check <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
         </div>
         <div className="tiles">
           {[
             { k: "Checks", v: String(flags.length), d: `${gradeable} scored` },
-            { k: "Tool checks", v: String(contracts.length), d: "hard rules" },
+            { k: "Fact-checks", v: String(contracts.length), d: "automated rules" },
             { k: "Block at", v: String(sm.block_at_or_above ?? "—"), d: "risk threshold" },
             { k: "Warn above", v: String(sm.warn_above ?? "—"), d: "risk threshold" },
           ].map((t) => (
@@ -383,25 +383,25 @@ function ConfigTab({ agent = "ws0_default" }) {
 
       <div className="art-sec">
         <div className="art-h2">
-          Flags <span className="cnt">tier · gradeable · owners</span>
+          Checks <span className="cnt">level · scored · reviewers</span>
         </div>
         {flags.map((f) => (
           <div key={f.flag} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
-            <span style={{ fontFamily: "var(--mono)", fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{f.flag}</span>
+            <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{flagLabel(f.flag)}</span>
             <span className="cnt">{f.tier || "—"}</span>
-            <span style={{ color: f.gradeable ? "var(--teal)" : "var(--muted)" }}>{f.gradeable ? "gradeable" : "reference"}</span>
-            <span style={{ color: "var(--muted)", fontSize: 11 }}>{(f.owner_roles || []).length || "no"} owner(s)</span>
+            <span style={{ color: f.gradeable ? "var(--teal)" : "var(--muted)" }}>{f.gradeable ? "scored" : "reference"}</span>
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>{(f.owner_roles || []).length || "no"} reviewer(s)</span>
           </div>
         ))}
       </div>
 
       {contracts.length > 0 && (
         <div className="art-sec" style={{ marginBottom: 4 }}>
-          <div className="art-h2">Verification contracts <span className="cnt">structural floor</span></div>
+          <div className="art-h2">Fact-checks <span className="cnt">automated rules</span></div>
           {contracts.map((c, i) => (
             <div key={i} style={{ padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{c.flag_code}</span>
+                <span style={{ fontWeight: 600 }}>{flagLabel(c.flag_code)}</span>
                 <span style={{ color: "var(--teal)", whiteSpace: "nowrap" }}>{c.contract_type} · {c.version}</span>
               </div>
               {c.question && <div style={{ color: "var(--muted)", marginTop: 3 }}>{c.question}</div>}
@@ -433,7 +433,7 @@ function IngestedCasesSection({ activeCase = null, onSelectCase }) {
   return (
     <div className="art-sec">
       <div className="art-h2">
-        Eval cases <span className="cnt">{cases.length} ingested · {withCtx} with transcript</span>
+        Eval cases <span className="cnt">{cases.length} loaded · {withCtx} include a transcript</span>
       </div>
       <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 6px" }}>Click a case to explore it.</div>
       {cases.map((c) => {
@@ -480,18 +480,17 @@ function CorrectionCorpus() {
     return () => { live = false; };
   }, []);
 
-  if (status === "loading") return <ReportMessage>Loading correction corpus…</ReportMessage>;
+  if (status === "loading") return <ReportMessage>Loading saved cases…</ReportMessage>;
   if (status === "error")
     return (
       <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read corpus</div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>We couldn’t load the corrections. Please try again.</div>
       </ReportMessage>
     );
   if (rows.length === 0)
     return (
       <ReportMessage>
-        No corrections yet. This fills in as a tool clears a false alarm or catches a missed
+        No corrections yet. This fills in as a fact-check clears a false alarm or catches a missed
         issue during an evaluation.
       </ReportMessage>
     );
@@ -503,13 +502,13 @@ function CorrectionCorpus() {
     <div>
       <div className="art-sec">
         <div className="art-h2">
-          Corrections made by tools <span className="cnt">{rows.length} so far</span>
+          Corrections made by fact-checks <span className="cnt">{rows.length} so far</span>
         </div>
         <div className="tiles">
           {[
-            { k: "Total", v: String(rows.length), d: "checked by a tool" },
-            { k: "False alarms removed", v: String(suppress), d: "AI flagged it, a tool cleared it" },
-            { k: "Misses caught", v: String(floor), d: "AI missed it, a tool caught it" },
+            { k: "Total", v: String(rows.length), d: "checked by a fact-check" },
+            { k: "False alarms cleared", v: String(suppress), d: "AI flagged it, a fact-check cleared it" },
+            { k: "Misses caught", v: String(floor), d: "AI missed it, a fact-check caught it" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -525,13 +524,13 @@ function CorrectionCorpus() {
         {rows.map((r, i) => (
           <div key={r.rollout_ref || i} style={{ padding: "9px 0", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-              <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{r.flag_code}</span>
+              <span style={{ fontWeight: 600 }}>{flagLabel(r.flag_code)}</span>
               <span className="cnt" style={{ color: r.action === "floor" ? "var(--accent)" : "var(--teal)" }}>{ACTION_LABEL[r.action] || r.action}</span>
             </div>
             <div style={{ color: "var(--muted)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "var(--mono)" }}>{r.verdict_before} → {r.verdict_after}</span>
+              <span>{verdictLabel(r.verdict_before)} → {verdictLabel(r.verdict_after)}</span>
               {r.contract && <span>· {r.contract}</span>}
-              {(r.owner_roles || []).length > 0 && <span>· {r.owner_roles.join(", ")}</span>}
+              {(r.owner_roles || []).length > 0 && <span>· {r.owner_roles.map(roleLabel).join(", ")}</span>}
             </div>
             <div style={{ color: "var(--muted)", marginTop: 3, fontFamily: "var(--mono)", fontSize: 10.5 }}>
               {r.case_id} · {(r.rollout_ref || "").slice(0, 12)}
@@ -579,8 +578,7 @@ function CaseTab({ agent = "ws0_default", caseId = null }) {
   if (status === "error")
     return (
       <ReportMessage>
-        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>Could not read the case</div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{error}</div>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>We couldn’t load the case. Please try again.</div>
       </ReportMessage>
     );
 
@@ -617,7 +615,7 @@ function CaseTab({ agent = "ws0_default", caseId = null }) {
           )
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {planted.map((f) => <span key={f} className="chip">{f}</span>)}
+            {planted.map((f) => <span key={f} className="chip">{flagLabel(f)}</span>)}
           </div>
         )}
         {kase.injection_recipe ? <pre style={{ ..._PRE, marginTop: 8 }}>{JSON.stringify(kase.injection_recipe, null, 2)}</pre> : null}
@@ -638,9 +636,9 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
   const titles = {
     case: ["The case", "the input, the AI’s output, and the planted answer"],
     report: ["Evaluation report", "the latest run"],
-    judges: ["Judges", "how each one voted on this case"],
-    config: ["Setup", "what the judges check for"],
-    corpus: ["Cases & corrections", "the cases you loaded + fixes a tool made"],
+    judges: ["Reviewers", "how each one voted on this case"],
+    config: ["Setup", "what the reviewers check for"],
+    corpus: ["Cases & corrections", "the cases you loaded + fixes a fact-check made"],
   };
   const [t1, t2] = titles[tab];
   return (
@@ -659,7 +657,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
           </div>
         </div>
         <div className="art-tabs">
-          {[["case", "Case"], ["report", "Report"], ["judges", "Judges"], ["config", "Setup"], ["corpus", "Cases"]].map(([k, label]) => (
+          {[["case", "Case"], ["report", "Report"], ["judges", "Reviewers"], ["config", "Setup"], ["corpus", "Cases"]].map(([k, label]) => (
             <button key={k} className={"art-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>

@@ -49,10 +49,9 @@ export default function KbPicker({ index = "knowledge-base", onResult }) {
       <CardHeader>
         <span className="text-primary"><Icon name="book" size={15} /></span>
         <CardTitle>Knowledge base</CardTitle>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">{index}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <Label>Namespaces ({selectedCount} bound)</Label>
+        <Label>Knowledge topics ({selectedCount} selected)</Label>
         <div className="flex flex-col gap-1">
           {bindings.map((b) => (
             <label key={b.id} className="flex items-center gap-2.5 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
@@ -77,13 +76,13 @@ export default function KbPicker({ index = "knowledge-base", onResult }) {
           </div>
           <label className="flex items-center gap-2 pb-1.5">
             <Switch checked={rerank} onCheckedChange={setRerank} aria-label="rerank" />
-            <span className="text-[12px] text-muted-foreground">Rerank <span className="opacity-70">(off for structured KBs)</span></span>
+            <span className="text-[12px] text-muted-foreground">Rerank</span>
           </label>
         </div>
       </CardContent>
       <CardFooter>
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          {returned ? "bound to profile ✓" : "returns kb_bindings"}
+          {returned ? "bound to profile ✓" : ""}
         </span>
         <Button className="ml-auto" size="sm" onClick={apply} disabled={selectedCount === 0}>Bind KB</Button>
       </CardFooter>

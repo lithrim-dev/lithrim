@@ -26,6 +26,7 @@ import { Label } from "../components/ui/label.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Switch } from "../components/ui/switch.jsx";
 import { Icon } from "../icons.jsx";
+import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
 const lineCount = (s) => (s ? s.split("\n").length : 0);
@@ -114,7 +115,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       })
       .catch((e) => {
         if (!live) return;
-        setError(String(e.message || e));
+        setError(friendlyError(e));
         setStatus("error");
       });
     return () => { live = false; };
@@ -134,12 +135,12 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   }, [assigned, status, role, agent]);
 
   if (status === "loading")
-    return <Card><CardContent className="text-xs text-muted-foreground">Loading judge…</CardContent></Card>;
+    return <Card><CardContent className="text-xs text-muted-foreground">Loading reviewer…</CardContent></Card>;
   if (status === "error")
     return (
       <Card>
         <CardContent className="text-xs text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">
-          Could not read judge: {error}
+          We couldn't load this reviewer. Please try again.
         </CardContent>
       </Card>
     );
@@ -166,7 +167,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       return res;
     } catch (e) {
       // owner↔emit / snapshot / validator 422 surfaced inline
-      setSave({ state: "error", msg: String(e.message || e) });
+      setSave({ state: "error", msg: friendlyError(e) });
     }
   };
 
@@ -180,7 +181,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       const result = await optimizeJudge(role, { confirm: true });
       setOpt({ state: "done", result, error: null });
     } catch (e) {
-      setOpt({ state: "error", result: null, error: String(e.message || e) });
+      setOpt({ state: "error", result: null, error: friendlyError(e) });
     }
   };
 
@@ -190,18 +191,18 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         <span className="text-primary"><Icon name="scale" size={15} /></span>
         <CardTitle>Judge · {role}</CardTitle>
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          ontology-assignment · attributed write
+          saved to your checklist
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="je-model">Model deployment</Label>
+          <Label htmlFor="je-model">Model name</Label>
           <Input id="je-model" value={model} onChange={(e) => setModel(e.target.value)}
-            placeholder="AZURE_OPENAI_DEPLOYMENT_COUNCIL" />
+            placeholder="model name (e.g. gpt-4.1)" />
         </div>
 
         <section className="flex flex-col gap-2">
-          <Label>Assign lens (owned + emitted codes)</Label>
+          <Label>Choose what this reviewer checks for</Label>
           <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
             {availableFlags.map((f) => (
               <div key={f.flag} className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
@@ -222,7 +223,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         </section>
 
         <section className="flex flex-col gap-2">
-          <Label>Attach validators (execute-only)</Label>
+          <Label>Attach fact-checks</Label>
           <div className="flex flex-wrap gap-1.5">
             {availableValidators.map((v) => (
               <button
@@ -247,7 +248,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         <Separator />
 
         <section className="flex flex-col gap-2">
-          <Label>Refinement questions (derived from the ontology)</Label>
+          <Label>Follow-up questions (from your checklist)</Label>
           {questions.length ? (
             <ol className="flex flex-col gap-0.5 pl-4 text-[11.5px] text-muted-foreground">
               {questions.map((q) => (
@@ -261,7 +262,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
 
         <section className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <Label>Judge prompt preview (the exact role_key_questions)</Label>
+            <Label>Judge prompt preview (the exact questions this reviewer will ask)</Label>
             <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
               {assigned.length
                 ? `+${addedLines} lines vs seed · ${assigned.length} flag${assigned.length > 1 ? "s" : ""} · $0`
@@ -279,7 +280,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           <div className="flex items-baseline justify-between">
             <Label>Optimize (calibration trainer)</Label>
             <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-              POST /v1/judges/{role}/optimize · PAID
+              Improve this reviewer · paid
             </span>
           </div>
           <p className="text-[10.5px] text-muted-foreground">
@@ -304,7 +305,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           </div>
           {opt.state === "error" && (
             <div className="font-[family-name:var(--font-mono)] text-[11px] text-[color:var(--accent-ink)]">
-              Optimize failed: {opt.error}
+              Couldn't improve the reviewer — please try again.
             </div>
           )}
           {opt.state === "done" && opt.result && <OptimizeDelta result={opt.result} />}
@@ -313,14 +314,14 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         <Separator />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="je-actor">Your handle (audit who)</Label>
+            <Label htmlFor="je-actor">Your name</Label>
             <Input id="je-actor" value={actor} onChange={(e) => setActor(e.target.value)}
               placeholder="you@example.com" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="je-why">Rationale (audit why)</Label>
+            <Label htmlFor="je-why">Reason for this change</Label>
             <Input id="je-why" value={rationale} onChange={(e) => setRationale(e.target.value)}
-              placeholder="why this lens" />
+              placeholder="why this change" />
           </div>
         </div>
       </CardContent>
@@ -331,7 +332,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             (save.state === "error" ? "text-[color:var(--accent-ink)]" : "text-muted-foreground")
           }
         >
-          {save.state !== "idle" ? save.msg : "PUT /v1/judges · owner↔emit + snapshot gated (not the seed)"}
+          {save.state !== "idle" ? save.msg : "Save reviewer"}
         </span>
         <Button className="ml-auto" size="sm" onClick={persist} disabled={save.state === "saving"}>
           {save.state === "saving" ? "Saving…" : "Save judge"}

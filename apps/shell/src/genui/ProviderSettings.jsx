@@ -41,7 +41,7 @@ export default function ProviderSettings({ onClose }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ color: "var(--accent)" }}><Icon name="link" size={16} /></span>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Connect AI</div>
-        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>keys are entered once in Providers · models are assigned per consumer · keys are write-only (never returned)</span>
+        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>enter each key once in Providers · assign a model to each reviewer · your key is stored securely and never shown again</span>
         {onClose && (
           <button data-testid="provider-settings-close" aria-label="Close" onClick={onClose}
             style={{ marginLeft: "auto", ...btn(false), padding: "4px 8px", display: "inline-flex", alignItems: "center" }}>

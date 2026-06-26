@@ -28,7 +28,7 @@ export default function CaseCard({ agent = "ws0_default", case_id = null, onOpen
   }, [agent, case_id]);
 
   if (err)
-    return <div className="icard"><div className="icard-bd" style={{ color: "var(--accent)" }}>Could not load the case: {err}</div></div>;
+    return <div className="icard"><div className="icard-bd" style={{ color: "var(--accent)" }}>We couldn't load this case. Please try again.</div></div>;
   if (!kase)
     return <div className="icard"><div className="icard-bd" style={{ color: "var(--muted)" }}>Loading the case…</div></div>;
 

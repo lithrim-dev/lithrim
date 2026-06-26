@@ -19,15 +19,17 @@ import { Separator } from "../components/ui/separator.jsx";
 import { CostModal } from "../components/CostModal.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
+import { verdictLabel, roleLabel } from "./copy.js";
 
 const MODES = [
   { key: "replay", label: "Replay", cost: "$0", paid: false },
-  { key: "live", label: "Live :8002", cost: "paid", paid: true },
+  { key: "live", label: "Live run", cost: "paid", paid: true },
   { key: "in_process", label: "In-process trio", cost: "paid", paid: true },
 ];
 
 const COST_BODY =
-  "This is a PAID run (real council calls, ~$0.10–0.20). Replay is the $0 default. Continue?";
+  "This is a paid run (real model calls, about $0.10–0.20). This makes real model calls you'll be billed for. " +
+  "A saved replay is the free default. Continue?";
 
 const voteTone = (vote) =>
   vote === "BLOCK" ? "var(--accent-ink)" : vote === "WARN" ? "var(--amber, #b45309)" : "var(--teal)";
@@ -128,29 +130,29 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
         </div>
 
         {runStatus === "error" && (
-          <div className="font-[family-name:var(--font-mono)] text-xs text-[color:var(--accent-ink)]">
-            Run failed: {error}
+          <div className="text-xs text-[color:var(--accent-ink)]">
+            We couldn't finish that run — please try again, or check your model connection.
           </div>
         )}
 
         {comp && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 text-sm">
-              <strong>Verdict</strong>
+              <strong>Result</strong>
               <span style={{ color: comp.verdict === "reject" ? "var(--accent-ink)" : "var(--teal)" }}>
-                {comp.verdict}
+                {verdictLabel(comp.verdict)}
               </span>
               <span className="text-muted-foreground text-xs">
-                (stage {comp.stage_verdict}, score {comp.score})
+                (stage {verdictLabel(comp.stage_verdict)}, score {comp.score})
               </span>
             </div>
             <div className="flex flex-col gap-1">
               {votes.map((v, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs" data-testid="council-vote">
-                  <span style={{ color: voteTone(v.vote), fontWeight: 600 }}>{v.vote}</span>
-                  <span className="text-foreground">{v.judge_role}</span>
+                  <span style={{ color: voteTone(v.vote), fontWeight: 600 }}>{verdictLabel(v.vote)}</span>
+                  <span className="text-foreground">{roleLabel(v.judge_role)}</span>
                   <span className="text-muted-foreground">
-                    {v.confidence == null ? "conf —" : `conf ${v.confidence}`}
+                    {v.confidence == null ? "how sure —" : `how sure ${v.confidence}`}
                     {v.findings?.length ? ` · ${v.findings.join(", ")}` : ""}
                   </span>
                 </div>
@@ -170,7 +172,7 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
                 {(r.run_id || "").slice(0, 8)}
               </span>
               <span style={{ color: r.verdict === "BLOCK" ? "var(--accent-ink)" : "var(--teal)" }}>
-                {r.verdict}
+                {verdictLabel(r.verdict)}
               </span>
               <span className="text-muted-foreground">{r.agent}</span>
             </div>
@@ -178,14 +180,14 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
         </div>
       </CardContent>
       <CardFooter>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          POST /v1/run-eval · replay $0 · live/in-process paid (confirmed)
+        <span className="text-[10.5px] text-muted-foreground">
+          A saved replay is free; a live run is paid
         </span>
       </CardFooter>
       <CostModal
         open={paid.open}
         busy={paid.busy}
-        title="Run a PAID evaluation?"
+        title="Run a paid evaluation?"
         body={COST_BODY}
         confirmLabel="Run (paid)"
         onConfirm={confirmPaid}

@@ -98,7 +98,7 @@ describe("CONNECT-AI-AZURE-1 — free-text deployment + the api-version field", 
     const provSel = await screen.findByTestId("role-bind-provider-faithfulness_judge");
     fireEvent.change(provSel, { target: { value: "gemini" } });
     fireEvent.change(screen.getByTestId("role-bind-model-faithfulness_judge"), { target: { value: "gemini-1.5-pro" } });
-    expect(await screen.findByTestId("role-bind-logprobs-hint-faithfulness_judge")).toHaveTextContent(/no logprobs|confidence dark/i);
+    expect(await screen.findByTestId("role-bind-logprobs-hint-faithfulness_judge")).toHaveTextContent(/doesn't report a confidence signal/i);
     // gate: azure-connected but NOTHING bound → not ready
     const notReady = screen.getByTestId("setup-complete-status");
     expect(notReady).toHaveTextContent(/needs a model|not ready|still needs/i);
@@ -110,6 +110,31 @@ describe("CONNECT-AI-AZURE-1 — free-text deployment + the api-version field", 
     const ready = await screen.findByTestId("setup-complete-status");
     expect(ready).toHaveTextContent(/ready — 4 of 4|ready/i);
     expect(ready).not.toHaveTextContent(/still needs/i);
+  });
+
+  it("E (PREFILL): an already-assigned role pre-fills its provider + model controls (not empty)", async () => {
+    // CONNECT-AI-PREFILL-1: a configured role must show its saved binding IN the editable controls,
+    // not an empty field next to a ✓ — else a fully-configured panel reads as unconfigured.
+    getRoleBindings.mockResolvedValue(ALL_FOUR);
+    render(<ProviderSettings />);
+    await screen.findByTestId("role-bind-assigned-risk_judge"); // bindings have loaded
+    expect(screen.getByTestId("role-bind-provider-risk_judge").value).toBe("azure");
+    expect(screen.getByTestId("role-bind-model-risk_judge").value).toBe("my-gpt-deploy");
+    expect(screen.getByTestId("role-bind-provider-faithfulness_judge").value).toBe("azure");
+    expect(screen.getByTestId("role-bind-model-faithfulness_judge").value).toBe("my-llama-deploy");
+  });
+
+  it("E2 (PREFILL non-vacuous): an UNassigned role leaves its controls empty", async () => {
+    // only risk_judge is bound; the rest stay empty (the prefill must not seed unbound rows)
+    getRoleBindings.mockResolvedValue({
+      roles: { risk_judge: { provider: "azure", model: "my-gpt-deploy" }, policy_judge: null, faithfulness_judge: null, chat_assistant: null },
+      connected_providers: ["azure", "openai", "gemini"],
+    });
+    render(<ProviderSettings />);
+    await screen.findByTestId("role-bind-assigned-risk_judge");
+    expect(screen.getByTestId("role-bind-provider-risk_judge").value).toBe("azure");
+    expect(screen.getByTestId("role-bind-provider-policy_judge").value).toBe("");
+    expect(screen.getByTestId("role-bind-model-policy_judge").value).toBe("");
   });
 
   it("D: ProvidersSection — azure shows the api-version input; save passes api_version; non-azure hides it; key clears", async () => {

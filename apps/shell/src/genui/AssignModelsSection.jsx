@@ -14,13 +14,10 @@
 import { useEffect, useState } from "react";
 import { getModelCatalog, bindRole } from "../bff.js";
 import { NO_LOGPROBS } from "./ProvidersSection.jsx";
+import { roleLabel } from "./copy.js";
 
 const JUDGE_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
 const ALL_ROLES = [...JUDGE_ROLES, "chat_assistant"];
-const ROLE_LABEL = {
-  risk_judge: "risk_judge", policy_judge: "policy_judge",
-  faithfulness_judge: "faithfulness_judge", chat_assistant: "chat_assistant",
-};
 
 const inputStyle = {
   padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: "1px solid var(--border)",
@@ -32,6 +29,15 @@ const btn = (primary) => ({
   background: primary ? "var(--accent)" : "var(--surface-muted)",
   color: primary ? "#fff" : "var(--ink)", fontWeight: 600,
 });
+// CONNECT-AI-LAYOUT-1: every consumer row shares ONE column grid so label · provider · model · action
+// align across rows; minmax(_,1fr) lets the model input flex (never the variable status label starving
+// it). The assigned `✓ provider · model` status is lifted to its OWN line (STATUS_INDENT) so a long
+// model id wraps there instead of crushing the controls / forcing the modal to scroll horizontally.
+const ROW_GRID = {
+  display: "grid", gridTemplateColumns: "150px 128px minmax(120px, 1fr) auto",
+  alignItems: "center", gap: 8,
+};
+const STATUS_INDENT = 158; // align status / hints under the controls (150 label + 8 gap)
 
 // the catalog presets for a provider (an array for openai/anthropic/gemini; azure is {models, note}).
 function presetsFor(catalog, provider) {
@@ -56,6 +62,24 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
   useEffect(() => {
     getModelCatalog({ live: false }).then((c) => setCatalog(c || { providers: {} })).catch(() => {});
   }, []);
+
+  // CONNECT-AI-PREFILL-1: seed each row's picker from its SAVED binding so an already-configured role
+  // shows its provider+model in the editable controls (not an empty field next to a ✓). Only seed a row
+  // the user hasn't touched (absent from `sel`) — never clobber an in-progress edit; no-op once seeded.
+  useEffect(() => {
+    setSel((s) => {
+      let changed = false;
+      const next = { ...s };
+      for (const role of ALL_ROLES) {
+        const b = bindings?.[role];
+        if (b?.provider && next[role] === undefined) {
+          next[role] = { provider: b.provider, model: b.model || "" };
+          changed = true;
+        }
+      }
+      return changed ? next : s;
+    });
+  }, [bindings]);
 
   const pick = (key) => sel[key] || { provider: "", model: "" };
   const setProvider = (key, provider) =>
@@ -99,13 +123,13 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       <>
         <select value={p.provider} onChange={(e) => setProvider(key, e.target.value)}
           aria-label={`${key} provider`} data-testid={`${idPrefix}-provider-${key}`}
-          style={{ ...inputStyle, width: 130 }}>
+          style={inputStyle}>
           <option value="">— provider —</option>
           {connected.map((cp) => (<option key={cp} value={cp}>{cp}</option>))}
         </select>
         <input value={p.model} onChange={(e) => setModel(key, e.target.value)}
           aria-label={`${key} model`} data-testid={`${idPrefix}-model-${key}`}
-          list={listId} placeholder="model / deployment name" autoComplete="off" style={inputStyle} />
+          list={listId} placeholder="model name" autoComplete="off" style={inputStyle} />
         <datalist id={listId} data-testid={`${idPrefix}-modellist-${key}`}>
           {presets.map((m) => (
             <option key={m.model} value={m.model}>{m.logprobs ? "" : "⚠ no logprobs"}</option>
@@ -120,15 +144,15 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>2 · Assign models</div>
-        <span style={{ fontSize: 11, color: "var(--muted)" }}>one model per consumer · type a deployment for Azure · reuses the stored key (no re-keying)</span>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>one model per reviewer · type your Azure model name · uses your saved key</span>
       </div>
 
       {/* ── use one model for all judges shortcut ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, width: 150 }}>use one model for all judges</span>
+      <div style={ROW_GRID}>
+        <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>use one model for all reviewers</span>
         {pickerControls("*", "all-judges")}
         <button data-testid="all-judges-submit" onClick={bindAllJudges} disabled={!canBind("*")}
-          style={{ ...btn(false), whiteSpace: "nowrap" }}>Apply to 3 judges</button>
+          style={{ ...btn(false), whiteSpace: "nowrap" }}>Apply to 3 reviewers</button>
       </div>
 
       {/* ── the four consumer rows ── */}
@@ -140,26 +164,27 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
         return (
           <div key={role} data-testid={`role-bind-row-${role}`}
             style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)", fontFamily: "var(--mono)", width: 150 }}>
-                {ROLE_LABEL[role]}
+            <div style={ROW_GRID}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)", fontFamily: "var(--mono)" }}>
+                {roleLabel(role)}
                 {isChat && <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>required</span>}
               </span>
               {pickerControls(role, "role-bind")}
               <button data-testid={`role-bind-submit-${role}`} onClick={() => bindRow(role)}
                 disabled={!canBind(role)} style={{ ...btn(true), whiteSpace: "nowrap" }}>Assign</button>
-              {bound?.provider && (
-                <span data-testid={`role-bind-assigned-${role}`} style={{ fontSize: 10.5, color: "var(--teal)", whiteSpace: "nowrap" }}>
-                  ✓ {bound.provider} · {bound.model}
-                </span>
-              )}
             </div>
+            {bound?.provider && (
+              <span data-testid={`role-bind-assigned-${role}`}
+                style={{ fontSize: 10.5, color: "var(--teal)", paddingLeft: STATUS_INDENT, wordBreak: "break-word" }}>
+                ✓ {bound.provider} · {bound.model}
+              </span>
+            )}
             {p.provider && p.model && !pickedLogprobs && (
-              <div data-testid={`role-bind-logprobs-hint-${role}`} style={{ fontSize: 10.5, color: "var(--amber)", paddingLeft: 156 }}>
-                ⚠ no logprobs — confidence will be dark for {p.provider} · {p.model}
+              <div data-testid={`role-bind-logprobs-hint-${role}`} style={{ fontSize: 10.5, color: "var(--amber)", paddingLeft: STATUS_INDENT }}>
+                ⚠ this model doesn't report a confidence signal — "{p.provider} · {p.model}" won't show a confidence number
               </div>
             )}
-            {msg[role] && <span style={{ fontSize: 10.5, color: "var(--muted)", paddingLeft: 156 }}>{msg[role]}</span>}
+            {msg[role] && <span style={{ fontSize: 10.5, color: "var(--muted)", paddingLeft: STATUS_INDENT }}>{msg[role]}</span>}
           </div>
         );
       })}
@@ -168,10 +193,10 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       <div data-testid="setup-complete-status"
         style={{ fontSize: 11.5, fontWeight: 600, color: ready ? "var(--teal)" : "var(--amber)" }}>
         {ready
-          ? `Ready — 4 of 4 roles assigned`
+          ? `Ready — all 4 set`
           : chatBound
-            ? `Not ready — ${boundCount} of 4 roles assigned (a judge still needs a model)`
-            : `Chat assistant still needs a model — ${boundCount} of 4 roles assigned`}
+            ? `Not ready — ${boundCount} of 4 set (a reviewer still needs a model)`
+            : `The assistant needs a model before you can chat — ${boundCount} of 4 set`}
       </div>
     </section>
   );

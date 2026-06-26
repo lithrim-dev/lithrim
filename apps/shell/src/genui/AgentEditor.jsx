@@ -16,6 +16,7 @@ import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Icon } from "../icons.jsx";
+import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
 const csv = (xs) => (xs || []).join(", ");
@@ -57,8 +58,8 @@ export default function AgentEditor({ agent = "ws0_default", onResult }) {
   if (status === "error")
     return (
       <Card>
-        <CardContent className="text-xs text-[color:var(--accent-ink)] font-[family-name:var(--font-mono)]">
-          Could not read agent: {error}
+        <CardContent className="text-xs text-[color:var(--accent-ink)]">
+          {friendlyError(error)}
         </CardContent>
       </Card>
     );
@@ -84,7 +85,7 @@ export default function AgentEditor({ agent = "ws0_default", onResult }) {
       onResult?.(body);
       return res;
     } catch (e) {
-      setSave({ state: "error", msg: String(e.message || e) });
+      setSave({ state: "error", msg: friendlyError(e) });
     }
   };
 
@@ -93,35 +94,35 @@ export default function AgentEditor({ agent = "ws0_default", onResult }) {
       <CardHeader>
         <span className="text-primary"><Icon name="layers" size={15} /></span>
         <CardTitle>Agent · {raw.name}</CardTitle>
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-          config plane · attributed write
+        <span className="text-[10.5px] text-muted-foreground">
+          saved + logged (who &amp; why)
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ae-judges">Judges (council roster)</Label>
+          <Label htmlFor="ae-judges">Reviewers</Label>
           <Input id="ae-judges" value={judges} onChange={(e) => setJudges(e.target.value)}
             placeholder="risk_judge, policy_judge, faithfulness_judge" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ae-tools">Tools (verification contracts)</Label>
+          <Label htmlFor="ae-tools">Fact-checks</Label>
           <Input id="ae-tools" value={tools} onChange={(e) => setTools(e.target.value)}
             placeholder="kb_grounding, presence_check" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ae-ont">Ontology ref</Label>
+          <Label htmlFor="ae-ont">Checklist</Label>
           <Input id="ae-ont" value={ontologyRef} onChange={(e) => setOntologyRef(e.target.value)}
             placeholder="_core/1" />
         </div>
         <Separator />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ae-actor">Your handle (audit who)</Label>
+            <Label htmlFor="ae-actor">Your name</Label>
             <Input id="ae-actor" value={actor} onChange={(e) => setActor(e.target.value)}
               placeholder="you@example.com" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ae-why">Rationale (audit why)</Label>
+            <Label htmlFor="ae-why">Reason for this change</Label>
             <Input id="ae-why" value={rationale} onChange={(e) => setRationale(e.target.value)}
               placeholder="why this change" />
           </div>
@@ -134,7 +135,7 @@ export default function AgentEditor({ agent = "ws0_default", onResult }) {
             (save.state === "error" ? "text-[color:var(--accent-ink)]" : "text-muted-foreground")
           }
         >
-          {save.state !== "idle" ? save.msg : "PUT /v1/agent · writes the config plane (not the seed)"}
+          {save.state !== "idle" ? save.msg : "Saved to this workspace when you click Save"}
         </span>
         <Button className="ml-auto" size="sm" onClick={persist} disabled={save.state === "saving"}>
           {save.state === "saving" ? "Saving…" : "Save agent"}

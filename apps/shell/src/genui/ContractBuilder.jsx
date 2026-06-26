@@ -22,7 +22,17 @@ import { Separator } from "../components/ui/separator.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "../components/ui/dialog.jsx";
 import { Icon } from "../icons.jsx";
+import { flagLabel, friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
+
+// Plain DISPLAY labels for the contract-type keys (the underlying value/key is unchanged — these
+// only relabel what the user reads in the Select). Unmapped keys fall through to the raw key.
+const CONTRACT_TYPE_LABELS = {
+  presence_check: "Must be in the record",
+  snomed_subsumption: "Medical-term match",
+  record_presence: "Was actually recorded",
+};
+const contractTypeLabel = (t) => CONTRACT_TYPE_LABELS[t] || t;
 
 // FAUTH-2 (G3): the inline type list is now driven LIVE by the active pack's registered executor
 // keys (GET /v1/grounding-contract/types → suppress ∪ floor), fetched on mount — retiring the
@@ -98,13 +108,13 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
   // INLINE-IMPACT-1: a live plain-English restatement so authoring reads as writing a GUARDRAIL, not
   // filling a form — updates as the human edits. value_presence (FLOOR) blocks on an absent stated
   // value; everything else is the suppress/floor default phrasing.
-  const fc = contract.flag_code || "this flag";
+  const fc = flagLabel(contract.flag_code) || "this check";
   const src = params.source_path || params.med_source || params.source || "the source";
   const ruleEnglish =
     contractType === "value_presence"
-      ? `Floor for ${fc}: require that a value matching /${params.value_regex || "…"}/ stated in "${src}" is recorded in the note.` +
-        `${contract.question ? ` Check: ${contract.question}` : ""} If it's missing, BLOCK the verdict — deterministic, no model call.`
-      : `Rule for ${fc}: ${contract.question || "verify the flagged claim"} — checked against "${src}". A violation BLOCKs the evaluation — deterministic, no model call.`;
+      ? `Fact-check for ${fc}: require that a value matching /${params.value_regex || "…"}/ stated in "${src}" is recorded in the note.` +
+        `${contract.question ? ` Check: ${contract.question}` : ""} If it's missing, flag the result automatically — no model call.`
+      : `Rule for ${fc}: ${contract.question || "verify the flagged claim"} — checked against "${src}". A violation flags the result automatically — no model call.`;
 
   // W1b: persist to ontology.verification_contracts (the grade's store) THEN signal up — the
   // save IS the approval gate (mirrors FlagEditor.persistEdit). Only a successful audited write
@@ -117,7 +127,7 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
       setReturned(true);
       onResult?.(contract);
     } catch (e) {
-      setPersist({ state: "error", msg: String(e.message || e) });
+      setPersist({ state: "error", msg: friendlyError(e) });
     }
   };
 
@@ -125,23 +135,23 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
     <Card className="my-3">
       <CardHeader>
         <span className="text-primary"><Icon name="shield" size={15} /></span>
-        <CardTitle>Verification contract</CardTitle>
-        <span className="font-semibold text-[11px] text-primary">Deterministic floor</span>
+        <CardTitle>Fact-check</CardTitle>
+        <span className="font-semibold text-[11px] text-primary">Automated fact-check</span>
         {suggested_params && (
           <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">AI-suggested</span>
         )}
-        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">claim → tool-query → verdict</span>
+        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">claim → check → result</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3.5">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Claim · flag code">
-            <Input value={flagCode} onChange={(e) => setFlagCode(e.target.value)} placeholder="MEDICATION_NOT_IN_TRANSCRIPT" aria-label="flag code" />
+            <Input value={flagCode} onChange={(e) => setFlagCode(e.target.value)} placeholder='e.g. "Medication not in transcript"' aria-label="flag code" />
           </Field>
           <Field label="Tool query · type">
             <Select value={contractType} onValueChange={setContractType}>
               <SelectTrigger aria-label="contract type"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {contractTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {contractTypes.map((t) => <SelectItem key={t} value={t}>{contractTypeLabel(t)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -164,12 +174,12 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
           {!paramsValid && <span className="text-[10.5px] text-[color:var(--accent-ink)]">Invalid JSON</span>}
         </Field>
         <Separator />
-        <Field label="Verdict direction">
+        <Field label="Result direction">
           <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span className="rounded-[var(--radius-sm)] bg-secondary px-2 py-0.5 text-[color:var(--teal)]">PASS</span>
+            <span className="rounded-[var(--radius-sm)] bg-secondary px-2 py-0.5 text-[color:var(--teal)]">Passed</span>
             <Icon name="arrowR" size={13} />
-            <span className="rounded-[var(--radius-sm)] bg-accent px-2 py-0.5 text-[color:var(--accent-ink)]">BLOCK on violation</span>
-            <span className="ml-1">structural floor</span>
+            <span className="rounded-[var(--radius-sm)] bg-accent px-2 py-0.5 text-[color:var(--accent-ink)]">Flagged on violation</span>
+            <span className="ml-1">automated fact-check</span>
           </div>
         </Field>
       </CardContent>
@@ -181,7 +191,7 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Contract preview</DialogTitle>
-              <DialogDescription>The verification_contracts entry this builds.</DialogDescription>
+              <DialogDescription>The fact-check this adds.</DialogDescription>
             </DialogHeader>
             <pre className="max-h-72 overflow-auto rounded-[var(--radius-sm)] border border-border bg-secondary p-3 font-[family-name:var(--font-mono)] text-[11.5px] text-foreground">
               {JSON.stringify(contract, null, 2)}

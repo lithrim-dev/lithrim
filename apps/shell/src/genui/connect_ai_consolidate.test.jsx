@@ -175,7 +175,7 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel", () => {
     // pick a gemini (logprobs:false) model for policy_judge → the ⚠ hint
     fireEvent.change(await screen.findByTestId("role-bind-provider-policy_judge"), { target: { value: "gemini" } });
     fireEvent.change(screen.getByTestId("role-bind-model-policy_judge"), { target: { value: "gemini-1.5-pro" } });
-    expect(await screen.findByTestId("role-bind-logprobs-hint-policy_judge")).toHaveTextContent(/no logprobs|confidence dark/i);
+    expect(await screen.findByTestId("role-bind-logprobs-hint-policy_judge")).toHaveTextContent(/doesn't report a confidence signal/i);
 
     // the "use one model for all judges" shortcut → binds risk + policy + faithfulness (NOT chat)
     fireEvent.change(screen.getByTestId("all-judges-provider-*"), { target: { value: "openai" } });

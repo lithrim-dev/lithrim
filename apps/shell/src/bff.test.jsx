@@ -49,9 +49,9 @@ describe("bff.js → ReportTab binding (S-BS-18)", () => {
 
     render(<ArtifactPane {...paneProps} runStatus="ready" runResult={result} runError={null} />);
 
-    expect(screen.getByText(/Blocked by quality gate/i)).toBeInTheDocument(); // reject banner
-    expect(screen.getByText("FABRICATED_HISTORY")).toBeInTheDocument(); // active finding
-    expect(screen.getByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeInTheDocument(); // grounded suppression
+    expect(screen.getAllByText(/Flagged/i).length).toBeGreaterThan(0); // reject banner → "Flagged"
+    expect(screen.getByText("Fabricated history")).toBeInTheDocument(); // active finding (readable)
+    expect(screen.getByText("Medication not in transcript")).toBeInTheDocument(); // grounded suppression (readable)
     expect(screen.getByText(/1\/1 · PASS/)).toBeInTheDocument(); // calibration_check
   });
 

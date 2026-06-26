@@ -16,6 +16,7 @@ import { Label } from "../components/ui/label.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 import { Icon } from "../icons.jsx";
+import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
 // The three council tiers (the ontology-flag short form; the writer maps to the snapshot tier-set).
@@ -61,7 +62,7 @@ export default function CriterionBuilder({ agent = "ws0_default", code: seedCode
       setReturned(true);
       onResult?.(criterion);
     } catch (e) {
-      setPersist({ state: "error", msg: String(e.message || e) });
+      setPersist({ state: "error", msg: friendlyError(e) });
     }
   };
 

@@ -15,7 +15,7 @@ describe("VerdictCard — verdict-driven, real-data only", () => {
     const { container, getByText } = render(
       <VerdictCard verdict="REJECT" confidence="0.9" agreement="1 / 3" question="Q?" answer="A." pillar="Faithfulness" pillarStatus="flagged" />,
     );
-    getByText("REJECT");
+    getByText("Flagged"); // REJECT renders as the plain outcome "Flagged"
     const badge = container.querySelector(".tag");
     expect(badge.className).toMatch(/\bfail\b/); // coral/fail tone
     expect(badge.className).not.toMatch(/\bpass\b/); // never the green pass pill
@@ -30,7 +30,7 @@ describe("VerdictCard — verdict-driven, real-data only", () => {
 
   it("output-less mount renders an honest empty state — NOT a fabricated DEMO verdict", () => {
     const { container, queryByText, getByText } = render(<VerdictCard />);
-    getByText(/no verdict yet/i); // honest placeholder
+    getByText(/no result yet/i); // honest placeholder
     expect(queryByText("Sample verdict")).toBeNull(); // no fake title
     expect(container.textContent).not.toMatch(/0\.96|3 \/ 3|refund policy/); // no DEMO leak
     expect(container.querySelector(".tag")).toBeNull(); // no fake verdict badge
@@ -55,15 +55,15 @@ describe("VerdictCard — fully-interactive inline result", () => {
     { role: "faithfulness_judge", vote: "PASS", confidence: 0.98 },
   ];
 
-  it("renders the per-judge votes inline (role + realized vote)", () => {
+  it("renders the per-reviewer votes inline (reviewer name + plain outcome)", () => {
     const { getByText, getAllByText } = render(
       <VerdictCard verdict="approve" agreement="3 / 3" votes={VOTES} runId="run-10" />,
     );
-    getByText("risk_judge");
-    getByText("policy_judge");
-    getByText("faithfulness_judge");
-    expect(getAllByText("PASS").length).toBeGreaterThanOrEqual(2); // the two PASS votes
-    getByText("WARN");
+    getByText("Risk reviewer");
+    getByText("Policy reviewer");
+    getByText("Faithfulness reviewer");
+    expect(getAllByText("Passed").length).toBeGreaterThanOrEqual(2); // the two PASS votes
+    getByText("Needs a look"); // the WARN vote
   });
 
   it("renders the clinician-verdict (dissent) form inline when a runId is present", () => {
@@ -111,8 +111,8 @@ describe("VerdictCard — carries the WHY inline (reasoning + floor attribution)
     const { getByText, container } = render(
       <VerdictCard verdict="BLOCK" agreement="1 / 3" votes={[]} floorBlocks={floorBlocks} runId="r" />,
     );
-    expect(container.textContent).toMatch(/caught by .*floor/i); // the attribution label
-    getByText("DISSENT_ERASURE"); // the injected code
+    expect(container.textContent).toMatch(/caught by a fact-check/i); // the attribution label
+    getByText("Dissent erasure"); // the injected code, rendered readable
     expect(container.textContent).toMatch(/value_presence/); // the deterministic contract that fired
     getByText(/refusal was stated but missing from the note/); // the one-line why
   });

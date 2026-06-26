@@ -1,4 +1,4 @@
-/* JudgeBuilder.test.jsx — PHASE2-C: the inline "Create judge" authoring card mints a NEW
+/* JudgeBuilder.test.jsx — PHASE2-C: the inline "Create reviewer" authoring card mints a NEW
    first-class judge over the active pack's taxonomy snapshot (POST /v1/judges), audited.
 
    Covers the SPINE/CONTAINMENT invariant (the human's Save is the SOLE write — surfacing the
@@ -52,7 +52,7 @@ async function setup(props = {}) {
 describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () => {
   it("A: renders role / lens / owned / model / prompt fields + the absolute-2 honesty note", async () => {
     await setup();
-    expect(screen.getByLabelText("judge role")).toBeInTheDocument();
+    expect(screen.getByLabelText("reviewer id")).toBeInTheDocument();
     // lens codes from the ontology
     expect(screen.getByLabelText(/lens MISSED_ESCALATION/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/lens WRONG_RESOLUTION/i)).toBeInTheDocument();
@@ -73,11 +73,11 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
   it("B: the owner↔emit guard — owning a code NOT in the lens is blocked/flagged (Save guarded)", async () => {
     createJudge.mockClear();
     await setup();
-    fireEvent.change(screen.getByLabelText("judge role"), { target: { value: "escalation_judge" } });
+    fireEvent.change(screen.getByLabelText("reviewer id"), { target: { value: "escalation_judge" } });
     // own a code WITHOUT adding it to the lens → owner⊄lens, the guard fires
     fireEvent.click(screen.getByLabelText(/own MISSED_ESCALATION/i));
     expect(screen.getByTestId("owner-emit-guard")).toBeInTheDocument();
-    const save = screen.getByRole("button", { name: /Create judge/i });
+    const save = screen.getByRole("button", { name: /Create reviewer/i });
     expect(save).toBeDisabled();
     fireEvent.click(save);
     expect(createJudge).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
   it("C: Save → createJudge with the entered {role, lens_codes, owned_codes, model_id?, rationale}", async () => {
     createJudge.mockClear();
     const { onResult } = await setup();
-    fireEvent.change(screen.getByLabelText("judge role"), { target: { value: "escalation_judge" } });
+    fireEvent.change(screen.getByLabelText("reviewer id"), { target: { value: "escalation_judge" } });
     fireEvent.change(screen.getByLabelText("audit rationale"), { target: { value: "support escalations" } });
     // lens: two codes; own one of them (⊆ lens → guard clear)
     fireEvent.click(screen.getByLabelText(/lens MISSED_ESCALATION/i));
@@ -97,7 +97,7 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
 
     // SPINE INVARIANT (UI side): nothing is written until the human clicks Create.
     expect(createJudge).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /Create judge/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create reviewer/i }));
 
     await waitFor(() => expect(createJudge).toHaveBeenCalledTimes(1));
     const [body] = createJudge.mock.calls[0];
@@ -115,10 +115,10 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
     createJudge.mockClear();
     createJudge.mockRejectedValueOnce(new Error("POST /v1/judges → 422: role collision: escalation_judge already exists"));
     const { onResult } = await setup();
-    fireEvent.change(screen.getByLabelText("judge role"), { target: { value: "escalation_judge" } });
+    fireEvent.change(screen.getByLabelText("reviewer id"), { target: { value: "escalation_judge" } });
     fireEvent.change(screen.getByLabelText("audit rationale"), { target: { value: "dup" } });
     fireEvent.click(screen.getByLabelText(/lens MISSED_ESCALATION/i));
-    fireEvent.click(screen.getByRole("button", { name: /Create judge/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create reviewer/i }));
 
     await waitFor(() => expect(screen.getByText(/role collision/i)).toBeInTheDocument());
     expect(onResult).not.toHaveBeenCalled();
@@ -128,14 +128,14 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
     createJudge.mockClear();
     const { onResult } = await setup();
     // an empty lens is inadmissible → Save guarded, no write, no onResult.
-    fireEvent.change(screen.getByLabelText("judge role"), { target: { value: "escalation_judge" } });
-    expect(screen.getByRole("button", { name: /Create judge/i })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("reviewer id"), { target: { value: "escalation_judge" } });
+    expect(screen.getByRole("button", { name: /Create reviewer/i })).toBeDisabled();
     expect(onResult).not.toHaveBeenCalled();
 
     // add a lens code → admissible → write → onResult fires exactly once.
     fireEvent.change(screen.getByLabelText("audit rationale"), { target: { value: "ok" } });
     fireEvent.click(screen.getByLabelText(/lens MISSED_ESCALATION/i));
-    fireEvent.click(screen.getByRole("button", { name: /Create judge/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create reviewer/i }));
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
     expect(createJudge).toHaveBeenCalledTimes(1);
   });
@@ -146,6 +146,6 @@ describe("JudgeBuilder — PHASE2-C inline create-judge over the snapshot", () =
     // pick the anthropic pool entry (logprobs:false)
     fireEvent.change(screen.getByLabelText("judge model"), { target: { value: "claude-native" } });
     const hint = screen.getByTestId("judge-model-logprobs-hint");
-    expect(within(hint).getByText(/no logprobs/i)).toBeInTheDocument();
+    expect(within(hint).getByText(/confidence signal/i)).toBeInTheDocument();
   });
 });

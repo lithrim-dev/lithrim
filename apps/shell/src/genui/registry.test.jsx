@@ -17,17 +17,17 @@ beforeEach(() => {
 });
 
 const EXPECTED = {
-  "tool-flag_editor": /Flags & severity|Loading ontology/i,
-  "tool-contract_builder": /Verification contract/i,
+  "tool-flag_editor": /Checks & severity|Loading your checks/i,
+  "tool-contract_builder": /^Fact-check$/, // anchored: the CardTitle, not "Automated fact-check"/"Fact-check for …"
   "tool-kb_picker": /Knowledge base/i,
-  "tool-verdict_card": /No verdict yet/i, // output-less mount = honest empty state, not a fabricated sample
+  "tool-verdict_card": /No result yet/i, // output-less mount = honest empty state, not a fabricated sample
   "tool-calibration_chart": /^Calibration$/, // anchored: the title, not the legend's "perfect calibration"
   "tool-agent_editor": /Loading agent|Agent ·/i, // UAP-1 R1 — config-plane write surface
   "tool-audit_log": /Audit trail/i, // UAP-1 R0 — the why/when/who/what view
-  "tool-judge_editor": /Loading judge|Judge ·/i, // UAP-2 R2 — ontology-assignment authoring
+  "tool-judge_editor": /Loading reviewer|Judge ·/i, // UAP-2 R2 — ontology-assignment authoring
   "tool-run_panel": /Run evaluation/i, // UAP-3 R4 — the processing surface
   "tool-case_summary": /Loading the case|Source case/i, // CHATBIND-3 — the inline source-case summary
-  "tool-judge_builder": /a new voice on the council/i, // PHASE2-WIRE — the inline create-a-new-judge card
+  "tool-judge_builder": /a new reviewer/i, // PHASE2-WIRE — the inline create-a-new-reviewer card
 };
 
 describe("renderTool registry", () => {
@@ -68,7 +68,7 @@ describe("renderTool registry", () => {
   // (part.output fields are direct props, no {data} wrapper). Both datapoint cards conform.
   it("renders VerdictCard from flat-spread part.output (locked convention)", () => {
     render(<div>{renderTool({ type: "tool-verdict_card", state: "output-available", output: { verdict: "FAIL", confidence: "0.10" } })}</div>);
-    expect(screen.getByText("FAIL")).toBeInTheDocument(); // flat field, not output.data.verdict
+    expect(screen.getByText("Flagged")).toBeInTheDocument(); // FAIL → plain outcome; flat field, not output.data.verdict
     expect(screen.getByText("0.10")).toBeInTheDocument();
   });
 

@@ -33,7 +33,7 @@ describe("FlagEditor (tool-flag_editor)", () => {
     const onResult = vi.fn();
     render(<FlagEditor onResult={onResult} />);
 
-    expect(await screen.findByText(/Flags & severity/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Checks & severity/i)).toBeInTheDocument();
     expect(getOntology).toHaveBeenCalledTimes(1);
     // owner_roles surfaced (read-only); the GLOBAL severity_map is a distinct section.
     expect(screen.getByText("FABRICATED_ALLERGY")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("FlagEditor (tool-flag_editor)", () => {
   it("persists a draft via PUT /v1/ontology, merging edits into the FULL ontology (D4)", async () => {
     putOntology.mockClear();
     render(<FlagEditor onResult={vi.fn()} />);
-    expect(await screen.findByText(/Flags & severity/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Checks & severity/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Persist draft/i }));
 
@@ -68,10 +68,10 @@ describe("FlagEditor (tool-flag_editor)", () => {
   it("surfaces a rejected PUT (422) in the footer", async () => {
     putOntology.mockRejectedValueOnce(new Error("PUT /v1/ontology → 422: snapshot violation"));
     render(<FlagEditor onResult={vi.fn()} />);
-    expect(await screen.findByText(/Flags & severity/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Checks & severity/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Persist draft/i }));
-    expect(await screen.findByText(/422/)).toBeInTheDocument();
+    expect(await screen.findByText(/snapshot violation/i)).toBeInTheDocument();
   });
 });
 
@@ -115,7 +115,7 @@ describe("ContractBuilder (tool-contract_builder)", () => {
     fireEvent.change(screen.getByLabelText("question"), { target: { value: "q" } });
     fireEvent.click(screen.getByRole("button", { name: /Add contract/i }));
 
-    expect(await screen.findByText(/404/)).toBeInTheDocument();
+    expect(await screen.findByText(/unknown flag/i)).toBeInTheDocument();
     expect(onResult).not.toHaveBeenCalled(); // the rail can never tick on a failed write
   });
 

@@ -9,6 +9,7 @@ import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
 import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade
+import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -57,7 +58,7 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
   const [confirmDelete, setConfirmDelete] = useState(null);
   return (
     <aside className="rail" style={{ width }}>
-      <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 46, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
+      <div className="rail-brand" style={{ display: "flex", alignItems: "center", height: 48, padding: "0 16px", borderBottom: "1px solid var(--border)", flex: "0 0 auto" }}>
         <Wordmark markSize={18} />
       </div>
       <div className="rail-sec">
@@ -70,7 +71,7 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
         </div>
       </div>
       <div className="rail-scroll">
-        <div style={{ padding: "8px 12px 0" }}>
+        <div style={{ padding: "8px 12px 8px" }}>
           {agents.length === 0 && (
             <div className="ts" style={{ padding: "10px 6px", color: "var(--muted)" }}>
               No evaluations yet — click + to start one.
@@ -176,7 +177,7 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
               style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.32)" }} />
             <div role="dialog" aria-label="Connect AI" data-testid="connect-ai-panel"
               style={{ position: "fixed", zIndex: 61, top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-                width: "min(560px, 92vw)", maxHeight: "86vh", overflowY: "auto", padding: 18, borderRadius: 14,
+                width: "min(620px, 92vw)", maxHeight: "86vh", overflowY: "auto", padding: 18, borderRadius: 14,
                 background: "var(--bg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-pop)" }}>
               <ProviderSettings onClose={() => setConnectAI(false)} />
             </div>
@@ -200,11 +201,11 @@ const TAB_LABELS = { case: "Case", report: "Report", judges: "Judges", config: "
 // timeline so dead air reads as progress, not a freeze.
 const TOOL_LABELS = {
   get_agent: "Reading the agent",
-  assemble_agent: "Editing the agent roster",
+  assemble_agent: "Editing the reviewers",
   get_judge: "Reading the judge",
-  author_judge: "Authoring the judge",
-  create_judge: "Creating the judge",
-  delete_judge: "Reverting the judge",
+  author_judge: "Setting up the reviewer",
+  create_judge: "Creating the reviewer",
+  delete_judge: "Removing the reviewer",
   author_flag: "Editing the flag",
   create_flag: "Creating the flag",
   delete_flag: "Deleting the flag",
@@ -273,7 +274,7 @@ function verdictShape(rec) {
     verdict: verdict.toUpperCase(),
     confidence: conf,
     agreement: n ? `${agree} / ${n}` : "—",
-    answer: findings.length ? `${findings.length} finding(s): ${findings.slice(0, 6).join(", ")}` : "No findings — passes the quality gate.",
+    answer: findings.length ? `${findings.length} issue(s): ${findings.slice(0, 6).map(flagLabel).join(", ")}` : "No issues — this passes the quality gate.",
     runId: rec?.pipeline_run_id || "",
     votes: votes.map((v) => ({
       role: String(v.judge_role || v.role || "judge"),
@@ -405,13 +406,13 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 ...m,
                 errored: true,
                 activity: (m.activity || []).map((s) => ({ ...s, state: "done" })),
-                text: (m.text ? m.text + "\n\n" : "") + `⚠ ${ev.detail}`,
+                text: (m.text ? m.text + "\n\n" : "") + `⚠ ${friendlyError(ev.detail)}`,
               }));
           },
         },
       );
     } catch (err) {
-      patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${String(err.message || err)}` }));
+      patchLast((m) => ({ ...m, text: (m.text ? m.text + "\n\n" : "") + `⚠ ${friendlyError(err)}` }));
     } finally {
       setSending(false);
     }
@@ -546,7 +547,7 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
       // (b) lift the SAME rec to the shared report (Report/Judge tabs + run history) — consistent.
       onRunResult?.(rec);
     } catch (err) {
-      setChat((c) => [...c, { role: "assistant", text: `⚠ ${String(err.message || err)}`, parts: [] }]);
+      setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
     } finally {
       setPaid({ open: false, busy: false });
     }
@@ -838,8 +839,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
       <CostModal
         open={paid.open}
         busy={paid.busy}
-        title="Run a live, PAID evaluation?"
-        body="This fires one real, in-process council run (paid Azure calls). The assistant cannot do this — only you can authorize the spend."
+        title="Run a live, paid evaluation?"
+        body="This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."
         confirmLabel="Run live (paid)"
         onConfirm={confirmPaidRun}
         onCancel={() => setPaid({ open: false, busy: false })}
