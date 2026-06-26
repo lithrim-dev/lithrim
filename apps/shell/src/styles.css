@@ -10,6 +10,9 @@
   --accent-ink: #C2492C;
   --surface-2: #F8F9FB;
   --surface-muted: #F0F2F5;
+  --panel: #FFFFFF;        /* elevated popover/card surface (lifts above --surface-2) */
+  --text: var(--ink);      /* alias of --ink: body-text foreground (popover items, inputs) */
+  --fg: var(--ink);        /* alias of --ink: inline gen-UI body/reasoning text */
   --muted: #6B7385;
   --border: #E5E7EB;
   --border-strong: #D7DBE2;
@@ -41,6 +44,9 @@
   --accent-ink: #F8A88F;
   --surface-2: #151C2E;
   --surface-muted: #1B2336;
+  --panel: #1E2740;
+  --text: var(--ink);
+  --fg: var(--ink);
   --muted: #8B93A8;
   --border: #27314A;
   --border-strong: #323D58;
