@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
 import subprocess
@@ -136,6 +137,16 @@ from lithrim_bench.verification.spec import (  # noqa: E402  (pure constants: no
     TOOL_RECORD_RAG,
     TOOL_STRUCTURAL_JUTE,
 )
+
+_log = logging.getLogger("lithrim.bff")
+
+
+def _reviewer_label(role: str) -> str:
+    """UX-COPY: a role key → a user-facing reviewer name (faithfulness_judge → "Faithfulness
+    reviewer"). User-facing copy only; the stored role key is unchanged."""
+    base = (role or "").removesuffix("_judge").replace("_", " ").strip()
+    return f"{base.title()} reviewer" if base else "a reviewer"
+
 
 DEFAULT_AGENT = "ws0_default"
 # Where PUT /v1/ontology persists edited ontologies. A non-committed working dir —
@@ -903,9 +914,11 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         cmd += ["--out-dir", str(out_dir)]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
+        # Keep the raw stderr in the server logs; show the user a plain, calm message.
+        _log.error("grade subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
         raise HTTPException(
             status_code=500,
-            detail=f"grade subprocess failed (pack={ws.pack}): {proc.stderr.strip()[-1500:]}",
+            detail="The evaluation couldn't run. Please try again.",
         )
     for line in proc.stdout.splitlines():
         if line.startswith("__GRADE_JSON__"):
@@ -1983,15 +1996,18 @@ def _validate_judge_assignment(
     snapshot_codes = _active_snapshot_codes()
     off_snapshot = sorted(c for c in assigned_flags if c not in snapshot_codes)
     if off_snapshot:
+        _log.error("assigned flags outside taxonomy snapshot: %s", off_snapshot)
         raise HTTPException(
             status_code=422,
-            detail=f"assigned flags outside taxonomy snapshot (re-snapshot, do not hand-edit): {off_snapshot}",
+            detail="Some checks aren't in this pack's approved list. Choose from the available checks.",
         )
     bad_refs = sorted(r for r in validator_refs if r not in _KNOWN_VALIDATORS)
     if bad_refs:
+        available = ", ".join(sorted(_KNOWN_VALIDATORS))
+        _log.error("unknown validator refs %s (known: %s)", bad_refs, available)
         raise HTTPException(
             status_code=422,
-            detail=f"unknown validator refs (execute-only, choose from {list(_KNOWN_VALIDATORS)}): {bad_refs}",
+            detail=f"That fact-check isn't available. Choose one of: {available}.",
         )
 
 
@@ -2284,7 +2300,10 @@ def _validate_ontology(ontology: dict, *, lint_flags: list[dict] | None = None) 
     try:
         ontology_from_dict(ontology)
     except (KeyError, TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"malformed ontology: {exc}") from exc
+        _log.error("malformed ontology: %s", exc)
+        raise HTTPException(
+            status_code=422, detail="We couldn't read your checklist. Please try again."
+        ) from exc
     flags_to_lint = (ontology.get("flags") or []) if lint_flags is None else lint_flags
     offenders = admissibility.gradeable_flags_outside_snapshot(
         flags_to_lint, _active_snapshot_codes()
@@ -2731,9 +2750,11 @@ def delete_flag_endpoint(
         role for role, jc in list_judges(db_path=db_path).items() if flag_code in jc.assigned_flags
     )
     if assigned_by:
+        _log.error("refusing to delete %r: judge(s) %s assign it", flag_code, assigned_by)
+        reviewers = ", ".join(_reviewer_label(role) for role in assigned_by)
         raise HTTPException(
             status_code=422,
-            detail=f"refusing to delete {flag_code!r}: judge(s) {assigned_by} assign it (revert them first)",
+            detail=f"Can't remove this check — it's still used by {reviewers}. Remove it there first.",
         )
     # GUARD 3 — corpus orphan: a committed case emits it (would break the golden lint).
     emitting = _cases_emitting_flag(flag_code, examples_dir)

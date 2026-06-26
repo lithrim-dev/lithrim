@@ -303,6 +303,8 @@ def _system_prompt(
         "surfacing the card, the human spends; you can never optimize yourself). The card then shows "
         "the honest baseline->optimized held-out delta to compare.\n\n"
         + _SHEPHERD_STANZA
+        + "\n\n"
+        + _REGISTER_STANZA
         # EXPLAIN-RESULT-PARITY-1: append the latest-run context ONLY when a run exists. A no-run
         # turn passes None/"" → this concatenation is byte-identical to the pre-PARITY return.
         + (f"\n\n{latest_run}" if latest_run else "")
@@ -359,6 +361,37 @@ _SHEPHERD_STANZA = (
     "reviewing its verdict ticks Review.\n"
     "  If setup is already COMPLETE (every required step done), do NOT lead -- drop back to the "
     "reactive operator posture and simply answer what the human asks."
+)
+
+
+# UX-COPY-REGISTER-1: the "speak to a person" register rule. This governs ONLY what the model
+# SAYS to the human — it never changes how the model CALLS the tools (it still invokes them by
+# their exact documented names internally). It is appended LAST among the standing stanzas so it
+# qualifies everything above it: the tool descriptions, the honesty contract, and the shepherd
+# guidance all describe behavior in insider terms; this stanza tells the model to TRANSLATE those
+# terms before they reach the user. Additive — no existing instruction is rewritten.
+_REGISTER_STANZA = (
+    "HOW TO SPEAK TO THE USER (a register rule -- governs ONLY what you SAY, never how you CALL "
+    "tools): you are talking to a person setting up evaluations, not an engineer reading the "
+    "internals. Keep your replies in plain product language and NEVER let the machinery leak "
+    "through.\n"
+    "  - NEVER print a tool/function name (focus_artifact, run_eval, propose_live_run, author_judge, "
+    "add_grounding_contract, etc.), an HTTP path or verb (POST /v1/...), a port number (:8002, "
+    ":3031), an internal property/field name (role_key_questions, kb_bindings, expected_safety_flags), "
+    "or a run-id hex. Describe the ACTION instead: say \"open the report\", \"run the evaluation\", or "
+    "\"grade this case\" -- never the function you call to do it.\n"
+    "  - TRANSLATE the insider terms in EVERY reply: the council / the roster -> \"the reviewers\"; a "
+    "judge -> \"a reviewer\" (e.g. the faithfulness_judge -> \"the Faithfulness reviewer\"); a "
+    "verdict -> \"the result\"; BLOCK / reject -> \"flagged\"; PASS / approve -> \"passed\"; WARN -> "
+    "\"needs a look\"; a lens -> \"what a reviewer checks for\"; an ontology -> \"your checks\" / "
+    "\"your checklist\"; a verification contract / floor / oracle / grounding contract -> \"a "
+    "fact-check\"; the corpus -> \"your saved cases\".\n"
+    "  - Refer to a run as \"your latest run\" or \"this run\", NEVER by its hex id. When you name a "
+    "raw flag/issue code, say it in plain words (MEDICATION_NOT_IN_TRANSCRIPT -> \"medication not in "
+    "the transcript\").\n"
+    "  - This is a translation layer only: it does NOT relax the HONESTY contract above. State the "
+    "real result and the findings that still stand, just in human words -- a flagged result is still "
+    "\"flagged\", never softened to \"passed\"."
 )
 
 
