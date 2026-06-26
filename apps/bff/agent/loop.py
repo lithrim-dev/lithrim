@@ -1039,7 +1039,10 @@ async def _litellm_loop(
         # double-open). A-SAFE: ``propose_live_run_part()`` only OPENS the in-DOM CostModal — it fires
         # NO paid op; the human's modal-confirm remains the sole spend.
         if not directive_emitted and _is_run_request(message):
-            yield {"event": "tool_result", "part": propose_live_run_part()}
+            # CHAT-CASE-RESOLVE-1 follow-on: carry the resolved/named active case so the fallback
+            # directive targets the SAME case the handler directives do (a present-only selector,
+            # not a paid field) — else confirmPaidRun grades the stale client selection.
+            yield {"event": "tool_result", "part": propose_live_run_part(ctx.active_case)}
     except Exception as exc:  # surface a loop/transport failure to the pane, don't 500
         yield {"event": "error", "detail": str(exc)}
         return

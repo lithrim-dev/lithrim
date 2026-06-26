@@ -278,3 +278,33 @@ def test_fallback_is_asafe_directive_only_no_paid_op_no_schema_widening(ctx):
     blob = json.dumps(events, default=str)
     for k in agent_tools.PAID_KEYS:
         assert f'"{k}"' not in blob
+
+
+# ── CHAT-CASE-RESOLVE-1 follow-on: the FALLBACK directive must carry ctx.active_case ───────────
+
+
+def test_fallback_directive_carries_the_resolved_active_case(ctx):
+    """When the model narrates without a tool and the BFF fallback fires, the directive must carry
+    ``ctx.active_case`` (the BFF-resolved / chat-named case) — else ``confirmPaidRun`` grades the
+    stale CLIENT selection. The handler directives already carry it (CHAT-CASE-TARGET-1); the
+    fallback (the ~40-60% narrate-only path) must too, or CHAT-CASE-RESOLVE-1 is silently dropped.
+
+    MUTATION (named): revert the fallback emit to ``propose_live_run_part()`` (no arg) → RED
+    (``output.case_id`` absent → grades the wrong case)."""
+    ctx.active_case = "run_001_fabricates"
+    events = _run_litellm(
+        ctx, _narrate_only_completion(), message="run a live eval on run_001_fabricates"
+    )
+    directives = _directive_parts(events)
+    assert len(directives) == 1
+    assert directives[0]["output"].get("case_id") == "run_001_fabricates"
+
+
+def test_fallback_directive_is_empty_back_compat_when_no_active_case(ctx):
+    """Back-compat / A-SAFE: with no active case, the fallback directive output is ``{}`` (a case
+    selector is present-only — byte-identical to before; emitting it still cannot spend)."""
+    ctx.active_case = None
+    events = _run_litellm(ctx, _narrate_only_completion(), message="run eval on this case")
+    directives = _directive_parts(events)
+    assert len(directives) == 1
+    assert directives[0]["output"] == {}
