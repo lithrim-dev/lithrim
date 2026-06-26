@@ -379,7 +379,15 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
               }
               // CHATBIND-4: a tool-propose_live_run DIRECTIVE opens the in-DOM CostModal — the agent
               // PROPOSES; only the human's confirm (confirmPaidRun) spends. The agent never runs paid.
-              if (ev.part.type === "tool-propose_live_run") setPaid({ open: true, busy: false });
+              // CHAT-CASE-TARGET-1: the directive carries the case the chat NAMED — sync the UI to it
+              // (mirrors the show_case lift @387) AND carry it so confirmPaidRun grades THAT case, not
+              // the stale top-bar selection. case_id is a selector; the human's confirm is still the
+              // sole spend. Empty output -> caseId undefined -> the TopBar fallback path is unchanged.
+              if (ev.part.type === "tool-propose_live_run") {
+                const cid = ev.part.output?.case_id || null;
+                if (cid) onActiveCase?.(cid);
+                setPaid({ open: true, busy: false, caseId: cid });
+              }
               // NARR-CHAT-LOOP: a show_case card carries the case_id it opened — lift it into the
               // shared active case so the chat↔UI stay ONE thing (the Case pane + a later Run target
               // the case the chat just opened). The agent can never open a case it didn't pass.
@@ -525,7 +533,10 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const confirmPaidRun = async () => {
     setPaid((p) => ({ ...p, busy: true }));
     try {
-      const rec = await runEval({ agent, in_process: true, confirm: true, ...(activeCase ? { case_id: activeCase } : {}) });
+      // CHAT-CASE-TARGET-1: grade the case the directive carried (the chat-named case), falling back
+      // to the client active case for the TopBar "Run live" path (no directive -> no paid.caseId).
+      const target = paid.caseId || activeCase;
+      const rec = await runEval({ agent, in_process: true, confirm: true, ...(target ? { case_id: target } : {}) });
       // (a) the fresh result renders as a verdict card INLINE in the chat (the same card the agent
       // emits) — appended as a fresh assistant turn so it survives + persists with the thread.
       setChat((c) => [

@@ -264,12 +264,20 @@ def case_summary_part(agent: str, case_id: str | None = None) -> dict[str, Any]:
     return _part("case_summary", {"agent": agent, "case_id": case_id})
 
 
-def propose_live_run_part() -> dict[str, Any]:
+def propose_live_run_part(case_id: str | None = None) -> dict[str, Any]:
     """CHATBIND-4: propose_live_run -> a $0 DIRECTIVE (not a card; like open_artifact) that asks
     the shell to OPEN the in-DOM CostModal. The AGENT only PROPOSES — it never fires the run; the
     human's explicit modal-confirm (confirmPaidRun) is the ONLY paid path. Absent from KNOWN_TOOLS,
     never routed through renderTool, carries no agent/run/paid field — emitting it cannot spend.
 
+    CHAT-CASE-TARGET-1: ``case_id`` is the targeted case the directive carries so the shell grades
+    the case the chat NAMED (it syncs its active case to it, then confirmPaidRun targets it) — the
+    fix for the dropped-case bug where the human's spend hit the stale top-bar selection. A case
+    SELECTOR is NOT a paid field: emitting the directive still cannot spend (no agent/run/paid/
+    confirm field). Back-compat: ``None`` -> ``output: {}`` (byte-identical for any non-case caller
+    — the TopBar path, the _litellm_loop fallback, propose_live_run with no active case).
+
     W3: a DIRECTIVE carries NO ``show_intent`` tag (like open_artifact) — it is not a card and
     never goes through the shell's dedup/intent gating."""
-    return {"type": "tool-propose_live_run", "state": "output-available", "output": {}}
+    output = {"case_id": case_id} if case_id else {}
+    return {"type": "tool-propose_live_run", "state": "output-available", "output": output}

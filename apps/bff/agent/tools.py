@@ -362,7 +362,10 @@ async def run_eval_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         # grade the human confirms (confirmPaidRun runs runEval(case_id=activeCase)) targets it.
         ctx.active_case = str(case_id)
     target = ctx.active_case or "the current evaluation's case"
-    ctx.emit(propose_live_run_part())  # surface the cost-confirm (the same door as propose_live_run)
+    # CHAT-CASE-TARGET-1: carry the targeted case on the directive so the shell grades the case the
+    # chat NAMED (confirmPaidRun targets it), not the stale client top-bar selection. A SELECTOR,
+    # not a spend — the human's in-DOM confirm is still the SOLE paid path.
+    ctx.emit(propose_live_run_part(ctx.active_case))  # surface the cost-confirm (the propose_live_run door)
     return _text(
         f"Surfaced the cost-confirm for a FRESH live grade of {target!r} — confirm in the modal to "
         f"run it (a $0 replay of a stored run is no longer the default; the verdict you see must be "
@@ -899,7 +902,10 @@ async def propose_live_run_handler(ctx: ToolContext, args: dict[str, Any]) -> di
     # live/in-process run. The agent NEVER fires the run — propose_live_run_part carries no paid
     # knob and the shell only OPENS the modal; confirmPaidRun (the human's confirm click) is the
     # SOLE paid path. This is the A-SAFE-preserving hand-off, not a paid tool.
-    ctx.emit(propose_live_run_part())
+    # CHAT-CASE-TARGET-1: carry the request's active case so a directly-proposed run targets the
+    # case the human is on (the shell syncs + grades it), not a dropped/empty selector. SELECTOR,
+    # not a spend — the schema stays param-free; only the human's confirm spends.
+    ctx.emit(propose_live_run_part(ctx.active_case))
     return _text(
         "I've surfaced the cost-confirm. A live in-process council run makes real (paid) model "
         "calls, so it's your authorization — confirm it in the modal to run. I cannot fire a paid "
