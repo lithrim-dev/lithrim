@@ -783,13 +783,24 @@ async def ingest_cases_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
             f"extraction rules or check the :3031 mapper is up, then retry."
         )
     count = res.get("count") or len(res.get("cases") or [])
+    labeled = res.get("labeled") or 0
     mapping_id = res.get("mapping_id")
     ctx.emit(open_artifact_part("corpus"))
+    # INGEST-LABELS-1 (honest report): state the ACTUAL labeled count — never claim a ground-truth
+    # label landed when the source carried none / it was not mapped.
+    label_note = (
+        f" {labeled} of them carry your ground-truth labels (expected verdict / safety flags), so "
+        f"accuracy + calibration can be scored."
+        if labeled
+        else " NONE carry ground-truth labels — the source had no expected_* fields for these case "
+        "ids (or they weren't mapped), so they are UNLABELED (accuracy can't be scored; add "
+        "expected_compliance_verdict / expected_safety_flags per source entry and re-ingest)."
+    )
     return _text(
         f"Ingested {count} case(s) from the JSON dump for agent {agent!r} via pinned mapping "
         f"{mapping_id} — extracted, live-gated on :3031, PINNED, and upserted to the workspace "
-        f"corpus (one audit record written; $0, no paid run). Open the corpus tab to review them, "
-        f"then author criteria + grade."
+        f"corpus (one audit record written; $0, no paid run).{label_note} Open the corpus tab to "
+        f"review them, then author criteria + grade."
     )
 
 

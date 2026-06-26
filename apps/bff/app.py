@@ -1212,6 +1212,59 @@ def _ssot_upsert_cases(ws, cases: list[dict]) -> None:
         pass
 
 
+# INGEST-LABELS-1: carry BYO ground-truth labels through ingestion. The JUTE transform extracts only
+# GRADING fields (context, response, the ontology's required_case_fields), so author-supplied
+# ``expected_compliance_verdict`` / ``expected_safety_flags`` are dropped — leaving the case UNLABELED
+# ("no answer key", accuracy unscoreable). These merge them back DETERMINISTICALLY (no LM, no grade)
+# by matching each produced case to its source entry by id/case_id, so the handler can report the
+# HONEST labeled count (the agent never claims a label that did not land).
+_BYO_LABEL_KEYS = ("expected_compliance_verdict", "expected_safety_flags")
+
+
+def _source_labels_by_id(sample: Any) -> dict[str, dict]:
+    """Index author-supplied ground-truth labels in the source dump by case id. Scans the top-level
+    list (or any top-level list-valued key, e.g. ``runs``) for entries carrying an ``id``/``case_id``
+    AND a label field; returns ``{id: {label fields present}}``. ``expected_safety_flags: []`` IS a
+    label (a declared clean-negative). Pure; no labels → ``{}`` (cases stay unlabeled, byte-identical)."""
+    out: dict[str, dict] = {}
+
+    def _collect(entries: Any) -> None:
+        if not isinstance(entries, list):
+            return
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            cid = e.get("id") or e.get("case_id")
+            if not isinstance(cid, str) or not cid:
+                continue
+            labels = {k: e[k] for k in _BYO_LABEL_KEYS if k in e}
+            if labels:
+                out[cid] = labels
+
+    if isinstance(sample, list):
+        _collect(sample)
+    elif isinstance(sample, dict):
+        for v in sample.values():
+            _collect(v)
+    return out
+
+
+def _merge_byo_labels(cases: list[dict], sample: Any) -> int:
+    """Copy author-supplied labels onto produced cases by ``case_id`` (deterministic; no LM). Returns
+    the count of cases that received a label — the honest number the handler reports. Absent labels →
+    cases unchanged, returns 0."""
+    by_id = _source_labels_by_id(sample)
+    n = 0
+    for c in cases:
+        if not isinstance(c, dict):
+            continue
+        labels = by_id.get(c.get("case_id"))
+        if labels:
+            c.update(labels)
+            n += 1
+    return n
+
+
 def _ctx_nonempty(value: Any) -> bool:
     return bool(value) and str(value).strip().lower() not in ("", "{}", "[]", "null", "none")
 
@@ -3348,6 +3401,9 @@ def _build_tool_context(
             mapping_id = pin.get("id")
 
         cases = scored["cases"]
+        # INGEST-LABELS-1: carry author-supplied ground-truth labels (expected_compliance_verdict /
+        # expected_safety_flags) the JUTE transform does not extract — deterministic, no LM/grade.
+        labeled = _merge_byo_labels(cases, sample)
 
         # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
         # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
@@ -3397,7 +3453,7 @@ def _build_tool_context(
                 },
             )
         )
-        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "reused": reused}
+        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "labeled": labeled, "reused": reused}
 
     # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
     def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
