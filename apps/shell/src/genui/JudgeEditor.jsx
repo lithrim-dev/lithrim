@@ -93,6 +93,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [judge, setJudge] = useState(null); // the loaded summary (available_flags, questions, …)
   const [assigned, setAssigned] = useState([]); // assigned flag codes
   const [model, setModel] = useState("");
+  // PROMPT-EDIT-1: the reviewer's base prompt, editable by the SME. `loadedPrompt` is the
+  // as-loaded text so a lens-only save doesn't resend an unchanged prompt (no spurious edit).
+  const [rolePrompt, setRolePrompt] = useState("");
+  const [loadedPrompt, setLoadedPrompt] = useState("");
   const [validators, setValidators] = useState([]); // attached validator refs
   const [actor, setActor] = useState("");
   const [rationale, setRationale] = useState("");
@@ -109,6 +113,8 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         setJudge(j);
         setAssigned(j.assigned_flags || []);
         setModel(j.model || "");
+        setRolePrompt(j.base_prompt || ""); // seed the editable prompt once (initial load only)
+        setLoadedPrompt(j.base_prompt || "");
         setValidators(j.validator_refs || []);
         setPreview({ base: j.base_prompt || "", rendered: j.rendered_prompt || "" });
         setStatus("ready");
@@ -158,10 +164,16 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const persist = async () => {
     setSave({ state: "saving", msg: "saving…" });
     try {
-      const body = { model, assigned_flags: assigned, validator_refs: validators };
+      // PROMPT-EDIT-1: only send role_prompt when the SME actually changed it (last-write-wins on
+      // the server; sending it unchanged would log a spurious prompt-edit audit on a lens-only save).
+      const body = {
+        model, assigned_flags: assigned, validator_refs: validators,
+        ...(rolePrompt !== loadedPrompt ? { role_prompt: rolePrompt } : {}),
+      };
       // S-BS-153: pass the active agent so the save ALSO rosters this judge onto its
       // eval_profile.judges (idempotent, audited, server-side) → the rail's Judges step ticks.
       const res = await putJudge(role, body, { actor: actor || undefined, rationale, agent });
+      setLoadedPrompt(rolePrompt); // the saved prompt is now the baseline — no resend next save
       setSave({ state: "saved", msg: `saved ✓ as ${res.actor?.id || "dev-default"}` });
       onResult?.(body);
       return res;
@@ -272,9 +284,26 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           )}
         </section>
 
+        {/* PROMPT-EDIT-1: the SME edits what this reviewer looks for — saved with the reviewer, no
+            code change. Assigned checks are appended automatically (shown in the rendered preview). */}
+        <section className="flex flex-col gap-1.5">
+          <Label htmlFor="je-role-prompt">Reviewer prompt — edit what this reviewer looks for</Label>
+          <textarea
+            id="je-role-prompt"
+            data-testid="je-role-prompt"
+            value={rolePrompt}
+            onChange={(e) => setRolePrompt(e.target.value)}
+            rows={8}
+            spellCheck={false}
+            aria-label="reviewer prompt"
+            className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] leading-snug text-foreground"
+          />
+          <span className="text-[10.5px] text-muted-foreground">Saved with this reviewer · assigned checks are appended automatically below</span>
+        </section>
+
         <section className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <Label>Judge prompt preview (the exact questions this reviewer will ask)</Label>
+            <Label>Rendered prompt preview (prompt + assigned checks this reviewer will ask)</Label>
             <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
               {assigned.length
                 ? `+${addedLines} lines vs seed · ${assigned.length} flag${assigned.length > 1 ? "s" : ""} · $0`

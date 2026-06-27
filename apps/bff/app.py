@@ -2152,6 +2152,31 @@ def put_judge_endpoint(
     model = judge.get("model", "") or ""
     _validate_judge_assignment(role, assigned, validator_refs)
     actor = _resolve_actor(x_actor, default_actor)
+    # PROMPT-EDIT-1: an SME may also rewrite the reviewer's base prompt here (UI parity with the
+    # create path) — the positioning is no code dependency to change a prompt. Reuses the existing
+    # tier:core-gated, last-write-wins ``write_role_prompt``; a licensed (tier:pro) pack's
+    # council_roles stay a backend artifact → 422. Audited as its own who/what/why (§2B). Written
+    # before the lens save so a locked-pack rejection short-circuits before the judges store mutates.
+    role_prompt = judge.get("role_prompt")
+    if role_prompt is not None:
+        from lithrim_bench.harness import judge_authoring as ja_mod
+        from lithrim_bench.harness import workspace as ws_mod
+
+        pack = ws_mod.get_active_workspace().pack
+        try:
+            ja_mod.write_role_prompt(pack, role, role_prompt)
+        except ja_mod.JudgeAuthoringError as exc:  # NonCorePackError / BadRoleId — the pack boundary
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        AuditLog(db_path=db_path).record(
+            AuditRecord(
+                actor=actor,
+                action="edit_role_prompt",
+                target=Target(type="judge", id=role),
+                why={"rationale": rationale},
+                before=None,
+                after={"role_prompt": role_prompt},
+            )
+        )
     jc = JudgeConfig(
         role=role,
         model=model,

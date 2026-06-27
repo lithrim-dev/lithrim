@@ -102,6 +102,27 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     expect(eff).toHaveTextContent(/Providers/i); // tells the user WHERE it was set
   });
 
+  it("PROMPT-EDIT-1: edits the reviewer prompt and sends role_prompt in the PUT (SME, no code)", async () => {
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    const ta = screen.getByTestId("je-role-prompt");
+    expect(ta).toHaveValue("SEED PROMPT BASE"); // seeded from base_prompt
+    fireEvent.change(ta, { target: { value: "Flag INTENT_ERASURE when the note drops the patient's stated intent." } });
+    fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
+    await waitFor(() => expect(putJudge).toHaveBeenCalledTimes(1));
+    expect(putJudge.mock.calls[0][1]).toMatchObject({
+      role_prompt: "Flag INTENT_ERASURE when the note drops the patient's stated intent.",
+    });
+  });
+
+  it("PROMPT-EDIT-1: a lens-only save does NOT resend the prompt (no spurious prompt edit)", async () => {
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Save judge/i }));
+    await waitFor(() => expect(putJudge).toHaveBeenCalledTimes(1));
+    expect(putJudge.mock.calls[0][1].role_prompt).toBeUndefined();
+  });
+
   it("S-BS-153: the save passes the ACTIVE agent so the server rosters the judge (the rail ticks)", async () => {
     render(<JudgeEditor role="risk_judge" agent="demo-clinical-agent" />);
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
