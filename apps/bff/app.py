@@ -816,6 +816,14 @@ def _load_provider_env() -> None:
     persisted keys + bindings into os.environ on boot."""
     for key, val in _parse_env_file(_provider_env_path()).items():
         os.environ[key] = val
+    # ROLE-BINDINGS-DB: carry any legacy per-role binding out of the file into the config DB (once),
+    # then hydrate os.environ from the DB (the per-role binding vars the grade reads). A binding-store
+    # hiccup must never block BFF startup — the file load above already set the keys + global config.
+    try:
+        _migrate_provider_env_bindings_to_db()
+        _hydrate_role_bindings_into_env()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 app = FastAPI(title="Lithrim judge-capability API", version="1.0.0")
@@ -4016,6 +4024,84 @@ def _probe_provider(
         return {"ok": False, "error": type(exc).__name__}
 
 
+# ── ROLE-BINDINGS-DB: the non-secret per-role binding lives in the config DB, not .provider_env ──
+# The api_key (the SECRET half) stays write-only on .provider_env; these four non-secret fields move
+# to the role_bindings config table. Derived from _PROVIDER_ROLE_BINDING (the judge per-role env
+# vars, minus the api_key) ⊕ the chat consumer — so it never drifts from the writer.
+# SCOPE: the 3 JUDGE roles move to the DB. The chat_assistant binding stays file-based — loop.py (the
+# conversational author, council/dspy-free) reads ``.provider_env`` directly and must not depend on the
+# config DB; relocating the chat binding is a deliberate follow-up.
+_ROLE_BINDING_DB_ENV: dict[str, dict[str, str]] = {
+    role: {"provider": b["provider"], "model": b["model"], "endpoint": b["api_base"],
+           "api_version": b["api_version"]}
+    for role, b in _PROVIDER_ROLE_BINDING.items()
+}
+# var → (role, field), to split a flat env_vars dict back into per-role bindings.
+_DB_ENV_TO_ROLE_FIELD: dict[str, tuple[str, str]] = {
+    var: (role, field) for role, m in _ROLE_BINDING_DB_ENV.items() for field, var in m.items()
+}
+
+
+def _role_bindings_db_path() -> Path:
+    """The config DB the per-role bindings live in — Postgres when ``LITHRIM_DB_URL`` is set, else a
+    SQLite alongside the other provider sidecars (the durable ``/app/out`` volume in Docker). Resolved
+    from ``_provider_env_path().parent`` so a test that redirects the sidecar redirects this too."""
+    return _provider_env_path().parent / "provider_config.sqlite"
+
+
+def _split_provider_env_vars(
+    env_vars: dict[str, str],
+) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Partition a flat provider env-var dict into ``(db_bindings: role → {field: val}, file_vars)``.
+    The NON-SECRET per-role binding vars route to the DB; everything else (the api_key + the global
+    provider config) stays write-only on ``.provider_env``."""
+    db_bindings: dict[str, dict[str, str]] = {}
+    file_vars: dict[str, str] = {}
+    for key, val in env_vars.items():
+        rf = _DB_ENV_TO_ROLE_FIELD.get(key)
+        if rf is not None:
+            role, field = rf
+            db_bindings.setdefault(role, {})[field] = val
+        else:
+            file_vars[key] = val
+    return db_bindings, file_vars
+
+
+def _hydrate_role_bindings_into_env() -> None:
+    """Set ``os.environ`` for every persisted role binding (the per-role binding vars the grade
+    reads). Called at startup AFTER the ``.provider_env`` load so a grade sees the chosen model."""
+    from lithrim_bench.harness import role_bindings as _rb
+
+    for role, binding in _rb.load_bindings(db_path=_role_bindings_db_path()).items():
+        for field, var in _ROLE_BINDING_DB_ENV.get(role, {}).items():
+            if binding.get(field) is not None:
+                os.environ[var] = binding[field]
+
+
+def _migrate_provider_env_bindings_to_db() -> None:
+    """One-time carry-forward: if the ``role_bindings`` DB is empty but ``.provider_env`` holds legacy
+    per-role binding vars, import them into the DB and STRIP the non-secret vars from the file (the
+    keys + global provider config stay). Idempotent — a populated DB is a no-op, so nothing is lost on
+    the cut-over and re-runs do nothing."""
+    from lithrim_bench.harness import role_bindings as _rb
+
+    db_path = _role_bindings_db_path()
+    if _rb.load_bindings(db_path=db_path):  # already migrated / authored → no-op
+        return
+    env = _parse_env_file(_provider_env_path())
+    file_vars = dict(env)
+    migrated = False
+    for role, env_map in _ROLE_BINDING_DB_ENV.items():
+        binding = {field: env[var] for field, var in env_map.items() if env.get(var)}
+        if binding.get("provider"):  # a real legacy binding for this role
+            _rb.save_binding(role, binding, db_path=db_path)
+            migrated = True
+            for var in env_map.values():  # remove the non-secret binding vars from the file
+                file_vars.pop(var, None)
+    if migrated:
+        _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in file_vars.items()))
+
+
 def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
     """SPEC §3.1 steps 2-4: WRITE-ONLY the provider env vars to the gitignored repo-root
     ``.provider_env`` (merging with any prior plane's vars so a grading + an assistant key coexist),
@@ -4031,11 +4117,21 @@ def _persist_and_reload_provider(env_vars: dict[str, str]) -> None:
     role B→openai) mutated a fresh object the holders no longer referenced, silently breaking the
     no-restart guarantee. To still pick up env keys not in ``env_vars`` (other planes), a throwaway
     ``Settings()`` is read from env and its declared fields are copied ONTO the live holder in place."""
-    # 2) merge + write-only to .provider_env (never SQLite/manifest/response/logs)
-    merged = _parse_env_file(_provider_env_path())
-    merged.update(env_vars)
-    _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in merged.items()))
-    # 3) os.environ → inherited by the next subprocess grade
+    # 2) ROLE-BINDINGS-DB split: the NON-SECRET per-role binding → the config DB (role_bindings);
+    #    the key + the global provider config → .provider_env (write-only, never the DB).
+    db_bindings, file_vars = _split_provider_env_vars(env_vars)
+    if file_vars:
+        merged = _parse_env_file(_provider_env_path())
+        merged.update(file_vars)
+        _write_sidecar(_provider_env_path(), "".join(f"{k}={v}\n" for k, v in merged.items()))
+    if db_bindings:
+        from lithrim_bench.harness import role_bindings as _rb
+
+        db_path = _role_bindings_db_path()
+        existing = _rb.load_bindings(db_path=db_path)
+        for role, fields in db_bindings.items():
+            _rb.save_binding(role, {**(existing.get(role) or {}), **fields}, db_path=db_path)
+    # 3) os.environ → inherited by the next subprocess grade (the binding + the key, both, unchanged)
     for key, val in env_vars.items():
         os.environ[key] = val
     # 4) refresh the in-process council settings singleton with NO restart
@@ -4634,13 +4730,19 @@ def _connected_providers() -> list[str]:
 
 def _read_role_bindings() -> dict:
     """The non-secret per-consumer readout — which {provider, model} each of the 4 roles is bound to,
-    derived from .provider_env (the per-role LITHRIM_LLM_*_<ROLE> for judges; LITHRIM_CHAT_* for
-    chat). An unbound role is None. NEVER carries a key."""
-    env = _parse_env_file(_provider_env_path())
+    from the ``role_bindings`` config DB (ROLE-BINDINGS-DB; was ``.provider_env``). An unbound role is
+    None. NEVER carries a key (the key lives write-only on ``.provider_env``)."""
+    from lithrim_bench.harness import role_bindings as _rb
+
+    stored = _rb.load_bindings(db_path=_role_bindings_db_path())
     roles: dict[str, dict | None] = {}
-    for role, suffix in _ROLE_BIND_JUDGE_ENV.items():
-        prov = env.get(f"LITHRIM_LLM_PROVIDER_{suffix}")
-        roles[role] = {"provider": prov, "model": env.get(f"LITHRIM_LLM_MODEL_{suffix}")} if prov else None
+    for role in _ROLE_BIND_JUDGE_ENV:  # the 3 judges live in the config DB
+        b = stored.get(role)
+        roles[role] = (
+            {"provider": b["provider"], "model": b.get("model")} if b and b.get("provider") else None
+        )
+    # the chat_assistant binding stays file-based (loop.py reads .provider_env directly, DB-free)
+    env = _parse_env_file(_provider_env_path())
     chat_prov = env.get("LITHRIM_CHAT_PROVIDER")
     roles[_ROLE_BIND_CHAT] = (
         {"provider": chat_prov, "model": env.get("LITHRIM_CHAT_MODEL")} if chat_prov else None

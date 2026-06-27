@@ -22,6 +22,7 @@ Bare-CE, the probe is MOCKED (no network / $0). Pattern = tests/bff/test_roles_b
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -51,6 +52,8 @@ def azure_env(tmp_path, monkeypatch):
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
     monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
     monkeypatch.setattr(bff, "_MODELS_REGISTRY_PATH", tmp_path / ".models_registry.json", raising=False)
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)  # ROLE-BINDINGS-DB: force SQLite at tmp
+    monkeypatch.delenv("LITHRIM_PROVIDER_ENV_DIR", raising=False)
 
     import importlib
     import os
@@ -177,7 +180,7 @@ def test_judge_bind_azure_writes_per_role_api_version(azure_env, monkeypatch):
     assert secret not in resp.text
     assert "2024-11-20" not in resp.text  # the version stays server-side too
 
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    env = dict(os.environ)  # ROLE-BINDINGS-DB: the binding is readable by build_judge_lm (DB + env)
     assert env.get("LITHRIM_LLM_PROVIDER_RISK") == "azure"
     assert env.get("LITHRIM_LLM_MODEL_RISK") == "my-gpt-deploy"
     assert env.get("LITHRIM_LLM_API_KEY_RISK") == secret
@@ -199,7 +202,7 @@ def test_judge_bind_azure_defaults_api_version_when_none_stored(azure_env, monke
         json={"role": "policy_judge", "provider": "azure", "model": "my-mistral-deploy"},
     )
     assert resp.status_code == 200, resp.text
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    env = dict(os.environ)  # ROLE-BINDINGS-DB: the binding is readable by build_judge_lm (DB + env)
     assert env.get("LITHRIM_LLM_API_VERSION_POLICY") == council_settings.settings.AZURE_OPENAI_API_VERSION
     assert env.get("LITHRIM_LLM_API_VERSION_POLICY")  # non-empty
 
@@ -224,7 +227,7 @@ def test_chat_bind_azure_writes_chat_api_version(azure_env, monkeypatch):
     assert resp.status_code == 200, resp.text
     assert secret not in resp.text
 
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    env = dict(os.environ)  # ROLE-BINDINGS-DB: the binding is readable by build_judge_lm (DB + env)
     assert env.get("LITHRIM_CHAT_PROVIDER") == "azure"
     assert env.get("LITHRIM_CHAT_MODEL") == "my-chat-deploy"
     assert env.get("LITHRIM_CHAT_API_KEY") == secret

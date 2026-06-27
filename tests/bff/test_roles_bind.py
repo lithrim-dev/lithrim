@@ -53,6 +53,10 @@ def roles_env(tmp_path, monkeypatch):
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
     monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
     monkeypatch.setattr(bff, "_MODELS_REGISTRY_PATH", tmp_path / ".models_registry.json", raising=False)
+    # ROLE-BINDINGS-DB: the non-secret binding now persists to the config DB resolved from the
+    # sidecar dir. Force SQLite (no managed PG) + the local sidecar dir so a bind writes a tmp db.
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)
+    monkeypatch.delenv("LITHRIM_PROVIDER_ENV_DIR", raising=False)
 
     import importlib
     import os
@@ -193,11 +197,16 @@ def test_roles_bind_judge_reuses_stored_openai_key(roles_env, monkeypatch):
     )
     assert secret not in resp.text  # NO key in the response
 
+    # ROLE-BINDINGS-DB: the NON-SECRET binding lands in the config DB; the key stays in the file.
+    from lithrim_bench.harness import role_bindings as rb
+
+    binding = rb.load_bindings(db_path=bff._role_bindings_db_path())["risk_judge"]
+    assert binding["provider"] == "openai"
+    assert binding["model"] == "gpt-4o"
+    assert "api_key" not in binding
     env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert env.get("LITHRIM_LLM_PROVIDER_RISK") == "openai"
-    assert env.get("LITHRIM_LLM_MODEL_RISK") == "gpt-4o"
-    # the REUSED stored key is wired into the per-role binding (no re-keying)
-    assert env.get("LITHRIM_LLM_API_KEY_RISK") == secret
+    assert env.get("LITHRIM_LLM_API_KEY_RISK") == secret  # the REUSED stored key (no re-keying)
+    assert "LITHRIM_LLM_MODEL_RISK" not in env  # the binding moved OUT of the loose file
 
 
 def test_roles_bind_judge_reuses_azure_endpoint(roles_env, monkeypatch):
@@ -219,11 +228,14 @@ def test_roles_bind_judge_reuses_azure_endpoint(roles_env, monkeypatch):
     assert resp.status_code == 200, resp.text
     assert secret not in resp.text
 
+    from lithrim_bench.harness import role_bindings as rb
+
+    binding = rb.load_bindings(db_path=bff._role_bindings_db_path())["faithfulness_judge"]
+    assert binding["provider"] == "azure"
+    assert binding["model"] == "my-llama-deploy"
+    assert binding["endpoint"] == "https://my.openai.azure.com/"  # reused stored endpoint
     env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert env.get("LITHRIM_LLM_PROVIDER_FAITHFULNESS") == "azure"
-    assert env.get("LITHRIM_LLM_MODEL_FAITHFULNESS") == "my-llama-deploy"
-    assert env.get("LITHRIM_LLM_API_KEY_FAITHFULNESS") == secret
-    assert env.get("LITHRIM_LLM_API_BASE_FAITHFULNESS") == "https://my.openai.azure.com/"
+    assert env.get("LITHRIM_LLM_API_KEY_FAITHFULNESS") == secret  # key reused, stays in the file
 
 
 # ── C: bind the chat_assistant role (the compulsory cross-provider chat) ─────────────────
@@ -246,6 +258,7 @@ def test_roles_bind_chat_assistant_writes_chat_env(roles_env, monkeypatch):
     assert resp.status_code == 200, resp.text
     assert secret not in resp.text
 
+    # the chat_assistant binding stays file-based (loop.py reads .provider_env directly)
     env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
     assert env.get("LITHRIM_CHAT_PROVIDER") == "openai"
     assert env.get("LITHRIM_CHAT_MODEL") == "gpt-4o"
@@ -269,6 +282,7 @@ def test_roles_bind_chat_assistant_anthropic_also_writes_anthropic_key(roles_env
     assert resp.status_code == 200, resp.text
     assert secret not in resp.text
 
+    # the chat_assistant binding stays file-based (loop.py reads .provider_env directly)
     env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
     assert env.get("LITHRIM_CHAT_PROVIDER") == "anthropic"
     assert env.get("ANTHROPIC_API_KEY") == secret
@@ -289,8 +303,9 @@ def test_roles_bind_unconnected_provider_422(roles_env, monkeypatch):
         json={"role": "risk_judge", "provider": "gemini", "model": "gemini-1.5-pro"},
     )
     assert resp.status_code == 422, resp.text
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert "LITHRIM_LLM_PROVIDER_RISK" not in env
+    from lithrim_bench.harness import role_bindings as rb
+
+    assert "risk_judge" not in rb.load_bindings(db_path=bff._role_bindings_db_path())  # nothing written
 
 
 def test_roles_bind_unknown_role_422(roles_env, monkeypatch):

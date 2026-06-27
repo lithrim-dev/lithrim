@@ -54,6 +54,7 @@ def isolate_provider_env(monkeypatch):
     ``test_provider_config.py``'s fixture. Clears the plane keys up front so a test starts clean."""
     from lithrim_bench.runtime.council import settings as council_settings
 
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)  # ROLE-BINDINGS-DB: force SQLite at <tmp>
     original = council_settings.settings
     settings_snapshot = {f: getattr(original, f, "") for f in _PLANE_KEYS}
     env_snapshot = {f: os.environ.get(f) for f in _PLANE_KEYS}
@@ -126,8 +127,12 @@ def test_persistence_round_trip_volume_kept_container_gone(tmp_path, monkeypatch
     fresh = bff._parse_env_file(bff._provider_env_path())
     assert fresh["OPENAI_API_KEY"] == "sk-persist-ROUNDTRIP-do-not-leak"
     assert fresh["LITHRIM_LLM_PROVIDER"] == "openai"
-    assert fresh["LITHRIM_LLM_PROVIDER_RISK"] == "openai"
-    assert fresh["LITHRIM_LLM_MODEL_RISK"] == "gpt-4o"
+    # ROLE-BINDINGS-DB: the risk_judge binding persists in the config DB on the SAME <tmp> volume
+    from lithrim_bench.harness import role_bindings as rb
+
+    risk = rb.load_bindings(db_path=bff._role_bindings_db_path())["risk_judge"]
+    assert risk["provider"] == "openai"
+    assert risk["model"] == "gpt-4o"
 
     # MUTATION proof (the bug, hermetically): the OLD behavior wrote to the container's writable layer
     # — a DIFFERENT dir than the named volume. Point the resolver at a fresh empty dir (the wiped

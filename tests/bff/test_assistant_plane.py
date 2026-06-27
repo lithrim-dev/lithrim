@@ -13,6 +13,7 @@ string is ABSENT from the JSON response. The probe is MOCKED (bare-CE, $0/offlin
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -39,6 +40,8 @@ def provider_env(tmp_path, monkeypatch):
     (LITHRIM_CHAT_*) + the anthropic key are snapshotted + restored so no config leaks across tests."""
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
     monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)  # ROLE-BINDINGS-DB: force SQLite at tmp
+    monkeypatch.delenv("LITHRIM_PROVIDER_ENV_DIR", raising=False)
 
     import importlib
     import os
@@ -98,9 +101,9 @@ def test_assistant_openai_writes_the_chat_env_contract_key_write_only(provider_e
     assert secret not in resp.text  # the chat key NEVER round-trips (secret hygiene)
 
     written = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert written["LITHRIM_CHAT_PROVIDER"] == "openai"
-    assert written["LITHRIM_CHAT_MODEL"] == "gpt-4o"
-    assert written["LITHRIM_CHAT_API_KEY"] == secret  # write-only on disk
+    assert os.environ.get("LITHRIM_CHAT_PROVIDER") == "openai"  # binding (config DB + env)
+    assert os.environ.get("LITHRIM_CHAT_MODEL") == "gpt-4o"
+    assert written["LITHRIM_CHAT_API_KEY"] == secret  # the KEY is write-only on disk
     # an OpenAI chat provider does NOT write ANTHROPIC_API_KEY (that is the SDK path only)
     assert "ANTHROPIC_API_KEY" not in written
 
@@ -121,8 +124,8 @@ def test_assistant_anthropic_stays_byte_compatible(provider_env, monkeypatch):
     assert secret not in resp.text
 
     written = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert written["LITHRIM_CHAT_PROVIDER"] == "anthropic"
-    assert written["ANTHROPIC_API_KEY"] == secret
+    assert os.environ.get("LITHRIM_CHAT_PROVIDER") == "anthropic"  # binding (config DB + env)
+    assert written["ANTHROPIC_API_KEY"] == secret  # the SDK key is write-only on disk
     # the anthropic SDK path uses ANTHROPIC_API_KEY, not the LITHRIM_CHAT_API_KEY var
     assert "LITHRIM_CHAT_API_KEY" not in written
 
@@ -168,9 +171,9 @@ def test_assistant_azure_writes_the_api_base(provider_env, monkeypatch):
     assert resp.status_code == 200, resp.text
     assert secret not in resp.text
     written = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
-    assert written["LITHRIM_CHAT_PROVIDER"] == "azure"
-    assert written["LITHRIM_CHAT_API_BASE"] == "https://my.openai.azure.com/"
-    assert written["LITHRIM_CHAT_API_KEY"] == secret
+    assert os.environ.get("LITHRIM_CHAT_PROVIDER") == "azure"  # binding (config DB + env)
+    assert os.environ.get("LITHRIM_CHAT_API_BASE") == "https://my.openai.azure.com/"
+    assert written["LITHRIM_CHAT_API_KEY"] == secret  # the KEY is write-only on disk
 
 
 def test_assistant_non_anthropic_requires_a_model(provider_env, monkeypatch):

@@ -21,6 +21,7 @@ Bare-CE, the probe + litellm are MOCKED (no network / $0). Pattern = ``tests/bff
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -50,6 +51,8 @@ def registry_env(tmp_path, monkeypatch):
     monkeypatch.setattr(bff, "_PROVIDER_ENV_PATH", tmp_path / ".provider_env", raising=False)
     monkeypatch.setattr(bff, "_PROVIDER_STATUS_PATH", tmp_path / ".provider_status.json", raising=False)
     monkeypatch.setattr(bff, "_MODELS_REGISTRY_PATH", tmp_path / ".models_registry.json", raising=False)
+    monkeypatch.delenv("LITHRIM_DB_URL", raising=False)  # ROLE-BINDINGS-DB: force SQLite at tmp
+    monkeypatch.delenv("LITHRIM_PROVIDER_ENV_DIR", raising=False)
 
     import importlib
     import os
@@ -145,7 +148,7 @@ def test_provider_config_gemini_with_role_writes_per_role_env(registry_env, monk
     # the probe was routed with the gemini provider
     assert calls and calls[-1]["provider"] == "gemini"
 
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    env = dict(os.environ)  # ROLE-BINDINGS-DB: the binding is readable by build_judge_lm (DB + env)
     assert env.get("LITHRIM_LLM_PROVIDER_POLICY") == "gemini"
     assert env.get("LITHRIM_LLM_MODEL_POLICY") == "gemini-1.5-pro"
     assert env.get("LITHRIM_LLM_API_KEY_POLICY") == secret
@@ -235,7 +238,7 @@ def test_bind_gemini_and_openai_roles_coexist(registry_env, monkeypatch):
     b2 = client.post("/v1/models/risk-gpt/bind", json={"role": "risk_judge"})
     assert b2.status_code == 200, b2.text
 
-    env = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    env = dict(os.environ)  # ROLE-BINDINGS-DB: bindings readable by build_judge_lm (DB + env)
     # role A → gemini
     assert env.get("LITHRIM_LLM_PROVIDER_POLICY") == "gemini"
     assert env.get("LITHRIM_LLM_MODEL_POLICY") == "gemini-1.5-pro"
