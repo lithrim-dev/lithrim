@@ -31,7 +31,7 @@ import re
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
-from .adapter import propose_live_run_part
+from .adapter import propose_live_run_part, propose_run_all_part
 from .tools import _TOOL_SPECS, ToolContext, build_sdk_tools
 
 # CONV-RUNTIME-1: the verbatim one-step-per-turn pacing message. Hoisted to module scope so BOTH
@@ -884,6 +884,29 @@ def _is_run_request(message: str) -> bool:
     return bool(_RUN_REQUEST_VERB.search(text)) and bool(_RUN_REQUEST_OBJECT.search(text))
 
 
+# RUN-ALL-ROUTE — the COHORT-intent matcher (sibling of _is_run_request). True for an unambiguous
+# "grade the whole corpus" imperative: a grade verb + an all/every/whole quantifier, or a bare
+# "all cases"/"every case"/"whole suite"/"all of them". Checked BEFORE _is_run_request so
+# "run all cases" routes to the cohort directive, not a single-case run (which 500s on a corpus
+# agent with no bound case). Questions excluded (a question ABOUT grading is not a request to grade).
+_GRADE_ALL_RE = re.compile(
+    r"\b(?:run|re-?run|grade|evaluat\w*|scor\w*)\s+(?:all|every|everything|the\s+(?:whole|entire|full|cohort|suite|corpus|batch))\b"
+    r"|\b(?:all|every)\s+(?:the\s+)?(?:ingested\s+)?cases?\b"
+    r"|\b(?:whole|entire|full)\s+(?:suite|corpus|cohort|set|batch)\b"
+    r"|\ball\s+of\s+them\b"
+)
+
+
+def _is_grade_all_request(message: str) -> bool:
+    """RUN-ALL-ROUTE — conservative cohort-intent matcher (see ``_GRADE_ALL_RE``). Pure; the
+    ``_litellm_loop`` route calls it to (a) UPGRADE a mis-picked single directive to the cohort
+    one and (b) emit the cohort directive in the no-directive fallback. Empty/question → False."""
+    text = (message or "").strip().lower()
+    if not text or "?" in text:
+        return False
+    return bool(_GRADE_ALL_RE.search(text))
+
+
 async def _litellm_loop(
     message: str,
     ctx: ToolContext,
@@ -961,6 +984,10 @@ async def _litellm_loop(
     # True → no double-open. A-SAFE: the fallback emits ONLY the directive (opens the modal); it
     # never fires a paid op — the human's modal-confirm stays the sole spend.
     directive_emitted = False
+    # RUN-ALL-ROUTE: an unambiguous "grade all cases" message routes to the COHORT directive — both
+    # by UPGRADING a mis-picked single directive (below) and in the no-directive fallback — so it
+    # never lands on a single-case run that 500s on a corpus agent with no bound case.
+    grade_all_intent = _is_grade_all_request(message)
     try:
         for _turn in range(_LITELLM_MAX_TURNS):
             resp = completion(messages=list(messages), **completion_kwargs)
@@ -1052,6 +1079,12 @@ async def _litellm_loop(
                 # drain the gen-UI parts + any $0 replay record this handler emitted
                 while ctx.parts:
                     part = ctx.parts.pop(0)
+                    # RUN-ALL-ROUTE: for an unambiguous "grade all" message, UPGRADE a mis-picked
+                    # single-run directive (the model's frequent wrong choice) to the cohort one, so
+                    # the Grade-all modal opens instead of a single-case run. $0/A-SAFE (both only
+                    # open a modal); the single directive never reaches the shell.
+                    if grade_all_intent and part.get("type") == "tool-propose_live_run":
+                        part = propose_run_all_part()
                     # CONFIRM-MODAL-FALLBACK-1: a cost-confirm directive from run_eval/propose_live_run
                     # — record it so the post-loop fallback is SKIPPED (no double-open).
                     if part.get("type") in ("tool-propose_live_run", "tool-propose_run_all"):
@@ -1075,7 +1108,12 @@ async def _litellm_loop(
         # run_eval/propose_live_run, ``directive_emitted`` is already True → this is skipped (no
         # double-open). A-SAFE: ``propose_live_run_part()`` only OPENS the in-DOM CostModal — it fires
         # NO paid op; the human's modal-confirm remains the sole spend.
-        if not directive_emitted and _is_run_request(message):
+        if not directive_emitted and grade_all_intent:
+            # RUN-ALL-ROUTE: a "grade all" message with no directive → emit the COHORT directive (the
+            # cohort modal), not the single one. Checked before the single-run fallback so "run all
+            # cases" never falls through to a single-case run.
+            yield {"event": "tool_result", "part": propose_run_all_part()}
+        elif not directive_emitted and _is_run_request(message):
             # CHAT-CASE-RESOLVE-1 follow-on: carry the resolved/named active case so the fallback
             # directive targets the SAME case the handler directives do (a present-only selector,
             # not a paid field) — else confirmPaidRun grades the stale client selection.

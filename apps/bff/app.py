@@ -974,6 +974,17 @@ def _grade_case(
         from dataclasses import replace
 
         agent = replace(agent, dataset=replace(agent.dataset, case_id=case_id))
+    if not agent.dataset.case_id:
+        # NO-CASE-GUARD: a single grade with no resolvable case — an ingested-corpus agent has an
+        # empty dataset.case_id (the cases live in the corpus, not bound to the agent). Fail with a
+        # friendly, actionable 400 BEFORE the grade subprocess, which would otherwise surface an
+        # opaque "case '' not found" 500. The cohort path is unaffected (it always passes case_id).
+        hint = (
+            ' Say "grade all cases" to score the whole corpus, or pick a specific case to run.'
+            if _read_ingested_corpus()
+            else " Select a case to evaluate first."
+        )
+        raise HTTPException(status_code=400, detail="No case selected to evaluate." + hint)
     ontology_path, ontology_source = _resolve_ontology_path(agent, workdir)
     # S-BS-63: thread the persisted judge authoring through to the in-process grade so
     # an authored judge re-votes with its authored lens (the static→live close). Read

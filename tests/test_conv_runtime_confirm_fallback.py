@@ -42,7 +42,7 @@ if str(_BFF) not in sys.path:
 
 import app as bff  # noqa: E402
 from agent import tools as agent_tools  # noqa: E402
-from agent.loop import _is_run_request, _litellm_loop  # noqa: E402
+from agent.loop import _is_grade_all_request, _is_run_request, _litellm_loop  # noqa: E402
 
 AGENT = "confirm_fallback_test"
 
@@ -308,3 +308,97 @@ def test_fallback_directive_is_empty_back_compat_when_no_active_case(ctx):
     directives = _directive_parts(events)
     assert len(directives) == 1
     assert directives[0]["output"] == {}
+
+
+# ── RUN-ALL-ROUTE — "grade all cases" deterministically opens the COHORT modal ──────────
+# The single-run fallback's sibling. An unambiguous "grade all / run every case" message must
+# open the cohort (propose_run_all) modal, NOT a single-case run — which 500s on an ingested-corpus
+# agent whose dataset.case_id is empty. Two deterministic layers in _litellm_loop:
+#   (a) the model's frequent MIS-PICK of the single tool is UPGRADED to the cohort directive;
+#   (b) when the model emits NO directive, the post-loop fallback emits the cohort directive.
+# Both are $0 / A-SAFE — the directive only OPENS the modal; the human's confirm is the sole spend.
+
+
+def _cohort_directive_parts(events: list[dict]) -> list[dict]:
+    return [
+        e["part"]
+        for e in events
+        if e["event"] == "tool_result" and e["part"].get("type") == "tool-propose_run_all"
+    ]
+
+
+def _calls_single_run_completion():
+    """The MIS-PICK: the model calls propose_live_run (SINGLE) for a 'grade all' message."""
+    return _stub_completion(
+        [
+            [_toolcall_chunk(index=0, name="propose_live_run", arguments="{}", call_id="p"), _finish_chunk("tool_calls")],
+            [_text_chunk("Done — confirm in the modal."), _finish_chunk("stop")],
+        ]
+    )
+
+
+def test_is_grade_all_request_matches_cohort_intents():
+    """_is_grade_all_request is True for an unambiguous 'grade the whole corpus' imperative."""
+    for msg in (
+        "run all cases",
+        "grade all cases",
+        "score every case",
+        "run the whole suite",
+        "grade all the cases",
+        "evaluate all ingested cases",
+        "run all",
+        "grade everything",
+        "run all of them",
+    ):
+        assert _is_grade_all_request(msg) is True, msg
+
+
+def test_is_grade_all_request_excludes_single_and_questions():
+    """A single-case run, a question, or empty text is NEVER a grade-all request (no over-route)."""
+    for msg in (
+        "run eval on this case",
+        "grade this case",
+        "how do I grade all cases?",
+        "what cases are there?",
+        "",
+    ):
+        assert _is_grade_all_request(msg) is False, msg
+
+
+def test_grade_all_upgrades_a_mispicked_single_directive_to_cohort(ctx):
+    """The headline: the model MIS-PICKS the single tool for "run all cases" → the directive is
+    UPGRADED to the cohort one. NO single-run directive leaks (it would 500 on a corpus agent).
+
+    MUTATION: drop the upgrade rewrite → a tool-propose_live_run leaks → this goes RED."""
+    events = _run_litellm(ctx, _calls_single_run_completion(), message="run all cases")
+    cohort = _cohort_directive_parts(events)
+    assert len(cohort) == 1, [e["event"] for e in events]
+    assert cohort[0]["output"] == {}
+    assert _directive_parts(events) == []  # the single-run directive must NOT reach the shell
+
+
+def test_grade_all_fallback_emits_cohort_when_model_emits_no_directive(ctx):
+    """The narrate-only failure on a grade-all message → the post-loop fallback emits the COHORT
+    directive (not the single one).
+
+    MUTATION: route the grade-all fallback to propose_live_run_part → RED (cohort absent)."""
+    events = _run_litellm(ctx, _narrate_only_completion(), message="grade all cases")
+    assert len(_cohort_directive_parts(events)) == 1
+    assert _directive_parts(events) == []
+    assert events[-1]["event"] == "done"
+
+
+def test_single_run_request_still_routes_to_the_single_directive(ctx):
+    """Regression guard: a NON-grade-all run request still opens the SINGLE modal, never the cohort."""
+    events = _run_litellm(ctx, _narrate_only_completion(), message="run eval on this case")
+    assert len(_directive_parts(events)) == 1
+    assert _cohort_directive_parts(events) == []
+
+
+def test_grade_all_directive_is_asafe_empty_output(ctx):
+    """A-SAFE: the cohort directive carries NO paid field (output == {}); emitting it cannot spend.
+    The tool roster is unchanged (the route adds no tool)."""
+    events = _run_litellm(ctx, _calls_single_run_completion(), message="grade all cases")
+    cohort = _cohort_directive_parts(events)
+    assert cohort and cohort[0]["output"] == {}
+    assert len(agent_tools._TOOL_SPECS) == 23
