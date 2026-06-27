@@ -28,11 +28,12 @@ const EXPECTED = {
   "tool-run_panel": /Run evaluation/i, // UAP-3 R4 — the processing surface
   "tool-case_summary": /Loading the case|Source case/i, // CHATBIND-3 — the inline source-case summary
   "tool-judge_builder": /a new reviewer/i, // PHASE2-WIRE — the inline create-a-new-reviewer card
+  "tool-scorecard": /run all cases/i, // RUN-ALL-1 — the consolidated cohort scorecard (empty-state mount)
 };
 
 describe("renderTool registry", () => {
-  it("knows all 11 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(11);
+  it("knows all 12 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(12);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

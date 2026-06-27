@@ -179,7 +179,7 @@ def test_focus_artifact_joins_the_tool_set_exactly_once():
     assert names.count("author_contract") == 1
     assert names.count("author_criterion") == 1
     assert names.count("create_judge") == 1
-    assert len(names) == 22  # +PHASE2-WIRE create_judge ($0 emit-only surface; the human's Save = POST /v1/judges)
+    assert len(names) == 23  # +PHASE2-WIRE create_judge ($0 emit-only surface; the human's Save = POST /v1/judges)
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in PAID_KEYS), name
 
@@ -196,7 +196,7 @@ def test_build_options_allowlist_grows_by_exactly_focus_artifact_and_gate_is_byt
     allowed = list(opts.allowed_tools)
     derived = {f"mcp__lithrim__{n}" for _, n, *_ in agent_tools._TOOL_SPECS}
     assert set(allowed) == derived  # exactly the tool set — no extra, no paid surface
-    assert len(allowed) == len(set(allowed)) == 22
+    assert len(allowed) == len(set(allowed)) == 23
     assert {
         "mcp__lithrim__focus_artifact",
         "mcp__lithrim__show_case",

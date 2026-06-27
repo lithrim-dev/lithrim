@@ -40,6 +40,7 @@ from .adapter import (
     judge_part,
     open_artifact_part,
     propose_live_run_part,
+    propose_run_all_part,
 )
 from .assist import suggest_contract_params
 
@@ -126,6 +127,9 @@ LIST_CASES_SCHEMA: dict[str, Any] = {}
 # CHATBIND-4: propose_live_run takes NO params — it asks the shell to OPEN the cost-confirm modal.
 # The agent PROPOSES; the human's modal-confirm is the only paid path. No paid knob, nothing to smuggle.
 PROPOSE_LIVE_RUN_SCHEMA: dict[str, Any] = {}
+# RUN-ALL-1: propose_run_all takes NO params — it asks the shell to open the cohort cost-confirm.
+# The agent PROPOSES; the human's modal-confirm grades all cases. No paid knob, nothing to smuggle.
+PROPOSE_RUN_ALL_SCHEMA: dict[str, Any] = {}
 # GROUND-CHAT-1 — ADD a grounding (verification) contract to the active agent's DRAFT ontology
 # (an audited config WRITE; makes "step 5: add grounding contracts" conversational). Entry shape
 # mirrors ContractBuilder.jsx + ontology.VerificationContractDecl: {contract_type, flag_code,
@@ -924,6 +928,19 @@ async def propose_live_run_handler(ctx: ToolContext, args: dict[str, Any]) -> di
     )
 
 
+async def propose_run_all_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # RUN-ALL-1: emit a $0 DIRECTIVE that opens the in-DOM CostModal for the WHOLE ingested cohort.
+    # The agent NEVER fires the batch — propose_run_all_part carries no paid knob and the shell only
+    # OPENS the modal; the human's confirm (which calls POST /v1/cases/grade) is the SOLE paid path.
+    # A-SAFE-preserving hand-off, identical posture to propose_live_run.
+    ctx.emit(propose_run_all_part())
+    return _text(
+        "I've surfaced the cost-confirm for grading ALL ingested cases. A cohort run makes real "
+        "(paid) model calls across every case, so it's your authorization — confirm it in the modal "
+        "and I'll render the consolidated scorecard inline. I cannot fire the paid batch myself."
+    )
+
+
 # (handler, name, description, schema) — the spine. run_eval's description states the
 # replay-only contract so the model does not try to request a paid run through it.
 _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
@@ -1066,6 +1083,17 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "a paid run yourself. (For an explicit '$0 replay / show the last stored result' ask, use "
         "run_eval instead.) No params.",
         PROPOSE_LIVE_RUN_SCHEMA,
+    ),
+    (
+        propose_run_all_handler,
+        "propose_run_all",
+        "Grade ALL ingested cases at once — the DEFAULT for 'run all / grade all / run the whole "
+        "suite / run every case / score the cohort'. It surfaces the cost-confirm modal; the human's "
+        "confirm grades the full cohort and renders the consolidated scorecard (per-case caught/"
+        "missed/spurious vs gold + precision/recall) INLINE in the chat. A cohort grade makes real "
+        "(paid) model calls across every case, so you only PROPOSE: the human's confirm is the only "
+        "thing that spends. You can NEVER fire it yourself. No params.",
+        PROPOSE_RUN_ALL_SCHEMA,
     ),
     (
         add_grounding_contract_handler,

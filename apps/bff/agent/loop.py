@@ -124,6 +124,10 @@ _SYSTEM_PROMPT = (
     "fresh-grade path, so 'run eval' and 'run it' both land on a fresh cost-confirmed grade.)\n"
     "  - run_eval_pack: run a $0 REPLAY eval-pack BATCH over one or more agents and show "
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
+    "  - propose_run_all: GRADE ALL ingested cases at once -- THE way to 'run all / grade all / run "
+    "the whole suite / score every case'. Surfaces the cost-confirm for the whole cohort; the human's "
+    "confirm grades them all and renders the consolidated scorecard inline (per-case vs gold + "
+    "precision/recall). You only PROPOSE; the human's confirm spends. You can NEVER fire it.\n"
     "  - review_runs: review the run history, the latest run's provenance, and the audit "
     "trail of everything you authored -- $0.\n"
     "  - ingest_cases: INGEST an arbitrary JSON dump of AI-system output into eval cases (the "
@@ -1050,7 +1054,7 @@ async def _litellm_loop(
                     part = ctx.parts.pop(0)
                     # CONFIRM-MODAL-FALLBACK-1: a cost-confirm directive from run_eval/propose_live_run
                     # — record it so the post-loop fallback is SKIPPED (no double-open).
-                    if part.get("type") == "tool-propose_live_run":
+                    if part.get("type") in ("tool-propose_live_run", "tool-propose_run_all"):
                         directive_emitted = True
                     yield {"event": "tool_result", "part": part}
                 while ctx.run_results:

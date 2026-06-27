@@ -1415,6 +1415,57 @@ class GradeCasesRequest(BaseModel):
     in_process: bool = False
 
 
+def _is_blocked_verdict(verdict) -> bool:
+    return str(verdict or "").upper() in {"BLOCK", "FAIL", "REJECT"}
+
+
+def _cohort_scorecard(rows: list[dict], golds: dict[str, set], labeled: set) -> dict:
+    """RUN-ALL-1: the consolidated report — compare each graded cohort row to its gold flags →
+    per-case caught/missed/spurious + an aggregate flag precision/recall + verdict accuracy + a
+    per-flag over/under-fire breakdown. Only LABELED cases feed the accuracy metrics (honest-
+    unlabeled — never fabricate numbers on unlabeled data); an unlabeled row still shows its raw
+    result. Pure over the matrix the chat already has, so the report needs zero span-matching."""
+    cases: list[dict] = []
+    tp = fp = fn = vmatch = n_lab = 0
+    by_flag: dict[str, dict] = {}
+    for r in rows:
+        cid = r.get("case_id")
+        raised = set(r.get("findings") or [])
+        row = {"case_id": cid, "verdict": r.get("verdict"),
+               "labeled": cid in labeled, "raised": sorted(raised)}
+        if cid in labeled:
+            gold = golds.get(cid, set())
+            caught, missed, spurious = gold & raised, gold - raised, raised - gold
+            blocked = _is_blocked_verdict(r.get("verdict"))
+            row.update({"gold": sorted(gold), "caught": sorted(caught),
+                        "missed": sorted(missed), "spurious": sorted(spurious),
+                        "verdict_match": bool(gold) == blocked})
+            tp += len(caught)
+            fp += len(spurious)
+            fn += len(missed)
+            vmatch += row["verdict_match"]
+            n_lab += 1
+            for f in caught:
+                by_flag.setdefault(f, {"tp": 0, "fp": 0, "fn": 0})["tp"] += 1
+            for f in spurious:
+                by_flag.setdefault(f, {"tp": 0, "fp": 0, "fn": 0})["fp"] += 1
+            for f in missed:
+                by_flag.setdefault(f, {"tp": 0, "fp": 0, "fn": 0})["fn"] += 1
+        cases.append(row)
+    prec = tp / (tp + fp) if (tp + fp) else None
+    rec = tp / (tp + fn) if (tp + fn) else None
+    return {
+        "cases": cases,
+        "n_cases": len(rows),
+        "n_labeled": n_lab,
+        "flag": {"tp": tp, "fp": fp, "fn": fn,
+                 "precision": round(prec, 3) if prec is not None else None,
+                 "recall": round(rec, 3) if rec is not None else None},
+        "verdict_accuracy": f"{vmatch}/{n_lab}" if n_lab else None,
+        "by_flag": dict(sorted(by_flag.items())),
+    }
+
+
 @app.post("/v1/cases/grade")
 def grade_cases_endpoint(
     req: GradeCasesRequest,
@@ -1474,7 +1525,13 @@ def grade_cases_endpoint(
         "verdicts": verdicts,
         "grade_path": "live" if live else ("in_process" if in_process else "replay"),
     }
-    return {"matrix": rows, "summary": summary}
+    # RUN-ALL-1: the consolidated report — score the matrix against each case's gold (in-process,
+    # no span-matching; case_id rides every row). Labeled cases only feed accuracy (honest-unlabeled).
+    corpus = {c.get("case_id"): c for c in _read_ingested_corpus() if c.get("case_id")}
+    golds = {cid: set(c.get("expected_safety_flags") or []) for cid, c in corpus.items()}
+    labeled = {cid for cid, c in corpus.items() if c.get("labeled")}
+    scorecard = _cohort_scorecard(rows, golds, labeled)
+    return {"matrix": rows, "summary": summary, "scorecard": scorecard}
 
 
 class EvalPackRunRequest(BaseModel):

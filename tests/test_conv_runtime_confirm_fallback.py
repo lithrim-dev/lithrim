@@ -272,7 +272,7 @@ def test_fallback_is_asafe_directive_only_no_paid_op_no_schema_widening(ctx):
         assert not any(k in schema for k in agent_tools.PAID_KEYS)
 
     # the tool roster is unchanged — the fix adds no tool
-    assert len(agent_tools._TOOL_SPECS) == 22
+    assert len(agent_tools._TOOL_SPECS) == 23
 
     # serialize the whole event stream: no paid knob string leaks into the wire shape
     blob = json.dumps(events, default=str)

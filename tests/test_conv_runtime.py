@@ -146,7 +146,7 @@ def test_openai_tool_schemas_covers_every_tool_spec():
     names = [s["function"]["name"] for s in schemas]
     spec_names = [n for _, n, *_ in agent_tools._TOOL_SPECS]
     assert names == spec_names  # one per tool, same order
-    assert len(schemas) == 22
+    assert len(schemas) == 23
     for s in schemas:
         assert s["type"] == "function"
         fn = s["function"]

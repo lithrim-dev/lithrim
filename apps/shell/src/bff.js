@@ -69,6 +69,16 @@ export const getRuns = (limit = 50) => call(`/v1/runs?limit=${encodeURIComponent
 export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false }) =>
   call("/v1/eval-pack/run", { method: "POST", body: { pack_id, agents, live } });
 
+/* POST /v1/cases/grade — RUN-ALL-1: grade the whole ingested cohort and return {matrix, summary,
+   scorecard}. case_ids null → ALL cases. live/in_process are the SAME paid knobs as run-eval; a
+   paid cohort grade is the human's cost-confirmed call (never an agent tool). The `scorecard` field
+   is the case_id-attributed consolidated report the inline ScorecardCard renders. */
+export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null } = {}) =>
+  call("/v1/cases/grade", {
+    method: "POST",
+    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}) },
+  });
+
 export const getCorpus = () => call("/v1/corpus");
 /* GET /v1/cases — NARR-LOOP: the active workspace's INGESTED eval cases (case_id + fidelity
    flags). Self-fetched by the Corpus tab so ingested cases survive a reload. */

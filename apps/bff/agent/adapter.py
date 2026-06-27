@@ -281,3 +281,13 @@ def propose_live_run_part(case_id: str | None = None) -> dict[str, Any]:
     never goes through the shell's dedup/intent gating."""
     output = {"case_id": case_id} if case_id else {}
     return {"type": "tool-propose_live_run", "state": "output-available", "output": output}
+
+
+def propose_run_all_part() -> dict[str, Any]:
+    """RUN-ALL-1: propose_run_all -> a $0 DIRECTIVE (like propose_live_run) that asks the shell to
+    open the in-DOM CostModal for the WHOLE ingested cohort. The AGENT only PROPOSES — it never
+    fires the batch; the human's modal-confirm is the ONLY paid path. On confirm the shell calls
+    ``POST /v1/cases/grade`` and renders the inline ScorecardCard (tool-scorecard). Absent from
+    KNOWN_TOOLS, never routed through renderTool, carries NO agent/run/paid/confirm field — emitting
+    it cannot spend (the A-SAFE property, identical to propose_live_run). NO ``show_intent`` tag."""
+    return {"type": "tool-propose_run_all", "state": "output-available", "output": {}}

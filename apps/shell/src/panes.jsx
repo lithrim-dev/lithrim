@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
@@ -389,6 +389,9 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                 if (cid) onActiveCase?.(cid);
                 setPaid({ open: true, busy: false, caseId: cid });
               }
+              // RUN-ALL-1: a tool-propose_run_all DIRECTIVE opens the SAME in-DOM CostModal in COHORT
+              // mode — the agent PROPOSES; only the human's confirm (confirmPaidRun) grades all cases.
+              if (ev.part.type === "tool-propose_run_all") setPaid({ open: true, busy: false, cohort: true });
               // NARR-CHAT-LOOP: a show_case card carries the case_id it opened — lift it into the
               // shared active case so the chat↔UI stay ONE thing (the Case pane + a later Run target
               // the case the chat just opened). The agent can never open a case it didn't pass.
@@ -534,6 +537,18 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const confirmPaidRun = async () => {
     setPaid((p) => ({ ...p, busy: true }));
     try {
+      // RUN-ALL-1: the COHORT path — grade ALL ingested cases (one cost-confirmed batch) and render
+      // the consolidated scorecard INLINE in the chat (the same registry card the agent would emit).
+      if (paid.cohort) {
+        const resp = await gradeCases({ agent, in_process: true });
+        const output = { ...(resp.scorecard || {}), grade_path: resp.summary?.grade_path };
+        setChat((c) => [
+          ...c,
+          { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },
+        ]);
+        setPaid({ open: false, busy: false });
+        return;
+      }
       // CHAT-CASE-TARGET-1: grade the case the directive carried (the chat-named case), falling back
       // to the client active case for the TopBar "Run live" path (no directive -> no paid.caseId).
       const target = paid.caseId || activeCase;
@@ -839,9 +854,11 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
       <CostModal
         open={paid.open}
         busy={paid.busy}
-        title="Run a live, paid evaluation?"
-        body="This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."
-        confirmLabel="Run live (paid)"
+        title={paid.cohort ? "Grade all cases (paid)?" : "Run a live, paid evaluation?"}
+        body={paid.cohort
+          ? "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it."
+          : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
+        confirmLabel={paid.cohort ? "Grade all cases (paid)" : "Run live (paid)"}
         onConfirm={confirmPaidRun}
         onCancel={() => setPaid({ open: false, busy: false })}
       />
