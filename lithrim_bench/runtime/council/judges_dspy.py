@@ -522,25 +522,29 @@ def build_trio(
         else:
             role_prompt = load_role_prompt(role)
         if predictors is not None:
-            judges.append(
-                Judge(
-                    role,
-                    predictor=predictors[role],
-                    role_prompt=role_prompt,
-                    taxonomy_context=taxonomy_context,
-                )
+            judge = Judge(
+                role,
+                predictor=predictors[role],
+                role_prompt=role_prompt,
+                taxonomy_context=taxonomy_context,
             )
+            judge.llm_model = None  # VOTE-MODEL-1: offline predictor path binds no LM
+            judges.append(judge)
         else:
             role_model = (models or {}).get(role) or ""
             lm = build_judge_lm(role, model=role_model) if role_model else build_judge_lm(role)
-            judges.append(
-                Judge(
-                    role,
-                    lm=lm,
-                    role_prompt=role_prompt,
-                    taxonomy_context=taxonomy_context,
-                )
+            judge = Judge(
+                role,
+                lm=lm,
+                role_prompt=role_prompt,
+                taxonomy_context=taxonomy_context,
             )
+            # VOTE-MODEL-1: stamp the resolved deployment (``dspy.LM`` / ``ClaudeCliLM`` both
+            # expose ``.model``) onto the judge so the authored stage can attribute each vote to
+            # the REAL model it graded on, not the role name. Set here (the carve-out provider
+            # binder), never on the frozen ``Judge`` symbol.
+            judge.llm_model = getattr(lm, "model", None)
+            judges.append(judge)
     return judges
 
 

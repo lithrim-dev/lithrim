@@ -1933,7 +1933,23 @@ def _active_lens_by_role() -> dict[str, frozenset[str]]:
     return pack_mod.pack_lenses(workspace.get_active_workspace().pack)
 
 
-def _judge_summary(role: str, jc, ontology) -> dict:
+def _effective_model(jc, role: str, bindings: dict) -> tuple[str, str, str]:
+    """VOTE-MODEL-2: the model a reviewer actually grades on, with its source.
+
+    Precedence: the per-judge BYOC override (``jc.model``, the editable JudgeEditor field) wins;
+    else the Provider-Center role binding (the ``role_bindings`` config DB); else empty (the Azure
+    deployment default — unbound). Returns ``(model, provider, source)`` where ``source`` is one of
+    ``override`` | ``binding`` | ``default`` so the UI can label which it is."""
+    override = getattr(jc, "model", "") if jc else ""
+    if override:
+        return override, "", "override"
+    b = (bindings or {}).get(role) or {}
+    if b.get("model"):
+        return b["model"], b.get("provider") or "", "binding"
+    return "", "", "default"
+
+
+def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dict:
     """Project one judge: role + bound model + the assigned lens + the assignable
     flags (the active pack's lens — the owned+emitted code set, per-flag tier/when_to_use
     from the ontology) + the derived refinement questions (ontology ``questions_for``) +
@@ -1960,9 +1976,18 @@ def _judge_summary(role: str, jc, ontology) -> dict:
         {"ordinal": q.ordinal, "text": q.text}
         for q in sorted(ontology.questions_for(role), key=lambda q: q.ordinal)
     ]
+    eff_model, eff_provider, model_source = _effective_model(
+        jc, role, bindings if bindings is not None else _read_role_bindings()
+    )
     return {
         "role": role,
+        # the editable per-judge BYOC override (unchanged — the JudgeEditor still edits THIS).
         "model": (jc.model if jc else ""),
+        # VOTE-MODEL-2: the model the reviewer actually grades on (override → Provider-Center
+        # binding → Azure default), so the config surface reflects what the user assigned.
+        "effective_model": eff_model,
+        "effective_provider": eff_provider,
+        "model_source": model_source,
         "assigned_flags": assigned,
         "validator_refs": (list(jc.validator_refs) if jc else []),
         "available_flags": available,
@@ -2049,7 +2074,8 @@ def list_judges_endpoint(
     # = the same trio, so this is a no-op for healthcare, but it keeps offer + gate on one
     # source-of-truth). The unknown-role 404 guards resolve the same active-pack roles.
     roles = sorted(_active_lens_by_role())
-    judges = [_judge_summary(role, saved.get(role), ontology) for role in roles]
+    bindings = _read_role_bindings()  # one config-DB read; reused across every role's summary
+    judges = [_judge_summary(role, saved.get(role), ontology, bindings) for role in roles]
     return {
         "judges": judges,
         "roles": roles,

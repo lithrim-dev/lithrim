@@ -89,6 +89,19 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
   });
 
+  it("VOTE-MODEL-2: shows the model the reviewer actually grades on when bound via Providers (override field blank)", async () => {
+    getJudge.mockResolvedValueOnce({
+      ...SUMMARY, role: "risk_judge", model: "",
+      effective_model: "Mistral-Large-3", effective_provider: "azure", model_source: "binding",
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    // the effective grading model surfaces even though the editable override is empty
+    const eff = screen.getByTestId("je-effective-model");
+    expect(eff).toHaveTextContent(/azure · Mistral-Large-3/);
+    expect(eff).toHaveTextContent(/Providers/i); // tells the user WHERE it was set
+  });
+
   it("S-BS-153: the save passes the ACTIVE agent so the server rosters the judge (the rail ticks)", async () => {
     render(<JudgeEditor role="risk_judge" agent="demo-clinical-agent" />);
     expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();

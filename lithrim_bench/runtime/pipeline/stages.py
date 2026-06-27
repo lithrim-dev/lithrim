@@ -612,11 +612,10 @@ def _judge_votes_from_models(
             # PIPELINE_GRADING_AUDIT_2026-05-28 §3.
             confidence=float(raw_conf) if isinstance(raw_conf, (int, float)) else None,
             reason=m.get("summary") or m.get("rationale") or _synth_reason(decision, finding_codes),
-            # On the injected/authored path model_lookup is {}; the seam dict's own
-            # ``model`` field carries the role name, so the audit shows WHICH judge
-            # rather than blank (S-BS-66). The prompt-council path keeps its real
-            # deployment string via the lookup.
-            model=model_lookup.get(role) or m.get("model") or "",
+            # The real deployment, in priority: the prompt-council's role→model lookup;
+            # then the authored seam's own ``llm_model`` (VOTE-MODEL-1 — the LM the judge
+            # graded on); then the role name (S-BS-66 back-compat — never blank).
+            model=model_lookup.get(role) or m.get("llm_model") or m.get("model") or "",
             findings=finding_codes,
         ))
     return votes

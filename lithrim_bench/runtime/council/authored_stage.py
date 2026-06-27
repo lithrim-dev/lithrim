@@ -141,6 +141,16 @@ def build_authored_evaluator(
             if decisions_sink is not None:
                 decisions_sink.extend(decisions)
 
+        # VOTE-MODEL-1: attribute each per-judge seam dict to the REAL deployment it graded on
+        # (``Judge.forward`` emits only the role name under ``model``; build_trio stamped the
+        # resolved model on each judge as ``llm_model``). Keyed by role so it survives the gate's
+        # per-judge rewrites; the orchestrator's ``_judge_votes_from_models`` prefers it. Done
+        # here (the authored evaluator) so the frozen ``Judge`` seam is untouched.
+        _model_by_role = {j.role: getattr(j, "llm_model", None) for j in trio}
+        for r in results:
+            if isinstance(r, dict) and not r.get("llm_model"):
+                r["llm_model"] = _model_by_role.get(r.get("model"))
+
         # The frozen consensus IP — only called. The envelope mirrors
         # ComplianceCouncil.evaluate()'s return so run_semantic's _run_council_and_map
         # maps it exactly as it maps the prompt-council.

@@ -196,9 +196,21 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="je-model">Model name</Label>
+          <Label htmlFor="je-model">Model override (optional)</Label>
           <Input id="je-model" value={model} onChange={(e) => setModel(e.target.value)}
-            placeholder="model name (e.g. gpt-4.1)" />
+            placeholder="leave blank to use the assigned model" />
+          {/* VOTE-MODEL-2: show the model this reviewer actually grades on — its Provider-Center
+              assignment (or the default) — so a blank override field never reads as "no model". */}
+          {judge.effective_model && judge.model_source !== "override" ? (
+            <p data-testid="je-effective-model" className="text-[11px] text-muted-foreground">
+              Grading on {judge.effective_provider ? `${judge.effective_provider} · ` : ""}
+              {judge.effective_model} — set in Providers
+            </p>
+          ) : judge.model_source === "default" ? (
+            <p data-testid="je-effective-model" className="text-[11px] text-muted-foreground">
+              Grading on the default model — assign one in Providers
+            </p>
+          ) : null}
         </div>
 
         <section className="flex flex-col gap-2">
