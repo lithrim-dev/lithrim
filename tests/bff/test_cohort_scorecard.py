@@ -79,3 +79,33 @@ def test_by_flag_over_and_under_fire_breakdown():
     assert by["INTERNAL_INCONSISTENCY"] == {"tp": 0, "fp": 1, "fn": 0}  # pure over-fire
     assert by["VALUE_MISMATCH"] == {"tp": 0, "fp": 0, "fn": 1}          # pure miss
     assert by["HALLUCINATED_DETAIL"]["tp"] == 1
+
+
+# --- regression: the labeled-set + golds DERIVATION from the REAL ingested envelope ---
+# The stored case envelope carries NO `labeled` key — that field is *derived* by /v1/cases.
+# The cohort scorecard must derive it the SAME way (from the gold), or a fully-labeled corpus
+# reports "0 labeled" and the scorecard refuses to score anything (the live bug on the
+# ClinVerdict suite: 10 labeled cases shown as unlabeled, precision/recall n/a).
+
+
+def test_case_has_gold_derives_from_gold_not_a_labeled_key():
+    assert bff._case_has_gold({"expected_safety_flags": ["HALLUCINATED_DETAIL"]}) is True
+    assert bff._case_has_gold({"expected_compliance_verdict": "approve", "expected_safety_flags": []}) is True
+    assert bff._case_has_gold({"expected_safety_flags": []}) is False   # unlabeled placeholder ([] is not gold)
+    assert bff._case_has_gold({"labeled": True}) is False               # a stray `labeled` key is NOT gold
+
+
+def test_corpus_golds_labeled_over_real_envelope_shape():
+    # the real cases_store payload: NO `labeled` key; gold lives in flags/verdict
+    rows = [
+        {"case_id": "k1", "expected_safety_flags": ["HALLUCINATED_DETAIL", "HISTORY_OMISSION"],
+         "expected_compliance_verdict": "reject"},
+        {"case_id": "k2", "expected_safety_flags": [], "expected_compliance_verdict": "approve"},  # labeled clean-negative
+        {"case_id": "k3", "expected_safety_flags": []},  # unlabeled (no verdict)
+        {"case_id": None},  # malformed — dropped
+    ]
+    golds, labeled = bff._corpus_golds_labeled(rows)
+    assert labeled == {"k1", "k2"}  # the bug read a missing `labeled` key → empty set → "0 labeled"
+    assert golds["k1"] == {"HALLUCINATED_DETAIL", "HISTORY_OMISSION"}
+    assert golds["k2"] == set()  # clean-negative gold is the empty set, still labeled
+    assert "k3" in golds and golds["k3"] == set()

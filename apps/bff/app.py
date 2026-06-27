@@ -1119,6 +1119,28 @@ def _case_labeled(case: dict) -> bool:
     )
 
 
+def _case_has_gold(row: dict) -> bool:
+    """Does this case carry a REAL gold label — a declared verdict OR a NON-EMPTY flag set?
+    Stricter than ``_case_labeled``: ``_to_envelope`` stuffs ``expected_safety_flags: []`` into
+    EVERY ingested case (an unlabeled placeholder, HONEST-1), so the empty list is NOT a gold.
+    The SINGLE labeled-derivation both ``/v1/cases`` and the RUN-ALL-1 cohort scorecard read, so
+    they can never drift (the live bug: the scorecard read a ``labeled`` key the raw envelope
+    never carries → "0 labeled" on a fully-labeled corpus)."""
+    return (
+        row.get("expected_compliance_verdict") is not None
+        or bool(row.get("expected_safety_flags"))
+    )
+
+
+def _corpus_golds_labeled(rows: list[dict]) -> tuple[dict[str, set], set]:
+    """RUN-ALL-1: derive the cohort scorecard's per-case gold + labeled-set from the raw
+    ingested envelopes (which carry NO ``labeled`` key). Pure; unit-tested over the real shape."""
+    corpus = {c.get("case_id"): c for c in rows if c.get("case_id")}
+    golds = {cid: set(c.get("expected_safety_flags") or []) for cid, c in corpus.items()}
+    labeled = {cid for cid, c in corpus.items() if _case_has_gold(c)}
+    return golds, labeled
+
+
 @app.get("/v1/case")
 def case_endpoint(
     agent: str = DEFAULT_AGENT,
@@ -1385,18 +1407,13 @@ def list_cases_endpoint() -> dict:
         if not cid:
             continue
         arts = row.get("artifacts") or []
-        # "labeled" here = carries a REAL gold label (a non-empty flag set or an explicit
-        # verdict). NOT _case_labeled: that counts `expected_safety_flags: []` as a declared
-        # clean-negative, but `_to_envelope` stuffs `[]` into EVERY ingested case (unlabeled by
-        # construction, HONEST-1), so it would mislabel the whole corpus as labeled.
-        labeled = (
-            row.get("expected_compliance_verdict") is not None
-            or bool(row.get("expected_safety_flags"))
-        )
         cases.append(
             {
                 "case_id": cid,
-                "labeled": labeled,
+                # "labeled" = carries a REAL gold label; the shared _case_has_gold the cohort
+                # scorecard also reads, so the two views never drift (NOT _case_labeled, which
+                # counts the `expected_safety_flags: []` placeholder as a clean-negative).
+                "labeled": _case_has_gold(row),
                 "context_kind": row.get("context_kind"),
                 "has_context": _ctx_nonempty(row.get("context")),
                 "has_artifact": bool(arts and (arts[0].get("content") or "")),
@@ -1527,9 +1544,8 @@ def grade_cases_endpoint(
     }
     # RUN-ALL-1: the consolidated report — score the matrix against each case's gold (in-process,
     # no span-matching; case_id rides every row). Labeled cases only feed accuracy (honest-unlabeled).
-    corpus = {c.get("case_id"): c for c in _read_ingested_corpus() if c.get("case_id")}
-    golds = {cid: set(c.get("expected_safety_flags") or []) for cid, c in corpus.items()}
-    labeled = {cid for cid, c in corpus.items() if c.get("labeled")}
+    # The raw envelope carries no `labeled` key — derive it (gold) the SAME way /v1/cases does.
+    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus())
     scorecard = _cohort_scorecard(rows, golds, labeled)
     return {"matrix": rows, "summary": summary, "scorecard": scorecard}
 
