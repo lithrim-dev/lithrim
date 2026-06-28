@@ -9,7 +9,8 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
-
+.devloop/
+.codex/
 # Local data — track only the manifest pointer, not the cohort itself.
 data/synthea_sample_data_csv_latest/
 data/synthea/
@@ -50,3 +51,25 @@ marketing_raw/
 packs-dropin/*
 !packs-dropin/.gitkeep
 !packs-dropin/README.md
+
+# Local LLM-provider config DB (CE-PROVIDER) + any stray SQLite — never commit.
+*.sqlite
+*.sqlite3
+provider_config.sqlite
+
+# Node deps for the shell UI — never commit.
+node_modules/
+
+# Local agent scratch (Claude/Codex session agents) — never commit.
+.agents/
+
+# Internal working docs — process notes, research logs, paper draft, design + strategy.
+# Kept on disk for the maintainers, never shipped in the public release.
+docs/research/
+docs/paper_draft/
+docs/design/
+docs/strategy/
+docs/runbooks/
+docs/*_2026-*.md
+docs/KICKOFF_*.md
+docs/label_owner_matrix.md
