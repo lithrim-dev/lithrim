@@ -1,4 +1,4 @@
-# Lithrim Bench — shell UI (apps/shell, the 3-pane conversational eval workspace) container.
+# Lithrim — shell UI (apps/shell, the 3-pane conversational eval workspace) container.
 # CE Build C. node 20, npm ci, vite build, then `vite preview` bound to 0.0.0.0:5180.
 #
 # VITE_BFF_URL: the shell client (src/bff.js) reads import.meta.env.VITE_BFF_URL and, when set,

@@ -1,7 +1,7 @@
 [project]
 name = "lithrim-bench"
 version = "0.1.0"
-description = "Deterministically-labeled clinical-AI artifact verification benchmark generator. Backs the Lithrim research paper and the Lithrim Bench developer product."
+description = "Deterministically-labeled clinical-AI artifact verification benchmark generator. Backs the Lithrim research paper and the Lithrim developer product."
 authors = [{name = "Lithrim"}]
 readme = "README.md"
 license = {text = "Apache-2.0"}

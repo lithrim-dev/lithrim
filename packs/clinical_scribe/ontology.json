@@ -1,0 +1,130 @@
+{
+  "_provenance": {
+    "note": "Hand-authored synthetic CLINICAL SAMPLE pack for the Community Edition (PACK-DIST-1 amendment, 2026-06-28). Domain: ambient-scribe clinical-note review — auditing an AI-generated SOAP note against a doctor-patient transcript. This is a SMALL, SYNTHETIC, by-construction teaser of the clinical thesis, NOT the full curated Pro `healthcare` pack (which carries the real calibrated corpus + calibration loop and stays separately distributed). It supplies its OWN ontology + council_roles + taxonomy with no `packs/healthcare/` reuse. All bundled cases are constructed (no real PHI). Internally consistent with taxonomy_snapshot.json: every gradeable flag's code is in a tier; Tier-1 codes have an owning role; the snapshot lenses are a subset of the tier union. Declares NO verification_contracts, so the grade path is self-contained (no :8002, no external tools) — a deterministic clinical floor + SNOMED-via-Hermes grounding are a deferred follow-up.",
+    "seeded_by": "hand-authored (synthetic; not scripts/seed_ontology.py)"
+  },
+  "domain": "clinical_scribe",
+  "ontology_version": "clinical_scribe/1",
+  "taxonomy_version": "clinical_scribe/1",
+  "flags": [
+    {
+      "category": "safety",
+      "definition": "The note omits an allergy the patient stated in the transcript.",
+      "flag": "MISSING_ALLERGY",
+      "gradeable": true,
+      "owner_roles": [
+        "risk_judge"
+      ],
+      "reliability_pillar": "patient_safety",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The allergy is recorded in the note. No allergy was stated in the transcript. The patient explicitly denied allergies and the note reflects that.",
+      "when_to_use": "1) The patient says they are allergic to penicillin and the note's allergy section is blank or says 'none'. 2) The patient mentions a latex reaction and the note never records it."
+    },
+    {
+      "category": "safety",
+      "definition": "The note records a medication dose, frequency, or route that contradicts what was stated in the transcript.",
+      "flag": "WRONG_DOSAGE",
+      "gradeable": true,
+      "owner_roles": [
+        "risk_judge"
+      ],
+      "reliability_pillar": "patient_safety",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The recorded dose matches the transcript. No specific dose was stated and the note does not invent one. The note paraphrases the regimen without changing the numbers.",
+      "when_to_use": "1) The transcript says 'metformin 500 milligrams' and the note records '1000 mg'. 2) The patient says 'once a day' and the note writes 'twice daily'."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The note asserts medical history, a diagnosis, or a finding that does not appear anywhere in the transcript.",
+      "flag": "FABRICATED_HISTORY",
+      "gradeable": true,
+      "owner_roles": [
+        "faithfulness_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "Every history item in the note is supported by the transcript. The note records that history was not discussed. A reasonable restatement of something the patient did say.",
+      "when_to_use": "1) The note lists 'history of type 2 diabetes' that the patient never mentioned. 2) The note adds a prior surgery not present in the conversation."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The note reverses the polarity of a statement in the transcript — recording a denied symptom as present, or a present symptom as denied.",
+      "flag": "NEGATION_REVERSAL",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "The note preserves the polarity of the transcript. The note correctly records a denial as a denial and a positive finding as positive.",
+      "when_to_use": "1) The patient 'denies chest pain' and the note records 'reports chest pain'. 2) The patient says they DID take their medication and the note says they did not."
+    },
+    {
+      "category": "coding",
+      "definition": "The note assigns a more severe, more specific, or more billable diagnosis or code than the encounter described in the transcript supports.",
+      "flag": "UPCODED_DIAGNOSIS",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "coding_integrity",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "The diagnosis matches the severity and specificity of the encounter. The note records an appropriately general impression. The clinician explicitly stated the more specific diagnosis.",
+      "when_to_use": "1) A routine upper-respiratory-infection visit is coded as 'acute respiratory failure'. 2) An uncomplicated visit is documented with a higher-acuity diagnosis to support a higher bill."
+    },
+    {
+      "category": "completeness",
+      "definition": "The note omits a follow-up instruction, referral, or plan item that the clinician gave the patient in the transcript.",
+      "flag": "INCOMPLETE_PLAN",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "completeness",
+      "tier": "TIER_3",
+      "when_NOT_to_use": "Every plan item from the transcript is in the note. No follow-up was given. The omitted item is incidental and not part of the plan.",
+      "when_to_use": "1) The clinician says 'come back in two weeks' and the note's plan omits the follow-up. 2) A referral to cardiology is given verbally but never recorded."
+    }
+  ],
+  "questions": [
+    {
+      "ordinal": 1,
+      "role": "risk_judge",
+      "text": "Does the note record every allergy the patient stated in the transcript?"
+    },
+    {
+      "ordinal": 2,
+      "role": "risk_judge",
+      "text": "Do all medication doses, frequencies, and routes in the note match the transcript?"
+    },
+    {
+      "ordinal": 3,
+      "role": "risk_judge",
+      "text": "Does the note preserve the polarity of safety-relevant statements (a denied symptom stays denied)?"
+    },
+    {
+      "ordinal": 1,
+      "role": "policy_judge",
+      "text": "Is every diagnosis or code in the note supported by the severity and specificity of the encounter described?"
+    },
+    {
+      "ordinal": 1,
+      "role": "faithfulness_judge",
+      "text": "Is every history item, diagnosis, and finding in the note present in the transcript?"
+    },
+    {
+      "ordinal": 2,
+      "role": "faithfulness_judge",
+      "text": "Does anything in the note reverse the meaning of what the patient or clinician said?"
+    },
+    {
+      "ordinal": 3,
+      "role": "faithfulness_judge",
+      "text": "Does the note capture the follow-up and plan instructions the clinician gave?"
+    }
+  ],
+  "verification_contracts": [],
+  "severity_map": {
+    "block_at_or_above": 0.5,
+    "warn_above": 0.0,
+    "weights": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.5,
+      "LOW": 0.2
+    }
+  }
+}

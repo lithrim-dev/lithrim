@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extract the ClinVerdict golden suite into a lithrim-bench importable corpus.
+"""Extract the Clinical Scribe Review golden suite into a lithrim-bench importable corpus.
 
-ClinVerdict (Dr. Sharif Al Zaber's physician-curated eval suite) stores each case as
+Clinical Scribe Review (Dr. Rivera's physician-curated eval suite) stores each case as
 human-authored markdown across THREE files that must be joined:
 
   1. data_assets/Case_XX*.md         -> 4 fenced blocks in fixed order:
@@ -18,9 +18,9 @@ proposed safety-flag codes are derived from the matrix and WILL quarantine until
 registered in the taxonomy snapshot (WS-2).
 
 Usage:
-    python scripts/extract_clinverdict.py \
-        --src /path/to/ClinVerdict-...-Evals-Suite \
-        --out out/clinverdict_v1.jsonl
+    python scripts/extract_clinical_scribe.py \
+        --src /path/to/Clinical Scribe Review-...-Evals-Suite \
+        --out out/clinical_scribe_v1.jsonl
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ PIPELINE_UNDER_TEST = {
 SOURCE_DATASET = {
     "dataset": "MTS_Dialogue-Clinical_Note",
     "huggingface_id": "har1/MTS_Dialogue-Clinical_Note",
-    "mts_sample_index": None,  # not recorded per-case in the repo; recover from Sharif
+    "mts_sample_index": None,  # not recorded per-case in the repo; recover from Rivera
     "license": "open-access (verify redistribution terms before publishing)",
 }
 SPECIALTY_KEYWORDS = {
@@ -169,7 +169,7 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
     num = case_number(case_path.name)
     meta = matrix.get(num, {})
     topic = meta.get("topic") or case_path.stem
-    case_id = f"clinverdict_{num:02d}_" + slug(topic).lower()
+    case_id = f"clinical_scribe_{num:02d}_" + slug(topic).lower()
 
     agent_verdict = meta.get("agent_verdict")
     expected_verdict = {"FAILED": "reject", "PASSED": "approve"}.get(agent_verdict or "", "needs_review")
@@ -178,8 +178,8 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
 
     return {
         "case_id": case_id,
-        "suite": "ClinVerdict",
-        "pack": "clinverdict_v1",
+        "suite": "Clinical Scribe Review",
+        "pack": "clinical_scribe_v1",
         "agent_type": "scribe",
         "specialty": specialty_for(case_path.name),
         "topic": topic,
@@ -195,8 +195,8 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
         "clean_negative": (expected_verdict == "approve"),
         "source_provenance": {
             **SOURCE_DATASET,
-            "clinverdict_case_file": f"data_assets/{case_path.name}",
-            "clinverdict_deep_dive": deep_dive_rel,
+            "clinical_scribe_case_file": f"data_assets/{case_path.name}",
+            "clinical_scribe_deep_dive": deep_dive_rel,
         },
         "pipeline_under_test": PIPELINE_UNDER_TEST,
         "patient_profile": {"allergies": [], "_note": "transcript is the source of truth; enrich in authoring loop"},
@@ -210,7 +210,7 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
                 # Native scribe-artifact contract (cf. healthcare/generators/scribe_artifact.py):
                 # content is a JSON STRING of a FHIR DocumentReference whose text/plain attachment
                 # data IS the SOAP body. _artifact_note decodes it for display; the council grades
-                # the same string. The SOAP is embedded VERBATIM from the ClinVerdict case file.
+                # the same string. The SOAP is embedded VERBATIM from the Clinical Scribe Review case file.
                 "content": json.dumps(
                     {
                         "resourceType": "DocumentReference",
@@ -236,10 +236,10 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
         },
         "prior_judge_report": {
             **parse_judge(judge_block),
-            "judge_meta_verdict": meta.get("judge_verdict"),  # Sharif's verdict ON the judge (FAILED = judge erred)
+            "judge_meta_verdict": meta.get("judge_verdict"),  # Rivera's verdict ON the judge (FAILED = judge erred)
         },
         "clinician_meta_evaluation": {
-            "calibrator": "Dr. Sharif Al Zaber",
+            "calibrator": "Dr. Rivera",
             "agent_verdict": agent_verdict,
             "judge_verdict": meta.get("judge_verdict"),
             "agent_errors": meta.get("agent_errors", []),
@@ -261,8 +261,8 @@ def build_row(case_path: Path, matrix: dict, deep_dive_rel: str | None) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="Path to the ClinVerdict repo root")
-    ap.add_argument("--out", default="out/clinverdict_v1.jsonl", help="Output NDJSON path")
+    ap.add_argument("--src", required=True, help="Path to the Clinical Scribe Review repo root")
+    ap.add_argument("--out", default="out/clinical_scribe_v1.jsonl", help="Output NDJSON path")
     args = ap.parse_args()
 
     src = Path(args.src).expanduser().resolve()
@@ -270,7 +270,7 @@ def main() -> None:
     readme = src / "analytics" / "README.md"
     deep_dir = src / "analytics" / "deep_dives"
     if not data_dir.is_dir() or not readme.is_file():
-        raise SystemExit(f"Not a ClinVerdict repo (missing data_assets/ or analytics/README.md): {src}")
+        raise SystemExit(f"Not a Clinical Scribe Review repo (missing data_assets/ or analytics/README.md): {src}")
 
     matrix = parse_matrix(readme.read_text(encoding="utf-8"))
     deep_files = {case_number(p.name): p for p in deep_dir.glob("*.md")} if deep_dir.is_dir() else {}

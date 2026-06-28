@@ -1,8 +1,8 @@
-# Lithrim Bench
+# Lithrim
 
 **A self-hostable evaluation harness for AI agents — with a tool-grounded verification *floor* that can override a confident LLM judge, and an immutable audit trail on every run.**
 
-> **Verifiable truth, not a promised win.** This README tells you exactly what Lithrim Bench does — *and where it doesn't work.* That boundary is the point.
+> **Verifiable truth, not a promised win.** This README tells you exactly what Lithrim does — *and where it doesn't work.* That boundary is the point.
 
 Bring your own model key. Run it on your laptop or in your VPC. **Your data never leaves your machine.**
 
@@ -10,7 +10,7 @@ Bring your own model key. Run it on your laptop or in your VPC. **Your data neve
 
 ## What it is
 
-Most AI-eval tools end at an LLM-as-judge — a second model scoring the first. But a judge is as fallible as the thing it grades: it can confidently approve a fabricated fact, or confidently flag a correct one. Lithrim Bench adds the layer underneath:
+Most AI-eval tools end at an LLM-as-judge — a second model scoring the first. But a judge is as fallible as the thing it grades: it can confidently approve a fabricated fact, or confidently flag a correct one. Lithrim adds the layer underneath:
 
 1. **A multi-model council** grades an artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags, with **logprob-calibrated confidence** (a real probability from the model's own tokens — not a self-reported number).
 2. **A deterministic, tool-grounded floor** then re-checks the council's findings against ground truth — a record, a schema, a terminology service — and can **override the verdict**: suppress a finding the council got confidently wrong, or block an output the council missed.
@@ -116,22 +116,24 @@ The floor and judges can call external services — a terminology server, a sche
 
 ---
 
-## What Lithrim Bench honestly does — and does NOT do
+## What Lithrim honestly does — and does NOT do
 
 This is the part most tools omit. The floor's power is **bounded**, and we tested the boundary with a blind held-out experiment rather than asserting it:
 
 - **✅ Where the floor generalizes — closed-vocabulary / structured facts.** Dosage arithmetic, code/terminology membership (SNOMED/ICD), schema/FHIR conformance, record presence. The check is set-membership or arithmetic, so it generalizes to unseen cases and can reliably override a judge.
 - **❌ Where it does NOT generalize — open-ended discourse.** Detecting an open-ended concept in free text (e.g. "was a refusal documented?") is open NLU. A deterministic/lexical floor here either misses novel phrasings or false-flags paraphrases. **In a blind held-out test, a serious 30-pattern rule scored recall 0.375 / precision 0.75 — it does not generalize.** For that class, an LLM judge (or a human-in-the-loop) is the right tool, not a deterministic floor.
 
-So: **use the floor for grounded, structured claims; use the judge (and a human) for open-ended discourse.** Lithrim Bench is honest about which is which — and surfaces an inconclusive when it can't ground something, instead of guessing.
+So: **use the floor for grounded, structured claims; use the judge (and a human) for open-ended discourse.** Lithrim is honest about which is which — and surfaces an inconclusive when it can't ground something, instead of guessing.
 
 This is not "a better judge." Judges are commodity. This is **the grounded floor underneath the judge, with an honest map of its own limits.**
+
+> **Intended use & safety.** Lithrim is a developer evaluation harness — **not a medical device and not clinical decision support.** It does not diagnose, treat, or give medical advice, and it is **not HIPAA-certified, FDA-cleared, or clinically validated.** Its verdicts are signals to route human review, not guarantees of correctness or safety; any clinical use requires qualified human oversight. All bundled sample data is **synthetic** (Synthea-generated) — never load real patient data into a deployment you don't control.
 
 ---
 
 ## Your data & keys stay local
 
-Lithrim Bench is self-hosted. There is no Lithrim-hosted inference, no account, no telemetry.
+Lithrim is self-hosted. There is no Lithrim-hosted inference, no account, no telemetry.
 
 - **The demo needs nothing** — no key, no network.
 - **For a live grade you provide the key** (BYOK): copy [`.env.example`](.env.example) to `.env` and fill in `OPENAI_API_KEY` (or the `AZURE_OPENAI_*` vars). Your real `.env`, `.live_env`, and `.connector_env` are **gitignored** — they never enter the repo, and nothing leaves your machine.
@@ -154,13 +156,13 @@ We'd rather ship a smaller honest thing than a broad one that over-promises.
 
 ## Open-core
 
-The engine, the harness, the neutral `_core` pack, the sample packs, and the plugin/connector interface are **all open** (see [`LICENSE`](LICENSE)) — because adoption beats protecting the bits, and the moat was never the cases. The full clinical `healthcare` domain pack is distributed separately (its own repo) and loads through the pack-discovery seam above. Future commercial value (calibration, the SME-calibration loop, larger curated corpora, hosted/VPC, support) is **deferred until there's pull** — and would be *new* value, not a re-closing of what ships open here. The free core is **genuinely useful standalone** — not a crippled teaser.
+The engine, the harness, the neutral `_core` pack, the sample packs, and the plugin/connector interface are **all open** (see [`LICENSE`](LICENSE)) — because adoption beats protecting the bits, and the moat was never the cases. A small **synthetic clinical sample pack** (`clinical_scribe`) ships in CE so the clinical thesis is runnable on a fresh clone — five by-construction failure modes (missing allergy, wrong dosage, fabricated history, negation reversal, diagnosis upcoding) plus a clean negative, all synthetic. It's a teaser, not the product: the full curated clinical `healthcare` domain pack (the calibrated corpus + the SME calibration loop) is distributed separately (its own repo) and loads through the pack-discovery seam above. Future commercial value (calibration, the SME-calibration loop, larger curated corpora, hosted/VPC, support) is **deferred until there's pull** — and would be *new* value, not a re-closing of what ships open here. The free core is **genuinely useful standalone** — not a crippled teaser.
 
 ---
 
 ## Research
 
-Lithrim Bench backs the research paper *A Deterministic Structural Floor Under LLM-as-Judge* — the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. The locked outline is [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md); the engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+Lithrim backs the research paper *A Deterministic Structural Floor Under LLM-as-Judge* — the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. The locked outline is [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md); the engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
 
 ---
 
@@ -174,4 +176,4 @@ Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactu
 
 ---
 
-*Lithrim Bench is built on the premise that an AI system cannot be trusted to certify its own safety — the check has to live outside it, be grounded in something real, and be honest about its own blind spots. If you find a place it over-claims, open an issue. That's the contribution we value most.*
+*Lithrim is built on the premise that an AI system cannot be trusted to certify its own safety — the check has to live outside it, be grounded in something real, and be honest about its own blind spots. If you find a place it over-claims, open an issue. That's the contribution we value most.*

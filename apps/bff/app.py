@@ -537,7 +537,7 @@ class GroundingContractRequest(BaseModel):
     agent: str = DEFAULT_AGENT
 
 
-# META-VERDICT-1: the closed judge-fallacy taxonomy (ClinVerdict's "Judge Fallacy" column).
+# META-VERDICT-1: the closed judge-fallacy taxonomy (Clinical Scribe Review's "Judge Fallacy" column).
 # A clinician naming WHY the automated judge erred — the dissent's typed reason. Closed by
 # construction: an out-of-enum code 422s at the model boundary (pydantic), never a free string.
 JudgeFallacyCode = Literal[
@@ -551,8 +551,8 @@ JUDGE_FALLACY_CODES: tuple[str, ...] = get_args(JudgeFallacyCode)
 
 
 class MetaVerdictRequest(BaseModel):
-    # META-VERDICT-1 (SPEC_CLINVERDICT_SELF_SERVE §4 P0): a physician's INDEPENDENT verdict +
-    # judge meta-audit on a run — ClinVerdict's Layer-3 (HITL clinical validator). The clinician
+    # META-VERDICT-1 (SPEC_CLINICAL_SCRIBE_SELF_SERVE §4 P0): a physician's INDEPENDENT verdict +
+    # judge meta-audit on a run — Clinical Scribe Review's Layer-3 (HITL clinical validator). The clinician
     # records their own pass/fail, whether they AGREE with the council, and — when they dissent —
     # the judge's named fallacy. $0, no paid knob: this is an immutable AuditRecord, not a grade.
     run_id: str
@@ -2953,7 +2953,7 @@ def post_meta_verdict_endpoint(
     x_actor: str | None = Header(None, alias="X-Actor"),
 ) -> dict:
     """META-VERDICT-1: record a clinician's INDEPENDENT verdict + judge meta-audit against a
-    run — ClinVerdict's Layer-3 (the HITL clinical validator), the surface that was missing.
+    run — Clinical Scribe Review's Layer-3 (the HITL clinical validator), the surface that was missing.
 
     A physician reads the council's votes (GET /v1/runs/{id}/audit) and records: their own
     pass/fail, whether they AGREE with the council, and — when they dissent — the judge's

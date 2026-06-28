@@ -13,7 +13,7 @@ vi.mock("./bff.js", () => ({
   getCorpus: vi.fn().mockResolvedValue({ rows: [] }),
   // NARR-CHAT-LOOP: the show_case CaseCard self-fetches GET /v1/case — stub it so the rendered
   // card doesn't reject when a case_summary part streams in.
-  getCase: vi.fn().mockResolvedValue({ case_id: "clinverdict_05", transcript: "…", expected_safety_flags: [] }),
+  getCase: vi.fn().mockResolvedValue({ case_id: "clinical_scribe_05", transcript: "…", expected_safety_flags: [] }),
   listCases: vi.fn().mockResolvedValue({ cases: [], count: 0 }),
   getOntology: vi.fn().mockResolvedValue({ flags: [], questions: [] }),
   putOntology: vi.fn().mockResolvedValue({}),
@@ -121,10 +121,10 @@ describe("CenterPane — the R11 conversational loop", () => {
     const onActiveCase = vi.fn();
     chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
       if (!onEvent) return;
-      onEvent({ event: "tool_result", part: { type: "tool-case_summary", state: "output-available", output: { agent: "ws0_default", case_id: "clinverdict_05" } } });
+      onEvent({ event: "tool_result", part: { type: "tool-case_summary", state: "output-available", output: { agent: "ws0_default", case_id: "clinical_scribe_05" } } });
       onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
     });
-    render(<CenterPane agent="ws0_default" activeCase="clinverdict_07" onActiveCase={onActiveCase}
+    render(<CenterPane agent="ws0_default" activeCase="clinical_scribe_07" onActiveCase={onActiveCase}
       onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
 
     const ta = screen.getByPlaceholderText(/Ask Lithrim/i);
@@ -134,11 +134,11 @@ describe("CenterPane — the R11 conversational loop", () => {
     await waitFor(() => expect(chatStream).toHaveBeenCalledTimes(1));
     // UI → chat: the selected case rode the request
     expect(chatStream).toHaveBeenCalledWith(
-      expect.objectContaining({ active_case: "clinverdict_07" }),
+      expect.objectContaining({ active_case: "clinical_scribe_07" }),
       expect.objectContaining({ onEvent: expect.any(Function) }),
     );
     // chat → UI: the case the show_case card opened lifts back into the shared active case
-    await waitFor(() => expect(onActiveCase).toHaveBeenCalledWith("clinverdict_05"));
+    await waitFor(() => expect(onActiveCase).toHaveBeenCalledWith("clinical_scribe_05"));
   });
 
   it("streams the journey tool-parts and renders them inline via the existing registry (no new cards)", async () => {

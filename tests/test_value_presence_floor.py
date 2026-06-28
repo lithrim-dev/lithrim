@@ -8,7 +8,7 @@ parseable it is inconclusive and NEVER flips by silence. This is the case-10 mec
 a transcript records a vaccine refusal, the SOAP note ERASES it → the floor flips
 PASS→BLOCK deterministically, independent of any judge.
 
-Per ``SPEC_CLINVERDICT_SELF_SERVE.md:122-124`` the tool class + executor ship pack-local
+Per ``SPEC_CLINICAL_SCRIBE_SELF_SERVE.md:122-124`` the tool class + executor ship pack-local
 (``packs/narrative/floors.py``, BracketLeakTool is the template); only the NAME is
 registered once in core (``_KNOWN_TOOLS`` + ``_REQUIRED_REFERENCE_KEYS``). The oracle is
 deterministic surface-form matching (``re.findall(value_regex, source)`` → normalized

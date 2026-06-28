@@ -1,4 +1,4 @@
-# Lithrim Bench — Product Spec
+# Lithrim — Product Spec
 
 **Status:** v0.1 draft, not committed-to.
 **Owner:** Rahul (founder)
@@ -125,7 +125,7 @@ The eval/observability layer is crowded but **horizontal and developer-first** (
 
 Closest comp — **Composo** (generative reward model; "deterministic" = low-variance scorer; SaaS/VPC; ~95% expert agreement) builds a *better judge*. Bench's claim is different in kind:
 
-| | Composo / LLM-judge tools | Lithrim Bench |
+| | Composo / LLM-judge tools | Lithrim |
 |---|---|---|
 | Source of truth | a model trained to agree with experts | **construction** (the injection recipe *is* the label) + a deterministic tool oracle |
 | "Deterministic" means | low-variance scoring | **epistemic** — the floor can *overrule* the judge |

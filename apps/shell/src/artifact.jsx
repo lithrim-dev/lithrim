@@ -205,7 +205,7 @@ function ReportTab({ runStatus, runResult, runError }) {
 // The realized per-judge votes the council cast on THIS case (run-eval `council`).
 // Per-case truth (what each judge voted + its confidence), not a configured roster.
 function JudgeTab({ runStatus, runResult, runError }) {
-  // TRANSPARENCY-1 (the ClinVerdict contrast): each judge's LENS — the flags it COULD raise +
+  // TRANSPARENCY-1 (the Clinical Scribe Review contrast): each judge's LENS — the flags it COULD raise +
   // whether it did — lives in the run's provenance audit (GET /v1/runs/{id}/audit `withstands`),
   // NOT the grade-time council view. Self-fetch it (the ConfigTab/CorpusTab pattern) and key by
   // role, so a PASS that happened because NOTHING in the lens covers the defect (Risk-Severity

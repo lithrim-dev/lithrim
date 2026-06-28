@@ -1,6 +1,6 @@
 {
-  "source": "/Users/aregee/Workspace/github.com/zyng/out_lithrim_demo/bench_journey_silent.mp4",
-  "title": "Lithrim Bench — the 4-phase launch journey",
+  "source": "<workspace>/zyng/out_lithrim_demo/bench_journey_silent.mp4",
+  "title": "Lithrim — the 4-phase launch journey",
   "theme": "midnight",
   "voice": "narrator",
   "aspect": "16:9",
@@ -10,7 +10,7 @@
     {
       "id": "intro",
       "offset_s": 1.49,
-      "text": "Lithrim Bench. You install it, point it at your own agent — here, a clinical scribe — and bring your own key. It runs entirely on your machine."
+      "text": "Lithrim. You install it, point it at your own agent — here, a clinical scribe — and bring your own key. It runs entirely on your machine."
     },
     {
       "id": "reveal_setup",
@@ -40,7 +40,7 @@
     {
       "id": "close",
       "offset_s": 86.33,
-      "text": "LLM judges alone do not suffice. Lithrim Bench — calibrate your judges against a truth you can prove."
+      "text": "LLM judges alone do not suffice. Lithrim — calibrate your judges against a truth you can prove."
     }
   ]
 }

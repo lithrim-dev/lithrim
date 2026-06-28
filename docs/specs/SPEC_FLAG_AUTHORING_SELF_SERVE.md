@@ -1,6 +1,6 @@
 # SPEC: Flag-Authoring Self-Serve — a physician authors a deterministic floor by talking
 
-> **Status: DRAFT 2026-06-19.** A non-coder physician (Dr Sharif) authors and tests an eval
+> **Status: DRAFT 2026-06-19.** A non-coder physician (Dr Rivera) authors and tests an eval
 > **criterion** by conversation + inline gen-UI — never by editing Python. The criterion that
 > ships is a **deterministic grounding-floor `verification_contract`**, not a fallible LLM judge.
 > External clinical-evidence retrieval (OpenEvidence), the org policy KB (`kb_context`), and coded
@@ -14,10 +14,10 @@
 
 ## 1. Thesis + the contrast (case 10)
 
-**How Dr Sharif authors a criterion today (ClinVerdict).** A "criterion" is one rubric dimension
+**How Dr Rivera authors a criterion today (Clinical Scribe Review).** A "criterion" is one rubric dimension
 (Faithfulness / Completeness / Safety, scored 1–5) living inside a single hardcoded LLM-judge
 prompt in a Colab notebook (`evaluators/clinical_scribe_agent.py`, `prompts.md` in
-`../ClinVerdict-Physician-Curated-Clinical-AI-Evals-Suite`). Arize Phoenix is telemetry ONLY
+`../Clinical Scribe Review-Physician-Curated-Clinical-AI-Evals-Suite`). Arize Phoenix is telemetry ONLY
 (span/cost tracing), never the verdict engine. **Adding a criterion = edit Python + re-run the
 notebook + hand-write a markdown meta-verdict.** It is a code task, gated on an engineer.
 
@@ -27,7 +27,7 @@ the scribe note ERASED a patient's explicit tetanus-vaccine refusal. Gemini caug
 council MISSED it (Risk-Severity Blindness). The lesson is not "buy a better judge" — it is
 "the floor that decides must be deterministic, and the human must be able to author it."
 
-**The Lithrim self-serve goal.** Dr Sharif states the rubric in plain language, the system ASSISTS
+**The Lithrim self-serve goal.** Dr Rivera states the rubric in plain language, the system ASSISTS
 him with authoritative evidence + coded concepts, and he PINS a deterministic
 `verification_contract` that runs over the artifact and can inject a BLOCK on its own — all by
 conversation, no notebook, no Python. The criterion he ships is **true-by-construction**
@@ -50,7 +50,7 @@ runtime: the council reads `KNOWN_TAXONOMY_CODES`, tier sets, `_TIER1_OWNERS`, t
     `owner_roles=[]` (`apps/bff/agent/tools.py:494-526`) — a chat-created flag is **inert as a
     judge by construction**. This is correct and must NOT be relaxed: chat must not be able to mint
     a new fallible LLM judge. Doing so would manufacture exactly the hallucination-blind judges
-    Sharif indicts.
+    Rivera indicts.
 
 ### Plane (2) — GROUNDING-FLOOR (deterministic tool). **THE self-serve plane.**
 A `verification_contract` on a flag runs over the ARTIFACT at grade time and can INJECT a BLOCK

@@ -1,5 +1,5 @@
 {
-  "source": "/Users/aregee/Workspace/github.com/lithrim-bench/out/zyng_narrate/live_eval_loop_offline.mp4",
+  "source": "out/zyng_narrate/live_eval_loop_offline.mp4",
   "title": "Lithrim - the live evaluation loop",
   "theme": "dawn",
   "voice": "narrator",

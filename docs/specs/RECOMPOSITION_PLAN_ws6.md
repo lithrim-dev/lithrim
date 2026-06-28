@@ -242,14 +242,14 @@ The topology spec defines WS-6c (port council) / WS-6d (persistence swap) / WS-6
 ---
 
 **Files most relevant to WS-6c execution (all absolute):**
-- PORT-as-IP source (SSOT, port from here): `/Users/aregee/Workspace/github.com/lithrim-backend/app/services/compliance_council.py` (tables :176-356, consensus+veto :1798-2398), `/Users/aregee/Workspace/github.com/lithrim-backend/app/models/safety_flags.py`, `/Users/aregee/Workspace/github.com/lithrim-backend/app/prompts/council_roles/*.txt`
-- Workflow-side recompute (port in lockstep): `/Users/aregee/Workspace/github.com/lithrim-backend/app/workflows/compliance_workflow.py` (:2206, :2281)
-- SALVAGE infra: `/Users/aregee/Workspace/github.com/lithrim-backend/app/services/llm_provider.py`, `/Users/aregee/Workspace/github.com/lithrim-backend/app/config.py`, `/Users/aregee/Workspace/github.com/lithrim-backend/app/services/pipeline/provenance.py`
-- RECOMPOSE source: `/Users/aregee/Workspace/github.com/lithrim-backend/app/workflows/observation_workflow.py`, `/Users/aregee/Workspace/github.com/lithrim-backend/app/agents/`
-- DSPy prior art (reference, NOT import — worktree/throwaway): `/Users/aregee/Workspace/github.com/lithrim-bench/.claude/worktrees/agent-adefc36309f77ed1b/experiments/dspy_council_smoke/council_v2.py`, `council_dspy.py`, `v2_runs.ndjson`, `smoke_result_v3_grounded.json`
-- Recompose TARGET (bench): `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/runtime/council/` (parked seed — stale, re-derive), `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/verification/` (toolbox), `/Users/aregee/Workspace/github.com/lithrim-bench/lithrim_bench/harness/` (grade-ground loop), `/Users/aregee/Workspace/github.com/lithrim-bench/scripts/run_eval.py`
-- Frozen contract + frame: `/Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md`, `/Users/aregee/Workspace/github.com/lithrim-bench/docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md`
-- Re-snapshot before port: `/Users/aregee/Workspace/github.com/lithrim-bench/scripts/snapshot_taxonomy.py`, `/Users/aregee/Workspace/github.com/lithrim-bench/taxonomy/taxonomy_snapshot.json` (re-snapshotted @ `493b533`, 2026-06-01)
+- PORT-as-IP source (SSOT, port from here): `<workspace>/lithrim-backend/app/services/compliance_council.py` (tables :176-356, consensus+veto :1798-2398), `<workspace>/lithrim-backend/app/models/safety_flags.py`, `<workspace>/lithrim-backend/app/prompts/council_roles/*.txt`
+- Workflow-side recompute (port in lockstep): `<workspace>/lithrim-backend/app/workflows/compliance_workflow.py` (:2206, :2281)
+- SALVAGE infra: `<workspace>/lithrim-backend/app/services/llm_provider.py`, `<workspace>/lithrim-backend/app/config.py`, `<workspace>/lithrim-backend/app/services/pipeline/provenance.py`
+- RECOMPOSE source: `<workspace>/lithrim-backend/app/workflows/observation_workflow.py`, `<workspace>/lithrim-backend/app/agents/`
+- DSPy prior art (reference, NOT import — worktree/throwaway): `.claude/worktrees/agent-adefc36309f77ed1b/experiments/dspy_council_smoke/council_v2.py`, `council_dspy.py`, `v2_runs.ndjson`, `smoke_result_v3_grounded.json`
+- Recompose TARGET (bench): `lithrim_bench/runtime/council/` (parked seed — stale, re-derive), `lithrim_bench/verification/` (toolbox), `lithrim_bench/harness/` (grade-ground loop), `scripts/run_eval.py`
+- Frozen contract + frame: `docs/specs/SPEC_PRODUCT_SERVICE_TOPOLOGY.md`, `docs/specs/COUNCIL_V2_INTEGRATION_SPEC.md`
+- Re-snapshot before port: `scripts/snapshot_taxonomy.py`, `taxonomy/taxonomy_snapshot.json` (re-snapshotted @ `493b533`, 2026-06-01)
 
 ---
 

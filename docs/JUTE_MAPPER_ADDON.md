@@ -1,6 +1,6 @@
 # The JUTE mapper add-on (ingesting arbitrary agent-trace JSON)
 
-The Lithrim Bench **Community Edition is self-contained**: the core, grading (BYOK), and the
+The Lithrim **Community Edition is self-contained**: the core, grading (BYOK), and the
 clean `make demo` replay run with **no extra services**. You only need the JUTE mapper for one
 thing — **ingesting arbitrary / nested agent-trace JSON** (paste a JSON dump → it maps the nested
 trace into eval cases → run the council on them).

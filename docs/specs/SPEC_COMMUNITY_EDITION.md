@@ -1,4 +1,4 @@
-# SPEC — Lithrim Bench Community Edition (CE) onboarding
+# SPEC — Lithrim Community Edition (CE) onboarding
 
 > **Status:** DRAFT for owner review (2026-06-24). Plan-review-before-code: this is the build
 > contract; the build agents run only on owner "go". **Nothing in here touches the frozen council

@@ -1,7 +1,7 @@
 """NARR-9 — a workspace pinned to an EXTERNALLY-DISTRIBUTED pack self-describes where that pack
 lives (``packs_dir``), so the grade subprocess can find it regardless of the BFF's ambient env.
 
-Diagnosis (live dogfood 2026-06-17): the `clinverdict` workspace pinned `pack=healthcare` (an
+Diagnosis (live dogfood 2026-06-17): the `clinical_scribe` workspace pinned `pack=healthcare` (an
 external pack at ../lithrim-pack-healthcare) but recorded `packs_dir: null`. The grade subprocess
 (`_grade_via_subprocess` sets LITHRIM_BENCH_PACKS_DIR only from `ws.packs_dir`) then crashed
 `FileNotFoundError: pack 'healthcare' not found` unless the BFF's own shell happened to export the

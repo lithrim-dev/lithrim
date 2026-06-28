@@ -85,7 +85,7 @@ def test_by_flag_over_and_under_fire_breakdown():
 # The stored case envelope carries NO `labeled` key — that field is *derived* by /v1/cases.
 # The cohort scorecard must derive it the SAME way (from the gold), or a fully-labeled corpus
 # reports "0 labeled" and the scorecard refuses to score anything (the live bug on the
-# ClinVerdict suite: 10 labeled cases shown as unlabeled, precision/recall n/a).
+# Clinical Scribe Review suite: 10 labeled cases shown as unlabeled, precision/recall n/a).
 
 
 def test_case_has_gold_derives_from_gold_not_a_labeled_key():

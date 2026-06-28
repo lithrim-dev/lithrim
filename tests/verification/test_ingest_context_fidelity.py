@@ -1,7 +1,7 @@
 """Ingest fidelity: the grading CONTEXT (e.g. a clinical transcript) must survive ingestion,
 and a transform that DROPS it must be REJECTED — not silently pinned.
 
-Diagnosis (live dogfood 2026-06-17, ClinVerdict scribe push): `_to_envelope` assembled
+Diagnosis (live dogfood 2026-06-17, Clinical Scribe Review scribe push): `_to_envelope` assembled
 `context` from NARRATIVE-only keys, so a clinical record carrying `transcript` produced
 `context="{}"` — the SOAP survived but the thing it is graded AGAINST was lost. And
 `_REQUIRED_KEYS=("case_id","response")` did not require `context`, so `score_extraction`
@@ -25,13 +25,13 @@ from lithrim_bench.verification.jute_extractor import _to_envelope, score_extrac
 # a clinical scribe record (the shape a scribe→lithrim-sdk push normalizes to): the SOAP is
 # `response`; the transcript it is graded against rides `context`.
 CLINICAL = {
-    "case_id": "clinverdict_01",
+    "case_id": "clinical_scribe_01",
     "response": "S (Subjective): cramps in feet and hands ...",
     "context": "Doctor: Tell me what brings you here?\nPatient: I'm having these cramps ...",
 }
 # the BUG shape: the transform dropped the transcript — case_id+response present, no context.
 CLINICAL_NO_CONTEXT = {
-    "case_id": "clinverdict_01",
+    "case_id": "clinical_scribe_01",
     "response": "S (Subjective): cramps in feet and hands ...",
 }
 # a narrative record (StoryWorld §4.2 per-scene shape) — context is assembled from these keys.

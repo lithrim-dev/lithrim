@@ -199,7 +199,7 @@ INGEST_CASES_SCHEMA: dict[str, Any] = {
     "agent": str,
 }
 # META-VERDICT-1 — RECORD a clinician's INDEPENDENT verdict + judge meta-audit on a run
-# (ClinVerdict Layer-3, the HITL clinical validator). An audited $0 WRITE: the human's pass/fail,
+# (Clinical Scribe Review Layer-3, the HITL clinical validator). An audited $0 WRITE: the human's pass/fail,
 # whether they AGREE with the council, and — on dissent — the judge's named fallacy (a CLOSED enum:
 # Hallucination Blindness | Reference Bias | Metric Conflation | Risk-Severity Blindness | Boundary
 # Violation; an out-of-enum code is rejected). NO PAID_KEY — recording an attestation is not a grade.
@@ -260,7 +260,7 @@ class ToolContext:
       corpus, not the agent's single seed. Returns {cases, count}. $0/read.)
     - ``record_meta_verdict(run_id, human_verdict, agrees_with_council, judge_fallacy_code,
       rationale) -> dict``  (META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit
-      — ClinVerdict Layer-3. An audited $0 WRITE of one immutable AuditRecord (action=meta_verdict,
+      — Clinical Scribe Review Layer-3. An audited $0 WRITE of one immutable AuditRecord (action=meta_verdict,
       target=verdict/run_id). An out-of-enum judge_fallacy_code raises (surfaced). Never a paid run.)
     - ``default_agent``: the agent the tools default to.
     - ``active_case``: NARR-CHAT-LOOP — the case the human is exploring in the UI (the shared
@@ -708,7 +708,7 @@ async def create_judge_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[s
 
 async def record_meta_verdict_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # META-VERDICT-1 (audited WRITE): record the clinician's INDEPENDENT verdict + judge meta-audit
-    # on a run — ClinVerdict Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
+    # on a run — Clinical Scribe Review Layer-3 (the HITL clinical validator). $0, no PAID_KEY. The bound
     # ctx.record_meta_verdict validates at the model boundary (an out-of-enum judge_fallacy_code or
     # human_verdict raises) and writes one immutable AuditRecord; a failure is SURFACED exactly as
     # add_grounding_contract surfaces 404/422 — never bypassed, never a paid run.

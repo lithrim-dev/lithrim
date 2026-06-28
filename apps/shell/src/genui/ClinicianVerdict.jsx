@@ -1,5 +1,5 @@
 /* ClinicianVerdict.jsx — META-VERDICT-1 / CONV-FIRST: the clinician's INDEPENDENT verdict +
-   judge meta-audit on a run (ClinVerdict Layer-3, the HITL clinical validator). A physician
+   judge meta-audit on a run (Clinical Scribe Review Layer-3, the HITL clinical validator). A physician
    records their own pass/fail, whether they AGREE with the council, and — on dissent — the
    judge's named fallacy + rationale. It POSTs one immutable, audited AuditRecord; it NEVER
    changes the verdict and never fires a paid run.
@@ -12,7 +12,7 @@ import { useState } from "react";
 import { recordMetaVerdict } from "../bff.js";
 import { friendlyError } from "./copy.js";
 
-// META-VERDICT-1: the closed judge-fallacy taxonomy (ClinVerdict's "Judge Fallacy" column) —
+// META-VERDICT-1: the closed judge-fallacy taxonomy (Clinical Scribe Review's "Judge Fallacy" column) —
 // a clinician naming WHY the automated judge erred. Mirrors the BFF's JudgeFallacyCode enum.
 export const JUDGE_FALLACIES = [
   "Hallucination Blindness",

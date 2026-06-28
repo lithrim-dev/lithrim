@@ -21,7 +21,7 @@ HONEST BOUNDARY (kept):
     ``tests/test_criterion_writer.py``). This proves the self-serve governed path on the core
     sample pack with a real clinical case as the payload.
   * The flip is the deterministic floor (no LLM): the council verdict is the documented real
-    case-10 APPROVE (REPORT_clinverdict_contrast_case10_2026-06-19.md); the floor does the rest.
+    case-10 APPROVE (REPORT_clinical_scribe_contrast_case10_2026-06-19.md); the floor does the rest.
 """
 
 from __future__ import annotations
@@ -216,7 +216,7 @@ def test_governed_value_presence_flips_case10_approve_to_block(tmp_path):
     out = _run_governed_flip(tmp_path)
 
     assert out["value_presence_registered"] is True
-    assert out["case_id"] == "clinverdict_10_splinter_injury_vaccine_refusal"
+    assert out["case_id"] == "clinical_scribe_10_splinter_injury_vaccine_refusal"
     # the headline: the council APPROVED, the now-GOVERNED floor flips it to BLOCK
     assert out["original_verdict"] == "PASS"
     assert out["stage_verdict"] == "BLOCK"

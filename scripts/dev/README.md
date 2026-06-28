@@ -54,7 +54,7 @@ judge (`Mistral-Large-3` / `Llama-4-Maverick`), which lapse more often than the 
 make probe         # fires 1 token at each deployment; prints OK / FAIL per judge
 ```
 
-Then check that deployment in the Azure portal (`lithrim-dev-ai` resource → Deployments).
+Then check that deployment in the Azure portal (`<your-azure-resource>` resource → Deployments).
 The bench is fine in this case — it's Azure-side health.
 
 ## Requirements

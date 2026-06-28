@@ -42,7 +42,7 @@ TOOL_SILENT_DEGRADATION = "silent_degradation"
 # FAUTH-4 / NARR-FLOOR-1: the inverse-direction ``value_presence`` completeness floor —
 # a value spoken in a ``source_path`` (default ``transcript``) must appear in the artifact;
 # absent → inject a BLOCK the council missed (the case-10 erased-refusal mechanism). The NAME
-# is the "one unavoidable additive line" in core (SPEC_CLINVERDICT_SELF_SERVE.md:122); the tool
+# is the "one unavoidable additive line" in core (SPEC_CLINICAL_SCRIBE_SELF_SERVE.md:122); the tool
 # class + executor ship pack-local (``packs/narrative/floors.py``). After this, authoring is
 # params-only and a second inverse floor needs no new code.
 TOOL_VALUE_PRESENCE = "value_presence"

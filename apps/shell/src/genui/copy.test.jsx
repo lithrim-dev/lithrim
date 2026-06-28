@@ -28,7 +28,7 @@ describe("UX-COPY-1 — label helpers", () => {
   it("friendlyError never leaks HTTP/paths/JSON; maps known causes; keeps validation reasons", () => {
     // the screenshot case: POST + 404 + JSON detail + a filesystem path → a clean sentence
     const screenshot =
-      'POST /v1/run-eval → 404: {"detail":"\\"agent \'ws0_default\' not found in config DB /Users/aregee/Workspace/github.com/lithrim-bench/out/workspaces/clinverdict/config.sqlite\\""}';
+      'POST /v1/run-eval → 404: {"detail":"\\"agent \'ws0_default\' not found in config DB out/workspaces/clinical_scribe/config.sqlite\\""}';
     const out = friendlyError(screenshot);
     expect(out).toBe("This evaluation isn't set up yet — create or pick one, then try again.");
     expect(out).not.toMatch(/POST|\/v1\/|404|\.sqlite|\/Users\/|detail/i); // no machinery leaks

@@ -3,13 +3,13 @@ Synthea cohort — paper-1-copilot P1-FHIR-CONFORMANCE-MINI
 
 Generated: 2026-05-28 06:01 IST
 Generator: Synthea v4.0.0
-JAR path:  /Users/aregee/Workspace/synthea/synthea-with-dependencies.jar
+JAR path:  <synthea>/synthea-with-dependencies.jar
 JAR SHA256: ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1
 Java:      OpenJDK Zulu21.44+17-CA 21.0.8 LTS
 
 Command
 -------
-  java -jar /Users/aregee/Workspace/synthea/synthea-with-dependencies.jar \
+  java -jar <synthea>/synthea-with-dependencies.jar \
        -s 1 -p 112 \
        --exporter.csv.export=true \
        --exporter.fhir.export=true \
@@ -47,7 +47,7 @@ Layout
     metadata/                  — Synthea run metadata
     x12/                       — empty (x12 export not requested)
 
-This cohort is INDEPENDENT of /Users/aregee/Workspace/github.com/synthea_sample_data_csv_latest/
+This cohort is INDEPENDENT of <workspace>/synthea_sample_data_csv_latest/
 which P1-CANONICAL-PACK eval_case docs reference. Do NOT mutate either cohort.
 
 Used by

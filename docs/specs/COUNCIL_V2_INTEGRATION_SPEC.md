@@ -320,7 +320,7 @@ A7. `compliance_workflow.py` reads `verdict_flipped_by_stage` correctly post-com
 After plan-review approval:
 
 ```bash
-cd /Users/aregee/Workspace/github.com/lithrim-backend
+cd <workspace>/lithrim-backend
 
 # Step 1: Verify Azure deployments
 for ID in gpt-4.1 gpt-4.1-mini Mistral-Large-3 Llama-4-Maverick-17B-128E-Instruct-FP8; do

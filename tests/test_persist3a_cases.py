@@ -85,8 +85,8 @@ def test_two_workspaces_in_one_table_are_isolated(tmp_path, monkeypatch):
 
 def test_workspace_id_derived_from_path():
     # the per-workspace db path .../<name>/<file> → <name> is the scope (the registry is dir-per-ws)
-    assert workspace_id_of(Path("/x/out/workspaces/clinverdict/collections.sqlite")) == "clinverdict"
-    assert workspace_id_of(Path("/x/out/workspaces/clinverdict/config.sqlite")) == "clinverdict"
+    assert workspace_id_of(Path("/x/out/workspaces/clinical_scribe/collections.sqlite")) == "clinical_scribe"
+    assert workspace_id_of(Path("/x/out/workspaces/clinical_scribe/config.sqlite")) == "clinical_scribe"
     assert workspace_id_of(None) == "default"
 
 

@@ -15,6 +15,8 @@ import asyncio
 
 import pytest
 
+pytest.importorskip("openai")  # `stages` -> compliance_council imports openai at module load
+
 from lithrim_bench.runtime.pipeline import stages
 from lithrim_bench.runtime.pipeline.models import PipelineRequest
 

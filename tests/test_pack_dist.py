@@ -68,6 +68,17 @@ _PASSIVE_CARVE_OUT = frozenset(
         "packs/_plugin_fixture/floors.py",  # docstring: "the clinical record_presence uses"
     }
 )
+# PACK-DIST-1 AMENDMENT (2026-06-28): the CE ships ONE deliberately-sanctioned SYNTHETIC clinical
+# SAMPLE — packs/clinical_scribe/ + its examples/clinical_scribe/ corpus — a small by-construction
+# teaser of the clinical thesis (NOT the curated Pro `healthcare` pack, which stays external). Unlike
+# the passive carve-out (provenance prose), this is genuine clinical DATA, deliberately sanctioned. It
+# is the ONLY place clinical sample data is allowed; a needle in any OTHER data-surface file, or a
+# clinical corpus outside this prefix, still fails A2 (see the "only sanctioned surface" test below).
+_SYNTHETIC_CLINICAL_SAMPLE = ("packs/clinical_scribe/", "examples/clinical_scribe/")
+
+
+def _is_sample(path: str) -> bool:
+    return path.startswith(_SYNTHETIC_CLINICAL_SAMPLE)
 
 
 def _tracked(*dirs: str) -> list[str]:
@@ -106,8 +117,9 @@ def test_a2_no_healthcare_pack_tracked():
 
 
 def test_a2_no_clinical_corpora_tracked():
-    """No by-construction clinical corpus ships in CE ``examples/``."""
-    clinical = [p for p in _tracked("examples") if p.endswith(".jsonl")]
+    """No by-construction clinical corpus ships in CE ``examples/`` — except the sanctioned
+    synthetic clinical SAMPLE (``examples/clinical_scribe/``, the PACK-DIST-1 amendment)."""
+    clinical = [p for p in _tracked("examples") if p.endswith(".jsonl") and not _is_sample(p)]
     assert clinical == [], f"clinical corpora still tracked in CE examples/: {clinical}"
 
 
@@ -123,12 +135,34 @@ def test_a2_only_blank_slate_agent_seed():
 
 def test_a2_data_surface_is_clinical_free_beyond_the_carve_out():
     """The shipped DATA surface (packs/ + examples/ + data/config/) carries ZERO clinical needles
-    outside the ENUMERATED passive carve-out. Non-vacuous (see the planted-needle test below)."""
-    swept = [p for p in _tracked(*_DATA_SURFACE) if p not in _PASSIVE_CARVE_OUT]
+    outside the ENUMERATED passive carve-out AND the sanctioned synthetic clinical sample. Non-vacuous
+    (see the planted-needle test below)."""
+    swept = [
+        p
+        for p in _tracked(*_DATA_SURFACE)
+        if p not in _PASSIVE_CARVE_OUT and not _is_sample(p)
+    ]
     hits = _needle_hits(swept)
     assert not hits, "genuinely-clinical content on the CE data surface (relocate it):\n" + "\n".join(
         hits
     )
+
+
+def test_a2_clinical_sample_is_the_only_sanctioned_clinical_surface():
+    """PACK-DIST-1 amendment: the synthetic clinical SAMPLE is real (it DOES carry needles, so the
+    exclusion is non-vacuous) and is the ONLY clinical data surface — every clinical needle on the CE
+    data surface lives under ``packs/clinical_scribe/`` or ``examples/clinical_scribe/``."""
+    sample = [p for p in _tracked(*_DATA_SURFACE) if _is_sample(p)]
+    assert sample, "the sanctioned clinical sample pack is missing from the CE tree"
+    # non-vacuous: the sample genuinely contains clinical needles (else the exclusion hides nothing)
+    assert _needle_hits(sample), "the clinical sample carries no clinical needle — exclusion is vacuous"
+    # and it is the ONLY clinical surface beyond the passive carve-out
+    swept = [
+        p
+        for p in _tracked(*_DATA_SURFACE)
+        if p not in _PASSIVE_CARVE_OUT and not _is_sample(p)
+    ]
+    assert not _needle_hits(swept), "clinical content outside the sanctioned sample"
 
 
 def test_a2_sweep_is_non_vacuous(tmp_path):

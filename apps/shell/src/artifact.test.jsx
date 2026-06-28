@@ -69,7 +69,7 @@ describe("JudgeTab — realized council votes (A1)", () => {
     expect(screen.getByText(/how each reviewer voted/i)).toBeInTheDocument();
   });
 
-  // TRANSPARENCY-1 (the ClinVerdict contrast): the Judges pane shows each judge's LENS — the
+  // TRANSPARENCY-1 (the Clinical Scribe Review contrast): the Judges pane shows each judge's LENS — the
   // flags it could raise — self-fetched from GET /v1/runs/{id}/audit (`withstands`). So a PASS
   // that happened because NOTHING in the lens covers the defect (Risk-Severity Blindness) is
   // VISIBLE, not inferred. This is the "why did it miss?" beat.
@@ -172,13 +172,13 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     listCases.mockResolvedValue({
       count: 2,
       cases: [
-        { case_id: "clinverdict_01_neurology", labeled: false, has_context: true, has_artifact: true },
-        { case_id: "clinverdict_10_splinter", labeled: false, has_context: false, has_artifact: true },
+        { case_id: "clinical_scribe_01_neurology", labeled: false, has_context: true, has_artifact: true },
+        { case_id: "clinical_scribe_10_splinter", labeled: false, has_context: false, has_artifact: true },
       ],
     });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
-    expect(await screen.findByText("clinverdict_01_neurology")).toBeInTheDocument();
-    expect(screen.getByText("clinverdict_10_splinter")).toBeInTheDocument();
+    expect(await screen.findByText("clinical_scribe_01_neurology")).toBeInTheDocument();
+    expect(screen.getByText("clinical_scribe_10_splinter")).toBeInTheDocument();
     expect(screen.getByText(/2 loaded · 1 include a transcript/)).toBeInTheDocument(); // fidelity signal
     expect(screen.getByText("transcript ✓")).toBeInTheDocument(); // case 01 carries its transcript
   });
@@ -336,10 +336,10 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
   });
 });
 
-// META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit (ClinVerdict Layer-3).
+// META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit (Clinical Scribe Review Layer-3).
 describe("ReportTab — clinician verdict (META-VERDICT-1)", () => {
   const REPORT_RESULT = {
-    case_id: "clinverdict_10",
+    case_id: "clinical_scribe_10",
     grade_path: "replay",
     pipeline_run_id: "run-xyz",
     composite: {

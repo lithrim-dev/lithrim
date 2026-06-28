@@ -309,7 +309,7 @@ def test_gate_resolves_the_active_workspace_pack_not_the_process_pack(tmp_path, 
     """The gate/endpoint must admit a type registered for the ACTIVE WORKSPACE'S grade pack, even
     when the BFF PROCESS pack differs — the live topology (process=_core, ws=healthcare graded via
     a subprocess bound to ws.pack). At parent 48162ad the gate reads the process env and false-
-    rejects the pack floor (the live HTTP 422 the cold critic captured on clinverdict_clean).
+    rejects the pack floor (the live HTTP 422 the cold critic captured on clinical_scribe_clean).
 
     S-BS-FAUTH2-2. RED here, GREEN after both call sites resolve get_active_workspace().pack."""
     from fastapi import HTTPException
@@ -318,7 +318,7 @@ def test_gate_resolves_the_active_workspace_pack_not_the_process_pack(tmp_path, 
 
     # BFF process = _core (the live default — no LITHRIM_BENCH_PACK on the launcher)
     monkeypatch.delenv("LITHRIM_BENCH_PACK", raising=False)
-    # the active workspace is pinned to healthcare (as clinverdict_clean is)
+    # the active workspace is pinned to healthcare (as clinical_scribe_clean is)
     monkeypatch.setattr(
         bff.workspace, "get_active_workspace", lambda: Workspace(name="t", pack="healthcare")
     )

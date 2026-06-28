@@ -1,7 +1,7 @@
 # SPEC: The Calibration Trainer — Phase-3 interactive loop
 
 > The build-of-record for the journey's **Phase 3 — Calibration**, the beat the original
-> vision calls *"the product."* Lithrim Bench is a **calibration trainer, not a demo**: the
+> vision calls *"the product."* Lithrim is a **calibration trainer, not a demo**: the
 > user takes a deliberately-miscalibrated pack and makes the judges right — tune the council,
 > add a tool-grounded floor, re-run, compare — and learns calibration by *doing it*, with
 > their own hands, fully local.

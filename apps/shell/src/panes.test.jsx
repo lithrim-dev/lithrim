@@ -31,9 +31,9 @@ describe("CenterPane host mounts input tool-parts (S-BS-19)", () => {
   });
 
   it("ACTIVE-CASE-1: names the active case in the header chrome (it is visible, not hidden)", () => {
-    render(<CenterPane {...props} agent="ws0_default" activeCase="clinverdict_10_splinter_injury_vaccine_refusal" onActiveCase={() => {}} />);
+    render(<CenterPane {...props} agent="ws0_default" activeCase="clinical_scribe_10_splinter_injury_vaccine_refusal" onActiveCase={() => {}} />);
     // the case the agent's "this case" resolves to is shown on screen — no hidden referent.
-    expect(screen.getByText(/clinverdict_10_splinter/)).toBeInTheDocument();
+    expect(screen.getByText(/clinical_scribe_10_splinter/)).toBeInTheDocument();
   });
 
   it("ACTIVE-CASE-1: shows 'No case selected' when none is active (no silent first-case default)", () => {

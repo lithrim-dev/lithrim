@@ -1,3 +1,3 @@
-"""Lithrim Bench: deterministically-labeled clinical-AI benchmark generator."""
+"""Lithrim: deterministically-labeled clinical-AI benchmark generator."""
 
 __version__ = "0.1.0"

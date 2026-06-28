@@ -1,12 +1,12 @@
-# SPEC: ClinVerdict-on-Lithrim — running a physician-curated clinical eval suite self-serve
+# SPEC: Clinical Scribe Review-on-Lithrim — running a physician-curated clinical eval suite self-serve
 
-> A practicing physician built **ClinVerdict** (a physician-curated adversarial clinical-AI eval suite)
+> A practicing physician built **Clinical Scribe Review** (a physician-curated adversarial clinical-AI eval suite)
 > on **Arize Phoenix** — a 2-skill scribe SUT, an LLM judge, a 10-case golden suite, and a 4-layer
 > evaluation workflow. **Question:** what would it take to do that on lithrim-bench **without writing
-> code**? This spec maps ClinVerdict's four layers onto Lithrim's no-code surface, names what already
+> code**? This spec maps Clinical Scribe Review's four layers onto Lithrim's no-code surface, names what already
 > works, and drives the **minimum** stopgap drivers so a clinician can run this self-serve.
-> **Status: DRAFT 2026-06-17.** Source: `ClinVerdict-Physician-Curated-Clinical-AI-Evals-Suite`
-> (Dr. Sharif Al Zaber). Companion docs: [`SPEC_NARRATIVE_EVAL.md`](SPEC_NARRATIVE_EVAL.md) (the
+> **Status: DRAFT 2026-06-17.** Source: `Clinical Scribe Review-Physician-Curated-Clinical-AI-Evals-Suite`
+> (Dr. Rivera). Companion docs: [`SPEC_NARRATIVE_EVAL.md`](SPEC_NARRATIVE_EVAL.md) (the
 > "eval anything" wedge this extends), [`SPEC_GROUNDING_TOOL_LAYER.md`](SPEC_GROUNDING_TOOL_LAYER.md)
 > (the floor/withstands layer), [`SPEC_UNIFIED_AUTHORING_PRODUCT.md`](SPEC_UNIFIED_AUTHORING_PRODUCT.md)
 > (the author→process loop). Derived from workflow `wf_d6df157e-64b` (6 readers → gap matrix →
@@ -14,22 +14,22 @@
 
 ## 1. The thesis (and why the fit is strong)
 
-**ClinVerdict's reason to exist is Lithrim's core mechanism.** ClinVerdict's headline finding —
+**Clinical Scribe Review's reason to exist is Lithrim's core mechanism.** Clinical Scribe Review's headline finding —
 *an LLM judge anchored to a defective human reference note inherits the reference's blind spots, and
 the fix (its Recommendation #1) is to cross-validate the judge's claim against the raw transcript
 INDEPENDENTLY of that reference* — **is** Lithrim's deterministic grounding floor + the Ralph-Loop
-withstands-gate. That is not an analogy: `scripts/extract_clinverdict.py` already demotes the human
+withstands-gate. That is not an analogy: `scripts/extract_clinical_scribe.py` already demotes the human
 reference note to a non-grading auditable input and grades against the transcript, and the
 `presence_check` floor + withstands-gate already strips a validator-disproved finding and flips a
 council verdict (`reject → approve`) honestly.
 
-So the **executional spine of all four ClinVerdict layers is reachable today, no-code, on an existing
+So the **executional spine of all four Clinical Scribe Review layers is reachable today, no-code, on an existing
 pack** (§3). The gap is not the mechanism — it is four specific seams (§4): the human meta-audit loop,
 from-scratch domain authoring, gold-label attachment, and per-skill performance tracing.
 
-## 2. ClinVerdict's four layers → Lithrim status
+## 2. Clinical Scribe Review's four layers → Lithrim status
 
-| ClinVerdict layer | What the physician did | Lithrim no-code status |
+| Clinical Scribe Review layer | What the physician did | Lithrim no-code status |
 |---|---|---|
 | **1 · Execution** | Run a 2-skill scribe (extract → SOAP) as the SUT | **Supported** — author the SUT/judges by chat; `$0` replay or cost-gated paid council grade |
 | **2 · Automated judge** | LLM judge scores Faithfulness/Completeness/Safety vs the reference | **Supported (authoring)** — assign ontology lenses to roles, pick BYO-Claude vs Azure so judge-model ≠ SUT-model; capture per-judge votes + confidence + reason + findings + ECE |
@@ -56,7 +56,7 @@ Honest caveats inline; some steps are chat, some are UI cards.
    SOAP=response); pick the judge **model** (Azure vs `byo-claude`) so it differs from the SUT — an
    audited `$0` write (`tools.py:230`; `PUT /v1/judges` `app.py:1214`; `JudgeEditor.jsx`).
 3. **Attach the transcript-grounding floor (chat or UI card).** `add_grounding_contract` /
-   `ContractBuilder` splices a `presence_check` onto a flag — **ClinVerdict Recommendation #1
+   `ContractBuilder` splices a `presence_check` onto a flag — **Clinical Scribe Review Recommendation #1
    realized**: at grade time the withstands-gate strips the validator-disproved finding and flips the
    council verdict honestly (`tools.py:512`; `POST /v1/grounding-contract` `app.py:1456`;
    `grounding.py` PresenceCheck; `runtime/council/withstands.py`). *Caveat:* only **attaching existing
@@ -86,7 +86,7 @@ mint a new gradeable criterion, or see per-skill token/latency/cost. Those are t
 
 **META-VERDICT-1 — record an independent clinician verdict + judge meta-audit** *(M · no engine edit)*
 - *Problem:* a physician can read the council's votes but cannot record their own pass/fail, say "the
-  judge **erred**" and name the fallacy, or **dissent** on the record — ClinVerdict's Layer-3 reason to
+  judge **erred**" and name the fallacy, or **dissent** on the record — Clinical Scribe Review's Layer-3 reason to
   exist. Confirmed absent (grep `meta_verdict|human_verdict|agrees_with|reviewer` over `apps/bff/` +
   `apps/shell/src` is empty; the Report "Author labels…" line is render-only). Also blocks the cohort
   matrix + the 85.7% blindness stat.
@@ -96,7 +96,7 @@ mint a new gradeable criterion, or see per-skill token/latency/cost. Those are t
 **NARR-9 — `create_pack` scaffolder (author a new eval domain self-serve)** *(M · no engine edit)*
 - *Problem:* you can pin a pre-existing pack but cannot **author** a new domain — no write path creates a pack on disk; the 4 files (`pack.json` + `ontology.json` + `council_roles/*.txt` + `taxonomy_snapshot.json`) are hand-edited. This blocks the dependents: `create_flag`, gold-labels, and `PUT /v1/ontology` all resolve via `_pack_root`, which raises when the pack dir is absent.
 - *Minimal scope:* `POST /v1/packs` + a tool that writes a valid, admissible, **domain-neutral** skeleton into the workspace `packs_dir` (copy the 4-file shape verbatim from `packs/_core/`: the 3 generic `council_roles/*.txt`, a minimal `ontology.json`, a `_core`-shaped `taxonomy_snapshot.json` — introduce no new role file) + one `AuditRecord`. Discovery is automatic via `_pack_root` / `discover_packs` / `_resolve_ref`. Pack model is already file-driven → zero engine edit.
-- *Exit:* "create a new scribe-eval domain called clinverdict" writes `<packs_dir>/clinverdict/` (4 files + audit); `GET /v1/packs` lists it; a workspace pins to it; `assert_pack_judges_consistent` + `pack_tiers`/`pack_lenses`/`pack_production_judges` load; zero `packs/healthcare/` reads.
+- *Exit:* "create a new scribe-eval domain called clinical_scribe" writes `<packs_dir>/clinical_scribe/` (4 files + audit); `GET /v1/packs` lists it; a workspace pins to it; `assert_pack_judges_consistent` + `pack_tiers`/`pack_lenses`/`pack_production_judges` load; zero `packs/healthcare/` reads.
 
 **NARR-LABEL-1 — self-serve gold-label authoring on an ingested case** *(M · no engine edit)*
 - *Problem:* cases land **unlabeled by construction** (`_to_envelope` hardcodes `expected_safety_flags:[]`, emits no `expected_compliance_verdict`). `report.py:195` **already** scores `expected_compliance_verdict`; the fields just have to be hand-placed in JSONL today. The Report empty-state says "Author labels…" behind a button that doesn't exist. This is the gate from "metrics withheld" → a measured verdict-match scorecard.
@@ -106,7 +106,7 @@ mint a new gradeable criterion, or see per-skill token/latency/cost. Those are t
 ### P1 — completes the suite
 
 **NARR-5-COHORT — `GET /v1/cohort-matrix` (derived run × label cross-tab, honest-degrade)** *(M · no engine edit)*
-- The ClinVerdict master matrix + cohort stats. A `report.py cohort_matrix(records)` aggregator beside `calibration_check`, joining stored run blobs (`PIPELINE_RUNS.list_all`) to label/meta rows; the clinician-verdict / judge-fallacy / **blindness** columns emit only once META-VERDICT-1 rows exist (else `label_status:"no_meta_verdict"`, never a fabricated 85.7%). Ships the verdict-match half now; reads existing blobs (no new persistence).
+- The Clinical Scribe Review master matrix + cohort stats. A `report.py cohort_matrix(records)` aggregator beside `calibration_check`, joining stored run blobs (`PIPELINE_RUNS.list_all`) to label/meta rows; the clinician-verdict / judge-fallacy / **blindness** columns emit only once META-VERDICT-1 rows exist (else `label_status:"no_meta_verdict"`, never a fabricated 85.7%). Ships the verdict-match half now; reads existing blobs (no new persistence).
 - *Exit:* a Report → Cohort sub-view shows one row/case + a cohort header (`n_cases`, `verdict_match_rate` over the labeled subset, pooled ece); blindness columns render withheld until meta-verdicts exist.
 
 **NARR-META-2 — typed judge-fallacy / agent-error / reference-defect taxonomy (DATA-only)** *(S · no engine edit)*
@@ -124,7 +124,7 @@ mint a new gradeable criterion, or see per-skill token/latency/cost. Those are t
 - *Exit:* a `contract_type='value_presence'` entry grades a crafted pair offline/`$0` through `ground()` (source token absent → `conforms=False` → PASS→BLOCK; clean twin → no blocks; no token → `None`); a second inverse floor needs no new code.
 
 **NARR-DIFF-1 — `inter_stage_diff` floor (the "Silent Drop")** *(M · one additive registration line + DATA authoring)*
-- ClinVerdict Layer 4 (4/10 cases): a token extracted by skill-1 but silently dropped from the skill-2 SOAP. Unreachable for **two** reasons: (a) the floor sees one artifact (`_artifact_content → artifacts[0]`); (b) **the load-bearing one** — no case carries the second stage output, and the ClinVerdict extractor itself records `skill_1_extraction.available=False` (it lives only in the Phoenix trace). An `InterStageDiffTool` reading both outputs off `claim.source['artifacts']` (no `_artifact_content` edit needed) + a gradeable `VALUE_SILENTLY_DROPPED` flag closes (a); **the real work is the data** — author ≥1 admissible 2-artifact by-construction case + its clean twin, and the upstream SUT must be instrumented to emit skill-1 output.
+- Clinical Scribe Review Layer 4 (4/10 cases): a token extracted by skill-1 but silently dropped from the skill-2 SOAP. Unreachable for **two** reasons: (a) the floor sees one artifact (`_artifact_content → artifacts[0]`); (b) **the load-bearing one** — no case carries the second stage output, and the Clinical Scribe Review extractor itself records `skill_1_extraction.available=False` (it lives only in the Phoenix trace). An `InterStageDiffTool` reading both outputs off `claim.source['artifacts']` (no `_artifact_content` edit needed) + a gradeable `VALUE_SILENTLY_DROPPED` flag closes (a); **the real work is the data** — author ≥1 admissible 2-artifact by-construction case + its clean twin, and the upstream SUT must be instrumented to emit skill-1 output.
 - *Exit:* offline, a hand-authored 2-artifact case [SOAP missing a value; a `produced_by=skill_1` artifact containing it] grades to BLOCK with the dropped token in evidence; the clean twin passes; a single-artifact case returns `None` and never flips.
 
 **CONTRACT-GUARD-1 — 422 a dead `contract_type` at author time + honest dropdown** *(S · no engine edit)* — **confirmed bug**
@@ -139,11 +139,11 @@ mint a new gradeable criterion, or see per-skill token/latency/cost. Those are t
 - **OBS-COST-1** *(S · no engine edit)* — `data/config/model_prices.json` + a pure `_price_run()` → project `cost_usd` (null + marker for unpriced models, never fabricated) onto the run-eval response + Report tab.
 - **NARR-8-UPLOAD-1** *(S · FE-only)* — a drop-zone / file-picker in the composer that `FileReader.readAsText` → `setInput(...)`; flows through the already-wired `ingest_cases` path. Never auto-sends, never fires a paid run.
 
-## 5. Honest delta — what Lithrim can and cannot claim vs ClinVerdict-on-Phoenix
+## 5. Honest delta — what Lithrim can and cannot claim vs Clinical Scribe Review-on-Phoenix
 
 **CAN claim today (real, load-bearing, self-serve on an existing pack):**
 - The executional spine of all 4 layers: define a 2-skill scribe SUT, author faithfulness/completeness/safety judges by chat on a model ≠ the SUT, run a `$0` replay or a cost-gated paid council grade, capture structured per-judge verdicts, compute calibration/ECE (honestly withheld when unlabeled).
-- **ClinVerdict's central thesis as a working mechanism, not an analogy:** attach a transcript-grounding `presence_check` → the withstands-gate flips the council verdict honestly. Recommendation #1, realized.
+- **Clinical Scribe Review's central thesis as a working mechanism, not an analogy:** attach a transcript-grounding `presence_check` → the withstands-gate flips the council verdict honestly. Recommendation #1, realized.
 - Governance/audit parity (arguably a Phoenix surplus): every authoring action is an immutable why/who/when/what `AuditRecord`.
 
 **CANNOT claim — genuine stopgaps (capability missing, not reframed):** the human meta-audit loop
@@ -161,7 +161,7 @@ parity is explicitly out of scope (needs a non-stub OTel sink).
 
 1. **P0 trio** — META-VERDICT-1 → NARR-9 → NARR-LABEL-1. After this a clinician can stand up a domain,
    ingest, grade, **record their own verdict + dissent + fallacy**, and attach gold labels — the
-   minimum to reproduce ClinVerdict's value self-serve. (NARR-9 is the unblocker; the other two need a
+   minimum to reproduce Clinical Scribe Review's value self-serve. (NARR-9 is the unblocker; the other two need a
    pack on disk.)
 2. **P1 suite** — CONTRACT-GUARD-1 (do early — it's a live bug) → NARR-META-2 → NARR-5-COHORT →
    NARR-5-CRIT *(human sign-off)* → NARR-FLOOR-1 → NARR-DIFF-1. Yields the typed taxonomy, the cohort
@@ -173,12 +173,12 @@ parity is explicitly out of scope (needs a non-stub OTel sink).
 - **NARR-5-CRIT sign-off:** is a UI-driven snapshot *writer* acceptable, or does gradeable-criterion
   authoring stay an SME/CLI step? (Decides `SPEC_NARRATIVE_EVAL §11`.) The invariant is preserved either
   way; the question is *where* the admissible write happens.
-- **Demo data:** reproduce ClinVerdict's 10 cases as a by-construction `clinverdict` pack corpus, or
-  ingest the markdown via `scripts/extract_clinverdict.py` (untracked, already drafted) as unlabeled +
+- **Demo data:** reproduce Clinical Scribe Review's 10 cases as a by-construction `clinical_scribe` pack corpus, or
+  ingest the markdown via `scripts/extract_clinical_scribe.py` (untracked, already drafted) as unlabeled +
   layer gold via NARR-LABEL-1? The latter is the honest "drop your data" demo.
 - **NARR-DIFF-1 source data:** the Silent-Drop check is only as real as the skill-1 artifact — does the
   scribe SUT get instrumented to emit it, or is this deferred until a real multi-stage SUT is wired?
-- **Packaging:** ships the scribe/clinverdict pack as a Core demonstration pack or a Pro plugin?
+- **Packaging:** ships the scribe/clinical_scribe pack as a Core demonstration pack or a Pro plugin?
 
 ## 8. Evidence appendix (verified anchors)
 

@@ -1,4 +1,4 @@
-# Lithrim Bench — BFF (judge-capability API v1, apps/bff) container.
+# Lithrim — BFF (judge-capability API v1, apps/bff) container.
 # CE Build C. Mirrors scripts/dev/devstack.sh: uvicorn app:app from the repo root,
 # --app-dir apps/bff, on :8787. The [bff,council] extras (pyproject.toml) are the
 # FastAPI/uvicorn surface + the vendored compliance council; the core install stays

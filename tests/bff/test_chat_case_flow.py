@@ -258,8 +258,8 @@ def test_list_cases_joins_the_tool_set_once_and_context_carries_the_fields():
 def test_system_prompt_names_the_active_case_and_nudges_list_and_show():
     """The model must default run_eval/show_case to the shared active case, call list_cases
     for "the cases", and never claim a case it did not open."""
-    prompt = _system_prompt(AGENT, "clinverdict_05")
-    assert "clinverdict_05" in prompt  # the active case is named
+    prompt = _system_prompt(AGENT, "clinical_scribe_05")
+    assert "clinical_scribe_05" in prompt  # the active case is named
     assert "list_cases" in prompt  # the enumerate-the-corpus nudge
     assert "show_case" in prompt and "case_id" in prompt  # open-case-X uses case_id
     assert prompt.startswith(_SYSTEM_PROMPT)  # the static base is preserved
@@ -270,4 +270,4 @@ def test_system_prompt_names_the_active_case_and_nudges_list_and_show():
     # back-compat: no active case → the agent-only prompt still works (no crash, no case named)
     bare = _system_prompt(AGENT)
     assert AGENT in bare
-    assert "clinverdict_05" not in bare
+    assert "clinical_scribe_05" not in bare

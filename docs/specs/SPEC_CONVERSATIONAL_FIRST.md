@@ -51,9 +51,9 @@ ask. We were inverted.
 - The pane may appear in a demo **only** as the payoff of an explicit "show me the full X" — the
   drill-down — never as the place the work happens.
 
-## 5. The flagship acceptance scenario (Dr Sharif / ClinVerdict)
+## 5. The flagship acceptance scenario (Dr Rivera / Clinical Scribe Review)
 
-A physician runs ClinVerdict's vaccine-refusal case (case 10) on Lithrim, **entirely by
+A physician runs Clinical Scribe Review's vaccine-refusal case (case 10) on Lithrim, **entirely by
 conversation**:
 
 1. *"Evaluate the vaccine-refusal case."* → inline: the case summary, then the council verdict
@@ -67,6 +67,6 @@ If steps 1–2 require the pane, the build has not met this spec.
 
 ## 6. Out of scope (for the first cut)
 
-Full per-case parity across all 10 ClinVerdict cases (one flagship case first, then template);
+Full per-case parity across all 10 Clinical Scribe Review cases (one flagship case first, then template);
 the cohort matrix; restructuring the config-authoring cards (they already render inline — only
 their pane-auto-open is removed).

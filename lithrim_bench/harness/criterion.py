@@ -1,7 +1,7 @@
 """NARR-5-CRIT — the sanctioned gradeable-criterion snapshot writer.
 
 The FIRST audited writer above the CLAUDE.md "never hand-edit the snapshot / read-only at
-grade time" invariant (``docs/specs/SPEC_CLINVERDICT_SELF_SERVE.md`` NARR-5-CRIT, owner
+grade time" invariant (``docs/specs/SPEC_CLINICAL_SCRIBE_SELF_SERVE.md`` NARR-5-CRIT, owner
 sign-off 2026-06-21). It does NOT weaken the labels-true-by-construction gate — it is the
 *admissible* self-serve path INTO it: it splices a new gradeable code into the ACTIVE pack's
 taxonomy snapshot (``tiers`` + ``lenses`` + ``tier1_owners``-when-T1) so the existing

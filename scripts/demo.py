@@ -60,7 +60,7 @@ def main() -> int:
     votes = result["semantic"]["judge_votes"]
 
     print("=" * 72)
-    print("  Lithrim Bench — flagship loop demo  ($0 · no keys · no network · no pack)")
+    print("  Lithrim — flagship loop demo  ($0 · no keys · no network · no pack)")
     print("=" * 72)
     print(f"  case:     {case.get('case_id')}   (pack: {case.get('pack', '_core')})")
     print(f"  artifact: {artifact[:120]}{'…' if len(artifact) > 120 else ''}")

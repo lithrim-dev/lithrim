@@ -1,13 +1,13 @@
 """META-VERDICT-1 acceptance: a physician records an INDEPENDENT clinician verdict +
 judge meta-audit (dissent + named fallacy) against a run.
 
-This is ClinVerdict's Layer-3 reason to exist — the surface that was missing (grep
+This is Clinical Scribe Review's Layer-3 reason to exist — the surface that was missing (grep
 ``meta_verdict|human_verdict|agrees_with`` over apps/bff + apps/shell/src was empty). A
 clinician can read the council's votes but could not record their own pass/fail, **dissent**
 on the record, or name the judge's fallacy. Without it there is no cohort matrix and no
 85.7%-blindness stat.
 
-Contract (SPEC_CLINVERDICT_SELF_SERVE §4 P0):
+Contract (SPEC_CLINICAL_SCRIBE_SELF_SERVE §4 P0):
   * POST /v1/meta-verdict {run_id, human_verdict, agrees_with_council, judge_fallacy_code?,
     rationale} writes ONE immutable AuditRecord (action=meta_verdict, target=verdict/run_id)
     via the SAME audited-write idiom as PUT /v1/ontology — no harness/engine file touched.

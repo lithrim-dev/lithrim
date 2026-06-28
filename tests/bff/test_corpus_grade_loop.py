@@ -131,16 +131,16 @@ def test_list_cases_empty_when_no_corpus(client):
 # --------------------------------------------------------------------------- #
 def test_run_eval_case_id_selects_the_case(client):
     cli, _out, captured = client
-    res = cli.post("/v1/run-eval", json={"agent": "loop_agent", "case_id": "clinverdict_07"})
+    res = cli.post("/v1/run-eval", json={"agent": "loop_agent", "case_id": "clinical_scribe_07"})
     assert res.status_code == 200, res.text
-    assert res.json()["case_id"] == "clinverdict_07"
-    assert captured[-1] == "clinverdict_07"  # the override reached run_eval.run's agent
+    assert res.json()["case_id"] == "clinical_scribe_07"
+    assert captured[-1] == "clinical_scribe_07"  # the override reached run_eval.run's agent
 
 
 def test_run_eval_without_case_id_uses_agent_default(client):
     cli, _out, captured = client
     cli.post("/v1/run-eval", json={"agent": "loop_agent"})
-    assert captured[-1] != "clinverdict_07"  # the agent's own dataset.case_id, not an override
+    assert captured[-1] != "clinical_scribe_07"  # the agent's own dataset.case_id, not an override
 
 
 # --------------------------------------------------------------------------- #

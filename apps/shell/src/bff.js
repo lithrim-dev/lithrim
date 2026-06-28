@@ -123,7 +123,7 @@ export const postCriterion = (criterion, agent = "ws0_default") =>
   call("/v1/criterion", { method: "POST", body: { ...criterion, agent } });
 
 /* POST /v1/meta-verdict — META-VERDICT-1: a clinician's INDEPENDENT verdict + judge meta-audit
-   on a run (ClinVerdict Layer-3). Writes ONE immutable AuditRecord (action=meta_verdict). $0 —
+   on a run (Clinical Scribe Review Layer-3). Writes ONE immutable AuditRecord (action=meta_verdict). $0 —
    it adds an attestation, it never changes the verdict or fires a paid run. judge_fallacy_code
    (only on dissent) is a closed enum; an out-of-enum code 422s so the form can surface it. */
 export const recordMetaVerdict = (mv) =>
