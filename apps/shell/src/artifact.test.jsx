@@ -438,3 +438,84 @@ describe("ReportTab — GRADE-GUARD-2: a no-baseline $0-replay failure → actio
     expect(screen.queryByText(/No saved run to replay yet/i)).toBeNull();
   });
 });
+
+// S-BS-168a — the Report's plain-English "What this means" summary. Mirrors live
+// clinverdict_case01: an authored erasure_judge confidently rejects (BLOCK, 0.92) while
+// the faithfulness reviewer is low-confidence uncertain (WARN, 0.32). The summary must
+// name the verdict + a reason (A3) and be confidence-HONEST: the 0.32 needs-review must
+// read as uncertain / a person should check, NOT as an equal confirmed issue (A4).
+const CASE01_RUN = {
+  case_id: "clinverdict_case01_neurology_hiv_patient",
+  grade_path: "in_process",
+  pipeline_run_id: "run-case01",
+  composite: {
+    verdict: "reject",
+    stage_verdict: "BLOCK",
+    score: 1,
+    active_findings: ["INTENT_ERASURE", "HISTORY_OMISSION"],
+    grounded_adjustments: [],
+    floor_adjustments: [],
+    case_outcome: "FLAGGED",
+  },
+  council: {
+    case_outcome: "FLAGGED",
+    votes: [
+      { judge_role: "risk_judge", vote: "PASS", confidence: 1.0 },
+      { judge_role: "policy_judge", vote: "PASS", confidence: 1.0 },
+      { judge_role: "faithfulness_judge", vote: "WARN", confidence: 0.32, reason: "needs_review — HISTORY_OMISSION" },
+      { judge_role: "erasure_judge", vote: "BLOCK", confidence: 0.92, reason: "reject — INTENT_ERASURE" },
+    ],
+  },
+  calibration_check: { label_status: "unlabeled", n_cases: 1 },
+};
+
+describe("ReportTab — 'What this means' summary (S-BS-168a)", () => {
+  it("A3 — renders a plain-English summary naming the verdict + a reason", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={CASE01_RUN} runError={null} />,
+    );
+    const summary = screen.getByTestId("report-summary");
+    expect(screen.getByText(/what this means/i)).toBeInTheDocument();
+    // names the verdict in plain words (the case was flagged) …
+    expect(summary.textContent).toMatch(/flagged/i);
+    // … and a reason — the reviewer that drove it.
+    expect(summary.textContent).toMatch(/Erasure reviewer/);
+    // recommends a human action.
+    expect(summary.textContent).toMatch(/a person should|review this/i);
+    expect(container).toBeTruthy();
+  });
+
+  it("A4 — confidence-honest: the 0.32 needs-review reads as uncertain, NOT a confirmed issue", () => {
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={CASE01_RUN} runError={null} />);
+    const summary = screen.getByTestId("report-summary");
+    const text = summary.textContent;
+    // the low-confidence reviewer reads as uncertain / a person should check …
+    expect(text).toMatch(/uncertain|unsure|a person should/i);
+    expect(text).toMatch(/low confidence/i);
+    // … and is NOT presented as a confirmed flag.
+    expect(text).not.toMatch(/Faithfulness reviewer flagged/i);
+    // the CONFIDENT reject is the one attributed as flagging (with high confidence).
+    expect(text).toMatch(/Erasure reviewer flagged/i);
+    expect(text).toMatch(/high confidence/i);
+  });
+
+  it("A4 — a clean PASS run reads as passed with no false 'flagged'/'uncertain' claim", () => {
+    const passRun = {
+      ...CASE01_RUN,
+      composite: { ...CASE01_RUN.composite, verdict: "approve", stage_verdict: "PASS", score: 0, active_findings: [], case_outcome: "CLEAR" },
+      council: {
+        case_outcome: "CLEAR",
+        votes: [
+          { judge_role: "risk_judge", vote: "PASS", confidence: 1.0 },
+          { judge_role: "policy_judge", vote: "PASS", confidence: 1.0 },
+          { judge_role: "faithfulness_judge", vote: "PASS", confidence: 0.9 },
+          { judge_role: "erasure_judge", vote: "PASS", confidence: 0.9 },
+        ],
+      },
+    };
+    render(<ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={passRun} runError={null} />);
+    const text = screen.getByTestId("report-summary").textContent;
+    expect(text).toMatch(/passed/i);
+    expect(text).not.toMatch(/flagged|uncertain/i);
+  });
+});
