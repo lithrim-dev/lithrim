@@ -281,8 +281,14 @@ function verdictShape(rec) {
       vote: String(v.vote || ""),
       ...(typeof v.confidence === "number" ? { confidence: v.confidence } : {}),
       ...(v.reason ? { reason: String(v.reason) } : {}),
+      // independent-axes model: carry THIS reviewer's own variance + k (never aggregated).
+      ...(typeof v.variance === "number" ? { variance: v.variance } : {}),
+      ...(typeof v.k === "number" ? { k: v.k } : {}),
     })),
   };
+  // the named case outcome (independent-axes rule table) — the PRIMARY headline.
+  const caseOutcome = council.case_outcome || composite.case_outcome;
+  if (caseOutcome) out.caseOutcome = String(caseOutcome);
   const floorBlocks = (composite.floor_adjustments || [])
     .filter((fa) => fa.action === "floor_block")
     .map((fa) => ({ flag: fa.flag, contract_type: fa.contract_type, contract: fa.contract, disposition: fa.disposition }));

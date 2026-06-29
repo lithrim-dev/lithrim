@@ -46,7 +46,7 @@ class McpStdioClient:
         *,
         env: dict[str, str] | None = None,
         transport: Transport | None = None,
-        client_name: str = "lithrim-bench",
+        client_name: str = "lithrim",
         timeout: float = 30.0,
     ) -> None:
         base = [command] if isinstance(command, str) else list(command or [])

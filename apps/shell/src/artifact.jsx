@@ -84,13 +84,19 @@ function ReportTab({ runStatus, runResult, runError }) {
   const cal = runResult.calibration_check;
   const ui = VERDICT_UI[comp.verdict] || VERDICT_UI.needs_review;
   const gradeLabel = gradeTag(runResult.grade_path);
+  // The named case outcome (independent-axes rule table) — PRIMARY when present. Humanize
+  // CRITICAL/POLICY_VIOLATION/… for the headline; the PASS/WARN/BLOCK grade stays on the right.
+  const caseOutcome = (runResult.council || {}).case_outcome || comp.case_outcome || null;
+  const outcomeLabel = caseOutcome
+    ? String(caseOutcome).replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())
+    : null;
 
   return (
     <div>
       <div className="report-banner">
         <div className="rb-ic" style={{ color: ui.color }}><ICN name={ui.icon} size={20} sw={2.2} /></div>
         <div style={{ minWidth: 0 }}>
-          <div className="rb-t">{ui.label}</div>
+          <div className="rb-t">{outcomeLabel || ui.label}</div>
           <div className="rb-s">
             {comp.active_findings.length} issues found · {comp.grounded_adjustments.length} false alarms cleared by a fact-check · {runResult.case_id}
           </div>
@@ -300,6 +306,12 @@ function JudgeTab({ runStatus, runResult, runError }) {
                 <span className="d" style={{ background: color }} /> confidence{" "}
                 {conf == null ? "n/a" : conf.toFixed(2)}
               </span>
+              {/* this reviewer's OWN sampling variance over k samples (independent axis; never averaged). */}
+              {typeof v.variance === "number" && (
+                <span style={{ color: v.variance >= 0.2 ? "var(--amber)" : "var(--muted)" }}>
+                  variance {v.variance.toFixed(2)}{v.k ? ` · k=${v.k}` : ""}
+                </span>
+              )}
               {v.reason && <span style={{ color: "var(--muted)" }}>{v.reason.slice(0, 80)}{v.reason.length > 80 ? "…" : ""}</span>}
             </div>
             {lens.length > 0 && (

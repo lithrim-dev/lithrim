@@ -255,6 +255,9 @@ def run(
     assignments: dict[str, Any] | None = None,
     models: dict[str, str] | None = None,
     roles: Sequence[str] | None = None,
+    samples: dict[str, int] | None = None,
+    temperatures: dict[str, float] | None = None,
+    criteria: dict[str, str] | None = None,
     collections_db: str | Path | None = None,
 ) -> dict:
     """Drive one case end-to-end from an Agent eval-profile. Returns the record.
@@ -375,6 +378,9 @@ def run(
             assignments=assignments,
             models=models,
             roles=roles,
+            samples=samples,
+            temperatures=temperatures,
+            criteria=criteria,
             decisions_sink=withstands_sink,
         )
         result = grade_inprocess(
@@ -604,6 +610,11 @@ def main() -> int:
     judges_cfg = list_judges(db_path=db_path)
     assignments = {role: jc.assigned_flags for role, jc in judges_cfg.items() if jc.assigned_flags}
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
+    # Per-reviewer sampling/temperature/criterion (independent-axes model): role → k / temp /
+    # criterion. Empty before any PUT /v1/judges → run() falls back to the per-role defaults.
+    samples = {role: jc.k for role, jc in judges_cfg.items() if jc.k is not None}
+    temperatures = {role: jc.temperature for role, jc in judges_cfg.items() if jc.temperature is not None}
+    criteria = {role: jc.criterion for role, jc in judges_cfg.items() if jc.criterion}
     # PHASE2-B: derive the grade roster — production_judges FIRST, then any authored extra role
     # (created via POST /v1/judges) appended — so the authored judge reaches build_trio and votes.
     # ``None`` when there are no extras (the default trio). run() threads roles= → build_trio.
@@ -623,6 +634,9 @@ def main() -> int:
         assignments=assignments or None,
         models=models or None,
         roles=roles,
+        samples=samples or None,
+        temperatures=temperatures or None,
+        criteria=criteria or None,
         collections_db=args.collections_db,
     )
     if args.emit_json:

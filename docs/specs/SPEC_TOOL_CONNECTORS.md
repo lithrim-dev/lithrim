@@ -160,6 +160,11 @@ Ship the **abstraction + two reference connectors + this spec** — *not* a mark
 The spec is what lets the community **create more**; the release ships the pattern, the references, and
 the graceful-absent guarantee.
 
+> **Post-v1 companion:** `SPEC_TOOL_AUTHORING.md` extends this — runtime user-authoring of tools into
+> the config plane (no repo edit), the authority palette (authoritative / corroborated / advisory), the
+> `tool.sql_query` envelope, and "bring your own MCP server." The defer-to-post-v1 call is recorded in
+> `docs/design/DECISION_tools_with_lens_v1_scope_2026-06-27.md`.
+
 > **Status (CONN-WEBSEARCH-1):** `web_search` shipped (non-authoritative-by-construction — the executor
 > always resolves `conforms=None`, attaching citations/snippets + a `web_support` assessment as evidence;
 > it can never clear or raise a finding). Declared core in `tool_plugins()`; executes mocked, fails clean

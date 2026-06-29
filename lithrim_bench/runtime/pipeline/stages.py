@@ -271,6 +271,9 @@ async def _build_transcript_payload(
                 "target_system": request.artifact_type,
             }
         ],
+        # Case-level Policy criterion (independent-axes model) — the authored stage layers it
+        # onto policy_judge for this grade. Absent/None on the default path (no-op).
+        "policy_criterion": request.policy_criterion,
     }
 
     if retrieval is not None:
@@ -604,6 +607,11 @@ def _judge_votes_from_models(
             if isinstance(f, dict) and f.get("taxonomy_code")
         ]
         raw_conf = m.get("confidence")
+        # Per-reviewer sampling distribution (judge_call): the independent variance + k for
+        # THIS axis, surfaced so the UI shows each reviewer's own stability (never averaged).
+        samp = m.get("sampling") or {}
+        raw_var = samp.get("score_variance")
+        raw_k = samp.get("k")
         votes.append(JudgeVote(
             judge_role=role,
             vote=vote,
@@ -617,6 +625,8 @@ def _judge_votes_from_models(
             # graded on); then the role name (S-BS-66 back-compat — never blank).
             model=model_lookup.get(role) or m.get("llm_model") or m.get("model") or "",
             findings=finding_codes,
+            variance=float(raw_var) if isinstance(raw_var, (int, float)) else None,
+            k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
         ))
     return votes
 
@@ -697,6 +707,9 @@ async def _build_source_message_payload(
                 "target_system": request.artifact_type,
             }
         ],
+        # Case-level Policy criterion (independent-axes model) — the authored stage layers it
+        # onto policy_judge for this grade. Absent/None on the default path (no-op).
+        "policy_criterion": request.policy_criterion,
     }
 
     if retrieval is not None:
@@ -837,7 +850,16 @@ def _run_council_and_map(
 
         consensus = council_result.get("consensus") or {}
         decision = consensus.get("decision")
-        status = _decision_to_status(decision)
+        # Independent-axes outcome (the authored rule table): when present it IS the case
+        # verdict — the three reviewers are not aggregated into a consensus decision. Falls
+        # back to the consensus decision when absent (non-authored / legacy paths).
+        case_outcome = council_result.get("case_outcome")
+        if case_outcome:
+            from lithrim_bench.runtime.council.outcomes import case_outcome_to_verdict
+
+            status = case_outcome_to_verdict(case_outcome)
+        else:
+            status = _decision_to_status(decision)
 
         evidence_summary = council_result.get("evidence_summary") or {}
         retrieval_matches = retrieval.get("matches") or [] if retrieval else []
@@ -895,6 +917,22 @@ def _run_council_and_map(
             # graded result. Mirrors the except-branch council_error above.
             "council_error": consensus.get("reason") == "insufficient_valid_models",
         }
+
+        # Sampling-layer telemetry (judge_call): each judge's per-grade score
+        # distribution, when the authored stage attached it to the seam dict. Keyed by
+        # role → {score_mean, score_variance, scores_raw, k}. Purely additive (absent on
+        # the default k=1 non-authored paths); never feeds verdict derivation.
+        sampling = {
+            m.get("model"): m["sampling"]
+            for m in (council_result.get("models") or [])
+            if isinstance(m, dict) and m.get("sampling")
+        }
+        if sampling:
+            semantic_meta["sampling"] = sampling
+
+        # The named case outcome (independent-axes rule table), surfaced for provenance + UI.
+        if case_outcome:
+            semantic_meta["case_outcome"] = case_outcome
 
         return (
             StageResult(

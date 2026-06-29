@@ -1,7 +1,7 @@
 [project]
-name = "lithrim-bench"
+name = "lithrim"
 version = "0.1.0"
-description = "Deterministically-labeled clinical-AI artifact verification benchmark generator. Backs the Lithrim research paper and the Lithrim developer product."
+description = "Self-hostable evaluation harness for AI agents — a tool-grounded verification floor under the LLM judge. Backs the Lithrim research paper and developer product."
 authors = [{name = "Lithrim"}]
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -84,7 +84,7 @@ pg = [
 
 [project.scripts]
 # DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).
-lithrim-bench-pack = "lithrim_bench.harness.pack_gate:main"
+lithrim-pack = "lithrim_bench.harness.pack_gate:main"
 
 [build-system]
 requires = ["setuptools>=68"]

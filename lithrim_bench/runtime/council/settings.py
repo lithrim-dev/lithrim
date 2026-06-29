@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     COMPLIANCE_COUNCIL_MAX_MODELS: int = 3
     COMPLIANCE_COUNCIL_MODEL_TIMEOUT_SECONDS: int = 120
     COMPLIANCE_COUNCIL_TOTAL_BUDGET_SECONDS: int = 400
+    # Sampling layer (judge_call): how many completions each judge requests per
+    # grade via the native ``n`` parameter (k). Default 1 ⇒ a single completion,
+    # byte-equivalent to the pre-sampling council. k>1 makes ONE API call returning
+    # k completions to estimate per-judge decision stability (score_mean/variance);
+    # DSPy forces temperature 0.7 when n>1, so k>1 is non-deterministic by design.
+    # This is a SAMPLING-layer knob, not reviewer config — it never touches the
+    # per-role judge bindings, ontology, or prompts.
+    COUNCIL_JUDGE_SAMPLES: int = 1
 
     # ── PHI redaction / HIPAA provider policy (read by phi_redaction.py) ──
     HIPAA_REQUIRE_PHI_REDACTION: bool = True

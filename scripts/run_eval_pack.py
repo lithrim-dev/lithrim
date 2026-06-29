@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Thin CLI wrapper → :func:`lithrim_bench.harness.pack_gate.main` (DOGFOOD-1 D4).
 
-The CI/CD eval-pack gate. Also exposed as the ``lithrim-bench-pack`` console script.
+The CI/CD eval-pack gate. Also exposed as the ``lithrim-pack`` console script.
 
   # gate a pre-built frozen pack (offline, $0):
   python scripts/run_eval_pack.py --pack out/pack_all_azure.json

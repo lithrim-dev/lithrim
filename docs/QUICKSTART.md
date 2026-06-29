@@ -93,6 +93,6 @@ tool-grounded floor at work.
 
 ## 6. The CI/CD gate (optional)
 
-The eval-pack gate ships as `lithrim-bench-pack` (reliability ≥ threshold AND
+The eval-pack gate ships as `lithrim-pack` (reliability ≥ threshold AND
 never_events == 0; exit 0/1) — the Mongo-free lithrim-sdk parity. See
 [`harness/pack_gate.py`](../lithrim_bench/harness/pack_gate.py).

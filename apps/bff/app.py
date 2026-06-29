@@ -997,6 +997,13 @@ def _grade_case(
     # ``byo-claude`` runs on the tool-less BYO-Claude LM (the mixed-provider council);
     # roles with no/empty model stay Azure (the default, byte-identical to before).
     models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
+    # Per-reviewer sampling/temperature/criterion (independent-axes model): role → k / temp /
+    # criterion. Empty before any PUT /v1/judges → the per-role defaults (5/1/3) apply.
+    samples = {role: jc.k for role, jc in judges_cfg.items() if jc.k is not None}
+    temperatures = {
+        role: jc.temperature for role, jc in judges_cfg.items() if jc.temperature is not None
+    }
+    criteria = {role: jc.criterion for role, jc in judges_cfg.items() if jc.criterion}
     ws = workspace.get_active_workspace()
     # PHASE2-B: derive the grade roster — the active pack's production_judges FIRST, then any
     # AUTHORED extra role (a judge created via POST /v1/judges, now in the pack snapshot + carrying
@@ -1035,6 +1042,9 @@ def _grade_case(
                 assignments=assignments or None,
                 models=models or None,
                 roles=roles,
+                samples=samples or None,
+                temperatures=temperatures or None,
+                criteria=criteria or None,
                 collections_db=collections_db,
             )
         except SystemExit as exc:  # run_eval raises this when the case is missing
@@ -1076,11 +1086,21 @@ def _council_view(record: dict) -> dict:
             "confidence": v.get("confidence"),  # float | null
             "model": v.get("model"),
             "reason": v.get("reason"),
+            # Per-reviewer sampling distribution (independent-axes model): THIS axis's own
+            # variance + completion count. float|null — never aggregated across reviewers.
+            "variance": v.get("variance"),
+            "k": v.get("k"),
         }
         for v in (semantic.get("judge_votes") or [])
     ]
     prov_council = (result.get("provenance") or {}).get("council_config") or {}
-    return {"votes": votes, "configured": list(prov_council.get("judges") or [])}
+    # The named case outcome (independent-axes rule table) — the PRIMARY result the UI shows.
+    case_outcome = result.get("case_outcome") or (result.get("provenance") or {}).get("case_outcome")
+    return {
+        "votes": votes,
+        "configured": list(prov_council.get("judges") or []),
+        "case_outcome": case_outcome,
+    }
 
 
 def _artifact_note(artifact: Any) -> str | None:
@@ -2078,7 +2098,37 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
         "available_validators": list(_KNOWN_VALIDATORS),
         "questions": questions,
         "authored": jc is not None,
+        # Per-reviewer sampling config (independent-axes model). ``k`` falls back to the per-role
+        # default (5/1/3) so the UI can prefill the effective value even when unauthored. getattr
+        # keeps partial JudgeConfig stand-ins (tests) working.
+        "k": (getattr(jc, "k", None) if jc and getattr(jc, "k", None) is not None
+              else _default_judge_samples().get(role)),
+        "temperature": _effective_temperature(jc, role),
+        "criterion": (getattr(jc, "criterion", "") if jc else ""),
     }
+
+
+def _default_judge_samples() -> dict[str, int]:
+    """The per-role default k map (5/1/3), imported lazily so the BFF stays council-light."""
+    from lithrim_bench.runtime.council.judges_dspy import DEFAULT_JUDGE_SAMPLES
+
+    return DEFAULT_JUDGE_SAMPLES
+
+
+def _effective_temperature(jc, role) -> float:
+    """Temperature to PREFILL in the UI: the authored value if set, else the sampling default
+    (1.0) for a k>1 reviewer, else 0.0 (k=1 runs deterministically). Keeps the field consistent
+    with the editor's hint — never a value that contradicts the stated default."""
+    t = getattr(jc, "temperature", None) if jc else None
+    if t is not None:
+        return t
+    from lithrim_bench.runtime.council.sampling import DEFAULT_SAMPLE_TEMPERATURE
+
+    eff_k = (
+        getattr(jc, "k", None) if jc and getattr(jc, "k", None) is not None
+        else _default_judge_samples().get(role)
+    ) or 1
+    return DEFAULT_SAMPLE_TEMPERATURE if eff_k > 1 else 0.0
 
 
 def _validate_judge_assignment(
@@ -2234,6 +2284,18 @@ def put_judge_endpoint(
     assigned = list(judge.get("assigned_flags") or [])
     validator_refs = list(judge.get("validator_refs") or [])
     model = judge.get("model", "") or ""
+    # Per-reviewer sampling config (independent-axes model): k (completions sampled per grade),
+    # temperature, and the one injected criterion sentence. None k/temperature → the per-role
+    # default applies at grade time. Validated lightly here (k>=1; 0<=temp<=2).
+    raw_k = judge.get("k")
+    raw_temp = judge.get("temperature")
+    j_k = int(raw_k) if isinstance(raw_k, (int, float)) else None
+    j_temp = float(raw_temp) if isinstance(raw_temp, (int, float)) else None
+    j_criterion = str(judge.get("criterion") or "").strip()
+    if j_k is not None and j_k < 1:
+        raise HTTPException(status_code=422, detail="k must be >= 1")
+    if j_temp is not None and not (0.0 <= j_temp <= 2.0):
+        raise HTTPException(status_code=422, detail="temperature must be in [0, 2]")
     _validate_judge_assignment(role, assigned, validator_refs)
     actor = _resolve_actor(x_actor, default_actor)
     # PROMPT-EDIT-1: an SME may also rewrite the reviewer's base prompt here (UI parity with the
@@ -2266,6 +2328,9 @@ def put_judge_endpoint(
         model=model,
         assigned_flags=tuple(assigned),
         validator_refs=tuple(validator_refs),
+        temperature=j_temp,
+        k=j_k,
+        criterion=j_criterion,
     )
     save_judge(
         jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale

@@ -1,4 +1,4 @@
-# Lithrim Bench — Community Edition local stack (CE Build C).
+# Lithrim — Community Edition local stack (CE Build C).
 #
 #   docker compose up        # → BFF on :8787, UI on :5180
 #
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bff
-    image: lithrim-bench-bff
+    image: lithrim-bff
     ports:
       - "8787:8787"
     environment:
@@ -76,7 +76,10 @@ services:
       # PACK-DROPIN-1: the pack drop-in volume. A DIRECTORY bind (host ./packs-dropin, gitignored,
       # empty by default — a tracked .gitkeep keeps it present). Read-only: packs are DATA the
       # container loads, never state it writes. Drop a pack folder here + restart to load it.
-      - ./packs-dropin:/dropin-packs:ro
+      # SELF-AUTHORING: rw (not ro) so a tier:core pack can be authored from the UI —
+      # CriterionBuilder/JudgeBuilder splice into the pack's taxonomy_snapshot.json on disk.
+      # (Pro packs stay locked by their tier:pro gate, not by the mount.)
+      - ./packs-dropin:/dropin-packs:rw
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
       interval: 15s
@@ -94,7 +97,7 @@ services:
         # The browser hits this origin directly (CORS-allowed, host-published). NOT http://bff:8787
         # — that is container-internal and unreachable from the host browser.
         VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
-    image: lithrim-bench-ui
+    image: lithrim-ui
     ports:
       - "5180:5180"
     environment:

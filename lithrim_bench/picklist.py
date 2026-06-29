@@ -147,7 +147,9 @@ def load_case(case_id: str, *, source: str | Path | None = None) -> dict[str, An
     """
     if source is not None:
         source = Path(source)
-        if source.exists():
+        # is_file (not exists): a sourceless agent resolves source_abspath() to a DIRECTORY
+        # (the repo root), and .open() on a dir raises IsADirectoryError — fall through instead.
+        if source.is_file():
             for line in source.open():
                 row = json.loads(line)
                 if (row.get("case_id") or row.get("id")) == case_id:

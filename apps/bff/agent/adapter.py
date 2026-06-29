@@ -207,10 +207,19 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
                 # INLINE-IMPACT-1: carry each judge's REASON so the approve reads as a reasoned
                 # verdict inline (not a bare scorecard) — added only when present (byte-identical else).
                 **({"reason": str(v.get("reason"))} if v.get("reason") else {}),
+                # Per-reviewer sampling distribution (independent-axes model): THIS axis's own
+                # variance + k, shown inline so each reviewer's stability reads separately.
+                **({"variance": v.get("variance")} if isinstance(v.get("variance"), (int, float)) else {}),
+                **({"k": v.get("k")} if isinstance(v.get("k"), int) else {}),
             }
             for v in votes
         ],
     }
+    # The named case outcome (independent-axes rule table) — the PRIMARY headline the card shows
+    # (the reviewers are not aggregated into a single score). Added only when present.
+    case_outcome = council.get("case_outcome") or composite.get("case_outcome")
+    if case_outcome:
+        out["caseOutcome"] = str(case_outcome)
     # INLINE-IMPACT-1 (the demo's thesis, inline): the structural-floor INJECTIONS — a deterministic
     # contract that BLOCKED what the council missed. Projected from composite.floor_adjustments
     # (action == floor_block only; inconclusive floors did not flip the verdict). The card renders a

@@ -22,6 +22,17 @@ const TONE = {
 const tone = (v) => TONE[String(v || "").toLowerCase().replace(/\s+/g, "_")] || TONE.needs_review;
 const pillarColor = (s) => (/clear|pass|ok|✓/i.test(String(s || "")) ? "var(--teal)" : "var(--accent)");
 
+// The named case outcome (independent-axes rule table) — the PRIMARY headline. The three
+// reviewers are NOT aggregated into a score; this is the rule-table label over their verdicts.
+const OUTCOME = {
+  CRITICAL: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Critical" },
+  POLICY_VIOLATION: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Policy violation" },
+  RISK_FLAG: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Risk flag" },
+  FINDING: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Finding" },
+  NEEDS_REVIEW: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Needs review" },
+  CLEAR: { cls: "pass", icon: "check", color: "var(--teal)", label: "Clear" },
+};
+
 // a per-judge vote (PASS|WARN|FAIL|BLOCK) -> chip color (mirrors artifact.jsx VOTE_COLOR).
 const VOTE_COLOR = { PASS: "var(--teal)", WARN: "var(--amber)", FAIL: "var(--accent)", BLOCK: "var(--accent)" };
 
@@ -34,11 +45,11 @@ function agreeDots(agreement) {
 
 export default function VerdictCard({
   id, question, answer, confidence, agreement, pillar, pillarStatus, verdict,
-  votes, floorBlocks, runId, onOpenArtifact,
+  votes, floorBlocks, runId, onOpenArtifact, caseOutcome,
 } = {}) {
-  // Real-data only: with no verdict (and no question), this was an output-less mount —
+  // Real-data only: with no outcome/verdict (and no question), this was an output-less mount —
   // show an honest placeholder instead of a fabricated sample verdict.
-  if (!verdict && !question) {
+  if (!verdict && !question && !caseOutcome) {
     return (
       <div className="icard">
         <div className="icard-hd"><span className="ttl">Result</span></div>
@@ -51,14 +62,17 @@ export default function VerdictCard({
     );
   }
 
-  const t = tone(verdict);
+  // The named case outcome is PRIMARY when present; else fall back to the PASS/WARN/BLOCK tone.
+  const oc = caseOutcome ? OUTCOME[String(caseOutcome).toUpperCase()] : null;
+  const t = oc || tone(verdict);
+  const headline = oc ? oc.label : verdictLabel(verdict);
   return (
     <div className="icard">
       <div className="icard-hd">
         <span className="ic" style={{ color: t.color }}><Icon name={t.icon} size={15} /></span>
         <span className="ttl">Result</span>
         {id && <span className="sub">{id}</span>}
-        <span className="right"><span className={"tag " + t.cls}>{verdictLabel(verdict)}</span></span>
+        <span className="right"><span className={"tag " + t.cls}>{headline}</span></span>
       </div>
       <div className="icard-bd">
         <div className="verdict">
@@ -121,6 +135,12 @@ export default function VerdictCard({
                     <span className="ivote-role">{roleLabel(v.role)}</span>
                     <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>
                     {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
+                    {/* this axis's OWN sampling variance (independent — never averaged across reviewers). */}
+                    {typeof v.variance === "number" && (
+                      <span className="ivote-conf" title={`variance over k=${v.k ?? "?"} samples`} style={{ color: v.variance >= 0.2 ? "var(--amber)" : "var(--muted)" }}>
+                        var {v.variance.toFixed(2)}{v.k ? ` · k=${v.k}` : ""}
+                      </span>
+                    )}
                   </div>
                   {v.reason && (
                     <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.45, margin: "1px 0 0 26px" }}>{v.reason}</div>

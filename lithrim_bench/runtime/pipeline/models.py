@@ -41,6 +41,11 @@ class JudgeVote(BaseModel):
     reason: str = ""
     model: str = ""  # LLM model id, e.g. "gpt-4.1" (NOT the role name)
     findings: list[str] = Field(default_factory=list)  # taxonomy codes
+    # Sampling layer (judge_call): THIS reviewer's own score variance + completion count k
+    # over its native-n samples. Surfaced so each axis's stability shows independently (the
+    # reviewers are never aggregated). None when sampling wasn't recorded (k=1 / legacy).
+    variance: float | None = None
+    k: int | None = None
 
 
 def _coerce_legacy_judge_votes(
@@ -190,6 +195,13 @@ class PipelineProvenance(BaseModel):
     stage_results: dict[str, StageResult] = Field(default_factory=dict)
     council_config: dict[str, Any] = Field(default_factory=dict)
     judge_rationale: dict[str, Any] | None = None
+    # Sampling-layer (judge_call) telemetry: per-role score distribution from the
+    # native-n sampling — {role: {score_mean, score_variance, scores_raw, k}}. None on
+    # the default k=1 non-authored paths; never feeds verdict derivation (additive).
+    sampling: dict[str, Any] | None = None
+    # The named case outcome (independent-axes rule table) — CRITICAL / POLICY_VIOLATION /
+    # RISK_FLAG / FINDING / NEEDS_REVIEW / CLEAR. None on non-authored / legacy paths.
+    case_outcome: str | None = None
     kb_retrievals: list[dict[str, Any]] = Field(default_factory=list)
     # Retrieval orchestrator stats surfaced for empirical observability of
     # the S20 retry-on-empty path. Populated by
@@ -263,6 +275,11 @@ class PipelineRequest(BaseModel):
     # their own ComplianceCouncil and never set this flag, so they keep the
     # default ``seed=42`` behavior.
     eval_mode: bool = False
+    # The CASE-level Policy criterion (independent-axes model): the one criterion sentence
+    # the policy reviewer applies to THIS case (Policy criteria are case-level, not global).
+    # Threaded into the council payload; the authored stage layers it onto policy_judge's prompt
+    # for this grade only. None → policy uses its global JudgeConfig.criterion (if any).
+    policy_criterion: str | None = None
     # Vendored addition (Bench salvage): agent-type context. It historically selected
     # build_prompt's category-specialised prompt branch (e.g. the scribe branch), but
     # build_prompt was deleted in CE-PACK-6b-CLEAN and the authored path does not branch on
@@ -289,6 +306,10 @@ class PipelineResult(BaseModel):
     transform: TransformResult | None = None
     provenance: PipelineProvenance
     regenerate_hints: list[str] | None = None
+    # The named case outcome (independent-axes rule table): CRITICAL / POLICY_VIOLATION /
+    # RISK_FLAG / FINDING / NEEDS_REVIEW / CLEAR. PRIMARY result; ``verdict`` (PASS/WARN/BLOCK)
+    # is the mapped gate value underneath. None on non-authored / legacy paths.
+    case_outcome: str | None = None
 
 
 # ── Audit-view response models (Phase 5 Cycle 14 / S31) ─────────────────────

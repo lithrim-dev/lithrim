@@ -221,7 +221,7 @@ export function ConnectorForm() {
 function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode, workspaces, activeWs, onSwitchWorkspace, onCreateWorkspace }) {
   return (
     <div className="titlebar">
-      <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div>
+      {/* <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div> */}
       {/* {mode && setMode && <ModeSwitch mode={mode} setMode={setMode} />} */}
       <div className="tb-crumb">
         <WorkspaceSwitcher active={activeWs} workspaces={workspaces}

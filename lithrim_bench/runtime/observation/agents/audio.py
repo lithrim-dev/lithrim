@@ -10,7 +10,7 @@ harness-irrelevant couplings in the recompose source:
 
 The WS-6c-OBS slice (tier **A+**, user-elected) recomposes them as **in-process,
 instantiation-hoisted agent classes implementing the interface**, but **gates the
-real DSP bodies behind the optional ``lithrim-bench[observation]`` extra** — the
+real DSP bodies behind the optional ``lithrim[observation]`` extra** — the
 faithful whisper/librosa port is a documented follow-up. This is sound because
 the recomposed **text path never invokes the audio agents**: the transcript is
 supplied in-memory (no Whisper), ``analyze_audio`` is skipped for text (mirroring
@@ -33,7 +33,7 @@ class ObservationExtraRequired(RuntimeError):
 
 _DEFER_MSG = (
     "{agent}.{method} needs the audio-DSP backend (whisper/torch/librosa), gated "
-    "behind the optional `lithrim-bench[observation]` extra; its faithful port is a "
+    "behind the optional `lithrim[observation]` extra; its faithful port is a "
     "documented WS-6c-OBS follow-up. The recomposed text path does not invoke it."
 )
 

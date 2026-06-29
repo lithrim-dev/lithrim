@@ -1,0 +1,104 @@
+"""The independent-axes rule table (`outcomes.derive_case_outcome`).
+
+Pure / stdlib-only (no dspy/openai), so it runs on the bare core too. Covers every row of
+the owner-locked priority table + the all-axis variance gate + the outcome→verdict mapping.
+"""
+
+from __future__ import annotations
+
+from lithrim_bench.runtime.council.outcomes import (
+    OUTCOME_TO_VERDICT,
+    VARIANCE_THRESHOLD,
+    case_outcome_to_verdict,
+    derive_case_outcome,
+)
+
+
+def _seam(role, decision, *, variance=0.0, errors=None):
+    return {
+        "model": role,
+        "decision": decision,
+        "sampling": {"score_variance": variance},
+        "errors": errors or [],
+    }
+
+
+def _trio(risk_d, policy_d, faith_d, *, risk=None, policy=None, faith=None):
+    return [
+        _seam("risk_judge", risk_d, **(risk or {})),
+        _seam("policy_judge", policy_d, **(policy or {})),
+        _seam("faithfulness_judge", faith_d, **(faith or {})),
+    ]
+
+
+# ── the priority table, row by row ──────────────────────────────────────────
+def test_all_approve_is_clear():
+    assert derive_case_outcome(_trio("approve", "approve", "approve")) == "CLEAR"
+
+
+def test_risk_reject_is_critical():
+    assert derive_case_outcome(_trio("reject", "approve", "approve")) == "CRITICAL"
+
+
+def test_policy_reject_is_policy_violation():
+    assert derive_case_outcome(_trio("approve", "reject", "approve")) == "POLICY_VIOLATION"
+
+
+def test_faithfulness_reject_is_finding():
+    assert derive_case_outcome(_trio("approve", "approve", "reject")) == "FINDING"
+
+
+def test_risk_needs_review_is_risk_flag():
+    assert derive_case_outcome(_trio("needs_review", "approve", "approve")) == "RISK_FLAG"
+
+
+def test_other_needs_review_is_needs_review():
+    assert derive_case_outcome(_trio("approve", "needs_review", "approve")) == "NEEDS_REVIEW"
+    assert derive_case_outcome(_trio("approve", "approve", "needs_review")) == "NEEDS_REVIEW"
+
+
+def test_lane_priority_risk_beats_policy_and_faith():
+    # all three reject → CRITICAL (risk wins the priority), never aggregated.
+    assert derive_case_outcome(_trio("reject", "reject", "reject")) == "CRITICAL"
+    # policy + faith reject (risk clean) → POLICY_VIOLATION (policy beats faith).
+    assert derive_case_outcome(_trio("approve", "reject", "reject")) == "POLICY_VIOLATION"
+
+
+# ── the variance gate (all three axes; >= 0.20) ─────────────────────────────
+def test_variance_gate_beats_every_verdict():
+    # high Risk variance → NEEDS_REVIEW even though Risk rejects (gate is rule #1).
+    assert derive_case_outcome(_trio("reject", "approve", "approve", risk={"variance": 0.20})) == "NEEDS_REVIEW"
+    # high Policy variance also gates (all three axes, owner choice).
+    assert derive_case_outcome(_trio("approve", "approve", "approve", policy={"variance": 0.25})) == "NEEDS_REVIEW"
+    # high Faithfulness variance too.
+    assert derive_case_outcome(_trio("approve", "approve", "approve", faith={"variance": 0.30})) == "NEEDS_REVIEW"
+
+
+def test_variance_below_threshold_does_not_gate():
+    assert derive_case_outcome(_trio("reject", "approve", "approve", risk={"variance": 0.19})) == "CRITICAL"
+    assert VARIANCE_THRESHOLD == 0.20
+
+
+def test_errored_reviewer_is_needs_review():
+    assert derive_case_outcome(_trio("approve", "approve", "approve", risk={"errors": ["boom"]})) == "NEEDS_REVIEW"
+
+
+def test_missing_reviewer_does_not_crash():
+    # a 2-reviewer roster (no faithfulness) still resolves.
+    out = derive_case_outcome([_seam("risk_judge", "approve"), _seam("policy_judge", "reject")])
+    assert out == "POLICY_VIOLATION"
+
+
+# ── the outcome → verdict (gate) mapping ────────────────────────────────────
+def test_outcome_to_verdict_mapping():
+    assert OUTCOME_TO_VERDICT == {
+        "CRITICAL": "BLOCK",
+        "POLICY_VIOLATION": "BLOCK",
+        "RISK_FLAG": "WARN",
+        "FINDING": "WARN",
+        "NEEDS_REVIEW": "WARN",
+        "CLEAR": "PASS",
+    }
+    assert case_outcome_to_verdict("CRITICAL") == "BLOCK"
+    assert case_outcome_to_verdict("CLEAR") == "PASS"
+    assert case_outcome_to_verdict(None) == "WARN"  # conservative default

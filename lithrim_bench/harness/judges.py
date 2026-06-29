@@ -68,14 +68,26 @@ class JudgeConfig:
     model: str
     assigned_flags: tuple[str, ...]
     validator_refs: tuple[str, ...]
+    # Sampling layer (per-reviewer): how many completions this reviewer samples per grade (k),
+    # its sampling temperature, and the single injected criterion sentence. ``None`` k/temperature
+    # mean "use the per-role default" (resolved at grade time, never here) so an unauthored judge
+    # is byte-identical to before. ``criterion`` is appended to the reviewer's role prompt.
+    temperature: float | None = None
+    k: int | None = None
+    criterion: str = ""
 
 
 def judge_from_dict(data: dict[str, Any]) -> JudgeConfig:
+    raw_k = data.get("k")
+    raw_temp = data.get("temperature")
     return JudgeConfig(
         role=data["role"],
         model=data.get("model", "") or "",
         assigned_flags=tuple(data.get("assigned_flags") or ()),
         validator_refs=tuple(data.get("validator_refs") or ()),
+        temperature=float(raw_temp) if isinstance(raw_temp, (int, float)) else None,
+        k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
+        criterion=data.get("criterion", "") or "",
     )
 
 
@@ -85,6 +97,9 @@ def judge_to_dict(jc: JudgeConfig) -> dict[str, Any]:
         "model": jc.model,
         "assigned_flags": list(jc.assigned_flags),
         "validator_refs": list(jc.validator_refs),
+        "temperature": jc.temperature,
+        "k": jc.k,
+        "criterion": jc.criterion,
     }
 
 

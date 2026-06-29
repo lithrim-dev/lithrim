@@ -93,6 +93,11 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [judge, setJudge] = useState(null); // the loaded summary (available_flags, questions, …)
   const [assigned, setAssigned] = useState([]); // assigned flag codes
   const [model, setModel] = useState("");
+  // Per-reviewer sampling config (independent-axes model): k completions, temperature, the one
+  // injected criterion sentence. Strings for the inputs ("" = use the per-role default).
+  const [kSamples, setKSamples] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [criterion, setCriterion] = useState("");
   // PROMPT-EDIT-1: the reviewer's base prompt, editable by the SME. `loadedPrompt` is the
   // as-loaded text so a lens-only save doesn't resend an unchanged prompt (no spurious edit).
   const [rolePrompt, setRolePrompt] = useState("");
@@ -113,6 +118,9 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         setJudge(j);
         setAssigned(j.assigned_flags || []);
         setModel(j.model || "");
+        setKSamples(j.k != null ? String(j.k) : "");
+        setTemperature(j.temperature != null ? String(j.temperature) : "");
+        setCriterion(j.criterion || "");
         setRolePrompt(j.base_prompt || ""); // seed the editable prompt once (initial load only)
         setLoadedPrompt(j.base_prompt || "");
         setValidators(j.validator_refs || []);
@@ -169,6 +177,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       const body = {
         model, assigned_flags: assigned, validator_refs: validators,
         ...(rolePrompt !== loadedPrompt ? { role_prompt: rolePrompt } : {}),
+        // Per-reviewer sampling config — sent only when set; "" leaves the per-role default.
+        ...(kSamples !== "" ? { k: Number(kSamples) } : {}),
+        ...(temperature !== "" ? { temperature: Number(temperature) } : {}),
+        criterion,
       };
       // S-BS-153: pass the active agent so the save ALSO rosters this judge onto its
       // eval_profile.judges (idempotent, audited, server-side) → the rail's Judges step ticks.
@@ -225,8 +237,38 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
           ) : null}
         </div>
 
+        {/* Per-reviewer sampling (independent-axes model): k completions + temperature + the one
+            injected criterion sentence. The reviewers are independent axes, never averaged. */}
+        <section className="flex flex-col gap-2">
+          <Label>Sampling for this reviewer</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="je-k" className="text-[10.5px] text-muted-foreground">Samples (k)</Label>
+              <Input id="je-k" type="number" min="1" max="9" value={kSamples} data-testid="je-k"
+                onChange={(e) => setKSamples(e.target.value)} placeholder="default" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="je-temp" className="text-[10.5px] text-muted-foreground">Temperature</Label>
+              <Input id="je-temp" type="number" min="0" max="2" step="0.1" value={temperature} data-testid="je-temp"
+                onChange={(e) => setTemperature(e.target.value)} placeholder="default" />
+            </div>
+          </div>
+          <p className="text-[10.5px] text-muted-foreground">
+            More samples stabilize the score by averaging out per-call noise; the spread across the
+            k samples is reported as a confidence signal. Temperature applies when k&gt;1 — 1.0
+            maximizes the ensembling benefit; k=1 runs deterministically.
+          </p>
+          <Label htmlFor="je-criterion" className="text-[10.5px] text-muted-foreground">Injected criterion (one sentence)</Label>
+          <Input id="je-criterion" value={criterion} data-testid="je-criterion"
+            onChange={(e) => setCriterion(e.target.value)}
+            placeholder="e.g. Flag any medication dose not present in the transcript." />
+        </section>
+
         <section className="flex flex-col gap-2">
           <Label>Choose what this reviewer checks for</Label>
+          <p className="text-[10.5px] text-muted-foreground">
+            This reviewer detects and classifies into these codes — findings outside its lens are ignored.
+          </p>
           <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
             {availableFlags.map((f) => (
               <div key={f.flag} className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">

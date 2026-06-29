@@ -116,6 +116,9 @@ class LocalPipelineBackend(BackendClient):
             conversation_id=f"run:local:case:{case['case_id']}",
             eval_mode=True,
             gate_mode=False,
+            # Case-level Policy criterion (independent-axes model) — carried from the case
+            # record to the council payload so the authored stage applies it to policy_judge.
+            policy_criterion=case.get("policy_criterion"),
         )
 
     def evaluate_pipeline(self, case: dict[str, Any]) -> PipelineResult | None:

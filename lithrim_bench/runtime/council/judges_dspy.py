@@ -67,6 +67,16 @@ _ROLE_DEPLOYMENT = {
     "policy_judge": "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3",
     "faithfulness_judge": "AZURE_OPENAI_DEPLOYMENT_LLAMA_4_MAVERICK",
 }
+# Per-reviewer default sampling count k (the axes are independent, not a voting council).
+# Risk samples most (k=5 — the safety axis where instability must surface); Faithfulness k=3;
+# Policy k=1 (deterministic compliance check). An authored ``JudgeConfig.k`` overrides; absent
+# both, the global ``settings.COUNCIL_JUDGE_SAMPLES`` (default 1) applies. A module-level constant,
+# OUTSIDE the frozen consensus-seam symbol set.
+DEFAULT_JUDGE_SAMPLES = {
+    "risk_judge": 5,
+    "policy_judge": 1,
+    "faithfulness_judge": 3,
+}
 # Role → the OpenAI-direct model setting key (BYOK single-provider, Cycle 1). When
 # LITHRIM_LLM_PROVIDER=openai and OPENAI_API_KEY is set, ``build_judge_lm`` binds each role to
 # ``settings.<this key>`` on the user's one key — preserving the multi-judge council + per-role
@@ -456,6 +466,10 @@ def build_trio(
     assignments: dict[str, Sequence[str]] | None = None,
     models: dict[str, str] | None = None,
     roles: Sequence[str] | None = None,
+    judge_samples: int | None = None,
+    samples: dict[str, int] | None = None,
+    temperatures: dict[str, float] | None = None,
+    criteria: dict[str, str] | None = None,
 ) -> list[Judge]:
     """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
 
@@ -484,6 +498,21 @@ def build_trio(
     MIXED-provider council (one role on the tool-less BYO-Claude LM, the rest on Azure)
     is assemblable. ``None``/empty (the default) is byte-identical to before — each
     judge binds ``build_judge_lm(role)`` with no override (A5 back-compat).
+
+    ``judge_samples`` (sampling layer): k, the number of completions each LIVE judge
+    requests per grade through the single :func:`sampling.judge_call` primitive (native
+    ``n``). ``None`` (the default) reads ``settings.COUNCIL_JUDGE_SAMPLES`` (default 1 →
+    one completion, byte-equivalent to the pre-sampling path). This is a sampling-layer
+    knob, NOT reviewer config — it never touches the per-role bindings/ontology/prompts.
+    The ``predictors=`` offline path ignores it (fakes bypass ``judge_call`` entirely).
+
+    ``samples`` / ``temperatures`` / ``criteria`` (PER-REVIEWER config, the independent-axes
+    model): role → k / temperature / one-sentence criterion. Each is resolved per role:
+    k = ``samples[role]`` → :data:`DEFAULT_JUDGE_SAMPLES` (5/1/3) → ``judge_samples`` → settings;
+    temperature flows into :func:`build_judge_lm` (note DSPy forces 0.7 when k>1, so per-role
+    temperature mainly affects k=1 reviewers); the criterion is appended to the role prompt.
+    All ``None``/empty (the default) is byte-identical to before. Parallel to ``models`` /
+    ``assignments`` (the existing per-role dicts).
 
     ``roles`` (DOGFOOD-1 D2b / PHASE2-B): an optional ordered roster — a SMALLER subset (the
     judge-set-ladder rungs) OR a LARGER roster carrying an AUTHORED judge (PHASE2-B). ``None``
@@ -514,6 +543,40 @@ def build_trio(
             f"roles {unknown!r} are neither production judges {production!r} nor "
             "authored (assignments/models keys)"
         )
+    # SAMPLING LAYER (judge_call): the LIVE model call routes through the single
+    # ``judge_call`` primitive (native ``n`` for k completions) instead of a raw
+    # ``dspy.Predict``. k comes from the sampling-layer knob (the explicit
+    # ``judge_samples`` arg, else ``settings.COUNCIL_JUDGE_SAMPLES``), NEVER the per-role
+    # judge config — so reviewer configuration is untouched. ``Judge.forward`` is
+    # byte-frozen; we wire the primitive in here (an authorized symbol) by injecting a
+    # ``judge_call``-backed predictor whose returned ``JudgeResult`` duck-types the
+    # ``{decision, findings, _raw_response}`` shape ``Judge.forward`` already consumes.
+    from .sampling import JudgeResult, judge_call  # lazy: keep import acyclic (sampling↔dspy)
+
+    # Global fallback k (back-compat); per-role k is resolved per judge below.
+    global_k = judge_samples if judge_samples is not None else settings.COUNCIL_JUDGE_SAMPLES
+
+    def _resolve_k(role: str) -> int:
+        # per-role authored (samples[role]) → per-role default (3/1/5) → global → 1.
+        if samples and samples.get(role) is not None:
+            return int(samples[role])
+        if role in DEFAULT_JUDGE_SAMPLES:
+            return int(DEFAULT_JUDGE_SAMPLES[role])
+        return int(global_k)
+
+    def _capturing(inner, holder):
+        """Wrap a predictor so a returned ``JudgeResult`` is stashed for telemetry.
+        Transparent: a non-JudgeResult return (the offline fakes) passes through
+        unchanged, so the existing ``predictors=`` behaviour is byte-equivalent."""
+
+        def _wrapped(**kw):
+            result = inner(**kw)
+            if isinstance(result, JudgeResult):
+                holder["last"] = result
+            return result
+
+        return _wrapped
+
     judges: list[Judge] = []
     for role in selected:
         if ontology is not None:
@@ -521,21 +584,57 @@ def build_trio(
             role_prompt = render_role_questions(ontology, role, assigned_flags=assigned)
         else:
             role_prompt = load_role_prompt(role)
+        # Per-reviewer criterion: the ONE injected criterion sentence, appended to the role
+        # prompt. ``criteria`` is empty/None by default (byte-identical). policy_judge's
+        # case-level criterion is layered ON TOP per-grade in authored_stage (a runtime
+        # role_prompt override), so this global criterion is its fallback.
+        role_criterion = (criteria or {}).get(role) or ""
+        if role_criterion.strip():
+            role_prompt = f"{role_prompt}\n\nEvaluation criterion: {role_criterion.strip()}"
+        holder: dict[str, Any] = {}
         if predictors is not None:
             judge = Judge(
                 role,
-                predictor=predictors[role],
+                predictor=_capturing(predictors[role], holder),
                 role_prompt=role_prompt,
                 taxonomy_context=taxonomy_context,
             )
             judge.llm_model = None  # VOTE-MODEL-1: offline predictor path binds no LM
-            judges.append(judge)
         else:
+            role_k = _resolve_k(role)
+            lm_overrides: dict[str, Any] = {}
             role_model = (models or {}).get(role) or ""
-            lm = build_judge_lm(role, model=role_model) if role_model else build_judge_lm(role)
+            if role_model:
+                lm_overrides["model"] = role_model
+            role_temp = (temperatures or {}).get(role)
+            if role_temp is not None:
+                lm_overrides["temperature"] = float(role_temp)
+            lm = build_judge_lm(role, **lm_overrides)
+
+            # The judge_call-backed predictor. ``dspy.Predict`` is built lazily INSIDE
+            # ``judge_call`` (on first forward), never at build_trio time, so a
+            # monkeypatched non-dspy fake LM (the vote-model attribution test) does not
+            # trip Predict construction here. ``_k`` is the per-role sampling count.
+            def _sampling_predictor(_lm=lm, _tax=taxonomy_context, _k=role_k, _temp=role_temp, **kw):
+                return judge_call(
+                    kw.get("transcript", ""),
+                    model=_lm,
+                    k=_k,
+                    temperature=_temp,  # None → judge_call uses DEFAULT_SAMPLE_TEMPERATURE for k>1
+                    artifact=kw.get("artifact", ""),
+                    role_key_questions=kw.get("role_key_questions", ""),
+                    taxonomy_context=kw.get("taxonomy_context") or _tax,
+                )
+
+            live_predictor = _capturing(_sampling_predictor, holder)
+            # Expose the bound LM on the predictor so it quacks like the ``dspy.Predict``
+            # it replaced (``predictor.lm``): keeps ``_raw_response_for``'s fallback and
+            # the per-role provider introspection (``judge.predict.lm``) working through
+            # the closure, so no caller that reached the old ``Judge(lm=)`` binding breaks.
+            live_predictor.lm = lm
             judge = Judge(
                 role,
-                lm=lm,
+                predictor=live_predictor,
                 role_prompt=role_prompt,
                 taxonomy_context=taxonomy_context,
             )
@@ -544,7 +643,8 @@ def build_trio(
             # the REAL model it graded on, not the role name. Set here (the carve-out provider
             # binder), never on the frozen ``Judge`` symbol.
             judge.llm_model = getattr(lm, "model", None)
-            judges.append(judge)
+        judge._sampling_holder = holder  # read by authored_stage for distribution telemetry
+        judges.append(judge)
     return judges
 
 

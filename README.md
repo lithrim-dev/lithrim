@@ -22,10 +22,12 @@ The floor is **three-state by design**: a finding is grounded-true, grounded-fal
 
 ## Quickstart
 
+Two ways in: **`make demo`** proves the loop in ~10s with no key or network; **`docker compose up`** brings up the full UI to explore on your own cases (bring your model key). Start with the demo:
+
 **Zero-config demo — no keys, no network, runs in seconds.** See the full loop on a built-in case:
 
 ```bash
-git clone <repo> && cd lithrim-bench
+git clone <repo> && cd lithrim
 make demo        # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
 ```
 
@@ -168,7 +170,7 @@ Lithrim backs the research paper *A Deterministic Structural Floor Under LLM-as-
 
 ## Contributing
 
-Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactured wins** — a benchmark result must be reproducible, a label must be justified by construction, and a claim must say where it *doesn't* hold. Tests are the gate (`make test`), lint is `ruff` (`make lint`).
+Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactured wins** — a benchmark result must be reproducible, a label must be justified by construction, and a claim must say where it *doesn't* hold. Lint is `ruff` (`make lint`). Run the full suite with the optional extras installed: `pip install -e ".[dev,council,bff,verification]"` then `make test`.
 
 ## License
 

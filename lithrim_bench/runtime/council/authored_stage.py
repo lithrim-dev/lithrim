@@ -50,6 +50,10 @@ def build_authored_evaluator(
     http_client: Any | None = None,
     models: dict[str, str] | None = None,
     roles: Sequence[str] | None = None,
+    judge_samples: int | None = None,
+    samples: dict[str, int] | None = None,
+    temperatures: dict[str, float] | None = None,
+    criteria: dict[str, str] | None = None,
 ):
     """Build the authored DSPy-trio council evaluator — the ``council_evaluate`` seam
     (``payload -> {consensus, models, evidence_summary}``) that mirrors
@@ -96,7 +100,16 @@ def build_authored_evaluator(
         predictors=predictors,
         models=models,
         roles=roles,
+        judge_samples=judge_samples,
+        samples=samples,
+        temperatures=temperatures,
+        criteria=criteria,
     )
+    # Capture each reviewer's build-time role prompt (incl. its global criterion) so the
+    # per-CASE policy criterion can be layered on per grade and restored after — the trio is
+    # shared, so we never let a per-case prompt leak into the next grade. ``getattr`` keeps
+    # the fixtured/fake judges (no ``role_prompt``) working — they just can't be overridden.
+    _base_prompts = {j.role: getattr(j, "role_prompt", "") for j in trio}
     # PHASE2-B: construct the council with an EXPLICIT models list (the trio's roles) so the
     # FROZEN default-council `__init__` branch (models is None → `_ROLE_DEPLOYMENT[role]` for each
     # `pack_production_judges()` entry) is SKIPPED. That branch KeyErrors on an AUTHORED judge
@@ -119,7 +132,25 @@ def build_authored_evaluator(
             for a in (payload.get("artifacts") or [])
             if isinstance(a, dict)
         )
-        results = [j.forward(transcript=transcript, artifact=artifact) for j in trio]
+
+        # Case-level Policy criterion (the criteria are case-level for Policy, not global):
+        # layer the case's ``policy_criterion`` onto the policy reviewer's prompt for THIS grade
+        # only, then restore in ``finally`` so the shared trio doesn't carry it forward.
+        policy_criterion = str(payload.get("policy_criterion") or "").strip()
+        _overridden: list[Any] = []
+        if policy_criterion:
+            for j in trio:
+                if j.role == "policy_judge":
+                    j.role_prompt = (
+                        f"{_base_prompts.get(j.role, j.role_prompt)}"
+                        f"\n\nEvaluation criterion: {policy_criterion}"
+                    )
+                    _overridden.append(j)
+        try:
+            results = [j.forward(transcript=transcript, artifact=artifact) for j in trio]
+        finally:
+            for j in _overridden:
+                j.role_prompt = _base_prompts.get(j.role, j.role_prompt)
 
         # THE MOAT — the per-judge, pre-consensus withstands-gate (UAP-3b D2). It
         # corrects a signal-contradicted finding ABOVE the frozen seam; the CORRECTED
@@ -151,14 +182,41 @@ def build_authored_evaluator(
             if isinstance(r, dict) and not r.get("llm_model"):
                 r["llm_model"] = _model_by_role.get(r.get("model"))
 
-        # The frozen consensus IP — only called. The envelope mirrors
-        # ComplianceCouncil.evaluate()'s return so run_semantic's _run_council_and_map
-        # maps it exactly as it maps the prompt-council.
+        # Sampling-layer telemetry: attach each judge's JudgeResult distribution
+        # (score_mean/variance/scores_raw/k) to its seam dict so the orchestrator folds
+        # it into provenance. Keyed by role so it survives the gate's per-judge rewrites;
+        # the frozen ``_apply_consensus`` ignores the extra key. Absent on the offline
+        # ``predictors=`` path unless a fake predictor returns a ``JudgeResult``.
+        _sampling_by_role = {
+            j.role: getattr(j, "_sampling_holder", {}).get("last") for j in trio
+        }
+        for r in results:
+            if not isinstance(r, dict) or r.get("sampling"):
+                continue
+            jr = _sampling_by_role.get(r.get("model"))
+            if jr is not None:
+                r["sampling"] = {
+                    "score_mean": jr.score_mean,
+                    "score_variance": jr.score_variance,
+                    "scores_raw": list(jr.scores_raw),
+                    "k": jr.k,
+                }
+
+        # Independent-axes case outcome (the rule table) — computed ABOVE the frozen seam
+        # from each reviewer's OWN verdict + variance; never an aggregate score. This, not
+        # the consensus decision, is the case verdict the orchestrator maps.
+        from .outcomes import derive_case_outcome
+
+        case_outcome = derive_case_outcome(results)
+
+        # The frozen consensus IP — still called for findings/evidence_summary (its
+        # aggregated decision is no longer the case verdict). Byte-0-delta.
         consensus = council._apply_consensus(results, gate_mode=gate_mode)
         return {
             "consensus": consensus,
             "models": results,
             "evidence_summary": consensus.get("evidence_summary", {}),
+            "case_outcome": case_outcome,
         }
 
     return _evaluator
@@ -176,6 +234,10 @@ def build_authored_semantic_stage(
     http_client: Any | None = None,
     models: dict[str, str] | None = None,
     roles: Sequence[str] | None = None,
+    judge_samples: int | None = None,
+    samples: dict[str, int] | None = None,
+    temperatures: dict[str, float] | None = None,
+    criteria: dict[str, str] | None = None,
 ):
     """Return an async semantic stage that grades via the authored DSPy trio.
 
@@ -200,6 +262,10 @@ def build_authored_semantic_stage(
         http_client=http_client,
         models=models,
         roles=roles,
+        judge_samples=judge_samples,
+        samples=samples,
+        temperatures=temperatures,
+        criteria=criteria,
     )
 
     async def _stage(request):

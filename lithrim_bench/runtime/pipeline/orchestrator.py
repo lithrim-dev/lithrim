@@ -353,6 +353,8 @@ class PipelineOrchestrator:
             stage_results=stage_results,
             council_config=semantic_meta.get("council_config", {"mode": "skipped"}),
             judge_rationale=semantic_meta.get("judge_rationale"),
+            sampling=semantic_meta.get("sampling"),
+            case_outcome=semantic_meta.get("case_outcome"),
             kb_retrievals=semantic_meta.get("kb_retrievals", []),
             retrieval_stats=semantic_meta.get("retrieval_stats", {}),
             tool_calls=None,
@@ -414,4 +416,5 @@ class PipelineOrchestrator:
             transform=None,
             provenance=provenance,
             regenerate_hints=regenerate_hints,
+            case_outcome=semantic_meta.get("case_outcome"),
         )

@@ -3,7 +3,7 @@
 Replicates ``../lithrim-backend/examples/ci_cd_gate.py``'s release rule
 (``passed = reliability >= threshold AND never_events == 0``) but computes it over a
 LOCAL frozen eval-pack (:mod:`lithrim_bench.harness.evalpack`) instead of polling the
-:8002 SaaS API — the premium eval-pack-SDK surface, runnable as ``lithrim-bench-pack``
+:8002 SaaS API — the premium eval-pack-SDK surface, runnable as ``lithrim-pack``
 in a CI pipeline (exit 0 = safe to deploy, exit 1 = block release).
 
   * ``reliability`` = ``100 * verdict_matches / total``; a match = the composite verdict
@@ -151,7 +151,7 @@ def _default_imported_agents() -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Lithrim-bench CI/CD eval-pack gate — block deploys that fail compliance "
+        description="Lithrim CI/CD eval-pack gate — block deploys that fail compliance "
         "(reliability >= threshold AND never_events == 0). Exit 0 = pass, 1 = fail."
     )
     parser.add_argument("--pack", help="Path to a frozen eval-pack JSON to gate (offline, $0)")
