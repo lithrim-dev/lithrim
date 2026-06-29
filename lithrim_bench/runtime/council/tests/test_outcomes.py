@@ -167,20 +167,29 @@ def test_authored_approve_does_not_flag():
     assert derive_case_outcome(results) == "CLEAR"
 
 
-# ── A2: coherence invariant — the headline is never milder than the strongest ─
-# individual reviewer signal (a sufficient proxy for "never milder than consensus"
-# on the deterministic reject/needs_review lanes; the owner-locked variance/error
-# gate — which intentionally returns NEEDS_REVIEW — is excluded, S-BS-170).
+# ── A2: coherence invariant — the headline is never milder than the verdict its ─
+# strongest individual reviewer signal demands, per the shipped owner-locked contract.
+# Operationally the chip (stage_verdict) and the banner (case_outcome) BOTH derive from
+# `case_outcome_to_verdict(derive_case_outcome(...))` on the authored path, so this floor
+# IS the coherence the user sees. The floor is role-AWARE (not a flat reject->BLOCK): the
+# risk/policy/AUTHORED reject lanes are BLOCK-class, but the owner-locked faithfulness lane
+# maps reject -> FINDING (WARN) and the chip respects it (no contradiction). The owner-locked
+# variance/error gate (-> NEEDS_REVIEW) is excluded — it is a deliberate human-review WARN.
 _SEVERITY = {"PASS": 0, "WARN": 1, "BLOCK": 2}
-_VOTE_VERDICT = {"approve": "PASS", "needs_review": "WARN", "reject": "BLOCK"}
+_KNOWN = ("risk_judge", "policy_judge", "faithfulness_judge")
 
 
-def _worst_reviewer_verdict(results):
-    return max(
-        (_VOTE_VERDICT.get(r.get("decision"), "WARN") for r in results),
-        key=lambda v: _SEVERITY[v],
-        default="PASS",
-    )
+def _reviewer_floor(role, decision):
+    """The minimum verdict the headline must show given ONE reviewer's own signal.
+
+    risk/policy/authored reject -> BLOCK; faithfulness reject -> WARN (owner-locked
+    FINDING lane); any needs_review -> WARN; approve -> PASS.
+    """
+    if decision == "reject":
+        return "WARN" if role == "faithfulness_judge" else "BLOCK"
+    if decision == "needs_review":
+        return "WARN"
+    return "PASS"
 
 
 def test_outcome_verdict_never_milder_than_consensus():
@@ -190,9 +199,19 @@ def test_outcome_verdict_never_milder_than_consensus():
     roles = ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge"]
     # full low-variance / no-error matrix (3^4 = 81 rows), incl. authored-role rejects.
     for combo in itertools.product(decisions, repeat=len(roles)):
-        results = [_seam(role, d) for role, d in zip(roles, combo)]
+        results = [_seam(role, d) for role, d in zip(roles, combo, strict=True)]
         outcome_verdict = case_outcome_to_verdict(derive_case_outcome(results))
-        floor = _worst_reviewer_verdict(results)
-        assert _SEVERITY[outcome_verdict] >= _SEVERITY[floor], (
-            f"{combo}: outcome {outcome_verdict} milder than reviewer floor {floor}"
+        floor = max(
+            (_reviewer_floor(role, d) for role, d in zip(roles, combo, strict=True)),
+            key=lambda v: _SEVERITY[v],
         )
+        assert _SEVERITY[outcome_verdict] >= _SEVERITY[floor], (
+            f"{combo}: outcome {outcome_verdict} milder than coherence floor {floor}"
+        )
+
+
+def test_authored_reject_floor_is_block_specifically():
+    # A2 anchor (non-vacuous): an authored reject's coherence floor is BLOCK, and the
+    # outcome clears it — distinct from the owner-locked faithfulness reject (WARN).
+    assert _reviewer_floor("erasure_judge", "reject") == "BLOCK"
+    assert _reviewer_floor("faithfulness_judge", "reject") == "WARN"
