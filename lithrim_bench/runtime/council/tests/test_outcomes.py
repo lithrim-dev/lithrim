@@ -44,8 +44,12 @@ def test_policy_reject_is_policy_violation():
     assert derive_case_outcome(_trio("approve", "reject", "approve")) == "POLICY_VIOLATION"
 
 
-def test_faithfulness_reject_is_finding():
-    assert derive_case_outcome(_trio("approve", "approve", "reject")) == "FINDING"
+def test_faithfulness_reject_is_flagged():
+    # OWNER 2026-06-29 "if it's wrong, it's wrong": a faithfulness reject is a reject is a
+    # BLOCK — never softened to the WARN-class FINDING lane (that downgrade made the case
+    # outcome milder than the consensus → the live Finding-title vs Flagged-chip split).
+    assert derive_case_outcome(_trio("approve", "approve", "reject")) == "FLAGGED"
+    assert case_outcome_to_verdict(derive_case_outcome(_trio("approve", "approve", "reject"))) == "BLOCK"
 
 
 def test_risk_needs_review_is_risk_flag():
@@ -60,7 +64,8 @@ def test_other_needs_review_is_needs_review():
 def test_lane_priority_risk_beats_policy_and_faith():
     # all three reject → CRITICAL (risk wins the priority), never aggregated.
     assert derive_case_outcome(_trio("reject", "reject", "reject")) == "CRITICAL"
-    # policy + faith reject (risk clean) → POLICY_VIOLATION (policy beats faith).
+    # policy + faith reject (risk clean) → POLICY_VIOLATION (policy's dedicated lane beats the
+    # generic FLAGGED reject lane). Both are BLOCK-class — the name differs, the verdict doesn't.
     assert derive_case_outcome(_trio("approve", "reject", "reject")) == "POLICY_VIOLATION"
 
 
@@ -95,7 +100,7 @@ def test_outcome_to_verdict_mapping():
         "CRITICAL": "BLOCK",
         "POLICY_VIOLATION": "BLOCK",
         "RISK_FLAG": "WARN",
-        "FINDING": "WARN",
+        "FINDING": "BLOCK",
         "FLAGGED": "BLOCK",
         "NEEDS_REVIEW": "WARN",
         "CLEAR": "PASS",
@@ -182,11 +187,11 @@ _KNOWN = ("risk_judge", "policy_judge", "faithfulness_judge")
 def _reviewer_floor(role, decision):
     """The minimum verdict the headline must show given ONE reviewer's own signal.
 
-    risk/policy/authored reject -> BLOCK; faithfulness reject -> WARN (owner-locked
-    FINDING lane); any needs_review -> WARN; approve -> PASS.
+    ANY reviewer reject -> BLOCK (OWNER 2026-06-29 "if it's wrong, it's wrong"; the former
+    faithfulness->WARN carve-out is retired); any needs_review -> WARN; approve -> PASS.
     """
     if decision == "reject":
-        return "WARN" if role == "faithfulness_judge" else "BLOCK"
+        return "BLOCK"
     if decision == "needs_review":
         return "WARN"
     return "PASS"
@@ -210,8 +215,10 @@ def test_outcome_verdict_never_milder_than_consensus():
         )
 
 
-def test_authored_reject_floor_is_block_specifically():
-    # A2 anchor (non-vacuous): an authored reject's coherence floor is BLOCK, and the
-    # outcome clears it — distinct from the owner-locked faithfulness reject (WARN).
+def test_every_reject_floor_is_block():
+    # A2 anchor (non-vacuous): EVERY reviewer reject's coherence floor is BLOCK — authored
+    # AND faithfulness alike (the owner directive: a reject is never a WARN-class outcome).
     assert _reviewer_floor("erasure_judge", "reject") == "BLOCK"
-    assert _reviewer_floor("faithfulness_judge", "reject") == "WARN"
+    assert _reviewer_floor("faithfulness_judge", "reject") == "BLOCK"
+    assert _reviewer_floor("risk_judge", "reject") == "BLOCK"
+    assert case_outcome_to_verdict(derive_case_outcome(_trio("approve", "approve", "reject"))) == "BLOCK"
