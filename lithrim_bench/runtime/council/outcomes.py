@@ -17,19 +17,18 @@ The rule table (owner-locked; first matching rule wins):
     1. any reviewer errored  OR  any reviewer score_variance >= VARIANCE_THRESHOLD  -> NEEDS_REVIEW
     2. risk_judge          = reject                                                 -> CRITICAL
     3. policy_judge        = reject                                                 -> POLICY_VIOLATION
-    4. any AUTHORED judge  = reject                                                 -> FLAGGED
-    5. faithfulness_judge  = reject                                                 -> FINDING
-    6. risk_judge          = needs_review                                           -> RISK_FLAG
-    7. any reviewer        = needs_review                                           -> NEEDS_REVIEW
-    8. all                 = approve                                                -> CLEAR
+    4. any OTHER reviewer  = reject  (faithfulness or an authored judge)            -> FLAGGED
+    5. risk_judge          = needs_review                                           -> RISK_FLAG
+    6. any reviewer        = needs_review                                           -> NEEDS_REVIEW
+    7. all                 = approve                                                -> CLEAR
 
-S-BS-167: rules 2/3/5/6 key on the three V2 roles, which each have a dedicated lane.
-Rule 4 generalizes the table to AUTHORED judges (any role outside that trio — exactly
-the reviewers the product invites users to create): an authored ``reject`` drives a
-flagged-class (BLOCK) outcome so the case-outcome headline is never milder than the
-frozen consensus the moment a custom reviewer drives the verdict. It sits ABOVE the
-faithfulness FINDING lane (BLOCK outranks that WARN-class outcome) but BELOW the
-risk/policy reject lanes (those keep their dedicated, more-specific names).
+OWNER directive 2026-06-29 ("if it's wrong, it's wrong"): a reviewer ``reject`` is ALWAYS a
+BLOCK-class outcome — never the former WARN-class ``FINDING`` lane. Rule 4 catches every reject
+not already named by the risk/policy lanes (faithfulness AND authored judges alike), so the
+case-outcome headline is never milder than the consensus the moment any reviewer rejects (this
+retires the faithfulness FINDING/WARN downgrade that produced the live Finding-title vs
+Flagged-chip contradiction). ``needs_review`` is the only non-approve signal that stays WARN —
+it is honest uncertainty ("a person should look"), not a graded-down reject.
 
 Pure / stdlib-only (no dspy/openai/council import) so it stays importable on the default
 core and is offline-testable against synthesized seam dicts.
@@ -49,10 +48,6 @@ CaseOutcome = Literal[
     "CLEAR",
 ]
 
-# The three V2 roles with dedicated lanes; any reviewer OUTSIDE this set is an AUTHORED judge
-# (PHASE2-B / the ClinVerdict suite). An authored reject drives the generic FLAGGED lane.
-_KNOWN_ROLES = frozenset({"risk_judge", "policy_judge", "faithfulness_judge"})
-
 # The variance gate (owner-locked): ALL three axes; a reviewer whose sampled verdict is this
 # unstable trips NEEDS_REVIEW regardless of its modal verdict. Scores are 0.0/0.5/1.0 per
 # sample, so population variance peaks ~0.25; 0.20 ≈ a meaningful split across the samples.
@@ -65,7 +60,9 @@ OUTCOME_TO_VERDICT: dict[str, str] = {
     "CRITICAL": "BLOCK",
     "POLICY_VIOLATION": "BLOCK",
     "RISK_FLAG": "WARN",
-    "FINDING": "WARN",
+    # FINDING is no longer produced (a faithfulness reject now lands in FLAGGED); it is mapped
+    # to BLOCK and kept only so a stored pre-2026-06-29 blob carrying it still reads coherently.
+    "FINDING": "BLOCK",
     "FLAGGED": "BLOCK",
     "NEEDS_REVIEW": "WARN",
     "CLEAR": "PASS",
@@ -105,7 +102,6 @@ def derive_case_outcome(
     by_role = {r.get("model"): r for r in results if isinstance(r, dict)}
     risk = by_role.get("risk_judge")
     policy = by_role.get("policy_judge")
-    faith = by_role.get("faithfulness_judge")
 
     # 1. instability / failure → NEEDS_REVIEW (all three axes gate on variance).
     if any(_errored(r) for r in results) or any(
@@ -117,22 +113,19 @@ def derive_case_outcome(
         return "CRITICAL"
     if _decision(policy) == "reject":
         return "POLICY_VIOLATION"
-    # 4. an AUTHORED judge (any role outside the V2 trio) rejects → FLAGGED (BLOCK). Above the
-    #    faithfulness FINDING lane so a custom reviewer's block is never under-stated (S-BS-167).
-    if any(
-        _decision(r) == "reject" and r.get("model") not in _KNOWN_ROLES
-        for r in results
-        if isinstance(r, dict)
-    ):
+    # 4. ANY OTHER reviewer (faithfulness OR an authored judge) that rejects → FLAGGED (BLOCK).
+    #    A reject is a reject: a wrong note is blocked, never softened to the WARN-class FINDING
+    #    lane (OWNER directive 2026-06-29 — "if it's wrong, it's wrong"). Retiring that downgrade
+    #    is what stops the case-outcome from coming out milder than the consensus verdict (the live
+    #    Finding-title vs Flagged-chip contradiction on clinverdict_case06). risk/policy keep their
+    #    dedicated names above; everyone else's reject lands here.
+    if any(_decision(r) == "reject" for r in results if isinstance(r, dict)):
         return "FLAGGED"
-    # 5. faithfulness reject is its own (WARN-class) finding.
-    if _decision(faith) == "reject":
-        return "FINDING"
-    # 6. Risk uncertainty is its own flag.
+    # 5. Risk uncertainty is its own flag.
     if _decision(risk) == "needs_review":
         return "RISK_FLAG"
-    # 7. any other reviewer uncertain → NEEDS_REVIEW.
+    # 6. any other reviewer uncertain → NEEDS_REVIEW.
     if any(_decision(r) == "needs_review" for r in results):
         return "NEEDS_REVIEW"
-    # 8. nothing fired → CLEAR.
+    # 7. nothing fired → CLEAR.
     return "CLEAR"
