@@ -287,6 +287,11 @@ class ToolContext:
     record_meta_verdict: Callable[..., dict]
     default_agent: str = "ws0_default"
     active_case: str | None = None
+    # GROUNDED-EXPLAIN-1: a request-context case loader (case_id -> raw case dict with
+    # transcript/context + artifacts + expected_safety_flags), bound by the BFF so the chat's
+    # "what's wrong with this case" answer grounds in the real artifact + gold. Optional — a ctx
+    # built without it (or a test stub) degrades to no artifact injection.
+    load_case_full: Callable[..., dict] | None = None
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
 

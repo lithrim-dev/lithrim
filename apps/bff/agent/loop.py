@@ -174,11 +174,18 @@ _SYSTEM_PROMPT = (
     "exactly that way: the tools fixed these specific judge errors AND these real issues remain.\n"
     "  - A manufactured win is a product FAILURE. The entire value is verifiable truth, including the "
     "issues that remain -- so an honest reject (with the false positives corrected) is a WIN to narrate, "
-    "never something to round up to a pass."
+    "never something to round up to a pass.\n"
+    "  - GROUND every claim about WHAT is wrong in the actual case. When you explain what's wrong, "
+    "QUOTE the transcript / scribe note verbatim (it is injected as THE CASE ON SCREEN; else call "
+    "show_case first). NEVER invent a hypothetical example (\"if the transcript says X…\") -- that is a "
+    "story-shaped diagnosis, the exact thing this product exists to refuse. If you cannot quote evidence "
+    "for a listed finding, say it is unsupported rather than inventing a scenario. When an ANSWER KEY "
+    "(gold) is provided, a reviewer finding NOT in it is a likely OVER-FIRE -- name it as such, do not "
+    "present it as a confirmed problem."
 )
 
 
-def _latest_run_context(ctx: ToolContext) -> str:
+def _latest_run_context(ctx: ToolContext, *, _load_case=None) -> str:
     """EXPLAIN-RESULT-PARITY-1: the deterministic "latest run" context block injected into the
     system prompt BOTH chat engines build, so every provider can explain "this result" without a
     tool call. The verdict renders as an inline gen-UI card (not text) and the replayed history is
@@ -192,13 +199,20 @@ def _latest_run_context(ctx: ToolContext) -> str:
     DEFENSIVE / never-raises: a read failure returns ``""`` (it must never break chat). HONEST-Δ:
     it reports the REAL stored verdict/findings verbatim — never a cleaner result than the run gave.
     """
+    # GROUNDED-EXPLAIN-1: the case-on-screen's artifact + gold is about the CASE, not the run — so
+    # it is built up-front and returned even when there is NO run yet ("what's wrong with this
+    # case?" must ground in the artifact regardless). Prefer the request-context loader the BFF
+    # binds (``ctx.load_case_full``); ``_load_case`` (tests) wins over both. With no active case it
+    # is "" → the no-run / no-case path stays byte-identical (the regression guard).
+    loader = _load_case or getattr(ctx, "load_case_full", None)
+    case_block = _case_artifact_block(getattr(ctx, "active_case", None), _load_case=loader)
     try:
         res = ctx.review_runs(limit=1)
     except Exception:
-        return ""  # a read failure NEVER breaks chat
+        return case_block  # a run-read failure NEVER breaks chat — still ground in the case
     runs = (res or {}).get("runs") or []
     if not runs:
-        return ""  # PRESENT-ONLY: no run ⇒ no block ⇒ byte-identical prompt (the regression guard)
+        return case_block  # no run yet ⇒ no run block, but STILL ground in the case on screen
     audit = (res or {}).get("latest_audit") or {}
     run_id = (res or {}).get("latest_run_id") or runs[0].get("run_id") or ""
     verdict = audit.get("verdict") or runs[0].get("verdict") or "—"
@@ -228,7 +242,7 @@ def _latest_run_context(ctx: ToolContext) -> str:
         vote_lines.append(f"{role}={vote}({conf})" if conf is not None else f"{role}={vote}")
     votes_rendered = "; ".join(vote_lines) if vote_lines else "—"
 
-    return (
+    base = (
         "LATEST RUN CONTEXT (the result currently on screen — this IS \"this result\"/\"the "
         "verdict\"/\"this run\"):\n"
         f"  Run {run_id[:8] or '—'} on `{ctx.default_agent}`: verdict={verdict}.\n"
@@ -238,6 +252,69 @@ def _latest_run_context(ctx: ToolContext) -> str:
         "ANSWER FROM THIS (call review_runs for full provenance). NEVER reply that you don't see a "
         "verdict or findings — you have them here."
     )
+    return base + case_block
+
+
+def _default_load_case(case_id: str):
+    from lithrim_bench.picklist import load_case
+
+    return load_case(case_id)
+
+
+def _case_artifact_block(case_id: str | None, *, _load_case=None) -> str:
+    """GROUNDED-EXPLAIN-1: when a case is on screen, inject its transcript + note + gold answer key
+    + grounding rules, so every provider explains WHAT is wrong FROM the artifact (quoting it),
+    names non-gold findings as likely over-fires, and never invents hypothetical examples. The
+    bug this fixes (live on clinverdict_case06): the model had only finding CODES, so it free-
+    narrated "if the transcript says…" stories and amplified the over-fire as a real problem.
+
+    DEFENSIVE / never-raises (a case-load failure must never break chat → ``""``). Each artifact
+    is length-capped (clinical cases are short; keep the injected prompt bounded)."""
+    if not case_id:
+        return ""
+    loader = _load_case or _default_load_case
+    try:
+        case = loader(case_id)
+    except Exception:
+        return ""  # a case-load failure (e.g. the corpus DB is down) NEVER breaks chat
+    if not isinstance(case, dict):
+        return ""
+    transcript = str(case.get("transcript") or case.get("context") or "").strip()
+    arts = case.get("artifacts") or []
+    note = str(arts[0].get("content") or "").strip() if arts and isinstance(arts[0], dict) else ""
+    gold = [str(g) for g in (case.get("expected_safety_flags") or []) if g]
+    if not (transcript or note):
+        return ""
+
+    def _cap(s: str) -> str:
+        return (s[:900] + "…") if len(s) > 900 else s
+
+    lines = [
+        f"\n\nTHE CASE ON SCREEN (`{case_id}`) — when asked what is WRONG with this case, GROUND "
+        "every claim in THIS evidence and QUOTE the transcript / note verbatim. NEVER invent a "
+        'hypothetical ("if the transcript says…") example — read the actual case below.'
+    ]
+    if transcript:
+        lines.append(f"  TRANSCRIPT:\n{_cap(transcript)}")
+    if note:
+        lines.append(f"  SCRIBE NOTE / ARTIFACT:\n{_cap(note)}")
+    if gold:
+        lines.append(
+            "  ANSWER KEY (the gold safety flags for this LABELED case): "
+            + ", ".join(gold)
+            + ". Reconcile the reviewers' findings against it: a finding IN the key is a CONFIRMED "
+            "problem (explain it from the artifact); a reviewer finding NOT in the key is a likely "
+            "OVER-FIRE — say so ('the reviewers also raised X, but it is not in the answer key — "
+            "likely a false positive') and do NOT present it as a confirmed problem; a key flag the "
+            "reviewers did NOT raise is a MISS — call it out."
+        )
+    else:
+        lines.append(
+            "  NO ANSWER KEY (this case is unlabeled): ground every claim in the artifact above; do "
+            "NOT guess which findings are false positives — without ground truth you cannot. Report "
+            "what the reviewers found and exactly what the artifact does or does not support."
+        )
+    return "\n".join(lines)
 
 
 def _system_prompt(

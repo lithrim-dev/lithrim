@@ -1067,6 +1067,38 @@ def _pipeline_run_id(record: dict) -> str | None:
     return ((record.get("result") or {}).get("provenance") or {}).get("pipeline_run_id")
 
 
+# vote (PASS/WARN/BLOCK as shown to the UI) -> the judge's underlying decision, so the case
+# outcome can be RE-DERIVED from the served votes (one source of truth that reflects the current
+# rule table even on a $0 replay, instead of trusting a possibly-stale stored case_outcome).
+_VOTE_TO_DECISION = {
+    "PASS": "approve", "APPROVE": "approve",
+    "WARN": "needs_review", "NEEDS_REVIEW": "needs_review",
+    "BLOCK": "reject", "REJECT": "reject", "FAIL": "reject",
+}
+
+
+def _case_outcome_from_votes(votes: list[dict]) -> str | None:
+    """Re-derive the named case outcome from the realized votes via the canonical rule table
+    (``runtime.council.outcomes.derive_case_outcome``), so the headline stays coherent with the
+    votes the UI shows AND with the current rule (a reviewer reject is never milder than BLOCK).
+    None when there are no usable votes — the caller then falls back to the stored value."""
+    from lithrim_bench.runtime.council.outcomes import derive_case_outcome
+
+    seams = []
+    for v in votes:
+        dec = _VOTE_TO_DECISION.get(str(v.get("vote") or "").upper())
+        if dec is None:
+            continue
+        var = v.get("variance")
+        seams.append({
+            "model": v.get("judge_role"),
+            "decision": dec,
+            "sampling": {"score_variance": var if isinstance(var, (int, float)) else 0.0},
+            "errors": [],
+        })
+    return derive_case_outcome(seams) if seams else None
+
+
 def _council_view(record: dict) -> dict:
     """Project the REALIZED per-judge council votes for the JudgeTab (D0).
 
@@ -1095,7 +1127,14 @@ def _council_view(record: dict) -> dict:
     ]
     prov_council = (result.get("provenance") or {}).get("council_config") or {}
     # The named case outcome (independent-axes rule table) — the PRIMARY result the UI shows.
-    case_outcome = result.get("case_outcome") or (result.get("provenance") or {}).get("case_outcome")
+    # RE-DERIVED from the realized votes (single source of truth) so it can never drift milder
+    # than the votes/consensus the way a stale stored value could; falls back to the stored value
+    # only when no votes are present (e.g. a council error).
+    case_outcome = (
+        _case_outcome_from_votes(votes)
+        or result.get("case_outcome")
+        or (result.get("provenance") or {}).get("case_outcome")
+    )
     return {
         "votes": votes,
         "configured": list(prov_council.get("judges") or []),
@@ -3296,6 +3335,16 @@ def _build_tool_context(
         # workspace's ingested_cases.jsonl. $0/read.
         return list_cases_endpoint()
 
+    def _load_case_full(case_id: str) -> dict | None:
+        # GROUNDED-EXPLAIN-1: resolve a case's raw dict (transcript/context + artifacts + gold)
+        # the SAME way GET /v1/case does — pin the active agent's source so the workspace-corpus
+        # resolution works in this request context (the source-less load_case can't reach it from
+        # the agent loop). $0/read; never a spend.
+        if not case_id:
+            return None
+        ag = _load_agent(req_agent, db_path)
+        return load_case(case_id, source=ag.source_abspath())
+
     # ── UAP-5c: the journey-completing closures (Domain / Flag / Review). Each wraps a
     # FROZEN op and (per the S-BS-82 rule) passes every Query/Header param explicitly.
     def _get_agent(name: str) -> dict:
@@ -3850,6 +3899,7 @@ def _build_tool_context(
         record_meta_verdict=_record_meta_verdict,
         default_agent=req_agent,
         active_case=active_case,
+        load_case_full=_load_case_full,
     )
 
 
