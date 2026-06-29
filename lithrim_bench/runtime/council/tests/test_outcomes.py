@@ -96,9 +96,103 @@ def test_outcome_to_verdict_mapping():
         "POLICY_VIOLATION": "BLOCK",
         "RISK_FLAG": "WARN",
         "FINDING": "WARN",
+        "FLAGGED": "BLOCK",
         "NEEDS_REVIEW": "WARN",
         "CLEAR": "PASS",
     }
     assert case_outcome_to_verdict("CRITICAL") == "BLOCK"
     assert case_outcome_to_verdict("CLEAR") == "PASS"
     assert case_outcome_to_verdict(None) == "WARN"  # conservative default
+
+
+# ── S-BS-167: the rule table generalizes to AUTHORED judges ─────────────────
+# The 3 V2 roles each have a dedicated lane; an AUTHORED judge (any other role) that
+# rejects must still drive a flagged-class (BLOCK) outcome — else the case-outcome
+# headline silently under-states the consensus the moment a user authors a reviewer.
+
+
+def test_authored_judge_reject_drives_flagged_outcome():
+    """A1 — mirrors live `clinverdict_case01`: Risk approve, Policy approve,
+    Faithfulness needs_review (conf 0.32, var 0.06), authored `erasure_judge` reject
+    → FLAGGED → BLOCK (NOT NEEDS_REVIEW/WARN, which drops the authored reject)."""
+    results = [
+        _seam("risk_judge", "approve"),
+        _seam("policy_judge", "approve"),
+        _seam("faithfulness_judge", "needs_review", variance=0.06),
+        _seam("erasure_judge", "reject"),
+    ]
+    assert derive_case_outcome(results) == "FLAGGED"
+    assert case_outcome_to_verdict(derive_case_outcome(results)) == "BLOCK"
+
+
+def test_authored_reject_outranks_faithfulness_finding():
+    # an authored reject (BLOCK-class) beats a co-occurring faithfulness reject (FINDING/WARN).
+    results = [
+        _seam("risk_judge", "approve"),
+        _seam("policy_judge", "approve"),
+        _seam("faithfulness_judge", "reject"),
+        _seam("erasure_judge", "reject"),
+    ]
+    assert derive_case_outcome(results) == "FLAGGED"
+
+
+def test_known_lane_reject_still_outranks_authored_reject():
+    # a Risk reject still wins its dedicated lane (CRITICAL) over an authored reject.
+    results = [
+        _seam("risk_judge", "reject"),
+        _seam("erasure_judge", "reject"),
+    ]
+    assert derive_case_outcome(results) == "CRITICAL"
+
+
+def test_authored_needs_review_is_needs_review():
+    # an authored judge's needs_review keeps the existing rule-6 NEEDS_REVIEW behaviour.
+    results = [
+        _seam("risk_judge", "approve"),
+        _seam("policy_judge", "approve"),
+        _seam("faithfulness_judge", "approve"),
+        _seam("erasure_judge", "needs_review"),
+    ]
+    assert derive_case_outcome(results) == "NEEDS_REVIEW"
+
+
+def test_authored_approve_does_not_flag():
+    # an authored judge that approves alongside a clean trio → CLEAR (no spurious flag).
+    results = [
+        _seam("risk_judge", "approve"),
+        _seam("policy_judge", "approve"),
+        _seam("faithfulness_judge", "approve"),
+        _seam("erasure_judge", "approve"),
+    ]
+    assert derive_case_outcome(results) == "CLEAR"
+
+
+# ── A2: coherence invariant — the headline is never milder than the strongest ─
+# individual reviewer signal (a sufficient proxy for "never milder than consensus"
+# on the deterministic reject/needs_review lanes; the owner-locked variance/error
+# gate — which intentionally returns NEEDS_REVIEW — is excluded, S-BS-170).
+_SEVERITY = {"PASS": 0, "WARN": 1, "BLOCK": 2}
+_VOTE_VERDICT = {"approve": "PASS", "needs_review": "WARN", "reject": "BLOCK"}
+
+
+def _worst_reviewer_verdict(results):
+    return max(
+        (_VOTE_VERDICT.get(r.get("decision"), "WARN") for r in results),
+        key=lambda v: _SEVERITY[v],
+        default="PASS",
+    )
+
+
+def test_outcome_verdict_never_milder_than_consensus():
+    import itertools
+
+    decisions = ["approve", "needs_review", "reject"]
+    roles = ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge"]
+    # full low-variance / no-error matrix (3^4 = 81 rows), incl. authored-role rejects.
+    for combo in itertools.product(decisions, repeat=len(roles)):
+        results = [_seam(role, d) for role, d in zip(roles, combo)]
+        outcome_verdict = case_outcome_to_verdict(derive_case_outcome(results))
+        floor = _worst_reviewer_verdict(results)
+        assert _SEVERITY[outcome_verdict] >= _SEVERITY[floor], (
+            f"{combo}: outcome {outcome_verdict} milder than reviewer floor {floor}"
+        )
