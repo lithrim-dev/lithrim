@@ -69,6 +69,43 @@ function RunFailed({ runError }) {
   );
 }
 
+// S-BS-168a: a plain-English "What this means" summary atop the Report — the verdict in
+// words + WHY + the recommended action, composed from the (now-coherent, authored-aware)
+// stage verdict and the per-reviewer votes. Confidence-HONEST (the no-manufactured-wins
+// moat): a confident reject reads as a confirmed flag; a low-confidence needs-review reads
+// as an uncertain point a person should check — the two are never flattened into one list.
+function ReportSummary({ comp, votes }) {
+  const verdict = String(comp.stage_verdict || "").toUpperCase();
+  const isFlag = (v) => v.vote === "BLOCK" || v.vote === "FAIL" || /reject/i.test(String(v.vote || ""));
+  const isUnsure = (v) => v.vote === "WARN" || /needs|review/i.test(String(v.vote || ""));
+  const conf = (v) => (typeof v.confidence === "number" ? v.confidence : null);
+  const name = (v) => roleLabel(v.judge_role || v.role);
+
+  const flagged = votes.filter(isFlag);
+  const unsure = votes.filter(isUnsure);
+  const flaggedHighConf = flagged.length > 0 && flagged.every((v) => conf(v) !== null && conf(v) >= 0.5);
+  const unsureLowConf = unsure.some((v) => conf(v) !== null && conf(v) < 0.5);
+
+  const parts = [
+    verdict === "BLOCK" ? "This case was flagged." : verdict === "PASS" ? "This case passed." : "This case needs a closer look.",
+  ];
+  if (flagged.length)
+    parts.push(`The ${flagged.map(name).join(" and ")} flagged it${flaggedHighConf ? " with high confidence" : ""}.`);
+  if (unsure.length)
+    parts.push(`The ${unsure.map(name).join(" and ")} ${unsure.length > 1 ? "were" : "was"} uncertain${unsureLowConf ? " (low confidence)" : ""} — a person should take a look.`);
+  // vote-less older runs: name the reason off the findings so the summary still says WHY.
+  if (!flagged.length && !unsure.length && verdict !== "PASS" && (comp.active_findings || []).length)
+    parts.push(`Issues raised: ${comp.active_findings.map(flagLabel).join(", ")}.`);
+  parts.push(verdict === "PASS" ? "No reviewer raised an issue." : "Recommend a person review this before it is relied on.");
+
+  return (
+    <div className="art-sec" data-testid="report-summary">
+      <div className="art-h2">What this means</div>
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text)" }}>{parts.join(" ")}</div>
+    </div>
+  );
+}
+
 function ReportTab({ runStatus, runResult, runError }) {
   if (runStatus === "loading")
     return <ReportMessage>Running the evaluation…</ReportMessage>;
@@ -103,6 +140,8 @@ function ReportTab({ runStatus, runResult, runError }) {
         </div>
         <div className="rb-grade" style={{ color: ui.color }}>{verdictLabel(comp.stage_verdict)}</div>
       </div>
+
+      <ReportSummary comp={comp} votes={(runResult.council || {}).votes || []} />
 
       <div className="art-sec">
         <div className="art-h2">
