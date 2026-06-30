@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
@@ -330,6 +330,8 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const [clearing, setClearing] = useState(false); // PERSIST-CONV: in-DOM confirm for the destructive clear
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
   const taRef = useRef(null);
+  const fileRef = useRef(null); // CE-INGEST-FRONTDOOR-1: the hidden upload input (the only chrome)
+  const [uploading, setUploading] = useState(false);
   const convoRef = useRef(null); // the scroll container
   const bottomRef = useRef(null); // autoscroll anchor at the end of the thread
   const [atBottom, setAtBottom] = useState(true); // is the user reading the latest turn?
@@ -530,6 +532,30 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
   const fillPrompt = (text) => {
     setInput(text);
     taRef.current?.focus();
+  };
+
+  // CE-INGEST-FRONTDOOR-1: the upload front door. Read the file, POST /preview (decode + a JUTE
+  // template + apply — pins NOTHING), and inject an IngestPreviewCard for the human to validate
+  // before /commit. Deterministic + cheap; the file picker is the only chrome, the rest is inline.
+  const onUploadFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    setChat((c) => [...c, { role: "user", text: `📎 ${file.name}`, parts: [] }]);
+    try {
+      const raw = await file.text();
+      const res = await ingestPreview({ raw, fmt: "auto", filename: file.name, agent });
+      setChat((c) => [...c, {
+        role: "assistant", text: "", parts: [{
+          type: "tool-ingest_preview", state: "output-available",
+          output: { ...res, raw, filename: file.name, agent },
+        }],
+      }]);
+    } catch (err) {
+      setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = ""; // allow re-selecting the same file
+    }
   };
 
   // The PAID path the agent can NOT take: a human-confirmed in-process run, gated by the in-DOM
@@ -887,6 +913,16 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                   onClick={() => setPaid({ open: true, busy: false })}>
                   <Icon name="bolt" size={16} />
                 </button>
+                {/* CE-INGEST-FRONTDOOR-1: load eval cases from a JSON / JSONL / CSV file. The picker
+                    is the only chrome; preview → approve renders inline as gen-UI. */}
+                <button className="icon-btn" data-testid="upload-cases"
+                  title="Load eval cases from a JSON, JSONL, or CSV file"
+                  disabled={uploading || sending} onClick={() => fileRef.current?.click()}>
+                  <Icon name={uploading ? "refresh" : "attach"} size={16} />
+                </button>
+                <input ref={fileRef} type="file" accept=".json,.jsonl,.ndjson,.csv,application/json,text/csv"
+                  style={{ display: "none" }} data-testid="upload-input"
+                  onChange={(e) => onUploadFile(e.target.files?.[0])} />
               </div>
               <span className="kbd" style={{ marginLeft: 4 }}>⌘↵ to send</span>
               <div className="send">

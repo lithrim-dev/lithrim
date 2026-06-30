@@ -79,6 +79,18 @@ export const gradeCases = ({ agent = "ws0_default", live = false, in_process = f
     body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}) },
   });
 
+/* POST /v1/cases/ingest/preview — CE-INGEST-FRONTDOOR-1: decode an uploaded JSON/JSONL/CSV blob,
+   generate/select a JUTE template, apply it, and return {fmt, columns, count, sample_cases,
+   template} for the human to validate. Pins + writes NOTHING. extraction_rules is the field-mapping
+   correction channel (re-preview to refine). A bad blob / non-convergence is a 422 with the reason. */
+export const ingestPreview = ({ raw, fmt = "auto", filename = "", extraction_rules = "", agent = "ws0_default" }) =>
+  call("/v1/cases/ingest/preview", { method: "POST", body: { raw, fmt, filename, extraction_rules, agent } });
+
+/* POST /v1/cases/ingest/commit — pin the human-APPROVED template + upsert the corpus (no LM gen).
+   The decode is deterministic, so it reproduces exactly the cases shown in /preview. */
+export const ingestCommit = ({ approved_template, raw, fmt = "auto", filename = "", extraction_rules = "", agent = "ws0_default" }) =>
+  call("/v1/cases/ingest/commit", { method: "POST", body: { approved_template, raw, fmt, filename, extraction_rules, agent } });
+
 export const getCorpus = () => call("/v1/corpus");
 /* GET /v1/cases — NARR-LOOP: the active workspace's INGESTED eval cases (case_id + fidelity
    flags). Self-fetched by the Corpus tab so ingested cases survive a reload. */
@@ -230,6 +242,13 @@ export const bindRole = ({ role, provider, model } = {}) =>
 /* GET /v1/roles/bindings — the non-secret per-consumer readout ({roles: {role → {provider, model} |
    null}}) + connected_providers (those with a stored key, for the Providers list). NEVER a key. */
 export const getRoleBindings = () => call("/v1/roles/bindings");
+
+/* REVIEWER-MODE (single vs multiple reviewers): the per-agent reviewer roster. GET returns
+   {reviewer_roster: [role,…]|null (null = panel), panel: [all pack reviewers]}. POST sets it —
+   a single-role roster runs that one reviewer; null/[] = the panel (full pack roster). Audited. */
+export const getCouncilRoster = (agent) => call(`/v1/council/roster${agent ? `?agent=${encodeURIComponent(agent)}` : ""}`);
+export const setCouncilRoster = ({ agent, roster } = {}) =>
+  call("/v1/council/roster", { method: "POST", body: { agent, roster } });
 
 /* ── MODEL-REGISTRY-1c: the configured-model pool (pick-from-pool role bind) ──────
    The reusable model pool that backs Connect AI's "Model pool" section: register a
