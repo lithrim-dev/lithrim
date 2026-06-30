@@ -159,6 +159,30 @@ class DocShimCollection:
             conn.close()
         return [json.loads(r[0]) for r in rows]
 
+    def history(
+        self, original_id: str, *, db_path: str | Path = DEFAULT_COLLECTIONS_DB
+    ) -> list[dict]:
+        """The archived prior versions of ``original_id`` from ``{name}_history``,
+        newest-first (the most-recently superseded version first). PERSIST-2a / RUNTRAIL-2:
+        the READ-BACK accessor for the versioned-replace archive — archival is UNCHANGED
+        (the ``versioned=True`` write path), this only reads what it already wrote. Returns
+        ``[]`` on a non-versioned collection or when nothing has been superseded. Decode
+        shape mirrors ``find_by_json`` (the stored doc dicts)."""
+        if not self.versioned:
+            return []
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(self._schema())
+            conn.executescript(self._history_schema())
+            rows = conn.execute(
+                f"SELECT json FROM {self.name}_history WHERE original_id = ? "
+                "ORDER BY seq DESC",
+                (original_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [json.loads(r[0]) for r in rows]
+
     def get(self, doc_id: str, *, db_path: str | Path = DEFAULT_COLLECTIONS_DB) -> dict | None:
         conn = sqlite3.connect(db_path)
         try:
