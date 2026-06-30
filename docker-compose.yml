@@ -1,6 +1,6 @@
 # Lithrim — Community Edition local stack (CE Build C).
 #
-#   docker compose up        # → BFF on :8787, UI on :5180
+#   docker compose up        # → BFF :8787, UI :5180, JUTE mapper :3031 (arbitrary-JSON ingest)
 #
 # Zero-config: the BFF auto-seeds the neutral `_core` sample on first boot and `make demo`
 # (offline, $0, no keys) runs without any of the env vars below. Bring a model key (BYOK) to
@@ -53,15 +53,13 @@ services:
       # `healthcare/`) and restart → it is discoverable, GET /v1/packs shows it, and its `seed_agents`
       # are seeded into the rail. Pro packs are tier:pro (license-gated; default permit-all).
       LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-/dropin-packs}
-      # JUTE-ADDON-1: the JUTE mapper (:3031) is an OPT-IN ADD-ON for ingesting arbitrary/nested
-      # agent-trace JSON — NOT bundled into this self-contained core image. The core CE + grading +
-      # the clean demo work WITHOUT it; only the "paste arbitrary JSON" ingest needs it. To use it:
-      # run the mapper (`../etlp-mapper` has its own Dockerfile/compose, or any mapper) and set
-      # LITHRIM_JUTE_URL — `http://host.docker.internal:3031` for a host-run mapper, or
-      # `http://jute:3031` for the optional compose-network service below (`--profile jute`).
-      # Unset → the ingest expects a mapper you run separately (default localhost:3031 = THIS
-      # container, which has none). Configuration, not a secret.
-      LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-}
+      # JUTE-ADDON-1: the JUTE mapper ingests arbitrary/nested agent-trace + clinical JSON ("open any
+      # JSON"). It is now BUNDLED — the `jute` service below starts with a plain `docker compose up`
+      # using the public SQLite-backed mapper image (no key, no external DB). The BFF reaches it over
+      # the compose network at http://jute:3000 (the mapper listens on :3000). Grading + the clean
+      # demo do NOT need it; run core-only with `docker compose up bff ui`. Override LITHRIM_JUTE_URL
+      # to point at a host/remote mapper instead. Configuration, not a secret.
+      LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-http://jute:3000}
     volumes:
       # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
       # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
@@ -108,19 +106,23 @@ services:
     networks:
       - lithrim
 
-  # JUTE-ADDON-1: the OPTIONAL JUTE mapper add-on, behind the `jute` profile so it NEVER starts with
-  # a plain `docker compose up` — the core stack (bff + ui) is unaffected. Start it WITH an image you
-  # supply (we do NOT hard-pin a private image):
-  #   JUTE_IMAGE=<your-mapper-image> docker compose --profile jute up
-  # then point the BFF at it with `LITHRIM_JUTE_URL=http://jute:3031` (the compose-network name). The
-  # mapper is a SEPARATE Clojure/JVM service (`../etlp-mapper`, its own Dockerfile) — build/supply the
-  # image yourself. Without JUTE_IMAGE the profile has no image to run (set it, or skip the profile and
-  # run the mapper on the host / remotely + set LITHRIM_JUTE_URL to that). See docs/JUTE_MAPPER_ADDON.md.
+  # JUTE-ADDON-1: the JUTE mapper, now BUNDLED so `docker compose up` gives turn-key "open any JSON"
+  # ingestion out of the box. Defaults to the PUBLIC SQLite-backed image — boots standalone with no
+  # auth (OIDC off) and an embedded SQLite DB (no Postgres), listening on :3000. Override JUTE_IMAGE to
+  # supply your own mapper. The BFF talks to it at http://jute:3000 over the compose network (the host
+  # publish below is for debugging/curl only). Core-only, skip the mapper: `docker compose up bff ui`.
+  # See docs/JUTE_MAPPER_ADDON.md.
   jute:
-    profiles: ["jute"]
-    image: ${JUTE_IMAGE:-}
+    image: ${JUTE_IMAGE:-ghcr.io/etlp-clj/etlp-mapper:feat-sqlite-backend}
+    environment:
+      # No OIDC + an embedded SQLite DB (WAL) → boots with zero external deps. The DB persists in the
+      # jute_data named volume (wiped by `docker compose down -v`, like the BFF state).
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      JDBC_URL: ${JDBC_URL:-jdbc:sqlite:/data/etlp-mapper.db?journal_mode=WAL&busy_timeout=5000}
     ports:
-      - "3031:3031"
+      - "3031:3000"   # host:container — the mapper serves on :3000; host 3031 for debugging/curl
+    volumes:
+      - jute_data:/data
     networks:
       - lithrim
 
@@ -130,3 +132,4 @@ networks:
 
 volumes:
   lithrim_out:   # clean-seeded CE state; `docker compose down -v` resets it
+  jute_data:     # JUTE mapper SQLite DB; `docker compose down -v` resets it

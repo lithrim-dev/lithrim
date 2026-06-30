@@ -1,13 +1,16 @@
 # The JUTE mapper add-on (ingesting arbitrary agent-trace JSON)
 
 The Lithrim **Community Edition is self-contained**: the core, grading (BYOK), and the
-clean `make demo` replay run with **no extra services**. You only need the JUTE mapper for one
-thing — **ingesting arbitrary / nested agent-trace JSON** (paste a JSON dump → it maps the nested
-trace into eval cases → run the council on them).
+clean `make demo` replay run with **no extra services**. The JUTE mapper adds one capability —
+**ingesting arbitrary / nested agent-trace JSON** (paste a JSON dump → it maps the nested trace
+into eval cases → run the council on them).
 
-The mapper is therefore an **opt-in add-on**, not part of the core image: it is a separate
-Clojure/JVM service (`../etlp-mapper`, with its own Dockerfile/compose). You run it yourself and
-point the CE at it via a single setting — **`LITHRIM_JUTE_URL`**.
+As of CE Build C the mapper is **bundled and on by default**: `docker compose up` starts a `jute`
+service from a **public, SQLite-backed image** that boots standalone — no auth (OIDC off), no
+Postgres, no key. The BFF reaches it over the compose network at **`http://jute:3000`** (the
+default), so the paste-arbitrary-JSON ingest works out of the box. It is still a separate
+Clojure/JVM service (`../etlp-mapper`); override **`JUTE_IMAGE`** to supply your own, or
+**`LITHRIM_JUTE_URL`** to point at a host/remote mapper.
 
 ## What needs it (and what doesn't)
 
@@ -18,47 +21,39 @@ point the CE at it via a single setting — **`LITHRIM_JUTE_URL`**.
 | Loading a pack, the conversational shell     | No                |
 | **Pasting arbitrary/nested JSON to ingest**  | **Yes**           |
 
-If you never use the "paste arbitrary JSON" ingest, you can ignore this doc entirely.
+If you never use the "paste arbitrary JSON" ingest, you can run **core-only**:
+`docker compose up bff ui` (skips the mapper entirely).
 
-## How to run it
+## The default: bundled, zero-config
 
-### 1. Start the mapper
+`docker compose up` starts the `jute` service automatically:
 
-Run the mapper from `../etlp-mapper` (its own Dockerfile/compose), or any compatible mapper.
-It serves the JUTE endpoints on port `3031`.
+- **image** — `ghcr.io/etlp-clj/etlp-mapper:feat-sqlite-backend` (public; override with `JUTE_IMAGE`)
+- **boots standalone** — `OIDC_ENABLED=false`, embedded SQLite (`JDBC_URL=jdbc:sqlite:/data/...`),
+  no Postgres; serves the JUTE endpoints on container port **`3000`**
+- **the BFF reaches it** at **`http://jute:3000`** (the default `LITHRIM_JUTE_URL`), over the
+  compose network
+- **host publish** `3031:3000` — for debugging/curl from your host (`curl localhost:3031/mappings`)
+- **state** persists in the `jute_data` named volume; `docker compose down -v` resets it
 
-### 2. Point the CE at it — `LITHRIM_JUTE_URL`
+Nothing to configure — paste arbitrary JSON and the ingest works.
 
-Set `LITHRIM_JUTE_URL` to wherever the mapper is reachable **from the BFF**:
+## Pointing at a different mapper — `LITHRIM_JUTE_URL`
 
-| Where the mapper runs                          | `LITHRIM_JUTE_URL`                  |
-| ---------------------------------------------- | ----------------------------------- |
-| On your host, BFF in Docker                    | `http://host.docker.internal:3031`  |
-| As the optional compose `jute` profile service | `http://jute:3031`                  |
-| BFF and mapper both on the host (no Docker)    | `http://localhost:3031` (the default) |
-| A remote / shared mapper                       | `http://my-mapper.internal:3031`    |
+To use your own mapper instead of the bundled one, set `LITHRIM_JUTE_URL` to wherever it is
+reachable **from the BFF**:
 
-> In Docker, the default `http://localhost:3031` resolves to the **BFF container itself**, which
-> has no mapper — so you must set `LITHRIM_JUTE_URL` to a reachable address. With the env **unset**
-> the behavior is byte-identical to before (default `localhost:3031`).
+| Where the mapper runs                       | `LITHRIM_JUTE_URL`                  |
+| ------------------------------------------- | ----------------------------------- |
+| The bundled compose `jute` service (default)| `http://jute:3000`                  |
+| On your host, BFF in Docker                 | `http://host.docker.internal:3031`  |
+| BFF and mapper both on the host (no Docker) | `http://localhost:3031`             |
+| A remote / shared mapper                    | `http://my-mapper.internal:3031`    |
 
 The default lives in one place — the `etlp_jute` plugin manifest
-(`lithrim_bench/harness/plugins.py`). `LITHRIM_JUTE_URL` overrides it; it is read at call time
-(no restart needed beyond a fresh request) and is configuration, not a secret.
-
-### Optional: run the mapper as a compose service
-
-`docker-compose.yml` ships an **optional `jute` profile** that never starts with a plain
-`docker compose up` (the core stack is unaffected). Supply your own mapper image:
-
-```bash
-JUTE_IMAGE=<your-mapper-image> LITHRIM_JUTE_URL=http://jute:3031 \
-  docker compose --profile jute up
-```
-
-We do **not** hard-pin a private image — build/supply `JUTE_IMAGE` yourself (e.g. from
-`../etlp-mapper`). Without it, run the mapper on the host or remotely and set `LITHRIM_JUTE_URL`
-to that address instead.
+(`lithrim_bench/harness/plugins.py`), with the compose service overriding it to `http://jute:3000`.
+`LITHRIM_JUTE_URL` overrides that; it is read at call time (no restart needed beyond a fresh
+request) and is configuration, not a secret.
 
 ## Then: the ingest just works
 
