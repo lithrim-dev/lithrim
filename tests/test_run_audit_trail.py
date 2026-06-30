@@ -218,9 +218,6 @@ def test_g5_projection_rebuildable_from_run_history_alone(tmp_path):
 # ── G6 — rehydrate(run_id) reconstructs the verdict from the blob, zero models ─
 
 
-@pytest.mark.xfail(strict=True, reason="RUNTRAIL-4: no rehydrate(run_id) path — find_by_id "
-                   "returns the blob, provenance_to_result adapts it, but no entrypoint "
-                   "reconstructs the graded verdict from a stored run_id alone")
 def test_g6_rehydrate_reconstructs_verdict_with_no_model_call(tmp_path):
     """SPEC §7 G6 / §4: a ``rehydrate(run_id)`` path reconstructs the graded result from
     the stored blob alone — no live model call, no re-grade — yielding the SAME verdict.
