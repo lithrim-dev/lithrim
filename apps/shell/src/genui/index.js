@@ -15,6 +15,7 @@ import "./RunPanel.jsx";
 import "./CaseCard.jsx";
 import "./ScorecardCard.jsx";
 import "./IngestPreviewCard.jsx";
+import "./ToolBuilder.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -32,3 +33,4 @@ export { default as RunPanel } from "./RunPanel.jsx";
 export { default as CaseCard } from "./CaseCard.jsx";
 export { default as ScorecardCard } from "./ScorecardCard.jsx";
 export { default as IngestPreviewCard } from "./IngestPreviewCard.jsx";
+export { default as ToolBuilder } from "./ToolBuilder.jsx";

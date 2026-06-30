@@ -93,3 +93,54 @@ def test_delete_removes_the_authored_tool(client):
     # idempotent: deleting again is a clean removed=false
     again = client.request("DELETE", "/v1/tools/my_hermes")
     assert again.status_code == 200 and again.json()["removed"] is False
+
+
+# ── POST /v1/tools/test — the stdio-MCP health-check (the card's "Test connection") ──
+def test_tool_test_lists_tools_on_a_reachable_server(client, monkeypatch):
+    import lithrim_bench.verification.mcp_client as mc
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def list_tools(self):
+            return [{"name": "search"}, {"name": "subsumed_by"}]
+
+    monkeypatch.setattr(mc, "McpStdioClient", FakeClient)
+    res = client.post("/v1/tools/test", json={"manifest": _MANIFEST})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is True
+    assert body["tools"] == ["search", "subsumed_by"]
+
+
+def test_tool_test_unreachable_is_graceful_not_500(client, monkeypatch):
+    import lithrim_bench.verification.mcp_client as mc
+
+    class BoomClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            raise RuntimeError("hermes not on PATH")
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(mc, "McpStdioClient", BoomClient)
+    res = client.post("/v1/tools/test", json={"manifest": _MANIFEST})
+    assert res.status_code == 200  # never a 500
+    assert res.json()["ok"] is False
+    assert "hermes" in res.json()["error"]
+
+
+def test_tool_test_rejects_a_transportless_manifest(client):
+    res = client.post("/v1/tools/test", json={"manifest": {"id": "x", "kind": "tool"}})
+    assert res.status_code == 200
+    assert res.json()["ok"] is False and "stdio MCP" in res.json()["error"]

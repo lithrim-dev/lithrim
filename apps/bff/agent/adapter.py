@@ -112,6 +112,21 @@ def contract_builder_part(
     return _part("contract_builder", out, show_intent=show_intent)
 
 
+def tool_builder_part(
+    agent: str, *, seed: dict[str, Any] | None = None, show_intent: str = "auto"
+) -> dict[str, Any]:
+    """TOOL-AUTHOR-1: author_tool -> the ToolBuilder INPUT widget, surfaced INLINE so the human
+    DECLARES a ``kind: tool`` connector (an MCP server / API connector / KB / terminology service)
+    by filling a card — the mirror of contract_builder_part. EMIT-ONLY: the card's Save rides the
+    audited ``POST /v1/tools`` writer; the agent NEVER declares the tool itself (A-SAFE, no
+    PAID_KEY). ``seed`` pre-fills the editable id/implements/transport fields when the agent has
+    them; absent → an empty card (the card's own validation gates Save)."""
+    out: dict[str, Any] = {"agent": agent}
+    if seed:
+        out["seed"] = seed
+    return _part("tool_builder", out, show_intent=show_intent)
+
+
 def criterion_builder_part(
     agent: str,
     code: str = "",

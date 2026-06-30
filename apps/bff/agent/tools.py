@@ -41,6 +41,7 @@ from .adapter import (
     open_artifact_part,
     propose_live_run_part,
     propose_run_all_part,
+    tool_builder_part,
 )
 from .assist import suggest_contract_params
 
@@ -162,6 +163,15 @@ AUTHOR_CONTRACT_SCHEMA: dict[str, Any] = {
     "suggested_params": dict,
     "source_hint": str,
     "question": str,
+}
+# TOOL-AUTHOR-1 — SURFACE the ToolBuilder inline so the HUMAN declares a kind:tool connector (an
+# MCP server / API connector / KB / terminology service) by filling a card. EMIT-ONLY: the card's
+# Save rides POST /v1/tools (the audited writer); the agent NEVER declares the tool itself (no
+# PAID_KEY — the A-SAFE sweep asserts this). All fields optional DRAFT seeds for the editable card.
+AUTHOR_TOOL_SCHEMA: dict[str, Any] = {
+    "id": str,
+    "implements": str,
+    "transport": str,
 }
 # NARR-5-CRIT-b — SURFACE the CriterionBuilder inline so the HUMAN mints a new GRADEABLE criterion
 # (code + tier + owner) by filling a card. EMIT-ONLY: the card's Save rides POST /v1/criterion (the
@@ -672,6 +682,23 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
     )
 
 
+async def author_tool_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    # TOOL-AUTHOR-1: SURFACE the ToolBuilder INPUT widget inline, seeded with any in-context
+    # id/implements/transport — the conversational "declare an MCP/API tool by filling a card" move
+    # (the mirror of author_contract). EMIT-ONLY by design (SPINE/CONTAINMENT): this calls NO bound
+    # write op; the card's Save rides POST /v1/tools (the audited writer). The agent declares a
+    # CONNECTOR, never uploads code — custom execution stays behind the user's own transport
+    # boundary (SPEC_TOOL_AUTHORING §1). NO PAID_KEY, $0, surfaces-not-spends.
+    seed = {k: str(args.get(k)) for k in ("id", "implements", "transport") if args.get(k)}
+    ctx.emit(tool_builder_part(ctx.default_agent, seed=seed or None))
+    return _text(
+        "Surfaced the tool builder inline. Declare a kind:tool connector (an MCP server, API "
+        "connector, KB, or terminology service) + optionally bind it to a flag, then Save — the "
+        "Save IS the audited write (POST /v1/tools), and the tool then resolves at grade time for "
+        "this workspace. I only surface the card; I never declare the tool or run it. This is $0."
+    )
+
+
 async def author_criterion_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # NARR-5-CRIT-b: SURFACE the CriterionBuilder INPUT widget inline, seeded with the in-context
     # code/tier/owner_role + agent — the conversational "mint a new gradeable criterion by filling a
@@ -1131,6 +1158,21 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "path (you already know the contract_type + params), use add_grounding_contract instead. "
         "Never a paid run.",
         AUTHOR_CONTRACT_SCHEMA,
+    ),
+    (
+        author_tool_handler,
+        "author_tool",
+        "SURFACE the interactive tool-builder widget INLINE so the HUMAN declares a kind:tool "
+        "connector — an MCP server, an API connector, a KB query, or a terminology service — by "
+        "FILLING A CARD in the chat ($0, read-only; the mirror of author_contract). Use it when the "
+        "human wants to CONNECT / configure / add a tool (e.g. a SNOMED/Hermes MCP server, a "
+        "web-scraper MCP, an API endpoint) that a judge's flag can then ground against. Shape: "
+        "{id, implements, transport} — optional DRAFT seeds (implements is tool.mcp_server | "
+        "tool.terminology | tool.kb_query | tool.api_connector). The human fills the connector "
+        "config + optional flag bind and their Save is the audited write (POST /v1/tools); you DECLARE "
+        "a connector, never upload code, and never run it. Bind a tool to a flag via author_contract "
+        "(contract_type mcp_call, or snomed_subsumption for the SNOMED instance). Never a paid run.",
+        AUTHOR_TOOL_SCHEMA,
     ),
     (
         author_criterion_handler,

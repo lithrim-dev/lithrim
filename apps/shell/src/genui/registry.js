@@ -34,6 +34,7 @@ export const KNOWN_TOOLS = [
   "tool-judge_builder",
   "tool-scorecard",
   "tool-ingest_preview",
+  "tool-tool_builder",
 ];
 
 const TOOL_REGISTRY = {};

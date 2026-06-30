@@ -3201,6 +3201,34 @@ def delete_tool_endpoint(
     return {"status": "ok", "tool_id": tool_id, "removed": removed, "actor": actor.model_dump()}
 
 
+class ToolTestRequest(BaseModel):
+    # TOOL-AUTHOR-1: health-check a kind:tool MCP connector before/after authoring (the card's
+    # "Test connection"). `manifest` is the (possibly in-progress) PluginManifest dict.
+    manifest: dict
+
+
+@app.post("/v1/tools/test")
+def test_tool_endpoint(body: ToolTestRequest) -> dict:
+    """Health-check a stdio-MCP tool: build the McpStdioClient from the manifest's
+    ``service.mcp {command, args}`` and ``list_tools()``. Returns ``{ok, tools:[names]}`` or
+    ``{ok: false, error}``. LIVE (spawns the MCP server subprocess) but READ-ONLY — never grades,
+    never writes. Graceful: a transportless manifest / unreachable server is a calm ``ok=false``,
+    never a 500."""
+    mcp = ((body.manifest or {}).get("service") or {}).get("mcp") or {}
+    cmd = mcp.get("command")
+    if not cmd:
+        return {"ok": False, "error": "manifest has no service.mcp.command (a stdio MCP) to test"}
+    from lithrim_bench.verification.mcp_client import McpStdioClient
+
+    try:
+        with McpStdioClient(command=cmd, args=mcp.get("args", [])) as client:
+            tools = client.list_tools()
+        names = [t.get("name") for t in tools if isinstance(t, dict)]
+        return {"ok": True, "tools": names}
+    except Exception as exc:  # noqa: BLE001 — bad/unreachable server: report it, never 500
+        return {"ok": False, "error": str(exc)}
+
+
 def _cases_emitting_flag(flag_code: str, examples_dir: Path) -> list[str]:
     """Case ids in ``examples/*.jsonl`` whose ``expected_safety_flags`` include ``flag_code``
     — the corpus-orphan guard for flag delete. A missing dir / unreadable row contributes

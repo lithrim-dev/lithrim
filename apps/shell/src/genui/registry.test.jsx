@@ -30,11 +30,12 @@ const EXPECTED = {
   "tool-judge_builder": /a new reviewer/i, // PHASE2-WIRE — the inline create-a-new-reviewer card
   "tool-scorecard": /run all cases/i, // RUN-ALL-1 — the consolidated cohort scorecard (empty-state mount)
   "tool-ingest_preview": /cases from/i, // CE-INGEST-FRONTDOOR-1 — the upload preview card (empty mount: "0 cases from file")
+  "tool-tool_builder": /Connect a tool/i, // TOOL-AUTHOR-1 — the MCP/API tool-authoring card
 };
 
 describe("renderTool registry", () => {
-  it("knows all 13 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(13);
+  it("knows all 14 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(14);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

@@ -91,6 +91,15 @@ export const ingestPreview = ({ raw, fmt = "auto", filename = "", extraction_rul
 export const ingestCommit = ({ approved_template, raw, fmt = "auto", filename = "", extraction_rules = "", agent = "ws0_default" }) =>
   call("/v1/cases/ingest/commit", { method: "POST", body: { approved_template, raw, fmt, filename, extraction_rules, agent } });
 
+/* TOOL-AUTHOR-1: per-workspace MCP/API tool authoring. createTool persists a kind:tool manifest
+   (+ optional flag bind) via POST /v1/tools (audited); listTools returns {authored, declared};
+   testTool health-checks a stdio-MCP manifest (list_tools); deleteTool removes an authored tool. */
+export const createTool = ({ manifest, bind = null, agent = "ws0_default", rationale = "" }) =>
+  call("/v1/tools", { method: "POST", body: { manifest, bind, agent, rationale } });
+export const listTools = () => call("/v1/tools");
+export const testTool = (manifest) => call("/v1/tools/test", { method: "POST", body: { manifest } });
+export const deleteTool = (toolId) => call(`/v1/tools/${encodeURIComponent(toolId)}`, { method: "DELETE" });
+
 export const getCorpus = () => call("/v1/corpus");
 /* GET /v1/cases — NARR-LOOP: the active workspace's INGESTED eval cases (case_id + fidelity
    flags). Self-fetched by the Corpus tab so ingested cases survive a reload. */
