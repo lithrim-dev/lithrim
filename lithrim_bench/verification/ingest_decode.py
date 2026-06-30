@@ -91,6 +91,19 @@ def decode_records(raw_text: str, *, fmt: str = "auto", filename: str = "") -> D
     raise ValueError(f"unknown ingest format {fmt!r} (expected auto|json|jsonl|csv)")
 
 
+def _dominant_record_collection(obj: dict) -> tuple[str | None, int | None]:
+    """The iteration unit for an arbitrary JSON object: the top-level key whose value is the
+    longest non-empty list-of-records (dicts). Generic (no schema knowledge) — it just answers
+    "which array is one-case-per-entry". Returns (key, len) or (None, None) when there is no
+    record array (then the engine's own inference / =1 gate applies). Scalar lists are ignored
+    (tags/labels aren't a case collection); ties resolve to the first key (deterministic)."""
+    best_key, best_len = None, 0
+    for k, v in obj.items():
+        if isinstance(v, list) and v and all(isinstance(x, dict) for x in v) and len(v) > best_len:
+            best_key, best_len = k, len(v)
+    return (best_key, best_len) if best_key is not None else (None, None)
+
+
 def _decode_json(raw: str) -> DecodeResult:
     try:
         sample = json.loads(raw)
@@ -98,6 +111,12 @@ def _decode_json(raw: str) -> DecodeResult:
         raise ValueError(f"the uploaded JSON did not parse: {exc}") from exc
     if isinstance(sample, list):
         return DecodeResult(fmt="json", sample=sample, expected_count=len(sample))
+    if isinstance(sample, dict):
+        # arbitrary {key:[records]} → auto-detect the iteration unit so a custom trace doesn't hit
+        # the engine's un-hinted =1 gate. The preview shows the result for approval, so never silent.
+        key, n = _dominant_record_collection(sample)
+        if key is not None:
+            return DecodeResult(fmt="json", sample=sample, expected_count=n, iterated_collection=key)
     return DecodeResult(fmt="json", sample=sample, expected_count=None)
 
 

@@ -33,6 +33,39 @@ def test_json_top_level_array_sets_expected_count():
     assert r.iterated_collection is None  # top-level list is handled natively by the engine
 
 
+def test_json_object_with_nested_array_autodetects_the_collection():
+    """An arbitrary {key:[records]} object → detect the dominant nested list-of-records as the
+    iteration unit (count + hint), so the engine doesn't fall back to its un-hinted =1 gate.
+    The preview is the validation gate, so an auto-guess is shown for approval, never silent."""
+    blob = '{"trace": "x", "episodes": [{"eid": "e1"}, {"eid": "e2"}, {"eid": "e3"}]}'
+    r = decode_records(blob, fmt="json")
+    assert r.expected_count == 3
+    assert r.iterated_collection == "episodes"
+
+
+def test_json_object_picks_the_dominant_list_of_records():
+    """Multiple nested arrays → the longest list-of-records wins (the {issues,comments} shape)."""
+    blob = '{"issues": [{"n": 1}, {"n": 2}], "comments": [{"c": 1}, {"c": 2}, {"c": 3}]}'
+    r = decode_records(blob, fmt="json")
+    assert r.expected_count == 3
+    assert r.iterated_collection == "comments"
+
+
+def test_json_object_ignores_scalar_lists():
+    """A list of scalars (e.g. tags) is not a case collection — only list-of-records counts."""
+    blob = '{"tags": ["a", "b", "c", "d"], "rows": [{"id": "r1"}, {"id": "r2"}]}'
+    r = decode_records(blob, fmt="json")
+    assert r.expected_count == 2
+    assert r.iterated_collection == "rows"
+
+
+def test_json_object_no_record_array_defers_to_engine():
+    """No nested list-of-records → expected_count stays None (the engine's inference / =1 gate)."""
+    r = decode_records('{"resource": {"metadata": {"enhanced_scenes": {"a": {}}}}}', fmt="json")
+    assert r.expected_count is None
+    assert r.iterated_collection is None
+
+
 # ── JSONL ─────────────────────────────────────────────────────────────────────
 def test_jsonl_splits_lines_and_wraps_in_rows():
     blob = '{"id": "a", "note": "x"}\n{"id": "b", "note": "y"}\n'
