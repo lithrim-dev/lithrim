@@ -541,17 +541,21 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
     if (!file) return;
     setUploading(true);
     setChat((c) => [...c, { role: "user", text: `📎 ${file.name}`, parts: [] }]);
-    try {
-      const raw = await file.text();
-      const res = await ingestPreview({ raw, fmt: "auto", filename: file.name, agent });
-      setChat((c) => [...c, {
-        role: "assistant", text: "", parts: [{
-          type: "tool-ingest_preview", state: "output-available",
-          output: { ...res, raw, filename: file.name, agent },
-        }],
-      }]);
-    } catch (err) {
+    const card = (output) => setChat((c) => [...c, {
+      role: "assistant", text: "", parts: [{ type: "tool-ingest_preview", state: "output-available", output }],
+    }]);
+    let raw;
+    try { raw = await file.text(); }
+    catch (err) {
       setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
+      setUploading(false); if (fileRef.current) fileRef.current.value = ""; return;
+    }
+    try {
+      const res = await ingestPreview({ raw, fmt: "auto", filename: file.name, agent });
+      card({ ...res, raw, filename: file.name, agent });
+    } catch (err) {
+      // failure-recovery: render the card in an error state (rules box + retry), NOT a dead-end line
+      card({ error: friendlyError(err), raw, filename: file.name, agent });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = ""; // allow re-selecting the same file

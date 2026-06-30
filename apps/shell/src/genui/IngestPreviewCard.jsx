@@ -1,13 +1,15 @@
-/* IngestPreviewCard — CE-INGEST-FRONTDOOR-1 (Stage 2): the inline front door for loading eval
-   cases from an uploaded JSON / JSONL / CSV file.
+/* IngestPreviewCard — CE-INGEST-FRONTDOOR-1: the inline front door for loading eval cases from an
+   uploaded JSON / JSONL / CSV file.
 
-   The composer's attach button POSTs the blob to /v1/cases/ingest/preview and injects this card
-   with the preview result. The card shows the detected field mapping + a peek at the extracted
-   cases, and lets the human:
-     • APPROVE → /commit pins the template + upserts the corpus (the cases become gradeable),
+   The composer's attach button POSTs the blob to /v1/cases/ingest/preview and injects this card —
+   either with the preview result (success) OR with an `error` (the extractor didn't converge). The
+   card shows the detected mapping + a peek at the extracted cases and lets the human:
+     • APPROVE → /commit pins the template + upserts the corpus,
      • CORRECT → edit the field-mapping rule + re-preview (the "ask the user the fields" path),
-   honoring the conversational-first invariant: the file picker is the only chrome; the
-   validate→approve→loaded flow is all inline gen-UI. Nothing is pinned/written until Approve. */
+     • RECOVER → on a failed preview, the SAME rules box + Retry (so any arbitrary shape is
+       recoverable in-UI, not a dead end).
+   Honors conversational-first: the file picker is the only chrome; validate→approve→loaded is all
+   inline gen-UI. Nothing is pinned/written until Approve. */
 import { useState } from "react";
 import { ingestPreview, ingestCommit } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
@@ -24,16 +26,17 @@ function clip(s, n = 80) {
 
 export default function IngestPreviewCard({
   fmt = "auto", columns = [], count = 0, sample_cases = [], template = "",
-  raw = "", filename = "", agent = "ws0_default", extraction_rules = "",
+  raw = "", filename = "", agent = "ws0_default", extraction_rules = "", error = "",
   onResult, onLoaded,
 }) {
-  // local, self-contained re-preview state (correcting the mapping never leaves the card)
+  // local, self-contained state — correcting the mapping / retrying a failure never leaves the card
   const [prev, setPrev] = useState({ fmt, columns, count, sample_cases, template });
   const [rules, setRules] = useState(extraction_rules);
-  const [state, setState] = useState({ phase: "preview", msg: "" }); // preview|busy|loaded|error
-  const [editRules, setEditRules] = useState(false);
+  const [state, setState] = useState({ phase: error ? "error" : "preview", msg: error || "" }); // preview|busy|loaded|error
+  const [editRules, setEditRules] = useState(!!error); // a hard failure opens the rules box
 
   const fmtLabel = FMT_LABEL[prev.fmt] || prev.fmt;
+  const busy = state.phase === "busy";
 
   const rePreview = async () => {
     setState({ phase: "busy", msg: "" });
@@ -44,6 +47,7 @@ export default function IngestPreviewCard({
       setState({ phase: "preview", msg: "" });
     } catch (e) {
       setState({ phase: "error", msg: friendlyError(e) });
+      setEditRules(true);
     }
   };
 
@@ -59,6 +63,25 @@ export default function IngestPreviewCard({
     }
   };
 
+  // the rules editor — shared by the "Mapping looks wrong?" correction and the failure-recovery retry
+  const rulesEditor = (retryLabel) => (
+    <div className="mt-2">
+      <textarea
+        data-testid="ingest-rules"
+        rows="2"
+        className="w-full rounded-[var(--radius-sm)] border border-border bg-secondary px-2 py-1.5 text-[11px] outline-none focus-visible:border-primary"
+        placeholder="Describe the fields, e.g. 'one case per `episodes`; response = outbound.message.body, context = inbound.text, case_id = eid'"
+        value={rules}
+        onChange={(e) => setRules(e.target.value)}
+      />
+      <div className="mt-1.5 flex gap-2">
+        <Button data-testid="ingest-retry" size="sm" onClick={rePreview} disabled={busy || !raw}>{busy ? "Re-reading…" : retryLabel}</Button>
+        {prev.count > 0 && <Button size="sm" variant="ghost" onClick={() => setEditRules(false)} disabled={busy}>Cancel</Button>}
+      </div>
+    </div>
+  );
+
+  // ── loaded ──
   if (state.phase === "loaded") {
     return (
       <div data-testid="ingest-preview-card" className="rounded-[var(--radius)] border border-border bg-background p-3.5 text-xs">
@@ -72,11 +95,24 @@ export default function IngestPreviewCard({
     );
   }
 
-  const busy = state.phase === "busy";
+  // ── hard failure (no cases extracted): the recovery UI — message + rules box + Retry, never a dead end ──
+  if (state.phase === "error" && !prev.count) {
+    return (
+      <div data-testid="ingest-preview-card" className="rounded-[var(--radius)] border border-border bg-background p-3.5 text-xs">
+        <div className="flex items-center gap-2 font-[family-name:var(--font-mono)] text-[13px] font-semibold" style={{ color: "var(--accent-ink)" }}>
+          <Icon name="flag" size={14} /> Couldn't map {filename ? clip(filename, 28) : "this file"} into cases
+        </div>
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          {state.msg || "The extractor didn't converge on this shape."} Describe the fields and retry — name the record collection and which field is the response vs the context.
+        </div>
+        {rulesEditor("Retry")}
+      </div>
+    );
+  }
 
+  // ── preview (has cases) ──
   return (
     <div data-testid="ingest-preview-card" className="rounded-[var(--radius)] border border-border bg-background p-3.5 text-xs">
-      {/* ── headline ── */}
       <div className="flex items-center justify-between">
         <div className="font-[family-name:var(--font-mono)] text-[13px] font-semibold text-foreground">
           {prev.count} case{prev.count === 1 ? "" : "s"} from {fmtLabel}{filename ? ` · ${clip(filename, 32)}` : ""}
@@ -84,14 +120,12 @@ export default function IngestPreviewCard({
         <span className="text-[10px] text-muted-foreground">preview · nothing saved yet</span>
       </div>
 
-      {/* CSV columns (the source fields, for the mapping confirm) */}
       {prev.columns?.length > 0 && (
         <div className="mt-1.5 text-[11px] text-muted-foreground">
           columns: {prev.columns.map((c) => <span key={c} className="font-[family-name:var(--font-mono)]">{c}{" "}</span>)}
         </div>
       )}
 
-      {/* ── a peek at the extracted cases (case_id → response / context) ── */}
       <div className="mt-2 flex flex-col gap-1">
         {(prev.sample_cases || []).map((c, i) => (
           <div key={c.case_id || i} className="rounded-[var(--radius-sm)] border border-border bg-secondary px-2.5 py-1.5">
@@ -105,8 +139,7 @@ export default function IngestPreviewCard({
         )}
       </div>
 
-      {/* the GENERATED JUTE template — the transform that maps your JSON → cases (verify before approve).
-          The mapper executes JUTE; the model only authors it. Collapsed by default. */}
+      {/* the GENERATED JUTE template — the transform that maps your JSON → cases (verify before approve) */}
       {prev.template && (
         <details data-testid="ingest-template" className="mt-2.5">
           <summary className="cursor-pointer text-[10.5px] text-muted-foreground select-none">View the generated JUTE template ▸</summary>
@@ -118,23 +151,7 @@ export default function IngestPreviewCard({
         <div className="mt-2 text-[11px]" style={{ color: "var(--accent-ink)" }}>⚠ {state.msg}</div>
       )}
 
-      {/* ── correction channel: describe the right fields → re-preview ── */}
-      {editRules ? (
-        <div className="mt-2.5">
-          <textarea
-            data-testid="ingest-rules"
-            rows="2"
-            className="w-full rounded-[var(--radius-sm)] border border-border bg-secondary px-2 py-1.5 text-[11px] outline-none focus-visible:border-primary"
-            placeholder="Describe the fields, e.g. 'use the summary column as response and conversation as context'"
-            value={rules}
-            onChange={(e) => setRules(e.target.value)}
-          />
-          <div className="mt-1.5 flex gap-2">
-            <Button size="sm" variant="secondary" onClick={rePreview} disabled={busy}>{busy ? "Re-reading…" : "Re-preview"}</Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditRules(false)} disabled={busy}>Cancel</Button>
-          </div>
-        </div>
-      ) : (
+      {editRules ? rulesEditor("Re-preview") : (
         <div className="mt-3 flex items-center gap-2">
           <Button data-testid="ingest-approve" size="sm" onClick={approve} disabled={busy || !prev.count}>
             {busy ? "Loading…" : `Approve & load ${prev.count} case${prev.count === 1 ? "" : "s"}`}
