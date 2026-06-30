@@ -6,6 +6,13 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 
 vi.mock("../bff.js", () => ({
   getAudit: vi.fn().mockResolvedValue({ records: [] }),
+  getRuns: vi.fn().mockResolvedValue({
+    runs: [
+      { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z" },
+      { run_id: "c0ffee00-cccc", case_id: "snomed_inj_13_gpa", verdict: "PASS", grade_path: "replay", replay_of: "a57bd49d-aaaa", agent: "eval-1", ts: "2026-06-30T17:50:00Z" },
+      { run_id: "d00d1234-dddd", case_id: "case-10", verdict: "PASS", grade_path: "live", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:40:00Z" },
+    ],
+  }),
   getRunAudit: vi.fn().mockResolvedValue({
     verdict: "BLOCK",
     actor: { id: "ws0_default" },
@@ -24,10 +31,11 @@ vi.mock("../bff.js", () => ({
 }));
 
 import AuditView from "./AuditView.jsx";
-import { getAudit, getRunAudit, getRunHistory, rehydrateRun } from "../bff.js";
+import { getAudit, getRuns, getRunAudit, getRunHistory, rehydrateRun } from "../bff.js";
 
 beforeEach(() => {
   getAudit.mockClear();
+  getRuns.mockClear();
   getRunAudit.mockClear();
   getRunHistory.mockClear();
   rehydrateRun.mockClear();
@@ -75,5 +83,32 @@ describe("AuditView (tool-audit_log) — RUNTRAIL-8 lineage", () => {
     await waitFor(() => expect(rehydrateRun).toHaveBeenCalledWith("a57bd49d-aaaa"));
     const rehydrated = await screen.findByTestId("rehydrated-verdict");
     expect(rehydrated).toHaveTextContent("Flagged"); // BLOCK → verdictLabel
+  });
+});
+
+describe("AuditView (tool-audit_log) — RUNTRAIL-11 the trail, grouped by case", () => {
+  it("R11a — getRuns drives a per-case run list (no run id typed)", async () => {
+    render(<AuditView />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+
+    const trail = await screen.findByTestId("run-trail");
+    // grouped by case_id: the two snomed runs sit under one header, case-10 under its own
+    const groups = within(trail).getAllByTestId("trail-case");
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveTextContent("snomed_inj_13_gpa");
+    expect(within(trail).getAllByTestId("trail-run")).toHaveLength(3);
+    // a row carries the headline lineage: verdict + grade_path tag + the replay baseline
+    const rows = within(trail).getAllByTestId("trail-run");
+    expect(rows[1]).toHaveTextContent(/replays/i); // the replay row links its baseline
+  });
+
+  it("R11b — clicking a trail row loads that run's provenance (no typing)", async () => {
+    render(<AuditView />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+    const trail = await screen.findByTestId("run-trail");
+
+    fireEvent.click(within(trail).getAllByTestId("trail-run")[0]);
+    await waitFor(() => expect(getRunAudit).toHaveBeenCalledWith("a57bd49d-aaaa"));
+    expect(await screen.findByTestId("run-report")).toBeTruthy();
   });
 });
