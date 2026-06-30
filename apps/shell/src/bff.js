@@ -372,6 +372,16 @@ export const getAudit = ({ actor, target_type, target_id, since } = {}) => {
 export const getRunAudit = (runId) =>
   call(`/v1/runs/${encodeURIComponent(runId)}/audit`);
 
+/* GET /v1/runs/{id}/history — RUNTRAIL-6: the lineage of prior versions for a run
+   ({run_id, history: [...]}); each version carries verdict + grade_path. */
+export const getRunHistory = (runId) =>
+  call(`/v1/runs/${encodeURIComponent(runId)}/history`);
+
+/* GET /v1/runs/{id}/rehydrate — RUNTRAIL-6: reconstruct a run's verdict from the
+   stored blob ($0; {verdict, ...}; 404 on an unknown run). */
+export const rehydrateRun = (runId) =>
+  call(`/v1/runs/${encodeURIComponent(runId)}/rehydrate`);
+
 /* ── UAP-2: judge authoring via ontology-assignment (R2; all via BASE, S-BS-50) ── */
 
 /* GET /v1/judges — the v2 trio: each role + model + assigned lens + questions + refs. */
