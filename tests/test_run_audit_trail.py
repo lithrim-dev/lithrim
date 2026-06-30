@@ -171,9 +171,6 @@ def test_g3_replay_carries_replay_of_and_leaves_baseline_unchanged(tmp_path):
 # ── G4 — SQLite never loses a record on id reuse (store-level archive parity) ──
 
 
-@pytest.mark.xfail(strict=True, reason="RUNTRAIL-2: the doc-shim archives the prior row to "
-                   "pipeline_runs_history, but the store exposes NO accessor to read it back "
-                   "(no list_history) — at the store interface a same-id re-save loses the prior")
 def test_g4_sqlite_store_never_loses_a_record_on_id_reuse(tmp_path):
     """SPEC §7 G4: the SQLite store never loses a record on ``run_id`` reuse — archive
     parity with Postgres ``pipeline_runs_history``, READABLE through the store. RED: a
