@@ -91,8 +91,6 @@ def _live_rows(db: Path) -> list[tuple[str, str]]:
 # ── G1 — N re-grades of one case ⇒ N distinct rows, zero overwrites ────────────
 
 
-@pytest.mark.xfail(strict=True, reason="RUNTRAIL-1: replay reuses the baseline run_id, "
-                   "so N re-grades UPSERT to ONE pipeline_runs row (overwrite, not append)")
 def test_g1_n_regrades_yield_n_distinct_rows(tmp_path):
     """SPEC §7 G1: re-grading one case N times ⇒ N distinct ``pipeline_runs`` rows
     (unique ``run_id``+``created_at``), zero overwrites. RED: the default replay path
@@ -139,9 +137,6 @@ def test_g2_cohort_of_m_cases_yields_m_findable_rows(tmp_path):
 # ── G3 — a replay row carries replay_of = baseline run_id; baseline unchanged ──
 
 
-@pytest.mark.xfail(strict=True, reason="RUNTRAIL-1: no replay_of lineage — PipelineProvenance "
-                   "has no replay_of field and the replay path reuses (overwrites) the "
-                   "baseline id rather than minting a new record that points at it")
 def test_g3_replay_carries_replay_of_and_leaves_baseline_unchanged(tmp_path):
     """SPEC §7 G3: a replay run is a NEW record that POINTS AT its baseline
     (``replay_of`` = the baseline ``run_id``); the baseline row is byte-unchanged after
@@ -151,8 +146,12 @@ def test_g3_replay_carries_replay_of_and_leaves_baseline_unchanged(tmp_path):
     db = tmp_path / "collections.sqlite"
     store = SqliteProvenanceStore(db_path=db)
 
-    # Seed a baseline run, capture its exact persisted bytes.
-    baseline = _prov_doc("baseline-run", verdict="BLOCK")
+    # Seed an AUTHORITATIVE baseline run for the house agent's (agent, case) lineage and
+    # capture its exact persisted bytes. (RUNTRAIL-1 fidelity tweak: a replay's baseline
+    # must be a prior grade of the SAME (agent, case) — seeded with the house agent's ids so
+    # the append-with-lineage resolver legitimately resolves it. Does not weaken the gate.)
+    baseline = _prov_doc("baseline-run", agent_id="house_test",
+                         case_id=HOUSE_CASE_ID, verdict="BLOCK")
     asyncio.run(store.save_blob(baseline))
     baseline_before = asyncio.run(store.find_by_id("baseline-run"))
 
