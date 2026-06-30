@@ -1564,6 +1564,27 @@ class GradeCasesRequest(BaseModel):
     in_process: bool = False
 
 
+class IngestPreviewRequest(BaseModel):
+    # CE-INGEST-FRONTDOOR-1: the data front door. `raw` is the uploaded file/paste content; `fmt`
+    # is auto-detected (by `filename` extension, else content sniff) unless named explicitly.
+    # `extraction_rules` is the human's field-mapping correction channel (re-preview to refine).
+    raw: str
+    fmt: str = "auto"
+    filename: str = ""
+    extraction_rules: str = ""
+    agent: str = DEFAULT_AGENT
+
+
+class IngestCommitRequest(BaseModel):
+    # The human APPROVED `approved_template` (returned by /preview) over `raw` — pin it + upsert.
+    approved_template: str
+    raw: str
+    fmt: str = "auto"
+    filename: str = ""
+    extraction_rules: str = ""
+    agent: str = DEFAULT_AGENT
+
+
 def _is_blocked_verdict(verdict) -> bool:
     return str(verdict or "").upper() in {"BLOCK", "FAIL", "REJECT"}
 
@@ -3753,7 +3774,17 @@ def _build_tool_context(
         extraction_rules: str = "",
         agent: str = "",
         expected_count: int | None = None,
+        *,
+        approved_template: str | None = None,
+        pin_template: bool = True,
+        commit_corpus: bool = True,
     ) -> dict:
+        # CE-INGEST-FRONTDOOR-1 (the preview/commit split, all defaults = the unchanged chat path):
+        #   approved_template — skip the 3-way selection + LM gen; re-gate THIS exact human-approved
+        #                       template on the data (the COMMIT path).
+        #   pin_template      — False on PREVIEW: select/generate a template but pin NOTHING.
+        #   commit_corpus     — False on PREVIEW: do NOT upsert the corpus / write an audit row;
+        #                       return the extracted cases + template for the human to validate.
         # INGESTION-ONLY (trust-model separation, SPEC_NARRATIVE_EVAL A4): this builds + pins a
         # jute_transform via EtlpJuteClient DIRECTLY (like add_grounding_contract calls its bound
         # write) — the extractor NEVER enters _CONTRACT_EXECUTORS / the grade-time floor. $0/BYO-key
@@ -3830,20 +3861,39 @@ def _build_tool_context(
         hand_authored = False
         template = scored = mapping_id = None
 
+        # (0) COMMIT (front door): the human APPROVED this exact template in preview — skip the 3-way
+        # selection + any LM gen, just re-gate it on the data and (idempotently) pin it. The pin is the
+        # only side-effect; the corpus upsert + audit are below, under commit_corpus.
+        if approved_template is not None:
+            scored = score_extraction(
+                client, approved_template, sample,
+                expected_count=expected_count, required_fields=req_fields,
+            )
+            if not scored["accepted"]:
+                raise RuntimeError(
+                    f"the approved transform failed the apply-time invariant "
+                    f"(count={scored['count']}, nulls={scored['nulls']}); nothing pinned"
+                )
+            template = approved_template
+            if pin_template:
+                mapping_id = client.persist_or_update(f"ingest-{ag_name}", template).get("id")
+
         # (1) KNOWN SHAPE — a curated template for a recognized source shape, preferred over
         # REUSE/LM-gen. STILL live-gated (score_extraction on THIS sample): a near-miss variant that
         # does not accept leaves `template` None → falls through. PIN it (idempotent) so the corpus is
         # resolvable + auditable exactly like the reuse/gen paths.
-        _known = _known_shape_template(sample)
-        if _known is not None:
-            _k = score_extraction(
-                client, _known, sample,
-                expected_count=expected_count, required_fields=req_fields,
-            )
-            if _k["accepted"]:
-                template, scored = _known, _k
-                mapping_id = client.persist_or_update(f"ingest-{ag_name}", _known).get("id")
-                hand_authored = True
+        if template is None:
+            _known = _known_shape_template(sample)
+            if _known is not None:
+                _k = score_extraction(
+                    client, _known, sample,
+                    expected_count=expected_count, required_fields=req_fields,
+                )
+                if _k["accepted"]:
+                    template, scored = _known, _k
+                    if pin_template:
+                        mapping_id = client.persist_or_update(f"ingest-{ag_name}", _known).get("id")
+                    hand_authored = True
 
         # (2) REUSE (NARR-7.1, generate-at-authoring → pin → REUSE): if a transform is ALREADY pinned
         # for this agent AND it still satisfies the structural invariant on THIS sample (the source
@@ -3939,8 +3989,10 @@ def _build_tool_context(
                     f"(count={scored['count']}, nulls={scored['nulls']}); nothing pinned"
                 )
             # PIN the converged transform as an etlp mapping (idempotent persist_or_update).
-            pin = client.persist_or_update(f"ingest-{ag_name}", template)
-            mapping_id = pin.get("id")
+            # PREVIEW (pin_template=False) generates + gates the template but pins NOTHING.
+            if pin_template:
+                pin = client.persist_or_update(f"ingest-{ag_name}", template)
+                mapping_id = pin.get("id")
 
         cases = scored["cases"]
         # INGEST-LABELS-1: carry author-supplied ground-truth labels (expected_compliance_verdict /
@@ -3952,6 +4004,15 @@ def _build_tool_context(
         # `or context` mapping). A faithful case then grades PASS at the council instead of a false
         # BLOCK; a real fabrication stays ungrounded → still BLOCK.
         normalized = _normalize_case_source(cases)
+
+        # PREVIEW (commit_corpus=False): return the extracted cases + template for the human to
+        # validate the field mapping — NO corpus upsert, NO audit row, nothing persisted.
+        if not commit_corpus:
+            return {
+                "cases": cases, "template": template, "mapping_id": mapping_id,
+                "count": len(cases), "labeled": labeled, "normalized_source": normalized,
+                "reused": reused, "hand_authored": hand_authored, "preview": True,
+            }
 
         # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
         # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
@@ -4004,6 +4065,48 @@ def _build_tool_context(
         )
         return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "labeled": labeled, "normalized_source": normalized, "reused": reused}
 
+    # ── CE-INGEST-FRONTDOOR-1: the first-class data front door (JSON/JSONL/CSV → preview → commit).
+    def _decode_for_ingest(raw: str, fmt: str, filename: str, extraction_rules: str):
+        """Decode an uploaded blob and derive the engine inputs: the JSON sample (as a string,
+        the engine's interface), the expected row count, and an iterated-collection rules hint for
+        the wrapped JSONL/CSV shapes (parse-in-Python, map-in-JUTE)."""
+        from lithrim_bench.verification.ingest_decode import decode_records
+
+        dec = decode_records(raw, fmt=fmt, filename=filename)
+        rules = extraction_rules
+        if dec.iterated_collection and not extraction_rules:
+            rules = f"Emit one eval case per entry of the `{dec.iterated_collection}` collection."
+        return dec, json.dumps(dec.sample), rules
+
+    def _ingest_preview(
+        raw: str, fmt: str = "auto", filename: str = "", extraction_rules: str = "", agent: str = ""
+    ) -> dict:
+        """PREVIEW: decode + select/generate a JUTE template + apply it to the data, returning the
+        extracted cases + the template for the human to validate. Pins NOTHING, writes NO corpus."""
+        dec, sample_json, rules = _decode_for_ingest(raw, fmt, filename, extraction_rules)
+        res = _ingest_cases(
+            sample_json, extraction_rules=rules, agent=agent,
+            expected_count=dec.expected_count, pin_template=False, commit_corpus=False,
+        )
+        res["fmt"] = dec.fmt
+        res["columns"] = dec.columns
+        res["expected_count"] = dec.expected_count
+        res["sample_cases"] = res["cases"][:5]  # a peek; `count` is the full total
+        return res
+
+    def _ingest_commit(
+        approved_template: str, raw: str, fmt: str = "auto", filename: str = "",
+        extraction_rules: str = "", agent: str = "",
+    ) -> dict:
+        """COMMIT: re-gate the human-APPROVED template on the data, pin it, and upsert the corpus —
+        no LM generation. The decode is deterministic, so it reproduces the previewed cases."""
+        _dec, sample_json, rules = _decode_for_ingest(raw, fmt, filename, extraction_rules)
+        return _ingest_cases(
+            sample_json, extraction_rules=rules, agent=agent,
+            expected_count=_dec.expected_count, approved_template=approved_template,
+            pin_template=True, commit_corpus=True,
+        )
+
     # ── KB-CONTEXT-1: the honest read-only KB context aid (retrieve + show; NEVER a verdict).
     def _kb_context(query: str, namespace: str = "hipaa", top_k: int = 3) -> list[dict]:
         # Read-only retrieval over KbRagTool (GET :8002/v1/kb/{ns}/search). The kb:read key is read
@@ -4052,6 +4155,8 @@ def _build_tool_context(
         put_grounding_contract=_put_grounding_contract,
         kb_context=_kb_context,
         ingest_cases=_ingest_cases,
+        ingest_preview=_ingest_preview,
+        ingest_commit=_ingest_commit,
         list_cases=_list_cases,
         record_meta_verdict=_record_meta_verdict,
         default_agent=req_agent,
@@ -5450,3 +5555,53 @@ def storyworld_ingest_endpoint(
     """NARR-6c legacy route — back-compat delegator to the storyworld_admin adapter (CONN-1)."""
     ws = workspace.get_active_workspace()
     return _ingest_storyworld(ws, req, actor=_resolve_actor(x_actor, default_actor))
+
+
+@app.post("/v1/cases/ingest/preview")
+def ingest_preview_endpoint(
+    req: IngestPreviewRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CE-INGEST-FRONTDOOR-1: decode an uploaded JSON/JSONL/CSV blob, select/generate a JUTE
+    template, apply it, and return the extracted cases + the template for the human to validate.
+    Pins NOTHING and writes NO corpus — the human approves at /commit. A bad blob / non-converging
+    transform is a calm 422 (the front door surfaces the reason), never a bare 500."""
+    actor = _resolve_actor(x_actor, default_actor)
+    agent = _resolve_chat_agent(req.agent, db_path)
+    ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)
+    try:
+        return ctx.ingest_preview(
+            raw=req.raw, fmt=req.fmt, filename=req.filename,
+            extraction_rules=req.extraction_rules, agent=agent,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/v1/cases/ingest/commit")
+def ingest_commit_endpoint(
+    req: IngestCommitRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CE-INGEST-FRONTDOOR-1: pin the human-APPROVED template + upsert the corpus (no LM gen). The
+    decode is deterministic, so this reproduces exactly the cases shown in /preview."""
+    actor = _resolve_actor(x_actor, default_actor)
+    agent = _resolve_chat_agent(req.agent, db_path)
+    ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)
+    try:
+        return ctx.ingest_commit(
+            approved_template=req.approved_template, raw=req.raw, fmt=req.fmt,
+            filename=req.filename, extraction_rules=req.extraction_rules, agent=agent,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

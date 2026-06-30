@@ -292,6 +292,12 @@ class ToolContext:
     # "what's wrong with this case" answer grounds in the real artifact + gold. Optional — a ctx
     # built without it (or a test stub) degrades to no artifact injection.
     load_case_full: Callable[..., dict] | None = None
+    # CE-INGEST-FRONTDOOR-1: the first-class data front door — decode (JSON/JSONL/CSV) then the
+    # human-in-the-loop PREVIEW (select/gen a template + apply, pin + write NOTHING) -> COMMIT (pin
+    # the approved template + upsert). Optional — a ctx built without them (or a test stub) simply
+    # has no front door; the chat ``ingest_cases`` path is unaffected.
+    ingest_preview: Callable[..., dict] | None = None
+    ingest_commit: Callable[..., dict] | None = None
     parts: list[dict] = field(default_factory=list)
     run_results: list[dict] = field(default_factory=list)
 
