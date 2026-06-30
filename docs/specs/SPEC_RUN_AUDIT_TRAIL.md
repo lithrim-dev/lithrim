@@ -85,6 +85,11 @@ re-grading** (replay-from-blob → same verdict). Required fields:
 
 - **Identity:** `pipeline_run_id` (uuid4), `created_at` (UTC ISO-8601),
   `workspace_id`, `agent_id`, `case_id`, `grade_path` (`replay|in_process|live`).
+  **NOTE (corrected RUNTRAIL-6, 2026-06-30):** `grade_path` is computed in
+  `run_eval.py` but written ONLY to the API-response provenance dict (`build_record`),
+  NOT to the persisted `PipelineProvenance` blob — so it is **not yet on the trail**.
+  RUNTRAIL-7 stamps it at persist time, then projects it. `replay_of` IS persisted
+  (RUNTRAIL-1).
 - **Lineage:** `replay_of` — the `run_id` a replay was derived from (`null` for a
   fresh in_process/live run). A replay is a NEW record that POINTS AT its baseline;
   it never overwrites it. **LOCKED (RUNTRAIL-1):** the replay baseline is the
@@ -143,10 +148,22 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   proving a stored blob reconstructs the verdict with zero model calls.
   *(CLOSED 2026-06-30, commits `f11c9d0`..`8d019dc`; G6 green; contract fully enforced —
   `tests/test_run_audit_trail.py` = 7 passed / 0 xfailed.)*
+- **RUNTRAIL-5 — cohort end-to-end guard.** A BFF-layer test pinning the original
+  symptom: a cohort grade appends one addressable audit record per case; re-grade grows
+  the trail. *(CLOSED 2026-06-30, commit `12b301f`; green-on-first-run + non-vacuous —
+  RUNTRAIL-1 already closed the cohort path.)*
+- **RUNTRAIL-6 — read-surface (consumable trail).** Project `replay_of` in
+  `_run_audit_report`/`_run_summary` + add `GET /v1/runs/{id}/history` (`list_history`)
+  and `/rehydrate`. *(IN PROGRESS — `grade_path` split to RUNTRAIL-7 after the executor
+  found it is not persisted.)*
+- **RUNTRAIL-7 — persist + project `grade_path`.** Stamp `grade_path`
+  (`replay|in_process|live`) onto the persisted blob at persist time (`run_eval.py`),
+  then surface it in the audit/list responses — so the trail records HOW each verdict
+  was produced. *(QUEUED.)*
 
-**RUNTRAIL stream COMPLETE 2026-06-30.** The §1 invariant is enforced by tests (G1–G6
-green); moat byte-frozen vs `acc4973` across the whole stream (9 files: this spec + 6
-persistence source + 2 tests; zero moat/council/taxonomy files touched).
+**G1–G6 contract COMPLETE 2026-06-30** (the §1 invariant is enforced by tests; moat
+byte-frozen vs `acc4973` — zero moat/council/taxonomy files touched). Read-surface
+(RUNTRAIL-6) + `grade_path` (RUNTRAIL-7) are the consumption follow-ons.
 
 ---
 
