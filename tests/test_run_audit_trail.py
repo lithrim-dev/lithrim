@@ -194,9 +194,6 @@ def test_g4_sqlite_store_never_loses_a_record_on_id_reuse(tmp_path):
 # ── G5 — reports_store (projection) is rebuildable from the run-history alone ──
 
 
-@pytest.mark.xfail(strict=True, reason="RUNTRAIL-3: no rebuild_projection() — reports_store is "
-                   "fed inline at grade time; nothing reconstructs the latest-per-case "
-                   "projection from pipeline_runs alone")
 def test_g5_projection_rebuildable_from_run_history_alone(tmp_path):
     """SPEC §7 G5: ``reports_store`` is a DERIVED PROJECTION (latest result per
     ``(workspace, case_id)``), rebuildable from the run-history alone. RED: there is no
