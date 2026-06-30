@@ -3855,7 +3855,15 @@ def _build_tool_context(
         # falls through to generate. Reuse is an optimization, never a requirement.
         if template is None:
             _find = getattr(client, "find_mapping_by_title", None)
-            _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
+            try:
+                _existing = _find(f"ingest-{ag_name}") if callable(_find) else None
+            except Exception as _reuse_exc:  # noqa: BLE001
+                # CE-INGEST-RESILIENT-1: reuse is an OPTIMIZATION, never a requirement. A mapper
+                # that can't list/lookup mappings (a 500 on GET /mappings — e.g. a poisoned row
+                # with non-JSON content) must fall THROUGH to LM-gen, not kill the ingest. The
+                # docstring above promised this; the bare _find() call did not honor it.
+                _log.warning("ingest reuse lookup failed, generating instead: %s", _reuse_exc)
+                _existing = None
             if _existing and (_existing.get("content") or {}).get("yaml"):
                 _pre = score_extraction(
                     client, _existing["content"]["yaml"], sample,
