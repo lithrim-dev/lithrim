@@ -87,7 +87,12 @@ re-grading** (replay-from-blob → same verdict). Required fields:
   `workspace_id`, `agent_id`, `case_id`, `grade_path` (`replay|in_process|live`).
 - **Lineage:** `replay_of` — the `run_id` a replay was derived from (`null` for a
   fresh in_process/live run). A replay is a NEW record that POINTS AT its baseline;
-  it never overwrites it.
+  it never overwrites it. **LOCKED (RUNTRAIL-1):** the replay baseline is the
+  most-recent **authoritative** grade for `(agent, case)` — the newest row whose
+  `replay_of` is falsy (`SqliteProvenanceStore.latest_authoritative_for`, on every
+  store tier). Replays therefore point at the real grade and **never chain**
+  replay→replay. This is read-only resolution plumbing; it does NOT alter the
+  freshness/`grade_signature` head (`latest_for`/`is_fresh` unchanged).
 - **Inputs (provenance):** ontology version/identifier, judge roster + per-role
   config (model, k, temperature, criterion, assigned lens), `loaded_plugins` /
   `active_pack` / `pack_tier` (already on `PipelineProvenance`), and a reference or
@@ -120,7 +125,8 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   RED suite is the spine. *(CLOSED 2026-06-30, commit `c3b7425`; G2 partial holds.)*
 - **RUNTRAIL-1 — fresh `run_id` per execution + `replay_of` lineage.** Replay mints
   a new id, records `replay_of=<baseline>`, never overwrites. Kills the default-path
-  overwrite.
+  overwrite. *(CLOSED 2026-06-30, commits `fff05ea`..`b1bbf94`; G1+G3 green; inline
+  critique CLEAN.)*
 - **RUNTRAIL-2 — readable append-only history.** Add a store-interface accessor
   (`list_history(run_id)`-shaped) that surfaces the already-archived `_history` prior
   versions — archival exists (`versioned=True`); this exposes it so the trail's prior
