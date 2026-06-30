@@ -43,6 +43,12 @@ if [ -z "${LITHRIM_BENCH_PACKS_DIR:-}" ] && [ -d "$REPO_ROOT/../lithrim-pack-hea
   LITHRIM_BENCH_PACKS_DIR="$(cd "$REPO_ROOT/.." && pwd)/lithrim-pack-healthcare"
 fi
 PACKS_DIR="${LITHRIM_BENCH_PACKS_DIR:-}"
+# PACK-DROPIN local parity: always include the in-repo ./packs-dropin (the SAME directory
+# docker-compose bind-mounts to /dropin-packs) so a pack dropped there loads under `make up`
+# exactly as under `docker compose up`. Prepended so a drop-in pack wins; empty dropin → no-op.
+if [ -d "$REPO_ROOT/packs-dropin" ]; then
+  PACKS_DIR="$REPO_ROOT/packs-dropin${PACKS_DIR:+:$PACKS_DIR}"
+fi
 
 if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; X=$'\033[0m'; else G=; Y=; R=; D=; X=; fi
 ok()   { echo "${G}✓${X} $*"; }
