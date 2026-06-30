@@ -137,6 +137,7 @@ def _persist_run_provenance(
     agent: Agent,
     *,
     grade_sig: str | None = None,
+    grade_path: str | None = None,
     collections_db: str | Path | None = None,
 ) -> None:
     """Persist a replay/live run's PipelineProvenance blob to ``PIPELINE_RUNS`` so the
@@ -158,6 +159,10 @@ def _persist_run_provenance(
     doc["case_id"] = agent.dataset.case_id
     if grade_sig is not None:
         doc["grade_signature"] = grade_sig
+    # RUNTRAIL-7: stamp HOW this verdict was produced onto the persisted blob (live/replay
+    # persist HERE; in_process stamps in ``_enrich_run_blob``). SPEC §3 Identity.
+    if grade_path is not None:
+        doc["grade_path"] = grade_path
     # PERSIST-2c-2: route through the factory (LITHRIM_DB_URL → PG, else SQLite at
     # collections_db — byte-identical to the prior PIPELINE_RUNS.insert default).
     from lithrim_bench.harness.backend import provenance_store_for
@@ -222,6 +227,7 @@ def _enrich_run_blob(
     case_id: str,
     agent_id: str,
     grade_sig: str,
+    grade_path: str | None = None,
     collections_db: str | Path | None = None,
 ) -> None:
     """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
@@ -265,6 +271,11 @@ def _enrich_run_blob(
     blob.setdefault("agent_id", agent_id)
     blob["case_id"] = case_id
     blob["grade_signature"] = grade_sig
+    # RUNTRAIL-7: stamp grade_path on the in_process head via this existing post-save patch —
+    # pure plumbing ABOVE the frozen seam (the orchestrator's PipelineProvenance build /
+    # _apply_consensus is untouched). SPEC §3 Identity.
+    if grade_path is not None:
+        blob["grade_path"] = grade_path
     _run_sync(store.save_blob(blob))
 
 
@@ -456,7 +467,13 @@ def run(
     # replay-from-provenance path (no longer a no-op skip; it appends a distinct replay
     # record that points at its authoritative baseline, never overwriting it).
     if grade_path != "in_process":
-        _persist_run_provenance(result, agent, grade_sig=grade_sig, collections_db=collections_db)
+        _persist_run_provenance(
+            result,
+            agent,
+            grade_sig=grade_sig,
+            grade_path=grade_path,
+            collections_db=collections_db,
+        )
 
     grounded = ground(result, case, ontology=ontology)
     comp = composite(grounded)
@@ -533,6 +550,7 @@ def run(
         case_id=agent.dataset.case_id,
         agent_id=agent.name,
         grade_sig=grade_sig,
+        grade_path=grade_path,
         collections_db=collections_db,
     )
 
