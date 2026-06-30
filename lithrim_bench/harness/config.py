@@ -507,10 +507,24 @@ def seed_config_db(
     them (the collision check). A bare CE (no discoverable pack declaring ``seed_agents``) seeds
     ONLY the core agent — the clean-by-construction CE default is unchanged."""
     seed_dir = Path(seed_dir)
-    names: list[str] = []
+    # IDEMPOTENT (POSTGRES-DEADLOCK-FIX): skip agents already in the config DB so re-running the
+    # seed is a zero-write no-op. Under the Postgres plane (LITHRIM_DB_URL) the local sqlite
+    # ``db_path`` never exists, so callers re-seed on every request — re-archiving every agent each
+    # time, which deadlocked two concurrent requests on ``agents_history``. Seeding only the
+    # ABSENT agents makes the steady state write nothing (and never clobbers an existing agent —
+    # the prior unconditional save also re-applied seed-content edits, which now require an
+    # explicit delete+reseed; an acceptable trade for concurrency safety).
+    try:
+        existing = set(list_agents(db_path=db_path))
+    except Exception:  # noqa: BLE001 — a fresh/unreadable DB → nothing seeded yet
+        existing = set()
+    names: list[str] = list(existing)
     for seed_file in sorted(seed_dir.glob("*.json")):
         agent = agent_from_dict(json.loads(seed_file.read_text()))
+        if agent.name in existing:
+            continue
         save_agent(agent, db_path=db_path)
+        existing.add(agent.name)
         names.append(agent.name)
-    names.extend(_seed_pack_agents(db_path, already=set(names)))
+    names.extend(_seed_pack_agents(db_path, already=existing))
     return names

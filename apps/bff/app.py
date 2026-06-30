@@ -458,9 +458,17 @@ def _infer_iterated_count(sample: Any, extraction_rules: str = "") -> int:
 
 
 def _load_agent(name: str, db_path: Path):
-    # Build the config DB from the committed agent seeds on first use, exactly as
-    # scripts/run_eval.py main() does (gitignored-built; source-of-truth is JSON).
-    if not db_path.exists():
+    # Build the config DB from the committed agent seeds on first use. POSTGRES-PORTABLE
+    # (POSTGRES-DEADLOCK-FIX): seed when the config DB has NO agents (a query), NOT when a local
+    # sqlite FILE is missing — under the Postgres plane (LITHRIM_DB_URL) the sqlite ``db_path``
+    # never exists, so the old ``not db_path.exists()`` guard re-seeded on EVERY request and two
+    # concurrent requests deadlocked on ``agents_history``. ``seed_config_db`` is idempotent
+    # (skips existing), so a rare concurrent first-seed is safe too.
+    try:
+        seeded = bool(list_agents(db_path=db_path))
+    except Exception:  # noqa: BLE001 — fresh/unreadable DB → treat as unseeded
+        seeded = False
+    if not seeded:
         seed_config_db(db_path=db_path)
     try:
         return load_agent(name, db_path=db_path)

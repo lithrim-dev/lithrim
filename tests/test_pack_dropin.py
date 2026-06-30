@@ -105,6 +105,29 @@ def test_a_no_pack_seeds_only_core(tmp_path, monkeypatch, clean_pack_caches):
     assert list_agents(db_path=db) == ["ws0_default"]
 
 
+def test_seed_is_idempotent_no_rewrite_on_reseed(tmp_path, monkeypatch, clean_pack_caches):
+    """POSTGRES-DEADLOCK-FIX: re-running ``seed_config_db`` writes NOTHING once seeded. Under the
+    Postgres plane the local sqlite ``db_path`` never exists, so the BFF re-seeds on EVERY request;
+    the prior unconditional ``save_agent`` re-archived every agent each time and two concurrent
+    requests deadlocked on ``agents_history``. The idempotent seed skips already-present agents, so
+    the re-seed calls ``save_agent`` ZERO times — no archive, no concurrent-write race."""
+    from lithrim_bench.harness import config as cfg
+
+    monkeypatch.setenv("LITHRIM_BENCH_PACKS_DIR", str(tmp_path / "empty"))
+    (tmp_path / "empty").mkdir()
+    db = tmp_path / "cfg.sqlite"
+
+    assert "ws0_default" in cfg.seed_config_db(db_path=db)  # first seed creates the core agent
+
+    calls: list[int] = []
+    monkeypatch.setattr(cfg, "save_agent", lambda *a, **k: calls.append(1))
+    second = cfg.seed_config_db(db_path=db)  # re-seed (what every request does under Postgres)
+
+    assert calls == []  # NO save_agent on re-seed → no archive_prior → no deadlock
+    assert cfg.list_agents(db_path=db) == ["ws0_default"]
+    assert second == ["ws0_default"]  # returns the existing set, seeded nothing new
+
+
 def test_b_dropin_pack_agent_seeded_with_resolved_ontology(
     tmp_path, monkeypatch, clean_pack_caches
 ):
