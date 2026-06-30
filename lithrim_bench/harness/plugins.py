@@ -85,6 +85,10 @@ class PackManifest(BaseModel):
     generators: str | None = None
     tools: str | None = None  # TOOL-1: ref to a ``tools.json`` (the pack's kind:tool declarations)
     judges: list[str] = Field(default_factory=list)
+    # The pack-relative agent JSONs the CE seeds into the rail (packs-dropin/README.md). Optional;
+    # a pack with none declares an empty list. Without this field PackManifest (extra='forbid')
+    # rejected every pack that ships seed_agents (e.g. healthcare) → provenance_snapshot() threw.
+    seed_agents: list[str] = Field(default_factory=list)
 
 
 def validate_pack_manifest(raw: dict[str, Any]) -> PackManifest:
