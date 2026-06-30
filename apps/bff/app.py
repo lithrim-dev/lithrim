@@ -3419,6 +3419,9 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
     ]
     return {
         "run_id": run_id,
+        # RUNTRAIL-6 (SPEC_RUN_AUDIT_TRAIL.md §3 Lineage): a replay is a NEW record that
+        # POINTS AT its baseline. Top-level on the blob; None for an authoritative grade.
+        "replay_of": doc.get("replay_of"),
         "ts": doc.get("timestamp"),
         "actor": {"type": "agent", "id": doc.get("agent_id")},
         "verdict": doc.get("verdict"),
@@ -3438,6 +3441,8 @@ def _run_summary(doc: dict) -> dict:
     who/when, projected from a persisted PipelineProvenance blob (S-BS-56)."""
     return {
         "run_id": doc.get("pipeline_run_id"),
+        # RUNTRAIL-6: lineage in the list row too (None for an authoritative grade).
+        "replay_of": doc.get("replay_of"),
         "verdict": doc.get("verdict"),
         "gate_decision": doc.get("gate_decision"),
         "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
@@ -3482,6 +3487,52 @@ def get_run_audit_endpoint(
             detail=f"run {run_id!r} not found (no persisted provenance blob for this run id)",
         )
     return _run_audit_report(doc, run_id)
+
+
+@app.get("/v1/runs/{run_id}/history")
+def get_run_history_endpoint(
+    run_id: str,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """RUNTRAIL-6 / SPEC §2: the archived prior versions of a run, newest-first — the
+    read-surface for the versioned copy-on-write archive (``list_history``, RUNTRAIL-2/G4).
+    A same-id re-save copies the prior doc into the ``_history`` shadow; this surfaces that
+    lineage so the trail's prior states are auditable, not just the head.
+
+    404 only when the run id itself is unknown (no head blob). A KNOWN-but-unsuperseded run
+    returns ``{"history": []}`` — an empty archive is a valid state, not a missing run."""
+    # PERSIST-2c: read through the factory (LITHRIM_DB_URL → Postgres, else local SQLite).
+    store = provenance_store_for(collections_db)
+    if run_coro(store.find_by_id(run_id)) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"run {run_id!r} not found (no persisted provenance blob for this run id)",
+        )
+    history = run_coro(store.list_history(run_id))
+    return {"run_id": run_id, "history": [_run_summary(d) for d in history]}
+
+
+@app.get("/v1/runs/{run_id}/rehydrate")
+def get_run_rehydrate_endpoint(
+    run_id: str,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """RUNTRAIL-6 / SPEC §4: reconstruct the graded result from the stored run blob ALONE —
+    no live model call, no re-grade ($0 by construction). Proves the record is self-sufficient.
+
+    Composes ``provenance.rehydrate`` (``find_by_id`` → ``provenance_to_result``, the pure
+    blob→result adapter above the frozen seam), resolved through the SAME store precedence the
+    grade path uses (``LITHRIM_DB_URL`` → Postgres, else the local SQLite ``collections_db``).
+    Unknown id → ``LookupError`` → clean 404 (never a 500)."""
+    from lithrim_bench.runtime.pipeline.provenance import rehydrate
+
+    try:
+        return rehydrate(run_id, db_path=collections_db)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"run {run_id!r} not found (no persisted provenance blob for this run id)",
+        ) from exc
 
 
 @app.get("/v1/kb/{namespace}/search")
