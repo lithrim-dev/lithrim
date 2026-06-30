@@ -169,6 +169,13 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   ✓; seam `S-RUNTRAIL-1`: `gradeTag` lifted to `copy.js`, `artifact.jsx` local copy left
   for a future cycle.)*
 
+- **RUNTRAIL-9 — full trail reachable inline.** Brought the History expander + `$0`
+  Rehydrate onto the live `AuditView` card (`tool-audit_log`, emitted via `review_runs`) —
+  they were RunPanel-only (the journey pane, not in live chat). Now lineage → version
+  history → rehydrate is usable inline (conversational-first). *(CLOSED 2026-06-30, commits
+  `aaa1fa4`..`6e059d0`; UI-only, vitest green, build ✓; seam `S-BENCH-SALVAGE-RT9-1`:
+  `RunLineage` mirrored in RunPanel+AuditView, extraction deferred.)*
+
 **RUNTRAIL stream COMPLETE 2026-06-30 — write → API → UI.** The §1 invariant is enforced
 by tests (G1–G6, `7/0`); the trail is append-only with `replay_of`+`grade_path` lineage,
 readable via the API (`/v1/runs`, `/audit`, `/history`, `/rehydrate`), **surfaced in the
