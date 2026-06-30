@@ -3444,6 +3444,8 @@ def _run_summary(doc: dict) -> dict:
     who/when, projected from a persisted PipelineProvenance blob (S-BS-56)."""
     return {
         "run_id": doc.get("pipeline_run_id"),
+        # RUNTRAIL-11: the case this run graded, so the UI can group the trail per-record.
+        "case_id": doc.get("case_id"),
         # RUNTRAIL-6: lineage in the list row too (None for an authoritative grade).
         "replay_of": doc.get("replay_of"),
         # RUNTRAIL-7: the grade path in the list row (replay|in_process|live).

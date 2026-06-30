@@ -7,7 +7,7 @@
 
    All fetches route through bff.js (S-BS-50). */
 import { useEffect, useState } from "react";
-import { getAudit, getRunAudit, getRunHistory, rehydrateRun } from "../bff.js";
+import { getAudit, getRuns, getRunAudit, getRunHistory, rehydrateRun } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card.jsx";
 import { Input } from "../components/ui/input.jsx";
@@ -94,10 +94,30 @@ function AuditRow({ rec }) {
   );
 }
 
+// RUNTRAIL-11: group the run-history rows by the case they graded (newest-first within
+// each group), so the FULL trail of a record reads as one block — "5 runs on case X" —
+// instead of a type-the-id loader. Insertion order is preserved (runs arrive newest-first).
+function groupByCase(runs) {
+  const groups = new Map();
+  for (const r of runs) {
+    const k = r.case_id || "—";
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  return [...groups.entries()];
+}
+
+function shortTs(ts) {
+  const s = String(ts || "");
+  const t = s.match(/T(\d{2}:\d{2}:\d{2})/);
+  return t ? t[1] : s.slice(0, 19);
+}
+
 export default function AuditView({ runId: runIdProp = "" }) {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
   const [records, setRecords] = useState([]);
+  const [runs, setRuns] = useState([]);
   const [runId, setRunId] = useState(runIdProp);
   const [run, setRun] = useState(null);
   const [runErr, setRunErr] = useState(null);
@@ -107,13 +127,18 @@ export default function AuditView({ runId: runIdProp = "" }) {
     getAudit()
       .then((r) => { if (live) { setRecords(r.records || []); setStatus("ready"); } })
       .catch((e) => { if (live) { setError(friendlyError(e)); setStatus("error"); } });
+    getRuns()
+      .then((b) => { if (live) setRuns(b.runs || []); })
+      .catch(() => { if (live) setRuns([]); });
     return () => { live = false; };
   }, []);
 
-  const loadRun = async () => {
-    setRunErr(null); setRun(null);
+  const loadRun = async (id) => {
+    const target = id || runId;
+    if (!target) return;
+    setRunId(target); setRunErr(null); setRun(null);
     try {
-      setRun(await getRunAudit(runId));
+      setRun(await getRunAudit(target));
     } catch (e) {
       setRunErr(friendlyError(e));
     }
@@ -148,11 +173,38 @@ export default function AuditView({ runId: runIdProp = "" }) {
         <Separator />
 
         <section className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold text-foreground">Run provenance</span>
+          <span className="text-[11px] font-semibold text-foreground">Run trail</span>
+          {runs.length === 0 ? (
+            <span className="text-[10.5px] text-muted-foreground">No runs recorded yet.</span>
+          ) : (
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1" data-testid="run-trail">
+              {groupByCase(runs).map(([caseId, rows]) => (
+                <div key={caseId} className="flex flex-col gap-0.5" data-testid="trail-case">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[10.5px] font-semibold text-foreground">{caseId}</span>
+                    <span className="text-[10px] text-muted-foreground">{rows.length} run{rows.length === 1 ? "" : "s"}</span>
+                  </div>
+                  {rows.map((r) => (
+                    <button key={r.run_id} type="button" data-testid="trail-run"
+                      onClick={() => loadRun(r.run_id)}
+                      className={`flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border px-2 py-1 text-left text-[10px] hover:bg-muted ${r.run_id === runId ? "border-primary" : "border-border"}`}>
+                      <span className="font-[family-name:var(--font-mono)] text-muted-foreground">{shortTs(r.ts)}</span>
+                      <span style={{ color: verdictTone(r.verdict) }}>{verdictLabel(r.verdict)}</span>
+                      {r.grade_path && <span className="text-muted-foreground">{gradeTag(r.grade_path)}</span>}
+                      {r.replay_of
+                        ? <span className="font-[family-name:var(--font-mono)] text-muted-foreground">↩ replays {(r.replay_of || "").slice(0, 8)}</span>
+                        : <span className="text-muted-foreground">authoritative</span>}
+                      <span className="ml-auto font-[family-name:var(--font-mono)] text-muted-foreground">{(r.run_id || "").slice(0, 8)}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Input value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="run id"
               aria-label="run id" />
-            <Button size="sm" variant="ghost" onClick={loadRun} disabled={!runId}>Load run</Button>
+            <Button size="sm" variant="ghost" onClick={() => loadRun()} disabled={!runId}>Load run</Button>
           </div>
           {runErr && (
             <span className="text-[10.5px] text-[color:var(--accent-ink)]">{runErr}</span>
