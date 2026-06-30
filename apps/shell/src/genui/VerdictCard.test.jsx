@@ -121,4 +121,25 @@ describe("VerdictCard — carries the WHY inline (reasoning + floor attribution)
     const { container } = render(<VerdictCard verdict="approve" agreement="3 / 3" votes={[]} runId="r" />);
     expect(container.textContent).not.toMatch(/caught by .*floor/i);
   });
+
+  // FLOOR-CLEAR-1: the symmetric case — a judge RAISED a finding that a deterministic floor then
+  // DISPROVED (grounded.suppressed). The SNOMED-subsumption flip the demo turns on must read inline:
+  // the false alarm + the rule that cleared it + the evidence, so the punchline isn't only in the report.
+  it("renders a 'cleared by a fact-check' attribution from floorClears on a pass (the suppression flip)", () => {
+    const floorClears = [
+      { flag: "FABRICATED_HISTORY", reason: "grounded in the record by SNOMED subsumption",
+        evidence: "all 1 documented PMH item(s) are == or subsumed-by a record concept (oracle codes=[31996006])" },
+    ];
+    const { getByText, container } = render(
+      <VerdictCard verdict="approve" agreement="2 / 3" votes={[]} floorClears={floorClears} runId="r" />,
+    );
+    expect(container.textContent).toMatch(/cleared by a fact-check/i); // the attribution label
+    getByText("Fabricated history"); // the suppressed code, rendered readable
+    expect(container.textContent).toMatch(/subsumed-by/); // the deterministic evidence
+  });
+
+  it("shows NO floor-clear attribution when there are no floorClears (no fabricated 'cleared' on a real pass)", () => {
+    const { container } = render(<VerdictCard verdict="approve" agreement="3 / 3" votes={[]} runId="r" />);
+    expect(container.textContent).not.toMatch(/cleared by a fact-check/i);
+  });
 });

@@ -99,6 +99,48 @@ def test_verdict_part_omits_floor_blocks_when_none():
     assert "floorBlocks" not in out
 
 
+# ── verdict_part threads the floor CLEARS (suppressions): the symmetric "false alarm cleared" ──
+
+
+def _record_with_suppression():
+    """An approve where a judge RAISED a finding that a deterministic floor then DISPROVED
+    (``grounded.suppressed``) — the SNOMED-subsumption flip the demo turns on. The card must
+    show WHO cleared it (the false alarm + the rule + the evidence), symmetric to floorBlocks."""
+    return {
+        "pipeline_run_id": "run-2",
+        "composite": {"verdict": "approve", "active_findings": [], "floor_adjustments": []},
+        "council": {"votes": [{"judge_role": "faithfulness_judge", "vote": "WARN", "confidence": 0.87}]},
+        "grounded": {
+            "suppressed": [
+                {
+                    "code": "FABRICATED_HISTORY",
+                    "reason": "every documented history item is grounded by SNOMED subsumption",
+                    "evidence": "all 1 documented PMH item(s) are == or subsumed-by a record concept (oracle codes=[31996006])",
+                }
+            ]
+        },
+    }
+
+
+def test_verdict_part_threads_floor_clears_attribution():
+    """The pass card must show WHO cleared a false alarm: the suppressed code + the reason + the
+    evidence — projected from record.grounded.suppressed. This is the SNOMED-flip punchline inline."""
+    out = verdict_part(_record_with_suppression())["output"]
+    fc = out.get("floorClears")
+    assert isinstance(fc, list) and len(fc) == 1
+    c = fc[0]
+    assert c["flag"] == "FABRICATED_HISTORY"
+    assert "SNOMED subsumption" in c["reason"]
+    assert "subsumed-by" in c["evidence"]
+
+
+def test_verdict_part_omits_floor_clears_when_none():
+    """Back-compat + honesty: a real clean pass (no suppression) carries no floorClears key — the
+    card never shows a fabricated 'cleared by a fact-check' when nothing was actually cleared."""
+    out = verdict_part(_record(floor=False))["output"]
+    assert "floorClears" not in out
+
+
 # ── the floor INJECTION attribution lives on verdict_part (run_eval no longer narrates a verdict) ──
 
 
