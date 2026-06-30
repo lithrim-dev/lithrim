@@ -25,13 +25,21 @@ CONFIRMED against current code 2026-06-30:
 - `lithrim_bench/harness/persist.py:24-30,73` — `reports_store`/`persist()` is keyed
   by `case_id` **PRIMARY KEY** with UPSERT → last-write-wins. A second, case-keyed
   store overlapping the run store, with no crisp "which one is the trail" contract.
-- `provenance.py:176-178` — Postgres archives the prior doc to `pipeline_runs_history`
-  on update; the **SQLite store (the CE default) has no history table** → on any id
-  reuse, CE silently loses lineage.
+- `collections.py:231` — `PIPELINE_RUNS = DocShimCollection(..., versioned=True)`
+  (PERSIST-2a): a same-`run_id` re-save DOES copy-on-write archive the prior doc into
+  the `_history` shadow on BOTH backends — archival is **not** missing. The real gap is
+  **read-back parity at the store interface**: `SqliteProvenanceStore` exposes no
+  accessor that surfaces the `_history` archive for a `run_id`. `list_versions`
+  (`provenance.py:128-137`) queries the **live** `PIPELINE_RUNS` head rows for a
+  `(agent, case)` lineage (`find_by_json`), not a run's archived prior versions; so at
+  the interface a same-id re-save's prior is unreadable.
+  *(Corrected at RUNTRAIL-0 close — the original "SQLite has no history table" was stale;
+  verified against `collections.py:231` + `provenance.py:128-137` 2026-06-30.)*
 
 Net: the append-only, uniquely-id'd, timestamped, rehydratable run-history store
-*exists* (`pipeline_runs`, keyed by `id`, `created_at`, `find_by_id`) but is **not
-fed uniformly and is not kept strictly immutable**.
+*exists* (`pipeline_runs`, keyed by `id`, `created_at`, `find_by_id`; archival exists
+via `versioned=True`) but is **not fed uniformly, the archive is not readable at the
+store interface, and the head row is overwritten on the default replay path**.
 
 ---
 
@@ -108,12 +116,15 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
 - **RUNTRAIL-0 — contract RED test (this is the foundation).** Acceptance tests
   that assert §1 across entrypoints × modes and §2/§3/§4 shape — written to **fail
   against current code** (replay overwrite; cohort trail holes; missing
-  `replay_of`; SQLite no-archive). No implementation. The RED suite is the spine.
+  `replay_of`; archive not readable at the store interface). No implementation. The
+  RED suite is the spine. *(CLOSED 2026-06-30, commit `c3b7425`; G2 partial holds.)*
 - **RUNTRAIL-1 — fresh `run_id` per execution + `replay_of` lineage.** Replay mints
   a new id, records `replay_of=<baseline>`, never overwrites. Kills the default-path
   overwrite.
-- **RUNTRAIL-2 — strict append-only.** SQLite archive-on-conflict parity with
-  Postgres `pipeline_runs_history`; `pipeline_runs` never loses a record.
+- **RUNTRAIL-2 — readable append-only history.** Add a store-interface accessor
+  (`list_history(run_id)`-shaped) that surfaces the already-archived `_history` prior
+  versions — archival exists (`versioned=True`); this exposes it so the trail's prior
+  states are auditable, not just the head.
 - **RUNTRAIL-3 — projection contract.** `reports_store` documented + enforced as a
   derived projection, rebuildable from the run-history (`rebuild_projection()`).
 - **RUNTRAIL-4 — rehydrate + replay-from-blob.** `rehydrate(run_id)` path + test
@@ -142,7 +153,9 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
 - **G2.** A cohort grade of M cases ⇒ M new run-history rows, each rehydratable.
 - **G3.** A replay row carries `replay_of` = its baseline `run_id`; the baseline
   row is unchanged.
-- **G4.** SQLite never loses a record on id reuse (archive parity with Postgres).
+- **G4.** The SQLite store surfaces the archived prior versions for a `run_id` at the
+  store interface (read-back parity — archival already exists via `versioned=True`; a
+  same-id re-save's prior must be readable, not just the head).
 - **G5.** `reports_store` is rebuildable from the run-history alone.
 - **G6.** `rehydrate(run_id)` reconstructs the verdict from the blob with no model
   call.
