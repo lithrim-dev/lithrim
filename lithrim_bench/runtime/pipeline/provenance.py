@@ -187,6 +187,30 @@ class SqliteProvenanceStore(ProvenanceStore):
         )
 
 
+def rehydrate(pipeline_run_id: str, *, db_path: str | Path | None = None) -> dict:
+    """RUNTRAIL-4 / SPEC §4 + §7 G6: reconstruct a graded result from the stored run blob
+    ALONE — no live model call, no re-grade. The named entrypoint over the existing
+    ``find_by_id`` (the immutable audit blob) + ``provenance_to_result`` (the pure
+    blob→result adapter above the frozen seam) pieces, proving the record is self-sufficient
+    (§3): a stored blob suffices to reconstruct its verdict.
+
+    Resolves the store via the same ``provenance_store_for`` precedence the grade path uses
+    (``LITHRIM_DB_URL`` → Postgres, else the local SQLite ``db_path``) and the same
+    ``run_coro`` sync-bridge. Raises ``LookupError`` when the run id is absent. The adapter
+    import is lazy to keep ``provenance`` ↔ ``harness.replay`` cycle-free. $0 by construction.
+    """
+    from lithrim_bench.harness.backend import provenance_store_for, run_coro
+
+    store = provenance_store_for(db_path)
+    blob = run_coro(store.find_by_id(pipeline_run_id))
+    if blob is None:
+        raise LookupError(f"no run-history record for pipeline_run_id={pipeline_run_id!r}")
+
+    from lithrim_bench.harness.replay import provenance_to_result
+
+    return provenance_to_result(blob)
+
+
 class PostgresProvenanceStore(ProvenanceStore):
     """The managed/VPC-tier ProvenanceStore (PERSIST-2c, plugin ``tier: pro``).
 

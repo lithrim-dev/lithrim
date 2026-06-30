@@ -36,8 +36,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-import pytest
-
 from lithrim_bench.harness import reports_store
 from lithrim_bench.harness.replay import provenance_to_result
 from lithrim_bench.runtime.pipeline import provenance as provenance_mod
