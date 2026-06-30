@@ -162,12 +162,21 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   untouched), then surface it in the audit/list responses. *(CLOSED 2026-06-30, commits
   `7fe95b5`..`54d0ba9`; closes seam `S-RUNTRAIL-6-1`.)*
 
-**RUNTRAIL stream COMPLETE 2026-06-30.** The §1 invariant is enforced by tests (G1–G6,
-`7/0`); the trail is append-only with `replay_of`+`grade_path` lineage, readable via the
-API (`/v1/runs`, `/audit`, `/history`, `/rehydrate`), and any run rehydrates `$0`. Moat
-byte-frozen vs `acc4973` across the whole stream (0-delta; zero moat/council/taxonomy
-files touched). Live $0 proof: a replay cohort grade grew the trail +14 with `replay_of`
-lineage + `rehydrate` reconstructed a verdict (2026-06-30, `snomed_subsumption` ws).
+- **RUNTRAIL-8 — UI surface (consumable in the shell).** `bff.js` `getRunHistory` +
+  `rehydrateRun`; `RunPanel` shows `replay_of` (baseline link) + `grade_path` per run with
+  a History expander + a `$0` Rehydrate action; `AuditView` shows the lineage on the run
+  report. *(CLOSED 2026-06-30, commits `665e6d8`..`f1e57ae`; UI-only, vitest green, build
+  ✓; seam `S-RUNTRAIL-1`: `gradeTag` lifted to `copy.js`, `artifact.jsx` local copy left
+  for a future cycle.)*
+
+**RUNTRAIL stream COMPLETE 2026-06-30 — write → API → UI.** The §1 invariant is enforced
+by tests (G1–G6, `7/0`); the trail is append-only with `replay_of`+`grade_path` lineage,
+readable via the API (`/v1/runs`, `/audit`, `/history`, `/rehydrate`), **surfaced in the
+shell** (RunPanel/AuditView), and any run rehydrates `$0`. Moat byte-frozen vs `acc4973`
+across the whole stream (0-delta; zero moat/council/taxonomy files touched). Live $0
+proof: a replay cohort grade grew the trail +14 with `replay_of`+`grade_path` lineage on
+fresh records + `rehydrate` reconstructed a verdict over HTTP (2026-06-30,
+`snomed_subsumption` ws, rebuilt container).
 
 ---
 
