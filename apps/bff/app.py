@@ -537,6 +537,16 @@ class GroundingContractRequest(BaseModel):
     agent: str = DEFAULT_AGENT
 
 
+class AuthoredToolRequest(BaseModel):
+    # TOOL-AUTHOR-1: declare a kind:tool connector into the per-workspace config plane. `manifest`
+    # is the PluginManifest (no secrets — a connector key rides env via /v1/connector/config); the
+    # optional `bind` wires the tool into a judge's flag {flag_code, authority, contract_type, params}.
+    manifest: dict
+    bind: dict | None = None
+    agent: str = DEFAULT_AGENT
+    rationale: str = ""
+
+
 # META-VERDICT-1: the closed judge-fallacy taxonomy (Clinical Scribe Review's "Judge Fallacy" column).
 # A clinician naming WHY the automated judge erred — the dissent's typed reason. Closed by
 # construction: an out-of-enum code 422s at the model boundary (pydantic), never a free string.
@@ -3102,6 +3112,93 @@ def put_grounding_contract_endpoint(
         version=body.version,
         agent=body.agent,
     )
+
+
+# ── TOOL-AUTHOR-1: POST/GET/DELETE /v1/tools — author a kind:tool connector per workspace ──────
+@app.post("/v1/tools")
+def author_tool_endpoint(
+    body: AuthoredToolRequest,
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Declare a ``kind: tool`` connector (an MCP server, an API connector, a KB query, a
+    terminology service) into the active workspace's config plane — the SPINE/CONTAINMENT write
+    that mirrors POST /v1/judges: validate the manifest, persist per-workspace, audit. The manifest
+    carries NO secrets (a connector key rides env via /v1/connector/config). Validation: the
+    manifest must be a well-formed ``PluginManifest`` with ``kind == "tool"`` (422 otherwise). The
+    optional ``bind`` wires the tool into a judge's flag at grade time (Stage 2). $0, no paid knob."""
+    from lithrim_bench.harness import tools_store
+    from lithrim_bench.harness.plugins import PluginManifest
+
+    try:
+        manifest = PluginManifest.model_validate(body.manifest)
+    except Exception as exc:  # noqa: BLE001 — pydantic ValidationError → a clean 422, never a 500
+        raise HTTPException(status_code=422, detail=f"invalid tool manifest: {exc}") from exc
+    if manifest.kind != "tool":
+        raise HTTPException(
+            status_code=422, detail=f"manifest kind must be 'tool', got {manifest.kind!r}"
+        )
+    ws = workspace.get_active_workspace()
+    actor = _resolve_actor(x_actor, default_actor)
+    tools_store.save_tool(
+        manifest.id, body.manifest, bind=body.bind, db_path=db_path, workspace_id=ws.name
+    )
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=actor,
+            action="create",
+            target=Target(type="tool", id=manifest.id),
+            why={"rationale": body.rationale or f"authored {manifest.implements or 'tool'} {manifest.id}"},
+            before=None,
+            after={"manifest": body.manifest, "bind": body.bind},
+        )
+    )
+    return {"status": "ok", "tool_id": manifest.id, "actor": actor.model_dump()}
+
+
+@app.get("/v1/tools")
+def list_tools_endpoint(
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """The active workspace's tools: ``authored`` (per-workspace, from the config plane) ⊕
+    ``declared`` (the core ∪ active-pack ``tool_plugins()`` registry). $0 read, no audit."""
+    from lithrim_bench.harness import plugins, tools_store
+
+    ws = workspace.get_active_workspace()
+    authored = tools_store.list_tools(db_path=db_path, workspace_id=ws.name)
+    declared = [p.model_dump() for p in plugins.tool_plugins(ws.pack)]
+    return {"authored": authored, "declared": declared}
+
+
+@app.delete("/v1/tools/{tool_id}")
+def delete_tool_endpoint(
+    tool_id: str,
+    rationale: str = Query("", description="The author's change reason (the §2B audit 'why')"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """Delete an authored tool from this workspace (reversible; the pack-declared tools are
+    untouched). Idempotent: a missing tool returns ``removed=false`` with no audit row (the trail
+    is change-only). A declared core/pack tool is NOT deletable here (it isn't in authored_tools)."""
+    from lithrim_bench.harness import tools_store
+
+    ws = workspace.get_active_workspace()
+    actor = _resolve_actor(x_actor, default_actor)
+    removed = tools_store.delete_tool(tool_id, db_path=db_path, workspace_id=ws.name)
+    if removed:
+        AuditLog(db_path=db_path).record(
+            AuditRecord(
+                actor=actor,
+                action="delete",
+                target=Target(type="tool", id=tool_id),
+                why={"rationale": rationale or f"removed authored tool {tool_id}"},
+                before=None,
+                after=None,
+            )
+        )
+    return {"status": "ok", "tool_id": tool_id, "removed": removed, "actor": actor.model_dump()}
 
 
 def _cases_emitting_flag(flag_code: str, examples_dir: Path) -> list[str]:
