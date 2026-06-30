@@ -3,12 +3,23 @@
    verdict + the realized council votes. Mocks bff.js (no live BFF). Guards the cost
    gate: a paid mode (in_process) must be confirmed before any call. */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 vi.mock("../bff.js", () => ({
   getRuns: vi.fn().mockResolvedValue({
-    runs: [{ run_id: "a57bd49d-aaaa", verdict: "BLOCK", agent: "ws0_default", ts: "2026-06-04T00:00:00Z" }],
+    runs: [{
+      run_id: "a57bd49d-aaaa", verdict: "BLOCK", agent: "ws0_default", ts: "2026-06-04T00:00:00Z",
+      grade_path: "replay", replay_of: "b1c2d3e4-bbbb-0000-0000-000000000000",
+    }],
   }),
+  getRunHistory: vi.fn().mockResolvedValue({
+    run_id: "a57bd49d-aaaa",
+    history: [
+      { run_id: "a57bd49d-aaaa", verdict: "BLOCK", grade_path: "replay", ts: "2026-06-04T00:00:00Z" },
+      { run_id: "b1c2d3e4-bbbb", verdict: "PASS", grade_path: "live", ts: "2026-06-03T00:00:00Z" },
+    ],
+  }),
+  rehydrateRun: vi.fn().mockResolvedValue({ verdict: "BLOCK", run_id: "a57bd49d-aaaa" }),
   runEval: vi.fn().mockResolvedValue({
     pipeline_run_id: "a57bd49d-94cd-4397-8c53-f8cbaad3aec2",
     grade_path: "replay",
@@ -23,11 +34,13 @@ vi.mock("../bff.js", () => ({
 }));
 
 import RunPanel from "./RunPanel.jsx";
-import { getRuns, runEval } from "../bff.js";
+import { getRuns, runEval, getRunHistory, rehydrateRun } from "../bff.js";
 
 beforeEach(() => {
   getRuns.mockClear();
   runEval.mockClear();
+  getRunHistory.mockClear();
+  rehydrateRun.mockClear();
 });
 
 describe("RunPanel (tool-run_panel)", () => {
@@ -102,5 +115,35 @@ describe("RunPanel (tool-run_panel)", () => {
     expect(runEval).toHaveBeenCalledWith({ agent: "ws0_default", live: true, in_process: false });
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  // RUNTRAIL-8 A1: a history row surfaces the lineage (grade_path tag + the replay_of baseline).
+  it("A1 — a history row shows grade_path + replay_of when present", async () => {
+    render(<RunPanel />);
+    const row = await screen.findByTestId("history-row");
+    expect(row).toHaveTextContent("Saved replay"); // grade_path: replay → gradeTag label
+    expect(row).toHaveTextContent("b1c2d3e4"); // replay_of baseline short-id
+    expect(row).toHaveTextContent(/replays/i); // the "↩ replays {id8}" affordance
+  });
+
+  // RUNTRAIL-8 A2: the per-row History toggle calls getRunHistory(run_id) and lists the versions.
+  it("A2 — the History toggle calls getRunHistory(run_id) and renders prior versions", async () => {
+    render(<RunPanel />);
+    const row = await screen.findByTestId("history-row");
+    fireEvent.click(within(row).getByRole("button", { name: /History/i }));
+    await waitFor(() => expect(getRunHistory).toHaveBeenCalledWith("a57bd49d-aaaa"));
+    const versions = await screen.findAllByTestId("history-version");
+    expect(versions).toHaveLength(2);
+    expect(screen.getByText("b1c2d3e4", { exact: false })).toBeInTheDocument();
+  });
+
+  // RUNTRAIL-8 A2: the Rehydrate button calls rehydrateRun(run_id) and shows the reconstructed verdict.
+  it("A2 — the Rehydrate button calls rehydrateRun(run_id) and shows the verdict inline", async () => {
+    render(<RunPanel />);
+    const row = await screen.findByTestId("history-row");
+    fireEvent.click(within(row).getByRole("button", { name: /Rehydrate/i }));
+    await waitFor(() => expect(rehydrateRun).toHaveBeenCalledWith("a57bd49d-aaaa"));
+    const rehydrated = await screen.findByTestId("rehydrated-verdict");
+    expect(rehydrated).toHaveTextContent("Flagged"); // BLOCK → verdictLabel
   });
 });
