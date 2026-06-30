@@ -1961,7 +1961,15 @@ def get_council_roster_endpoint(
         rr = (ag.eval_profile.council_config or {}).get("reviewer_roster")
     except Exception:
         pass
-    return {"agent": agent, "reviewer_roster": rr, "panel": panel, "selectable": selectable}
+    # CE-JUDGE-RECOMMEND-1: a deterministic panel-vs-single-Generalist recommendation from the
+    # pack's reviewer structure (the domain proxy) — the UI renders it as guidance, no model call.
+    from lithrim_bench.harness.judges import recommend_reviewer_mode
+
+    recommendation = recommend_reviewer_mode(panel, selectable)
+    return {
+        "agent": agent, "reviewer_roster": rr, "panel": panel,
+        "selectable": selectable, "recommendation": recommendation,
+    }
 
 
 # ── PERSIST-CONV: GET/PUT /v1/conversation — the durable chat thread (refresh-safe) ──

@@ -68,6 +68,9 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
   const [reviewerMode, setReviewerMode] = useState("panel");
   const [singleRole, setSingleRole] = useState("");
   const [rosterMsg, setRosterMsg] = useState("");
+  // CE-JUDGE-RECOMMEND-1: the deterministic panel-vs-single-Generalist recommendation from the
+  // pack's reviewer structure ({mode, reviewer, k, rationale}); rendered as guidance, one-click apply.
+  const [recommendation, setRecommendation] = useState(null);
 
   useEffect(() => {
     getModelCatalog({ live: false }).then((c) => setCatalog(c || { providers: {} })).catch(() => {});
@@ -78,6 +81,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       const pnl = r?.panel || [];
       setPanel(pnl);
       setSelectable(r?.selectable || pnl);
+      setRecommendation(r?.recommendation || null);
       const rr = r?.reviewer_roster;
       if (rr && rr.length) { setReviewerMode(rr.length === 1 ? "single" : "panel"); setSingleRole(rr[0] || pnl[0] || ""); }
       else { setReviewerMode("panel"); setSingleRole(pnl[0] || ""); }
@@ -198,6 +202,21 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
               : `All ${panel.length} reviewers grade — the panel needs ≥2 to reach consensus.`}
             {rosterMsg && <span> · {rosterMsg}</span>}
           </span>
+          {/* CE-JUDGE-RECOMMEND-1: a deterministic recommendation from the pack's reviewer structure */}
+          {recommendation && (
+            <div data-testid="reviewer-recommendation" style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", fontSize: 10.5, color: "var(--muted)" }}>
+              <span style={{ color: "var(--ink)", fontWeight: 600 }}>
+                Recommended: {recommendation.mode === "panel" ? `Panel · ${panel.length}` : `Single · ${roleLabel(recommendation.reviewer)}${recommendation.k ? ` (k=${recommendation.k})` : ""}`}
+              </span>
+              <span>— {recommendation.rationale}</span>
+              {((recommendation.mode === "panel" && reviewerMode !== "panel") ||
+                (recommendation.mode === "single" && (reviewerMode !== "single" || singleRole !== recommendation.reviewer))) && (
+                <button data-testid="reviewer-apply-recommendation"
+                  onClick={() => { if (recommendation.mode === "panel") applyReviewerMode("panel"); else { setReviewerMode("single"); if (recommendation.reviewer) applySingleRole(recommendation.reviewer); else applyReviewerMode("single"); } }}
+                  style={{ ...btn(false), padding: "1px 7px", fontSize: 10 }}>Use this</button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

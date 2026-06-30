@@ -305,3 +305,40 @@ def resolve_grade_roster(
     derived = derive_roster_order(production, assignments, models)
     roles = derived if derived != production else None
     return apply_reviewer_roster(roles, council_config, production=derived)
+
+
+def recommend_reviewer_mode(
+    panel: list[str], selectable: list[str], *, single_k: int = 5
+) -> dict[str, Any]:
+    """CE-JUDGE-RECOMMEND-1: recommend a reviewer configuration from the pack's structure.
+
+    The calibration thesis: differentiated SPECIALISTS (the panel) beat one full-lens generalist
+    when the domain spans multiple failure-mode families; a single Generalist with k 3-8 sampling
+    is enough for a NARROW domain (one review lens). The pack's reviewer count is the domain proxy
+    — pure + deterministic, so the UI can render the recommendation with no model call.
+
+    Returns ``{mode, reviewer, k, rationale}``: ``panel`` mode has ``reviewer``/``k`` None; ``single``
+    mode names the reviewer (the opt-in full-lens generalist if present, else the sole role) and a
+    recommended k in 3-8."""
+    generalists = [r for r in selectable if r not in panel]
+    if len(panel) >= 2:
+        return {
+            "mode": "panel",
+            "reviewer": None,
+            "k": None,
+            "rationale": (
+                f"{len(panel)} specialist reviewers cover distinct failure modes — differentiated "
+                "lenses beat one generalist when the domain spans several review concerns."
+            ),
+        }
+    reviewer = generalists[0] if generalists else (panel[0] if panel else None)
+    via_generalist = bool(generalists)
+    return {
+        "mode": "single",
+        "reviewer": reviewer,
+        "k": single_k,
+        "rationale": (
+            f"A single {'Generalist' if via_generalist else 'reviewer'} with k={single_k} sampling "
+            "is enough for a narrow domain (one review lens) — add specialists as the domain grows."
+        ),
+    }
