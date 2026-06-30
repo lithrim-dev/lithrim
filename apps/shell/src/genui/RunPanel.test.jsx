@@ -134,7 +134,7 @@ describe("RunPanel (tool-run_panel)", () => {
     await waitFor(() => expect(getRunHistory).toHaveBeenCalledWith("a57bd49d-aaaa"));
     const versions = await screen.findAllByTestId("history-version");
     expect(versions).toHaveLength(2);
-    expect(screen.getByText("b1c2d3e4", { exact: false })).toBeInTheDocument();
+    expect(versions[1]).toHaveTextContent("b1c2d3e4"); // the prior-version short-id
   });
 
   // RUNTRAIL-8 A2: the Rehydrate button calls rehydrateRun(run_id) and shows the reconstructed verdict.

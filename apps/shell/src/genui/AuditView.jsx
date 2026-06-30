@@ -14,7 +14,7 @@ import { Input } from "../components/ui/input.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
-import { roleLabel, verdictLabel, friendlyError } from "./copy.js";
+import { roleLabel, verdictLabel, friendlyError, gradeTag } from "./copy.js";
 
 // "{action} {type}:{id}" -> a plain sentence, e.g. "Edited the Faithfulness reviewer".
 function auditSentence(rec) {
@@ -112,10 +112,17 @@ export default function AuditView({ runId: runIdProp = "" }) {
             <span className="text-[10.5px] text-[color:var(--accent-ink)]">{runErr}</span>
           )}
           {run && (
-            <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2 text-[11px]">
+            <div className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2 text-[11px]"
+              data-testid="run-report">
               <div className="font-medium text-foreground">
                 Result: {verdictLabel(run.verdict)} · by {run.actor?.id}
               </div>
+              {(run.grade_path || run.replay_of) && (
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {run.grade_path ? gradeTag(run.grade_path) : null}
+                  {run.replay_of ? <> · ↩ replays {(run.replay_of || "").slice(0, 8)}</> : null}
+                </div>
+              )}
               {(run.judges || []).map((j, i) => (
                 <div key={i} className="mt-1 text-[10.5px] text-muted-foreground">
                   <span className="text-foreground">{roleLabel(j.judge_role)}</span> {verdictLabel(j.vote)}

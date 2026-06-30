@@ -66,3 +66,9 @@ export function friendlyError(err) {
     return sentenceCase(msg).replace(/\s*\.?$/, ".");
   return "Something went wrong. Please try again.";
 }
+
+// grade_path → the cost tag. in_process is the OSS-standalone PAID default (LAUNCH-PREP);
+// only an actual replay is free — never label a paid run "free" (S-BS-110).
+export function gradeTag(gp) {
+  return gp === "replay" ? "Saved replay · free" : gp === "in_process" ? "Full run · paid" : "Live run · paid";
+}

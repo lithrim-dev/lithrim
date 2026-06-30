@@ -12,14 +12,14 @@
    flat-spread prop convention (registry.js): props are spread from part.output; this
    component reads only `agent`. */
 import { useEffect, useState } from "react";
-import { getRuns, runEval } from "../bff.js";
+import { getRuns, runEval, getRunHistory, rehydrateRun } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { CostModal } from "../components/CostModal.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
-import { verdictLabel, roleLabel } from "./copy.js";
+import { verdictLabel, roleLabel, gradeTag } from "./copy.js";
 
 const MODES = [
   { key: "replay", label: "Replay", cost: "$0", paid: false },
@@ -33,6 +33,65 @@ const COST_BODY =
 
 const voteTone = (vote) =>
   vote === "BLOCK" ? "var(--accent-ink)" : vote === "WARN" ? "var(--amber, #b45309)" : "var(--teal)";
+
+const verdictTone = (v) => (v === "BLOCK" ? "var(--accent-ink)" : "var(--teal)");
+
+// RUNTRAIL-8: one run-history row + its lineage. Surfaces grade_path (cost tag) +
+// replay_of (the baseline this run replays), and offers a per-row History expander
+// (getRunHistory → prior versions) + a $0 Rehydrate button (rehydrateRun → verdict).
+function HistoryRow({ r }) {
+  const [versions, setVersions] = useState(null); // null = collapsed; [] = loaded-empty
+  const [rehydrated, setRehydrated] = useState(null);
+
+  const toggleHistory = async () => {
+    if (versions !== null) { setVersions(null); return; }
+    try { setVersions((await getRunHistory(r.run_id)).history || []); }
+    catch { setVersions([]); }
+  };
+  const doRehydrate = async () => {
+    try { setRehydrated(await rehydrateRun(r.run_id)); }
+    catch { setRehydrated({ verdict: null }); }
+  };
+
+  return (
+    <div className="flex flex-col gap-1" data-testid="history-row">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+          {(r.run_id || "").slice(0, 8)}
+        </span>
+        <span style={{ color: verdictTone(r.verdict) }}>{verdictLabel(r.verdict)}</span>
+        <span className="text-muted-foreground">{r.agent}</span>
+        {r.grade_path && (
+          <span className="text-[10px] text-muted-foreground">{gradeTag(r.grade_path)}</span>
+        )}
+        {r.replay_of && (
+          <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
+            ↩ replays {(r.replay_of || "").slice(0, 8)}
+          </span>
+        )}
+        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={toggleHistory}>History</Button>
+        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={doRehydrate}>Rehydrate $0</Button>
+      </div>
+      {versions !== null && (
+        <div className="ml-3 flex flex-col gap-0.5">
+          {versions.length === 0 && <span className="text-[10px] text-muted-foreground">No prior versions.</span>}
+          {versions.map((v, i) => (
+            <div key={i} className="flex items-center gap-2 text-[10px]" data-testid="history-version">
+              <span className="font-[family-name:var(--font-mono)] text-muted-foreground">{(v.run_id || "").slice(0, 8)}</span>
+              <span style={{ color: verdictTone(v.verdict) }}>{verdictLabel(v.verdict)}</span>
+              {v.grade_path && <span className="text-muted-foreground">{gradeTag(v.grade_path)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {rehydrated && (
+        <div className="ml-3 text-[10px]" data-testid="rehydrated-verdict">
+          Rehydrated: <span style={{ color: verdictTone(rehydrated.verdict) }}>{verdictLabel(rehydrated.verdict)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function RunPanel({ agent = "ws0_default", onRan }) {
   const [mode, setMode] = useState("replay");
@@ -167,15 +226,7 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
             Run history {history.length ? `(${history.length})` : "(none yet)"}
           </div>
           {history.map((r) => (
-            <div key={r.run_id} className="flex items-center gap-2 text-xs" data-testid="history-row">
-              <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-                {(r.run_id || "").slice(0, 8)}
-              </span>
-              <span style={{ color: r.verdict === "BLOCK" ? "var(--accent-ink)" : "var(--teal)" }}>
-                {verdictLabel(r.verdict)}
-              </span>
-              <span className="text-muted-foreground">{r.agent}</span>
-            </div>
+            <HistoryRow key={r.run_id} r={r} />
           ))}
         </div>
       </CardContent>
