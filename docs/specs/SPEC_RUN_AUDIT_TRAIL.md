@@ -175,6 +175,16 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   history → rehydrate is usable inline (conversational-first). *(CLOSED 2026-06-30, commits
   `aaa1fa4`..`6e059d0`; UI-only, vitest green, build ✓; seam `S-BENCH-SALVAGE-RT9-1`:
   `RunLineage` mirrored in RunPanel+AuditView, extraction deferred.)*
+- **RUNTRAIL-11 — the trail intuitively visible.** The live `AuditView` only had a
+  type-the-run-id loader (the run LIST was RunPanel-only = journey pane). Added a
+  **"Run trail" list grouped by case** (newest-first) on `AuditView`: each row =
+  `ts · verdict · grade_path · authoritative|↩replays · run-id`, **click to load** that
+  run's provenance + the existing History/Rehydrate (no typing). One additive BFF field
+  (`_run_summary` projects `case_id`; the blob already persists it) + the UI list — no
+  moat file. *(CLOSED 2026-06-30, commits `6aef078` test + `c5e50dd` feat; vitest green
+  (1 pre-existing `app.jsx` titlebar fail, stash-proven independent), build ✓; LIVE-PROVEN
+  on `snomed_inj_13_gpa` — 5 live runs atop the replays, click-to-drill loaded run
+  `98dcd24f`'s votes.)*
 
 **RUNTRAIL stream COMPLETE 2026-06-30 — write → API → UI.** The §1 invariant is enforced
 by tests (G1–G6, `7/0`); the trail is append-only with `replay_of`+`grade_path` lineage,
