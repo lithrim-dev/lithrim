@@ -252,6 +252,18 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
     ]
     if floor_blocks:
         out["floorBlocks"] = floor_blocks
+    # FLOOR-CLEAR-1 (the SNOMED-flip thesis, inline): the symmetric attribution — a deterministic
+    # fact-check DISPROVED a finding a judge raised (a false positive), so a flagged case still PASSES.
+    # Projected from record.grounded.suppressed (code + reason + evidence). The card renders a "Cleared
+    # by a fact-check" attribution so the suppression flip reads on-card, not only in the full report.
+    # Added only when non-empty (a real clean pass shows nothing — never a fabricated 'cleared').
+    floor_clears = [
+        {"flag": s.get("code"), "reason": s.get("reason"), "evidence": s.get("evidence")}
+        for s in ((record.get("grounded") or {}).get("suppressed") or [])
+        if s.get("code")
+    ]
+    if floor_clears:
+        out["floorClears"] = floor_clears
     # the faithfulness pillar reflects the faithfulness judge's actual vote (clear vs flagged).
     faith = next((v for v in votes if "faith" in str(v.get("judge_role") or "").lower()), None)
     if faith:

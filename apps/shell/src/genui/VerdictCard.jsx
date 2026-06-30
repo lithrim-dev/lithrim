@@ -45,7 +45,7 @@ function agreeDots(agreement) {
 
 export default function VerdictCard({
   id, question, answer, confidence, agreement, pillar, pillarStatus, verdict,
-  votes, floorBlocks, runId, onOpenArtifact, caseOutcome,
+  votes, floorBlocks, floorClears, runId, onOpenArtifact, caseOutcome,
 } = {}) {
   // Real-data only: with no outcome/verdict (and no question), this was an output-less mount —
   // show an honest placeholder instead of a fabricated sample verdict.
@@ -113,6 +113,25 @@ export default function VerdictCard({
                 </span>
                 {b.disposition && (
                   <div style={{ fontSize: 12, color: "var(--fg)", lineHeight: 1.45, marginTop: 3 }}>{b.disposition}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* FLOOR-CLEAR-1 (the SNOMED-flip thesis, inline): the symmetric attribution — a judge
+            RAISED a finding that a deterministic fact-check then DISPROVED, so a flagged case still
+            PASSES. Teal (positive): the false alarm + the rule's evidence. Rendered only when a floor
+            actually suppressed something, so a real clean pass never shows a fabricated 'cleared'. */}
+        {Array.isArray(floorClears) && floorClears.length > 0 && (
+          <div className="ifloor" style={{ margin: "10px 0", padding: "8px 10px", borderRadius: 8, background: "var(--teal-bg, rgba(20,160,130,0.07))", borderLeft: "3px solid var(--teal)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--teal)", marginBottom: 5 }}>Cleared by a fact-check</div>
+            {floorClears.map((c, i) => (
+              <div key={c.flag || i} style={{ marginBottom: i < floorClears.length - 1 ? 6 : 0 }}>
+                <span className="tag pass" style={{ marginRight: 6 }}>{flagLabel(c.flag)}</span>
+                <span style={{ fontSize: 11.5, color: "var(--muted)" }}>false alarm disproven</span>
+                {(c.evidence || c.reason) && (
+                  <div style={{ fontSize: 12, color: "var(--fg)", lineHeight: 1.45, marginTop: 3 }}>{c.evidence || c.reason}</div>
                 )}
               </div>
             ))}

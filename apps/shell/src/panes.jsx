@@ -179,7 +179,7 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
               style={{ position: "fixed", zIndex: 61, top: "50%", left: "50%", transform: "translate(-50%, -50%)",
                 width: "min(620px, 92vw)", maxHeight: "86vh", overflowY: "auto", padding: 18, borderRadius: 14,
                 background: "var(--bg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-pop)" }}>
-              <ProviderSettings onClose={() => setConnectAI(false)} />
+              <ProviderSettings onClose={() => setConnectAI(false)} agent={activeAgent} />
             </div>
           </>
         )}
@@ -293,6 +293,13 @@ function verdictShape(rec) {
     .filter((fa) => fa.action === "floor_block")
     .map((fa) => ({ flag: fa.flag, contract_type: fa.contract_type, contract: fa.contract, disposition: fa.disposition }));
   if (floorBlocks.length) out.floorBlocks = floorBlocks;
+  // FLOOR-CLEAR-1: the symmetric attribution — findings a deterministic fact-check DISPROVED
+  // (rec.grounded.suppressed), so a flagged case still PASSES. Mirrors adapter.py verdict_part so the
+  // fresh (cost-confirmed) grade renders the SAME "Cleared by a fact-check" badge the agent card does.
+  const floorClears = ((rec?.grounded || {}).suppressed || [])
+    .filter((s) => s.code)
+    .map((s) => ({ flag: s.code, reason: s.reason, evidence: s.evidence }));
+  if (floorClears.length) out.floorClears = floorClears;
   const faith = votes.find((v) => String(v.judge_role || "").toLowerCase().includes("faith"));
   if (faith) {
     out.pillar = "Faithfulness";
@@ -301,7 +308,7 @@ function verdictShape(rec) {
   return out;
 }
 
-export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName }) {
+export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   // SHEPHERD-1 (W3): the editor cards (Agent/Judge/Flag) already call onResult on a
@@ -856,11 +863,11 @@ export function CenterPane({ onOpenArtifact, artifactOpen, onRunEval, runStatus,
                           return (
                             <details key={j} className="ondemand" data-testid="ondemand-part">
                               <summary>Show {PART_LABELS[part.type] || "details"} ▸</summary>
-                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>
+                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>
                             </details>
                           );
                         // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact })}</div>;
+                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>;
                       })}
                       {/* W1/W2: the non-static working indicator — visible across the WHOLE in-flight
                           window (not only when text is empty), showing the latest tool label. */}
