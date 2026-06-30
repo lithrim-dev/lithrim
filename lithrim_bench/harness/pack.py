@@ -522,10 +522,22 @@ def assert_pack_judges_consistent(pack: str) -> None:
     unchanged, so every existing pack (declared judges ⊆ the canonical roster) still validates
     exactly as before; :func:`council_roster` itself stays pack-independent (untouched), and the
     pure :func:`assert_judges_known` with an explicit ``roster=`` still fails closed on an unknown
-    role (non-vacuous)."""
+    role (non-vacuous).
+
+    **GENERALIST-1 (ADDITIVE).** The roster ALSO unions the pack's own ``lenses`` roles
+    (:func:`pack_lenses`) — a role the pack DECLARES with a lens + a Tier-1 owner entry + a relocated
+    prompt is a pack-declared reviewer, roster-known FOR THIS PACK, even when it is NOT a panel member
+    (``production_judges``). This lets a pack ship an OPT-IN single-reviewer role (e.g. a generalist
+    carrying the full-coverage lens) that runs ONLY via an explicit ``reviewer_roster`` override, never
+    inflating the default panel. Still additive — every production judge already has a lens, so existing
+    packs' rosters are unchanged; a stray prompt for a role with NO lens declaration still fails closed."""
     prompts_dir = _pack_ref(pack, "council_roles")
     stems = [p.stem for p in prompts_dir.glob("*.txt")]
-    roster = council_roster() | frozenset(pack_production_judges(pack))
+    roster = (
+        council_roster()
+        | frozenset(pack_production_judges(pack))
+        | frozenset(pack_lenses(pack))
+    )
     assert_judges_known(_manifest(pack)["judges"], stems, roster=roster, pack=pack)
 
 

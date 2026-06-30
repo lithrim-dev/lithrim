@@ -1,15 +1,19 @@
 """UAP-4 BFF acceptance: POST /v1/judges/{role}/optimize — the calibration-trainer
-route (R5). Hermetic + $0: ``run_optimize`` is the PAID Azure entrypoint, so every
-test here INJECTS a fake (monkeypatch bff.run_optimize) — no live call. We prove the
-route's cost-gate (422 without confirm), the honest Δ-shape passthrough, the
-coverage-aware + confirm_cost wiring, and the unknown-role 404. The real held-out Δ
-is the cost-gated user-run attestation (A-LIVE), not an automated test.
+route (R5), now IN-CORPUS (Phase 2). Hermetic + $0: the PAID optimize runs in a
+pack-bound subprocess (``_optimize_via_subprocess``), so every test here INJECTS a fake
+for that seam — no spawn, no live call. We prove the route's cost-gate (422 without
+confirm), the honest Δ-shape passthrough, the role+limit wiring, and the unknown-role
+404 (pack-aware). The real held-out Δ is the cost-gated user-run attestation (A-LIVE),
+not an automated test. The active workspace is stubbed to a discoverable pack so the
+pack-aware role check resolves hermetically.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,13 +57,21 @@ _FAKE_RESULT = {
 def client(tmp_path, monkeypatch):
     calls: list[dict] = []
 
-    def _fake_run_optimize(role, **kwargs):
-        calls.append({"role": role, **kwargs})
+    def _fake_optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit):
+        calls.append({"role": role, "limit": limit, "collections_db": str(collections_db)})
         return {**_FAKE_RESULT, "role": role}
 
-    monkeypatch.setattr(bff, "run_optimize", _fake_run_optimize)
+    # the PAID optimize is a pack-bound subprocess; inject the seam so no process spawns.
+    monkeypatch.setattr(bff, "_optimize_via_subprocess", _fake_optimize_via_subprocess)
+    # stub the active workspace to a DISCOVERABLE pack so the pack-aware role check resolves
+    # hermetically (the test env discovers ``healthcare``, not the local clinverdict drop-in).
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: SimpleNamespace(name="test_ws", pack="healthcare", packs_dir=None),
+    )
     bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
-    bff.app.dependency_overrides[bff.get_calib_corpus_path] = lambda: tmp_path / "corpus.jsonl"
+    bff.app.dependency_overrides[bff.get_collections_db] = lambda: tmp_path / "cases.db"
     c = TestClient(bff.app)
     c._optimize_calls = calls  # surface for assertions
     try:
@@ -93,11 +105,41 @@ def test_optimize_returns_the_honest_delta_shape(client):
     assert body["delta"]["graded"] == -0.1
 
 
-def test_optimize_wires_confirm_cost_and_coverage_aware(client):
+def test_optimize_subprocess_hydrates_bindings_before_spawn(monkeypatch, tmp_path):
+    # GENERALIST-1/Phase-2: the REAL _optimize_via_subprocess must hydrate the per-role provider
+    # bindings into os.environ BEFORE it spawns, so the bound model (faithfulness→gpt-4.1) reaches
+    # build_judge_lm in the child — else it falls back to the role's default (un-deployed) deployment.
+    order: list[str] = []
+    monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: order.append("hydrate"))
+
+    class _Proc:
+        returncode = 0
+        stdout = "__OPTIMIZE_JSON__" + json.dumps(_FAKE_RESULT)
+        stderr = ""
+
+    captured: dict = {}
+
+    def _fake_run(cmd, env=None, **kw):
+        order.append("spawn")
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(bff.subprocess, "run", _fake_run)
+    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    res = bff._optimize_via_subprocess(
+        role="faithfulness_judge", ws=ws, collections_db=tmp_path / "c.db",
+        out_dir=tmp_path / "out", limit=None,
+    )
+    assert order == ["hydrate", "spawn"]  # hydrate runs FIRST, then the spawn inherits the env
+    assert "--role" in captured["cmd"] and "faithfulness_judge" in captured["cmd"]
+    assert res["role"] == _FAKE_RESULT["role"]  # the __OPTIMIZE_JSON__ envelope is passed through
+
+
+def test_optimize_wires_role_and_limit_to_the_subprocess(client):
+    # the endpoint threads role + the cost-smoke limit into the pack-bound subprocess; confirm_cost
+    # + coverage_aware are pinned INSIDE the subprocess (scripts/optimize_judge.py), not the route.
     client.post(f"/v1/judges/{_ROLE}/optimize", json={"confirm": True, "limit": 2})
     assert len(client._optimize_calls) == 1
     call = client._optimize_calls[0]
     assert call["role"] == _ROLE
-    assert call["confirm_cost"] is True  # the route opts into the paid path explicitly
-    assert call["coverage_aware"] is True  # S-BS-49 fix is ON
     assert call["limit"] == 2

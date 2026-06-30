@@ -66,7 +66,16 @@ def _print_table(result: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--role", default="risk_judge")
-    parser.add_argument("--corpus", required=True)
+    # The corpus source — EXACTLY ONE: a pre-built calib JSONL (manual), OR build it IN-CORPUS from
+    # a workspace's own graded cases (Phase 2, the BFF subprocess path — pack-bound, in-domain).
+    parser.add_argument("--corpus", help="a pre-built calibration JSONL (manual path)")
+    parser.add_argument(
+        "--collections-db",
+        help="build the calib IN-CORPUS from this workspace cases DB (Phase 2)",
+    )
+    parser.add_argument("--calib-out", help="where the in-corpus calib JSONL is written (with --collections-db)")
+    parser.add_argument("--limit", type=int, default=None, help="cap each split (cost smoke)")
+    parser.add_argument("--test-stride", type=int, default=3, help="in-corpus split: every Nth case → test (≈70/30)")
     parser.add_argument("--confirm-cost", action="store_true")
     parser.add_argument(
         "--smoke",
@@ -74,27 +83,88 @@ def main() -> None:
         help="cap each split to 2 cases (per-call cost check; not a real result)",
     )
     parser.add_argument("--out", default="docs/research/")
+    parser.add_argument(
+        "--emit-json",
+        action="store_true",
+        help="emit one __OPTIMIZE_JSON__ envelope (the BFF subprocess contract) instead of the table",
+    )
     args = parser.parse_args()
 
-    if not args.confirm_cost:
-        print(
-            "REFUSING: run_optimize makes paid Azure calls. Re-run with --confirm-cost "
-            "(smoke first: --smoke --confirm-cost).",
-            file=sys.stderr,
-        )
+    def _emit_json(payload: dict) -> None:
+        print("__OPTIMIZE_JSON__" + json.dumps(payload, default=str))
+
+    def _fail(msg: str, *, extra: dict | None = None) -> None:
+        # In --emit-json mode a degenerate corpus / refusal is DATA (the BFF maps it to a calm 422),
+        # never a stack trace; the manual CLI keeps its stderr+exit behaviour.
+        if args.emit_json:
+            _emit_json({"error": msg, **(extra or {})})
+            sys.exit(0)
+        print(f"REFUSING: {msg}", file=sys.stderr)
         sys.exit(2)
+
+    if not args.confirm_cost:
+        _fail(
+            "run_optimize makes paid Azure calls. Re-run with --confirm-cost (smoke first: "
+            "--smoke --confirm-cost).",
+        )
 
     out_dir = Path(args.out)
     if args.smoke:
         out_dir = out_dir / "smoke"
 
-    result = run_optimize(
-        args.role,
-        corpus_path=args.corpus,
-        confirm_cost=True,
-        out_dir=out_dir,
-        limit=2 if args.smoke else None,
-    )
+    # ── resolve the corpus: in-corpus (workspace cases) OR a pre-built file ────────────────────
+    split_counts_payload: dict | None = None
+    if args.collections_db:
+        # Pack-bound (LITHRIM_BENCH_PACK set by the spawner): the role lens resolves the ACTIVE pack.
+        from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE
+
+        if args.role not in LENS_BY_ROLE:
+            _fail(f"unknown reviewer {args.role!r} for this pack")
+
+        from lithrim_bench.harness import cases_store
+        from lithrim_bench.harness.calib_corpus import (
+            build_calib_rows,
+            split_counts,
+            write_calib_jsonl,
+        )
+
+        cases = [r["payload"] for r in cases_store.list_cases(db_path=args.collections_db)]
+        rows = build_calib_rows(cases, test_stride=args.test_stride)
+        split_counts_payload = split_counts(rows)
+        if split_counts_payload["calibration"] == 0 or split_counts_payload["test"] == 0:
+            _fail(
+                "Not enough graded cases to calibrate yet — need cases on BOTH the calibration and "
+                "held-out splits. Grade more of this workspace's corpus first.",
+                extra={"split_counts": split_counts_payload, "n_cases": len(cases)},
+            )
+        corpus = str(args.calib_out or (out_dir / "calib.jsonl"))
+        write_calib_jsonl(rows, corpus)
+    elif args.corpus:
+        corpus = args.corpus
+    else:
+        parser.error("one of --corpus or --collections-db is required")
+
+    try:
+        result = run_optimize(
+            args.role,
+            corpus_path=corpus,
+            confirm_cost=True,
+            out_dir=out_dir,
+            limit=2 if args.smoke else args.limit,
+            coverage_aware=True,
+        )
+    except Exception as exc:  # surface the live Azure/dspy failure as data in --emit-json mode
+        if args.emit_json:
+            _emit_json({"error": f"optimize run failed: {exc}", "split_counts": split_counts_payload})
+            sys.exit(0)
+        raise
+    if split_counts_payload is not None:
+        result["split_counts"] = split_counts_payload
+        result["corpus"] = "workspace"
+
+    if args.emit_json:
+        _emit_json(result)
+        return
     _print_table(result)
     if args.smoke:
         print("\nSMOKE ONLY (2 cases/split) — divide your Azure spend by the call count")

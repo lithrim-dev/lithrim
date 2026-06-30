@@ -373,11 +373,17 @@ def run(
         # ``withstands_sink`` so they can be audited + emit RLVR correction records
         # after grade (below). BYOC-1: ``models`` selects a per-role provider (the
         # mixed council).
+        # REVIEWER-MODE: a single-reviewer roster (``len(roles) == 1``) runs the moat's
+        # single-judge consensus path (``_apply_consensus(gate_mode=True)`` relaxes the
+        # quorum to 1) so that lone reviewer's findings populate; the case verdict itself
+        # comes from ``derive_case_outcome`` either way. Panel (roles None / len > 1) → False.
+        gate_mode = bool(roles) and len(roles) == 1
         semantic_stage = build_authored_semantic_stage(
             ontology=ontology,
             assignments=assignments,
             models=models,
             roles=roles,
+            gate_mode=gate_mode,
             samples=samples,
             temperatures=temperatures,
             criteria=criteria,
@@ -618,12 +624,25 @@ def main() -> int:
     # PHASE2-B: derive the grade roster — production_judges FIRST, then any authored extra role
     # (created via POST /v1/judges) appended — so the authored judge reaches build_trio and votes.
     # ``None`` when there are no extras (the default trio). run() threads roles= → build_trio.
-    from lithrim_bench.harness.judges import derive_roster_order
-    from lithrim_bench.harness.pack import pack_production_judges
+    from lithrim_bench.harness.judges import resolve_grade_roster
+    from lithrim_bench.harness.pack import pack_lenses, pack_production_judges
 
-    _production = pack_production_judges()
-    _roster = derive_roster_order(_production, assignments, models)
-    roles = _roster if _roster != _production else None
+    # GENERALIST-1: a reviewer_roster may name a pack-declared lens role (e.g. a generalist) the
+    # SME SELECTED without authoring an explicit lens. Default such a role to its FULL pack lens so
+    # the selection actually grades — else resolve_grade_roster drops the unauthored role and falls
+    # back to the panel (a silent wrong-result). Only seeds a roster role ABSENT from the authored
+    # assignments; explicit authoring (a narrower lens / per-role k) is untouched.
+    _council_config = agent.eval_profile.council_config or {}
+    _pack_lenses = pack_lenses()
+    for _sel_role in _council_config.get("reviewer_roster") or []:
+        if _sel_role in _pack_lenses and _sel_role not in assignments:
+            assignments[_sel_role] = tuple(sorted(_pack_lenses[_sel_role]))
+    # REVIEWER-MODE: the derived roster (production_judges ∪ any authored/selected extra) then the
+    # per-agent single/panel override — a len==1 roster becomes the single-judge grade. An extra
+    # reviewer (GENERALIST-1) survives the override (allow-set = derived).
+    roles = resolve_grade_roster(
+        pack_production_judges(), assignments, models, _council_config
+    )
 
     record = run(
         agent,

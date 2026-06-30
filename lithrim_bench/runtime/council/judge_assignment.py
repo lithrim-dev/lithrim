@@ -29,22 +29,33 @@ from ...harness.pack import pack_prompts_path
 _ROLE_PROMPTS_DIR = pack_prompts_path()
 
 
-def load_role_prompt(role: str) -> str:
+def load_role_prompt(role: str, *, prompts_dir: Path | None = None) -> str:
     """Read ``council_roles/<role>.txt`` and return it ``.strip()``ed — the
     byte-identical prompt text the live prompt-council loads via
     ``_load_role_prompts`` (which also ``.strip()``s, ``compliance_council.py:527``;
     the file ``stem`` is the role key). The strip closes S-BS-44: without it the
     DSPy arm fed a trailing-newline-divergent prompt, breaking the A/B's
     like-for-like premise. Raises if the role prompt is missing rather than
-    feeding an empty ``role_prompt`` to the signature."""
-    path = _ROLE_PROMPTS_DIR / f"{role}.txt"
+    feeding an empty ``role_prompt`` to the signature.
+
+    ``prompts_dir`` (GENERALIST-1): resolve against an EXPLICIT prompts dir instead of the
+    import-time ``_ROLE_PROMPTS_DIR`` (which is bound to the boot/default pack). The in-process
+    BFF boots on the neutral default pack, so a non-default-pack role's prompt (e.g. a clinverdict
+    ``generalist_reviewer``) only resolves when the caller passes that workspace's pack dir
+    (``pack_prompts_path(ws.pack)``). ``None`` (the default) keeps the boot-pack behaviour."""
+    base = prompts_dir if prompts_dir is not None else _ROLE_PROMPTS_DIR
+    path = base / f"{role}.txt"
     if not path.exists():
         raise FileNotFoundError(f"no council role prompt for {role!r} at {path}")
     return path.read_text(encoding="utf-8").strip()
 
 
 def render_role_questions(
-    ontology: Any, role: str, *, assigned_flags: Sequence[str] | None = None
+    ontology: Any,
+    role: str,
+    *,
+    assigned_flags: Sequence[str] | None = None,
+    prompts_dir: Path | None = None,
 ) -> str:
     """Render a judge's ``role_key_questions`` from its ontology assignment (UAP-2).
 
@@ -72,7 +83,7 @@ def render_role_questions(
     ``.when_to_use``; ``.questions_for(role)`` → ordinal-bearing questions) so this
     module stays decoupled from ``harness.ontology``.
     """
-    base = load_role_prompt(role)
+    base = load_role_prompt(role, prompts_dir=prompts_dir)
     if not assigned_flags:
         return base
     lens_lines: list[str] = []

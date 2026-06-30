@@ -12,7 +12,7 @@
    chat_assistant (the compulsory-chat gate). PASSIVE rail chrome — never operates panes / the
    top-bar. Inline styles on the shell CSS vars. */
 import { useEffect, useState } from "react";
-import { getModelCatalog, bindRole } from "../bff.js";
+import { getModelCatalog, bindRole, getCouncilRoster, setCouncilRoster } from "../bff.js";
 import { NO_LOGPROBS } from "./ProvidersSection.jsx";
 import { roleLabel } from "./copy.js";
 
@@ -53,15 +53,44 @@ function modelLogprobs(catalog, provider, model) {
   return !NO_LOGPROBS.has(provider);
 }
 
-export default function AssignModelsSection({ connected = [], bindings = {}, onBound }) {
+export default function AssignModelsSection({ connected = [], bindings = {}, onBound, agent }) {
   const [catalog, setCatalog] = useState({ providers: {} });
   // per-role picked {provider, model} (free-text model). The "all judges" shortcut is keyed under "*".
   const [sel, setSel] = useState({});
   const [msg, setMsg] = useState({});
+  // REVIEWER-MODE: how many reviewers run on a grade — `panel` is the active pack's full reviewer
+  // roster (panel default); `single` rosters exactly `singleRole`. Persisted on the agent via
+  // setCouncilRoster (null = panel, [role] = single).
+  const [panel, setPanel] = useState([]);
+  // GENERALIST-1: the single-reviewer OPTIONS — the panel + any opt-in lens role (e.g. a generalist
+  // carrying the full-coverage lens) that runs ONLY via an explicit single roster, never the panel.
+  const [selectable, setSelectable] = useState([]);
+  const [reviewerMode, setReviewerMode] = useState("panel");
+  const [singleRole, setSingleRole] = useState("");
+  const [rosterMsg, setRosterMsg] = useState("");
 
   useEffect(() => {
     getModelCatalog({ live: false }).then((c) => setCatalog(c || { providers: {} })).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    getCouncilRoster(agent).then((r) => {
+      const pnl = r?.panel || [];
+      setPanel(pnl);
+      setSelectable(r?.selectable || pnl);
+      const rr = r?.reviewer_roster;
+      if (rr && rr.length) { setReviewerMode(rr.length === 1 ? "single" : "panel"); setSingleRole(rr[0] || pnl[0] || ""); }
+      else { setReviewerMode("panel"); setSingleRole(pnl[0] || ""); }
+    }).catch(() => {});
+  }, [agent]);
+
+  const saveRoster = async (roster) => {
+    setRosterMsg("saving…");
+    try { await setCouncilRoster({ agent, roster }); setRosterMsg(roster ? `single → ${roleLabel(roster[0])}` : "panel"); onBound?.(); }
+    catch (e) { setRosterMsg(String(e.message || e)); }
+  };
+  const applyReviewerMode = (m) => { setReviewerMode(m); saveRoster(m === "single" ? [singleRole || panel[0]] : null); };
+  const applySingleRole = (role) => { setSingleRole(role); saveRoster([role]); };
 
   // CONNECT-AI-PREFILL-1: seed each row's picker from its SAVED binding so an already-configured role
   // shows its provider+model in the editable controls (not an empty field next to a ✓). Only seed a row
@@ -146,6 +175,31 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>2 · Assign models</div>
         <span style={{ fontSize: 11, color: "var(--muted)" }}>one model per reviewer · type your Azure model name · uses your saved key</span>
       </div>
+
+      {/* ── REVIEWER-MODE: single reviewer vs the full panel (how many reviewers grade) ── */}
+      {panel.length > 0 && (
+        <div data-testid="reviewer-mode" style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={labelStyle}>reviewers per grade</span>
+            <button data-testid="reviewer-mode-panel" onClick={() => applyReviewerMode("panel")}
+              style={{ ...btn(reviewerMode === "panel"), whiteSpace: "nowrap" }}>Panel · {panel.length}</button>
+            <button data-testid="reviewer-mode-single" onClick={() => applyReviewerMode("single")}
+              style={{ ...btn(reviewerMode === "single"), whiteSpace: "nowrap" }}>Single reviewer</button>
+            {reviewerMode === "single" && (
+              <select data-testid="reviewer-single-role" value={singleRole}
+                onChange={(e) => applySingleRole(e.target.value)} aria-label="single reviewer" style={inputStyle}>
+                {(selectable.length ? selectable : panel).map((r) => (<option key={r} value={r}>{roleLabel(r)}</option>))}
+              </select>
+            )}
+          </div>
+          <span style={{ fontSize: 10.5, color: "var(--muted)" }}>
+            {reviewerMode === "single"
+              ? `Only ${roleLabel(singleRole)} grades — fastest first pass; that reviewer's vote is the verdict.`
+              : `All ${panel.length} reviewers grade — the panel needs ≥2 to reach consensus.`}
+            {rosterMsg && <span> · {rosterMsg}</span>}
+          </span>
+        </div>
+      )}
 
       {/* ── use one model for all judges shortcut ── */}
       <div style={ROW_GRID}>

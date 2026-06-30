@@ -894,6 +894,7 @@ def health() -> dict:
 
 
 _RUN_EVAL_SCRIPT = REPO_ROOT / "scripts" / "run_eval.py"
+_OPTIMIZE_SCRIPT = REPO_ROOT / "scripts" / "optimize_judge.py"
 
 
 def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
@@ -932,6 +933,49 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         if line.startswith("__GRADE_JSON__"):
             return json.loads(line[len("__GRADE_JSON__"):])
     raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
+
+
+def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit) -> dict:
+    """Run the PAID in-corpus optimize in a subprocess bound to the workspace's PACK (Phase 2).
+
+    The calib is built from THIS workspace's OWN graded cases (in-domain, in the active pack's
+    taxonomy — NOT the foreign hardcoded ``judge_calib_v1.jsonl``), so the held-out Δ is on the
+    user's corpus. Mirrors :func:`_grade_via_subprocess`: the frozen council binds its pack at
+    IMPORT, so optimizing a non-default-pack role must run in a fresh ``LITHRIM_BENCH_PACK``-bound
+    process; the BFF process stays pack-agnostic (it never imports the council). A degenerate
+    corpus (too few graded cases to split) comes back as an ``{"error": …}`` envelope → a calm 422.
+
+    GENERALIST-1/Phase-2: hydrate the persisted per-role provider bindings into ``os.environ`` FIRST,
+    so the subprocess inherits the model the SME bound this reviewer to (e.g. faithfulness→gpt-4.1)
+    via ``LITHRIM_LLM_PROVIDER_<ROLE>`` — exactly like a grade. Else ``build_judge_lm`` falls back to
+    the role's DEFAULT deployment, which may be un-deployed / n-less / logprob-less (faithfulness
+    defaults to Llama, policy to Mistral). Idempotent; mirrors the startup hydration."""
+    try:
+        _hydrate_role_bindings_into_env()
+    except Exception:  # a binding-store hiccup must never block the run (startup already set keys)
+        pass
+    env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
+    if ws.packs_dir:
+        env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    out_dir = Path(out_dir)
+    cmd = [
+        sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
+        "--collections-db", str(collections_db), "--out", str(out_dir),
+        "--calib-out", str(out_dir / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
+    ]
+    if limit is not None:
+        cmd += ["--limit", str(limit)]
+    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        _log.error("optimize subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
+        raise HTTPException(status_code=502, detail="The calibration run couldn't complete. Please try again.")
+    for line in proc.stdout.splitlines():
+        if line.startswith("__OPTIMIZE_JSON__"):
+            res = json.loads(line[len("__OPTIMIZE_JSON__"):])
+            if res.get("error"):  # degenerate corpus / unknown role → a calm, actionable 422
+                raise HTTPException(status_code=422, detail=res["error"])
+            return res
+    raise HTTPException(status_code=502, detail="optimize subprocess emitted no __OPTIMIZE_JSON__ record")
 
 
 @app.post("/v1/run-eval")
@@ -1011,11 +1055,29 @@ def _grade_case(
     # when there are no extras (the default trio, byte-identical to before). run() threads roles= →
     # build_authored_semantic_stage → build_trio.
     from lithrim_bench.harness import pack as _pack_mod
-    from lithrim_bench.harness.judges import derive_roster_order
+    from lithrim_bench.harness.judges import resolve_grade_roster
 
-    _production = _pack_mod.pack_production_judges(ws.pack)
-    _roster = derive_roster_order(_production, assignments, models)
-    roles = _roster if _roster != _production else None
+    # GENERALIST-1: a reviewer_roster may name a pack-declared lens role (e.g. a generalist
+    # carrying the full-coverage lens) that the SME SELECTED from the UI without authoring an
+    # explicit lens. Default such a role to its FULL pack lens so the selection actually grades —
+    # else resolve_grade_roster drops the unauthored role and silently falls back to the panel (a
+    # wrong-result footgun the honesty thesis forbids). Only seeds a roster role ABSENT from the
+    # authored assignments; explicit authoring (incl. a narrower lens or a per-role k) is untouched.
+    _council_config = agent.eval_profile.council_config or {}
+    _pack_lenses = _pack_mod.pack_lenses(ws.pack)
+    for _sel_role in _council_config.get("reviewer_roster") or []:
+        if _sel_role in _pack_lenses and _sel_role not in assignments:
+            assignments[_sel_role] = tuple(sorted(_pack_lenses[_sel_role]))
+    # REVIEWER-MODE: the derived roster (production_judges ∪ any authored/selected extra) then the
+    # per-agent single/panel override; a len==1 roster grades as the single-judge council (run()
+    # threads gate_mode). An extra reviewer (GENERALIST-1) survives the override because the allow-set
+    # is the DERIVED roster. Both grade paths share resolve_grade_roster (subprocess too).
+    roles = resolve_grade_roster(
+        _pack_mod.pack_production_judges(ws.pack),
+        assignments,
+        models,
+        _council_config,
+    )
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
     # can't rebind it per-workspace. REPLAY is included: its ground() needs the pack's grounding
@@ -1798,6 +1860,89 @@ def put_agent_endpoint(
     return {"status": "ok", "name": ag.name, "actor": actor.model_dump()}
 
 
+class CouncilRosterRequest(BaseModel):
+    """REVIEWER-MODE: how many reviewers run for ``agent`` — ``roster`` is a single role
+    ("single reviewer") or a multi-role subset; ``None``/``[]`` = the panel (full pack roster)."""
+
+    agent: str = DEFAULT_AGENT
+    roster: list[str] | None = None
+
+
+@app.post("/v1/council/roster")
+def set_council_roster_endpoint(
+    body: CouncilRosterRequest,
+    rationale: str = Query("reviewer-mode set from Connect AI"),
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """REVIEWER-MODE (single vs multiple reviewers): set how many reviewers grade for ``agent``.
+    A single-role ``roster`` runs that one reviewer (the minimal single-judge council — its vote
+    drives ``derive_case_outcome`` + the moat's single-judge consensus); ``None``/``[]`` clears
+    the override → the panel (the active pack's full production roster). Persists onto
+    ``eval_profile.council_config['reviewer_roster']`` via the SAME audited ``save_agent`` path as
+    PUT /v1/agent. Each role is validated against the active pack's production roster (422 on an
+    unknown reviewer)."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    ws = workspace.get_active_workspace()
+    production = list(_pack_mod.pack_production_judges(ws.pack))
+    # GENERALIST-1: a roster may name any pack-declared reviewer — the panel (production_judges)
+    # OR an opt-in lens role (e.g. a generalist carrying the full-coverage lens) that runs only
+    # via an explicit single-reviewer roster, never inflating the default panel.
+    selectable = set(production) | set(_pack_mod.pack_lenses(ws.pack))
+    roster = [r for r in (body.roster or []) if r]
+    unknown = [r for r in roster if r not in selectable]
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown reviewer(s) {unknown} — the {ws.pack!r} pack offers {sorted(selectable)}",
+        )
+    ag = _load_agent(body.agent, db_path)
+    d = agent_to_dict(ag)
+    cc = dict(d["eval_profile"].get("council_config") or {})
+    if roster:
+        cc["reviewer_roster"] = roster
+    else:
+        cc.pop("reviewer_roster", None)
+    d["eval_profile"]["council_config"] = cc
+    actor = _resolve_actor(x_actor, default_actor)
+    save_agent(
+        agent_from_dict(d),
+        db_path=db_path,
+        actor=actor,
+        audit_log=AuditLog(db_path=db_path),
+        rationale=rationale,
+    )
+    selectable = production + sorted(selectable - set(production))
+    return {"status": "ok", "agent": ag.name, "reviewer_roster": cc.get("reviewer_roster"), "panel": production, "selectable": selectable}
+
+
+@app.get("/v1/council/roster")
+def get_council_roster_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+) -> dict:
+    """REVIEWER-MODE: the current reviewer roster for ``agent`` — ``reviewer_roster`` is the
+    single/subset override (``None`` = panel), ``panel`` is the active pack's full production
+    roster (the options + the default). $0, no paid knob."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    ws = workspace.get_active_workspace()
+    panel = list(_pack_mod.pack_production_judges(ws.pack))
+    # GENERALIST-1: the single-reviewer options = the panel + any opt-in lens role (e.g. a
+    # generalist carrying the full-coverage lens) that runs ONLY via an explicit single-reviewer
+    # roster, never inflating the default panel. The picker lists ``selectable``.
+    selectable = panel + sorted(set(_pack_mod.pack_lenses(ws.pack)) - set(panel))
+    rr = None
+    try:
+        ag = _load_agent(agent, db_path)
+        rr = (ag.eval_profile.council_config or {}).get("reviewer_roster")
+    except Exception:
+        pass
+    return {"agent": agent, "reviewer_roster": rr, "panel": panel, "selectable": selectable}
+
+
 # ── PERSIST-CONV: GET/PUT /v1/conversation — the durable chat thread (refresh-safe) ──
 
 
@@ -2286,8 +2431,17 @@ def get_judge_endpoint(
     else:
         effective = summary["assigned_flags"]
     summary["preview_flags"] = effective
-    summary["base_prompt"] = render_role_questions(ontology, role)
-    summary["rendered_prompt"] = render_role_questions(ontology, role, assigned_flags=effective)
+    # GENERALIST-1: render the seed prompt against the ACTIVE WORKSPACE's pack, not the in-process
+    # boot pack (``_core``). A non-default-pack role (e.g. a clinverdict ``generalist_reviewer``)
+    # has no ``.txt`` under ``_core`` → load_role_prompt would FileNotFoundError → a misleading
+    # "judge not set up" in the editor/chat. ``pack_prompts_path(ws.pack)`` resolves the real dir.
+    from lithrim_bench.harness.pack import pack_prompts_path
+
+    prompts_dir = pack_prompts_path(workspace.get_active_workspace().pack)
+    summary["base_prompt"] = render_role_questions(ontology, role, prompts_dir=prompts_dir)
+    summary["rendered_prompt"] = render_role_questions(
+        ontology, role, assigned_flags=effective, prompts_dir=prompts_dir
+    )
     return summary
 
 
@@ -2435,22 +2589,27 @@ def delete_judge_endpoint(
 def optimize_judge_endpoint(
     role: str,
     req: OptimizeRequest,
-    corpus_path: Path = Depends(get_calib_corpus_path),
     out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
 ) -> dict:
-    """The calibration trainer (R5, UAP-4): optimize ``role`` against the bench-accept
-    metric on the by-construction calibration split, then measure the **honest held-out
-    Δ** (precision/recall before→after) on the FIXED test split. Returns
-    ``{role, n_train, n_heldout, baseline, optimized, delta, compile_config}`` — a
-    measured Δ, **including ≤0**, is the loop-closure; the accept-gate is NEVER loosened
-    to manufacture a win (the ``run_optimize`` contract + the WS-6c-DSPy-3b precedent).
+    """The calibration trainer (R5, UAP-4) — now **IN-CORPUS** (Phase 2): optimize ``role``
+    against the bench-accept metric on a calibration split built from THIS workspace's OWN graded
+    cases (in-domain, the active pack's taxonomy), then measure the **honest held-out Δ**
+    (precision/recall before→after) on the held-out split. Returns ``{role, n_train, n_heldout,
+    baseline, optimized, delta, compile_config, split_counts, corpus}`` — a measured Δ, **including
+    ≤0**, is the loop-closure; the accept-gate is NEVER loosened to manufacture a win (the
+    ``run_optimize`` contract + the WS-6c-DSPy-3b precedent). ``split_counts`` is surfaced so a tiny
+    held-out set reads as small-sample, never hidden.
 
-    PAID: ``run_optimize`` makes real Azure calls. The route REFUSES (422) without
-    ``confirm=true`` so the cost-confirm is explicit; the shell gates it behind an
-    in-DOM modal (S-BS-69). Coverage-aware demo selection is ON (S-BS-49) — the
-    compile admits ≥1 positive exemplar when the teacher can produce one. No
-    bind/persist of the compiled demos this cycle (the round-trip is UAP-4-opt)."""
-    if role not in LENS_BY_ROLE:
+    PAID + PACK-BOUND: the optimize runs in a subprocess under the workspace's pack
+    (``_optimize_via_subprocess``) because the frozen council binds its pack at import and the BFF
+    boots on the neutral default pack. The route REFUSES (422) without ``confirm=true`` so the
+    cost-confirm is explicit (the shell gates it behind an in-DOM modal, S-BS-69); a corpus too
+    small to split also comes back as a calm, actionable 422. Coverage-aware demo selection is ON."""
+    ws = workspace.get_active_workspace()
+    from lithrim_bench.harness import pack as _pack_mod
+
+    if role not in _pack_mod.pack_lenses(ws.pack):  # pack-aware: the subprocess runs under ws.pack
         raise HTTPException(status_code=404, detail=f"unknown judge role {role!r}")
     if not req.confirm:
         raise HTTPException(
@@ -2462,19 +2621,9 @@ def optimize_judge_endpoint(
             ),
         )
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
-    try:
-        return run_optimize(
-            role,
-            corpus_path=corpus_path,
-            confirm_cost=True,
-            out_dir=resolved_out,
-            limit=req.limit,
-            coverage_aware=True,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:  # the live Azure/dspy path can fail — surface, don't 500-silently
-        raise HTTPException(status_code=502, detail=f"optimize run failed: {exc}") from exc
+    return _optimize_via_subprocess(
+        role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit
+    )
 
 
 @app.get("/v1/ontology")

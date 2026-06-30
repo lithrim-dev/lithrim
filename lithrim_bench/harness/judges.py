@@ -253,3 +253,55 @@ def derive_roster_order(
     authored = set(assignments or {}) | set(models or {})
     extras = [r for r in sorted(authored) if r not in production]
     return [*production, *extras]
+
+
+def apply_reviewer_roster(
+    derived_roles: list[str] | None,
+    council_config: dict[str, Any] | None,
+    *,
+    production: list[str] | None = None,
+) -> list[str] | None:
+    """REVIEWER-MODE (single vs multiple reviewers): a per-agent
+    ``council_config['reviewer_roster']`` — a non-empty, ordered list of reviewer roles —
+    OVERRIDES the derived roster so the grade runs EXACTLY those reviewers. A single-element
+    roster ("single reviewer") is the supported minimal council: its lone vote drives
+    ``derive_case_outcome``, and — with ``gate_mode`` on (the grade site derives it from
+    ``len(roles) == 1``, the frozen ``_apply_consensus``'s single-judge consensus path) —
+    that one judge's findings populate. Absent/empty → the panel default (``derived_roles``
+    unchanged).
+
+    A role not in ``production`` (when given) is dropped — a stored roster can't invent a
+    reviewer the active pack doesn't run; if the override resolves to nothing valid, fall back
+    to ``derived_roles``. Stdlib-only (no pack/council import), so both grade paths
+    (``apps/bff/app.py`` in-process + ``scripts/run_eval.py`` subprocess) share one rule."""
+    rr = (council_config or {}).get("reviewer_roster")
+    if not rr:
+        return derived_roles
+    roles = [r for r in rr if production is None or r in production]
+    return roles or derived_roles
+
+
+def resolve_grade_roster(
+    production: list[str],
+    assignments: dict[str, Any] | None,
+    models: dict[str, Any] | None,
+    council_config: dict[str, Any] | None,
+) -> list[str] | None:
+    """The grade-site roster resolution, shared by both grade paths (``apps/bff/app.py``
+    in-process + ``scripts/run_eval.py`` subprocess). Compose :func:`derive_roster_order`
+    (the active pack's ``production_judges`` ∪ any AUTHORED extra role) then apply the
+    per-agent :func:`apply_reviewer_roster` override.
+
+    The override's allow-set is the **DERIVED** roster, not the raw ``production`` panel —
+    so an authored extra role (e.g. a single ``generalist_reviewer`` carrying its own full
+    lens, GENERALIST-1) that the agent rosters survives the membership filter, while a roster
+    naming a truly-unknown role is still dropped → falls back to the derived default. Returns
+    the ``roles`` to thread into ``build_authored_semantic_stage`` (``None`` = the full derived
+    default / panel; a single-element list → ``gate_mode`` single-judge grade at the caller).
+
+    Byte-identical to the prior inline two-step when there is no authored extra (``derived ==
+    production`` → ``None``) and when there is one but no override (returns the derived N-tet);
+    the ONLY behavioural change is that an authored-extra roster now resolves to that role."""
+    derived = derive_roster_order(production, assignments, models)
+    roles = derived if derived != production else None
+    return apply_reviewer_roster(roles, council_config, production=derived)
