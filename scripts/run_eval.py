@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import json
 import sys
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -191,6 +192,28 @@ def _resolve_from_provenance(
     return provenance_to_result(head)
 
 
+def _restamp_replay_identity(
+    result: dict, agent: Agent, *, collections_db: str | Path | None = None
+) -> dict:
+    """RUNTRAIL-1: give a replayed result a FRESH identity that POINTS AT its baseline, so the
+    re-grade APPENDS a new audit row instead of overwriting one (SPEC_RUN_AUDIT_TRAIL.md §1).
+
+    Mints a fresh ``pipeline_run_id`` (mirroring the live/in_process ``uuid4`` mint at
+    ``orchestrator.py``) and resolves ``replay_of`` to the most-recent AUTHORITATIVE
+    (``replay_of``-falsy) grade for ``(agent, case)`` — driver §4: every replay points at the
+    real grade, never chaining replay→replay. The baseline's own bytes are untouched
+    (``provenance_to_result`` copies the blob). ``replay_of`` is ``None`` when no
+    authoritative grade has been persisted yet (e.g. the first committed-baseline replay into
+    an empty store). Pure plumbing above the frozen seam; no council/consensus touch."""
+    blob = (result or {}).get("provenance") or {}
+    from lithrim_bench.harness.backend import provenance_store_for
+
+    store = provenance_store_for(collections_db)
+    baseline = _run_sync(store.latest_authoritative_for(agent.name, agent.dataset.case_id))
+    replay_of = (baseline or {}).get("pipeline_run_id") if baseline else None
+    return provenance_to_result(blob, pipeline_run_id=str(uuid.uuid4()), replay_of=replay_of)
+
+
 def _enrich_run_blob(
     run_id: str | None,
     withstands_sink: list[Any],
@@ -322,10 +345,6 @@ def run(
     # here; empty on the replay/live paths (the gate runs only on the authored
     # in_process trio).
     withstands_sink: list[Any] = []
-    # PERSIST-2a: True only when the replay baseline was RESOLVED from the persisted head
-    # (replay-from-provenance) — the head is already the persisted blob, so we skip the
-    # redundant re-persist below.
-    from_provenance = False
 
     if in_process:
         # WS-6c-AGENTIC grade-wire: score the case through the in-process v2 council
@@ -415,9 +434,15 @@ def run(
             # has nothing do we raise the honest "run it live/in_process" error (the BFF maps
             # SystemExit -> 400, not Path(None) -> 500 / S-BS-108).
             result = _resolve_from_provenance(agent, grade_sig, collections_db=collections_db)
-            from_provenance = True
         else:
             result = grade_replay(case, agent.baseline_abspath())
+        # RUNTRAIL-1: replay is APPEND-WITH-LINEAGE, not idempotent-overwrite. Mint a FRESH
+        # pipeline_run_id for THIS execution and stamp replay_of = the most-recent
+        # AUTHORITATIVE grade for (agent, case) (driver §4: point at the real grade, never
+        # chain replay→replay). The baseline row is left byte-unchanged; this re-grade
+        # APPENDS a new audit row (SPEC §1: the trail grows per execution). Single identity
+        # site is provenance_to_result.
+        result = _restamp_replay_identity(result, agent, collections_db=collections_db)
         grade_path = "replay"
 
     # S-BS-52: replay + live runs persist their provenance blob too, so every run is
@@ -426,9 +451,11 @@ def run(
     # ``result["provenance"]`` (pipeline_run_id/verdict/stage_results/...), the exact
     # doc shape ``/v1/runs/{id}/audit`` reads. in_process already persisted via the
     # orchestrator's SqliteProvenanceStore save seam, so skip it here (no double write).
-    # PERSIST-2a: a replay RESOLVED from the persisted head is already the stored blob, so
-    # re-persisting it would only churn a duplicate history version — skip it.
-    if grade_path != "in_process" and not from_provenance:
+    # RUNTRAIL-1: a replay is now a FRESH-id record (append-with-lineage, restamped above),
+    # so it persists as a NEW history row exactly like a live run — even the
+    # replay-from-provenance path (no longer a no-op skip; it appends a distinct replay
+    # record that points at its authoritative baseline, never overwriting it).
+    if grade_path != "in_process":
         _persist_run_provenance(result, agent, grade_sig=grade_sig, collections_db=collections_db)
 
     grounded = ground(result, case, ontology=ontology)

@@ -24,7 +24,9 @@ from typing import Any
 _NOT_APPLICABLE = {"status": "not_applicable", "findings": [], "evidence": [], "judge_votes": []}
 
 
-def provenance_to_result(blob: dict) -> dict:
+def provenance_to_result(
+    blob: dict, *, pipeline_run_id: str | None = None, replay_of: str | None = None
+) -> dict:
     """Re-shape a persisted ``PipelineProvenance`` blob into a ``PipelineResult``-shaped
     dict the grade-downstream stages (``ground``/``composite``/``calibration``) consume.
 
@@ -32,7 +34,19 @@ def provenance_to_result(blob: dict) -> dict:
     ``stage_results['semantic']`` (and ``structural``) to top-level stages, and re-nests the
     blob under ``provenance`` (so ``pipeline_run_id`` + the withstands/audit legs are intact).
     A pure function above the frozen seam — the moat path never sees it.
+
+    RUNTRAIL-1 (append-with-lineage): when ``pipeline_run_id`` is supplied, the replayed
+    result carries a FRESH identity — the blob is copied (the baseline is left
+    byte-unchanged), its ``pipeline_run_id`` overwritten with the minted id, and
+    ``replay_of`` stamped to point at the baseline. This is the single place a replayed
+    blob's identity is assembled, so a re-grade APPENDS a new audit row that points at its
+    baseline rather than overwriting it. Absent the override (e.g. RUNTRAIL-4 rehydrate) the
+    blob's own identity is preserved verbatim — back-compatible.
     """
+    blob = dict(blob)
+    if pipeline_run_id is not None:
+        blob["pipeline_run_id"] = pipeline_run_id
+        blob["replay_of"] = replay_of
     stage_results = blob.get("stage_results") or {}
     return {
         "verdict": blob.get("verdict"),

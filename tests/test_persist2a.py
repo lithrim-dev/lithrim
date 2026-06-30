@@ -253,8 +253,12 @@ def test_replay_resolves_from_persisted_head(tmp_path):
     c_expected = composite(ground(baseline, case, ontology=ontology))
     assert record["composite"]["verdict"] == c_expected["verdict"]
     assert record["composite"]["score"] == c_expected["score"]
-    # the resolved result carries the captured run's provenance (its pipeline_run_id)
-    assert record["result"]["provenance"]["pipeline_run_id"] == blob["pipeline_run_id"]
+    # RUNTRAIL-1 (append-with-lineage): replay-from-provenance no longer REUSES the head's
+    # pipeline_run_id (that was the idempotent-overwrite behavior this cycle reverses). It
+    # mints a FRESH id and stamps replay_of = the captured head it was derived from, so the
+    # re-grade appends a distinct audit row rather than overwriting the head.
+    assert record["result"]["provenance"]["pipeline_run_id"] != blob["pipeline_run_id"]
+    assert record["result"]["provenance"]["replay_of"] == blob["pipeline_run_id"]
 
 
 # ── A5 (freshness guard) ──────────────────────────────────────────────────────

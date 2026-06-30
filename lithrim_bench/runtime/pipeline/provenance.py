@@ -38,6 +38,11 @@ class ProvenanceStore:
         """The head (most-recent) version blob for a ``(agent, case_id)`` lineage."""
         return None
 
+    async def latest_authoritative_for(self, agent_id: str, case_id: str) -> dict | None:
+        """RUNTRAIL-1: the most-recent AUTHORITATIVE (``replay_of`` falsy) blob for a
+        ``(agent, case_id)`` lineage — the replay-lineage baseline."""
+        return None
+
     async def list_versions(self, agent_id: str, case_id: str) -> list[dict]:
         """All version blobs for a ``(agent, case_id)`` lineage, newest-first."""
         return []
@@ -141,6 +146,20 @@ class SqliteProvenanceStore(ProvenanceStore):
         replay-from-provenance baseline."""
         versions = await self.list_versions(agent_id, case_id)
         return versions[0] if versions else None
+
+    async def latest_authoritative_for(self, agent_id: str, case_id: str) -> dict | None:
+        """RUNTRAIL-1: the most-recent AUTHORITATIVE (in_process/live) blob for a
+        ``(agent, case_id)`` lineage — i.e. the newest version whose ``replay_of`` is falsy.
+
+        This is the replay-LINEAGE baseline (distinct from ``latest_for``, the freshness
+        head). Once replays append their own rows (append-with-lineage), the head becomes a
+        replay; resolving the lineage baseline to the newest authoritative grade keeps every
+        replay's ``replay_of`` pointing at the REAL grade rather than chaining replay→replay
+        (driver §4 decision). Returns None when no authoritative grade exists yet."""
+        for v in await self.list_versions(agent_id, case_id):
+            if not v.get("replay_of"):
+                return v
+        return None
 
     async def list_all(self, *, limit: int | None = None) -> list[dict]:
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
@@ -263,6 +282,13 @@ class PostgresProvenanceStore(ProvenanceStore):
     async def latest_for(self, agent_id: str, case_id: str) -> dict | None:
         versions = await self.list_versions(agent_id, case_id)
         return versions[0] if versions else None
+
+    async def latest_authoritative_for(self, agent_id: str, case_id: str) -> dict | None:
+        """RUNTRAIL-1 parity: the most-recent ``replay_of``-falsy blob for the lineage."""
+        for v in await self.list_versions(agent_id, case_id):
+            if not v.get("replay_of"):
+                return v
+        return None
 
     async def list_all(self, *, limit: int | None = None) -> list[dict]:
         sql = "SELECT doc FROM pipeline_runs ORDER BY ins_seq DESC"
