@@ -218,6 +218,23 @@ def test_unauthorized_flag_edit_still_fails():
         _assert_clinical_ontology_frozen(copy.deepcopy(base), tampered)
 
 
+def test_authorized_additive_flags_do_not_trip_but_unlisted_ones_do():
+    """Owner-ratified post-acc4973 evolution (2026-06-30): the 2 authorized additive flags
+    (PROXY_MISATTRIBUTION, HISTORY_OMISSION) added to the flag set do NOT trip the seam guard
+    (additive carve-out, like verification_contracts), but ANY unlisted new flag still does —
+    so the carve-out is non-vacuous."""
+    base = _ontology_base()
+    ok = copy.deepcopy(base)
+    ok["flags"].append({"flag": "PROXY_MISATTRIBUTION", "definition": "ratified", "gradeable": True})
+    ok["flags"].append({"flag": "HISTORY_OMISSION", "definition": "ratified", "gradeable": True})
+    _assert_clinical_ontology_frozen(copy.deepcopy(base), ok)  # authorized → no raise
+
+    bad = copy.deepcopy(base)
+    bad["flags"].append({"flag": "SOME_UNLISTED_FLAG", "definition": "z", "gradeable": True})
+    with pytest.raises(AssertionError, match="seam drifted"):
+        _assert_clinical_ontology_frozen(copy.deepcopy(base), bad)
+
+
 def test_changing_flag_source_provenance_would_trip_the_guard():
     """C4(c) / D2-a pin: changing ``_provenance.flag_source`` to the NEW pack path WOULD
     trip the ontology seam guard — which is exactly why D2-a keeps the literal VERBATIM

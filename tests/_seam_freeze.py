@@ -139,14 +139,35 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     _assert_clinical_ontology_frozen(base, cur)
 
 
+# Owner-authorized post-acc4973 ADDITIVE flags (2026-06-30): new flag entries the external
+# healthcare pack added BEYOND the acc4973 baseline, ratified as authorized pack evolution (the same
+# spirit as the additive ``verification_contracts`` carve-out). They are dropped from BOTH sides
+# before the seam compare, so the consensus/owner seam is checked on the FROZEN flag set — an EDIT
+# to an existing flag, an UNLISTED new flag, or any tiers/owners/questions/severity/_provenance
+# drift still raises (the non-vacuity guards in test_6bclean_seam_guard.py pin this).
+_AUTHORIZED_ADDITIVE_FLAGS = frozenset({"PROXY_MISATTRIBUTION", "HISTORY_OMISSION"})
+
+
 def _assert_clinical_ontology_frozen(base: dict, cur: dict) -> None:
     """Pure predicate behind :func:`assert_clinical_ontology_seam_frozen` — the
-    consensus/owner seam (everything except the additive ``verification_contracts``) is
-    byte-identical. Split out so the C4 non-vacuity can feed a SYNTHESIZED tampered ``cur``
-    (a flags / owner / ``_provenance`` edit must still raise — this is what pins the
-    CE-PACK-6b-CLEAN D2-a decision to keep ``flag_source`` VERBATIM). Mutates its args."""
+    consensus/owner seam (everything except the additive ``verification_contracts`` and the
+    owner-authorized additive flags) is byte-identical. Split out so the C4 non-vacuity can feed a
+    SYNTHESIZED tampered ``cur`` (a flags / owner / ``_provenance`` edit must still raise — this is
+    what pins the CE-PACK-6b-CLEAN D2-a decision to keep ``flag_source`` VERBATIM). Mutates its args."""
     base_contracts = base.pop("verification_contracts", [])
     cur_contracts = cur.pop("verification_contracts", [])
+
+    def _drop_authorized(d: dict) -> None:
+        flags = d.get("flags")
+        if isinstance(flags, list):
+            d["flags"] = [
+                f
+                for f in flags
+                if (f.get("flag") if isinstance(f, dict) else f) not in _AUTHORIZED_ADDITIVE_FLAGS
+            ]
+
+    _drop_authorized(base)
+    _drop_authorized(cur)
     assert cur == base, (
         "clinical_v1.json consensus/owner seam drifted outside verification_contracts "
         "(flags/tiers/owners/questions/severity_map must stay frozen vs acc4973)"
