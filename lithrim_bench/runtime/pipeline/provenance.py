@@ -52,6 +52,13 @@ class ProvenanceStore:
         the backend-agnostic read so the BFF run-history/audit reflect the active backend."""
         return []
 
+    async def list_history(self, pipeline_run_id: str) -> list[dict]:
+        """RUNTRAIL-2 / SPEC §7 G4: the archived prior versions for a ``pipeline_run_id``,
+        newest-first — read-back parity at the store interface. Archival already exists
+        (the ``versioned=True`` copy-on-write); this surfaces it so a same-id re-save's
+        prior is recoverable through the store, not just via raw SQL."""
+        return []
+
 
 class NoOpProvenanceStore(ProvenanceStore):
     async def save(
@@ -69,6 +76,9 @@ class NoOpProvenanceStore(ProvenanceStore):
         return []
 
     async def list_all(self, *, limit: int | None = None) -> list[dict]:
+        return []
+
+    async def list_history(self, pipeline_run_id: str) -> list[dict]:
         return []
 
 
@@ -165,6 +175,16 @@ class SqliteProvenanceStore(ProvenanceStore):
         from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
 
         return PIPELINE_RUNS.list_all(db_path=self._db_path or DEFAULT_COLLECTIONS_DB, limit=limit)
+
+    async def list_history(self, pipeline_run_id: str) -> list[dict]:
+        """RUNTRAIL-2 / G4: the archived prior versions of ``pipeline_run_id`` (the
+        ``pipeline_runs_history`` shadow), newest-first — read-back parity for the
+        versioned copy-on-write archive. Read-only; the archival write path is unchanged."""
+        from lithrim_bench.harness.collections import DEFAULT_COLLECTIONS_DB, PIPELINE_RUNS
+
+        return PIPELINE_RUNS.history(
+            pipeline_run_id, db_path=self._db_path or DEFAULT_COLLECTIONS_DB
+        )
 
 
 class PostgresProvenanceStore(ProvenanceStore):
@@ -300,4 +320,18 @@ class PostgresProvenanceStore(ProvenanceStore):
             for stmt in self._SCHEMA:
                 conn.execute(stmt)
             rows = conn.execute(sql, params).fetchall()
+        return [r[0] for r in rows]
+
+    async def list_history(self, pipeline_run_id: str) -> list[dict]:
+        """RUNTRAIL-2 / G4 parity: the archived prior versions of ``pipeline_run_id`` from
+        ``pipeline_runs_history``, newest-first (``seq DESC``) — read-back of the same
+        versioned copy-on-write archive the SQLite tier exposes. Read-only."""
+        with self._connect() as conn:
+            for stmt in self._SCHEMA:
+                conn.execute(stmt)
+            rows = conn.execute(
+                "SELECT doc FROM pipeline_runs_history WHERE original_id = %s "
+                "ORDER BY seq DESC",
+                (pipeline_run_id,),
+            ).fetchall()
         return [r[0] for r in rows]
