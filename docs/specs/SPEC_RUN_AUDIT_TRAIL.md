@@ -110,7 +110,10 @@ A blob that cannot rehydrate its verdict is not a valid audit record.
   `GET /v1/runs/{id}/audit` at `app.py:3464-3478`).
 - A `rehydrate(run_id)` path reconstructs the graded result from the stored blob
   alone — no live model call, no re-grade — and yields the same verdict. This is
-  the proof the record is self-sufficient (§3).
+  the proof the record is self-sufficient (§3). **LOCKED (RUNTRAIL-4):**
+  `provenance.rehydrate(run_id, *, db_path=None)` = `find_by_id` →
+  `provenance_to_result` (the existing adapter, reused unchanged); offline/$0 by
+  construction (imports no grade/model module). Missing id → `LookupError`.
 
 ---
 
@@ -130,11 +133,20 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
 - **RUNTRAIL-2 — readable append-only history.** Add a store-interface accessor
   (`list_history(run_id)`-shaped) that surfaces the already-archived `_history` prior
   versions — archival exists (`versioned=True`); this exposes it so the trail's prior
-  states are auditable, not just the head.
+  states are auditable, not just the head. *(CLOSED 2026-06-30, commits `9f0cf8a`..`fb9b5c8`;
+  G4 green; `DocShimCollection.history` + `list_history` on all 4 store tiers.)*
 - **RUNTRAIL-3 — projection contract.** `reports_store` documented + enforced as a
   derived projection, rebuildable from the run-history (`rebuild_projection()`).
+  *(CLOSED 2026-06-30, commits `8373e9d`..`cb1ee10`; G5 green; latest-per-case from the
+  append-only run-history.)*
 - **RUNTRAIL-4 — rehydrate + replay-from-blob.** `rehydrate(run_id)` path + test
   proving a stored blob reconstructs the verdict with zero model calls.
+  *(CLOSED 2026-06-30, commits `f11c9d0`..`8d019dc`; G6 green; contract fully enforced —
+  `tests/test_run_audit_trail.py` = 7 passed / 0 xfailed.)*
+
+**RUNTRAIL stream COMPLETE 2026-06-30.** The §1 invariant is enforced by tests (G1–G6
+green); moat byte-frozen vs `acc4973` across the whole stream (9 files: this spec + 6
+persistence source + 2 tests; zero moat/council/taxonomy files touched).
 
 ---
 
