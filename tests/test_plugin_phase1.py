@@ -58,19 +58,29 @@ _FIXTURE_PACK = "_plugin_fixture"
 _EXPECTED_SUPPRESS = {
     "presence_check",
     "kb_grounding",
+    # CONN-WEBSEARCH-1: non-authoritative-by-construction web-search suppress (never clears).
+    "web_search",
     # GROUND-FLOOR-SOURCE-1: the core-generic answer⊆source faithfulness suppress executor.
     "source_grounding",
+    # TOOL-AUTHOR-1: the generic authored-MCP-tool suppress executor (advisory/corroborated).
+    "mcp_call",
     "record_presence",
     "snomed_subsumption",
 }
 # CORE-FLOOR-1: value_presence is a CORE floor now (domain-agnostic completeness floor, promoted
 # out of the narrative pack so it is available on EVERY pack incl. healthcare).
-_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "dosage_grounding"}
+_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "dosage_grounding",
+                   # CONCEPT-PRESERVATION-1: the healthcare refusal-preservation floor (Hermes MCP).
+                   "concept_preservation"}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
     "kb_grounding": ("contract", "core", "service", "grounding.suppress"),
     # GROUND-FLOOR-SOURCE-1: core, pure-stdlib (in_process), answer⊆source suppress executor.
     "source_grounding": ("contract", "core", "in_process", "grounding.suppress"),
+    # CONN-WEBSEARCH-1: core, service-transport (:8585), non-authoritative suppress.
+    "web_search": ("contract", "core", "service", "grounding.suppress"),
+    # TOOL-AUTHOR-1: core generic authored-MCP-tool suppress (builds its own McpStdioClient).
+    "mcp_call": ("contract", "core", "in_process", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),
@@ -79,6 +89,8 @@ _EXPECTED_CONTRACT_PLUGINS = {
     # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology
     # MCP server — pack-tier (pro), service-transport (the pack's SERVICE_CONTRACT_TYPES).
     "snomed_subsumption": ("contract", "pro", "service", "grounding.suppress"),
+    # CONCEPT-PRESERVATION-1: the healthcare refusal-preservation floor over the Hermes MCP server.
+    "concept_preservation": ("contract", "pro", "service", "grounding.floor"),
 }
 
 

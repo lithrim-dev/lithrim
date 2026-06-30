@@ -259,6 +259,54 @@ def tool_plugins(pack: str | None = None) -> list[PluginManifest]:
     return out
 
 
+def resolve_tool(
+    tool_id: str,
+    *,
+    pack: str | None = None,
+    workspace_db: Any = None,
+    workspace_id: str | None = None,
+    license: License | None = None,
+) -> PluginManifest | None:
+    """Resolve a tool id to its manifest at grade time (TOOL-AUTHOR-1 Stage 2): a workspace's
+    **authored** tool wins, else the active pack ∪ core :func:`tool_plugins`, else ``None``.
+    License-gated — a ``tier: pro`` tool is ABSENT (``None``) under a denying license, never
+    stubbed (the S-BS-90 posture). The workspace defaults to the active workspace (the in-process
+    grade has it); pass ``workspace_db``/``workspace_id`` explicitly for an off-process resolve.
+    Lazy imports keep this module dependency-light + cycle-free."""
+    lic = license or default_license()
+
+    def _gated_out(m: PluginManifest) -> bool:
+        return is_gated(m.tier) and not lic.permits(m.id)
+
+    # (1) authored, per-workspace
+    wdb, wid = workspace_db, workspace_id
+    if wdb is None or wid is None:
+        try:
+            from lithrim_bench.harness import workspace as _ws
+
+            aws = _ws.get_active_workspace()
+            wdb = wdb or getattr(aws, "config_db", None)
+            wid = wid or getattr(aws, "name", None)
+        except Exception:  # noqa: BLE001 — no active workspace (a bare resolve) → skip authored
+            pass
+    if wdb is not None and wid is not None:
+        try:
+            from lithrim_bench.harness import tools_store
+
+            row = tools_store.load_tool(tool_id, db_path=wdb, workspace_id=wid)
+        except Exception:  # noqa: BLE001 — store unavailable → fall through to declared
+            row = None
+        if row:
+            m = PluginManifest.model_validate({**row["manifest"], "kind": "tool"})
+            return None if _gated_out(m) else m
+
+    # (2) the active pack ∪ core declared registry
+    for m in tool_plugins(pack):
+        if m.id == tool_id:
+            return None if _gated_out(m) else m
+    return None
+
+
 def provenance_snapshot(license: License | None = None) -> dict[str, Any]:
     """The loaded-plugin set for run-provenance (D5): the active pack (``kind: pack``) + its
     contract plugins (``kind: contract``, core ∪ pack) + the provider plugins + the tool plugins

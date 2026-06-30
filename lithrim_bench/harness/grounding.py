@@ -32,6 +32,7 @@ declared flag at all) is left in active unchanged, as before.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -497,6 +498,103 @@ class WebSearchGrounding(VerificationContract):
         )
 
 
+def _truthy_match(result: Any, key: str | None) -> bool:
+    """The corroboration predicate over an MCP tool result: a named key's truthiness, else the
+    result's own truthiness (a non-empty list/dict/string)."""
+    if key is not None:
+        if isinstance(result, dict):
+            return bool(result.get(key))
+        if isinstance(result, (list, tuple)):
+            return any(isinstance(x, dict) and x.get(key) for x in result)
+        return False
+    if isinstance(result, (list, tuple, dict, str)):
+        return len(result) > 0
+    return bool(result)
+
+
+class McpCallGrounding(VerificationContract):
+    """TOOL-AUTHOR-1: the GENERIC MCP-tool suppress executor — wire ANY authored MCP tool
+    (web-scraper, terminology, KB) into a judge's flag with no per-tool Python. Resolves the bound
+    tool via :func:`plugins.resolve_tool` (authored ∪ pack ∪ core, per-workspace, license-gated),
+    opens the core :class:`McpStdioClient` over its stdio MCP transport, invokes the pinned
+    ``call`` with ``arguments``, and maps the result by **authority tier**:
+
+      - ``advisory`` (default) — attach the result as evidence, ``disproved=False`` ALWAYS (the
+        finding stays open; the withstands-gate weighs the evidence — the moat: agent narrates,
+        floor decides). The web-scraper/KB shape.
+      - ``corroborated`` — clear the finding (``disproved=True``) ONLY on a positive ``match``,
+        NEVER by silence (a miss/absence/error leaves the finding standing).
+
+    Graceful-absent (non-negotiable): an unresolvable tool, a tool with no stdio transport, or an
+    unreachable server → ``disproved=False`` (the finding STANDS), no 500, no silent flip. The
+    ``tool.api_connector`` (httpx) transport is the owner's next integration — it lands as another
+    branch here, not a rewrite.
+
+    params = {"tool": "<authored/declared tool id>",   # required
+              "call": "<mcp tool name>",               # required (e.g. search / scrape)
+              "arguments": {...},                       # pinned args (not model-authored)
+              "authority": "advisory" | "corroborated",
+              "match": "<result key>"}                  # corroborated predicate
+    """
+
+    contract_type = "mcp_call"
+
+    def __init__(self, decl: VerificationContractDecl, *, http_client: Any | None = None) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.harness import plugins
+
+        p = self._params
+        tool_id, call = p.get("tool"), p.get("call")
+        if not tool_id or not call:
+            return Verdict(disproved=False, reason="mcp_call: missing tool/call (inconclusive)")
+        manifest = plugins.resolve_tool(tool_id)
+        if manifest is None:
+            return Verdict(
+                disproved=False,
+                reason=f"mcp_call: tool {tool_id!r} not available (not_applicable; finding stands)",
+            )
+        mcp = (manifest.service or {}).get("mcp") or {}
+        if not mcp.get("command"):
+            return Verdict(
+                disproved=False,
+                reason=f"mcp_call: tool {tool_id!r} has no stdio MCP transport yet (not_applicable)",
+            )
+        from lithrim_bench.verification.mcp_client import McpStdioClient
+
+        client = McpStdioClient(command=mcp.get("command"), args=mcp.get("args", []))
+        try:
+            result = client.call_tool(call, p.get("arguments") or {})
+        except Exception as exc:  # noqa: BLE001 — unreachable server: finding stands, never a 500
+            return Verdict(
+                disproved=False, reason=f"mcp_call: {tool_id}.{call} unreachable ({exc}); finding stands"
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                client.close()
+
+        evidence = f"{tool_id}.{call} -> {str(result)[:280]}"
+        if (p.get("authority") or "advisory").lower() != "corroborated":
+            return Verdict(
+                disproved=False, evidence=evidence,
+                reason="mcp_call advisory: evidence attached, flag stays open (non-authoritative)",
+            )
+        matched = _truthy_match(result, p.get("match"))
+        return Verdict(
+            disproved=bool(matched),
+            evidence=evidence,
+            reason=(
+                "mcp_call corroborated: positive match, finding disproved"
+                if matched
+                else "mcp_call corroborated: no positive match; finding stands (never cleared by silence)"
+            ),
+        )
+
+
 # contract_type -> executor factory. This is the core-GENERIC SUPPRESS registry
 # (per-finding contracts that disprove an existing confident-but-wrong finding). The
 # structural FLOOR direction (artifact-level contracts that inject a BLOCK the council
@@ -522,6 +620,9 @@ _CONTRACT_EXECUTORS = {
     # GROUND-FLOOR-SOURCE-1: the answer⊆source faithfulness floor — pure-stdlib/in_process, the
     # S-BS-7 presence-check generalized (suppress-only-on-FULL-grounding, anti-masking).
     "source_grounding": SourceGrounding,
+    # TOOL-AUTHOR-1: the generic authored-MCP-tool executor (advisory/corroborated; builds its own
+    # McpStdioClient via resolve_tool, so it is NOT in _HTTP_CONTRACT_TYPES).
+    "mcp_call": McpCallGrounding,
 }
 _HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 
