@@ -85,11 +85,12 @@ re-grading** (replay-from-blob → same verdict). Required fields:
 
 - **Identity:** `pipeline_run_id` (uuid4), `created_at` (UTC ISO-8601),
   `workspace_id`, `agent_id`, `case_id`, `grade_path` (`replay|in_process|live`).
-  **NOTE (corrected RUNTRAIL-6, 2026-06-30):** `grade_path` is computed in
-  `run_eval.py` but written ONLY to the API-response provenance dict (`build_record`),
-  NOT to the persisted `PipelineProvenance` blob — so it is **not yet on the trail**.
-  RUNTRAIL-7 stamps it at persist time, then projects it. `replay_of` IS persisted
-  (RUNTRAIL-1).
+  **DONE (RUNTRAIL-7, 2026-06-30):** `grade_path` is now stamped onto the persisted
+  `PipelineProvenance` blob at persist time for ALL three paths (live/replay via
+  `_persist_run_provenance`; in_process via the post-save `_enrich_run_blob` patch —
+  above the frozen seam, moat untouched) and projected in the read API. `replay_of` IS
+  persisted (RUNTRAIL-1). (The RUNTRAIL-6 finding — `grade_path` computed but unpersisted
+  — is closed.)
 - **Lineage:** `replay_of` — the `run_id` a replay was derived from (`null` for a
   fresh in_process/live run). A replay is a NEW record that POINTS AT its baseline;
   it never overwrites it. **LOCKED (RUNTRAIL-1):** the replay baseline is the
@@ -154,16 +155,19 @@ Each phase is one `.devloop` cycle (driver + executor + audit + critique).
   RUNTRAIL-1 already closed the cohort path.)*
 - **RUNTRAIL-6 — read-surface (consumable trail).** Project `replay_of` in
   `_run_audit_report`/`_run_summary` + add `GET /v1/runs/{id}/history` (`list_history`)
-  and `/rehydrate`. *(IN PROGRESS — `grade_path` split to RUNTRAIL-7 after the executor
-  found it is not persisted.)*
+  and `/rehydrate`. *(CLOSED 2026-06-30, commits `3998d7f`..`e6a8eb0`; `grade_path` split
+  to RUNTRAIL-7.)*
 - **RUNTRAIL-7 — persist + project `grade_path`.** Stamp `grade_path`
-  (`replay|in_process|live`) onto the persisted blob at persist time (`run_eval.py`),
-  then surface it in the audit/list responses — so the trail records HOW each verdict
-  was produced. *(QUEUED.)*
+  (`replay|in_process|live`) onto the persisted blob at persist time (all 3 paths, moat
+  untouched), then surface it in the audit/list responses. *(CLOSED 2026-06-30, commits
+  `7fe95b5`..`54d0ba9`; closes seam `S-RUNTRAIL-6-1`.)*
 
-**G1–G6 contract COMPLETE 2026-06-30** (the §1 invariant is enforced by tests; moat
-byte-frozen vs `acc4973` — zero moat/council/taxonomy files touched). Read-surface
-(RUNTRAIL-6) + `grade_path` (RUNTRAIL-7) are the consumption follow-ons.
+**RUNTRAIL stream COMPLETE 2026-06-30.** The §1 invariant is enforced by tests (G1–G6,
+`7/0`); the trail is append-only with `replay_of`+`grade_path` lineage, readable via the
+API (`/v1/runs`, `/audit`, `/history`, `/rehydrate`), and any run rehydrates `$0`. Moat
+byte-frozen vs `acc4973` across the whole stream (0-delta; zero moat/council/taxonomy
+files touched). Live $0 proof: a replay cohort grade grew the trail +14 with `replay_of`
+lineage + `rehydrate` reconstructed a verdict (2026-06-30, `snomed_subsumption` ws).
 
 ---
 
