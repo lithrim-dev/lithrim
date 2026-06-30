@@ -3422,6 +3422,9 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         # RUNTRAIL-6 (SPEC_RUN_AUDIT_TRAIL.md §3 Lineage): a replay is a NEW record that
         # POINTS AT its baseline. Top-level on the blob; None for an authoritative grade.
         "replay_of": doc.get("replay_of"),
+        # RUNTRAIL-7 (SPEC §3 Identity): HOW this verdict was produced
+        # (replay|in_process|live). Stamped on the blob at persist time (run_eval).
+        "grade_path": doc.get("grade_path"),
         "ts": doc.get("timestamp"),
         "actor": {"type": "agent", "id": doc.get("agent_id")},
         "verdict": doc.get("verdict"),
@@ -3443,6 +3446,8 @@ def _run_summary(doc: dict) -> dict:
         "run_id": doc.get("pipeline_run_id"),
         # RUNTRAIL-6: lineage in the list row too (None for an authoritative grade).
         "replay_of": doc.get("replay_of"),
+        # RUNTRAIL-7: the grade path in the list row (replay|in_process|live).
+        "grade_path": doc.get("grade_path"),
         "verdict": doc.get("verdict"),
         "gate_decision": doc.get("gate_decision"),
         "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
