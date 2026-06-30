@@ -187,6 +187,12 @@ class PipelineProvenance(BaseModel):
     # None for a fresh in_process/live (authoritative) grade. Additive + optional so every
     # existing persisted blob still parses (the Cycle-16 additive-field precedent).
     replay_of: str | None = None
+    # RUNTRAIL-7 (SPEC_RUN_AUDIT_TRAIL.md §3 Identity): HOW this verdict was produced —
+    # ``replay`` | ``in_process`` | ``live``. Computed in ``run_eval.run`` and stamped onto
+    # the persisted blob at persist time (was previously written only to the API-response
+    # dict, never the trail — seam S-RUNTRAIL-6-1). Additive + optional so every existing
+    # persisted blob still parses (the RUNTRAIL-1 ``replay_of`` precedent).
+    grade_path: str | None = None
     org_id: str
     timestamp: datetime
     request_hash: str
