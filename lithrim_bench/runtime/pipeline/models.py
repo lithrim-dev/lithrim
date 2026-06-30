@@ -182,6 +182,11 @@ class PipelineProvenance(BaseModel):
     """Audit record persisted per pipeline run. See §3.4."""
 
     pipeline_run_id: str
+    # RUNTRAIL-1 (SPEC_RUN_AUDIT_TRAIL.md §3 Lineage): the run_id a replay was derived
+    # from — a replay is a NEW record that POINTS AT its baseline; it never overwrites it.
+    # None for a fresh in_process/live (authoritative) grade. Additive + optional so every
+    # existing persisted blob still parses (the Cycle-16 additive-field precedent).
+    replay_of: str | None = None
     org_id: str
     timestamp: datetime
     request_hash: str
