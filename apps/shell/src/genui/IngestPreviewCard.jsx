@@ -89,7 +89,7 @@ export default function IngestPreviewCard({
           <Icon name="check" size={14} /> {state.msg}
         </div>
         <div className="mt-1.5 text-[11px] text-muted-foreground">
-          They're in this workspace's corpus now — use <strong>Run all</strong> to grade them.
+          They're in this workspace's corpus now — ask Lithrim to <strong>grade all cases</strong> (you'll confirm the cost).
         </div>
       </div>
     );

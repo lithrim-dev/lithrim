@@ -1,0 +1,34 @@
+{
+  "trace_version": "2.1",
+  "agent": "support-copilot",
+  "captured_at": "2026-06-30",
+  "episodes": [
+    {
+      "eid": "ep-1001",
+      "inbound": { "channel": "chat", "text": "How do I reset my 2FA if I lost my phone?" },
+      "retrieved": [
+        { "doc": "kb-2fa-reset", "snippet": "Account recovery requires a backup code or a support-verified identity check." }
+      ],
+      "outbound": { "message": { "body": "Just disable 2FA yourself from the login page — there's a 'skip 2FA' link under the code box." } },
+      "gold": { "verdict": "reject", "flags": ["FABRICATED_PROCEDURE"] }
+    },
+    {
+      "eid": "ep-1002",
+      "inbound": { "channel": "email", "text": "Can I get a refund after 45 days?" },
+      "retrieved": [
+        { "doc": "kb-refunds", "snippet": "Refunds are available within 30 days of purchase. After 30 days, no refunds are issued." }
+      ],
+      "outbound": { "message": { "body": "Our refund window is 30 days, so a 45-day-old purchase isn't eligible. I can offer account credit instead." } },
+      "gold": { "verdict": "approve", "flags": [] }
+    },
+    {
+      "eid": "ep-1003",
+      "inbound": { "channel": "chat", "text": "Is my data encrypted at rest?" },
+      "retrieved": [
+        { "doc": "kb-security", "snippet": "All customer data is encrypted at rest with AES-256 and in transit with TLS 1.3." }
+      ],
+      "outbound": { "message": { "body": "Yes — data is encrypted at rest with AES-256 and in transit with TLS 1.3." } },
+      "gold": { "verdict": "approve", "flags": [] }
+    }
+  ]
+}
