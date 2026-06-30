@@ -105,6 +105,15 @@ export default function IngestPreviewCard({
         )}
       </div>
 
+      {/* the GENERATED JUTE template — the transform that maps your JSON → cases (verify before approve).
+          The mapper executes JUTE; the model only authors it. Collapsed by default. */}
+      {prev.template && (
+        <details data-testid="ingest-template" className="mt-2.5">
+          <summary className="cursor-pointer text-[10.5px] text-muted-foreground select-none">View the generated JUTE template ▸</summary>
+          <pre className="mt-1.5 max-h-48 overflow-auto rounded-[var(--radius-sm)] border border-border bg-secondary px-2.5 py-2 text-[10.5px] font-[family-name:var(--font-mono)] whitespace-pre-wrap text-foreground">{prev.template}</pre>
+        </details>
+      )}
+
       {state.phase === "error" && (
         <div className="mt-2 text-[11px]" style={{ color: "var(--accent-ink)" }}>⚠ {state.msg}</div>
       )}
