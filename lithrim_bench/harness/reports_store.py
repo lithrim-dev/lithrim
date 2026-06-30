@@ -19,6 +19,7 @@ record degrades to NULLs rather than raising. Routed through ``db.connect`` / ``
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,45 @@ def load_report(
             "SELECT report FROM reports WHERE workspace_id = ? AND case_id = ?", (wsid, case_id)
         ).fetchone()
         return conn.dialect.decode_json(row[0]) if row is not None else None
+
+
+def rebuild_projection(
+    *,
+    run_history_db: str | Path,
+    db_path: str | Path | None = None,
+    workspace_id: str | None = None,
+) -> int:
+    """Reconstruct the ``reports`` projection from the run-history alone (SPEC §2: the
+    projection is a DERIVED view, rebuildable from ``pipeline_runs``; it is never the trail
+    of record). Reads every run blob from the append-only run-history at ``run_history_db``,
+    keeps the LATEST blob per ``(workspace_id, case_id)``, and ``save_report``s each into the
+    projection at ``db_path``. Idempotent via ``save_report``'s UPSERT.
+
+    "Latest" = the run-history's own newest-first order (``list_all`` returns blobs ordered by
+    ``created_at`` then insertion order, newest-first); since the history is append-only
+    (post-RUNTRAIL-1, distinct ``pipeline_run_id`` per run), the FIRST blob seen per case is
+    the most recent. Each blob projects into its own ``workspace_id`` (the blob field, falling
+    back to the rebuild's resolved scope when the blob carries none). Returns the number of
+    cases written. The grade-time inline ``save_report`` is untouched; this adds the rebuild
+    path beside it."""
+    from lithrim_bench.runtime.pipeline.provenance import SqliteProvenanceStore  # lazy: no cycle
+
+    default_wsid = _scope(db_path, workspace_id)
+    blobs = asyncio.run(SqliteProvenanceStore(db_path=run_history_db).list_all())
+
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    for blob in blobs:  # newest-first → first seen per key is the latest
+        case_id = blob.get("case_id")
+        if case_id is None:
+            continue
+        wsid = blob.get("workspace_id") or default_wsid
+        key = (wsid, case_id)
+        if key not in latest:
+            latest[key] = blob
+
+    for (wsid, case_id), blob in latest.items():
+        save_report(case_id, blob, db_path=db_path, workspace_id=wsid)
+    return len(latest)
 
 
 def list_reports(
