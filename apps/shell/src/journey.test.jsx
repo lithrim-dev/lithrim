@@ -153,6 +153,38 @@ describe("EVAL-FLOW A2 — Ground truth ticks on a saved grounding contract (the
   });
 });
 
+describe("READINESS — a pack-declared floor the agent can't run un-ticks Ground truth", () => {
+  // The silent hole: a verification_contract present (Ground truth would tick) but the pinned pack
+  // declares a fact-check this agent can't run → the floor fires silently-never. The rail must NOT
+  // read green. The 6th param `readiness` carries the preflight report; an ERROR finding un-ticks.
+  const judged = { ontology_ref: "x/1", judges: ["risk_judge"] };
+  const contracts = [{ flag_code: "FABRICATED_CLAIM" }]; // Ground truth would otherwise tick
+
+  const degraded = { ok: false, findings: [{ check: "CONTRACT_COVERAGE", severity: "ERROR", code: "snomed_subsumption(FABRICATED_CLAIM)" }] };
+  const ready = { ok: true, findings: [] };
+  const warnOnly = { ok: true, findings: [{ check: "LENS_VS_CONTRACT_GAP", severity: "WARN", code: "HALLUCINATED_DETAIL" }] };
+
+  it("an ERROR finding un-ticks Ground truth even with a contract present (NON-VACUOUS)", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, contracts, degraded);
+    expect(stateOf(d, "Ground truth")).toBe("current");
+  });
+
+  it("an ok report leaves Ground truth done (readiness passes)", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, contracts, ready);
+    expect(stateOf(d, "Ground truth")).toBe("done");
+  });
+
+  it("a WARN-only report does NOT un-tick (only ERRORs block)", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, contracts, warnOnly);
+    expect(stateOf(d, "Ground truth")).toBe("done");
+  });
+
+  it("readiness defaults to null → prior behavior (existing call sites stay green)", () => {
+    const d = deriveSteps(cfg(judged), [], "eval-1", null, contracts);
+    expect(stateOf(d, "Ground truth")).toBe("done");
+  });
+});
+
 describe("EVAL-FLOW A4 — Run ticks on a run for the active agent (with the new 5th param)", () => {
   const ep = { ontology_ref: "x/1", judges: ["r"] };
   const contracts = [{ flag_code: "WRONG_DOSAGE" }]; // Ground truth done via the new source

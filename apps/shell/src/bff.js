@@ -134,6 +134,14 @@ export const putGroundingContract = (contract, agent = "ws0_default") =>
    CONTRACT_TYPES if this rejects (offline / first paint). */
 export const getGroundingContractTypes = () => call("/v1/grounding-contract/types");
 
+/* GET /v1/agents/{agent}/readiness — the agent↔pack READINESS preflight ($0, offline): does this
+   agent's resolved ontology carry every fact-check the pinned pack declares (with a registered
+   executor + a permitted tool)? Returns {ok, pack, agent, findings:[{check,severity,code,message,
+   remediation}], assessed}. Surfaces the silent hole where a pack-declared floor never fires because
+   the graded (agent) ontology lacks its contract. The shell renders it inline as a setup-gaps card. */
+export const getReadiness = (agent = "ws0_default") =>
+  call(`/v1/agents/${encodeURIComponent(agent)}/readiness`);
+
 /* POST /v1/criterion — NARR-5-CRIT-b: the CriterionBuilder card's direct, audited mint of a new
    GRADEABLE criterion (a scoreable taxonomy code) into the active tier:core pack's taxonomy snapshot
    (tiers + lenses + tier1_owners) + the ontology overlay. The sanctioned snapshot writer — the

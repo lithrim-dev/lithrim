@@ -29,7 +29,7 @@ function nonEmptyObj(v) {
 
 // Per-step done predicates, keyed by the template `name`. Pure over (agentCfg, runs,
 // activeAgent, runResult, contracts).
-function isDone(name, ep, runs, activeAgent, runResult, contracts) {
+function isDone(name, ep, runs, activeAgent, runResult, contracts, readiness) {
   switch (name) {
     case "Domain":
       return !!ep.ontology_ref;
@@ -39,6 +39,13 @@ function isDone(name, ep, runs, activeAgent, runResult, contracts) {
       // EVAL-FLOW (E-D1 option i): the rail reads the SAME store the grade consumes — the
       // ontology's verification_contracts (App fetches them; loop.py:158 claims this completes
       // Ground truth). The eval_profile.tools/grounding_checks clause is KEPT as a superset.
+      // READINESS: presence alone isn't enough — if the pinned pack declares a fact-check this
+      // agent can't run (any ERROR finding), the floor would fire SILENTLY-never, so Ground truth
+      // is NOT done (it becomes the shepherd's `current` lead). readiness null → prior behavior.
+      if (readiness && Array.isArray(readiness.findings) &&
+          readiness.findings.some((f) => String(f.severity || "").toUpperCase() === "ERROR")) {
+        return false;
+      }
       return (
         (contracts || []).length > 0 ||
         (ep.tools || []).length > 0 ||
@@ -60,10 +67,12 @@ function isDone(name, ep, runs, activeAgent, runResult, contracts) {
    REQUIRED steps only (KB excluded from the denominator so the optional step never
    inflates "N / 6"). A missing/null agentCfg → all-`todo` with Domain `current`.
    `contracts` (the ontology's verification_contracts, App-fetched) defaults to [] so the
-   existing 4-arg call sites stay green; a non-empty list ticks Ground truth (EVAL-FLOW). */
-export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null, contracts = []) {
+   existing 4-arg call sites stay green; a non-empty list ticks Ground truth (EVAL-FLOW).
+   `readiness` (the agent↔pack preflight report) defaults to null (prior behavior); an ERROR
+   finding un-ticks Ground truth so a pack floor the agent can't run doesn't read as done. */
+export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null, contracts = [], readiness = null) {
   const ep = (agentCfg && agentCfg.eval_profile) || {};
-  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult, contracts));
+  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult, contracts, readiness));
 
   // `current` = the first incomplete REQUIRED step (skip the optional KB).
   let currentIdx = -1;

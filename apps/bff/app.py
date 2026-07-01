@@ -280,6 +280,39 @@ def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
     return agent.ontology_abspath(), "committed"
 
 
+def _strict_readiness(strict_param: bool = False) -> bool:
+    """Strict readiness is OPT-IN (annotate-by-default): the ``strict`` request field OR the
+    ``LITHRIM_BENCH_STRICT_READINESS`` env flag. When on, a grade whose config would let a
+    declared fact-check silently not fire is REFUSED (409) rather than graded-and-annotated."""
+    if strict_param:
+        return True
+    return os.environ.get("LITHRIM_BENCH_STRICT_READINESS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _compute_readiness(agent, ontology_path: Path, ontology_source: str, pack: str | None):
+    """The agent↔pack readiness report for THIS grade config (a :class:`ReadinessReport`, or
+    ``None`` if it can't be assessed).
+
+    A pure, offline, ``$0`` preflight (``harness.readiness``): does the agent's RESOLVED ontology
+    actually carry every verification-contract the pinned pack declares, each with a registered
+    executor + a permitted tool? It reads the same inputs ``ground()`` receives and returns
+    advisory metadata — it never touches the frozen grade seam. Failure to assess is swallowed to
+    ``None`` so the preflight can never break a grade."""
+    from lithrim_bench.harness import readiness as _readiness_mod
+
+    try:
+        return _readiness_mod.resolve_and_assess(
+            agent_name=agent.name,
+            agent_ontology_path=ontology_path,
+            ontology_source=ontology_source,
+            pack=pack or workspace.DEFAULT_PACK,
+        )
+    except Exception:  # noqa: BLE001 — readiness is advisory; a preflight error never blocks grading
+        return None
+
+
 # NARR-7 / G3 — backtick-quoted collection names in an extraction_rules hint (e.g. "one case per
 # `comments`"). The AGENT channel for naming the iterated collection (the SDK-MCP tool schema is
 # frozen, no expected_count knob), so an arbitrary {issues,comments}-shaped dump can ingest.
@@ -486,6 +519,9 @@ class RunEvalRequest(BaseModel):
     # agent. Resolved via load_case's source→PACK_FILES→workspace-corpus fallback. None → the
     # agent's own dataset.case_id (back-compat). No paid knob — it only selects WHICH case.
     case_id: str | None = None
+    # READINESS: opt-in strict preflight — refuse (409) to grade a config where a pack-declared
+    # fact-check can't run (default False = annotate-and-grade). Also settable via env.
+    strict: bool = False
 
 
 class OptimizeRequest(BaseModel):
@@ -1019,11 +1055,13 @@ def run_eval_endpoint(
     return _grade_case(
         agent_name=req.agent, case_id=req.case_id, live=live, in_process=in_process,
         db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+        strict=req.strict,
     )
 
 
 def _grade_case(
-    *, agent_name, case_id, live, in_process, db_path, out_dir, workdir, collections_db
+    *, agent_name, case_id, live, in_process, db_path, out_dir, workdir, collections_db,
+    strict: bool = False,
 ) -> dict:
     """Grade ONE case end-to-end and return the eval-report payload (the shared body of
     POST /v1/run-eval and the batch POST /v1/cases/grade). ``case_id`` (NARR-LOOP) selects a
@@ -1096,6 +1134,23 @@ def _grade_case(
         models,
         _council_config,
     )
+    # READINESS preflight (agent↔pack contract coverage): computed BEFORE the (possibly paid) grade
+    # so strict mode can REFUSE a degraded config instead of grading it silently. Advisory by
+    # default — the report rides the record (below) so every grade honestly labels its config. Pure
+    # data, no verdict impact: it sits above the frozen grade seam.
+    readiness_report = _compute_readiness(agent, ontology_path, ontology_source, ws.pack)
+    if readiness_report is not None and not readiness_report.ok and _strict_readiness(strict):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "readiness",
+                "message": (
+                    "Refusing to grade: a declared fact-check can't run in this config (strict "
+                    "readiness). Align the agent to the pack, or drop strict mode to grade anyway."
+                ),
+                "readiness": readiness_report.to_dict(),
+            },
+        )
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
     # can't rebind it per-workspace. REPLAY is included: its ground() needs the pack's grounding
@@ -1134,6 +1189,9 @@ def _grade_case(
     record["calibration_check"] = calibration_check([record])
     record["grade_path"] = record["provenance"].get("grade_path")
     record["ontology_source"] = ontology_source  # R3: which ontology graded (audit context)
+    if readiness_report is not None:
+        # honesty: every grade labels its config, so a silently-inert floor is visible in the record
+        record["readiness"] = readiness_report.to_dict()
     record["council"] = _council_view(record)
     # S-BS-56: surface the run's pipeline_run_id so the caller can address the run
     # (run-history + the run→audit leg). It lives on the graded PipelineResult's
@@ -1580,6 +1638,7 @@ class GradeCasesRequest(BaseModel):
     agent: str = DEFAULT_AGENT
     live: bool = False
     in_process: bool = False
+    strict: bool = False  # READINESS: opt-in strict preflight (see RunEvalRequest.strict)
 
 
 class IngestPreviewRequest(BaseModel):
@@ -1682,6 +1741,7 @@ def grade_cases_endpoint(
             rec = _grade_case(
                 agent_name=req.agent, case_id=cid, live=live, in_process=in_process,
                 db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+                strict=req.strict,
             )
             comp = rec.get("composite") or {}
             rows.append(
@@ -2688,6 +2748,36 @@ def ontology_endpoint(
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"ontology not found: {path}")
     return json.loads(path.read_text())
+
+
+@app.get("/v1/agents/{agent}/readiness")
+def agent_readiness_endpoint(
+    agent: str,
+    db_path: Path = Depends(get_config_db),
+    workdir: Path = Depends(get_ontology_workdir),
+) -> dict:
+    """The agent↔pack READINESS preflight (setup-time, ``$0``): does this agent's RESOLVED ontology
+    carry every verification-contract the pinned pack declares — each with a registered executor and
+    a permitted tool — plus a floor for every raiseable high-stakes fabrication code?
+
+    A pure, offline read (``harness.readiness``) — no grade, no LLM. It surfaces the silent hole the
+    council-lens-vs-agent-ontology split creates: a pack-declared floor that would never fire because
+    the graded (agent) ontology lacks its contract. ``ok: false`` + per-check ``findings`` (ERROR /
+    WARN, with a one-line remediation each) the shell renders inline as a setup-gaps card. Shares
+    ``_resolve_ontology_path`` with the grade so the preflight assesses exactly the ontology that
+    would grade. ``assessed: false`` when the pack isn't discoverable here (soft, never a false OK)."""
+    ag = _load_agent(agent, db_path)
+    path, source = _resolve_ontology_path(ag, workdir)
+    pack = workspace.get_active_workspace().pack
+    report = _compute_readiness(ag, path, source, pack)
+    if report is None:
+        return {
+            "ok": True, "pack": pack, "agent": agent, "ontology_source": source,
+            "findings": [], "assessed": False,
+        }
+    out = report.to_dict()
+    out["assessed"] = True
+    return out
 
 
 @app.get("/v1/grounding-contract/types")
