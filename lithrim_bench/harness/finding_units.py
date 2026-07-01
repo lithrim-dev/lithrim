@@ -65,8 +65,10 @@ def consolidate(
     ``code_families`` family AND any pair of their quotes overlaps (token containment
     >= :data:`CONTAINMENT_THRESHOLD`); connected components merge transitively. No
     families declared -> every active code is its own unit (behavior-identical
-    default). INVARIANT: the union of unit codes == the active codes — the clerk
-    reshapes attribution, it never adds or drops a finding.
+    default). A code SHOULD belong to at most one family; if declared in several,
+    the last-declared family wins (dict order) — a declaration hygiene rule, not a
+    merge widener. INVARIANT: the union of unit codes == the active codes — the
+    clerk reshapes attribution, it never adds or drops a finding.
     """
     active = sorted({c for c in active_codes if c})
     quotes: dict[str, list[str]] = {c: [] for c in active}

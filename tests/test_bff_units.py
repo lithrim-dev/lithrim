@@ -144,3 +144,21 @@ def test_units_inert_without_code_families(client, graded, monkeypatch):
         sc["flag"]["fp"],
         sc["flag"]["fn"],
     )
+
+
+def test_agent_code_families_reads_the_draft_ontology(tmp_path, db_path):
+    """Critic finding (FINDING-UNITS-1 close): the REAL ontology-JSON read — un-monkeypatched.
+    The except→{} guard means a key/shape drift would silently make the clerk permanently
+    inert (recall-safe but invisible); this pins the round-trip so that failure is loud."""
+    import json as _json
+
+    agent = bff._load_agent(_AGENT, db_path)
+    workdir = tmp_path / "ont"
+    workdir.mkdir()
+    (workdir / f"{_AGENT}.json").write_text(
+        _json.dumps({"version": "t/1", "code_families": _FAMILIES})
+    )
+    assert bff._agent_code_families(agent, workdir) == _FAMILIES
+    # and the inert default: a draft WITHOUT the block -> {}
+    (workdir / f"{_AGENT}.json").write_text(_json.dumps({"version": "t/1"}))
+    assert bff._agent_code_families(agent, workdir) == {}
