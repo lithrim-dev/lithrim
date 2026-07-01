@@ -122,3 +122,56 @@ snapshot via `LITHRIM_BENCH_CLEANRUN_DIR`).
    pinned.
 3. **Scope honesty** — author lenses for the 4 dead codes or descope them with a stated reason.
 4. **Number honesty** — headline numbers as mean ± range over ≥3 passes, config hash pinned.
+
+## LAYER2-SUPPRESS-1 — corpus-gated suppress contracts by measured form (shipped 2026-07-02)
+
+Ladder step (2), first slice. The prototype (scratchpad `evgate_proto.py` + census) corrected
+the plan's own estimate: the FP characterization's "47 self-refuting" was a per-FP
+*classification*, not a gate yield — most transcript-verbatim matches are judges quoting the
+TRANSCRIPT side as evidence, and on SOURCE_CONTRADICTION / VALUE_MISMATCH that quote belongs to
+REAL defects (the any-span rule fires on 11/19 golds → those codes are undeclarable). The hard
+corpus gate (clear FPs, touch 0 of the 69 gold TPs, per code) sanctioned exactly three
+declarations:
+
+| contract | code | FP cleared | gold touched |
+|---|---|---|---|
+| `evidence_presence` (any-span verbatim-in-source) | INTERNAL_INCONSISTENCY | 13 | 0/5 |
+| `evidence_presence` (any-span verbatim-in-source) | HALLUCINATED_DETAIL | 7 | 0/7 |
+| `observation_form` (all spans negation/vitals) | HALLUCINATED_DETAIL | 19 | 0/7 |
+
+Rejected by the gate: negation form on FABRICATED_CLAIM (2 gold hits — the corpus has
+fabricated-VITALS golds, cv_mts_166/170: "a fabrication is a positive assertion" is false
+there) and on INTERNAL_INCONSISTENCY (1 gold); quote-in-artifact on MISSING_CONTEXT (1 gold).
+The corpus is the referee — it both licenses and REFUSES contracts.
+
+**What shipped** (commits 26a000f red → f0cebf3 green):
+
+* `EvidencePresence` — core-generic, pure-stdlib, span-level: a finding whose OWN evidence
+  spans are verbatim (normalized) source text refutes itself. Conservative `mode="all"`
+  default; declarations opt into `"any"` explicitly.
+* **Suppress-contract composition** in `ground()`: a flag_code now declares a CHAIN, run in
+  declaration order, first disprove wins; an executor error no longer silences the rest of the
+  chain. This unblocked `observation_form` (written 2026-06, never declarable — the
+  one-contract-per-code binding had snomed_subsumption occupying HALLUCINATED_DETAIL).
+  `Ontology.contracts_for` is the chain read; `contract_for` (the frozen `signals.py`
+  withstands binding) stays first-declared byte-identical — the pre-consensus gate challenges
+  with the first contract only, the full chain is ground()-side authority.
+* Drop-in declarations appended to `packs-dropin/clinverdict/ontology.json` (untracked, like
+  the pack): the 3 sanctioned rows above, versions `evidence-presence/v1` / `observation-form/v1`.
+* The corpus gate pinned as `tests/test_layer2_suppress.py::test_cg_corpus_gate_39_fps_zero_tp_touch`
+  (env-gated on `LITHRIM_BENCH_CLEANRUN_DIR` + the drop-in, A6 pattern): REAL `ground()` +
+  the REAL declarations over the 173 stored records → 39 FP / 0 TP, `skipped_malformed == []`.
+
+**Predicted scorecard** (simulation over the clean-run snapshot; the floor's snomed effect is
+already in the stored baseline):
+
+```
+strict: P=27.0% → 31.8%   R=52.3% unchanged   (TP=69, FP 187→148, FN=63)
+units : P=46.3% → 49.3%   R=52.3% unchanged   (FP 80→71, matched_gold=69 — zero loss)
+```
+
+Not yet live-verified: the running BFF grades against its own copy of the agent ontology —
+the next paid pass (or a re-ingested agent) picks the declarations up; ladder step (4) will
+measure the realized numbers. Next slices: a fabricated-vitals-safe negation form for
+FABRICATED_CLAIM (21 negation-shaped FPs remain), then the Hermes concept-presence
+paraphrase class (~75 FPs) — each through the same gate.
