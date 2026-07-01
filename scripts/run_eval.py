@@ -398,6 +398,21 @@ def run(
                 role: sorted(lenses[role]) for role in pack_production_judges() if role in lenses
             }
 
+        # DEMO-PIN-1 (S-BS-48): if this workspace optimized a judge, its compiled few-shot demos
+        # (``compiled_demos_*_<role>.json`` under out_dir) are pinned into that judge's predict so
+        # the grade USES them. Absent → None (demo-less, byte-identical to the pre-pin grade).
+        demos: dict[str, Any] | None = None
+        if out_dir is not None:
+            from lithrim_bench.runtime.council.judge_optimize import load_compiled_demos
+
+            roster = list(roles) if roles else list(pack_production_judges())
+            loaded = {}
+            for _role in roster:
+                _role_demos = load_compiled_demos(out_dir, _role)
+                if _role_demos:
+                    loaded[_role] = _role_demos
+            demos = loaded or None
+
         # UAP-3b: the authored trio grades THROUGH the pre-consensus withstands-gate
         # (apply_gate default True); the gate's per-judge decisions land in
         # ``withstands_sink`` so they can be audited + emit RLVR correction records
@@ -417,6 +432,7 @@ def run(
             samples=samples,
             temperatures=temperatures,
             criteria=criteria,
+            demos=demos,
             decisions_sink=withstands_sink,
         )
         result = grade_inprocess(

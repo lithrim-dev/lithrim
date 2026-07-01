@@ -143,6 +143,7 @@ def judge_call(
     role_key_questions: str = "",
     taxonomy_context: str | None = None,
     predict: Any = None,
+    demos: Any = None,
 ) -> JudgeResult:
     """The single sampling primitive: one API call, k completions, one JudgeResult.
 
@@ -195,6 +196,13 @@ def judge_call(
         predict = dspy.Predict(_build_signature())
         if model is not None and hasattr(predict, "set_lm"):
             predict.set_lm(model)
+
+    # DEMO-PIN-1 (S-BS-48): an optimized judge's compiled few-shot demos bind onto the predict
+    # here (the single live construction point), so the grade actually USES the demos the DSPy
+    # optimizer harvested. None (the default) leaves the predict demo-less — byte-identical to
+    # the pre-pin path. Applied to an injected ``predict`` too (offline determinism).
+    if demos is not None:
+        predict.demos = list(demos)
 
     inputs = dict(
         transcript=prompt,

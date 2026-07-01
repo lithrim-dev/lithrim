@@ -54,6 +54,7 @@ def build_authored_evaluator(
     samples: dict[str, int] | None = None,
     temperatures: dict[str, float] | None = None,
     criteria: dict[str, str] | None = None,
+    demos: dict[str, Sequence[Any]] | None = None,
 ):
     """Build the authored DSPy-trio council evaluator — the ``council_evaluate`` seam
     (``payload -> {consensus, models, evidence_summary}``) that mirrors
@@ -104,6 +105,7 @@ def build_authored_evaluator(
         samples=samples,
         temperatures=temperatures,
         criteria=criteria,
+        demos=demos,
     )
     # Capture each reviewer's build-time role prompt (incl. its global criterion) so the
     # per-CASE policy criterion can be layered on per grade and restored after — the trio is
@@ -238,6 +240,7 @@ def build_authored_semantic_stage(
     samples: dict[str, int] | None = None,
     temperatures: dict[str, float] | None = None,
     criteria: dict[str, str] | None = None,
+    demos: dict[str, Sequence[Any]] | None = None,
 ):
     """Return an async semantic stage that grades via the authored DSPy trio.
 
@@ -266,6 +269,7 @@ def build_authored_semantic_stage(
         samples=samples,
         temperatures=temperatures,
         criteria=criteria,
+        demos=demos,
     )
 
     async def _stage(request):

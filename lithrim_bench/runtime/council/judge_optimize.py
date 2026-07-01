@@ -319,6 +319,35 @@ def _serialize_demos(program: Any) -> list[dict[str, Any]]:
     return out
 
 
+# DEMO-PIN-1 (S-BS-48): the inverse of _serialize_demos + a workspace discovery helper — the
+# load side of "optimize writes compiled_demos_<tag>_<role>.json, the next grade uses them".
+_DEMO_INPUT_FIELDS = ("transcript", "artifact", "role_key_questions", "taxonomy_context")
+
+
+def deserialize_demos(rows: list[dict[str, Any]]) -> list[Any]:
+    """Rebuild ``dspy.Example`` few-shot demos from the serialized rows _serialize_demos wrote.
+
+    The four judge-signature INPUTS are marked via ``.with_inputs`` so DSPy formats each demo as a
+    proper few-shot exemplar (inputs shown, outputs — decision/findings/reason — as the target)."""
+    import dspy
+
+    return [dspy.Example(**row).with_inputs(*_DEMO_INPUT_FIELDS) for row in rows]
+
+
+def load_compiled_demos(out_dir: Any, role: str) -> list[Any] | None:
+    """The compiled demos for ``role`` under ``out_dir`` (the workspace out-dir a grade writes to),
+    deserialized — or ``None`` when this workspace has no optimized judge for the role (the grade
+    then runs demo-less, byte-identical to before). Picks the lexicographically-last match so a
+    re-optimize's fresh file wins; a role with no file never cross-reads another role's demos."""
+    from pathlib import Path
+
+    hits = sorted(Path(out_dir).glob(f"compiled_demos_*_{role}.json"))
+    if not hits:
+        return None
+    rows = json.loads(hits[-1].read_text(encoding="utf-8"))
+    return deserialize_demos(rows) or None
+
+
 def _delta(baseline: dict[str, Any], optimized: dict[str, Any]) -> dict[str, Any]:
     keys = ("graded", "precision", "recall")
     delta = {k: round(optimized[k] - baseline[k], 4) for k in keys}

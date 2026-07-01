@@ -470,6 +470,7 @@ def build_trio(
     samples: dict[str, int] | None = None,
     temperatures: dict[str, float] | None = None,
     criteria: dict[str, str] | None = None,
+    demos: dict[str, Sequence[Any]] | None = None,
 ) -> list[Judge]:
     """Assemble the V2 trio (:data:`V2_ROLES`) as role-prompt-bound ``Judge``s.
 
@@ -615,7 +616,13 @@ def build_trio(
             # ``judge_call`` (on first forward), never at build_trio time, so a
             # monkeypatched non-dspy fake LM (the vote-model attribution test) does not
             # trip Predict construction here. ``_k`` is the per-role sampling count.
-            def _sampling_predictor(_lm=lm, _tax=taxonomy_context, _k=role_k, _temp=role_temp, **kw):
+            # DEMO-PIN-1: the role's compiled demos (from an optimize run) ride into judge_call so
+            # the lazily-built dspy.Predict grades few-shot. None (default) → demo-less, byte-identical.
+            role_demos = (demos or {}).get(role)
+
+            def _sampling_predictor(
+                _lm=lm, _tax=taxonomy_context, _k=role_k, _temp=role_temp, _demos=role_demos, **kw
+            ):
                 return judge_call(
                     kw.get("transcript", ""),
                     model=_lm,
@@ -624,6 +631,7 @@ def build_trio(
                     artifact=kw.get("artifact", ""),
                     role_key_questions=kw.get("role_key_questions", ""),
                     taxonomy_context=kw.get("taxonomy_context") or _tax,
+                    demos=_demos,
                 )
 
             live_predictor = _capturing(_sampling_predictor, holder)
