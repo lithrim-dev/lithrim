@@ -55,3 +55,70 @@ The real lever is confirming the SNOMED-subsumption / transcript-grounding floor
 these grades — cv_mts_161's "Migraine with aura" subsumption bait survived, which the floor should
 suppress (and `:3031` was down at test time). Measure criterion-only vs criterion+floor on the
 full 173 as the customer-facing contrast.
+
+---
+
+# Follow-up: the clean baseline + the FP anatomy + FINDING-UNITS-1 (2026-07-01/02)
+
+## Clean baseline (criterion reverted, one frozen-config pass, 173/173, 0 errors)
+
+Batch-graded via `POST /v1/cases/grade` (in_process, ~34 min, ~12s/case — k>1 sampling rides ONE
+native-`n` call with `cache: False`, `sampling.py`). Numbers validated on TWO independent surfaces
+(the BFF cohort scorecard == an independent measure off the grade records' `grounded` blocks):
+
+```
+PRE-floor  (judges raised):  P=25.5%  R=52.3%   (TP=69 FP=202 FN=63)
+POST-floor (grounded/real):  P=27.0%  R=52.3%   (TP=69 FP=187 FN=63)   verdict-acc 132/173
+```
+
+Floor effect replicated: 15 FP suppressed (FABRICATED_CLAIM 11, HALLUCINATED_DETAIL 4), **0 TP
+loss**. NOTE the earlier mixed-era record measurement (P=24.2 R=42.4) understated recall ~10pts —
+never measure across config eras.
+
+## FP characterization (187 post-floor FPs) — the story flips
+
+The precision problem is mostly **attribution double-counting, not over-firing**:
+
+| bucket | n | meaning |
+|---|---|---|
+| twin-code, same span | **84 (45%)** | the RIGHT defect on the RIGHT span, raised under a sibling code alongside the gold code — the twin scores FP |
+| same family, different span | 26 | fabrication-family scatter on a fabrication-gold case |
+| defect case, other form | 47 | negation-shaped, self-refuting-evidence, paraphrase |
+| gold-CLEAN case over-fire | **30 (16%)** | the only TRUE over-firing |
+
+By groundable FORM (suppress-contract backlog, ranked): **47 self-refuting** (the judge's own
+evidence quote is verbatim IN the transcript → evidence-integrity gate), **43 negated/normal**
+(negation gate), **~75 lay→clinical paraphrase** ("peeing a lot / always thirsty" → "polyuria and
+polydipsia", token overlap 0.0 → concept-level Hermes/SNOMED presence). Recall side: 4 dead codes
+(UNSUPPORTED_ASSERTION, MISSED_ESCALATION, STYLE_VIOLATION never raised; INTENT_ERASURE only
+wrongly) = a lens coverage gap, not a floor problem.
+
+## FINDING-UNITS-1 — the attribution clerk (shipped)
+
+One defect span = ONE finding unit. Sibling codes from the ontology-declared `code_families`
+block that fired on overlapping evidence quotes (token containment ≥ 0.6) consolidate into a
+single unit carrying the full code-set. A **clerk, not a critic**: gold-blind, never judges
+correctness, never drops a code (invariant-tested), so it cannot lose recall — survivor-PICKING
+rules dropped 11–17 golds and were rejected. Computed post-hoc over stored grade records, BESIDE
+the byte-frozen consensus moat. Dual-reported (`scorecard.units` next to the strict `flag` block).
+
+```
+strict: P=27.0%  R=52.3%   (TP=69 FP=187 FN=63)
+units : P=46.3%  R=52.3%   (TP=69 FP=80  FN=63, matched_gold=69 — zero loss)
+```
+
+The blind merge reaches the oracle-adjudication ceiling exactly. Implementation:
+`lithrim_bench/harness/finding_units.py` + the `/v1/cases/grade` scorecard `units` block;
+gate test `tests/test_finding_units.py::test_a6_corpus_gate_*` (runs against the clean-run
+snapshot via `LITHRIM_BENCH_CLEANRUN_DIR`).
+
+## The trust ladder (agreed 2026-07-02)
+
+0. **Read layer** — fold `grounded` verdict/findings into the persisted blob; project post-floor
+   in `/audit` + `/v1/runs`; wire `cost_tokens` (unwired today). Separate driver.
+1. **Attribution** — FINDING-UNITS-1 (this doc). DONE.
+2. **Suppress contracts** by measured form: evidence-integrity gate (47) → negation gate (43) →
+   concept-level presence via Hermes (paraphrase class). Each corpus-gated: clear FPs, 0 TP loss,
+   pinned.
+3. **Scope honesty** — author lenses for the 4 dead codes or descope them with a stated reason.
+4. **Number honesty** — headline numbers as mean ± range over ≥3 passes, config hash pinned.

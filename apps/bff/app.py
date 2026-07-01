@@ -106,6 +106,7 @@ from lithrim_bench.harness.config import (  # noqa: E402
     save_conversation,
     seed_config_db,
 )
+from lithrim_bench.harness.finding_units import consolidate, score_units  # noqa: E402
 from lithrim_bench.harness.judges import (  # noqa: E402
     JudgeConfig,
     delete_judge,
@@ -278,6 +279,18 @@ def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
     if wc.exists():
         return wc, "draft"
     return agent.ontology_abspath(), "committed"
+
+
+def _agent_code_families(agent, workdir: Path) -> dict:
+    """FINDING-UNITS-1: the agent's ontology-declared ``code_families`` (optional top-level
+    block) — the ONLY authority on which codes are consolidation siblings. Resolved through
+    the SAME draft→committed path the grade uses, so units cluster by the ontology that
+    actually voted. Absent/unreadable → {} (the clerk is inert; units are 1:1 with findings)."""
+    try:
+        path, _src = _resolve_ontology_path(agent, workdir)
+        return json.loads(Path(path).read_text()).get("code_families") or {}
+    except Exception:  # noqa: BLE001 — a missing/odd ontology must never fail the batch
+        return {}
 
 
 def _strict_readiness(strict_param: bool = False) -> bool:
@@ -1701,6 +1714,15 @@ def _cohort_scorecard(rows: list[dict], golds: dict[str, set], labeled: set) -> 
         cases.append(row)
     prec = tp / (tp + fp) if (tp + fp) else None
     rec = tp / (tp + fn) if (tp + fn) else None
+    # FINDING-UNITS-1 dual-report: the span-cluster unit score NEXT TO the strict flag score
+    # (never replacing it). A unit is TP if gold intersects its code-set — the twin-attribution
+    # FP artifact vanishes; a wrong cluster still counts exactly one FP. Labeled rows only.
+    units_score = score_units(
+        {r["case_id"]: r.get("units") or [] for r in rows
+         if r.get("case_id") in labeled and not r.get("error")},
+        {r["case_id"]: golds.get(r["case_id"], set()) for r in rows
+         if r.get("case_id") in labeled and not r.get("error")},
+    )
     return {
         "cases": cases,
         "n_cases": len(rows),
@@ -1708,6 +1730,7 @@ def _cohort_scorecard(rows: list[dict], golds: dict[str, set], labeled: set) -> 
         "flag": {"tp": tp, "fp": fp, "fn": fn,
                  "precision": round(prec, 3) if prec is not None else None,
                  "recall": round(rec, 3) if rec is not None else None},
+        "units": units_score,
         "verdict_accuracy": f"{vmatch}/{n_lab}" if n_lab else None,
         "by_flag": dict(sorted(by_flag.items())),
     }
@@ -1735,6 +1758,9 @@ def grade_cases_endpoint(
             detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
         )
     live, in_process = _resolve_run_backend(req)
+    # FINDING-UNITS-1: the agent's ontology-declared consolidation families, resolved ONCE for
+    # the batch (the clerk clusters by the same ontology the council voted with; {} → inert).
+    code_families = _agent_code_families(_load_agent(req.agent, db_path), workdir)
     rows: list[dict] = []
     for cid in targets:
         try:
@@ -1744,12 +1770,22 @@ def grade_cases_endpoint(
                 strict=req.strict,
             )
             comp = rec.get("composite") or {}
+            # FINDING-UNITS-1: consolidate the post-floor findings into span-cluster units
+            # (one defect span = one unit carrying its full code-set). Gold-blind clerk, not a
+            # critic — see harness/finding_units.py; scored dual-report in _cohort_scorecard.
+            active = [
+                (x.get("code") or x.get("flag_code"))
+                for x in (rec.get("grounded") or {}).get("active", [])
+            ] or (comp.get("active_findings") or [])
+            evidence = ((rec.get("result") or {}).get("semantic") or {}).get("evidence") or []
+            units = consolidate(active, evidence, code_families)
             rows.append(
                 {
                     "case_id": cid,
                     "verdict": comp.get("verdict"),
                     "stage_verdict": comp.get("stage_verdict"),
                     "findings": comp.get("active_findings") or [],
+                    "units": [list(u.codes) for u in units],
                     "votes": [
                         {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
                          "confidence": v.get("confidence")}
