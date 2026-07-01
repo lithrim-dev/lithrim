@@ -38,6 +38,15 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 
+def _fold_usage(r: dict, jr: Any) -> None:
+    """LAYER0-READ-1: copy a JudgeResult's captured token spend onto its per-judge seam
+    dict (where the frozen stages.py cost_tokens sum reads ``usage``). Never clobbers an
+    existing ``usage`` and never fabricates one (absent/None → the dict is untouched)."""
+    usage = getattr(jr, "usage", None) if jr is not None else None
+    if usage and not r.get("usage"):
+        r["usage"] = usage
+
+
 def build_authored_evaluator(
     *,
     ontology: Any,
@@ -207,9 +216,7 @@ def build_authored_evaluator(
             # the frozen stages.py cost_tokens sum reads ``usage.input_tokens/output_tokens``
             # here, which nothing populated (every persisted blob said cost 0). Absent usage
             # (offline predictors, no-usage LMs) leaves the dict byte-identical.
-            usage = getattr(jr, "usage", None) if jr is not None else None
-            if usage and not r.get("usage"):
-                r["usage"] = usage
+            _fold_usage(r, jr)
 
         # Independent-axes case outcome (the rule table) — computed ABOVE the frozen seam
         # from each reviewer's OWN verdict + variance; never an aggregate score. This, not

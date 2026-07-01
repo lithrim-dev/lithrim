@@ -216,3 +216,57 @@ def test_l5_authored_evaluator_folds_usage_onto_seam_dicts():
     assert models, "expected at least one per-judge seam dict"
     for m in models:
         assert m["usage"] == {"input_tokens": 200, "output_tokens": 40}
+
+
+# ── L5 critic close-out (coverage gaps a-c from the cold critique) ───────────────────────
+def test_l5_usage_captured_on_k_gt_1_and_degenerate_branches():
+    from lithrim_bench.runtime.council.sampling import judge_call
+
+    # (a) the k>1 return still stamps usage
+    fake = _FakePredict({"prompt_tokens": 300, "completion_tokens": 60})
+    jr = judge_call("t", model=None, k=3, artifact="a", predict=fake)
+    assert jr.usage == {"input_tokens": 300, "output_tokens": 60}
+
+    # (a) the degenerate all-empty return stamps usage too — the failed call still spent
+    class _EmptyDecision(_FakePredict):
+        def __call__(self, **kwargs):
+            self.lm.history.append({"usage": self._usage})
+            return {"decision": "", "findings": []}
+
+    jr2 = judge_call(
+        "t", model=None, k=3, artifact="a",
+        predict=_EmptyDecision({"prompt_tokens": 50, "completion_tokens": 5}),
+    )
+    assert jr2.k == 0 and jr2.usage == {"input_tokens": 50, "output_tokens": 5}
+
+
+def test_l5_fold_usage_never_clobbers_and_never_fabricates():
+    from lithrim_bench.runtime.council.authored_stage import _fold_usage
+    from lithrim_bench.runtime.council.sampling import JudgeResult
+
+    jr = JudgeResult(
+        score_mean=1.0, score_variance=0.0, scores_raw=[1.0], k=1,
+        usage={"input_tokens": 9, "output_tokens": 9},
+    )
+    # (b) a pre-existing usage on the seam dict survives the fold
+    r = {"model": "risk_judge", "usage": {"input_tokens": 1, "output_tokens": 2}}
+    _fold_usage(r, jr)
+    assert r["usage"] == {"input_tokens": 1, "output_tokens": 2}
+    # and absent JudgeResult usage never fabricates a key
+    r2 = {"model": "risk_judge"}
+    _fold_usage(r2, JudgeResult(score_mean=1.0, score_variance=0.0))
+    assert "usage" not in r2
+
+
+def test_l5_usage_delta_tolerates_non_dict_history_entries():
+    from lithrim_bench.runtime.council.sampling import _usage_delta
+
+    class _LM:
+        history = [
+            "a-string-entry",
+            {"usage": {"prompt_tokens": 10, "completion_tokens": 2}},
+            {"no_usage_key": True},
+        ]
+
+    # (c) mixed-shape history: no raise, only dict entries with usage summed
+    assert _usage_delta(_LM(), 0) == {"input_tokens": 10, "output_tokens": 2}
