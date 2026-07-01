@@ -135,6 +135,16 @@ def test_e3_conservative_stands():
     assert _run(_decl("X", "v1", mode="all"), [IN_SRC, "rash"]).disproved is False
 
 
+def test_e3b_min_quote_chars_floor_rejected_at_construction():
+    """Critic close-out: an authored ``min_quote_chars=0`` would let a 1-char span quote
+    fire an any-mode contract. Rejected at __init__ (the author-time gate 422s it; at
+    grade time GRADE-GUARD-1 skip-logs it as malformed — never a silent wildcard)."""
+    from lithrim_bench.harness.grounding import EvidencePresence
+
+    with pytest.raises(ValueError, match="min_quote_chars"):
+        EvidencePresence(_decl("X", "v1", mode="any", min_quote_chars=0))
+
+
 def test_e4_normalized_containment():
     # case / punctuation / whitespace differences still match verbatim source content
     v = _run(

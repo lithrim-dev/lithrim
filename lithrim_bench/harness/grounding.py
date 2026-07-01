@@ -355,6 +355,12 @@ class EvidencePresence(VerificationContract):
         params = decl.params
         self._source_path = params.get("source_path")
         self._min_chars = int(params.get("min_quote_chars", 12))
+        if self._min_chars < 4:
+            # below any meaningful verbatim claim — a 1-char "match" must never clear a
+            # finding; rejected at construction so the author-time gate 422s it.
+            raise ValueError(
+                f"evidence_presence min_quote_chars must be >= 4, got {self._min_chars}"
+            )
         mode = params.get("mode", "all")
         if mode not in ("all", "any"):
             raise ValueError(f"evidence_presence mode must be 'all' or 'any', got {mode!r}")
