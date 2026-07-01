@@ -315,6 +315,91 @@ class SourceGrounding(VerificationContract):
         )
 
 
+def _containment_norm(value: Any) -> str:
+    """The verbatim-containment surface: lowercase, non-alphanumeric → space,
+    whitespace-collapsed — so case / punctuation / line-wrap differences between a
+    judge's quote and the source never break a genuinely verbatim match."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())).strip()
+
+
+class EvidencePresence(VerificationContract):
+    """The evidence-integrity gate (LAYER2-SUPPRESS-1): disprove a finding whose OWN
+    evidence spans are verbatim source text.
+
+    A finding that claims a defect *of the artifact* (an internal inconsistency, a
+    hallucinated detail) but whose flagged evidence is a verbatim quote of the SOURCE
+    refutes its own type — the judge is citing the source itself as the proof. Measured
+    on the clinverdict 173-record clean run (2026-07-02): TP-safe on
+    INTERNAL_INCONSISTENCY (13 FP / 0 of 5 golds) + HALLUCINATED_DETAIL (7 FP / 0 of 7);
+    NOT declarable on SOURCE_CONTRADICTION / VALUE_MISMATCH, where a real defect's
+    transcript-side quote fires it (11/19 golds) — a weak-supervision LF whose scope the
+    corpus referees, per code.
+
+    Pure-stdlib / ``in_process``. Conservative on every axis (never clear by silence):
+    no spans, an absent source, or every quote below ``min_quote_chars`` ⇒ stands.
+    ``mode="all"`` (the default) requires EVERY span to be a long-enough verbatim source
+    quote; ``mode="any"`` fires when at least one is — the declaration opts into the
+    looser form explicitly, the default stays the most conservative.
+
+      params = {"source_path": "transcript",  # dotted; default transcript→context fallback
+                "min_quote_chars": 12,         # min NORMALIZED quote length to count
+                "mode": "all" | "any"}
+    """
+
+    contract_type = "evidence_presence"
+
+    def __init__(self, decl: VerificationContractDecl) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        params = decl.params
+        self._source_path = params.get("source_path")
+        self._min_chars = int(params.get("min_quote_chars", 12))
+        mode = params.get("mode", "all")
+        if mode not in ("all", "any"):
+            raise ValueError(f"evidence_presence mode must be 'all' or 'any', got {mode!r}")
+        self._mode = mode
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        if self._source_path:
+            source = _resolve_path(case, self._source_path) or ""
+        else:
+            source = case.get("transcript") or case.get("context") or ""
+        source_n = _containment_norm(source)
+        spans = finding.get("_evidence_spans") or []
+        quotes = [str((s.get("quote") if isinstance(s, dict) else s) or "") for s in spans]
+        quotes = [q for q in quotes if q.strip()]
+        if not source_n or not quotes:
+            return Verdict(
+                disproved=False,
+                reason="no source text / no evidence spans; inconclusive — never clear by silence",
+            )
+        normed = [(q, _containment_norm(q)) for q in quotes]
+        matched = [
+            (q, qn) for q, qn in normed if len(qn) >= self._min_chars and qn in source_n
+        ]
+        fires = bool(matched) and (self._mode == "any" or len(matched) == len(normed))
+        if fires:
+            quote = matched[0][0]
+            return Verdict(
+                disproved=True,
+                evidence=quote,
+                reason=(
+                    f"{len(matched)}/{len(normed)} flagged evidence span(s) are verbatim "
+                    f"source text (mode={self._mode}, min_quote_chars={self._min_chars}) — "
+                    f"the finding cites the source itself as its evidence, refuting the "
+                    f"claimed {self.flag_code}"
+                ),
+            )
+        return Verdict(
+            disproved=False,
+            reason=(
+                f"{len(matched)}/{len(normed)} span(s) matched the source under "
+                f"mode={self._mode}; the finding stands"
+            ),
+        )
+
+
 class KbGrounding(VerificationContract):
     """Disprove a confident-but-wrong council flag by GROUNDING its claim in the
     knowledge base — the S-BS-7 presence-check generalized from the transcript to
@@ -620,6 +705,9 @@ _CONTRACT_EXECUTORS = {
     # GROUND-FLOOR-SOURCE-1: the answer⊆source faithfulness floor — pure-stdlib/in_process, the
     # S-BS-7 presence-check generalized (suppress-only-on-FULL-grounding, anti-masking).
     "source_grounding": SourceGrounding,
+    # LAYER2-SUPPRESS-1: the evidence-integrity gate — a finding whose own evidence spans are
+    # verbatim source text refutes itself. Pure-stdlib/in_process, span-level, corpus-gated per code.
+    "evidence_presence": EvidencePresence,
     # TOOL-AUTHOR-1: the generic authored-MCP-tool executor (advisory/corroborated; builds its own
     # McpStdioClient via resolve_tool, so it is NOT in _HTTP_CONTRACT_TYPES).
     "mcp_call": McpCallGrounding,
@@ -995,11 +1083,17 @@ def ground(
     # default, no med_source) must NOT crash the whole grade at construction. SKIP-LOG it (surfaced,
     # never silent) — the same "never silently drop, never abort the grade" discipline as the S-BS-8/10
     # skip-logging. The author-time gate (validate_contract_params) is the prevention; this is defense.
-    contracts: dict[str, VerificationContract] = {}
+    # LAYER2-SUPPRESS-1: a flag_code may declare a CHAIN of suppress contracts, run in
+    # declaration order, first disprove wins. (The pre-consensus withstands gate still
+    # challenges with the FIRST declared contract only — signals.py binds via the frozen
+    # ``contract_for`` read; the full chain is a ground()-side authority.)
+    contracts: dict[str, list[VerificationContract]] = {}
     skipped_malformed: list[dict[str, Any]] = []
     for decl in suppress_decls:
         try:
-            contracts[decl.flag_code] = _build_contract(decl, http_client=http_client)
+            contracts.setdefault(decl.flag_code, []).append(
+                _build_contract(decl, http_client=http_client)
+            )
         except Exception as exc:  # noqa: BLE001 - a malformed contract must degrade, not crash
             skipped_malformed.append(
                 {"decl": decl, "stage": "build", "error": f"{type(exc).__name__}: {exc}"}
@@ -1024,26 +1118,42 @@ def ground(
             # S-BS-10: a known out-of-snapshot flag — skip-logged, never scored.
             skipped_non_gradeable.append(finding)
             continue
-        contract = contracts.get(code)
-        if contract is None:
+        chain = contracts.get(code)
+        if not chain:
             active.append(finding)
             continue
         enriched = dict(finding)
         ev = semantic_evidence.get(code)
         if ev is not None:
             enriched["_evidence_spans"] = ev.get("spans")
-        try:
-            verdict = contract.check(enriched, case)
-        except Exception as exc:  # noqa: BLE001
-            # A service-transport suppress executor (one composing over an out-of-process tool
-            # or service) can raise if that service is unreachable. Never clear by silence: the
-            # finding STANDS and the grade does NOT abort — the unavailability is recorded for
-            # audit. This matches the executor's own conservative "inconclusive ⇒ stands" on
-            # the disproved=False branch; the pure-stdlib executors never reach this path.
-            active.append({**finding, "_grounding_error": f"{type(exc).__name__}: {exc}"})
-            continue
-        if verdict.disproved:
-            suppressed.append({"finding": finding, "verdict": verdict, "contract": contract})
+        disproving_verdict = None
+        disproving_contract = None
+        first_error: str | None = None
+        for contract in chain:
+            try:
+                verdict = contract.check(enriched, case)
+            except Exception as exc:  # noqa: BLE001
+                # A service-transport suppress executor (one composing over an out-of-process
+                # tool or service) can raise if that service is unreachable. Never clear by
+                # silence — but a dead service must not silence the REST of the chain either:
+                # record the first error for audit and let the remaining contracts have their
+                # say. The pure-stdlib executors never reach this path.
+                if first_error is None:
+                    first_error = f"{type(exc).__name__}: {exc}"
+                continue
+            if verdict.disproved:
+                disproving_verdict, disproving_contract = verdict, contract
+                break
+        if disproving_verdict is not None:
+            suppressed.append(
+                {
+                    "finding": finding,
+                    "verdict": disproving_verdict,
+                    "contract": disproving_contract,
+                }
+            )
+        elif first_error is not None:
+            active.append({**finding, "_grounding_error": first_error})
         else:
             active.append(finding)
 

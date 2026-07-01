@@ -64,6 +64,8 @@ _EXPECTED_SUPPRESS = {
     "source_grounding",
     # TOOL-AUTHOR-1: the generic authored-MCP-tool suppress executor (advisory/corroborated).
     "mcp_call",
+    # LAYER2-SUPPRESS-1: the core-generic evidence-integrity suppress executor (span-level).
+    "evidence_presence",
     "record_presence",
     "snomed_subsumption",
 }
@@ -81,6 +83,8 @@ _EXPECTED_CONTRACT_PLUGINS = {
     "web_search": ("contract", "core", "service", "grounding.suppress"),
     # TOOL-AUTHOR-1: core generic authored-MCP-tool suppress (builds its own McpStdioClient).
     "mcp_call": ("contract", "core", "in_process", "grounding.suppress"),
+    # LAYER2-SUPPRESS-1: core, pure-stdlib (in_process), evidence-integrity suppress executor.
+    "evidence_presence": ("contract", "core", "in_process", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),

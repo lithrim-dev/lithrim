@@ -131,7 +131,15 @@ class Ontology:
         return f.owner_roles if f else ()
 
     def contract_for(self, flag_code: str) -> VerificationContractDecl | None:
+        # FIRST match — the frozen withstands read (signals.py) binds through this, so the
+        # pick must stay first-declared even now that a code may declare a contract CHAIN.
         return next((c for c in self.contracts if c.flag_code == flag_code), None)
+
+    def contracts_for(self, flag_code: str) -> tuple[VerificationContractDecl, ...]:
+        """Every contract declared for ``flag_code``, in declaration order — the suppress
+        CHAIN ``ground()`` runs (LAYER2-SUPPRESS-1). ``contract_for`` stays the single
+        first-declared pick the pre-consensus withstands gate challenges with."""
+        return tuple(c for c in self.contracts if c.flag_code == flag_code)
 
     def questions_for(self, role: str) -> tuple[JudgeQuestion, ...]:
         return tuple(q for q in self.questions if q.role == role)
