@@ -193,16 +193,23 @@ def build_authored_evaluator(
             j.role: getattr(j, "_sampling_holder", {}).get("last") for j in trio
         }
         for r in results:
-            if not isinstance(r, dict) or r.get("sampling"):
+            if not isinstance(r, dict):
                 continue
             jr = _sampling_by_role.get(r.get("model"))
-            if jr is not None:
+            if jr is not None and not r.get("sampling"):
                 r["sampling"] = {
                     "score_mean": jr.score_mean,
                     "score_variance": jr.score_variance,
                     "scores_raw": list(jr.scores_raw),
                     "k": jr.k,
                 }
+            # LAYER0-READ-1: fold the sampled call's real token spend onto the seam dict —
+            # the frozen stages.py cost_tokens sum reads ``usage.input_tokens/output_tokens``
+            # here, which nothing populated (every persisted blob said cost 0). Absent usage
+            # (offline predictors, no-usage LMs) leaves the dict byte-identical.
+            usage = getattr(jr, "usage", None) if jr is not None else None
+            if usage and not r.get("usage"):
+                r["usage"] = usage
 
         # Independent-axes case outcome (the rule table) — computed ABOVE the frozen seam
         # from each reviewer's OWN verdict + variance; never an aggregate score. This, not

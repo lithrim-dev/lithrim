@@ -3561,6 +3561,12 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         # embedded into the run-blob by run_eval post-save. Empty on non-gated runs.
         "withstands": doc.get("withstands_decisions") or [],
         "findings": doc.get("findings") or [],
+        # LAYER0-READ-1: the post-floor truth, ADDITIVE (the blob `verdict` is pipeline-domain
+        # approve/reject; the grounded verdict is composite-domain BLOCK/WARN/PASS — never
+        # silently swapped). `grounded` carries active/suppressed(+contract/evidence)/floor_blocks
+        # as persisted; None on legacy blobs (pre-fold history projects exactly as before).
+        "grounded": doc.get("grounded"),
+        "grounded_verdict": (doc.get("grounded") or {}).get("verdict"),
         "stages_executed": doc.get("stages_executed") or [],
     }
 
@@ -3568,6 +3574,7 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
 def _run_summary(doc: dict) -> dict:
     """Newest-first run-history row: the addressable id + the headline verdict +
     who/when, projected from a persisted PipelineProvenance blob (S-BS-56)."""
+    grounded = doc.get("grounded")
     return {
         "run_id": doc.get("pipeline_run_id"),
         # RUNTRAIL-11: the case this run graded, so the UI can group the trail per-record.
@@ -3577,6 +3584,11 @@ def _run_summary(doc: dict) -> dict:
         # RUNTRAIL-7: the grade path in the list row (replay|in_process|live).
         "grade_path": doc.get("grade_path"),
         "verdict": doc.get("verdict"),
+        # LAYER0-READ-1: the post-floor verdict + suppression count in the list row, additive
+        # (see _run_audit_report — verdict domains differ, never silently swapped). None on
+        # legacy blobs.
+        "grounded_verdict": (grounded or {}).get("verdict"),
+        "floor_suppressed": len(grounded.get("suppressed") or []) if grounded else None,
         "gate_decision": doc.get("gate_decision"),
         "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
         "agent": doc.get("agent_id"),

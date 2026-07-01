@@ -96,10 +96,36 @@ class JudgeResult:
     decision: str = "needs_review"
     findings: list[dict[str, Any]] = field(default_factory=list)
     _raw_response: Any = None
+    # LAYER0-READ-1: real token spend of THIS call ({input_tokens, output_tokens} — the
+    # exact keys the frozen stages.py cost_tokens sum reads), None when the LM exposes
+    # no usage. Captured here (the unfrozen sampling layer), NOT in the byte-frozen
+    # Judge.forward — the authored stage folds it onto the per-judge seam dict.
+    usage: dict[str, int] | None = None
 
     @property
     def reason(self) -> str:
         return self.rationale
+
+
+def _usage_delta(lm: Any, history_before: int | None) -> dict[str, int] | None:
+    """LAYER0-READ-1: sum token usage from the LM-history entries THIS call appended.
+    LiteLLM entries carry ``usage.prompt_tokens/completion_tokens`` (``input_/output_``
+    tolerated); emitted as ``{input_tokens, output_tokens}`` — the exact keys the frozen
+    stages.py cost_tokens sum reads. No lm / no history / zero-sum → None, so offline
+    fake-predictor paths stay byte-identical (no key ever fabricated)."""
+    if lm is None or history_before is None:
+        return None
+    entries = list(getattr(lm, "history", []) or [])[history_before:]
+    prompt = completion = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        usage = entry.get("usage") or {}
+        prompt += int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        completion += int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    if not (prompt or completion):
+        return None
+    return {"input_tokens": prompt, "output_tokens": completion}
 
 
 def _is_single_completion_lm(lm: Any) -> bool:
@@ -211,6 +237,13 @@ def judge_call(
         taxonomy_context=taxonomy_context or default_taxonomy_context(),
     )
 
+    # LAYER0-READ-1: snapshot the LM history length so the usage of exactly THIS call
+    # (either branch — one API call each) can be summed after it returns.
+    _usage_lm = getattr(predict, "lm", None) or model
+    _hist_before = (
+        len(getattr(_usage_lm, "history", []) or []) if _usage_lm is not None else None
+    )
+
     # ---- k == 1: byte-equivalent to the pre-sampling Judge.forward path ----
     # No config is passed, so temperature/cache are the LM's defaults and the call is
     # identical to today; confidence comes from the SAME _raw_response_for read.
@@ -229,6 +262,7 @@ def judge_call(
             decision=decision,
             findings=findings,
             _raw_response=raw,
+            usage=_usage_delta(_usage_lm, _hist_before),
         )
 
     # ---- k > 1: ONE call, native n, cache off (avoid the n>k cache replay) ----
@@ -262,6 +296,7 @@ def judge_call(
             decision="needs_review",
             findings=[],
             _raw_response=None,
+            usage=_usage_delta(_usage_lm, _hist_before),  # the failed call still spent
         )
 
     scores = [s for _, _, s in scored]
@@ -283,6 +318,7 @@ def judge_call(
         decision=modal,
         findings=_validate_findings(_get(rep_comp, "findings", [])),
         _raw_response=rep_raw,
+        usage=_usage_delta(_usage_lm, _hist_before),
     )
 
 

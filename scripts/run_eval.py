@@ -65,43 +65,50 @@ from lithrim_bench.picklist import (  # noqa: E402
 )
 
 
+def _grounded_block(grounded) -> dict:
+    """Serialize a ``ground()`` result to the record/blob shape. LAYER0-READ-1: extracted
+    from ``build_record`` so the SAME serialization rides both the API record AND the
+    persisted PipelineProvenance blob (``_enrich_run_blob``) — one shape, no read-side drift."""
+    return {
+        "verdict": grounded.verdict,
+        "original_verdict": grounded.original_verdict,
+        "active": grounded.active,
+        "suppressed": [
+            {
+                "code": s["finding"].get("code"),
+                "contract": s["contract"].version,
+                "disproved": s["verdict"].disproved,
+                "matched_token": s["verdict"].matched_token,
+                "evidence": s["verdict"].evidence,
+                "reason": s["verdict"].reason,
+            }
+            for s in grounded.suppressed
+        ],
+        "ungrounded": grounded.ungrounded,
+        "skipped_non_gradeable": grounded.skipped_non_gradeable,
+        "floor_blocks": [
+            {
+                "flag": (b["injected_finding"] or {}).get("code")
+                or b["decl"].params.get("inject_flag_code"),
+                "contract_type": b["decl"].contract_type,
+                "contract": b["decl"].version,
+                "conforms": b["result"].conforms,
+                "disposition": b["result"].disposition,
+                "injected": b["injected_finding"] is not None,
+                "evidence": b["result"].evidence,
+                "manifest": b["result"].manifest,
+            }
+            for b in grounded.floor_blocks
+        ],
+    }
+
+
 def build_record(case, result, grounded, comp, cal, corrections, *, grade_path, agent):
     return {
         "case_id": case.get("case_id"),
         "agent": agent.name,
         "result": result,
-        "grounded": {
-            "verdict": grounded.verdict,
-            "original_verdict": grounded.original_verdict,
-            "active": grounded.active,
-            "suppressed": [
-                {
-                    "code": s["finding"].get("code"),
-                    "contract": s["contract"].version,
-                    "disproved": s["verdict"].disproved,
-                    "matched_token": s["verdict"].matched_token,
-                    "evidence": s["verdict"].evidence,
-                    "reason": s["verdict"].reason,
-                }
-                for s in grounded.suppressed
-            ],
-            "ungrounded": grounded.ungrounded,
-            "skipped_non_gradeable": grounded.skipped_non_gradeable,
-            "floor_blocks": [
-                {
-                    "flag": (b["injected_finding"] or {}).get("code")
-                    or b["decl"].params.get("inject_flag_code"),
-                    "contract_type": b["decl"].contract_type,
-                    "contract": b["decl"].version,
-                    "conforms": b["result"].conforms,
-                    "disposition": b["result"].disposition,
-                    "injected": b["injected_finding"] is not None,
-                    "evidence": b["result"].evidence,
-                    "manifest": b["result"].manifest,
-                }
-                for b in grounded.floor_blocks
-            ],
-        },
+        "grounded": _grounded_block(grounded),
         "composite": comp,
         "calibration": cal,
         "corrections": corrections,
@@ -229,11 +236,20 @@ def _enrich_run_blob(
     grade_sig: str,
     grade_path: str | None = None,
     collections_db: str | Path | None = None,
+    grounded_block: dict | None = None,
 ) -> None:
     """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
     blob (stream-2, ``GET /v1/runs/{id}/audit``) — not just the ``AuditLog``/config_audit
     stream-1 emitted above — AND (PERSIST-2a) stamp the blob's ``(agent, case_id)``
     addressability + freshness ``grade_signature``.
+
+    LAYER0-READ-1: also folds ``grounded_block`` (the ``_grounded_block`` serialization —
+    post-floor verdict/active/suppressed/floor_blocks) into the blob, and now runs for
+    EVERY persisted path (replay/live persist pre-ground via ``_persist_run_provenance``,
+    so this post-ground patch is the only point the read surface can learn what the floor
+    decided — the hole behind the 2026-07-01 "floor dormant" mis-diagnosis). Additive doc
+    field via the same get→patch→save seam; identity re-stamps on replay/live are
+    same-value no-ops.
 
     The in_process orchestrator already saved the ``PipelineProvenance`` blob
     fire-and-forget (``grade.py`` → ``SqliteProvenanceStore.save``), and ``run_eval`` has
@@ -251,9 +267,8 @@ def _enrich_run_blob(
 
     Runs for any in_process grade (to stamp addressability) even when ``withstands_sink`` is
     empty (the gate only populates it on the authored trio); the withstands patch is guarded
-    so an empty sink leaves that field absent. No-op off the in_process path (replay/live
-    stamp via ``_persist_run_provenance``)."""
-    if not (in_process and run_id):
+    so an empty sink leaves that field absent."""
+    if not run_id:
         return
     # PERSIST-2c-2: get→patch→save through the factory (LITHRIM_DB_URL → PG, else SQLite at
     # collections_db), so the in_process head's addressability stamps reach the SAME backend
@@ -276,6 +291,10 @@ def _enrich_run_blob(
     # _apply_consensus is untouched). SPEC §3 Identity.
     if grade_path is not None:
         blob["grade_path"] = grade_path
+    # LAYER0-READ-1: fold the post-floor grounded block into the blob — the read surface's
+    # single source for what the floor decided (suppressions + grounded verdict + evidence).
+    if grounded_block is not None:
+        blob["grounded"] = grounded_block
     _run_sync(store.save_blob(blob))
 
 
@@ -568,6 +587,8 @@ def run(
         grade_sig=grade_sig,
         grade_path=grade_path,
         collections_db=collections_db,
+        # LAYER0-READ-1: the post-floor truth rides the persisted blob for EVERY path.
+        grounded_block=_grounded_block(grounded),
     )
 
     # UAP-3b-2 (the deferred UAP-3b A6): the post-consensus GroundingChecks declared in
