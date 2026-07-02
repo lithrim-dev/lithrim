@@ -19,6 +19,7 @@ import pytest
 
 from lithrim_bench.harness.headline import config_signature, headline, pass_scores
 
+
 # ── a minimal ontology-raw fixture (from_dict shape) ─────────────────────────────────────
 def _flag(code, gradeable=True):
     return {"flag": code, "category": "c", "definition": "d", "when_to_use": "w",
@@ -165,7 +166,11 @@ def test_h4_real_two_pass_headline(monkeypatch):
     # family-aware recall must dominate exact recall on BOTH passes (the sibling credit)
     for s in per_pass:
         assert s["units_family"]["recall"] > s["units_exact"]["recall"]
-    # exact pins (landed with the measured numbers — see the docs commit):
+    # exact pins from the 2026-07-02 measurement (config=3bf461c210cb14c4):
+    # strict recall is BYTE-STABLE across the passes (0.580/0.580 — the re-ground corrected
+    # pass 2's observation-form/v1 gold false-clear, so both passes land tp=69).
     m = h["metrics"]
-    assert round(m["strict.recall"]["mean"], 3) == pytest.approx(0.581, abs=0.02)
-    assert round(m["units_family.recall"]["mean"], 3) == pytest.approx(0.727, abs=0.02)
+    assert m["strict.recall"]["mean"] == pytest.approx(0.580, abs=1e-3)
+    assert m["strict.recall"]["spread"] == pytest.approx(0.0, abs=1e-9)
+    assert m["strict.precision"]["mean"] == pytest.approx(0.306, abs=1e-3)
+    assert m["units_family.recall"]["mean"] == pytest.approx(0.7185, abs=1e-3)
