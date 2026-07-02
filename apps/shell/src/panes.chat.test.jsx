@@ -48,6 +48,8 @@ vi.mock("./bff.js", () => ({
   getModelCatalog: vi.fn().mockResolvedValue({ providers: { openai: [], anthropic: [], azure: { models: [], note: "" } } }),
   bindRole: vi.fn().mockResolvedValue({ ok: true }),
   getRoleBindings: vi.fn().mockResolvedValue({ roles: {}, connected_providers: [] }),
+  getCouncilRoster: vi.fn().mockResolvedValue({ panel: [], reviewer_roster: null }),
+  setCouncilRoster: vi.fn().mockResolvedValue({ status: "ok" }),
   // The loop under test: drive the onEvent callback with a scripted SSE stream.
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;
@@ -305,6 +307,21 @@ describe("CenterPane — CHATBIND-4: the consented live-run hand-off", () => {
         expect.objectContaining({ in_process: true, confirm: true }),
       ),
     );
+  });
+
+  it("FLOOR-VIS close-out: a tool-propose_run_all directive renders a trace, never the Unsupported fallback", async () => {
+    chatStream.mockImplementationOnce(async (_req, { onEvent } = {}) => {
+      if (!onEvent) return;
+      onEvent({ event: "assistant_delta", text: "Confirm to grade the full cohort." });
+      onEvent({ event: "tool_result", part: { type: "tool-propose_run_all", state: "output-available", output: {} } });
+      onEvent({ event: "done", cost_usd: 0, cost_label: "x" });
+    });
+    render(<CenterPane onOpenArtifact={vi.fn()} artifactOpen={false} onRunEval={vi.fn()} runStatus="idle" />);
+    fireEvent.change(screen.getByPlaceholderText(/Ask Lithrim/i), { target: { value: "grade all cases" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    expect(await screen.findByTestId("paid-directive")).toHaveTextContent(/cost-confirm/i);
+    expect(screen.queryByText(/Unsupported component/)).toBeNull();
   });
 });
 

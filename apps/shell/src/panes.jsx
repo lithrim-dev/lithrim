@@ -308,7 +308,7 @@ function verdictShape(rec) {
   return out;
 }
 
-export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName }) {
+export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunEval, runStatus, agent = "ws0_default", activeCase = null, onActiveCase, onRunResult, onConfigSaved, nextStepName, readiness = null }) {
   // config-plane state the input tool-parts write into (S-BS-19).
   const [setup, setSetup] = useState({});
   // SHEPHERD-1 (W3): the editor cards (Agent/Judge/Flag) already call onResult on a
@@ -789,6 +789,19 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
             </div>
           )}
 
+          {/* READINESS (conversational-first): when the pinned pack declares a fact-check this agent
+              can't run, surface the gaps INLINE — before the first run — with a one-click fix that
+              fills the composer with the remediation. Never a static pane; bound to the REAL BFF
+              readiness report. Hidden when ready (ok) so a healthy setup shows nothing. */}
+          {chat.length === 0 && !showExample && readiness && readiness.ok === false && (
+            <div className="reveal" style={{ margin: "0 auto 8px", maxWidth: 640, width: "100%" }} data-testid="readiness-gaps">
+              {renderTool(
+                { type: "tool-readiness_card", state: "output-available", output: readiness },
+                { onFix: (f) => fillPrompt(f.remediation || `Add the fact-check for ${f.code}`) },
+              )}
+            </div>
+          )}
+
           {/* UAP-5b / R11: the LIVE conversational loop. Streamed assistant turns +
               tool-result gen-UI parts (rendered via the existing registry). */}
           {chat.map((m, i) =>
@@ -853,6 +866,14 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                               ↗ Surfaced the cost-confirm — you authorize the paid run
                             </div>
                           );
+                        // RUN-ALL-1: the cohort twin of the same directive — a trace, never a card
+                        // (it previously fell through to the "Unsupported component" fallback).
+                        if (part.type === "tool-propose_run_all")
+                          return (
+                            <div key={j} data-testid="paid-directive" style={{ color: "var(--muted)", fontSize: 12.5, margin: "2px 0" }}>
+                              ↗ Surfaced the cost-confirm — you authorize grading the full cohort
+                            </div>
+                          );
                         // W3: dedup — render at most one card per type this turn.
                         if (seen.has(part.type)) return null;
                         seen.add(part.type);
@@ -902,6 +923,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           ? "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it."
           : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
         confirmLabel={paid.cohort ? "Grade all cases (paid)" : "Run live (paid)"}
+        warning={readiness && readiness.ok === false
+          ? `Setup readiness: this agent has a fact-check that won't run for the ${readiness.pack || "pinned"} pack — a false alarm could go uncaught. Fix it first, or run anyway.`
+          : null}
         onConfirm={confirmPaidRun}
         onCancel={() => setPaid({ open: false, busy: false })}
       />
