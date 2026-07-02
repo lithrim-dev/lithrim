@@ -992,6 +992,15 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     if proc.returncode != 0:
         # Keep the raw stderr in the server logs; show the user a plain, calm message.
         _log.error("grade subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
+        # The drift-aware freshness guard REFUSING a stale $0 replay is not a server error —
+        # it is the honest, expected outcome after a config change, and "try again" is wrong
+        # advice for it (the replay refuses forever until a fresh PAID grade exists). Surface
+        # the guard's own actionable line as 409 Conflict so the UI can say what to do.
+        stale = next(
+            (ln for ln in proc.stderr.splitlines() if "config changed since" in ln), None
+        )
+        if stale is not None:
+            raise HTTPException(status_code=409, detail=stale.strip())
         raise HTTPException(
             status_code=500,
             detail="The evaluation couldn't run. Please try again.",

@@ -23,9 +23,8 @@ if str(_BFF) not in sys.path:
     sys.path.insert(0, str(_BFF))
 
 pytest.importorskip("fastapi")
-from fastapi import HTTPException  # noqa: E402
-
 import app as bff_mod  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
 
 _WS = SimpleNamespace(pack="clinverdict", packs_dir=None)
 
