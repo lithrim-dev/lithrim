@@ -184,6 +184,43 @@ def test_a5_unmatched_gold_counts_fn_and_one_unit_credits_each_gold_once():
     assert (s["tp"], s["fp"], s["fn"]) == (1, 0, 1)
 
 
+# ---- A7: family-aware recall (LAYER3-DESCOPE-1) ---------------------------------------
+# A gold code is caught when a DECLARED SIBLING fires on it — the recall-side mirror of the
+# twin-FP merge. UNSUPPORTED_ASSERTION (a fabrication sibling gpt-4.1 codes as
+# FABRICATED_CLAIM) is credited at unit level without a judge change. code_families=None
+# stays byte-identical (A1-A6 above are the non-vacuity proof).
+_FAM = {"fabrication": ["FABRICATED_CLAIM", "UNSUPPORTED_ASSERTION", "HALLUCINATED_DETAIL"]}
+
+
+def test_a7_gold_matched_when_a_declared_sibling_was_caught():
+    # judge raised FABRICATED_CLAIM; gold is the sibling UNSUPPORTED_ASSERTION.
+    units = [FindingUnit(codes=("FABRICATED_CLAIM",), quotes=("q",), judges=("j",))]
+    s = score_units({"c": units}, {"c": {"UNSUPPORTED_ASSERTION"}}, code_families=_FAM)
+    assert (s["tp"], s["fp"], s["fn"], s["matched_gold"]) == (1, 0, 0, 1)
+
+
+def test_a7_unrelated_code_does_not_family_match():
+    # VALUE_MISMATCH is NOT in the fabrication family — must NOT credit the gold.
+    units = [FindingUnit(codes=("VALUE_MISMATCH",), quotes=("q",), judges=("j",))]
+    s = score_units({"c": units}, {"c": {"UNSUPPORTED_ASSERTION"}}, code_families=_FAM)
+    assert (s["tp"], s["fp"], s["fn"], s["matched_gold"]) == (0, 1, 1, 0)
+
+
+def test_a7_none_families_is_byte_identical_to_exact_match():
+    units = [FindingUnit(codes=("FABRICATED_CLAIM",), quotes=("q",), judges=("j",))]
+    gold = {"c": {"UNSUPPORTED_ASSERTION"}}
+    assert score_units({"c": units}, gold) == score_units({"c": units}, gold, code_families=None)
+    # and with no families the sibling is NOT credited (the pre-Layer-3 behavior)
+    assert score_units({"c": units}, gold)["fn"] == 1
+
+
+def test_a7_exact_gold_still_matches_and_no_double_count():
+    # both the exact code and a sibling present: still one unit TP, gold matched once.
+    units = [FindingUnit(codes=("FABRICATED_CLAIM", "UNSUPPORTED_ASSERTION"), quotes=("q",), judges=("j",))]
+    s = score_units({"c": units}, {"c": {"UNSUPPORTED_ASSERTION"}}, code_families=_FAM)
+    assert (s["tp"], s["fp"], s["fn"], s["matched_gold"]) == (1, 0, 0, 1)
+
+
 # ---- A6: the corpus gate (the real referee; skips when the snapshot is absent) ---------
 
 _CLEANRUN = os.environ.get("LITHRIM_BENCH_CLEANRUN_DIR", "")
