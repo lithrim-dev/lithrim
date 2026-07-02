@@ -315,8 +315,9 @@ n = 2 passes (below the ≥3 target — spread is provisional until pass 3)
 Journey of the strict numbers across the ladder: P 25.5 → 30.6 (floor + attribution-honest
 denominators), R 52.3 → 58.0 (descope), with ZERO gold loss enforced at every rung; the
 family-aware unit view — "the defect was caught, whatever the panel named it" — reads
-P 63.4 / R 71.8. Strict-recall spread of 0.0 across passes is the determinism story the
-bench exists to tell. Rerun anytime:
+P 63.4 / R 71.8. The 0.0 strict-recall spread across two stochastic passes is a STABILITY
+result, not determinism (precision spreads 1.0pt — the floor is deterministic, the judges
+are not). Rerun anytime:
 
     python scripts/headline_report.py --ontology <pack>/ontology.json \
       --corpus <pack>/examples/clinverdict_mts_v1.jsonl --pass-dir <p1> --pass-dir <p2>

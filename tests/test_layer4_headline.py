@@ -63,15 +63,18 @@ _CORPUS = {
 }
 
 
-def _rec(cid, codes, quotes_by_code=None, suppressed=()):
+def _rec(cid, codes, quotes_by_code=None, suppressed=(), active=None):
     ev = [{"violation_code": c, "spans": [{"quote": q} for q in (quotes_by_code or {}).get(c, ["some quote text"])]}
           for c in codes]
+    # mirror real records: a fully-suppressed code is NOT in the stored active set
+    if active is None:
+        active = [c for c in codes if c not in {s[0] for s in suppressed}]
     return {
         "case_id": cid,
         "result": {"findings": [{"code": c, "severity": "HIGH"} for c in codes],
                    "semantic": {"evidence": ev}, "verdict": "reject"},
         "grounded": {"suppressed": [{"code": c, "contract": v} for c, v in suppressed],
-                     "active": [{"code": c} for c in codes]},
+                     "active": [{"code": c} for c in active]},
     }
 
 
@@ -105,6 +108,17 @@ def test_h2c_stored_service_suppressions_stay_baked_in():
     records = [_rec("c1", ["D"], suppressed=(("D", "svc/v1"),))]
     s = pass_scores(records, {"c1": _CORPUS["c1"]}, _ont(contracts=[ct]))
     assert (s["strict"]["tp"], s["strict"]["fp"], s["strict"]["fn"]) == (0, 0, 1)
+
+
+def test_h2d_partially_suppressed_code_survives_service_subtraction():
+    """Critic close-out: floors are span-gated (SPAN-BIND-1), so a code can be suppressed on
+    one finding yet ACTIVE on another. A code still in the stored active set was not fully
+    cleared — the service subtraction must not over-subtract it."""
+    ct = {"contract_type": "kb_grounding", "flag_code": "D",
+          "params": {"namespace": "x"}, "question": "q", "version": "svc/v1"}
+    rec = _rec("c1", ["D"], suppressed=(("D", "svc/v1"),), active=["D"])  # partial: D survives
+    s = pass_scores([rec], {"c1": _CORPUS["c1"]}, _ont(contracts=[ct]))
+    assert (s["strict"]["tp"], s["strict"]["fp"], s["strict"]["fn"]) == (0, 1, 1)
 
 
 # ── H3: aggregation honesty ──────────────────────────────────────────────────────────────

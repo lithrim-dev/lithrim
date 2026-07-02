@@ -123,12 +123,17 @@ def pass_scores(
         n_labeled += 1
         result = rec.get("result") or {}
         pre = _codes(result.get("findings"))
-        stored_suppressed = (rec.get("grounded") or {}).get("suppressed") or ()
+        grounded = rec.get("grounded") or {}
+        stored_suppressed = grounded.get("suppressed") or ()
+        # code-level guard (critic close-out): the floors are span-gated post SPAN-BIND-1,
+        # so a code can be suppressed on one finding yet survive on another — a code still
+        # present in the stored ACTIVE set was not fully cleared and must not be subtracted.
+        stored_active = _codes(grounded.get("active"))
         svc_suppressed = {
             s.get("code")
             for s in stored_suppressed
             if s.get("contract") in service_versions
-        }
+        } - stored_active
         g = ground(result, case, ontology=offline_ont)
         new_active = _codes(g.active)
         offline_suppressed = {
