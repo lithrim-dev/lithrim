@@ -324,3 +324,32 @@ are not). Rerun anytime:
 
 The trust ladder (0 read-truth · 1 attribution · 2 suppress · 3 scope · 4 number honesty)
 is COMPLETE.
+
+## Pass 3 — the target met + the live-agreement proof (2026-07-02)
+
+Third frozen-config pass (173/173, 0 errors, ~45min) — the FIRST graded natively under the
+final config (observation-form/v2 + evidence-presence + descope + UA family live at grade
+time). Two results:
+
+**1. The ≥3-pass target is met; the caveat retires.**
+
+```
+strict flag     P 30.1–31.5% (mean 30.9)    R 58.0% — BYTE-STABLE on all three passes
+                                              (tp=69 fn=50 identical each pass)
+units (family)  P 61.1–65.7% (mean 62.8)    R 70.6–72.3% (mean 71.4)
+n = 3 passes · config 3bf461c210cb14c4
+```
+
+**2. The recompute is validated against ground truth.** Pass 3's `pass_scores` recompute
+equals the BFF's own at-grade scorecard TO THE DIGIT (strict P .315 R .580 tp=69 fp=150
+fn=50; units-family P .615 R .706 — both surfaces, byte-equal). The comparability
+machinery that reconstructs passes 1–2 under the current config is now proven against a
+pass where no reconstruction was needed. Pinned:
+`test_h4_real_three_pass_headline` (live-agreement + the 3-pass means, spread-0 recall).
+
+The stability read across three stochastic judge passes: recall does not move at all
+(the gold set the panel can catch, it catches every time); precision wobbles ±0.7pt
+around 30.9 (over-fire varies). The wobble IS the judge; the stability IS the corpus +
+floor + honest accounting. Ladder complete, target met, headline final:
+
+**strict P 30.9% ± 0.7 · R 58.0% ± 0.0 | units(family) P 62.8 · R 71.4 | n=3 · `3bf461c210cb14c4`**

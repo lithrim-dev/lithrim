@@ -146,21 +146,23 @@ def test_h3_single_pass_spread_zero_and_target_met_at_three():
     assert h3["below_target_n"] is False
 
 
-# ── H4: the real two banked passes (env-gated; exact pins land with the measurement) ────
+# ── H4: the real banked passes (env-gated; exact pins land with the measurement) ────────
 import json as _json  # noqa: E402
 import os as _os  # noqa: E402
 from pathlib import Path as _Path  # noqa: E402
 
 _P1 = _os.environ.get("LITHRIM_BENCH_CLEANRUN_DIR", "")
 _P2 = _os.environ.get("LITHRIM_BENCH_PASS2_DIR", "")
+_P3 = _os.environ.get("LITHRIM_BENCH_PASS3_DIR", "")
 _DROPIN = _Path(__file__).resolve().parents[1] / "packs-dropin" / "clinverdict"
 
 
 @pytest.mark.skipif(
-    not (_P1 and _P2 and _Path(_P1).is_dir() and _Path(_P2).is_dir() and _DROPIN.is_dir()),
-    reason="needs both banked pass dirs + the clinverdict drop-in",
+    not (_P1 and _P2 and _P3
+         and all(_Path(p).is_dir() for p in (_P1, _P2, _P3)) and _DROPIN.is_dir()),
+    reason="needs the three banked pass dirs + the clinverdict drop-in",
 )
-def test_h4_real_two_pass_headline(monkeypatch):
+def test_h4_real_three_pass_headline(monkeypatch):
     monkeypatch.setenv("LITHRIM_BENCH_PACK", "clinverdict")
     monkeypatch.setenv("LITHRIM_BENCH_PACKS_DIR", str(_DROPIN.parent))
     ont = _json.loads((_DROPIN / "ontology.json").read_text())
@@ -170,21 +172,23 @@ def test_h4_real_two_pass_headline(monkeypatch):
             row = _json.loads(line)
             corpus[row["case_id"]] = row
     per_pass = []
-    for d in (_P1, _P2):
+    for d in (_P1, _P2, _P3):
         records = [_json.loads(p.read_text()) for p in sorted(_Path(d).glob("cv_mts_*.json"))]
         per_pass.append(pass_scores(records, corpus, ont))
     h = headline(per_pass, config_signature(ont))
-    assert h["n_passes"] == 2 and h["below_target_n"] is True
+    assert h["n_passes"] == 3 and h["below_target_n"] is False  # the ≥3 target is MET
     for s in per_pass:
         assert s["n_labeled"] == 161  # descope drops the fully-descoped cases
-    # family-aware recall must dominate exact recall on BOTH passes (the sibling credit)
-    for s in per_pass:
+        # family-aware recall must dominate exact recall on EVERY pass (the sibling credit)
         assert s["units_family"]["recall"] > s["units_exact"]["recall"]
-    # exact pins from the 2026-07-02 measurement (config=3bf461c210cb14c4):
-    # strict recall is BYTE-STABLE across the passes (0.580/0.580 — the re-ground corrected
-    # pass 2's observation-form/v1 gold false-clear, so both passes land tp=69).
+    # LIVE-AGREEMENT pin: pass 3 was graded NATIVELY under this config — its recompute must
+    # equal the BFF's own at-grade scorecard (strict tp=69 fp=150 fn=50, measured 2026-07-02).
+    p3 = per_pass[2]
+    assert (p3["strict"]["tp"], p3["strict"]["fp"], p3["strict"]["fn"]) == (69, 150, 50)
+    # exact pins from the 2026-07-02 3-pass measurement (config=3bf461c210cb14c4):
+    # strict recall is BYTE-STABLE across all three passes (tp=69 fn=50 each).
     m = h["metrics"]
     assert m["strict.recall"]["mean"] == pytest.approx(0.580, abs=1e-3)
     assert m["strict.recall"]["spread"] == pytest.approx(0.0, abs=1e-9)
-    assert m["strict.precision"]["mean"] == pytest.approx(0.306, abs=1e-3)
-    assert m["units_family.recall"]["mean"] == pytest.approx(0.7185, abs=1e-3)
+    assert m["strict.precision"]["mean"] == pytest.approx(0.309, abs=1e-3)
+    assert m["units_family.recall"]["mean"] == pytest.approx(0.7143, abs=1e-3)
