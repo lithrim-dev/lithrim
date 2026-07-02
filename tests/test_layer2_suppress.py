@@ -255,11 +255,17 @@ _DROPIN = REPO_ROOT / "packs-dropin" / "clinverdict"
     not (_CLEANRUN and Path(_CLEANRUN).is_dir() and _DROPIN.is_dir()),
     reason="corpus gate needs LITHRIM_BENCH_CLEANRUN_DIR + the clinverdict drop-in pack",
 )
-def test_cg_corpus_gate_39_fps_zero_tp_touch(monkeypatch):
+def test_cg_corpus_gate_24_fps_zero_tp_touch(monkeypatch):
     """The Layer-2 declarations (observation_form on HALLUCINATED_DETAIL;
     evidence_presence on HALLUCINATED_DETAIL + INTERNAL_INCONSISTENCY) clear exactly the
-    measured 39 FPs and touch ZERO gold TPs on the 2026-07-01 clean-run snapshot —
-    exercised through the REAL ground() + the REAL drop-in ontology declarations."""
+    measured FPs and touch ZERO gold TPs on the 2026-07-01 clean-run snapshot —
+    exercised through the REAL ground() + the REAL drop-in ontology declarations.
+
+    The pin is 24 under observation-form/v2 (sentence-level): the 2026-07-02 measurement
+    pass caught the v1 whole-span regex-search clearing a GOLD whose judge span mixed a
+    negation cue with the injected positive fabrication (cv_mts_118). v2 requires every
+    SENTENCE to be a nonfab form — 0 golds on BOTH passes (v1 was 19 FP here but unsafe;
+    v2 keeps 4 of them + the 20 evidence_presence clears)."""
     monkeypatch.setenv("LITHRIM_BENCH_PACK", "clinverdict")
     monkeypatch.setenv("LITHRIM_BENCH_PACKS_DIR", str(REPO_ROOT / "packs-dropin"))
 
@@ -303,4 +309,4 @@ def test_cg_corpus_gate_39_fps_zero_tp_touch(monkeypatch):
                 else:
                     cleared_fp += 1
     assert cleared_tp == 0, f"the corpus gate is broken: {cleared_tp} gold TPs suppressed"
-    assert cleared_fp == 39, f"expected the measured 39 cleared FPs, got {cleared_fp}"
+    assert cleared_fp == 24, f"expected the measured 24 cleared FPs (v2 form), got {cleared_fp}"
