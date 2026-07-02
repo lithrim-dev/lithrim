@@ -292,3 +292,34 @@ caught, whatever the panel named it." Both reported NEXT TO strict (never replac
 BFF yet (the draft ontology is synced; next paid pass realizes it). The generic-CE trust
 ladder (0 read-layer · 1 attribution · 2 suppress · 3 scope honesty) is COMPLETE; the only
 open lever is a real escalation/style reviewer (paid, judge-side — deferred by owner).
+
+## Layer 4 — the headline, honestly formatted (shipped 2026-07-02, LAYER4-HEADLINE-1)
+
+The final rung: the headline is a REPRODUCIBLE SURFACE, not a pasted number.
+`lithrim_bench/harness/headline.py` + `scripts/headline_report.py` recompute every banked
+pass under the CURRENT scoring config — pre-floor findings − stored service-transport
+(Hermes) suppressions − a fresh offline re-ground with the current pure-stdlib contracts —
+then apply the Layer-1/3 scoring (descope, units, family credit) and aggregate
+mean/min/max/spread per metric, config-signature pinned. Passes graded under superseded
+floor versions become comparable: the recompute CORRECTS observation-form/v1's cv_mts_118
+gold false-clear, so both passes land strict tp=69.
+
+**THE HEADLINE (2 frozen-config passes, 161 labeled cases each, config `3bf461c210cb14c4`):**
+
+```
+strict flag     P 30.1–31.1% (mean 30.6)    R 58.0–58.0% (mean 58.0 — byte-stable)
+units (family)  P 61.1–65.7% (mean 63.4)    R 71.4–72.3% (mean 71.8)
+n = 2 passes (below the ≥3 target — spread is provisional until pass 3)
+```
+
+Journey of the strict numbers across the ladder: P 25.5 → 30.6 (floor + attribution-honest
+denominators), R 52.3 → 58.0 (descope), with ZERO gold loss enforced at every rung; the
+family-aware unit view — "the defect was caught, whatever the panel named it" — reads
+P 63.4 / R 71.8. Strict-recall spread of 0.0 across passes is the determinism story the
+bench exists to tell. Rerun anytime:
+
+    python scripts/headline_report.py --ontology <pack>/ontology.json \
+      --corpus <pack>/examples/clinverdict_mts_v1.jsonl --pass-dir <p1> --pass-dir <p2>
+
+The trust ladder (0 read-truth · 1 attribution · 2 suppress · 3 scope · 4 number honesty)
+is COMPLETE.
