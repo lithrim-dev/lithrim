@@ -213,3 +213,40 @@ vs the 25.5/26.0 pre-floor baseline: the floor is now worth ~+3.2pts strict with
 loss under the two-pass gate. NOTE: the running BFF caches the pack floors module — the v2
 EXECUTOR takes effect on the next BFF restart (the v2 declaration is already synced to the
 workspace draft). Contract-gating discipline going forward: gate against ≥2 passes, not one.
+
+## Layer-2c — concept-presence suppress: REFUSED by the referee (2026-07-02, negative result)
+
+The hypothesis: the ~75 low-overlap "paraphrase class" FPs are groundable by SNOMED
+concept-presence over Hermes (note "polyuria" ↔ transcript "peeing a lot"). Prototyped
+end-to-end against BOTH passes (scratchpad `concept_bridge_proto.py`: exact-term n-gram
+concept extraction from the flagged span; bridge = any active SNOMED description of the
+concept present in the transcript by substring or content-token containment; numeric guard
+for dose/value spans; ~3.7k local Hermes calls, $0):
+
+```
+FP pool cleared : 12/235  (~5% — nowhere near the classified 75)
+GOLD TPs fired  : 2/49    (HARD GATE: 0 — FAIL)
+```
+
+Three independent reasons to refuse, each structural, not tunable:
+1. **Mentioned ≠ asserted.** cv_mts_142 (both passes): "The nursing home completed a
+   voiding diary" — the fabrication is the EVENT; the concepts all appear in the
+   transcript where the diary was merely discussed. Concept-presence cannot see the
+   difference.
+2. **Polarity-blind.** Most clears sat on contradiction-case twins ("Reports a history of
+   tobacco use" vs a transcript denial) — the same mechanism would erase a real
+   NEGATION_REVERSAL.
+3. **The vocabulary bridge is partial anyway**: hand-set lay→clinical bridging resolved
+   3/10 via SNOMED descriptions ("passes too much urine" ≠ "peeing a lot").
+
+The eyeballed pool composition confirms the class is a MIX, mostly judge territory:
+certainty inflation ("confirmed by mechanism and presentation"), event assertions,
+dose/value forms, chart demographics. **Descoped: the paraphrase class stays with the
+judge — this is the owner's scope line ("judge + floor are COMPLEMENTARY") landing in
+data.** The corpus refusing a contract is the same moat as the corpus licensing one.
+
+Layer 2 CLOSES with: snomed-subsumption/v1 + evidence-presence/v1 + observation-form/v2,
+strict P 25.5/26.0 → 29.2±0.5, R 52.3, 0 gold loss under the two-pass gate. Remaining
+precision work is attribution (units, shipped) and judge-side; the next honest lever for
+the HEADLINE is the RECALL side — Layer 3, the 4 dead lenses (FN≈63 dwarfs everything
+suppression can buy).
