@@ -353,3 +353,23 @@ around 30.9 (over-fire varies). The wobble IS the judge; the stability IS the co
 floor + honest accounting. Ladder complete, target met, headline final:
 
 **strict P 30.9% ± 0.7 · R 58.0% ± 0.0 | units(family) P 62.8 · R 71.4 | n=3 · `3bf461c210cb14c4`**
+
+## Pass 4 — UI-triggered, self-serve (2026-07-02)
+
+The owner ran the cohort grade FROM THE UI (the chat's grade-all → cost-confirm → inline
+scorecard — the self-serve path, no operator involved; the run also surfaced two real bugs,
+both fixed same-day: the readiness preflight's one-contract-per-code false alarm b93a912→3aeed51,
+and the propose_run_all Unsupported-component fallback f8f3b07). The recompute again equals the
+UI's live scorecard to the digit (strict .306/.588, units .648/.731).
+
+Pass 4 caught ONE gold the first three passes all missed (strict tp 69→70), nudging the band:
+
+```
+strict flag     P 30.1–31.5% (mean 30.8)    R 58.0–58.8% (mean 58.2)
+units (family)  P 61.1–65.7% (mean 63.3)    R 70.6–73.1% (mean 71.8)
+n = 4 passes · config 3bf461c210cb14c4
+```
+
+The recall read stays the story: a 0.8pt band across four stochastic passes, floor-guarded at
+zero gold loss on every pass. (The 3-pass H4 test pins stay as a fixed-input regression;
+the headline CLI is the n≥4 surface.)
