@@ -91,14 +91,17 @@ def assess_agent_pack_readiness(
     - ``raiseable_codes`` empty skips the lens-dependent halves of C4/C5.
     """
     findings: list[ReadinessFinding] = []
-    agent_by_flag = {c.flag_code: c for c in agent_ontology.contracts}
-    contracted_codes = frozenset(agent_by_flag)
+    # LAYER2 composition: a flag_code may declare a CHAIN of contracts, so coverage is a
+    # (contract_type, flag_code) PAIR match — the old {flag_code: contract} dict kept only
+    # the last-declared link and false-alarmed the rest as missing (live: clinverdict_mts's
+    # 3-contract HALLUCINATED_DETAIL chain produced 2 phantom CONTRACT_COVERAGE errors).
+    agent_pairs = {(c.contract_type, c.flag_code) for c in agent_ontology.contracts}
+    contracted_codes = frozenset(c.flag_code for c in agent_ontology.contracts)
 
     # C1 — CONTRACT_COVERAGE (ERROR): every pack-declared contract present on the agent ontology.
     if pack_ontology is not None:
         for pc in pack_ontology.contracts:
-            ac = agent_by_flag.get(pc.flag_code)
-            if ac is None or ac.contract_type != pc.contract_type:
+            if (pc.contract_type, pc.flag_code) not in agent_pairs:
                 findings.append(
                     ReadinessFinding(
                         check="CONTRACT_COVERAGE",
