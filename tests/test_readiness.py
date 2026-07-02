@@ -118,6 +118,45 @@ def test_c1_aligned_agent_is_ok():
     assert report.findings == ()
 
 
+def test_c1_contract_chain_on_one_code_is_covered():
+    """LAYER2 composition: a flag_code may declare a CHAIN of contracts. An agent whose
+    chain matches the pack's chain is COVERED — the old {flag_code: contract} dict kept only
+    the last-declared and false-alarmed the rest as missing (the live clinverdict_mts modal
+    warning, 2026-07-02: 3 contracts on HALLUCINATED_DETAIL -> 2 phantom ERRORs)."""
+    chain = [
+        _contract("HALLUCINATED_DETAIL", "snomed_subsumption", tool="hermes_snomed"),
+        _contract("HALLUCINATED_DETAIL", "observation_form"),
+        _contract("HALLUCINATED_DETAIL", "evidence_presence"),
+    ]
+    report = _assess(
+        agent=_ont(["HALLUCINATED_DETAIL"], chain),
+        pack_ont=_ont(["HALLUCINATED_DETAIL"], chain),
+        executors={"snomed_subsumption", "observation_form", "evidence_presence"},
+        resolve_tool=_tool_present, raiseable={"HALLUCINATED_DETAIL"},
+    )
+    assert [f for f in report.findings if f.check == "CONTRACT_COVERAGE"] == []
+    assert report.ok is True
+
+
+def test_c1_missing_link_in_a_chain_is_still_flagged():
+    """Non-vacuity: the chain-aware match must still catch a genuinely missing pair —
+    the agent carries only 2 of the pack's 3 chain links."""
+    pack_chain = [
+        _contract("HALLUCINATED_DETAIL", "snomed_subsumption", tool="hermes_snomed"),
+        _contract("HALLUCINATED_DETAIL", "observation_form"),
+        _contract("HALLUCINATED_DETAIL", "evidence_presence"),
+    ]
+    report = _assess(
+        agent=_ont(["HALLUCINATED_DETAIL"], pack_chain[:2]),
+        pack_ont=_ont(["HALLUCINATED_DETAIL"], pack_chain),
+        executors={"snomed_subsumption", "observation_form", "evidence_presence"},
+        resolve_tool=_tool_present, raiseable={"HALLUCINATED_DETAIL"},
+    )
+    cov = [f for f in report.findings if f.check == "CONTRACT_COVERAGE"]
+    assert len(cov) == 1
+    assert cov[0].code == "evidence_presence(HALLUCINATED_DETAIL)"
+
+
 def test_c1_wrong_contract_type_is_error():
     """Same flag_code but a different contract_type is NOT coverage."""
     pack_ont = _ont(["FABRICATED_CLAIM"], [_contract("FABRICATED_CLAIM", "snomed_subsumption")])
