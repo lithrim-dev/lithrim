@@ -250,3 +250,45 @@ strict P 25.5/26.0 → 29.2±0.5, R 52.3, 0 gold loss under the two-pass gate. R
 precision work is attribution (units, shipped) and judge-side; the next honest lever for
 the HEADLINE is the RECALL side — Layer 3, the 4 dead lenses (FN≈63 dwarfs everything
 suppression can buy).
+
+## Layer 3 — honest recall accounting (shipped 2026-07-02, LAYER3-DESCOPE-1)
+
+Recall diagnosis (both passes, CONFIRMED): 64 FN, 21 on THREE codes no judge ever emits
+(`MISSED_ESCALATION`, `UNSUPPORTED_ASSERTION`, `STYLE_VIOLATION` — absent from raw
+votes/evidence/findings). Not a prompt gap (the risk/faithfulness questions already ask) nor
+a lens/owner gap (all three are in a reviewer lens) — **taxonomy overlap**: gpt-4.1 codes the
+same defect as a salient sibling. Of the 21 gold cases, 17 still BLOCK (caught, miscoded),
+4 truly blind.
+
+Owner decisions (2026-07-02): **family-merge UNSUPPORTED_ASSERTION + honest-descope
+MISSED_ESCALATION & STYLE_VIOLATION**, and — after the corpus gate surfaced that the broad
+`fabrication` family credits more than the UA pair — **credit the full fabrication family**
+at unit level (each extra verified as a same-defect sibling catch: a contradiction/date
+mismatch coded FABRICATED_CLAIM, the FAB↔HALL twin).
+
+Two engine seams (tracked, no council edit):
+* `score_units(..., code_families)` — a gold code is matched when a DECLARED family-sibling
+  fired on it (recall mirror of the twin-FP merge; `None` = exact, byte-identical). STRICT
+  flag scoring untouched (UA stays a strict FN — the judge never used that code).
+* the cohort scorecard filters gold to the agent's GRADEABLE codes (a descoped axis leaves
+  the FN denominator, matching grounding's S-BS-10 skip-log) and drops a fully-descoped case
+  from `labeled` rather than rescoring it clean (protects verdict accuracy). Drop-in data:
+  `code_families.fabrication += UNSUPPORTED_ASSERTION`; `gradeable:false` for the two descoped.
+
+**Realized ledger (pass 2, descope applied — 161 labeled, down from 173 as fully-descoped
+cases leave the denominator):**
+
+```
+                       precision      recall     matched golds
+strict flag             31.3%          57.1%       68            (was 52.3% pre-descope)
+unit, exact              48.2%          57.1%       68
+unit, family-aware       63.3%          72.3%       86  (+18 vs exact: 7 UA + 11 sibling-caught)
+```
+
+Descope lifts strict recall 52.3→57.1 by removing 13 unwinnable FN + the fully-descoped
+cases; family-aware unit recall reaches **72.3%** — the honest ceiling of "the defect was
+caught, whatever the panel named it." Both reported NEXT TO strict (never replacing it). The
+4 truly-blind cases (cv_mts_057/059/085/136) remain honest FN. Not live-verified through the
+BFF yet (the draft ontology is synced; next paid pass realizes it). The generic-CE trust
+ladder (0 read-layer · 1 attribution · 2 suppress · 3 scope honesty) is COMPLETE; the only
+open lever is a real escalation/style reviewer (paid, judge-side — deferred by owner).
