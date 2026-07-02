@@ -293,6 +293,23 @@ def _agent_code_families(agent, workdir: Path) -> dict:
         return {}
 
 
+def _agent_gradeable_codes(agent, workdir: Path) -> set[str] | None:
+    """LAYER3-DESCOPE-1: the set of GRADEABLE flag codes in the agent's resolved ontology
+    (draft→committed, the same path the grade uses). A code with ``gradeable: false`` is a
+    descoped/reference flag — grounding already skip-logs it from ``active`` (S-BS-10); this
+    lets the scorecard drop it from the GOLD denominator too, so a descoped axis is not a
+    permanent FN. Returns ``None`` (inert — do not filter) when the ontology is
+    absent/unreadable or declares no flags, so a missing ontology never silently empties gold."""
+    try:
+        path, _src = _resolve_ontology_path(agent, workdir)
+        flags = json.loads(Path(path).read_text()).get("flags") or []
+        if not flags:
+            return None
+        return {f["flag"] for f in flags if f.get("gradeable", True)}
+    except Exception:  # noqa: BLE001 — a missing/odd ontology must never fail the batch
+        return None
+
+
 def _strict_readiness(strict_param: bool = False) -> bool:
     """Strict readiness is OPT-IN (annotate-by-default): the ``strict`` request field OR the
     ``LITHRIM_BENCH_STRICT_READINESS`` env flag. When on, a grade whose config would let a
@@ -1362,12 +1379,34 @@ def _case_has_gold(row: dict) -> bool:
     )
 
 
-def _corpus_golds_labeled(rows: list[dict]) -> tuple[dict[str, set], set]:
+def _corpus_golds_labeled(
+    rows: list[dict], gradeable: set[str] | None = None
+) -> tuple[dict[str, set], set]:
     """RUN-ALL-1: derive the cohort scorecard's per-case gold + labeled-set from the raw
-    ingested envelopes (which carry NO ``labeled`` key). Pure; unit-tested over the real shape."""
+    ingested envelopes (which carry NO ``labeled`` key). Pure; unit-tested over the real shape.
+
+    LAYER3-DESCOPE-1: when ``gradeable`` is given, each case's gold is intersected with it —
+    a descoped (non-gradeable) code leaves the gold denominator (grounding already keeps it out
+    of ``active``, so it was an unwinnable FN). A case whose gold flags were NON-EMPTY but become
+    EMPTY under the filter is dropped from ``labeled`` entirely (it is unscoreable on this panel,
+    NOT a clean-negative — rescoring it clean would flip its surviving BLOCK into a verdict miss).
+    ``gradeable=None`` is byte-identical to the pre-Layer-3 behavior."""
     corpus = {c.get("case_id"): c for c in rows if c.get("case_id")}
-    golds = {cid: set(c.get("expected_safety_flags") or []) for cid, c in corpus.items()}
-    labeled = {cid for cid, c in corpus.items() if _case_has_gold(c)}
+    raw_golds = {cid: set(c.get("expected_safety_flags") or []) for cid, c in corpus.items()}
+    if gradeable is None:
+        golds = raw_golds
+        labeled = {cid for cid, c in corpus.items() if _case_has_gold(c)}
+        return golds, labeled
+    golds = {cid: (g & gradeable) for cid, g in raw_golds.items()}
+    labeled = set()
+    for cid, c in corpus.items():
+        if not _case_has_gold(c):
+            continue
+        # a case whose only gold was descoped (non-empty raw flags -> empty filtered) is
+        # unscoreable on this panel — leave it out of labeled rather than rescore it clean.
+        if raw_golds[cid] and not golds[cid]:
+            continue
+        labeled.add(cid)
     return golds, labeled
 
 
@@ -1688,7 +1727,10 @@ def _is_blocked_verdict(verdict) -> bool:
     return str(verdict or "").upper() in {"BLOCK", "FAIL", "REJECT"}
 
 
-def _cohort_scorecard(rows: list[dict], golds: dict[str, set], labeled: set) -> dict:
+def _cohort_scorecard(
+    rows: list[dict], golds: dict[str, set], labeled: set,
+    code_families: dict | None = None,
+) -> dict:
     """RUN-ALL-1: the consolidated report — compare each graded cohort row to its gold flags →
     per-case caught/missed/spurious + an aggregate flag precision/recall + verdict accuracy + a
     per-flag over/under-fire breakdown. Only LABELED cases feed the accuracy metrics (honest-
@@ -1731,6 +1773,7 @@ def _cohort_scorecard(rows: list[dict], golds: dict[str, set], labeled: set) -> 
          if r.get("case_id") in labeled and not r.get("error")},
         {r["case_id"]: golds.get(r["case_id"], set()) for r in rows
          if r.get("case_id") in labeled and not r.get("error")},
+        code_families=code_families,
     )
     return {
         "cases": cases,
@@ -1821,8 +1864,12 @@ def grade_cases_endpoint(
     # RUN-ALL-1: the consolidated report — score the matrix against each case's gold (in-process,
     # no span-matching; case_id rides every row). Labeled cases only feed accuracy (honest-unlabeled).
     # The raw envelope carries no `labeled` key — derive it (gold) the SAME way /v1/cases does.
-    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus())
-    scorecard = _cohort_scorecard(rows, golds, labeled)
+    # LAYER3-DESCOPE-1: filter gold to the agent's gradeable codes (descoped axes leave the
+    # denominator) + credit family-siblings at unit level — both from the same resolved ontology.
+    _agent = _load_agent(req.agent, db_path)
+    gradeable = _agent_gradeable_codes(_agent, workdir)
+    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus(), gradeable=gradeable)
+    scorecard = _cohort_scorecard(rows, golds, labeled, code_families=code_families)
     return {"matrix": rows, "summary": summary, "scorecard": scorecard}
 
 

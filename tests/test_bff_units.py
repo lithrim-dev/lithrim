@@ -117,6 +117,8 @@ def graded(monkeypatch):
 
 def test_units_scorecard_dual_report(client, graded, monkeypatch):
     monkeypatch.setattr(bff, "_agent_code_families", lambda agent, workdir: _FAMILIES)
+    # this test pins strict/unit SCORING, not the LAYER3 gradeable filter — keep it inert
+    monkeypatch.setattr(bff, "_agent_gradeable_codes", lambda agent, workdir: None)
     r = client.post("/v1/cases/grade", json={"agent": _AGENT})
     assert r.status_code == 200
     body = r.json()
@@ -132,6 +134,7 @@ def test_units_scorecard_dual_report(client, graded, monkeypatch):
 
 def test_units_inert_without_code_families(client, graded, monkeypatch):
     monkeypatch.setattr(bff, "_agent_code_families", lambda agent, workdir: {})
+    monkeypatch.setattr(bff, "_agent_gradeable_codes", lambda agent, workdir: None)
     r = client.post("/v1/cases/grade", json={"agent": _AGENT})
     assert r.status_code == 200
     body = r.json()

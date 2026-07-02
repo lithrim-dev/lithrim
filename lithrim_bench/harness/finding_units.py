@@ -136,9 +136,26 @@ def _unit_codes(unit) -> set[str]:
     return set(unit)
 
 
+def _family_closure(
+    codes: Iterable[str], code_families: Mapping[str, Iterable[str]] | None
+) -> set[str]:
+    """``codes`` ∪ every declared same-family sibling of each code. ``None`` families ⇒
+    the codes unchanged (exact match)."""
+    out = set(codes)
+    if not code_families:
+        return out
+    families = [set(ms or ()) for ms in code_families.values()]
+    for code in list(out):
+        for members in families:
+            if code in members:
+                out |= members
+    return out
+
+
 def score_units(
     units_by_case: Mapping[str, Iterable],
     gold_by_case: Mapping[str, set[str]],
+    code_families: Mapping[str, Iterable[str]] | None = None,
 ) -> dict:
     """Score consolidated units against per-case gold code-sets.
 
@@ -147,15 +164,25 @@ def score_units(
     over GOLD CODES (``matched_gold``), so a unit covering two golds credits both —
     precision is honest at the unit level, recall at the gold level. Units may be
     :class:`FindingUnit` or plain code iterables (the BFF matrix rides code lists).
+
+    LAYER3-DESCOPE-1: with ``code_families`` given, matching is FAMILY-AWARE — a gold
+    code is caught when a DECLARED SIBLING fired on it (the recall-side mirror of the
+    twin-FP merge; e.g. gpt-4.1 codes UNSUPPORTED_ASSERTION as its FABRICATED_CLAIM
+    sibling). Implemented by expanding gold to its family-closure before intersecting;
+    a gold code is ``matched`` iff a unit-code lies in its own family-closure. ``None``
+    (the default) is exact match — byte-identical to the pre-Layer-3 behavior.
     """
     tp = fp = fn = matched_total = 0
     for cid, gold in gold_by_case.items():
+        gold_closure = _family_closure(gold, code_families)
+        # per gold code, the sibling set a caught unit-code may land in
+        closure_of = {g: _family_closure({g}, code_families) for g in gold}
         matched: set[str] = set()
         for unit in units_by_case.get(cid) or ():
-            hit = _unit_codes(unit) & gold
-            if hit:
+            ucodes = _unit_codes(unit)
+            if ucodes & gold_closure:
                 tp += 1
-                matched |= hit
+                matched |= {g for g, clo in closure_of.items() if ucodes & clo}
             else:
                 fp += 1
         matched_total += len(matched)
