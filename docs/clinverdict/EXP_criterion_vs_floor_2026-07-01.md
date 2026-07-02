@@ -175,3 +175,41 @@ the next paid pass (or a re-ingested agent) picks the declarations up; ladder st
 measure the realized numbers. Next slices: a fabricated-vitals-safe negation form for
 FABRICATED_CLAIM (21 negation-shaped FPs remain), then the Hermes concept-presence
 paraphrase class (~75 FPs) — each through the same gate.
+
+## The measurement pass — realized Layer 2 + the catch (2026-07-02, pass 2)
+
+Fresh full 173-case pass on the rebuilt stack (same frozen multi-council config; 173/173,
+0 errors; validated on two surfaces — BFF scorecard == independent measure off the grounded
+blocks, byte-equal).
+
+```
+pass 2 realized (Layer-2 v1 live): PRE-floor P=26.0 → POST-floor P=29.8  R=51.5
+                                   (TP=68 FP=160 FN=64, verdict-acc 137/173)
+suppressions: snomed-subsumption/v1 ×15 · observation-form/v1 ×17 · evidence-presence/v1 ×5
+```
+
+**The catch — one GOLD suppressed (cv_mts_118).** The judge's span this pass bundled a
+negation cue with the injected fabrication in ONE quote — `"O: Alert, no acute distress.
+Limited abduction of the right eye on examination."` — and observation-form/v1's whole-span
+regex *search* classified it non-fabrication on the negation cue while it carried the
+positive fabrication. The single-pass corpus gate could not see this (pass 1's judge quoted
+differently); the fresh pass is what caught it. **This is the ladder working:** measure →
+catch → tighten → re-gate → pin.
+
+**observation-form/v2 (shipped same day):** every SENTENCE of the span (decimal-safe split;
+standalone SOAP-header fragments skipped) must independently be a vitals/negation form.
+Re-gated on BOTH passes: 0 golds (v1 touched 1); yield honestly drops 19→4 (pass 1) /
+16→5 (pass 2). The tracked corpus-gate pin moves 39→24 (284030a). A suppressed real
+fabrication is the worst error class; the yield is the price of the safety bar.
+
+**Honest headline under the current config (v2), strict flag-level, both passes:**
+
+```
+P = 29.2% ± 0.5   (pass1 sim 29.7, pass2 sim 28.7)     R = 52.3%  (both passes)
+units realized band: P ≈ 44.7–46.3
+```
+
+vs the 25.5/26.0 pre-floor baseline: the floor is now worth ~+3.2pts strict with zero gold
+loss under the two-pass gate. NOTE: the running BFF caches the pack floors module — the v2
+EXECUTOR takes effect on the next BFF restart (the v2 declaration is already synced to the
+workspace draft). Contract-gating discipline going forward: gate against ≥2 passes, not one.
