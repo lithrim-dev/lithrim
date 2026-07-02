@@ -7,14 +7,16 @@
 
    All fetches route through bff.js (S-BS-50). */
 import { useEffect, useState } from "react";
-import { getAudit, getRuns, getRunAudit, getRunHistory, rehydrateRun } from "../bff.js";
+import { getAudit, getRuns, getRunAudit } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card.jsx";
 import { Input } from "../components/ui/input.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
-import { roleLabel, verdictLabel, friendlyError, gradeTag } from "./copy.js";
+import RunLineage from "./RunLineage.jsx";
+import { Spinner } from "../components/Spinner.jsx";
+import { roleLabel, verdictLabel, flagLabel, friendlyError, gradeTag } from "./copy.js";
 
 // "{action} {type}:{id}" -> a plain sentence, e.g. "Edited the Faithfulness reviewer".
 function auditSentence(rec) {
@@ -32,50 +34,6 @@ function sentenceCase(s) {
 }
 
 const verdictTone = (v) => (v === "BLOCK" ? "var(--accent-ink)" : "var(--teal)");
-
-// RUNTRAIL-9: the lineage affordances for the LOADED run, mirroring RunPanel.HistoryRow —
-// a History expander (getRunHistory → prior versions) + a $0 Rehydrate (rehydrateRun →
-// reconstructed verdict). Puts the full trail on the inline audit card (review_runs).
-function RunLineage({ runId }) {
-  const [versions, setVersions] = useState(null); // null = collapsed; [] = loaded-empty
-  const [rehydrated, setRehydrated] = useState(null);
-
-  const toggleHistory = async () => {
-    if (versions !== null) { setVersions(null); return; }
-    try { setVersions((await getRunHistory(runId)).history || []); }
-    catch { setVersions([]); }
-  };
-  const doRehydrate = async () => {
-    try { setRehydrated(await rehydrateRun(runId)); }
-    catch { setRehydrated({ verdict: null }); }
-  };
-
-  return (
-    <div className="mt-1 flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={toggleHistory}>History</Button>
-        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={doRehydrate}>Rehydrate $0</Button>
-      </div>
-      {versions !== null && (
-        <div className="ml-3 flex flex-col gap-0.5">
-          {versions.length === 0 && <span className="text-[10px] text-muted-foreground">No prior versions.</span>}
-          {versions.map((v, i) => (
-            <div key={i} className="flex items-center gap-2 text-[10px]" data-testid="history-version">
-              <span className="font-[family-name:var(--font-mono)] text-muted-foreground">{(v.run_id || "").slice(0, 8)}</span>
-              <span style={{ color: verdictTone(v.verdict) }}>{verdictLabel(v.verdict)}</span>
-              {v.grade_path && <span className="text-muted-foreground">{gradeTag(v.grade_path)}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-      {rehydrated && (
-        <div className="ml-3 text-[10px]" data-testid="rehydrated-verdict">
-          Rehydrated: <span style={{ color: verdictTone(rehydrated.verdict) }}>{verdictLabel(rehydrated.verdict)}</span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function AuditRow({ rec }) {
   return (
@@ -121,9 +79,11 @@ export default function AuditView({ runId: runIdProp = "" }) {
   const [runId, setRunId] = useState(runIdProp);
   const [run, setRun] = useState(null);
   const [runErr, setRunErr] = useState(null);
+  const [reload, setReload] = useState(0); // B2: a retry bumps this to re-run the loader
 
   useEffect(() => {
     let live = true;
+    setStatus("loading"); setError(null);
     getAudit()
       .then((r) => { if (live) { setRecords(r.records || []); setStatus("ready"); } })
       .catch((e) => { if (live) { setError(friendlyError(e)); setStatus("error"); } });
@@ -131,7 +91,7 @@ export default function AuditView({ runId: runIdProp = "" }) {
       .then((b) => { if (live) setRuns(b.runs || []); })
       .catch(() => { if (live) setRuns([]); });
     return () => { live = false; };
-  }, []);
+  }, [reload]);
 
   const loadRun = async (id) => {
     const target = id || runId;
@@ -156,9 +116,14 @@ export default function AuditView({ runId: runIdProp = "" }) {
       <CardContent className="flex flex-col gap-3">
         <section className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold text-foreground">Config changes</span>
-          {status === "loading" && <span className="text-xs text-muted-foreground">Loading audit…</span>}
+          {status === "loading" && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Spinner size={11} /> Loading audit…</span>
+          )}
           {status === "error" && (
-            <span className="text-xs text-[color:var(--accent-ink)]">{error}</span>
+            <span className="flex items-center gap-2 text-xs text-[color:var(--accent-ink)]" role="alert">
+              {error}
+              <Button size="sm" variant="ghost" className="h-5 px-2 text-[11px]" onClick={() => setReload((n) => n + 1)}>Try again</Button>
+            </span>
           )}
           {status === "ready" && records.length === 0 && (
             <span className="text-xs text-muted-foreground">No config changes recorded yet.</span>
@@ -190,6 +155,16 @@ export default function AuditView({ runId: runIdProp = "" }) {
                       className={`flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border px-2 py-1 text-left text-[10px] hover:bg-muted ${r.run_id === runId ? "border-primary" : "border-border"}`}>
                       <span className="font-[family-name:var(--font-mono)] text-muted-foreground">{shortTs(r.ts)}</span>
                       <span style={{ color: verdictTone(r.verdict) }}>{verdictLabel(r.verdict)}</span>
+                      {/* FLOOR-VIS-1: the grounding floor's outcome rides the row (LAYER0 projection);
+                          legacy blobs project null → no chip, nothing fabricated. */}
+                      {r.grounded_verdict != null && (
+                        <span data-testid="floor-chip"
+                          title="The deterministic grounding floor's outcome — the post-floor verdict, and how many judge findings its contracts disproved.">
+                          <span className="text-muted-foreground">floor</span>{" "}
+                          <span style={{ color: verdictTone(r.grounded_verdict) }}>{verdictLabel(r.grounded_verdict)}</span>
+                          {r.floor_suppressed > 0 ? <span className="text-muted-foreground"> · {r.floor_suppressed} suppressed</span> : null}
+                        </span>
+                      )}
                       {r.grade_path && <span className="text-muted-foreground">{gradeTag(r.grade_path)}</span>}
                       {r.replay_of
                         ? <span className="font-[family-name:var(--font-mono)] text-muted-foreground">↩ replays {(r.replay_of || "").slice(0, 8)}</span>
@@ -204,7 +179,8 @@ export default function AuditView({ runId: runIdProp = "" }) {
           <div className="flex items-center gap-2">
             <Input value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="run id"
               aria-label="run id" />
-            <Button size="sm" variant="ghost" onClick={() => loadRun()} disabled={!runId}>Load run</Button>
+            <Button size="sm" variant="ghost" onClick={() => loadRun()} disabled={!runId}
+              title={!runId ? "Pick a run above or paste a run id to load its full report" : undefined}>Load run</Button>
           </div>
           {runErr && (
             <span className="text-[10.5px] text-[color:var(--accent-ink)]">{runErr}</span>
@@ -221,13 +197,35 @@ export default function AuditView({ runId: runIdProp = "" }) {
                   {run.replay_of ? <> · ↩ replays {(run.replay_of || "").slice(0, 8)}</> : null}
                 </div>
               )}
+              {/* FLOOR-VIS-1: the grounding floor's outcome — the verdict flip + every
+                  suppression with the deterministic contract that disproved it and its why.
+                  Legacy runs carry no grounded block → the section honestly doesn't render. */}
+              {run.grounded && (
+                <div data-testid="run-grounded" className="mt-1.5 rounded-[var(--radius-sm)] border border-border bg-secondary px-2 py-1.5">
+                  <div className="text-[10.5px] font-semibold text-foreground">
+                    Grounding floor: {verdictLabel(run.grounded.original_verdict ?? run.verdict)}
+                    {" → "}
+                    <span style={{ color: verdictTone(run.grounded.verdict) }}>{verdictLabel(run.grounded.verdict)}</span>
+                  </div>
+                  {(run.grounded.suppressed || []).map((s, i) => (
+                    <div key={i} className="mt-0.5 text-[10px] text-muted-foreground">
+                      <span className="text-foreground">{flagLabel(s.code)}</span> disproved by{" "}
+                      <span className="font-[family-name:var(--font-mono)]">{s.contract}</span>
+                      {s.reason ? <> — {s.reason}</> : null}
+                    </div>
+                  ))}
+                  {(run.grounded.suppressed || []).length === 0 && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">no findings suppressed — the reviewers' verdict stood</div>
+                  )}
+                </div>
+              )}
               {(run.judges || []).map((j, i) => (
                 <div key={i} className="mt-1 text-[10.5px] text-muted-foreground">
                   <span className="text-foreground">{roleLabel(j.judge_role)}</span> {verdictLabel(j.vote)}
                   {j.reasoning ? <> — {j.reasoning}</> : null}
                 </div>
               ))}
-              <RunLineage runId={runId} />
+              <RunLineage runId={runId} className="mt-1" />
             </div>
           )}
         </section>

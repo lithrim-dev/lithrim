@@ -2,8 +2,8 @@
    Verifies it reads the BFF `scorecard` payload (flat-spread props): headline precision/recall/
    verdict-accuracy, per-case caught/missed/spurious chips, honest-unlabeled, and that it's wired
    into the renderTool registry under tool-scorecard. */
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import ScorecardCard from "./ScorecardCard.jsx";
 import { renderTool, KNOWN_TOOLS } from "./index.js";
 
@@ -56,8 +56,39 @@ describe("ScorecardCard (tool-scorecard)", () => {
     expect(screen.getByTestId("scorecard-card")).toBeInTheDocument();
   });
 
+  it("opens a case's full run when its row is clicked (onOpenCaseRun drill-down)", () => {
+    const onOpenCaseRun = vi.fn();
+    render(<ScorecardCard {...CARD} onOpenCaseRun={onOpenCaseRun} />);
+    const row = screen.getByTestId("scorecard-row-case06");
+    expect(row).toHaveAttribute("role", "button"); // clickable affordance only when wired
+    fireEvent.click(row);
+    expect(onOpenCaseRun).toHaveBeenCalledWith("case06");
+  });
+
+  it("renders static rows (no button role) when no drill-down handler is wired", () => {
+    render(<ScorecardCard {...CARD} />);
+    expect(screen.getByTestId("scorecard-row-case06")).not.toHaveAttribute("role", "button");
+  });
+
   it("renders an honest empty state with no cases", () => {
     render(<ScorecardCard cases={[]} />);
     expect(screen.getByText(/run all cases/i)).toBeInTheDocument();
+  });
+});
+
+describe("ScorecardCard — FLOOR-VIS-1: the units dual-report", () => {
+  const UNITS = { tp: 88, fp: 55, fn: 35, matched_gold: 84, precision: 0.615, recall: 0.706 };
+
+  it("renders the units line next to strict when the scorecard carries units", () => {
+    render(<ScorecardCard {...CARD} units={UNITS} />);
+    const u = screen.getByTestId("scorecard-units");
+    expect(u).toHaveTextContent(/units/i);
+    expect(u).toHaveTextContent("62%"); // precision 0.615 → rounded pct
+    expect(u).toHaveTextContent("71%"); // recall 0.706
+  });
+
+  it("renders NO units line when the payload has none (legacy scorecards, honest-absent)", () => {
+    render(<ScorecardCard {...CARD} />);
+    expect(screen.queryByTestId("scorecard-units")).toBeNull();
   });
 });

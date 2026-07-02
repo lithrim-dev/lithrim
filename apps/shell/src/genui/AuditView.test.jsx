@@ -8,8 +8,9 @@ vi.mock("../bff.js", () => ({
   getAudit: vi.fn().mockResolvedValue({ records: [] }),
   getRuns: vi.fn().mockResolvedValue({
     runs: [
-      { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z" },
-      { run_id: "c0ffee00-cccc", case_id: "snomed_inj_13_gpa", verdict: "PASS", grade_path: "replay", replay_of: "a57bd49d-aaaa", agent: "eval-1", ts: "2026-06-30T17:50:00Z" },
+      // LAYER0/2 read surface: the floor's outcome rides the row (council BLOCK → floor PASS)
+      { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z", grounded_verdict: "PASS", floor_suppressed: 2 },
+      { run_id: "c0ffee00-cccc", case_id: "snomed_inj_13_gpa", verdict: "PASS", grade_path: "replay", replay_of: "a57bd49d-aaaa", agent: "eval-1", ts: "2026-06-30T17:50:00Z", grounded_verdict: null, floor_suppressed: null },
       { run_id: "d00d1234-dddd", case_id: "case-10", verdict: "PASS", grade_path: "live", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:40:00Z" },
     ],
   }),
@@ -19,6 +20,15 @@ vi.mock("../bff.js", () => ({
     grade_path: "replay",
     replay_of: "b1c2d3e4-bbbb-0000-0000-000000000000",
     judges: [{ judge_role: "risk_judge", vote: "BLOCK", reasoning: "WRONG_DOSAGE" }],
+    grounded_verdict: "PASS",
+    grounded: {
+      verdict: "PASS", original_verdict: "WARN",
+      active: [],
+      suppressed: [{
+        code: "FABRICATED_CLAIM", contract: "snomed-subsumption/v1", disproved: true,
+        reason: "every documented history item is grounded in the patient record by SNOMED subsumption",
+      }],
+    },
   }),
   getRunHistory: vi.fn().mockResolvedValue({
     run_id: "a57bd49d-aaaa",
@@ -110,5 +120,50 @@ describe("AuditView (tool-audit_log) — RUNTRAIL-11 the trail, grouped by case"
     fireEvent.click(within(trail).getAllByTestId("trail-run")[0]);
     await waitFor(() => expect(getRunAudit).toHaveBeenCalledWith("a57bd49d-aaaa"));
     expect(await screen.findByTestId("run-report")).toBeTruthy();
+  });
+});
+
+describe("AuditView — FLOOR-VIS-1: the grounding floor's outcome is visible", () => {
+  it("F1 — a trail row with a floor outcome shows the floor chip; legacy rows show none", async () => {
+    render(<AuditView />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+    const trail = await screen.findByTestId("run-trail");
+    const rows = within(trail).getAllByTestId("trail-run");
+    // row 0: council BLOCK, floor PASS with 2 suppressions → the chip carries both
+    expect(rows[0]).toHaveTextContent(/floor/i);
+    expect(within(rows[0]).getByTestId("floor-chip")).toHaveTextContent("Passed");
+    expect(within(rows[0]).getByTestId("floor-chip")).toHaveTextContent("2 suppressed");
+    // rows 1+2: legacy blobs (no grounded projection) → NO floor chip, nothing fabricated
+    expect(within(rows[1]).queryByTestId("floor-chip")).toBeNull();
+    expect(within(rows[2]).queryByTestId("floor-chip")).toBeNull();
+  });
+
+  it("F2 — the run report renders the grounded section: verdict flip + each suppression with its contract + reason", async () => {
+    render(<AuditView runId="a57bd49d-aaaa" />);
+    await waitFor(() => expect(getAudit).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Load run/i }));
+    await screen.findByTestId("run-report");
+
+    const grounded = await screen.findByTestId("run-grounded");
+    expect(grounded).toHaveTextContent(/grounding floor/i);
+    // the flip: council WARN → floor PASS
+    expect(grounded).toHaveTextContent("Needs a look");
+    expect(grounded).toHaveTextContent("Passed");
+    // the suppression line: flag + the deterministic contract that disproved it + the why
+    expect(grounded).toHaveTextContent(/fabricated claim/i);
+    expect(grounded).toHaveTextContent("snomed-subsumption/v1");
+    expect(grounded).toHaveTextContent(/grounded in the patient record/i);
+  });
+
+  it("F3 — a legacy run report (no grounded block) renders no floor section", async () => {
+    getRunAudit.mockResolvedValueOnce({
+      verdict: "BLOCK", actor: { id: "ws0_default" }, grade_path: "replay",
+      judges: [], grounded: null, grounded_verdict: null,
+    });
+    render(<AuditView runId="c0ffee00-cccc" />);
+    await waitFor(() => expect(getAudit).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Load run/i }));
+    await screen.findByTestId("run-report");
+    expect(screen.queryByTestId("run-grounded")).toBeNull();
   });
 });
