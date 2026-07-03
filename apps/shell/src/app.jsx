@@ -4,6 +4,7 @@ import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
 import { ModeSwitch } from "./components/ModeSwitch.jsx";
+import { CostModal } from "./components/CostModal.jsx";
 import { deriveSteps, nextStep } from "./journey.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -386,6 +387,14 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       setRunStatus("error");
     }
   };
+  // S-BS-80: a live run is PAID — every entry point routes through the in-DOM cost confirm
+  // (the same CostModal contract as the chat/composer paid paths; never window.confirm).
+  // $0 replays pass straight through. `liveConfirm` holds the pending case id (or true).
+  const [liveConfirm, setLiveConfirm] = useState(null);
+  const requestRun = (live = false, caseId = null) => {
+    if (live) { setLiveConfirm({ caseId }); return; }
+    doRun(false, caseId);
+  };
 
   // SHEPHERD-1 (W1): re-fetch the live plan state (the active agent's config + the run
   // history) so the rail re-derives. Called on mount, on activeAgent change, after a run,
@@ -565,16 +574,23 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       <div className="win">
         <TopBar theme={theme} setTheme={setTheme} artifactOpen={open}
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
-          onRunEval={doRun} runStatus={runStatus} mode={mode} setMode={setMode}
+          onRunEval={requestRun} runStatus={runStatus} mode={mode} setMode={setMode}
           workspaces={workspaces} activeWs={activeWs}
           onSwitchWorkspace={onSwitchWorkspace} onCreateWorkspace={onCreateWorkspace} />
+        <CostModal
+          open={liveConfirm != null}
+          title="Run a live, paid evaluation?"
+          body="This runs one real, paid evaluation (model calls you'll be billed for). Run eval (without live) replays the saved baseline for free."
+          confirmLabel="Run live (paid)"
+          onConfirm={() => { const cid = liveConfirm?.caseId ?? null; setLiveConfirm(null); doRun(true, cid); }}
+          onCancel={() => setLiveConfirm(null)} />
         <div className="body">
           <LeftRail width={leftW} agents={agents} activeAgent={activeAgent}
             onSwitchAgent={onSwitchAgent} onDeleteAgent={onDeleteAgent} onNewEval={onNewEval}
             steps={journey.steps} journeyCount={{ done: journey.done, total: journey.total }} />
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
-            onRunEval={doRun} runStatus={runStatus}
+            onRunEval={requestRun} runStatus={runStatus}
             onOpenCaseRun={(cid) => doRun(false, cid)}
             activeCase={activeCase} onActiveCase={setActiveCase}
             onRunResult={(r) => {
