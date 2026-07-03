@@ -31,8 +31,12 @@ BFF_PORT="${LITHRIM_BFF_PORT:-8787}"
 UI_PORT="${LITHRIM_UI_PORT:-5180}"
 PYENV_VER="${PYENV_VERSION:-debuglithrim}"
 PYENV_PREFIX="${PYENV_ROOT:-$HOME/.pyenv}/versions/$PYENV_VER"
-UVICORN_BIN="$PYENV_PREFIX/bin/uvicorn"
-PY_BIN="$PYENV_PREFIX/bin/python"
+# uvicorn resolution, machine-agnostic: explicit LITHRIM_UVICORN override → the named pyenv
+# (if present) → whatever `uvicorn` resolves on PATH (venv / pipx / system).
+UVICORN_BIN="${LITHRIM_UVICORN:-$PYENV_PREFIX/bin/uvicorn}"
+[ -x "$UVICORN_BIN" ] || UVICORN_BIN="$(command -v uvicorn 2>/dev/null || true)"
+PY_BIN="${UVICORN_BIN:+${UVICORN_BIN%/*}/python}"
+[ -n "$PY_BIN" ] && [ -x "$PY_BIN" ] || PY_BIN="$(command -v python3 2>/dev/null || true)"
 SHELL_DIR="$REPO_ROOT/apps/shell"
 
 # Pack discovery for the BFF (S-BS-138). Without a packs dir the BFF boots on the neutral `_core`
@@ -67,11 +71,11 @@ wait_for() {  # $1 predicate fn, $2 max seconds
 
 start_bff() {
   if bff_healthy; then ok "BFF already healthy on :$BFF_PORT"; return 0; fi
-  if [ ! -x "$UVICORN_BIN" ]; then
-    err "uvicorn not found at $UVICORN_BIN"
-    err "  → the '$PYENV_VER' pyenv with the [bff] extra is required (pip install -e '.[bff]' in that env)."; return 1
+  if [ -z "$UVICORN_BIN" ] || [ ! -x "$UVICORN_BIN" ]; then
+    err "uvicorn not found (checked \$LITHRIM_UVICORN, pyenv '$PYENV_VER', and PATH)"
+    err "  → pip install -e '.[bff]' in your active env, or set LITHRIM_UVICORN=/path/to/uvicorn"; return 1
   fi
-  [ -f "$REPO_ROOT/.env" ] || info "no $REPO_ROOT/.env — the council's Azure config lives there; live grades will fail without it (replay still works)"
+  [ -f "$REPO_ROOT/.env" ] || info "no $REPO_ROOT/.env — provider keys live there or in the UI's Connect AI; live grades need one (replay still works)"
   if [ -n "$PACKS_DIR" ]; then info "pack discovery: LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR"
   else info "pack discovery: no LITHRIM_BENCH_PACKS_DIR — BFF on the neutral _core default (tier:pro packs absent)"; fi
   info "starting BFF (uvicorn · $PYENV_VER · watch/--reload) on :$BFF_PORT …"
@@ -154,7 +158,7 @@ cmd_logs() {
 }
 
 cmd_probe() {
-  if [ ! -x "$PY_BIN" ]; then err "python not found at $PY_BIN (pyenv '$PYENV_VER')"; return 1; fi
+  if [ -z "$PY_BIN" ] || [ ! -x "$PY_BIN" ]; then err "python not found (checked the uvicorn env and PATH)"; return 1; fi
   info "probing each Azure council deployment (1 token each — tiny PAID calls) …"
   ( cd "$REPO_ROOT" && PYTHONPATH="$REPO_ROOT" "$PY_BIN" "$REPO_ROOT/scripts/dev/probe_azure.py" )
 }
