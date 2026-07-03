@@ -34,13 +34,19 @@ function Field({ label, children }) {
   );
 }
 
-// The registry spreads part.output = {agent, code, tier, owner_role} as props (author_criterion's
-// seed). Defaults keep the direct-render / offline (vitest) paths working with no server.
-export default function CriterionBuilder({ agent = "ws0_default", code: seedCode, tier: seedTier, owner_role: seedOwner, onResult }) {
+// The registry spreads part.output = {agent, code, tier, owner_role, definition, when_to_use,
+// when_NOT_to_use} as props (author_criterion's seed — the agent may DRAFT the criterion text;
+// the human's Save stays the sole write). Defaults keep the direct-render / offline (vitest)
+// paths working with no server.
+export default function CriterionBuilder({ agent = "ws0_default", code: seedCode, tier: seedTier, owner_role: seedOwner, definition: seedDef, when_to_use: seedWhen, when_NOT_to_use: seedWhenNot, onResult }) {
   const [code, setCode] = useState(seedCode ?? "");
   const [tier, setTier] = useState(seedTier || "TIER_2");
   const [ownerRole, setOwnerRole] = useState(seedOwner ?? "");
-  const [definition, setDefinition] = useState("");
+  const [definition, setDefinition] = useState(seedDef ?? "");
+  // CRITERION-TEXT-1: when_to_use is the lens line the owning judge's prompt renders — collect
+  // it at mint time so the criterion is born with its text, not minted blank.
+  const [whenToUse, setWhenToUse] = useState(seedWhen ?? "");
+  const [whenNotToUse, setWhenNotToUse] = useState(seedWhenNot ?? "");
   const [returned, setReturned] = useState(false);
   const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
 
@@ -49,6 +55,8 @@ export default function CriterionBuilder({ agent = "ws0_default", code: seedCode
     tier,
     owner_role: ownerRole.trim(),
     definition: definition.trim(),
+    when_to_use: whenToUse.trim(),
+    when_NOT_to_use: whenNotToUse.trim(),
   };
   const codeValid = CODE_RE.test(criterion.code);
   const valid = codeValid && criterion.owner_role;
@@ -92,6 +100,28 @@ export default function CriterionBuilder({ agent = "ws0_default", code: seedCode
         </Field>
         <Field label="Definition">
           <Input value={definition} onChange={(e) => setDefinition(e.target.value)} placeholder="Every dose stated in the transcript must appear in the SOAP." aria-label="definition" />
+        </Field>
+        <Field label="When to use — the lens the owning judge reads">
+          <textarea
+            value={whenToUse}
+            onChange={(e) => setWhenToUse(e.target.value)}
+            rows={3}
+            spellCheck={false}
+            aria-label="when to use"
+            placeholder="1) A dose stated in the transcript is absent from the note."
+            className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-3 py-2 text-[12px] leading-snug text-foreground"
+          />
+        </Field>
+        <Field label="When NOT to use">
+          <textarea
+            value={whenNotToUse}
+            onChange={(e) => setWhenNotToUse(e.target.value)}
+            rows={2}
+            spellCheck={false}
+            aria-label="when NOT to use"
+            placeholder="The dose appears with different but equivalent units."
+            className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-3 py-2 text-[12px] leading-snug text-foreground"
+          />
         </Field>
         {code.length > 0 && !codeValid && <span className="text-[10.5px] text-[color:var(--accent-ink)]">Code must be UPPER_SNAKE (e.g. EVERY_DOSE_IN_SOAP)</span>}
         <Separator />

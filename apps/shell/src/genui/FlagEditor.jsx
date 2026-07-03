@@ -47,6 +47,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
   const [flags, setFlags] = useState([]);
   const [returned, setReturned] = useState(false);
   const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
+  const [openText, setOpenText] = useState(() => new Set()); // flag codes with the text editor expanded
 
   useEffect(() => {
     let live = true;
@@ -62,6 +63,11 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
             tier: f.tier || "none",
             gradeable: !!f.gradeable,
             owner_roles: f.owner_roles || [],
+            // CRITERION-TEXT-1: the criterion text is editable — when_to_use is the lens
+            // line the owning judge's prompt renders, so rewording it IS the calibration edit.
+            definition: f.definition || "",
+            when_to_use: f.when_to_use || "",
+            when_NOT_to_use: f.when_NOT_to_use || "",
           })),
         );
         setStatus("ready");
@@ -88,14 +94,24 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
   const setWeight = (k, v) => setSeverity((s) => ({ ...s, weights: { ...s.weights, [k]: v } }));
   const setFlag = (i, patch) => setFlags((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
 
+  const toggleText = (code) =>
+    setOpenText((s) => {
+      const next = new Set(s);
+      next.has(code) ? next.delete(code) : next.add(code);
+      return next;
+    });
+
   const apply = () => {
     const result = {
       severity_map: severity,
-      flags: flags.map(({ flag, tier, gradeable, owner_roles }) => ({
+      flags: flags.map(({ flag, tier, gradeable, owner_roles, definition, when_to_use, when_NOT_to_use }) => ({
         flag,
         tier: tier === "none" ? null : tier,
         gradeable,
         owner_roles,
+        definition,
+        when_to_use,
+        when_NOT_to_use,
       })),
     };
     setReturned(true);
@@ -110,7 +126,16 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
     severity_map: severity,
     flags: (raw.flags || []).map((rf) => {
       const e = flags.find((f) => f.flag === rf.flag);
-      return e ? { ...rf, tier: e.tier === "none" ? null : e.tier, gradeable: e.gradeable } : rf;
+      return e
+        ? {
+            ...rf,
+            tier: e.tier === "none" ? null : e.tier,
+            gradeable: e.gradeable,
+            definition: e.definition,
+            when_to_use: e.when_to_use,
+            when_NOT_to_use: e.when_NOT_to_use,
+          }
+        : rf;
     }),
   });
 
@@ -152,22 +177,73 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
           <Label>Flags (tier · gradeable · owners)</Label>
           <div className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
             {flags.map((f, i) => (
-              <div key={f.flag} className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-[family-name:var(--font-mono)] text-[12px] font-medium text-foreground">{f.flag}</div>
-                  <div className="truncate text-[10.5px] text-muted-foreground">
-                    {f.owner_roles.length ? f.owner_roles.join(" · ") : "no owner"}
+              <div key={f.flag} className="flex flex-col rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-[family-name:var(--font-mono)] text-[12px] font-medium text-foreground">{f.flag}</div>
+                    <div className="truncate text-[10.5px] text-muted-foreground">
+                      {f.owner_roles.length ? f.owner_roles.join(" · ") : "no owner"}
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[10.5px]"
+                    onClick={() => toggleText(f.flag)}
+                    aria-label={`edit criterion text for ${f.flag}`}
+                    aria-expanded={openText.has(f.flag)}
+                  >
+                    <Icon name="pencil" size={12} />
+                  </Button>
+                  <div className="w-28 shrink-0">
+                    <Select value={f.tier} onValueChange={(v) => setFlag(i, { tier: v })}>
+                      <SelectTrigger className="h-7" aria-label={`tier for ${f.flag}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TIERS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Switch checked={f.gradeable} onCheckedChange={(v) => setFlag(i, { gradeable: v })} aria-label={`gradeable ${f.flag}`} />
                 </div>
-                <div className="w-28 shrink-0">
-                  <Select value={f.tier} onValueChange={(v) => setFlag(i, { tier: v })}>
-                    <SelectTrigger className="h-7" aria-label={`tier for ${f.flag}`}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {TIERS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Switch checked={f.gradeable} onCheckedChange={(v) => setFlag(i, { gradeable: v })} aria-label={`gradeable ${f.flag}`} />
+                {openText.has(f.flag) && (
+                  /* CRITERION-TEXT-1: when_to_use is what the owning judge's prompt renders —
+                     the reword→re-run calibration edit happens here. */
+                  <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[10.5px]">When to use — the lens the owning judge reads</Label>
+                      <textarea
+                        value={f.when_to_use}
+                        onChange={(e) => setFlag(i, { when_to_use: e.target.value })}
+                        rows={3}
+                        spellCheck={false}
+                        aria-label={`when to use for ${f.flag}`}
+                        className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11.5px] leading-snug text-foreground"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[10.5px]">When NOT to use</Label>
+                      <textarea
+                        value={f.when_NOT_to_use}
+                        onChange={(e) => setFlag(i, { when_NOT_to_use: e.target.value })}
+                        rows={2}
+                        spellCheck={false}
+                        aria-label={`when NOT to use for ${f.flag}`}
+                        className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11.5px] leading-snug text-foreground"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[10.5px]">Definition</Label>
+                      <textarea
+                        value={f.definition}
+                        onChange={(e) => setFlag(i, { definition: e.target.value })}
+                        rows={2}
+                        spellCheck={false}
+                        aria-label={`definition for ${f.flag}`}
+                        className="resize-y rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11.5px] leading-snug text-foreground"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

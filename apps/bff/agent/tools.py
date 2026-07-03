@@ -68,6 +68,12 @@ AUTHOR_FLAG_SCHEMA: dict[str, Any] = {
     "flag_code": str,
     "tier": str,
     "gradeable": bool,
+    # CRITERION-TEXT-1: the criterion TEXT is authorable — when_to_use is the field the
+    # judge-prompt bridge renders (the AUTHORED REFINEMENT lens line), so rewording it IS
+    # the calibration move. Omitted → untouched (never clobbered); still no paid knob.
+    "definition": str,
+    "when_to_use": str,
+    "when_NOT_to_use": str,
     "rationale": str,
 }
 REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int}
@@ -184,6 +190,10 @@ AUTHOR_CRITERION_SCHEMA: dict[str, Any] = {
     "tier": str,
     "owner_role": str,
     "definition": str,
+    # CRITERION-TEXT-1: the agent may DRAFT the criterion text into the card seed; the
+    # human's Save on the card remains the SOLE write (the SPINE/CONTAINMENT invariant).
+    "when_to_use": str,
+    "when_NOT_to_use": str,
 }
 # PHASE2-WIRE — SURFACE the JudgeBuilder inline so the HUMAN mints a NEW judge ROLE (a new council
 # voice) over the active pack's taxonomy snapshot by filling a card (role id + lens + owned + model
@@ -237,8 +247,9 @@ class ToolContext:
     - ``get_judge(role) -> dict``
     - ``run_eval_replay(agent) -> dict``  (live=in_process=False, ALWAYS — the A-SAFE crux)
     - ``get_agent(name) -> dict``  (UAP-5c Domain read, $0)
-    - ``author_flag(flag_code, tier, gradeable, rationale) -> dict``  (UAP-5c Flag; an
-      audited ontology edit of an EXISTING flag; raises on 404/422 — the handler surfaces it)
+    - ``author_flag(flag_code, tier, gradeable, definition, when_to_use, when_NOT_to_use,
+      rationale) -> dict``  (UAP-5c Flag + CRITERION-TEXT-1; an audited ontology edit of an
+      EXISTING flag incl. its criterion text; raises on 404/422 — the handler surfaces it)
     - ``review_runs(limit) -> dict``  (UAP-5c Review, $0 — run history + latest provenance)
     - ``run_eval_pack(pack_id, agents) -> dict``  (UAP-5c-2 batch Run; ALWAYS live=False —
       the wrapper over the paid-capable eval-pack op hardcodes the $0 path, the A-SAFE crux)
@@ -417,15 +428,19 @@ async def get_agent_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str,
 
 
 async def author_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    # The Flag leg (audited WRITE): edit an EXISTING flag's tier/gradeable. Never creates
-    # a flag or invents owner_roles; an out-of-snapshot gradeable edit 422s and is surfaced.
+    # The Flag leg (audited WRITE): edit an EXISTING flag's tier/gradeable/criterion-text
+    # (CRITERION-TEXT-1). Never creates a flag or invents owner_roles; an out-of-snapshot
+    # gradeable edit 422s and is surfaced. Omitted fields stay untouched (None ≠ clear).
     flag_code = str(args.get("flag_code") or "")
     tier = args.get("tier")
     gradeable = args.get("gradeable")
     rationale = str(args.get("rationale") or "edited via the conversational shell")
     try:
         res = ctx.author_flag(
-            flag_code=flag_code, tier=tier, gradeable=gradeable, rationale=rationale
+            flag_code=flag_code, tier=tier, gradeable=gradeable, rationale=rationale,
+            definition=args.get("definition"),
+            when_to_use=args.get("when_to_use"),
+            when_NOT_to_use=args.get("when_NOT_to_use"),
         )
     except Exception as exc:  # HTTPException (404 unknown flag / 422 snapshot) or anything
         detail = getattr(exc, "detail", None) or str(exc)
@@ -712,7 +727,14 @@ async def author_criterion_handler(ctx: ToolContext, args: dict[str, Any]) -> di
     code = str(args.get("code") or "")
     tier = str(args.get("tier") or "")
     owner_role = str(args.get("owner_role") or "")
-    ctx.emit(criterion_builder_part(ctx.default_agent, code=code, tier=tier, owner_role=owner_role))
+    ctx.emit(
+        criterion_builder_part(
+            ctx.default_agent, code=code, tier=tier, owner_role=owner_role,
+            definition=str(args.get("definition") or ""),
+            when_to_use=str(args.get("when_to_use") or ""),
+            when_NOT_to_use=str(args.get("when_NOT_to_use") or ""),
+        )
+    )
     return _text(
         f"Surfaced the criterion builder inline on agent {ctx.default_agent!r}"
         f"{f' (seeded {code}/{tier}/{owner_role})' if code else ''}. Choose the code, tier, and "
@@ -1033,9 +1055,12 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
     (
         author_flag_handler,
         "author_flag",
-        "EDIT AN EXISTING flag's tier/gradeable in the agent's ontology (audited config "
-        "write). It does NOT create a flag or invent owners; an out-of-snapshot gradeable "
-        "edit is rejected (422) — surface the error, do not retry blindly.",
+        "EDIT AN EXISTING flag in the agent's ontology (audited config write): its tier/"
+        "gradeable AND its criterion text (definition, when_to_use, when_NOT_to_use — "
+        "when_to_use is the lens line the judge's prompt renders, so rewording it is the "
+        "calibration move). Omitted fields stay untouched. It does NOT create a flag or "
+        "invent owners; an out-of-snapshot gradeable edit is rejected (422) — surface the "
+        "error, do not retry blindly.",
         AUTHOR_FLAG_SCHEMA,
     ),
     (

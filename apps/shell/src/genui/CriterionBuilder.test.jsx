@@ -62,4 +62,41 @@ describe("CriterionBuilder — NARR-5-CRIT-b inline, pre-seeded by the agent", (
     expect(screen.getByRole("button", { name: /Add criterion/i })).toBeDisabled();
     expect(TIERS).toEqual(["TIER_1", "TIER_2", "TIER_3"]);
   });
+
+  // CRITERION-TEXT-1: the criterion TEXT (the when_to_use lens that renders into the judge's
+  // prompt) is collected at mint time — the field is no longer unauthorable from the UI.
+  it("collects when_to_use / when_NOT_to_use into the mint payload", async () => {
+    postCriterion.mockClear();
+    render(
+      <CriterionBuilder agent="eval-1" code="EVERY_DOSE_IN_SOAP" tier="TIER_2" owner_role="faithfulness_judge" onResult={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText("when to use"), {
+      target: { value: "1) A dose stated in the transcript is absent from the note." },
+    });
+    fireEvent.change(screen.getByLabelText("when NOT to use"), {
+      target: { value: "The dose appears with different but equivalent units." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Add criterion/i }));
+    await waitFor(() => expect(postCriterion).toHaveBeenCalledTimes(1));
+    const [criterion] = postCriterion.mock.calls[0];
+    expect(criterion.when_to_use).toBe("1) A dose stated in the transcript is absent from the note.");
+    expect(criterion.when_NOT_to_use).toBe("The dose appears with different but equivalent units.");
+  });
+
+  it("pre-seeds the criterion text drafted by the agent (author_criterion seed)", () => {
+    render(
+      <CriterionBuilder
+        agent="ws0_default"
+        code="EVERY_DOSE_IN_SOAP"
+        owner_role="faithfulness_judge"
+        definition="drafted definition"
+        when_to_use="drafted lens"
+        when_NOT_to_use="drafted anti-lens"
+        onResult={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("definition")).toHaveValue("drafted definition");
+    expect(screen.getByLabelText("when to use")).toHaveValue("drafted lens");
+    expect(screen.getByLabelText("when NOT to use")).toHaveValue("drafted anti-lens");
+  });
 });

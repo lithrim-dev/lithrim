@@ -32,11 +32,15 @@ def test_criterion_builder_part_carries_seed():
     )
     assert part["type"] == "tool-criterion_builder"
     assert part["state"] == "output-available"
+    # CRITERION-TEXT-1: the part now also seeds the criterion TEXT (agent-drafted, human-approved).
     assert part["output"] == {
         "agent": "ws0_default",
         "code": "EVERY_DOSE_IN_SOAP",
         "tier": "TIER_2",
         "owner_role": "faithfulness_judge",
+        "definition": "",
+        "when_to_use": "",
+        "when_NOT_to_use": "",
     }
     assert part.get("show_intent") == "auto"  # an authoring card the agent leads with → primary
 
@@ -85,6 +89,9 @@ def test_author_criterion_emits_part_and_writes_nothing():
         "code": "EVERY_DOSE_IN_SOAP",
         "tier": "TIER_2",
         "owner_role": "faithfulness_judge",
+        "definition": "",
+        "when_to_use": "",
+        "when_NOT_to_use": "",
     }
 
 
@@ -94,7 +101,15 @@ def test_author_criterion_defaults_to_empty_seed():
     assert "is_error" not in out
     parts = [p for p in ctx.parts if p.get("type") == "tool-criterion_builder"]
     assert len(parts) == 1
-    assert parts[0]["output"] == {"agent": "ws0_default", "code": "", "tier": "", "owner_role": ""}
+    assert parts[0]["output"] == {
+        "agent": "ws0_default",
+        "code": "",
+        "tier": "",
+        "owner_role": "",
+        "definition": "",
+        "when_to_use": "",
+        "when_NOT_to_use": "",
+    }
 
 
 def test_author_criterion_schema_has_no_paid_knob():

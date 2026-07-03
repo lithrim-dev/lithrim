@@ -38,6 +38,7 @@ const P = {
   gauge: <><path d="M5 18a8 8 0 1 1 14 0" /><path d="M12 14l4-4" /></>,
   arrowR: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
   diff: <><path d="M12 3v18M3 7l4-4 4 4M21 17l-4 4-4-4" /></>,
+  pencil: <><path d="M17 3l4 4L8 20l-5 1 1-5z" /><path d="M15 5l4 4" /></>,
 };
 
 export function Icon({ name, size = 16, sw = 1.7, style, className }) {

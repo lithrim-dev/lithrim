@@ -132,6 +132,9 @@ def criterion_builder_part(
     code: str = "",
     tier: str = "",
     owner_role: str = "",
+    definition: str = "",
+    when_to_use: str = "",
+    when_NOT_to_use: str = "",
     *,
     show_intent: str = "auto",
 ) -> dict[str, Any]:
@@ -143,7 +146,13 @@ def criterion_builder_part(
     the agent never mints a code itself. ``auto`` (an authoring card the agent leads with)."""
     return _part(
         "criterion_builder",
-        {"agent": agent, "code": code, "tier": tier, "owner_role": owner_role},
+        {
+            "agent": agent, "code": code, "tier": tier, "owner_role": owner_role,
+            # CRITERION-TEXT-1: the agent's DRAFT of the criterion text, editable in the card.
+            "definition": definition,
+            "when_to_use": when_to_use,
+            "when_NOT_to_use": when_NOT_to_use,
+        },
         show_intent=show_intent,
     )
 

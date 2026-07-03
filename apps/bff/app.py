@@ -3994,10 +3994,21 @@ def _build_tool_context(
     def _get_agent(name: str) -> dict:
         return get_agent_endpoint(name=name, db_path=db_path)
 
-    def _author_flag(flag_code: str, tier=None, gradeable=None, rationale: str = "") -> dict:
-        # Edit an EXISTING flag's tier/gradeable in the current ontology, then PUT the
-        # merged ontology through the FROZEN audited op (clobber-safe working copy). We
-        # never fabricate owner_roles or invent a flag — that stays the human's act.
+    def _author_flag(
+        flag_code: str,
+        tier=None,
+        gradeable=None,
+        rationale: str = "",
+        definition: str | None = None,
+        when_to_use: str | None = None,
+        when_NOT_to_use: str | None = None,
+    ) -> dict:
+        # Edit an EXISTING flag's tier/gradeable/criterion-text in the current ontology, then
+        # PUT the merged ontology through the FROZEN audited op (clobber-safe working copy).
+        # CRITERION-TEXT-1: when_to_use is the lens line judge_assignment renders into the
+        # judge's prompt — rewording it here IS the calibration edit (SIGNATURE-1 then stales
+        # prior heads honestly). None = untouched; an explicit "" clears. We never fabricate
+        # owner_roles or invent a flag — that stays the human's act.
         ag = _load_agent(req_agent, db_path)
         ont_path, _src = _resolve_ontology_path(ag, workdir)
         ontology = json.loads(ont_path.read_text())
@@ -4008,6 +4019,12 @@ def _build_tool_context(
             match["tier"] = tier
         if gradeable is not None:
             match["gradeable"] = bool(gradeable)
+        if definition is not None:
+            match["definition"] = str(definition)
+        if when_to_use is not None:
+            match["when_to_use"] = str(when_to_use)
+        if when_NOT_to_use is not None:
+            match["when_NOT_to_use"] = str(when_NOT_to_use)
         put = put_ontology_endpoint(
             ontology=ontology,
             agent=req_agent,
@@ -4017,7 +4034,10 @@ def _build_tool_context(
             default_actor=actor,
             x_actor=x_actor,
         )
-        return {"flag": flag_code, "tier": match["tier"], "gradeable": match["gradeable"], **put}
+        return {
+            "flag": flag_code, "tier": match["tier"], "gradeable": match["gradeable"],
+            "when_to_use": match.get("when_to_use", ""), **put,
+        }
 
     def _create_flag(
         flag_code: str,
