@@ -27,8 +27,9 @@ Two ways in: **`make demo`** proves the loop in ~10s with no key or network; **`
 **Zero-config demo — no keys, no network, runs in seconds.** See the full loop on a built-in case:
 
 ```bash
-git clone <repo> && cd lithrim
-make demo        # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
+git clone <repo> && cd lithrim-bench
+pip install -e .   # core deps only (pydantic, pandas) — no LLM SDK needed for the demo
+make demo          # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
 ```
 
 `make demo` replays a captured council baseline (so no LLM call, $0) and runs the **live deterministic floor** on the neutral built-in `_core` case — so the verdict flip is real and reproducible, not a recording. No key, no network, no domain pack required.
@@ -41,7 +42,7 @@ export OPENAI_API_KEY=sk-...
 make up          # local BFF + UI; grade your own artifact, nothing leaves the box
 ```
 
-You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. (Azure is the alternative provider — `LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example).)
+You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. OpenAI and Azure work from env (`LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example)); in the UI, **Connect AI** configures any of openai / anthropic / azure / gemini / openai-compatible per judge role — including a cross-provider council.
 
 **Run it in containers — `docker compose up`.** No local Python/Node toolchain needed; a stranger gets the whole stack in two commands:
 

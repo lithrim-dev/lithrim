@@ -16,8 +16,8 @@ spine, the architecture), see [`README.md`](README.md).
   You enter it yourself in the UI or via `.env`; the app never asks anyone else for it.
 - That's it. No local Python/Node toolchain needed for the container path.
 
-Want to see the loop first with **no key and no network**? From a clone: `make demo` — it replays a
-built-in case and runs the live floor (PASS → BLOCK) in ~10s.
+Want to see the loop first with **no key and no network**? From a clone: `pip install -e .` (core
+deps only), then `make demo` — it replays a built-in case and runs the live floor (PASS → BLOCK) in ~10s.
 
 ---
 
