@@ -656,6 +656,11 @@ class ConnectorConfigRequest(BaseModel):
     x_api_key: str
 
 
+# R2a: a judge role id is lowercase snake (it becomes an env-var suffix — the pattern is the
+# injection guard AND makes suffix→role inversion exact). Shared by every role-carrying request.
+_ROLE_ID_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
+
+
 class ProviderConfigRequest(BaseModel):
     # CE-PROVIDER-BACKEND (Build A, SPEC_COMMUNITY_EDITION §3): configure the user's LLM
     # provider key IN-APP. Mirrors ConnectorConfigRequest's secret hygiene — the key is
@@ -672,7 +677,8 @@ class ProviderConfigRequest(BaseModel):
     api_key: str
     endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
     model: str | None = None
-    role: Literal["risk_judge", "policy_judge", "faithfulness_judge"] | None = None
+    # R2a: any validated judge role id (authored roles included), not just the trio.
+    role: str | None = Field(default=None, pattern=_ROLE_ID_PATTERN)
     # CONNECT-AI-AZURE-1: the OPTIONAL Azure ``api_version`` — the global trio threads it; a UI-only
     # Azure setup (per-role grading / chat) needs it too or litellm hits the api-version /
     # DeploymentNotFound wall. None ⇒ leave the settings default (AZURE_OPENAI_API_VERSION).
@@ -1340,6 +1346,8 @@ def _council_view(record: dict) -> dict:
             # variance + completion count. float|null — never aggregated across reviewers.
             "variance": v.get("variance"),
             "k": v.get("k"),
+            # R2c: the raw per-sample decision scores (the "3B/2P" split derives from this).
+            "scores_raw": v.get("scores_raw"),
         }
         for v in (semantic.get("judge_votes") or [])
     ]
@@ -4910,6 +4918,73 @@ _PROVIDER_ROLE_BINDING = {
         "api_version": "LITHRIM_LLM_API_VERSION_FAITHFULNESS",
     },
 }
+
+# ── REPRO-1 R2a: the binding plane generalizes to ANY authored judge role (3→N). The v2 trio
+# keeps its SHORT legacy env suffixes (back-compat with every existing .provider_env /
+# role_bindings row); an authored role's suffix is its uppercased id. Role ids are validated at
+# the request boundary (_ROLE_ID_PATTERN) so a suffix can never inject env-name garbage, and the
+# lowercase restriction makes suffix→role inversion exact.
+_LEGACY_ROLE_SUFFIX = {
+    "risk_judge": "RISK", "policy_judge": "POLICY", "faithfulness_judge": "FAITHFULNESS",
+}
+_ROLE_BY_LEGACY_SUFFIX = {v: k for k, v in _LEGACY_ROLE_SUFFIX.items()}
+
+
+def _role_env_suffix(role: str) -> str:
+    return _LEGACY_ROLE_SUFFIX.get(role) or role.upper()
+
+
+def _role_binding_env_names(role: str) -> dict[str, str]:
+    """The 5 per-role binding env vars for ANY judge role (the generalized
+    ``_PROVIDER_ROLE_BINDING`` row — that dict remains as the legacy-trio constant the
+    one-time migration reads)."""
+    s = _role_env_suffix(role)
+    return {
+        "provider": f"LITHRIM_LLM_PROVIDER_{s}", "model": f"LITHRIM_LLM_MODEL_{s}",
+        "api_key": f"LITHRIM_LLM_API_KEY_{s}", "api_base": f"LITHRIM_LLM_API_BASE_{s}",
+        "api_version": f"LITHRIM_LLM_API_VERSION_{s}",
+    }
+
+
+# var-name prefix → the role_bindings DB field, for splitting a flat env dict back into
+# per-role rows (the api_key prefix is deliberately ABSENT — the secret stays file-only).
+_DB_FIELD_BY_VAR_PREFIX = {
+    "LITHRIM_LLM_PROVIDER_": "provider",
+    "LITHRIM_LLM_MODEL_": "model",
+    "LITHRIM_LLM_API_BASE_": "endpoint",
+    "LITHRIM_LLM_API_VERSION_": "api_version",
+}
+
+
+def _role_field_from_var(var: str) -> tuple[str, str] | None:
+    """Invert a per-role binding var name → (role, db_field); None for anything else (the
+    secret key vars, the global selectors, the chat plane)."""
+    for prefix, db_field in _DB_FIELD_BY_VAR_PREFIX.items():
+        if var.startswith(prefix):
+            suffix = var[len(prefix):]
+            return (_ROLE_BY_LEGACY_SUFFIX.get(suffix) or suffix.lower()), db_field
+    return None
+
+
+def _assert_bindable_judge_role(role: str) -> None:
+    """422 unless ``role`` is a reviewer the ACTIVE workspace's pack declares (production ∪
+    lens roles — where a JudgeBuilder-authored role lands after its snapshot splice). The
+    typo-guard: a model binding for a reviewer that cannot grade is refused, never silently
+    stored."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    ws = workspace.get_active_workspace()
+    selectable = set(_pack_mod.pack_production_judges(ws.pack)) | set(
+        _pack_mod.pack_lenses(ws.pack)
+    )
+    if role not in selectable:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"unknown reviewer role {role!r} — this workspace offers "
+                f"{sorted(selectable)} (create a new reviewer first, then bind it)"
+            ),
+        )
 # The broadened grading provider set litellm speaks (PROVIDER-CENTER-A). These have NO global
 # grading selector — they are per-role ONLY (require a `role`). ``anthropic`` is here for the GRADING
 # plane (faithfulness→Anthropic, the mixed council); the assistant-plane anthropic stays global.
@@ -4955,8 +5030,9 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
     env: dict[str, str] = {}
     if req.plane == "grading":
         # PROVIDER-CENTER-A: the generic per-role binding (additive; only when a role is given).
+        # R2a: ANY validated judge role id resolves (authored roles included), not just the trio.
         if req.role:
-            binding = _PROVIDER_ROLE_BINDING[req.role]
+            binding = _role_binding_env_names(req.role)
             env[binding["provider"]] = req.provider
             if req.model:
                 env[binding["model"]] = req.model
@@ -4978,7 +5054,11 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["OPENAI_API_KEY"] = req.api_key
             if req.model:
                 if req.role:
-                    env[_PROVIDER_OPENAI_ROLE_MODEL[req.role]] = req.model
+                    # R2a: only the legacy trio has a global-path OPENAI_MODEL_* var; an authored
+                    # role rides SOLELY the generic per-role binding written above.
+                    legacy_var = _PROVIDER_OPENAI_ROLE_MODEL.get(req.role)
+                    if legacy_var:
+                        env[legacy_var] = req.model
                 else:
                     for var in _PROVIDER_OPENAI_ROLE_MODEL.values():
                         env[var] = req.model
@@ -4992,7 +5072,11 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                 env["AZURE_OPENAI_API_VERSION"] = req.api_version.strip()
             if req.model:  # the Azure DEPLOYMENT name (e.g. policy_judge → your Mistral deployment)
                 if req.role:
-                    env[_PROVIDER_AZURE_ROLE_DEPLOYMENT[req.role]] = req.model
+                    # R2a: only the legacy trio has a global-path deployment var; an authored
+                    # role rides SOLELY the generic per-role binding written above.
+                    legacy_var = _PROVIDER_AZURE_ROLE_DEPLOYMENT.get(req.role)
+                    if legacy_var:
+                        env[legacy_var] = req.model
                 else:
                     for var in _PROVIDER_AZURE_ROLE_DEPLOYMENT.values():
                         env[var] = req.model
@@ -5141,7 +5225,9 @@ def _split_provider_env_vars(
     db_bindings: dict[str, dict[str, str]] = {}
     file_vars: dict[str, str] = {}
     for key, val in env_vars.items():
-        rf = _DB_ENV_TO_ROLE_FIELD.get(key)
+        # R2a: pattern-inverted (any role's binding vars split correctly, authored roles
+        # included) — _DB_ENV_TO_ROLE_FIELD remains as the legacy-trio constant.
+        rf = _role_field_from_var(key)
         if rf is not None:
             role, field = rf
             db_bindings.setdefault(role, {})[field] = val
@@ -5156,7 +5242,13 @@ def _hydrate_role_bindings_into_env() -> None:
     from lithrim_bench.harness import role_bindings as _rb
 
     for role, binding in _rb.load_bindings(db_path=_role_bindings_db_path()).items():
-        for field, var in _ROLE_BINDING_DB_ENV.get(role, {}).items():
+        # R2a: derive the env names for ANY stored role (authored roles hydrate too).
+        names = _role_binding_env_names(role)
+        env_map = {
+            "provider": names["provider"], "model": names["model"],
+            "endpoint": names["api_base"], "api_version": names["api_version"],
+        }
+        for field, var in env_map.items():
             if binding.get(field) is not None:
                 os.environ[var] = binding[field]
 
@@ -5450,9 +5542,10 @@ class ModelRegisterRequest(BaseModel):
 
 
 class ModelBindRequest(BaseModel):
-    # MODEL-REGISTRY-1a: bind a pool entry to one of the 3 fixed roles. Phase-1 keeps the 3 roles;
-    # the role REFERENCES the entry instead of re-typing provider/model/key.
-    role: Literal["risk_judge", "policy_judge", "faithfulness_judge"]
+    # MODEL-REGISTRY-1a: bind a pool entry to a judge role. R2a: widened from the trio Literal to
+    # ANY validated judge role id (authored roles bind too); the role REFERENCES the entry instead
+    # of re-typing provider/model/key.
+    role: str = Field(pattern=_ROLE_ID_PATTERN)
 
 
 def _model_entry_public(entry: dict) -> dict:
@@ -5655,6 +5748,7 @@ def models_bind_endpoint(
             detail=f"model {model_id!r} has no persisted key (re-register it)",
         )
 
+    _assert_bindable_judge_role(req.role)  # R2a typo-guard: only a declared reviewer binds
     # Reuse the Build A env-var mapper: a ProviderConfigRequest carrying this entry's selectors,
     # role-targeted so only this judge's per-role model/deployment is set.
     cfg = ProviderConfigRequest(
@@ -5783,7 +5877,9 @@ _ROLE_BIND_CONSUMERS = (*_ROLE_BIND_JUDGE_ENV.keys(), _ROLE_BIND_CHAT)
 class RoleBindRequest(BaseModel):
     # CONNECT-AI-CONSOLIDATE-1: bind a {provider, model} to ONE consumer. NO api_key — the key is
     # REUSED from the provider's already-stored secret on .provider_env (keys entered once).
-    role: Literal["risk_judge", "policy_judge", "faithfulness_judge", "chat_assistant"]
+    # R2a: `role` widened from the trio Literal to ANY validated judge role id (authored roles
+    # bind too); the pattern doubles as the env-suffix injection guard. chat_assistant matches.
+    role: str = Field(pattern=_ROLE_ID_PATTERN)
     provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
     model: str
 
@@ -5819,7 +5915,9 @@ def _read_role_bindings() -> dict:
 
     stored = _rb.load_bindings(db_path=_role_bindings_db_path())
     roles: dict[str, dict | None] = {}
-    for role in _ROLE_BIND_JUDGE_ENV:  # the 3 judges live in the config DB
+    # R2a: the trio always lists (the fixed rows) ∪ every stored role (authored roles appear
+    # once bound). Judges live in the config DB.
+    for role in dict.fromkeys([*_ROLE_BIND_JUDGE_ENV, *stored]):
         b = stored.get(role)
         roles[role] = (
             {"provider": b["provider"], "model": b.get("model")} if b and b.get("provider") else None
@@ -5877,9 +5975,12 @@ def roles_bind_endpoint(
             detail=f"provider test failed ({probe.get('error', 'unknown error')})",
         )
 
-    if req.role in _ROLE_BIND_JUDGE_ENV:
-        # a JUDGE → the per-role binding via Build A's mapper (the REUSED key fills the per-role var);
-        # the REUSED stored api_version threads via the cfg for an azure per-role judge.
+    if req.role != _ROLE_BIND_CHAT:
+        # a JUDGE (any role that isn't the chat consumer — R2a: authored roles bind as judges;
+        # the old trio-membership dispatch silently routed an authored role into the CHAT branch
+        # and clobbered LITHRIM_CHAT_*) → the per-role binding via Build A's mapper (the REUSED
+        # key fills the per-role var); the REUSED stored api_version threads for an azure judge.
+        _assert_bindable_judge_role(req.role)  # the typo-guard: only a declared reviewer binds
         cfg = ProviderConfigRequest(
             plane="grading", provider=req.provider, api_key=api_key,
             endpoint=endpoint, model=req.model, role=req.role, api_version=api_version,

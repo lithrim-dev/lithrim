@@ -46,6 +46,10 @@ class JudgeVote(BaseModel):
     # reviewers are never aggregated). None when sampling wasn't recorded (k=1 / legacy).
     variance: float | None = None
     k: int | None = None
+    # REPRO-1 R2c: the raw per-sample decision scores (0.0 reject / 0.5 needs_review /
+    # 1.0 approve, one per completion) — the within-call verdict split ("3 BLOCK / 2 PASS")
+    # derives from this. None when sampling wasn't recorded; never fabricated.
+    scores_raw: list[float] | None = None
 
 
 def _coerce_legacy_judge_votes(

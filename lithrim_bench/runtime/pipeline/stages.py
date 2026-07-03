@@ -612,6 +612,7 @@ def _judge_votes_from_models(
         samp = m.get("sampling") or {}
         raw_var = samp.get("score_variance")
         raw_k = samp.get("k")
+        raw_scores = samp.get("scores_raw")
         votes.append(JudgeVote(
             judge_role=role,
             vote=vote,
@@ -627,6 +628,13 @@ def _judge_votes_from_models(
             findings=finding_codes,
             variance=float(raw_var) if isinstance(raw_var, (int, float)) else None,
             k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
+            # R2c: the per-sample decision scores — the readable K-split. List-or-None,
+            # never coerced (an absent distribution must not read as a unanimous one).
+            scores_raw=(
+                [float(s) for s in raw_scores]
+                if isinstance(raw_scores, list) and raw_scores
+                else None
+            ),
         ))
     return votes
 

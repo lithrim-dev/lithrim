@@ -36,6 +36,20 @@ const OUTCOME = {
 // a per-judge vote (PASS|WARN|FAIL|BLOCK) -> chip color (mirrors artifact.jsx VOTE_COLOR).
 const VOTE_COLOR = { PASS: "var(--teal)", WARN: "var(--amber)", FAIL: "var(--accent)", BLOCK: "var(--accent)" };
 
+// R2c: the per-sample verdict split from the raw decision scores (0.0 block / 0.5 review /
+// 1.0 pass). "5×[0,0,1,1,1]" → "2B/3P" (review samples shown only when present). Null on
+// no/one-sample data — a k=1 vote has no split to show.
+export function sampleSplit(scoresRaw) {
+  if (!Array.isArray(scoresRaw) || scoresRaw.length < 2) return null;
+  let b = 0, w = 0, p = 0;
+  for (const s of scoresRaw) {
+    if (s <= 0.25) b += 1;
+    else if (s >= 0.75) p += 1;
+    else w += 1;
+  }
+  return [b ? `${b}B` : "", w ? `${w}R` : "", p ? `${p}P` : ""].filter(Boolean).join("/");
+}
+
 // "1 / 3" -> [true, false, false]; falls back to three filled when unparseable.
 function agreeDots(agreement) {
   const [num, den] = String(agreement || "").split("/").map((x) => parseInt(x.trim(), 10));
@@ -158,6 +172,14 @@ export default function VerdictCard({
                     {typeof v.variance === "number" && (
                       <span className="ivote-conf" title={`variance over k=${v.k ?? "?"} samples`} style={{ color: v.variance >= 0.2 ? "var(--amber)" : "var(--muted)" }}>
                         var {v.variance.toFixed(2)}{v.k ? ` · k=${v.k}` : ""}
+                      </span>
+                    )}
+                    {/* R2c: the raw per-sample split — how the k completions actually voted. */}
+                    {sampleSplit(v.scores_raw) && (
+                      <span className="ivote-conf" data-testid={`vote-split-${v.role || i}`}
+                        title="per-sample verdicts across the k completions"
+                        style={{ color: "var(--muted)" }}>
+                        {sampleSplit(v.scores_raw)}
                       </span>
                     )}
                   </div>

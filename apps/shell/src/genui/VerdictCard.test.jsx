@@ -66,6 +66,18 @@ describe("VerdictCard — fully-interactive inline result", () => {
     getByText("Needs a look"); // the WARN vote
   });
 
+  it("renders the per-sample K-split chip from scores_raw (R2c) — and never fabricates one", () => {
+    const votes = [
+      { role: "reviewer_gpt41", vote: "PASS", scores_raw: [0.0, 0.0, 1.0, 1.0, 1.0], k: 5 },
+      { role: "reviewer_opus", vote: "BLOCK" }, // unsampled: no split chip
+    ];
+    const { getByTestId, queryByTestId } = render(
+      <VerdictCard verdict="approve" votes={votes} runId="run-10" />,
+    );
+    expect(getByTestId("vote-split-reviewer_gpt41")).toHaveTextContent("2B/3P");
+    expect(queryByTestId("vote-split-reviewer_opus")).toBeNull();
+  });
+
   it("renders the clinician-verdict (dissent) form inline when a runId is present", () => {
     const { getByTestId, getByText } = render(
       <VerdictCard verdict="approve" votes={VOTES} runId="run-10" />,

@@ -17,8 +17,10 @@ import { Button } from "../components/ui/button.jsx";
 import { NO_LOGPROBS } from "./ProvidersSection.jsx";
 import { roleLabel, friendlyError } from "./copy.js";
 
-const JUDGE_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
-const ALL_ROLES = [...JUDGE_ROLES, "chat_assistant"];
+// R2a fallback ONLY: the rows derive from the ACTIVE workspace roster (getCouncilRoster's
+// selectable — JudgeBuilder-authored roles included); the v2 trio renders only until/unless
+// the roster loads empty (offline / first paint).
+const FALLBACK_JUDGE_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
 
 const inputStyle = {
   padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: "1px solid var(--border)",
@@ -63,6 +65,10 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
   const [selectable, setSelectable] = useState([]);
   const [reviewerMode, setReviewerMode] = useState("panel");
   const [singleRole, setSingleRole] = useState("");
+  // R2b: the CUSTOM subset roster (any N of the selectable reviewers — the N-clone council).
+  const [customRoster, setCustomRoster] = useState([]);
+  // the persisted override (null = panel) — drives the honest ready gate (R2a).
+  const [activeRoster, setActiveRoster] = useState(null);
   const [rosterMsg, setRosterMsg] = useState("");
   // CE-JUDGE-RECOMMEND-1: the deterministic panel-vs-single-Generalist recommendation from the
   // pack's reviewer structure ({mode, reviewer, k, rationale}); rendered as guidance, one-click apply.
@@ -79,18 +85,52 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       setSelectable(r?.selectable || pnl);
       setRecommendation(r?.recommendation || null);
       const rr = r?.reviewer_roster;
-      if (rr && rr.length) { setReviewerMode(rr.length === 1 ? "single" : "panel"); setSingleRole(rr[0] || pnl[0] || ""); }
-      else { setReviewerMode("panel"); setSingleRole(pnl[0] || ""); }
+      setActiveRoster(rr && rr.length ? rr : null);
+      if (rr && rr.length > 1) { setReviewerMode("custom"); setCustomRoster(rr); setSingleRole(rr[0]); }
+      else if (rr && rr.length === 1) { setReviewerMode("single"); setSingleRole(rr[0]); setCustomRoster(rr); }
+      else { setReviewerMode("panel"); setSingleRole(pnl[0] || ""); setCustomRoster([]); }
     }).catch(() => {});
   }, [agent]);
 
   const saveRoster = async (roster) => {
     setRosterMsg("saving…");
-    try { await setCouncilRoster({ agent, roster }); setRosterMsg(roster ? `single → ${roleLabel(roster[0])}` : "panel"); onBound?.(); }
+    try {
+      await setCouncilRoster({ agent, roster });
+      setActiveRoster(roster && roster.length ? roster : null);
+      setRosterMsg(
+        !roster || !roster.length ? "panel"
+          : roster.length === 1 ? `single → ${roleLabel(roster[0])}`
+            : `custom → ${roster.length} reviewers`,
+      );
+      onBound?.();
+    }
     catch (e) { setRosterMsg(String(e.message || e)); }
   };
-  const applyReviewerMode = (m) => { setReviewerMode(m); saveRoster(m === "single" ? [singleRole || panel[0]] : null); };
+  const applyReviewerMode = (m) => {
+    setReviewerMode(m);
+    if (m === "single") saveRoster([singleRole || panel[0]]);
+    else if (m === "panel") saveRoster(null);
+    // custom: no immediate save — an empty subset would clear to panel; the checkboxes save.
+  };
   const applySingleRole = (role) => { setSingleRole(role); saveRoster([role]); };
+
+  // R2a: the reviewer rows = the ACTIVE workspace's bindable reviewers (panel ∪ selectable —
+  // authored roles included); the v2 trio only as the empty-roster fallback.
+  const judgeRoles = (() => {
+    const seen = new Set();
+    const merged = [...panel, ...selectable].filter((r) => !seen.has(r) && seen.add(r));
+    return merged.length ? merged : FALLBACK_JUDGE_ROLES;
+  })();
+  const allRoles = [...judgeRoles, "chat_assistant"];
+
+  // R2b: toggle one reviewer in the custom subset (kept in selectable order, deterministic).
+  const toggleRosterRole = (role) => {
+    const next = customRoster.includes(role)
+      ? customRoster.filter((r) => r !== role)
+      : judgeRoles.filter((r) => customRoster.includes(r) || r === role);
+    setCustomRoster(next);
+    saveRoster(next.length ? next : null);
+  };
 
   // CONNECT-AI-PREFILL-1: seed each row's picker from its SAVED binding so an already-configured role
   // shows its provider+model in the editable controls (not an empty field next to a ✓). Only seed a row
@@ -99,7 +139,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
     setSel((s) => {
       let changed = false;
       const next = { ...s };
-      for (const role of ALL_ROLES) {
+      for (const role of allRoles) {
         const b = bindings?.[role];
         if (b?.provider && next[role] === undefined) {
           next[role] = { provider: b.provider, model: b.model || "" };
@@ -108,7 +148,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       }
       return changed ? next : s;
     });
-  }, [bindings]);
+  }, [bindings, panel, selectable]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (key) => sel[key] || { provider: "", model: "" };
   const setProvider = (key, provider) =>
@@ -132,15 +172,18 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
   const bindAllJudges = () => {
     const p = pick("*");
     if (!canBind("*")) return;
-    for (const role of JUDGE_ROLES) doBind(role, p.provider, p.model.trim());
+    for (const role of judgeRoles) doBind(role, p.provider, p.model.trim());
   };
 
-  // the compulsory-chat gate: all 3 judges AND chat_assistant bound.
+  // R2a — the HONEST readiness gate: the reviewers that will ACTUALLY grade (the persisted
+  // roster override when set, else the panel/rows) must each be bound, plus chat_assistant.
   const isBound = (role) => !!bindings?.[role]?.provider;
-  const judgesBound = JUDGE_ROLES.filter(isBound).length;
+  const requiredJudges = activeRoster && activeRoster.length ? activeRoster : judgeRoles;
+  const judgesBound = requiredJudges.filter(isBound).length;
   const chatBound = isBound("chat_assistant");
   const boundCount = judgesBound + (chatBound ? 1 : 0);
-  const ready = judgesBound === 3 && chatBound;
+  const totalRequired = requiredJudges.length + 1;
+  const ready = judgesBound === requiredJudges.length && requiredJudges.length > 0 && chatBound;
 
   // one provider <select> + a model <input list=datalist> (presets + free text). `key` namespaces
   // the row (a role or "*" for the all-judges shortcut); `idPrefix` is the datalist + testid stem.
@@ -185,6 +228,8 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
               variant={reviewerMode === "panel" ? "default" : "outline"} onClick={() => applyReviewerMode("panel")}>Panel · {panel.length}</Button>
             <Button data-testid="reviewer-mode-single" size="sm" className="whitespace-nowrap"
               variant={reviewerMode === "single" ? "default" : "outline"} onClick={() => applyReviewerMode("single")}>Single reviewer</Button>
+            <Button data-testid="reviewer-mode-custom" size="sm" className="whitespace-nowrap"
+              variant={reviewerMode === "custom" ? "default" : "outline"} onClick={() => applyReviewerMode("custom")}>Custom</Button>
             {reviewerMode === "single" && (
               <select data-testid="reviewer-single-role" value={singleRole}
                 onChange={(e) => applySingleRole(e.target.value)} aria-label="single reviewer" style={inputStyle}>
@@ -192,10 +237,25 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
               </select>
             )}
           </div>
+          {/* R2b: any subset of the bindable reviewers — the N-clone council (e.g. one shared
+              prompt across N models). Checking saves; unchecking all reverts to the panel. */}
+          {reviewerMode === "custom" && (
+            <div data-testid="reviewer-custom-roster" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {judgeRoles.map((r) => (
+                <label key={r} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink)" }}>
+                  <input type="checkbox" data-testid={`roster-check-${r}`}
+                    checked={customRoster.includes(r)} onChange={() => toggleRosterRole(r)} />
+                  {roleLabel(r)}
+                </label>
+              ))}
+            </div>
+          )}
           <span style={{ fontSize: 10.5, color: "var(--muted)" }}>
             {reviewerMode === "single"
               ? `Only ${roleLabel(singleRole)} grades — fastest first pass; that reviewer's vote is the verdict.`
-              : `All ${panel.length} reviewers grade — the panel needs ≥2 to reach consensus.`}
+              : reviewerMode === "custom"
+                ? `Exactly the checked reviewers grade${customRoster.length ? ` (${customRoster.length})` : " — check at least one"}.`
+                : `All ${panel.length} reviewers grade — the panel needs ≥2 to reach consensus.`}
             {rosterMsg && <span> · {rosterMsg}</span>}
           </span>
           {/* CE-JUDGE-RECOMMEND-1: a deterministic recommendation from the pack's reviewer structure */}
@@ -221,11 +281,11 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
         {pickerControls("*", "all-judges")}
         <Button data-testid="all-judges-submit" size="sm" variant="secondary" className="whitespace-nowrap"
           onClick={bindAllJudges} disabled={!canBind("*")}
-          title={!canBind("*") ? "Pick a provider and model above first" : undefined}>Apply to 3 reviewers</Button>
+          title={!canBind("*") ? "Pick a provider and model above first" : undefined}>Apply to {judgeRoles.length} reviewers</Button>
       </div>
 
-      {/* ── the four consumer rows ── */}
-      {ALL_ROLES.map((role) => {
+      {/* ── the consumer rows: every bindable reviewer (roster-derived, R2a) + chat ── */}
+      {allRoles.map((role) => {
         const p = pick(role);
         const pickedLogprobs = p.provider && p.model ? modelLogprobs(catalog, p.provider, p.model) : true;
         const bound = bindings?.[role];
@@ -269,10 +329,10 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       <div data-testid="setup-complete-status"
         style={{ fontSize: 11.5, fontWeight: 600, color: ready ? "var(--teal)" : "var(--amber)" }}>
         {ready
-          ? `Ready — all 4 set`
+          ? `Ready — all ${totalRequired} set`
           : chatBound
-            ? `Not ready — ${boundCount} of 4 set (a reviewer still needs a model)`
-            : `The assistant needs a model before you can chat — ${boundCount} of 4 set`}
+            ? `Not ready — ${boundCount} of ${totalRequired} set (a reviewer still needs a model)`
+            : `The assistant needs a model before you can chat — ${boundCount} of ${totalRequired} set`}
       </div>
     </section>
   );

@@ -36,8 +36,16 @@ _SIGNATURE_GENERICIZE_SEAM = frozenset({"_build_signature"})
 # / ``evaluate_dspy`` / ``Judge`` / the finding shape stay byte-frozen vs acc4973 (the C4 non-vacuity
 # still fires on any edit to those).
 _PROVIDER_CENTER_SEAM = frozenset({"_litellm_prefix", "_provider_supports_logprobs"})
+# REPRO-1 R2a (3→N roles): the per-role binding generalizes to AUTHORED roles — two more pure
+# provider-binder helpers join the seam: ``_role_provider_keys`` (the generic per-role env names
+# for ANY role; the trio keeps its legacy short suffixes) + ``_role_setting`` (settings-then-env
+# read, since dynamic role keys are not declared Settings fields). Provider-binder support, NOT
+# the consensus seam; ``_apply_consensus`` / ``evaluate_dspy`` / ``Judge`` / the finding shape
+# stay byte-frozen vs acc4973 (the C4 non-vacuity still fires on any edit to those).
+_ROLE_GENERALIZE_SEAM = frozenset({"_role_provider_keys", "_role_setting"})
 _AUTHORIZED_JUDGES_SEAM = (
     _BYOC1_PROVIDER_SEAM | _SIGNATURE_GENERICIZE_SEAM | _PROVIDER_CENTER_SEAM
+    | _ROLE_GENERALIZE_SEAM
 )
 
 # PACK-2 (layer 2): the clinical council role prompts relocated into the healthcare pack.

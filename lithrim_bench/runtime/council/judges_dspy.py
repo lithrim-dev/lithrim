@@ -110,6 +110,34 @@ _ROLE_PROVIDER_KEYS = {
         "api_version": "LITHRIM_LLM_API_VERSION_FAITHFULNESS",
     },
 }
+# REPRO-1 R2a: the per-role binding generalizes to ANY judge role (3→N — authored roles bind
+# like pack roles). The v2 trio keeps its SHORT legacy suffixes via _ROLE_PROVIDER_KEYS above;
+# any other role derives generic names from its sanitized uppercased id. Dynamic keys are NOT
+# declared on the Settings model, so _role_setting falls back to os.environ — exactly where the
+# BFF's bind/hydration writes them (and what a subprocess grade inherits).
+def _role_provider_keys(role: str) -> dict[str, str]:
+    keys = _ROLE_PROVIDER_KEYS.get(role)
+    if keys is not None:
+        return keys
+    s = "".join(c if c.isalnum() else "_" for c in (role or "").upper())
+    return {
+        "provider": f"LITHRIM_LLM_PROVIDER_{s}", "model": f"LITHRIM_LLM_MODEL_{s}",
+        "api_key": f"LITHRIM_LLM_API_KEY_{s}", "api_base": f"LITHRIM_LLM_API_BASE_{s}",
+        "api_version": f"LITHRIM_LLM_API_VERSION_{s}",
+    }
+
+
+def _role_setting(key: str) -> str:
+    """A per-role binding value: the settings holder first (the declared trio fields, refreshed
+    in-place on bind), else os.environ (authored roles' dynamic keys)."""
+    import os
+
+    val = str(getattr(settings, key, "") or "")
+    if not val:
+        val = os.environ.get(key, "")
+    return val.strip()
+
+
 # The litellm provider/model PREFIX per provider id. ``openai_compatible`` rides the ``openai``
 # prefix + a per-role ``api_base`` (vLLM / Together / a local OpenAI-shaped server). litellm routes
 # ``openai/`` / ``azure/`` / ``anthropic/`` / ``gemini/`` / ``bedrock/`` natively.
@@ -317,14 +345,14 @@ def build_judge_lm(role: str, **overrides: Any):
     # global branches below (the regression guard, tests/test_provider_center_crossprovider.py::
     # test_no_per_role_* + the byte-frozen byo-claude routing above). logprobs ride
     # ``_provider_supports_logprobs`` (openai/azure True, else off — honest confidence-dark).
-    role_keys = _ROLE_PROVIDER_KEYS.get(role)
-    role_provider = ""
-    if role_keys is not None:
-        role_provider = str(getattr(settings, role_keys["provider"], "") or "").strip().lower()
+    # R2a: resolves for ANY role (authored roles ride os.environ via _role_setting; the trio
+    # reads the declared settings fields exactly as before).
+    role_keys = _role_provider_keys(role)
+    role_provider = _role_setting(role_keys["provider"]).lower()
     if role_provider:
-        role_model = str(getattr(settings, role_keys["model"], "") or "").strip()
-        role_api_key = str(getattr(settings, role_keys["api_key"], "") or "").strip()
-        role_api_base = str(getattr(settings, role_keys["api_base"], "") or "").strip()
+        role_model = _role_setting(role_keys["model"])
+        role_api_key = _role_setting(role_keys["api_key"])
+        role_api_base = _role_setting(role_keys["api_base"])
         per_role_kwargs: dict[str, Any] = {
             "temperature": 0,
             "max_tokens": 4096,
@@ -340,8 +368,7 @@ def build_judge_lm(role: str, **overrides: Any):
             # branch threads it; without it litellm hits the api-version / DeploymentNotFound wall).
             # Read the per-role LITHRIM_LLM_API_VERSION_<ROLE>; default to the council default.
             per_role_kwargs["api_version"] = (
-                str(getattr(settings, role_keys["api_version"], "") or "").strip()
-                or settings.AZURE_OPENAI_API_VERSION
+                _role_setting(role_keys["api_version"]) or settings.AZURE_OPENAI_API_VERSION
             )
         per_role_kwargs.update(overrides)
         return dspy.LM(f"{_litellm_prefix(role_provider)}/{role_model}", **per_role_kwargs)

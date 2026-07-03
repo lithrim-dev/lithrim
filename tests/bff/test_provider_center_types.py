@@ -357,3 +357,135 @@ def test_existing_openai_global_config_unchanged(registry_env, monkeypatch):
     # no per-role vars written for a global (no-role) config
     assert "LITHRIM_LLM_PROVIDER_RISK" not in env
     assert "LITHRIM_LLM_PROVIDER_POLICY" not in env
+
+
+# ── REPRO-1 R2a: AUTHORED roles bind like pack roles (the 3→N unlock) ────────────────────
+
+_AUTHORED_ENV_KEYS = [
+    f"LITHRIM_LLM_{kind}_REVIEWER_GPT41"
+    for kind in ("PROVIDER", "MODEL", "API_KEY", "API_BASE", "API_VERSION")
+]
+
+
+@pytest.fixture()
+def _authored_env_cleanup():
+    yield
+    for k in _AUTHORED_ENV_KEYS:
+        os.environ.pop(k, None)
+
+
+@pytest.fixture()
+def _authored_role_declared(monkeypatch):
+    """Declare `reviewer_gpt41` as a pack lens role — the state a JudgeBuilder splice leaves
+    behind (POST /v1/judges writes production_judges/lenses); binding validates against it
+    (the typo-guard: an UNDECLARED role still 422s — test_roles_bind_unknown_role_422)."""
+    import lithrim_bench.harness.pack as pack_mod
+
+    real = pack_mod.pack_lenses
+
+    def _with_authored(pack=None):
+        return {**real(pack), "reviewer_gpt41": ("FABRICATED_CLAIM",)}
+
+    monkeypatch.setattr(pack_mod, "pack_lenses", _with_authored)
+
+
+def test_bind_an_authored_role_via_the_model_registry(registry_env, monkeypatch, _authored_env_cleanup, _authored_role_declared):
+    """R2a end-to-end: a JudgeBuilder-authored role (NOT the v2 trio) binds via the registry —
+    the generic per-role env lands under the sanitized suffix, the role_bindings DB carries it,
+    GET /v1/roles/bindings lists it, and build_judge_lm resolves the per-role provider for it
+    (dspy.LM mocked). The N-clone council's binding plane."""
+    tmp_path, ws = registry_env
+    _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+
+    assert client.post(
+        "/v1/models",
+        json={"id": "clone-41", "provider": "openai", "model": "gpt-4.1", "api_key": "sk-clone"},
+    ).status_code == 200
+    r = client.post("/v1/models/clone-41/bind", json={"role": "reviewer_gpt41"})
+    assert r.status_code == 200, r.text
+
+    env = dict(os.environ)
+    assert env.get("LITHRIM_LLM_PROVIDER_REVIEWER_GPT41") == "openai"
+    assert env.get("LITHRIM_LLM_MODEL_REVIEWER_GPT41") == "gpt-4.1"
+    assert env.get("LITHRIM_LLM_API_KEY_REVIEWER_GPT41") == "sk-clone"
+
+    # the role_bindings DB + the bindings read surface carry the authored role
+    from lithrim_bench.harness import role_bindings as _rb
+
+    stored = _rb.load_bindings(db_path=bff._role_bindings_db_path())
+    assert (stored.get("reviewer_gpt41") or {}).get("provider") == "openai"
+    listed = client.get("/v1/roles/bindings").json()
+    roles = listed.get("roles") or listed
+    assert (roles.get("reviewer_gpt41") or {}).get("provider") == "openai"
+
+    # runtime: build_judge_lm routes the authored role to its own provider (per-role override)
+    import dspy
+
+    class _FakeLM:
+        def __init__(self, model, **kwargs):
+            self.model = model
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(dspy, "LM", _FakeLM)
+    from lithrim_bench.runtime.council import judges_dspy as J
+
+    lm = J.build_judge_lm("reviewer_gpt41")
+    assert lm.model == "openai/gpt-4.1"
+    assert lm.kwargs["logprobs"] is True
+
+
+def test_roles_bind_authored_role_never_clobbers_the_chat_binding(registry_env, monkeypatch, _authored_env_cleanup, _authored_role_declared):
+    """R2a regression (the live bug): /v1/roles/bind dispatched judge-vs-chat by membership in the
+    HARDCODED trio, so an authored role fell into the CHAT branch and silently overwrote
+    LITHRIM_CHAT_*. An authored role must bind as a JUDGE; the chat binding stays untouched."""
+    tmp_path, ws = registry_env
+    _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+
+    # store the provider key once (Section 1), then bind the authored role (Section 2)
+    assert client.post(
+        "/v1/provider/config",
+        json={"plane": "grading", "provider": "openai", "api_key": "sk-shared"},
+    ).status_code == 200
+    r = client.post(
+        "/v1/roles/bind",
+        json={"role": "reviewer_gpt41", "provider": "openai", "model": "gpt-4.1"},
+    )
+    assert r.status_code == 200, r.text
+
+    env_file = bff._parse_env_file(bff._PROVIDER_ENV_PATH)
+    assert env_file.get("LITHRIM_CHAT_PROVIDER") is None  # chat untouched
+    assert os.environ.get("LITHRIM_LLM_PROVIDER_REVIEWER_GPT41") == "openai"
+
+
+def test_bind_rejects_a_malformed_role_id(registry_env, monkeypatch):
+    """The role becomes an env-var suffix — a malformed id (spaces/uppercase/symbols) is refused
+    at the boundary (422), never written into the env plane."""
+    tmp_path, ws = registry_env
+    _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+    client.post(
+        "/v1/provider/config",
+        json={"plane": "grading", "provider": "openai", "api_key": "sk-shared"},
+    )
+    for bad in ("Bad Role", "UPPER", "role;rm", "9starts_with_digit"):
+        r = client.post(
+            "/v1/roles/bind", json={"role": bad, "provider": "openai", "model": "gpt-4.1"}
+        )
+        assert r.status_code == 422, (bad, r.status_code, r.text)
+
+
+def test_legacy_trio_suffixes_are_preserved():
+    """Back-compat: the v2 trio keeps its SHORT env suffixes (RISK/POLICY/FAITHFULNESS) so every
+    existing .provider_env / role_bindings row keeps working; an authored role gets its sanitized
+    uppercase id."""
+    from lithrim_bench.runtime.council import judges_dspy as J
+
+    assert J._role_provider_keys("risk_judge")["provider"] == "LITHRIM_LLM_PROVIDER_RISK"
+    assert (
+        J._role_provider_keys("reviewer_gpt41")["provider"]
+        == "LITHRIM_LLM_PROVIDER_REVIEWER_GPT41"
+    )
+    assert bff._role_env_suffix("faithfulness_judge") == "FAITHFULNESS"
+    assert bff._role_env_suffix("reviewer_gpt41") == "REVIEWER_GPT41"

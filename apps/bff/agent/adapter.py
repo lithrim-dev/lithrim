@@ -235,6 +235,12 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
                 # variance + k, shown inline so each reviewer's stability reads separately.
                 **({"variance": v.get("variance")} if isinstance(v.get("variance"), (int, float)) else {}),
                 **({"k": v.get("k")} if isinstance(v.get("k"), int) else {}),
+                # R2c: the raw per-sample scores — the inline "3B/2P" split derives from this.
+                **(
+                    {"scores_raw": v.get("scores_raw")}
+                    if isinstance(v.get("scores_raw"), list) and v.get("scores_raw")
+                    else {}
+                ),
             }
             for v in votes
         ],
