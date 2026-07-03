@@ -367,6 +367,17 @@ def build_judge_lm(role: str, **overrides: Any):
         role_model = _role_setting(role_keys["model"])
         role_api_key = _role_setting(role_keys["api_key"])
         role_api_base = _role_setting(role_keys["api_base"])
+        # F8-PROVIDER: ``provider: composo`` binds a reward-model judge — NOT a chat LM, so it
+        # never reaches the dspy.LM construction below. ``judge_call`` branches on the returned
+        # ``is_reward_lm`` marker (score→verdict lives in the unfrozen sampling layer).
+        if role_provider == "composo":
+            from .reward_lm import build_composo_reward_lm
+
+            return build_composo_reward_lm(
+                api_key=role_api_key,
+                api_base=role_api_base or None,
+                model=role_model or None,
+            )
         per_role_kwargs: dict[str, Any] = {
             "temperature": 0,
             "max_tokens": 4096,

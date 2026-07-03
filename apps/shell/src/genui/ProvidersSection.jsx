@@ -21,10 +21,13 @@ const PROVIDERS = [
   // bedrock: API Literal still accepts it, but the single-key form can't carry AWS
   // secret-key/region — hidden from the picker until multi-field auth lands.
   { id: "openai_compatible", label: "OpenAI-compatible" },
+  // F8-PROVIDER: a purpose-built eval reward model in the commodity judge slot — score→verdict
+  // is deterministic threshold logic; graded raw scores ride scores_raw (no logprobs).
+  { id: "composo", label: "Composo (reward model)" },
 ];
 const NEEDS_ENDPOINT = new Set(["azure", "openai_compatible"]);
 // providers that DON'T return token logprobs → confidence dark (the honest ⚠).
-export const NO_LOGPROBS = new Set(["anthropic", "gemini", "bedrock"]);
+export const NO_LOGPROBS = new Set(["anthropic", "gemini", "bedrock", "composo"]);
 
 const inputStyle = {
   padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: "1px solid var(--border)",

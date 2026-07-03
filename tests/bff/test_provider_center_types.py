@@ -495,3 +495,75 @@ def test_legacy_trio_suffixes_are_preserved():
     )
     assert bff._role_env_suffix("faithfulness_judge") == "FAITHFULNESS"
     assert bff._role_env_suffix("reviewer_gpt41") == "REVIEWER_GPT41"
+
+
+# ── F8-PROVIDER: a reward-model eval service (composo) as a judge provider ─────────────
+
+
+def test_provider_config_composo_literal():
+    """F8: the provider Literal admits composo (a reward-model judge provider)."""
+    req = bff.ProviderConfigRequest(
+        plane="grading", provider="composo", api_key="k", role="risk_judge"
+    )
+    assert req.provider == "composo"
+
+
+def test_provider_config_composo_with_role_writes_per_role_env(registry_env, monkeypatch):
+    """F8: POST /v1/provider/config provider=composo + role probes (mocked) + writes the generic
+    per-role binding (PROVIDER=composo + the per-role SECRET) — build_judge_lm's dispatch input."""
+    tmp_path, ws = registry_env
+    calls = _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+
+    secret = "ck-composo-DEADBEEF-do-not-leak"
+    resp = client.post(
+        "/v1/provider/config",
+        json={"plane": "grading", "provider": "composo", "api_key": secret, "role": "risk_judge"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert secret not in resp.text  # never round-trips
+
+    assert calls and calls[-1]["provider"] == "composo"
+    env = dict(os.environ)
+    assert env.get("LITHRIM_LLM_PROVIDER_RISK") == "composo"
+    assert env.get("LITHRIM_LLM_API_KEY_RISK") == secret
+    # the GLOBAL provider selector is NOT touched by a per-role composo config
+    assert env.get("LITHRIM_LLM_PROVIDER") != "composo"
+
+
+def test_provider_config_composo_global_stores_reusable_secret():
+    """F8: a provider-level composo connect (no role) stores the reusable global secret, like the
+    other per-role-only providers (gemini/bedrock/openai_compatible/anthropic)."""
+    env = bff._provider_env_vars(
+        bff.ProviderConfigRequest(plane="grading", provider="composo", api_key="ck-global")
+    )
+    assert env.get("COMPOSO_API_KEY") == "ck-global"
+    assert "LITHRIM_LLM_PROVIDER" not in env  # never a global selector
+
+
+def test_probe_composo_routes_via_the_reward_endpoint(monkeypatch):
+    """F8: the read-only probe exercises the SAME reward wire the judge grades through — a trivial
+    message pair scored; ok iff a numeric score comes back; a transport error → ok=False, never a
+    raise."""
+    import lithrim_bench.runtime.council.reward_lm as rlm
+
+    seen: list[tuple[str, dict, dict]] = []
+
+    def _fake_transport(url, headers, payload):
+        seen.append((url, headers, payload))
+        return {"score": 0.9, "explanation": "polite"}
+
+    monkeypatch.setattr(rlm, "_http_transport", _fake_transport)
+    out = bff._probe_provider(plane="grading", provider="composo", api_key="ck-probe")
+    assert out == {"ok": True}
+    assert seen and seen[0][0].endswith("/api/v1/evals/reward")
+    assert seen[0][1]["API-Key"] == "ck-probe"
+
+    def _boom(url, headers, payload):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(rlm, "_http_transport", _boom)
+    out = bff._probe_provider(plane="grading", provider="composo", api_key="ck-probe")
+    # the probe's error contract is the exception TYPE name only (never a message that could
+    # carry secrets) — the same shape every other provider branch returns
+    assert out["ok"] is False and out["error"] == "RuntimeError"

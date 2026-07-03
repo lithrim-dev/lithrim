@@ -673,7 +673,7 @@ class ProviderConfigRequest(BaseModel):
     # new types writes the GENERIC per-role binding (LITHRIM_LLM_{PROVIDER,MODEL,API_KEY,API_BASE}_
     # <ROLE>) so each judge can run on ANY configured provider — the cross-provider-per-role unlock.
     plane: Literal["grading", "assistant"] = "grading"
-    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible", "composo"]
     api_key: str
     endpoint: str | None = None  # Azure endpoint (api_base) — required for provider="azure"
     model: str | None = None
@@ -5021,6 +5021,7 @@ _PROVIDER_SECRET_VAR = {
     "gemini": "GEMINI_API_KEY",
     "bedrock": "AWS_ACCESS_KEY_ID",
     "openai_compatible": "OPENAI_COMPATIBLE_API_KEY",
+    "composo": "COMPOSO_API_KEY",  # F8-PROVIDER: the reward-model judge provider
 }
 # Where a provider stores its api_base/endpoint (azure / openai_compatible) so a role-bind can REUSE
 # the already-stored endpoint — no re-endpointing. Other providers have no stored endpoint.
@@ -5121,7 +5122,7 @@ def _assert_bindable_judge_role(role: str) -> None:
 # The broadened grading provider set litellm speaks (PROVIDER-CENTER-A). These have NO global
 # grading selector — they are per-role ONLY (require a `role`). ``anthropic`` is here for the GRADING
 # plane (faithfulness→Anthropic, the mixed council); the assistant-plane anthropic stays global.
-_PER_ROLE_ONLY_PROVIDERS = ("gemini", "bedrock", "openai_compatible", "anthropic")
+_PER_ROLE_ONLY_PROVIDERS = ("gemini", "bedrock", "openai_compatible", "anthropic", "composo")
 
 # CONNECT-AI-AZURE-1: the council-default Azure api_version (lazy — keep app.py free of the [council]
 # LM deps at module load). A bare BFF without the extra falls back to the literal default.
@@ -5230,7 +5231,7 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
         else:
             raise ValueError(
                 f"provider={req.provider!r} is not a grading provider "
-                f"(use openai|azure|gemini|bedrock|openai_compatible)"
+                f"(use openai|azure|gemini|bedrock|openai_compatible|composo)"
             )
     else:  # assistant plane
         # CONV-RUNTIME-1: the assistant (chat) plane is un-gated to the broadened provider set.
@@ -5295,6 +5296,16 @@ def _probe_provider(
                 model=model or "claude-haiku-4-5-20251001",
                 max_tokens=16,
                 messages=[{"role": "user", "content": "ping"}],
+            )
+            return {"ok": True}
+        if provider == "composo":
+            # F8-PROVIDER: probe the SAME reward wire the judge grades through — a trivial
+            # message pair scored against a trivial criterion. evaluate() raises unless a
+            # numeric score comes back, so the ok gate is non-vacuous.
+            from lithrim_bench.runtime.council.reward_lm import RewardModelLM
+
+            RewardModelLM(api_key=api_key, api_base=endpoint).evaluate(
+                "ping", "pong", "Reward any reply."
             )
             return {"ok": True}
         # grading plane — probe via litellm (the path dspy.LM uses under build_judge_lm).
@@ -5673,7 +5684,7 @@ class ModelRegisterRequest(BaseModel):
     # PROVIDER-CENTER-A: the provider set broadens to gemini/bedrock/openai_compatible (the litellm
     # path speaks them) — register a model on ANY of these, then bind it per-role.
     id: str
-    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible", "composo"]
     model: str
     endpoint: str | None = None  # api_base — required for azure / openai_compatible
     api_key: str
@@ -6018,7 +6029,7 @@ class RoleBindRequest(BaseModel):
     # R2a: `role` widened from the trio Literal to ANY validated judge role id (authored roles
     # bind too); the pattern doubles as the env-suffix injection guard. chat_assistant matches.
     role: str = Field(pattern=_ROLE_ID_PATTERN)
-    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible"]
+    provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible", "composo"]
     model: str
 
 

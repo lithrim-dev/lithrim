@@ -159,6 +159,62 @@ def _single_choice_response(resp: Any, index: int) -> Any:
     return {"choices": [choices[index]]}
 
 
+def _reward_judge_result(
+    model: Any, prompt: str, *, artifact: str, role_key_questions: str, k: int
+) -> JudgeResult:
+    """F8-PROVIDER: score→verdict for a reward-model LM (``is_reward_lm``) — deterministic
+    threshold logic in the unfrozen sampling layer, no dspy anywhere.
+
+    ``k`` independent evaluations (the reward API has no native ``n``; the research measured
+    n=3 byte-identical — repeats are the determinism CHECK, not noise smoothing). Per sample:
+    verdict = ``reject`` iff ``score < model.threshold`` (0.5, the research's cut). The RAW
+    scores land in ``scores_raw`` — the same low=block / high=pass direction as the decision
+    scalars, so the K-split chip renders the graded score honestly. Honesty invariants:
+    ``findings=[]`` (a reward model types no defect codes), ``usage=None`` (no token report),
+    ``_raw_response=None`` (no logprobs → confidence ``None``), and a failed/short evaluation
+    set DECLINES to ``needs_review`` — never a manufactured verdict. The criterion sent is the
+    LM's explicit ``criterion`` when authored, else the composed role prompt (which carries the
+    reviewer's CRITERION-TEXT sentence)."""
+    criterion = str(getattr(model, "criterion", "") or "") or role_key_questions
+    threshold = float(getattr(model, "threshold", 0.5))
+    scores: list[float] = []
+    explanations: list[str] = []
+    errors: list[str] = []
+    for _ in range(max(1, int(k))):
+        try:
+            out = model.evaluate(prompt, artifact, criterion)
+        except Exception as exc:  # noqa: BLE001 — a transport failure is a declined sample
+            errors.append(str(exc))
+            continue
+        scores.append(float(out["score"]))
+        if out.get("explanation"):
+            explanations.append(str(out["explanation"]))
+    if errors:
+        logger.info("judge_call[reward]: %d/%d evaluation(s) failed: %s", len(errors), k, errors[-1])
+
+    verdicts = ["reject" if s < threshold else "approve" for s in scores]
+    n_reject, n_approve = verdicts.count("reject"), verdicts.count("approve")
+    if not scores or n_reject == n_approve:
+        decision = "needs_review"  # no samples, or an exact split → decline, never a guess
+    else:
+        decision = "reject" if n_reject > n_approve else "approve"
+
+    mean = sum(scores) / len(scores) if scores else 0.0
+    variance = sum((s - mean) ** 2 for s in scores) / len(scores) if scores else 0.0
+    rationale = explanations[0] if explanations else (f"evaluation failed: {errors[0]}" if errors else "")
+    return JudgeResult(
+        score_mean=mean,
+        score_variance=variance,
+        scores_raw=scores,
+        k=len(scores),
+        rationale=rationale,
+        decision=decision,
+        findings=[],
+        _raw_response=None,
+        usage=None,
+    )
+
+
 def judge_call(
     prompt: str,
     *,
@@ -198,7 +254,17 @@ def judge_call(
 
     A provider that cannot honor a native ``n`` (BYO-Claude) clamps to k=1 and logs a
     one-line downgrade.
+
+    F8-PROVIDER: a reward-model LM (``is_reward_lm``, e.g. ``provider: composo``) branches to
+    :func:`_reward_judge_result` BEFORE any dspy construction — the reward API answers
+    ``(messages, criteria) -> score``, not a signature prompt, so the verdict is deterministic
+    threshold logic here in the (unfrozen) sampling layer, never a parsed completion.
     """
+    if getattr(model, "is_reward_lm", False):
+        return _reward_judge_result(
+            model, prompt, artifact=artifact, role_key_questions=role_key_questions, k=k
+        )
+
     from .judges_dspy import (
         _norm_decision,
         _raw_response_for,

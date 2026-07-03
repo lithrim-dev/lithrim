@@ -166,12 +166,24 @@ _PROVIDER_PLUGINS: tuple[PluginManifest, ...] = (
         transport="in_process",
         implements="council.judge_lm",
     ),
+    # F8-PROVIDER: a purpose-built eval reward model (Composo wire shape) in the commodity judge
+    # slot — score→verdict mapped deterministically in the sampling layer
+    # (``runtime/council/reward_lm.py``); bound per-role like any provider
+    # (``LITHRIM_LLM_PROVIDER_<ROLE>=composo``).
+    PluginManifest(
+        id="composo",
+        kind="provider",
+        tier="core",
+        transport="service",
+        implements="council.judge_lm",
+    ),
 )
 
 
 def provider_plugins() -> list[PluginManifest]:
-    """The judge-LM provider plugins (Azure default + BYO-Claude). These DECLARE the providers
-    for the boundary + provenance; the binding stays core (``judges_dspy._ROLE_DEPLOYMENT``)."""
+    """The judge-LM provider plugins (Azure default + BYO-Claude + the composo reward model).
+    These DECLARE the providers for the boundary + provenance; the binding stays core
+    (``judges_dspy._ROLE_DEPLOYMENT`` / the per-role env binding)."""
     return list(_PROVIDER_PLUGINS)
 
 

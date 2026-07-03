@@ -125,9 +125,14 @@ def test_a1_contract_plugins_enumerate_exactly_the_merge():
 
 
 def test_a1_provider_plugins_are_declared_core():
-    """A1: the provider registry declares Azure + BYO-Claude as core kind:provider plugins."""
+    """A1: the provider registry declares Azure + BYO-Claude + the composo reward model as core
+    kind:provider plugins (F8-PROVIDER: the reward-model judge slot is manifest-declared too)."""
     prov = {p.id: (p.kind, p.tier) for p in P.provider_plugins()}
-    assert prov == {"azure_openai": ("provider", "core"), "byo_claude": ("provider", "core")}
+    assert prov == {
+        "azure_openai": ("provider", "core"),
+        "byo_claude": ("provider", "core"),
+        "composo": ("provider", "core"),
+    }
 
 
 # ─────────────────────────── A2 — the load-time tier gate (non-vacuous) ───────────────────────────
