@@ -6,8 +6,8 @@ shows you a **preview** to validate, and loads them on **Approve**. Nothing is s
 
 | File | Format | Shape | What it exercises |
 |---|---|---|---|
-| `quickstart/notes.jsonl` | JSONL | flat records (`id`, `note`, `transcript`) | the simplest path — one case per line |
-| `quickstart/notes.csv` | CSV | columns (`id`, `note`, `transcript`) | the CSV decode path + column → field mapping |
+| `quickstart/notes.jsonl` | JSONL | flat records (`id`, `note`, `transcript`) | the simplest path — one case per line, **deterministic ($0, no model key needed)** |
+| `quickstart/notes.csv` | CSV | columns (`id`, `note`, `transcript`) | the CSV decode path + column → field mapping, **deterministic ($0)** |
 | `arbitrary/custom_support_trace.json` | JSON | a deeply nested `{episodes:[…]}` vendor trace | the **generic** path — a fresh JUTE template for an arbitrary shape |
 
 ## How the fields map

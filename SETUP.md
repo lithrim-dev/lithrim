@@ -28,6 +28,9 @@ git clone <repo> && cd lithrim-bench
 docker compose up        # first run builds the images
 ```
 
+> **Upgrading later:** after a `git pull`, run `docker compose up --build` — a plain `up` reuses
+> the previously built images and silently runs the old code.
+
 This brings up three services:
 
 | Service | URL | What it is |
@@ -49,6 +52,10 @@ Sanity check (optional): `curl -sf http://localhost:8787/health` should return O
 1. Open the **session menu** (bottom-left, your name / "Local workspace") → **Connect AI**.
 2. Pick your provider (OpenAI / Azure / …), paste your key, and save. The UI validates it and stores
    it locally for this workspace (in the Docker volume — it survives `up`/`down`, never leaves the box).
+3. **Assign the assistant a model** — in the same modal, under **Assign models**, set the
+   `chat_assistant` row (in Docker pick OpenAI / Azure / Gemini / OpenAI-compatible; the
+   Anthropic/BYO-Claude path needs the host `claude` CLI and is host-run only). Until this is set,
+   the chat composer can't answer — the "N of 4 set" line at the top of the modal tracks it.
 
 > Prefer env? Put `OPENAI_API_KEY=…` (or the `AZURE_OPENAI_*` vars) in a repo-root `.env` before
 > `docker compose up` — Compose auto-loads it. See [`.env.example`](.env.example).

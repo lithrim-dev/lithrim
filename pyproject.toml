@@ -33,6 +33,9 @@ bff = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "httpx>=0.27",
+    # Connect AI's anthropic probe does `import anthropic`; without it the provider is
+    # unconnectable in Docker with a cryptic ModuleNotFoundError (FIRST-CONTACT-1).
+    "anthropic>=0.30",
 ]
 # WS-6c: the vendored compliance council (lithrim_bench/runtime/council/, ported
 # from lithrim-backend@493b533). openai + tenacity are the council module's

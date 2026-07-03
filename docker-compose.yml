@@ -129,6 +129,14 @@ services:
       JDBC_URL: ${JDBC_URL:-jdbc:sqlite:/data/etlp-mapper.db?journal_mode=WAL&busy_timeout=5000}
     ports:
       - "3031:3000"   # host:container — the mapper serves on :3000; host 3031 for debugging/curl
+    healthcheck:
+      # An attach in the first seconds after `up` would 422 "mapper not reachable" while the JVM
+      # boots — the healthcheck makes `docker compose ps` honest and lets tooling wait on it.
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/jute-dsl-spec.json || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
     volumes:
       - jute_data:/data
     networks:
