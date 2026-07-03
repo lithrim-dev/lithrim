@@ -1217,8 +1217,24 @@ async def run_chat(
     BOTH yield the identical SSE event contract, so ``sse_format`` / ``chat_endpoint`` are unchanged."""
     cfg = _chat_provider_config()
     if cfg is None:
-        async for event in _run_sdk_chat(message, ctx, history=history, source=source):
-            yield event
+        try:
+            async for event in _run_sdk_chat(message, ctx, history=history, source=source):
+                yield event
+        except ModuleNotFoundError as exc:
+            if exc.name != "claude_agent_sdk":
+                raise
+            # FIRST-CONTACT-1: the [agent] extra (and the claude CLI) don't ship in the Docker
+            # image — the SDK path CANNOT run there. Without this, the ImportError fires after
+            # the SSE headers are sent, the stream dies, and the shell renders the false
+            # "Couldn't reach the server". Say what to do instead. (Short, slash-free detail so
+            # the shell's friendlyError keeps it verbatim.)
+            yield {
+                "event": "error",
+                "detail": (
+                    "The assistant needs a model. In Connect AI (⋯ menu, bottom left) "
+                    "assign it one from OpenAI, Azure, Gemini, or OpenAI-compatible."
+                ),
+            }
         return
     async for event in _litellm_loop(
         message, ctx, history,
