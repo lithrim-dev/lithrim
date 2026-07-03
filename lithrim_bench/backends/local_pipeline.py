@@ -58,9 +58,13 @@ class LocalPipelineBackend(BackendClient):
         artifact_type_override: str | None = None,
         semantic_stage: Any = None,
         provenance_store: ProvenanceStore | None = None,
+        context_fields: tuple[str, ...] = (),
     ):
         self.org_id = org_id
         self.artifact_type_override = artifact_type_override
+        # REPRO-1 R1b: ontology-declared case fields folded into the grading context as
+        # SOURCE RECORD sections (see _build_context). Default () = byte-identical.
+        self.context_fields = tuple(context_fields or ())
         # Semantic(council)-only orchestrator: structural + artifact stages injected
         # as skips. Stateless, so build once and reuse.
         # ``semantic_stage`` is injectable so the grade seam can run a deterministic
@@ -103,7 +107,7 @@ class LocalPipelineBackend(BackendClient):
             artifact=artifact["content"],
             artifact_type=self.artifact_type_override or artifact.get("type") or "unknown",
             context_kind="transcript",
-            context=_build_context(case, artifacts),
+            context=_build_context(case, artifacts, context_fields=self.context_fields),
             org_id=self.org_id,
             # agent_metadata.category historically selected build_prompt's scribe prompt
             # branch (deleted in CE-PACK-6b-CLEAN; the authored default path ignores

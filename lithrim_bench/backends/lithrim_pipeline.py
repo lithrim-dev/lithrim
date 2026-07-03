@@ -125,7 +125,25 @@ class LithrimPipelineBackend(BackendClient):
         )
 
 
-def _build_context(case: dict[str, Any], artifacts: list[dict[str, Any]]) -> str:
+def _render_record_section(name: str, value: Any) -> str:
+    """One delimited SOURCE RECORD section for a declared grading-context field. Deterministic:
+    strings verbatim, scalar lists as bullets, anything structured as sorted JSON."""
+    import json as _json
+
+    if isinstance(value, str):
+        body = value
+    elif isinstance(value, list) and all(isinstance(x, (str, int, float)) for x in value):
+        body = "\n".join(f"- {x}" for x in value)
+    else:
+        body = _json.dumps(value, indent=2, sort_keys=True)
+    return f"--- SOURCE RECORD: {name} ---\n{body}"
+
+
+def _build_context(
+    case: dict[str, Any],
+    artifacts: list[dict[str, Any]],
+    context_fields: tuple[str, ...] = (),
+) -> str:
     """Transcript plus any documentation-of-record artifacts.
 
     The artifact under test is artifacts[0]. A case may carry
@@ -133,10 +151,21 @@ def _build_context(case: dict[str, Any], artifacts: list[dict[str, Any]]) -> str
     FHIR Claim under test plus a fhir_document_reference clinical
     note). The note is the documentation the codes must be faithful
     to, so its text is folded into the context the council sees.
+
+    ``context_fields`` (REPRO-1 R1b): user-declared case fields (the ontology's
+    ``grading_context_fields`` — DATA, never code) folded in as delimited SOURCE RECORD
+    sections, in declaration order, so a structured record the case carries (a problem
+    list, an account state) is visible to the judges and the withstands gate. A field
+    that is absent/empty is skipped; the default ``()`` is byte-identical to before.
     """
     import json as _json
 
     context = case.get("transcript", "") or ""
+    for name in context_fields:
+        value = case.get(name)
+        if value in (None, "", [], {}):
+            continue
+        context = f"{context}\n\n{_render_record_section(name, value)}"
     for extra in artifacts[1:]:
         if extra.get("type") != "fhir_document_reference":
             continue

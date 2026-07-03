@@ -1736,6 +1736,35 @@ def _ctx_nonempty(value: Any) -> bool:
     return bool(value) and str(value).strip().lower() not in ("", "{}", "[]", "null", "none")
 
 
+def _native_eval_rows(sample: Any) -> list | None:
+    """REPRO-1 R1a: rows that already ARE eval cases — the product's own corpus schema
+    (``case_id`` + ``artifacts[0].content`` + a non-empty transcript/context) — import VERBATIM:
+    no JUTE template, no LM, no mapper. Importing our own schema is not a transform problem, and
+    a pass-through is the only path that preserves EVERYTHING (the structured record the floor
+    grounds against, the BYO labels, the injection provenance) by construction.
+
+    Conservative like ``_known_shape_template``: ANY non-conforming row → ``None`` → the curated/
+    REUSE/LM-gen paths run unchanged. The other known shapes cannot collide: the agent-trace shape
+    has no ``artifacts``; the flat-notes shape keys ``id``, not ``case_id``. Accepts a bare list
+    (a decoded JSONL corpus arrives as ``{rows:[...]}``) or a ``rows``/``cases`` wrapper."""
+    rows = sample
+    if isinstance(sample, dict):
+        rows = sample.get("rows") or sample.get("cases")
+    if not isinstance(rows, list) or not rows:
+        return None
+    for e in rows:
+        if not isinstance(e, dict) or not e.get("case_id"):
+            return None
+        arts = e.get("artifacts")
+        if not (isinstance(arts, list) and arts and isinstance(arts[0], dict)):
+            return None
+        if not str(arts[0].get("content") or "").strip():
+            return None
+        if not (_ctx_nonempty(e.get("transcript")) or _ctx_nonempty(e.get("context"))):
+            return None
+    return rows
+
+
 @app.get("/v1/cases")
 def list_cases_endpoint() -> dict:
     """NARR-LOOP — list the active workspace's INGESTED corpus (the gradeable cases a user
@@ -1788,7 +1817,9 @@ class IngestPreviewRequest(BaseModel):
 
 class IngestCommitRequest(BaseModel):
     # The human APPROVED `approved_template` (returned by /preview) over `raw` — pin it + upsert.
-    approved_template: str
+    # None (REPRO-1 R1a): a NATIVE eval-case corpus previews with NO template (nothing to
+    # approve — the rows already are cases); its commit re-detects the native shape verbatim.
+    approved_template: str | None = None
     raw: str
     fmt: str = "auto"
     filename: str = ""
@@ -4299,7 +4330,103 @@ def _build_tool_context(
         try:
             sample = json.loads(json_dump)
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"the ingested JSON did not parse: {exc}") from exc
+            # REPRO-1 R1a: the chat path receives a raw STRING — a JSONL corpus (one case per
+            # line) must parse like the front door does (parse-in-Python is the house rule).
+            # Only the jsonl sniff is accepted here; anything else keeps the honest JSON error.
+            from lithrim_bench.verification.ingest_decode import decode_records
+
+            try:
+                dec = decode_records(json_dump, fmt="auto")
+            except Exception:
+                dec = None
+            if dec is None or dec.fmt != "jsonl":
+                raise RuntimeError(f"the ingested JSON did not parse: {exc}") from exc
+            sample = dec.sample
+            if expected_count is None:
+                expected_count = dec.expected_count
+
+        # ── the shared tail: label-merge + source-normalize + preview/commit + ONE audit row.
+        def _finalize(
+            cases: list[dict],
+            *,
+            template: str | None = None,
+            mapping_id=None,
+            reused: bool = False,
+            hand_authored: bool = False,
+            native: bool = False,
+        ) -> dict:
+            labeled = _merge_byo_labels(cases, sample)
+            normalized = _normalize_case_source(cases)
+            if not commit_corpus:
+                return {
+                    "cases": cases, "template": template, "mapping_id": mapping_id,
+                    "count": len(cases), "labeled": labeled, "normalized_source": normalized,
+                    "reused": reused, "hand_authored": hand_authored, "native": native,
+                    "preview": True,
+                }
+            ws = _ws.get_active_workspace()
+            corpus_path = ws.out_dir / "ingested_cases.jsonl"
+            ws.out_dir.mkdir(parents=True, exist_ok=True)
+            existing: dict[str, dict] = {}
+            if corpus_path.exists():
+                for line in corpus_path.read_text().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if row.get("case_id"):
+                        existing[row["case_id"]] = row
+            for c in cases:
+                if c.get("case_id"):
+                    existing[c["case_id"]] = c
+            corpus_path.write_text(
+                "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
+                + ("\n" if existing else "")
+            )
+            _ssot_upsert_cases(ws, cases)  # PERSIST-3a: the SSOT cases table (one DB selector)
+
+            # ONE AuditRecord — the audit IS the product (§2B).
+            path_desc = (
+                "NATIVE eval-case rows (verbatim, no transform)"
+                if native
+                else f"{'hand-authored' if hand_authored else 'REUSED' if reused else 'generated+pinned'} "
+                f"mapping {mapping_id}"
+            )
+            actor_resolved = _resolve_actor(x_actor, actor)
+            AuditLog(db_path=db_path).record(
+                AuditRecord(
+                    actor=actor_resolved,
+                    action="ingest",
+                    target=Target(type="corpus", id=ag_name),
+                    why={
+                        "rationale": f"ingested {len(cases)} cases via {path_desc}; "
+                        f"normalized source→transcript on {normalized} case(s)"
+                    },
+                    before=None,
+                    after={
+                        "mapping_id": mapping_id,
+                        "count": len(cases),
+                        "corpus": str(corpus_path),
+                        "case_ids": [c.get("case_id") for c in cases],
+                    },
+                )
+            )
+            return {
+                "cases": cases, "mapping_id": mapping_id, "count": len(cases),
+                "labeled": labeled, "normalized_source": normalized, "reused": reused,
+                "native": native,
+            }
+
+        # REPRO-1 R1a (before ANY mapper touch): rows that already ARE eval cases import
+        # verbatim — deep-copied so the source sample is never aliased into the corpus.
+        native_rows = _native_eval_rows(sample)
+        if native_rows is not None:
+            return _finalize(
+                [json.loads(json.dumps(r)) for r in native_rows], native=True
+            )
 
         # CRITERIA-AWARE INGEST (gap #4): the extraction target is THIS agent's evaluation criteria,
         # not a fixed envelope. Derive the in-case fields its verification_contracts ground against
@@ -4499,76 +4626,15 @@ def _build_tool_context(
                 pin = client.persist_or_update(f"ingest-{ag_name}", template)
                 mapping_id = pin.get("id")
 
-        cases = scored["cases"]
-        # INGEST-LABELS-1: carry author-supplied ground-truth labels (expected_compliance_verdict /
-        # expected_safety_flags) the JUTE transform does not extract — deterministic, no LM/grade.
-        labeled = _merge_byo_labels(cases, sample)
-        # FLOOR-SOURCE-1: copy the ingested source (on `context`) onto the canonical `transcript`
-        # BEFORE persistence, so the SSOT-stored case is self-contained and the judges + withstands
-        # gate + `grounding.ground()` all read ONE populated source (retiring the per-consumer
-        # `or context` mapping). A faithful case then grades PASS at the council instead of a false
-        # BLOCK; a real fabrication stays ungrounded → still BLOCK.
-        normalized = _normalize_case_source(cases)
-
-        # PREVIEW (commit_corpus=False): return the extracted cases + template for the human to
-        # validate the field mapping — NO corpus upsert, NO audit row, nothing persisted.
-        if not commit_corpus:
-            return {
-                "cases": cases, "template": template, "mapping_id": mapping_id,
-                "count": len(cases), "labeled": labeled, "normalized_source": normalized,
-                "reused": reused, "hand_authored": hand_authored, "preview": True,
-            }
-
-        # D-C corpus upsert (P0, minimal-honest): write the extracted cases to a workspace-scoped
-        # JSONL the picklist can resolve. P0 = present + PIN + emit + audit; the gradeable-corpus
-        # registration (picklist PACK_FILES so they run through the grade) is the NARR-2→NARR-4
-        # bridge (flagged as a seam — heavier than the §6 "5 pinned cases" exit).
-        ws = _ws.get_active_workspace()
-        corpus_path = ws.out_dir / "ingested_cases.jsonl"
-        ws.out_dir.mkdir(parents=True, exist_ok=True)
-        existing: dict[str, dict] = {}
-        if corpus_path.exists():
-            for line in corpus_path.read_text().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if row.get("case_id"):
-                    existing[row["case_id"]] = row
-        for c in cases:
-            if c.get("case_id"):
-                existing[c["case_id"]] = c
-        corpus_path.write_text(
-            "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
-            + ("\n" if existing else "")
+        # INGEST-LABELS-1 + FLOOR-SOURCE-1 + preview/commit + audit all live in _finalize
+        # (shared with the native path above).
+        return _finalize(
+            scored["cases"],
+            template=template,
+            mapping_id=mapping_id,
+            reused=reused,
+            hand_authored=hand_authored,
         )
-        _ssot_upsert_cases(ws, cases)  # PERSIST-3a: the SSOT cases table (one DB selector)
-
-        # ONE AuditRecord — the audit IS the product (§2B). "ingested N cases via pinned mapping M".
-        actor_resolved = _resolve_actor(x_actor, actor)
-        AuditLog(db_path=db_path).record(
-            AuditRecord(
-                actor=actor_resolved,
-                action="ingest",
-                target=Target(type="corpus", id=ag_name),
-                why={
-                    "rationale": f"ingested {len(cases)} cases via "
-                    f"{'hand-authored' if hand_authored else 'REUSED' if reused else 'generated+pinned'} "
-                    f"mapping {mapping_id}; normalized source→transcript on {normalized} case(s)"
-                },
-                before=None,
-                after={
-                    "mapping_id": mapping_id,
-                    "count": len(cases),
-                    "corpus": str(corpus_path),
-                    "case_ids": [c.get("case_id") for c in cases],
-                },
-            )
-        )
-        return {"cases": cases, "mapping_id": mapping_id, "count": len(cases), "labeled": labeled, "normalized_source": normalized, "reused": reused}
 
     # ── CE-INGEST-FRONTDOOR-1: the first-class data front door (JSON/JSONL/CSV → preview → commit).
     def _decode_for_ingest(raw: str, fmt: str, filename: str, extraction_rules: str):
@@ -4600,7 +4666,7 @@ def _build_tool_context(
         return res
 
     def _ingest_commit(
-        approved_template: str, raw: str, fmt: str = "auto", filename: str = "",
+        approved_template: str | None, raw: str, fmt: str = "auto", filename: str = "",
         extraction_rules: str = "", agent: str = "",
     ) -> dict:
         """COMMIT: re-gate the human-APPROVED template on the data, pin it, and upsert the corpus —

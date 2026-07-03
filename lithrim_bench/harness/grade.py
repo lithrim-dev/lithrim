@@ -67,11 +67,14 @@ def build_request_body(
         raise ValueError("case has no artifacts to grade")
     artifact = artifacts[0]
 
+    # REPRO-1 R1b: the ontology's grading_context_fields (user-authored DATA) fold declared
+    # case fields into the context as SOURCE RECORD sections — the record reaches the judge.
+    context_fields = tuple((ontology or {}).get("grading_context_fields") or ())
     body: dict[str, Any] = {
         "artifact": artifact["content"],
         "artifact_type": artifact.get("type"),
         "context_kind": "transcript",
-        "context": _build_context(case, artifacts),
+        "context": _build_context(case, artifacts, context_fields=context_fields),
         "org_id": org_id,
         "eval_mode": True,
     }
@@ -132,6 +135,7 @@ def grade_inprocess(
     org_id: str = "local",
     semantic_stage: Any = None,
     provenance_store: Any = None,
+    context_fields: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Run the in-process v2 council and return the parsed PipelineResult dict.
 
@@ -162,7 +166,8 @@ def grade_inprocess(
     from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
 
     backend = LocalPipelineBackend(
-        org_id=org_id, semantic_stage=semantic_stage, provenance_store=provenance_store
+        org_id=org_id, semantic_stage=semantic_stage, provenance_store=provenance_store,
+        context_fields=context_fields,
     )
     result = backend.evaluate_pipeline(case)
     if result is None:

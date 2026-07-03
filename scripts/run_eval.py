@@ -485,6 +485,10 @@ def run(
             # PERSIST-2c: LITHRIM_DB_URL → the managed Postgres tier, else the local SQLite
             # path (byte-identical to before). Pointing the grade at PG is one env var.
             provenance_store=provenance_store_for(collections_db),
+            # REPRO-1 R1b: the ontology's grading_context_fields (user-authored DATA) fold the
+            # declared case fields into the judge-visible context — the record reaches the judge.
+            # The live path reads the same declaration inside build_request_body.
+            context_fields=tuple(ontology_doc.get("grading_context_fields") or ()),
         )
         grade_path = "in_process"
     elif live:

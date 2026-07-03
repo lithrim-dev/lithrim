@@ -48,6 +48,8 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
   const [returned, setReturned] = useState(false);
   const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
   const [openText, setOpenText] = useState(() => new Set()); // flag codes with the text editor expanded
+  // R1b: which case fields fold into the judge-visible grading context (comma-separated names).
+  const [contextFields, setContextFields] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -56,6 +58,7 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
         if (!live) return;
         setRaw(ont);
         setSeverity(ont.severity_map || { block_at_or_above: 0.5, warn_above: 0, weights: {} });
+        setContextFields((ont.grading_context_fields || []).join(", "));
         setFlags(
           (ont.flags || []).map((f) => ({
             flag: f.flag,
@@ -118,12 +121,16 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
     onResult?.(result);
   };
 
+  const parsedContextFields = () =>
+    contextFields.split(",").map((s) => s.trim()).filter(Boolean);
+
   // Merge the edits back into the FULL loaded ontology (so the PUT body round-trips
   // through the BFF's ontology.from_dict validator) and persist to the working copy.
   // Distinct from apply(): apply() returns into setup state; persist() writes a draft.
   const edited = () => ({
     ...raw,
     severity_map: severity,
+    grading_context_fields: parsedContextFields(),
     flags: (raw.flags || []).map((rf) => {
       const e = flags.find((f) => f.flag === rf.flag);
       return e
@@ -169,6 +176,25 @@ export default function FlagEditor({ agent = "ws0_default", onResult }) {
               <ThresholdRow key={k} label={`weight · ${k}`} value={severity.weights?.[k] ?? 0} onChange={(v) => setWeight(k, v)} />
             ))}
           </div>
+        </section>
+
+        <Separator />
+
+        {/* R1b: which case fields (beyond the transcript) the reviewers see as SOURCE RECORD
+            sections at grade time — e.g. a problem list or account record the case carries. */}
+        <section className="flex flex-col gap-1.5">
+          <Label>Grading context fields</Label>
+          <input
+            value={contextFields}
+            onChange={(e) => setContextFields(e.target.value)}
+            spellCheck={false}
+            aria-label="grading context fields"
+            placeholder="comma-separated case fields, e.g. patient_profile"
+            className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11.5px] text-foreground"
+          />
+          <span className="text-[10.5px] text-muted-foreground">
+            Case fields folded into what reviewers read, alongside the transcript
+          </span>
         </section>
 
         <Separator />
