@@ -2298,7 +2298,12 @@ def put_agent_endpoint(
 
 class CouncilRosterRequest(BaseModel):
     """REVIEWER-MODE: how many reviewers run for ``agent`` — ``roster`` is a single role
-    ("single reviewer") or a multi-role subset; ``None``/``[]`` = the panel (full pack roster)."""
+    ("single reviewer") or a multi-role subset; ``None``/``[]`` = the panel (full pack roster).
+
+    ``extra="forbid"``: an omitted ``roster`` MEANS "clear the override", so a misspelled field
+    must 422 — silently ignoring it parsed as ``{roster: None}`` and CLEARED the roster."""
+
+    model_config = ConfigDict(extra="forbid")
 
     agent: str = DEFAULT_AGENT
     roster: list[str] | None = None

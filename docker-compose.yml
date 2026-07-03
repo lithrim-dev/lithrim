@@ -45,6 +45,16 @@ services:
       # SURVIVE `docker compose down`/`up` (wiped only by `down -v`, exactly like the config DB +
       # .connector_env). Unset locally → the BFF falls back to the repo root (dev back-compat).
       LITHRIM_PROVIDER_ENV_DIR: ${LITHRIM_PROVIDER_ENV_DIR:-/app/out}
+      # PACK-OVERLAY-1: UI-authored criteria/judges (the taxonomy-snapshot splice + the
+      # council_roles/<role>.txt prompt seeds, POST /v1/criterion + POST /v1/judges) are pack
+      # STATE. Without this overlay they land in the image's writable layer (/app/packs/_core),
+      # so recreating the container silently reverted them and the next grade 500'd on the
+      # missing authored role prompt (FileNotFoundError, confirmed live 2026-07-03). Pointed at
+      # /app/out (the lithrim_out volume), authored judge identity survives `up`/`down` exactly
+      # like the config DB + provider bindings; `down -v` still resets to the clean seed.
+      # Applies to drop-in packs too: authored edits land in the overlay, leaving ./packs-dropin
+      # as pristine DATA.
+      LITHRIM_BENCH_PACK_OVERLAY_DIR: ${LITHRIM_BENCH_PACK_OVERLAY_DIR:-/app/out/pack_overlay}
       # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
       LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
       # PACK-DROPIN-1: the pack drop-in path INSIDE the container, default /dropin-packs (the host
@@ -72,11 +82,12 @@ services:
       # host — docker creates them as DIRECTORIES and crashes the env-loader.)
       - lithrim_out:/app/out
       # PACK-DROPIN-1: the pack drop-in volume. A DIRECTORY bind (host ./packs-dropin, gitignored,
-      # empty by default — a tracked .gitkeep keeps it present). Read-only: packs are DATA the
-      # container loads, never state it writes. Drop a pack folder here + restart to load it.
-      # SELF-AUTHORING: rw (not ro) so a tier:core pack can be authored from the UI —
-      # CriterionBuilder/JudgeBuilder splice into the pack's taxonomy_snapshot.json on disk.
-      # (Pro packs stay locked by their tier:pro gate, not by the mount.)
+      # empty by default — a tracked .gitkeep keeps it present). Packs are DATA the container
+      # loads, never state it writes: with PACK-OVERLAY-1 above, UI authoring
+      # (CriterionBuilder/JudgeBuilder) splices into the /app/out overlay, NOT this dir — it stays
+      # pristine. Kept rw only for dev back-compat when the overlay is explicitly disabled
+      # (LITHRIM_BENCH_PACK_OVERLAY_DIR=""). (Pro packs stay locked by their tier:pro gate, not
+      # by the mount.)
       - ./packs-dropin:/dropin-packs:rw
       # TOOL-MCP-STDIO: a host dir holding a jar-based stdio MCP server + its data (e.g. Hermes
       # SNOMED: hermes.jar + the snomed db), bind-mounted read-only. EMPTY by default (gitignored,

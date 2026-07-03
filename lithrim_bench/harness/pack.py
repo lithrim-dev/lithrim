@@ -37,7 +37,9 @@ import importlib.metadata
 import importlib.util
 import json
 import os
+import shutil
 import sys
+import tempfile
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -58,6 +60,22 @@ _COUNCIL_TIER_NAMES = ("TIER_1_NEVER_EVENTS", "TIER_2_HIGH_RISK", "TIER_3_MEDIUM
 # ``healthcare`` realm live OUTSIDE this repo while the core still loads it. Stdlib-only.
 _PACK_EP_GROUP = "lithrim_bench.packs"
 _PACKS_DIR_ENV = "LITHRIM_BENCH_PACKS_DIR"
+
+# PACK-OVERLAY-1: the volume-backed pack overlay. The sanctioned authoring writers
+# (``harness.criterion`` / ``harness.judge_authoring``) mutate a tier:core pack's taxonomy
+# snapshot + ``council_roles/`` — but the discovered pack root may be EPHEMERAL (in Docker,
+# ``/app/packs/_core`` is the container's image writable layer, reverted on every recreation
+# while the ``/app/out`` volume survives — the 2026-07-03 lithrim-validate incident: authored
+# judges vanished and the next grade 500'd on the missing role prompt). When
+# ``LITHRIM_BENCH_PACK_OVERLAY_DIR`` names a STATE dir (compose: ``/app/out/pack_overlay``),
+# the two MUTABLE manifest refs resolve through ``<overlay>/<pack_id>/`` instead, materializing
+# the pack's seed copy-on-first-resolve — so reads AND writes hit the volume and the image pack
+# stays pristine DATA. Env unset (the default) → resolution byte-identical to before (the same
+# zero-delta posture as the License permit-all default). Entirely ABOVE the frozen-council seam:
+# the council's ``_ROLE_PROMPTS_DIR`` carve-out and inline ``__import__`` tier/lens/roster reads
+# already flow through ``pack_prompts_path()`` / ``_pack_ref``, which is where the swap lives.
+_OVERLAY_DIR_ENV = "LITHRIM_BENCH_PACK_OVERLAY_DIR"
+_OVERLAY_KEYS = frozenset({"flags_ref", "council_roles"})
 
 
 class PackConsistencyError(RuntimeError):
@@ -250,9 +268,54 @@ def _resolve_ref(pack: str, ref: str) -> Path:
     return _pack_root(pack) / p
 
 
+def _materialize_overlay(seed: Path, dest: Path) -> None:
+    """Copy the pack's seed ref (file or dir) to its overlay location, atomically (temp-in-dir +
+    ``os.replace``) so a concurrent resolver never sees a partial copy. No seed on disk → nothing
+    to materialize (the writer creates the ref; ``write_role_prompt`` already mkdirs)."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if seed.is_dir():
+        tmp = Path(tempfile.mkdtemp(dir=dest.parent, prefix=f".tmp_{dest.name}_"))
+        shutil.copytree(seed, tmp, dirs_exist_ok=True)
+    elif seed.is_file():
+        fd, tmp_name = tempfile.mkstemp(dir=dest.parent, prefix=f".tmp_{dest.name}_")
+        os.close(fd)
+        tmp = Path(tmp_name)
+        shutil.copy2(seed, tmp)
+    else:
+        return
+    try:
+        os.replace(tmp, dest)
+    except OSError:
+        if not dest.exists():
+            raise
+        # a concurrent resolver materialized the same seed first — discard ours
+        if tmp.is_dir():
+            shutil.rmtree(tmp, ignore_errors=True)
+        else:
+            tmp.unlink(missing_ok=True)
+
+
+def _overlay_ref(pack: str, key: str, seed: Path) -> Path | None:
+    """The overlay path for a MUTABLE manifest ref (PACK-OVERLAY-1), seed-materialized on first
+    resolve; ``None`` when the overlay is disabled (env unset) or ``key`` is not overlay-managed
+    (immutable refs — ontology/floors/generators/tools — always resolve to the pack root)."""
+    raw = os.environ.get(_OVERLAY_DIR_ENV, "")
+    if not raw or key not in _OVERLAY_KEYS:
+        return None
+    dest = Path(raw) / pack / seed.name
+    if not dest.exists():
+        _materialize_overlay(seed, dest)
+    return dest
+
+
 def _pack_ref(pack: str, key: str) -> Path:
-    """The resolved path of a REQUIRED manifest ref (``key`` must be present)."""
-    return _resolve_ref(pack, _manifest(pack)[key])
+    """The resolved path of a REQUIRED manifest ref (``key`` must be present). The two MUTABLE
+    refs (``flags_ref`` + ``council_roles``) resolve through the volume-backed overlay when
+    ``LITHRIM_BENCH_PACK_OVERLAY_DIR`` is set (PACK-OVERLAY-1) — so the audited authoring writers,
+    which read and write via this resolver, survive an ephemeral pack root."""
+    seed = _resolve_ref(pack, _manifest(pack)[key])
+    overlay = _overlay_ref(pack, key, seed)
+    return seed if overlay is None else overlay
 
 
 @lru_cache(maxsize=8)
