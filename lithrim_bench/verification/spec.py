@@ -59,6 +59,13 @@ TOOL_CONCEPT_PRESERVATION = "concept_preservation"
 # clear or raise a finding. The tool class + executor are generic core; this NAME + its
 # required-keys row are the additive registration (the documented minimal pattern). Domain-neutral.
 TOOL_WEB_SEARCH = "web_search"
+# REPRO-1 R4a/R4b: the BOUNDED-EXTRACTION floors. An LM answers ONE narrow, SME-pinned
+# question (temperature 0, K-repeat, majority-gated); the VERDICT is deterministic logic over
+# the extracted booleans, conservative (unconfirmed → decline). The manifest is honest
+# (``deterministic: False`` + the extraction model + k) — an extraction floor never
+# masquerades as a lookup. Core + domain-agnostic: the fact/statement text is UI-authored data.
+TOOL_FACT_PRESERVATION = "fact_preservation"
+TOOL_SPEAKER_ATTRIBUTION = "speaker_attribution"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -72,6 +79,8 @@ _KNOWN_TOOLS = {
     TOOL_VALUE_PRESENCE,
     TOOL_CONCEPT_PRESERVATION,
     TOOL_WEB_SEARCH,
+    TOOL_FACT_PRESERVATION,
+    TOOL_SPEAKER_ATTRIBUTION,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -109,6 +118,12 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # ``top_k`` / ``min_score`` / ``match`` are optional (mirrors kb_rag's ``{"namespace"}``).
     # NON-AUTHORITATIVE: it attaches evidence, it never clears or raises a finding.
     TOOL_WEB_SEARCH: {"query"},
+    # fact_preservation: the SME pins the FACT that must be preserved (prose — the narrow
+    # extraction question). Optional: source_path (default transcript), k, extractor_role.
+    TOOL_FACT_PRESERVATION: {"fact"},
+    # speaker_attribution: the SME pins the STATEMENT whose attribution is checked. Optional:
+    # source_path, k, extractor_role.
+    TOOL_SPEAKER_ATTRIBUTION: {"statement"},
 }
 
 

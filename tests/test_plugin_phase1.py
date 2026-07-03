@@ -66,12 +66,17 @@ _EXPECTED_SUPPRESS = {
     "mcp_call",
     # LAYER2-SUPPRESS-1: the core-generic evidence-integrity suppress executor (span-level).
     "evidence_presence",
+    # REPRO-1 R4c: the core-generic terminology-subsumption suppress (span-driven, tool-driven).
+    "terminology_subsumption",
     "record_presence",
     "snomed_subsumption",
 }
 # CORE-FLOOR-1: value_presence is a CORE floor now (domain-agnostic completeness floor, promoted
 # out of the narrative pack so it is available on EVERY pack incl. healthcare).
-_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "dosage_grounding",
+# REPRO-1 R4a/R4b: fact_preservation + speaker_attribution are the core bounded-extraction floors.
+_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence",
+                   "fact_preservation", "speaker_attribution",
+                   "dosage_grounding",
                    # CONCEPT-PRESERVATION-1: the healthcare refusal-preservation floor (Hermes MCP).
                    "concept_preservation"}
 _EXPECTED_CONTRACT_PLUGINS = {
@@ -85,9 +90,14 @@ _EXPECTED_CONTRACT_PLUGINS = {
     "mcp_call": ("contract", "core", "in_process", "grounding.suppress"),
     # LAYER2-SUPPRESS-1: core, pure-stdlib (in_process), evidence-integrity suppress executor.
     "evidence_presence": ("contract", "core", "in_process", "grounding.suppress"),
+    # REPRO-1 R4c: core generic terminology subsumption (builds its own McpStdioClient, like mcp_call).
+    "terminology_subsumption": ("contract", "core", "in_process", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),
+    # REPRO-1 R4a/R4b: the core bounded-extraction floors (LM via the provider seam, in_process).
+    "fact_preservation": ("contract", "core", "in_process", "grounding.floor"),
+    "speaker_attribution": ("contract", "core", "in_process", "grounding.floor"),
     "record_presence": ("contract", "pro", "in_process", "grounding.suppress"),
     "dosage_grounding": ("contract", "pro", "in_process", "grounding.floor"),
     # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology

@@ -9,6 +9,7 @@ See `.devloop/state/STREAM_bench-salvage.md` (WS-3 row).
 """
 
 from .etlp_client import EtlpJuteClient
+from .extraction_floors import FactPreservationTool, SpeakerAttributionTool
 from .jute_dspy import (
     GOLDEN_US_CORE_PATIENT_VALIDATOR,
     US_CORE_PATIENT_RULES,
@@ -88,6 +89,8 @@ __all__ = [
     "VerificationTool",
     "StructuralJuteTool",
     "ValuePresenceTool",
+    "FactPreservationTool",
+    "SpeakerAttributionTool",
     "KbRagTool",
     "WebSearchTool",
     "RecordRagTool",

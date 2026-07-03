@@ -686,6 +686,147 @@ class McpCallGrounding(VerificationContract):
         )
 
 
+class TerminologySubsumption(VerificationContract):
+    """REPRO-1 R4c: the CORE-GENERIC terminology-subsumption suppress executor — ground the
+    FLAGGED SPAN's term(s) against the case's record concepts by is-a subsumption through a
+    USER-CONNECTED ``kind:tool`` terminology server. The domain lives entirely in DATA: the
+    tool id, the record path, the op names, and any term-extraction regex are SME-authored
+    params; the subsumption relation comes from the connected ontology, never from code. (The
+    healthcare pack's ``snomed_subsumption`` remains its clinically-tuned sibling — SOAP/PMH
+    extraction; this one is the clean-workspace path.)
+
+    Span-driven BY CONSTRUCTION (the SPAN-BIND-1 lesson): the candidate terms ARE the
+    finding's own evidence-span quotes (optionally narrowed by ``term_regex``) — this oracle
+    can only speak to what the finding actually flagged; there is no flag-code-level clear.
+
+    Conservative (never clears by silence): suppress ONLY when there ARE candidates and EVERY
+    candidate resolves to a concept that is == or subsumed-by a record concept. No spans, an
+    empty record, an unresolvable term, an un-subsumed term, or an absent/unreachable tool →
+    the finding STANDS.
+
+    params = {"tool": "<kind:tool terminology id>",     # required (ToolBuilder-authored)
+              "record_path": "<case path of record terms>",  # required
+              "term_regex": "<optional candidate extractor over the span quote>",
+              "search_call": "search", "subsumes_call": "subsumed_by"}  # op names (data)
+    """
+
+    contract_type = "terminology_subsumption"
+
+    def __init__(self, decl: VerificationContractDecl, *, http_client: Any | None = None) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+
+    def _candidates(self, finding: dict[str, Any]) -> list[str]:
+        quotes = [
+            str(s.get("quote") or "").strip()
+            for s in (finding.get("_evidence_spans") or [])
+            if isinstance(s, dict)
+        ]
+        quotes = [q for q in quotes if q]
+        term_regex = self._params.get("term_regex")
+        if not term_regex:
+            return quotes
+        out: list[str] = []
+        for q in quotes:
+            try:
+                out.extend(m if isinstance(m, str) else next((g for g in m if g), "")
+                           for m in re.findall(term_regex, q, flags=re.IGNORECASE))
+            except re.error:
+                return []  # a malformed pinned regex → no candidates → the finding stands
+        return [t for t in out if t]
+
+    @staticmethod
+    def _resolve_code(client: Any, term: str, search_call: str) -> Any:
+        hits = client.call_tool(search_call, {"query": term, "max_hits": 1})
+        if isinstance(hits, list) and hits and isinstance(hits[0], dict):
+            return hits[0].get("conceptId") or hits[0].get("id")
+        return None
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.harness import plugins
+
+        p = self._params
+        tool_id = p.get("tool")
+        record_path = p.get("record_path")
+        if not tool_id or not record_path:
+            return Verdict(disproved=False, reason="terminology_subsumption: missing tool/record_path")
+        candidates = self._candidates(finding)
+        if not candidates:
+            return Verdict(
+                disproved=False,
+                reason="no flagged evidence span to ground (span-level binding); the finding stands",
+            )
+        record_terms = [str(t) for t in (_resolve_path(case, record_path) or []) if t]
+        if not record_terms:
+            return Verdict(
+                disproved=False,
+                reason=f"no record terms at '{record_path}'; nothing to ground against",
+            )
+        manifest = plugins.resolve_tool(tool_id)
+        mcp = ((manifest.service if manifest else None) or {}).get("mcp") or {}
+        if not mcp.get("command"):
+            return Verdict(
+                disproved=False,
+                reason=f"terminology tool {tool_id!r} not available; the finding stands",
+            )
+        from lithrim_bench.verification.mcp_client import McpStdioClient
+
+        search_call = p.get("search_call") or "search"
+        subsumes_call = p.get("subsumes_call") or "subsumed_by"
+        client = McpStdioClient(command=mcp.get("command"), args=mcp.get("args", []))
+        try:
+            record_codes = [
+                c for c in (self._resolve_code(client, t, search_call) for t in record_terms)
+                if c is not None
+            ]
+            if not record_codes:
+                return Verdict(
+                    disproved=False, reason="no record term resolved to a concept; the finding stands"
+                )
+            grounded: list[tuple[str, Any]] = []
+            for term in candidates:
+                code = self._resolve_code(client, term, search_call)
+                if code is None:
+                    return Verdict(
+                        disproved=False,
+                        reason=f"flagged term {term!r} did not resolve; never cleared by silence",
+                    )
+                if code in record_codes:
+                    grounded.append((term, code))
+                    continue
+                subsumed = any(
+                    isinstance(r := client.call_tool(
+                        subsumes_call, {"concept_id": code, "subsumer_id": rc}
+                    ), dict) and r.get("subsumedBy")
+                    for rc in record_codes
+                )
+                if not subsumed:
+                    return Verdict(
+                        disproved=False,
+                        reason=f"flagged term {term!r} (concept {code}) is not ==/subsumed-by any "
+                        f"record concept; the finding stands",
+                    )
+                grounded.append((term, code))
+        except Exception as exc:  # noqa: BLE001 — unreachable tool: the finding stands, never a 500
+            return Verdict(
+                disproved=False,
+                reason=f"terminology tool unreachable ({exc}); the finding stands",
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                client.close()
+
+        detail = ", ".join(f"{t!r}->{c}" for t, c in grounded)
+        return Verdict(
+            disproved=True,
+            evidence=f"every flagged term is ==/subsumed-by a record concept: {detail} "
+            f"(record codes {record_codes})",
+            reason="code-grounded by is-a subsumption via the connected terminology tool",
+        )
+
+
 # contract_type -> executor factory. This is the core-GENERIC SUPPRESS registry
 # (per-finding contracts that disprove an existing confident-but-wrong finding). The
 # structural FLOOR direction (artifact-level contracts that inject a BLOCK the council
@@ -717,6 +858,9 @@ _CONTRACT_EXECUTORS = {
     # TOOL-AUTHOR-1: the generic authored-MCP-tool executor (advisory/corroborated; builds its own
     # McpStdioClient via resolve_tool, so it is NOT in _HTTP_CONTRACT_TYPES).
     "mcp_call": McpCallGrounding,
+    # REPRO-1 R4c: the core-generic terminology-subsumption suppress executor — span-driven,
+    # tool-driven (a ToolBuilder-authored terminology server), zero domain strings in core.
+    "terminology_subsumption": TerminologySubsumption,
 }
 _HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 
@@ -744,7 +888,9 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
     is a domain-agnostic completeness floor, so it lives in core (available to EVERY pack incl.
     healthcare), not pack-local to narrative."""
     from lithrim_bench.verification import (
+        FactPreservationTool,
         JuteGenValidatorTool,
+        SpeakerAttributionTool,
         StructuralJuteTool,
         ValuePresenceTool,
     )
@@ -777,6 +923,18 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
             ref["pinned_template_sha256"] = params["pinned_template_sha256"]
         return ref
 
+    # REPRO-1 R4a/R4b: the bounded-extraction floors' reference = the SME-pinned prose + the
+    # extraction knobs (all UI data). The LM rides the provider seam lazily inside the tool.
+    def _extraction_ref(required_key: str):
+        def _build(params: dict[str, Any]) -> dict[str, Any]:
+            ref: dict[str, Any] = {required_key: params[required_key]}
+            for opt in ("k", "source_path", "extractor_role"):
+                if params.get(opt):
+                    ref[opt] = params[opt]
+            return ref
+
+        return _build
+
     return {
         "structural_jute": FloorExecutor(
             tool_factory=lambda http_client: StructuralJuteTool(http_client=http_client),
@@ -789,6 +947,14 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         "value_presence": FloorExecutor(
             tool_factory=lambda http_client: ValuePresenceTool(),
             reference_builder=_value_presence_ref,
+        ),
+        "fact_preservation": FloorExecutor(
+            tool_factory=lambda http_client: FactPreservationTool(),
+            reference_builder=_extraction_ref("fact"),
+        ),
+        "speaker_attribution": FloorExecutor(
+            tool_factory=lambda http_client: SpeakerAttributionTool(),
+            reference_builder=_extraction_ref("statement"),
         ),
     }
 
