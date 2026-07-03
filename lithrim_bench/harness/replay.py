@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 _NOT_APPLICABLE = {"status": "not_applicable", "findings": [], "evidence": [], "judge_votes": []}
@@ -58,13 +59,44 @@ def provenance_to_result(
     }
 
 
+def demo_digests(out_dir: Any) -> dict[str, str]:
+    """SIGNATURE-1: content digests of the DEMO-PIN-1 compiled few-shot demo files under
+    ``out_dir`` (``compiled_demos_*.json``) — pinned demos grade-affect, so they must move
+    the grade signature. Filename-glob (no pack/council import: the $0 replay path stays
+    import-light); ``{}`` when absent/None. Deterministic: sorted filenames → sha256 bytes."""
+    if out_dir is None:
+        return {}
+    root = Path(out_dir)
+    if not root.is_dir():
+        return {}
+    return {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(root.glob("compiled_demos_*.json"))
+    }
+
+
 def grade_signature(
-    ontology: Any, *, assignments: Any, models: Any, council_config: Any
+    ontology: Any,
+    *,
+    assignments: Any,
+    models: Any,
+    council_config: Any,
+    criteria: Any = None,
+    samples: Any = None,
+    temperatures: Any = None,
+    demo_digests: Any = None,
 ) -> str:
     """A stable ``sha256`` over the grade-DETERMINING config: the ontology + the AUTHORED
-    (pre-default) per-role ``assignments``/``models`` + the ``council_config``. Stamped on
-    each persisted version and recomputed at replay-resolve; a mismatch means the config
-    drifted since the head was graded (the freshness guard's input).
+    (pre-default) per-role ``assignments``/``models`` + the ``council_config`` +
+    (SIGNATURE-1) the per-judge ``criteria``/``samples``/``temperatures`` and the pinned
+    demo digests. Stamped on each persisted version and recomputed at replay-resolve; a
+    mismatch means the config drifted since the head was graded (the freshness guard's input).
+
+    SIGNATURE-1 closes the stale-served-as-fresh P0: criterion/k/temperature + DEMO-PIN-1
+    demos all thread into the grade but escaped the hash, so an edited criterion replayed
+    the pre-edit verdict labeled fresh. Widening makes every pre-widening head stale by
+    construction — CORRECT (those heads genuinely don't pin these inputs); the freshness
+    guard's 409 says how to re-grade.
 
     Hashing the authored (not full-lens-defaulted) assignments keeps grade-time and
     resolve-time in agreement: the full-lens default is derived from the ontology + roster,
@@ -75,6 +107,10 @@ def grade_signature(
         "assignments": assignments,
         "models": models,
         "council_config": council_config,
+        "criteria": criteria or {},
+        "samples": samples or {},
+        "temperatures": temperatures or {},
+        "demo_digests": demo_digests or {},
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 

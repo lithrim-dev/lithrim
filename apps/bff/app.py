@@ -3675,6 +3675,11 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         "grounded": doc.get("grounded"),
         "grounded_verdict": (doc.get("grounded") or {}).get("verdict"),
         "stages_executed": doc.get("stages_executed") or [],
+        # SIGNATURE-1: config identity + spend truth on the read path. cost_tokens total=0 on an
+        # in_process run is the cache-served tell (dspy-live-grade-cache-trap) — now visible.
+        "grade_signature": doc.get("grade_signature"),
+        "cost_tokens": doc.get("cost_tokens"),
+        "grade_config": doc.get("grade_config"),
     }
 
 
@@ -3700,6 +3705,9 @@ def _run_summary(doc: dict) -> dict:
         "verdict_flipped_by_stage": doc.get("verdict_flipped_by_stage"),
         "agent": doc.get("agent_id"),
         "ts": doc.get("timestamp"),
+        # SIGNATURE-1: same-config comparability + the tokens=0 cache tell, in the list row.
+        "grade_signature": doc.get("grade_signature"),
+        "cost_tokens": doc.get("cost_tokens"),
     }
 
 

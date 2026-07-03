@@ -53,6 +53,7 @@ from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
 from lithrim_bench.harness.replay import (  # noqa: E402
+    demo_digests,
     grade_signature,
     is_fresh,
     provenance_to_result,
@@ -237,6 +238,7 @@ def _enrich_run_blob(
     grade_path: str | None = None,
     collections_db: str | Path | None = None,
     grounded_block: dict | None = None,
+    grade_config: dict | None = None,
 ) -> None:
     """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
     blob (stream-2, ``GET /v1/runs/{id}/audit``) — not just the ``AuditLog``/config_audit
@@ -295,6 +297,10 @@ def _enrich_run_blob(
     # single source for what the floor decided (suppressions + grounded verdict + evidence).
     if grounded_block is not None:
         blob["grounded"] = grounded_block
+    # SIGNATURE-1: the grade-determining inputs (models/criteria/k/temp/demo digests) ride the
+    # head beside the opaque hash — the record is self-describing, not correlate-by-timestamp.
+    if grade_config is not None:
+        blob["grade_config"] = grade_config
     _run_sync(store.save_blob(blob))
 
 
@@ -364,12 +370,28 @@ def run(
     # is ontology-derived, already in the hash). Stamped on the persisted head; recomputed at
     # replay-resolve for the drift-aware freshness guard.
     ontology_doc = json.loads(ontology_src.read_text())
+    # SIGNATURE-1: criterion/k/temperature + the pinned DEMO-PIN-1 demos grade-affect, so they
+    # are IN the hash (else an edited criterion replays the pre-edit verdict labeled fresh).
+    _demo_sig = demo_digests(out_dir)
     grade_sig = grade_signature(
         ontology_doc,
         assignments=assignments,
         models=models,
         council_config=agent.eval_profile.council_config or {},
+        criteria=criteria,
+        samples=samples,
+        temperatures=temperatures,
+        demo_digests=_demo_sig,
     )
+    # SIGNATURE-1: the head is SELF-DESCRIBING about its inputs — pinned into the blob by
+    # _enrich_run_blob, beside the opaque hash.
+    grade_config = {
+        "models": models or {},
+        "criteria": criteria or {},
+        "samples": samples or {},
+        "temperatures": temperatures or {},
+        "demo_digests": _demo_sig,
+    }
 
     # UAP-3b: the authored stage's withstands-gate appends its per-judge decisions
     # here; empty on the replay/live paths (the gate runs only on the authored
@@ -589,6 +611,8 @@ def run(
         collections_db=collections_db,
         # LAYER0-READ-1: the post-floor truth rides the persisted blob for EVERY path.
         grounded_block=_grounded_block(grounded),
+        # SIGNATURE-1: the self-describing grade inputs, beside the opaque hash.
+        grade_config=grade_config,
     )
 
     # UAP-3b-2 (the deferred UAP-3b A6): the post-consensus GroundingChecks declared in
