@@ -52,6 +52,16 @@ packs-dropin/*
 !packs-dropin/.gitkeep
 !packs-dropin/README.md
 
+# TOOL-MCP-STDIO: host-supplied jar-based stdio MCP server + data (Hermes jar + SNOMED db),
+# bind-mounted read-only into the BFF container. Licensed/multi-GB — never tracked; only the
+# tracked .gitkeep + README keep the directory present so the compose bind-mount has a target.
+snomed/*
+!snomed/.gitkeep
+!snomed/README.md
+# tracked: tiny logback config that routes Hermes' logs to STDERR so the MCP stdout stays pure
+# JSON-RPC (without it the client chokes on a log line). Not licensed/large — ship it turn-key.
+!snomed/logback-stderr.xml
+
 # Local LLM-provider config DB (CE-PROVIDER) + any stray SQLite — never commit.
 *.sqlite
 *.sqlite3

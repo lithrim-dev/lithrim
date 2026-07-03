@@ -26,6 +26,11 @@ apps/shell/dist/
 # Runtime-written data (the config SQLite + run blobs are mounted as a volume, not baked)
 out/
 
+# Host-supplied stdio MCP server + data (Hermes jar + the multi-GB SNOMED db). Bind-mounted
+# at runtime (./snomed:/snomed in docker-compose.yml), NEVER baked into the image — excluding
+# it keeps `COPY . /app` from pulling 2.3GB+ of licensed data into the build.
+snomed/
+
 # Secrets + local env (BYOK keys reach the container via compose env passthrough / volumes)
 .env
 .env.*

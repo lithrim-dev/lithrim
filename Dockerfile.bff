@@ -4,7 +4,20 @@
 # FastAPI/uvicorn surface + the vendored compliance council; the core install stays
 # the offline pydantic+pandas base. No clinical pack is baked in — a bare image boots
 # on the neutral `_core` default; mount/point LITHRIM_BENCH_PACKS_DIR for a Pro pack.
+
+# A JRE 21 for stdio MCP tools whose server is a jar (e.g. Hermes/SNOMED,
+# `java -jar /snomed/hermes.jar ... mcp`), spawned IN-CONTAINER by McpStdioClient. The Hermes
+# uberjar is built on JDK 21, so it needs a 21 runtime — Debian's `default-jre-headless` is 17
+# (a 21-built uberjar would fail there). Copied from the official Temurin JRE image rather than
+# apt to pin 21 without backports. The jar + db are NOT baked in — bind-mount them (see ./snomed
+# in docker-compose.yml). A core-only/offline image never invokes it; harmless when no jar tool.
+FROM eclipse-temurin:21-jre AS jre
+
 FROM python:3.10-slim
+
+COPY --from=jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="$JAVA_HOME/bin:$PATH"
 
 # git: setuptools editable install + any VCS dep resolution. curl: the HEALTHCHECK probe.
 # build-essential: source builds for any wheel without a slim-platform binary (pandas et al.).

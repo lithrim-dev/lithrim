@@ -78,6 +78,14 @@ services:
       # CriterionBuilder/JudgeBuilder splice into the pack's taxonomy_snapshot.json on disk.
       # (Pro packs stay locked by their tier:pro gate, not by the mount.)
       - ./packs-dropin:/dropin-packs:rw
+      # TOOL-MCP-STDIO: a host dir holding a jar-based stdio MCP server + its data (e.g. Hermes
+      # SNOMED: hermes.jar + the snomed db), bind-mounted read-only. EMPTY by default (gitignored,
+      # a tracked .gitkeep keeps it present) so a stock `up` is unaffected. Drop the jar + db here,
+      # then author a tool with CONTAINER paths — COMMAND `java`, ARGS `-jar /snomed/hermes.jar
+      # --db /snomed/<db> mcp` — and McpStdioClient spawns it in-container (Dockerfile.bff ships
+      # a JRE 21). Read-only: it is DATA the container reads, never state it writes. (snomed.db
+      # is multi-GB + SNOMED CT is licensed — bring your own; it is never baked into the image.)
+      - ./snomed:/snomed:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
       interval: 15s
