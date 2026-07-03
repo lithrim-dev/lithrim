@@ -216,11 +216,12 @@ def get_kb_http_client() -> Any | None:
 
 
 def _jute_base_url() -> str:
-    """The JUTE mapper (:3031) base URL the ingest connects to. The mapper is an OPT-IN add-on
+    """The JUTE mapper base URL the ingest connects to. The mapper is an OPT-IN add-on
     (a separate ``../etlp-mapper`` service the user runs), so the URL is configurable:
     ``LITHRIM_JUTE_URL`` if set (e.g. ``http://host.docker.internal:3031`` for a host-run mapper,
-    or ``http://jute:3031`` for a compose-network service), else the ``etlp_jute`` plugin
-    manifest's default (``http://localhost:3031`` — the ONE place the default lives).
+    or ``http://jute:3000`` — the bundled compose service, which listens on :3000 in-network and
+    publishes host :3031 for debugging), else the ``etlp_jute`` plugin manifest's default
+    (``http://localhost:3031`` — the ONE place the default lives).
 
     Read at CALL time (no import-time capture) so Docker env / a live override is honored.
     BYTE-COMPAT: unset → the manifest default, identical to the prior hardcoded localhost:3031.
@@ -955,7 +956,15 @@ async def _auth_gate(request, call_next):
 # 401 rather than an opaque CORS failure. Same-origin / vite-proxied clients are unaffected.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
+    # Non-localhost deploys (a VPS, a LAN host) serve the UI from another origin — make the
+    # allowlist deployment config: comma-separated LITHRIM_ALLOWED_ORIGINS, localhost default.
+    allow_origins=[
+        o.strip()
+        for o in os.environ.get(
+            "LITHRIM_ALLOWED_ORIGINS", "http://localhost:5180,http://127.0.0.1:5180"
+        ).split(",")
+        if o.strip()
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1018,6 +1027,16 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         )
         if stale is not None:
             raise HTTPException(status_code=409, detail=stale.strip())
+        # FIRST-CONTACT-1: a missing provider key is CONFIG, not a server fault — "try again"
+        # can never fix it. build_judge_lm's ValueErrors all carry this marker.
+        if "is unset; required to bind" in proc.stderr:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No grading model is configured. Open Connect AI from the ⋯ menu "
+                    "(bottom left) and connect a provider, then run the evaluation again."
+                ),
+            )
         raise HTTPException(
             status_code=500,
             detail="The evaluation couldn't run. Please try again.",
@@ -1633,30 +1652,62 @@ _AGENT_TRACE_TEMPLATE = "\n".join(
 )
 
 
+_FLAT_NOTES_TEMPLATE = "\n".join(
+    [
+        "$map: $ resource.rows",
+        "$as: e",
+        "$body:",
+        "  case_id: $ e.id",
+        "  response: $ e.note",
+        # FLOOR-SOURCE-1 dual-emit, same as the trace template: `transcript` is what the council
+        # grade + withstands gate read; `context` kept for back-compat/display.
+        "  transcript: $ e.transcript",
+        "  context: $ e.transcript",
+    ]
+)
+
+
 def _known_shape_template(sample: Any) -> str | None:
     """Curated-template registry/matcher: return a hand-authored JUTE template for a KNOWN source
     shape, else ``None``. The template is STILL live-gated (``score_extraction``) before use, and
     LM-generation is the fallback for NOVEL shapes — so this only short-circuits the shapes it is
     SURE about. Pure; conservative (a near-miss → ``None`` → the existing REUSE/LM-gen path).
 
-    v1 knows ONE shape: the agent message-trace ``{runs:[{id, messages, final, expected_*}]}`` —
-    a dict with a non-empty ``runs`` list whose every entry is a dict carrying a truthy ``id``, a
-    list ``messages``, and a dict ``final``."""
+    Two known shapes:
+      * the agent message-trace ``{runs:[{id, messages, final, expected_*}]}`` — a dict with a
+        non-empty ``runs`` list whose every entry is a dict carrying a truthy ``id``, a list
+        ``messages``, and a dict ``final``;
+      * the flat notes record ``{rows:[{id, note, transcript}]}`` — the decoded shape of the
+        shipped ``samples/quickstart`` JSONL/CSV (FIRST-CONTACT-1: the DOCUMENTED first ingest
+        is deterministic and provider-free). Scalar ``note``/``transcript`` only; labels ride
+        the INGEST-LABELS-1 by-id merge, not the template."""
     if not isinstance(sample, dict):
         return None
     runs = sample.get("runs")
-    if not isinstance(runs, list) or not runs:
-        return None
-    for e in runs:
-        if not isinstance(e, dict):
-            return None
-        if not e.get("id"):
-            return None
-        if not isinstance(e.get("messages"), list):
-            return None
-        if not isinstance(e.get("final"), dict):
-            return None
-    return _AGENT_TRACE_TEMPLATE
+    if isinstance(runs, list) and runs:
+        for e in runs:
+            if not isinstance(e, dict):
+                return None
+            if not e.get("id"):
+                return None
+            if not isinstance(e.get("messages"), list):
+                return None
+            if not isinstance(e.get("final"), dict):
+                return None
+        return _AGENT_TRACE_TEMPLATE
+    rows = sample.get("rows")
+    if isinstance(rows, list) and rows:
+        for e in rows:
+            if not isinstance(e, dict):
+                return None
+            if not e.get("id"):
+                return None
+            if not isinstance(e.get("note"), str) or not e["note"].strip():
+                return None
+            if not isinstance(e.get("transcript"), str) or not e["transcript"].strip():
+                return None
+        return _FLAT_NOTES_TEMPLATE
+    return None
 
 
 def _ctx_nonempty(value: Any) -> bool:
@@ -5750,12 +5801,34 @@ def roles_bind_endpoint(
     return {"ok": True, "role": req.role, "provider": req.provider, "model": req.model}
 
 
+def _chat_ready() -> bool:
+    """FIRST-CONTACT-1: can the composer's next message actually be answered? Mirrors the chat
+    runtime's own dispatch — a litellm chat provider is configured, OR the SDK path is importable
+    (host installs with the [agent] extra + the claude CLI). The shell's first-paint "Connect AI"
+    signpost renders off this, so it is false ONLY when a send would genuinely fail."""
+    from agent.loop import _chat_provider_config
+
+    if _chat_provider_config() is not None:
+        return True
+    try:
+        import claude_agent_sdk  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 @app.get("/v1/roles/bindings")
 def roles_bindings_endpoint() -> dict:
     """CONNECT-AI-CONSOLIDATE-1: the non-secret per-consumer readout the Assign-models section
     renders — which {provider, model} each of the 4 roles is bound to (None when unbound) + the list
-    of CONNECTED providers (those with a stored key) for the Providers list. NEVER a key."""
-    return {"roles": _read_role_bindings(), "connected_providers": _connected_providers()}
+    of CONNECTED providers (those with a stored key) for the Providers list. NEVER a key.
+    FIRST-CONTACT-1 adds `chat_ready` (additive) — the shell's connect-the-assistant signpost."""
+    return {
+        "roles": _read_role_bindings(),
+        "connected_providers": _connected_providers(),
+        "chat_ready": _chat_ready(),
+    }
 
 
 def _ingest_storyworld(ws, req, *, actor: Actor) -> dict:
