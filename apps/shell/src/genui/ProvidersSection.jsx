@@ -10,6 +10,7 @@
    PASSIVE rail chrome — never operates panes / the top-bar. Inline styles on the shell CSS vars. */
 import { useState } from "react";
 import { configProvider } from "../bff.js";
+import { Button } from "../components/ui/button.jsx";
 import { friendlyError } from "./copy.js";
 
 const PROVIDERS = [
@@ -17,7 +18,8 @@ const PROVIDERS = [
   { id: "anthropic", label: "Anthropic" },
   { id: "azure", label: "Azure OpenAI" },
   { id: "gemini", label: "Gemini" },
-  { id: "bedrock", label: "Bedrock" },
+  // bedrock: API Literal still accepts it, but the single-key form can't carry AWS
+  // secret-key/region — hidden from the picker until multi-field auth lands.
   { id: "openai_compatible", label: "OpenAI-compatible" },
 ];
 const NEEDS_ENDPOINT = new Set(["azure", "openai_compatible"]);
@@ -29,11 +31,6 @@ const inputStyle = {
   background: "var(--bg)", color: "var(--ink)", width: "100%", boxSizing: "border-box",
 };
 const labelStyle = { fontSize: 11, color: "var(--muted)", fontWeight: 600 };
-const btn = (primary) => ({
-  padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer",
-  background: primary ? "var(--accent)" : "var(--surface-muted)",
-  color: primary ? "#fff" : "var(--ink)", fontWeight: 600,
-});
 
 export default function ProvidersSection({ connected = [], onSaved }) {
   const [provider, setProvider] = useState("openai");
@@ -67,7 +64,8 @@ export default function ProvidersSection({ connected = [], onSaved }) {
   };
 
   const canSave = !!key.trim() && (!needsEndpoint || !!endpoint.trim());
-  const saveColor = save.state === "error" ? "var(--amber)" : "var(--teal)";
+  // an error is a failure (red --accent), not a warning (amber); success stays teal.
+  const saveColor = save.state === "error" ? "var(--accent)" : "var(--teal)";
 
   return (
     <section data-testid="providers-section"
@@ -104,10 +102,11 @@ export default function ProvidersSection({ connected = [], onSaved }) {
         <input data-testid="providers-key" type="password" autoComplete="off" value={key}
           onChange={(e) => setKey(e.target.value)} placeholder="API key (stored securely, never shown again)" style={inputStyle} />
         <div>
-          <button data-testid="providers-save" onClick={testSave}
-            disabled={save.state === "saving" || !canSave} style={btn(true)}>
+          <Button size="sm" data-testid="providers-save" onClick={testSave}
+            disabled={save.state === "saving" || !canSave}
+            title={!canSave ? "Enter your API key" + (needsEndpoint ? " and the endpoint URL" : "") + " first" : undefined}>
             {save.state === "saving" ? "Testing…" : "Test & save"}
-          </button>
+          </Button>
         </div>
         {save.state !== "idle" && save.state !== "saving" && (
           <div data-testid="providers-save-msg" style={{ fontSize: 11.5, color: saveColor }}>{save.msg}</div>
