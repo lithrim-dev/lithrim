@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
@@ -52,6 +52,17 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
   // CE-PROVIDER-UI (Build B): the "Connect AI" provider-connect panel, opened from the session
   // menu. Passive rail chrome — a modal settings panel; it never operates panes/top-bar to advance.
   const [connectAI, setConnectAI] = useState(false);
+  // FIRST-CONTACT-1: the empty-state "Connect AI" signpost (CenterPane) opens this modal via a
+  // window event — settings chrome invoked from content, still never operating panes/top-bar.
+  useEffect(() => {
+    const open = () => setConnectAI(true);
+    window.addEventListener("lithrim:connect-ai", open);
+    return () => window.removeEventListener("lithrim:connect-ai", open);
+  }, []);
+  const closeConnectAI = () => {
+    setConnectAI(false);
+    window.dispatchEvent(new CustomEvent("lithrim:connect-ai-closed")); // CenterPane re-checks chat_ready
+  };
   const authed = hasStoredToken();
   // DELETE-CONFIRM-1: a two-step in-DOM confirm before deleting an evaluation — deleting an agent
   // also drops its audit row, so a stray click must not destroy it (never window.confirm).
@@ -173,13 +184,13 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
             to the app, it never opens an artifact pane. */}
         {connectAI && (
           <>
-            <div data-testid="connect-ai-backdrop" onClick={() => setConnectAI(false)}
+            <div data-testid="connect-ai-backdrop" onClick={closeConnectAI}
               style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.32)" }} />
             <div role="dialog" aria-label="Connect AI" data-testid="connect-ai-panel"
               style={{ position: "fixed", zIndex: 61, top: "50%", left: "50%", transform: "translate(-50%, -50%)",
                 width: "min(620px, 92vw)", maxHeight: "86vh", overflowY: "auto", padding: 18, borderRadius: 14,
                 background: "var(--bg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-pop)" }}>
-              <ProviderSettings onClose={() => setConnectAI(false)} agent={activeAgent} />
+              <ProviderSettings onClose={closeConnectAI} agent={activeAgent} />
             </div>
           </>
         )}
@@ -328,6 +339,24 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // audited config writes + $0 replay runs; it can NEVER fire a paid run.
   const [chat, setChat] = useState([]); // [{role:'user'|'assistant', text?, parts?}]
   const [input, setInput] = useState("");
+  // FIRST-CONTACT-1: the empty state funnels the first message into chat — if the assistant
+  // can't answer (no chat provider AND no SDK path: the fresh Docker boot), say so BEFORE the
+  // doomed send, with a real "Connect AI" opener. Optimistic default (banner only on a
+  // confirmed not-ready); re-checked when the Connect AI modal closes. The optional-call guard
+  // keeps older test mocks (no getRoleBindings export) green.
+  const [chatReady, setChatReady] = useState(true);
+  useEffect(() => {
+    let on = true;
+    const check = () => {
+      // try/catch (not typeof): a vi.mock factory without this export throws on ACCESS.
+      try {
+        getRoleBindings().then((r) => { if (on && r) setChatReady(r.chat_ready !== false); }).catch(() => {});
+      } catch { /* older test mocks / partial bff surfaces: keep the optimistic default */ }
+    };
+    check();
+    window.addEventListener("lithrim:connect-ai-closed", check);
+    return () => { on = false; window.removeEventListener("lithrim:connect-ai-closed", check); };
+  }, []);
   const [sending, setSending] = useState(false);
   // PERSIST-CONV: the durable-thread guards. `hydrated` flips once the stored thread loads for
   // THIS agent (so the persist effect never writes back before the hydrate completes — no
@@ -771,6 +800,17 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                 below. You can explore a test case, run an evaluation to get a verdict, and open
                 the report — every change is tracked with a full audit trail.
               </p>
+              {!chatReady && (
+                <div data-testid="connect-assistant-cta" className="reveal"
+                  style={{ margin: "0 auto 12px", maxWidth: 460, padding: "10px 14px", borderRadius: 10,
+                    border: "1px solid var(--border)", background: "var(--panel)", fontSize: 13, lineHeight: 1.5 }}>
+                  The assistant isn't connected yet — chat needs a model.
+                  <button className="es-prompt" style={{ marginLeft: 10 }}
+                    onClick={() => window.dispatchEvent(new CustomEvent("lithrim:connect-ai"))}>
+                    <Icon name="spark" size={14} /> Connect AI
+                  </button>
+                </div>
+              )}
               <div className="es-prompts">
                 <button className="es-prompt" data-testid="start-guided-setup"
                   onClick={() => fillPrompt(GUIDED_SETUP_PROMPT)}>
