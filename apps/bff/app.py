@@ -4243,6 +4243,17 @@ def _build_tool_context(
         # LITHRIM_JUTE_URL → the etlp_jute manifest default). In Docker localhost:3031 is the BFF
         # container itself, so a host/compose/remote mapper is only reachable via the override.
         client = EtlpJuteClient(base_url=_jute_base_url())
+        # Honest front-door probe: a down mapper must say so — never surface as a bare 500 or the
+        # misleading "extractor did not converge". `health()` never raises; test fakes without it
+        # (getattr-guarded) skip the probe.
+        _health = getattr(client, "health", None)
+        if callable(_health) and not _health():
+            raise RuntimeError(
+                f"the JUTE mapper is not reachable at {getattr(client, 'base', _jute_base_url())} "
+                "— ingest needs it to gate the transform. Start the bundled mapper "
+                "(`docker compose up` includes it) or point LITHRIM_JUTE_URL at a running one. "
+                "Grading and replay do not need the mapper."
+            )
 
         # 3-WAY transform selection (INGEST-TEMPLATE-1 prepends (1) to the NARR-7.1 reuse/gen pair):
         #   (1) KNOWN SHAPE → a hand-authored, DETERMINISTIC curated JUTE template (labels carried

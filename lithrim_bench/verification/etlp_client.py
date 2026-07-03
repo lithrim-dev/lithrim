@@ -76,6 +76,15 @@ class EtlpJuteClient:
         if self._client is not None and hasattr(self._client, "close"):
             self._client.close()
 
+    def health(self) -> bool:
+        """True iff the mapper answers at all. Never raises — the ingest front door probes this
+        to report "the mapper is not running" honestly instead of a downstream misdiagnosis."""
+        try:
+            resp = self._http().get(self.base + "/jute-dsl-spec.json")
+            return int(getattr(resp, "status_code", 500)) < 500
+        except Exception:  # noqa: BLE001 — unreachable/refused/timeout all mean "not healthy"
+            return False
+
     # --- raw verbs ------------------------------------------------------- #
     def _get(self, path: str) -> Any:
         resp = self._http().get(self.base + path)
