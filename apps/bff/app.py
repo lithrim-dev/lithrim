@@ -5290,8 +5290,10 @@ def _probe_provider(
 
             client = anthropic.Anthropic(api_key=api_key)
             client.messages.create(
-                model=model or "claude-3-5-haiku-latest",
-                max_tokens=1,
+                # DRYRUN-2026-07-03: a CURRENT default (claude-3-5-haiku-latest is retired on
+                # the live API — connecting Anthropic failed out of the box); ≥16 tokens.
+                model=model or "claude-haiku-4-5-20251001",
+                max_tokens=16,
                 messages=[{"role": "user", "content": "ping"}],
             )
             return {"ok": True}
@@ -5307,12 +5309,15 @@ def _probe_provider(
         }.get(provider, "openai")
         default_model = {
             "azure": "gpt-4.1", "gemini": "gemini-1.5-pro",
-            "bedrock": "anthropic.claude-3-sonnet-v1", "anthropic": "claude-3-5-haiku-latest",
+            "bedrock": "anthropic.claude-3-sonnet-v1", "anthropic": "claude-haiku-4-5-20251001",
         }.get(provider, "gpt-4o")
+        # DRYRUN-2026-07-03: parameter-MINIMAL — reasoning-family models (gpt-5.5) reject a
+        # temperature override AND a <16-token completion budget; the 1-token/temp-0 ping made
+        # binding a valid frontier model fail with an opaque BadRequestError.
         completion_kwargs = {
             "model": f"{prefix}/{model or default_model}",
             "messages": [{"role": "user", "content": "ping"}],
-            "max_tokens": 1, "temperature": 0, "api_key": api_key,
+            "max_tokens": 16, "api_key": api_key,
         }
         if endpoint:  # azure / openai_compatible api_base
             completion_kwargs["api_base"] = endpoint

@@ -186,7 +186,9 @@ def test_probe_routes_new_types_via_litellm(registry_env, monkeypatch):
 
     seen: dict = {}
 
-    def _fake_completion(*, model, messages, max_tokens, temperature, api_key=None, api_base=None):
+    # DRYRUN-2026-07-03: the probe is parameter-minimal now (no temperature override — modern
+    # reasoning models reject it); the fake accepts-without-requiring it.
+    def _fake_completion(*, model, messages, max_tokens, temperature=None, api_key=None, api_base=None):
         seen["model"] = model
         seen["api_key"] = api_key
         seen["api_base"] = api_base
@@ -289,7 +291,11 @@ def test_bind_cross_provider_builds_a_mixed_council(registry_env, monkeypatch):
     captured["policy"] = J.build_judge_lm("policy_judge")
     captured["risk"] = J.build_judge_lm("risk_judge")
     assert captured["policy"].model == "gemini/gemini-1.5-pro"
-    assert captured["policy"].kwargs["logprobs"] is False  # gemini → confidence dark
+    # DRYRUN-2026-07-03: a confidence-dark provider gets NO logprobs param at all (litellm
+    # rejects the param's presence, even as False) + drop_params so per-model-unsupported
+    # params (e.g. gpt-5.5's temperature) are dropped instead of erroring the judge.
+    assert "logprobs" not in captured["policy"].kwargs
+    assert captured["policy"].kwargs["drop_params"] is True
     assert captured["risk"].model == "openai/gpt-4o"
     assert captured["risk"].kwargs["logprobs"] is True  # openai → calibrated
 

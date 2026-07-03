@@ -167,6 +167,20 @@ def _provider_supports_logprobs(provider: str) -> bool:
     return (provider or "").strip().lower() in _LOGPROBS_PROVIDERS
 
 
+# DRYRUN-2026-07-03 (stranger journey, live-caught): logprobs support is MODEL-granular now —
+# the reasoning families on an otherwise-logprobs provider REJECT the param outright
+# ("'logprobs' is not supported with this model"), which errored the judge into a silent
+# needs_review. Confidence-dark is the safe direction (we lose a number, never a verdict).
+_NO_LOGPROBS_MODEL_PREFIXES = ("o1", "o3", "o4", "gpt-5")
+
+
+def _model_supports_logprobs(provider: str, model: str) -> bool:
+    if not _provider_supports_logprobs(provider):
+        return False
+    m = (model or "").strip().lower()
+    return not any(m.startswith(p) for p in _NO_LOGPROBS_MODEL_PREFIXES)
+
+
 # --------------------------------------------------------------------------- #
 # structured findings (pydantic core dep — no dspy needed to define these)
 # --------------------------------------------------------------------------- #
@@ -356,9 +370,17 @@ def build_judge_lm(role: str, **overrides: Any):
         per_role_kwargs: dict[str, Any] = {
             "temperature": 0,
             "max_tokens": 4096,
-            "logprobs": _provider_supports_logprobs(role_provider),
             "cache": True,
+            # DRYRUN-2026-07-03 (stranger journey, live-caught): modern models REJECT params
+            # they don't support — gpt-5.5 refuses any non-default temperature; anthropic
+            # refuses the logprobs PARAM even as False — which errored the judge into a
+            # silent needs_review. drop_params lets litellm drop the per-model-unsupported
+            # ones instead; logprobs is sent ONLY where it is real (openai/azure), so the
+            # confidence-dark providers stay honestly confidence-dark.
+            "drop_params": True,
         }
+        if _model_supports_logprobs(role_provider, role_model):
+            per_role_kwargs["logprobs"] = True
         if role_api_key:
             per_role_kwargs["api_key"] = role_api_key
         if role_api_base:  # azure / openai_compatible (vLLM, Together, a local server)
@@ -392,9 +414,14 @@ def build_judge_lm(role: str, **overrides: Any):
             "api_key": settings.OPENAI_API_KEY,
             "temperature": 0,
             "max_tokens": 4096,
-            "logprobs": True,
             "cache": True,
+            # DRYRUN-2026-07-03: same model-granular guards as the per-role branch — the
+            # reasoning families reject logprobs (and a forced temperature); drop_params keeps
+            # a param mismatch from erroring the judge into a silent needs_review.
+            "drop_params": True,
         }
+        if _model_supports_logprobs("openai", model):
+            openai_kwargs["logprobs"] = True
         openai_kwargs.update(overrides)
         return dspy.LM(f"openai/{model}", **openai_kwargs)
 

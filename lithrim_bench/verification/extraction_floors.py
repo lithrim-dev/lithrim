@@ -69,6 +69,10 @@ def _build_extractor_lm(role: str) -> Callable[[str], str]:
         out = lm(prompt)
         if isinstance(out, list):
             out = out[0] if out else ""
+        # DRYRUN-2026-07-03 (live-caught): a logprobs-enabled dspy.LM returns
+        # {'text': ..., 'logprobs': ...} per completion, not a plain string.
+        if isinstance(out, dict):
+            out = out.get("text", "")
         return str(out)
 
     return _call
@@ -159,7 +163,9 @@ class _BoundedExtractionFloor(VerificationTool):
                 continue
             extraction = _parse_strict_json(raw)
             if extraction is None:
-                samples.append({"disposition": "unconfirmed", "error": "unparseable extraction"})
+                # keep a truncated raw so an unparseable extraction is debuggable from the blob
+                samples.append({"disposition": "unconfirmed", "error": "unparseable extraction",
+                                "raw": str(raw)[:160]})
                 continue
             samples.append({"disposition": self._classify(extraction), "extraction": extraction})
 

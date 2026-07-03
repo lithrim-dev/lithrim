@@ -43,9 +43,13 @@ _PROVIDER_CENTER_SEAM = frozenset({"_litellm_prefix", "_provider_supports_logpro
 # the consensus seam; ``_apply_consensus`` / ``evaluate_dspy`` / ``Judge`` / the finding shape
 # stay byte-frozen vs acc4973 (the C4 non-vacuity still fires on any edit to those).
 _ROLE_GENERALIZE_SEAM = frozenset({"_role_provider_keys", "_role_setting"})
+# DRYRUN-2026-07-03 (stranger journey, live-caught): logprobs support is MODEL-granular (the
+# reasoning families reject the param) — ``_model_supports_logprobs`` is one more pure
+# provider-binder helper. The consensus seam stays byte-frozen vs acc4973.
+_MODEL_LOGPROBS_SEAM = frozenset({"_model_supports_logprobs"})
 _AUTHORIZED_JUDGES_SEAM = (
     _BYOC1_PROVIDER_SEAM | _SIGNATURE_GENERICIZE_SEAM | _PROVIDER_CENTER_SEAM
-    | _ROLE_GENERALIZE_SEAM
+    | _ROLE_GENERALIZE_SEAM | _MODEL_LOGPROBS_SEAM
 )
 
 # PACK-2 (layer 2): the clinical council role prompts relocated into the healthcare pack.

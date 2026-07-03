@@ -136,6 +136,40 @@ def test_parse_garbage_and_lm_failure_decline():
     assert "unavailable" in (res2.evidence.get("reason") or "") or "fail" in json.dumps(res2.evidence).lower()
 
 
+def test_dict_shaped_completions_parse(monkeypatch):
+    """DRYRUN-2026-07-03 (live-caught): a logprobs-enabled dspy.LM returns
+    {'text': ..., 'logprobs': ...} per completion — the default extractor wrapper must unwrap
+    the text, not stringify the dict into an unparseable sample."""
+    import lithrim_bench.verification.extraction_floors as ef
+
+    class _DictLM:
+        def __call__(self, prompt):
+            return [{"text": json.dumps({"stated_in_source": True, "source_quote": "q",
+                                         "preserved_in_artifact": False,
+                                         "artifact_quote_or_empty": ""}),
+                     "logprobs": object()}]
+
+    monkeypatch.setattr(
+        "lithrim_bench.runtime.council.judges_dspy.build_judge_lm",
+        lambda role: _DictLM(),
+        raising=False,
+    )
+    lm = ef._build_extractor_lm("reviewer_x")
+    res = FactPreservationTool(lm=lm).verify(
+        _claim(), _spec("fact_preservation", {"fact": "f", "k": 3})
+    )
+    assert res.conforms is False  # the dict-shaped completion parsed → violated majority
+
+
+def test_unparseable_sample_retains_truncated_raw():
+    lm, _ = _lm_returning("TOTALLY NOT JSON " * 30)
+    res = FactPreservationTool(lm=lm).verify(
+        _claim(), _spec("fact_preservation", {"fact": "f", "k": 1})
+    )
+    raw = res.evidence["samples"][0].get("raw") or ""
+    assert raw.startswith("TOTALLY NOT JSON") and len(raw) <= 160
+
+
 # ── speaker_attribution ───────────────────────────────────────────────────────
 
 
