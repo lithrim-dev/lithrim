@@ -25,6 +25,7 @@ lazy-wraps them with the SDK ``@tool`` decorator (import-isolation, A5).
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -852,17 +853,27 @@ async def kb_context_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str
     # suppress over-clears on these flags, proven, so we surface context instead of clearing). No
     # PAID_KEY; a transport/auth failure is surfaced, never fabricated context.
     query = str(args.get("query") or "")
-    namespace = str(args.get("namespace") or "hipaa")
-    # The KB catalog namespace is "hipaa" (also "medication-safety" / "clinical-escalation"). The
-    # model sometimes passes the Pinecone INDEX name ("hipaa-compliancev2") or "DEFAULT" — both 400.
-    # Normalize those to the working "hipaa" so the context aid doesn't fail on a name confusion.
+    # The default catalog namespace is deployment CONFIG (LITHRIM_KB_NAMESPACE), not a product
+    # hardwire; "hipaa" stays the unset fallback for byte-compat with the reference deployment.
+    default_ns = os.environ.get("LITHRIM_KB_NAMESPACE") or "hipaa"
+    namespace = str(args.get("namespace") or default_ns)
+    # The model sometimes passes an INDEX name (e.g. "hipaa-compliancev2") or "DEFAULT" — both
+    # 400. Normalize those to the configured namespace so the aid doesn't fail on name confusion.
     if namespace.lower() in {"hipaa-compliancev2", "default", ""}:
-        namespace = "hipaa"
+        namespace = default_ns
     top_k = int(args.get("top_k") or 3)
     if not query:
         return _error("kb_context needs a `query` (the topic or finding to ground in the KB).")
     try:
         chunks = ctx.kb_context(query=query, namespace=namespace, top_k=top_k)
+    except (ConnectionError, OSError) as exc:
+        # No KB service is connected (CE ships none) — say exactly that, so the agent reports
+        # honestly instead of retry-looping (S-BS-91 family) or blaming credentials.
+        return _error(
+            "no knowledge base is connected (the KB service is unreachable). Connect one by "
+            "setting LITHRIM_KB_BASE_URL to a KB search service, or answer from the conversation "
+            f"and SAY the KB is not connected — do not retry. ({exc})"
+        )
     except Exception as exc:  # noqa: BLE001 - transport/auth -> surface, never fabricate context
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(

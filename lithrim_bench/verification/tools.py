@@ -393,10 +393,18 @@ class KbRagTool(VerificationTool):
         self._client = http_client
         self._timeout = timeout
 
+    def _service(self) -> str:
+        """The KB service base URL when the spec/caller names none: ``LITHRIM_KB_BASE_URL``
+        (point it at ANY KB service) → the historical default. Env-driven so no deployment
+        is hardwired."""
+        import os
+
+        return str(os.environ.get("LITHRIM_KB_BASE_URL") or self._DEFAULT_SERVICE).rstrip("/")
+
     def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
         ref = spec.reference
         namespace = ref["namespace"]
-        base = str(ref.get("service") or self._DEFAULT_SERVICE).rstrip("/")
+        base = str(ref.get("service") or self._service()).rstrip("/")
         query = self._query(claim, ref)
         top_k = int(ref.get("top_k", 5))
         min_score = float(ref.get("min_score", 0.0))
@@ -517,7 +525,7 @@ class KbRagTool(VerificationTool):
         next to the finding" move. Unlike :meth:`verify`, this makes NO conforms/suppress decision
         and cannot change a verdict; it only RETRIEVES. Auth via ``api_key`` or the
         ``LITHRIM_KB_API_KEY`` / ``LITHRIM_API_KEY`` env (omitted on open/dev backends)."""
-        base = str(service or self._DEFAULT_SERVICE).rstrip("/")
+        base = str(service or self._service()).rstrip("/")
         ref: dict[str, Any] = {}
         if api_key:
             ref["api_key"] = api_key
