@@ -12,13 +12,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings,
+const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster,
   hasStoredToken, logout, signIn } = vi.hoisted(() => ({
   configProvider: vi.fn(),
   getProviderStatus: vi.fn(),
   getModelCatalog: vi.fn(),
   bindRole: vi.fn(),
   getRoleBindings: vi.fn(),
+  getCouncilRoster: vi.fn().mockResolvedValue({ panel: [], reviewer_roster: null }),
+  setCouncilRoster: vi.fn().mockResolvedValue({ status: "ok" }),
   // UI-LOGIN-1 / SESSION-MENU-1: LeftRail reads these for the session-menu affordance.
   hasStoredToken: vi.fn(),
   logout: vi.fn(),
@@ -26,12 +28,12 @@ const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBin
 }));
 
 vi.mock("../bff.js", () => ({
-  configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings,
+  configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster,
   hasStoredToken, logout, signIn,
 }));
 // the LeftRail lives in panes.jsx (one dir up from genui/); mock its bff path too.
 vi.mock("../../bff.js", () => ({
-  configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings,
+  configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster,
   hasStoredToken, logout, signIn,
 }));
 
@@ -71,12 +73,68 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel shape", () => {
     expect(screen.queryByTestId("consumer-bind-section")).toBeNull();
   });
 
+  // F4: providers/bindings are global (accepted behavior) — a subtle clarity note so a "fresh"
+  // workspace's pre-connected provider doesn't read as a bug.
+  it("F4: notes that providers + bindings are shared across all workspaces", async () => {
+    render(<ProviderSettings />);
+    expect(await screen.findByTestId("provider-scope-hint")).toHaveTextContent(/shared across all your workspaces/i);
+  });
+
   it("B: the connected-providers list renders from getRoleBindings.connected_providers", async () => {
     render(<ProviderSettings />);
     expect(await screen.findByTestId("providers-connected-row-openai")).toBeInTheDocument();
     expect(screen.getByTestId("providers-connected-row-gemini")).toBeInTheDocument();
     // a no-logprobs provider carries the ⚠ hint in its row
     expect(screen.getByTestId("providers-connected-row-gemini")).toHaveTextContent(/no logprobs/i);
+  });
+});
+
+describe("REVIEWER-MODE — single vs multiple reviewers (Assign models)", () => {
+  it("D: renders the panel default + count; switching to Single reviewer posts a single-role roster", async () => {
+    getCouncilRoster.mockResolvedValue({
+      reviewer_roster: null,
+      panel: ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge"],
+      // GENERALIST-1: an opt-in lens role outside the panel is selectable as a single reviewer
+      selectable: ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge", "generalist_reviewer"],
+    });
+    render(<ProviderSettings agent="clinverdict_default" />);
+    await screen.findByTestId("reviewer-mode");
+    // panel default reflects the active pack's real reviewer count (4, not the hardcoded 3)
+    expect(screen.getByTestId("reviewer-mode-panel")).toHaveTextContent(/Panel · 4/);
+    // switch to single → posts a one-role roster for THIS agent (audited)
+    fireEvent.click(screen.getByTestId("reviewer-mode-single"));
+    await waitFor(() => expect(setCouncilRoster).toHaveBeenCalled());
+    const arg = setCouncilRoster.mock.calls.at(-1)[0];
+    expect(arg.agent).toBe("clinverdict_default");
+    expect(Array.isArray(arg.roster) && arg.roster.length).toBe(1);
+    // the single-reviewer picker is offered AND lists the opt-in generalist (selectable, not panel)
+    expect(screen.getByTestId("reviewer-single-role")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Generalist reviewer/i })).toBeInTheDocument();
+  });
+
+  it("D2: picking the generalist single reviewer posts that one-role roster", async () => {
+    getCouncilRoster.mockResolvedValue({
+      reviewer_roster: ["faithfulness_judge"],
+      panel: ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge"],
+      selectable: ["risk_judge", "policy_judge", "faithfulness_judge", "erasure_judge", "generalist_reviewer"],
+    });
+    render(<ProviderSettings agent="clinverdict_default" />);
+    await screen.findByTestId("reviewer-single-role");
+    fireEvent.change(screen.getByTestId("reviewer-single-role"), { target: { value: "generalist_reviewer" } });
+    await waitFor(() => expect(setCouncilRoster).toHaveBeenCalled());
+    expect(setCouncilRoster.mock.calls.at(-1)[0].roster).toEqual(["generalist_reviewer"]);
+  });
+
+  it("E: panel mode clears the override (roster=null)", async () => {
+    getCouncilRoster.mockResolvedValue({
+      reviewer_roster: ["faithfulness_judge"],
+      panel: ["risk_judge", "policy_judge", "faithfulness_judge"],
+    });
+    render(<ProviderSettings agent="clinverdict_default" />);
+    await screen.findByTestId("reviewer-mode");
+    fireEvent.click(screen.getByTestId("reviewer-mode-panel"));
+    await waitFor(() => expect(setCouncilRoster).toHaveBeenCalled());
+    expect(setCouncilRoster.mock.calls.at(-1)[0].roster).toBeNull();
   });
 });
 

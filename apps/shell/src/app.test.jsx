@@ -7,18 +7,14 @@ import { render, screen } from "@testing-library/react";
 import App from "./app.jsx";
 
 describe("Shell chrome (App titlebar)", () => {
-  it("renders the titlebar with the mode-switch and no stray brace literal", () => {
+  it("renders the titlebar with the Evaluations crumb and no stray brace literal", () => {
     const { container } = render(<App mode="shell" setMode={() => {}} />);
-
-    // the Shell↔Journey segmented control is in the chrome
-    expect(screen.getByRole("tab", { name: "Shell" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Journey" })).toBeInTheDocument();
 
     const titlebar = container.querySelector(".titlebar");
     expect(titlebar).toBeTruthy();
-    // the clinical/Scribe crumb renders in the titlebar...
-    expect(titlebar.textContent).toContain("Scribe Agent v4");
-    // ...and no stray `}` text node leaked into it (the 0c13d3f regression)
+    // the workspace pill + the Evaluations crumb render in the titlebar...
+    expect(titlebar.textContent).toContain("Evaluations");
+    // ...and no stray `}` text node leaked into it (the 0c13d3f regression this test guards)
     expect(titlebar.textContent).not.toContain("}");
   });
 

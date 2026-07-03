@@ -12,14 +12,15 @@
    flat-spread prop convention (registry.js): props are spread from part.output; this
    component reads only `agent`. */
 import { useEffect, useState } from "react";
-import { getRuns, runEval, getRunHistory, rehydrateRun } from "../bff.js";
+import { getRuns, runEval } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { CostModal } from "../components/CostModal.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
-import { verdictLabel, roleLabel, gradeTag } from "./copy.js";
+import RunLineage from "./RunLineage.jsx";
+import { verdictLabel, roleLabel, gradeTag, friendlyError } from "./copy.js";
 
 const MODES = [
   { key: "replay", label: "Replay", cost: "$0", paid: false },
@@ -37,22 +38,9 @@ const voteTone = (vote) =>
 const verdictTone = (v) => (v === "BLOCK" ? "var(--accent-ink)" : "var(--teal)");
 
 // RUNTRAIL-8: one run-history row + its lineage. Surfaces grade_path (cost tag) +
-// replay_of (the baseline this run replays), and offers a per-row History expander
-// (getRunHistory → prior versions) + a $0 Rehydrate button (rehydrateRun → verdict).
+// replay_of (the baseline this run replays); the History expander + $0 Rehydrate live in the
+// shared RunLineage component (same source as AuditView).
 function HistoryRow({ r }) {
-  const [versions, setVersions] = useState(null); // null = collapsed; [] = loaded-empty
-  const [rehydrated, setRehydrated] = useState(null);
-
-  const toggleHistory = async () => {
-    if (versions !== null) { setVersions(null); return; }
-    try { setVersions((await getRunHistory(r.run_id)).history || []); }
-    catch { setVersions([]); }
-  };
-  const doRehydrate = async () => {
-    try { setRehydrated(await rehydrateRun(r.run_id)); }
-    catch { setRehydrated({ verdict: null }); }
-  };
-
   return (
     <div className="flex flex-col gap-1" data-testid="history-row">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -69,26 +57,8 @@ function HistoryRow({ r }) {
             ↩ replays {(r.replay_of || "").slice(0, 8)}
           </span>
         )}
-        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={toggleHistory}>History</Button>
-        <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={doRehydrate}>Rehydrate $0</Button>
       </div>
-      {versions !== null && (
-        <div className="ml-3 flex flex-col gap-0.5">
-          {versions.length === 0 && <span className="text-[10px] text-muted-foreground">No prior versions.</span>}
-          {versions.map((v, i) => (
-            <div key={i} className="flex items-center gap-2 text-[10px]" data-testid="history-version">
-              <span className="font-[family-name:var(--font-mono)] text-muted-foreground">{(v.run_id || "").slice(0, 8)}</span>
-              <span style={{ color: verdictTone(v.verdict) }}>{verdictLabel(v.verdict)}</span>
-              {v.grade_path && <span className="text-muted-foreground">{gradeTag(v.grade_path)}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-      {rehydrated && (
-        <div className="ml-3 text-[10px]" data-testid="rehydrated-verdict">
-          Rehydrated: <span style={{ color: verdictTone(rehydrated.verdict) }}>{verdictLabel(rehydrated.verdict)}</span>
-        </div>
-      )}
+      <RunLineage runId={r.run_id} />
     </div>
   );
 }
@@ -130,7 +100,7 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
       // EVAL-FLOW (W3): signal up so App.refreshJourney re-derives — a run for this agent ticks Run.
       onRan?.(rec);
     } catch (e) {
-      setError(String(e.message || e));
+      setError(friendlyError(e)); // calm, leak-free reason (never a raw HTTP/path/stack)
       setRunStatus("error");
     }
   };
@@ -189,8 +159,9 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
         </div>
 
         {runStatus === "error" && (
-          <div className="text-xs text-[color:var(--accent-ink)]">
-            We couldn't finish that run — please try again, or check your model connection.
+          <div className="flex items-center gap-2 text-xs text-[color:var(--accent-ink)]" role="alert">
+            <span>{error || "We couldn't finish that run."}</span>
+            <Button size="sm" variant="ghost" className="h-5 px-2 text-[11px]" onClick={runNow}>Try again</Button>
           </div>
         )}
 

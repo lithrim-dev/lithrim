@@ -17,16 +17,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings } =
+const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster } =
   vi.hoisted(() => ({
     configProvider: vi.fn(),
     getProviderStatus: vi.fn(),
     getModelCatalog: vi.fn(),
     bindRole: vi.fn(),
     getRoleBindings: vi.fn(),
+    getCouncilRoster: vi.fn().mockResolvedValue({ panel: [], reviewer_roster: null }),
+    setCouncilRoster: vi.fn().mockResolvedValue({ status: "ok" }),
   }));
 
-vi.mock("../bff.js", () => ({ configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings }));
+vi.mock("../bff.js", () => ({ configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster }));
 
 import ProviderSettings from "./ProviderSettings.jsx";
 

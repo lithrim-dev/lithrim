@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import { getCase } from "../bff.js";
+import { Spinner } from "../components/Spinner.jsx";
+import { friendlyError } from "./copy.js";
 
 const CUT = 200; // collapsed chars per pane — enough to read the gist + the gap, not the whole note
 
@@ -19,18 +21,25 @@ export default function CaseCard({ agent = "ws0_default", case_id = null, onOpen
   const [kase, setKase] = useState(null);
   const [err, setErr] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const [reload, setReload] = useState(0); // B2: a retry bumps this to re-fetch the case
   useEffect(() => {
     let live = true;
+    setErr(null); setKase(null);
     getCase(agent, case_id)
       .then((c) => { if (live) setKase(c); })
-      .catch((e) => { if (live) setErr(String(e.message || e)); });
+      .catch((e) => { if (live) setErr(friendlyError(e)); });
     return () => { live = false; };
-  }, [agent, case_id]);
+  }, [agent, case_id, reload]);
 
   if (err)
-    return <div className="icard"><div className="icard-bd" style={{ color: "var(--accent)" }}>We couldn't load this case. Please try again.</div></div>;
+    return (
+      <div className="icard"><div className="icard-bd" style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--accent)" }} role="alert">
+        <span>{err}</span>
+        <button className="btn btn-ghost" style={{ height: 24, padding: "0 10px", fontSize: 12 }} onClick={() => setReload((n) => n + 1)}>Try again</button>
+      </div></div>
+    );
   if (!kase)
-    return <div className="icard"><div className="icard-bd" style={{ color: "var(--muted)" }}>Loading the case…</div></div>;
+    return <div className="icard"><div className="icard-bd" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--muted)" }}><Spinner size={12} /> Loading the case…</div></div>;
 
   const planted = kase.expected_safety_flags || [];
   const visit = (kase.transcript || "").trim();

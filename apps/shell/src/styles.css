@@ -101,7 +101,7 @@ input, textarea { font-family: inherit; }
 /* ============================================================ WINDOW */
 .desk {
   height: 100vh;
-  padding: 18px;
+  /* padding: 18px; */
   display: flex;
 }
 .win {
@@ -194,6 +194,22 @@ input, textarea { font-family: inherit; }
 .btn-primary:hover { background: var(--accent-ink); }
 .btn-ghost { color: var(--ink); border: 1px solid var(--border); background: var(--bg); }
 .btn-ghost:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+/* A11Y (keyboard focus): the bespoke buttons had NO :focus-visible, so keyboard users saw no
+   focus indicator. One ring across every bespoke button idiom, mirroring the shadcn token
+   (theme.css --color-ring → --accent) and the composer's accent focus. box-shadow follows the
+   border-radius (outline would clip); only :focus-visible so a mouse click never rings. */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.send-btn:focus-visible,
+.es-prompt:focus-visible,
+.es-example:focus-visible,
+.art-tab:focus-visible,
+.ws-pill:focus-visible,
+.mchip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
 
 /* ============================================================ BODY / PANES */
 .body { flex: 1; min-height: 0; display: flex; position: relative; }

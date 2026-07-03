@@ -19,16 +19,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
-const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings } =
+const { configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster } =
   vi.hoisted(() => ({
     configProvider: vi.fn(),
     getProviderStatus: vi.fn(),
     getModelCatalog: vi.fn(),
     bindRole: vi.fn(),
     getRoleBindings: vi.fn(),
+    getCouncilRoster: vi.fn().mockResolvedValue({ panel: [], reviewer_roster: null }),
+    setCouncilRoster: vi.fn().mockResolvedValue({ status: "ok" }),
   }));
 
-vi.mock("../bff.js", () => ({ configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings }));
+vi.mock("../bff.js", () => ({ configProvider, getProviderStatus, getModelCatalog, bindRole, getRoleBindings, getCouncilRoster, setCouncilRoster }));
 
 import ProviderSettings from "./ProviderSettings.jsx";
 
@@ -123,6 +125,20 @@ describe("CONNECT-AI-CONSOLIDATE-1 — the 2-section panel", () => {
     // secret hygiene — the key clears on success + is absent from the DOM
     await waitFor(() => expect(screen.getByTestId("providers-key").value).toBe(""));
     expect(container.innerHTML).not.toContain("sk-providers-secret-1");
+  });
+
+  // Theme B/D: a failed save reads as an ERROR (red --accent), not a WARNING (amber), and shows a
+  // calm friendlyError line — never the raw HTTP/stack.
+  it("B-err: a failed key save shows the error tone (red, not amber) + a calm reason", async () => {
+    configProvider.mockReset().mockRejectedValue(new Error("POST /v1/provider/config → 401: unauthorized"));
+    render(<ProviderSettings />);
+    const keyInput = await screen.findByTestId("providers-key");
+    fireEvent.change(keyInput, { target: { value: "sk-bad" } });
+    fireEvent.click(screen.getByTestId("providers-save"));
+
+    const msg = await screen.findByTestId("providers-save-msg");
+    expect(msg).toHaveStyle({ color: "var(--accent)" }); // failure = red, NOT amber (--amber)
+    expect(msg.textContent).not.toMatch(/401|provider\/config|→/); // no raw HTTP leak
   });
 
   it("C: Assign models — FOUR rows incl. chat_assistant; choosing {provider, model} → bindRole(role, provider, model)", async () => {

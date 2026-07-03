@@ -153,7 +153,8 @@ export default function IngestPreviewCard({
 
       {editRules ? rulesEditor("Re-preview") : (
         <div className="mt-3 flex items-center gap-2">
-          <Button data-testid="ingest-approve" size="sm" onClick={approve} disabled={busy || !prev.count}>
+          <Button data-testid="ingest-approve" size="sm" onClick={approve} disabled={busy || !prev.count}
+            title={!prev.count ? "No cases parsed yet — fix the field mapping above first" : undefined}>
             {busy ? "Loading…" : `Approve & load ${prev.count} case${prev.count === 1 ? "" : "s"}`}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditRules(true)} disabled={busy}>Mapping looks wrong?</Button>

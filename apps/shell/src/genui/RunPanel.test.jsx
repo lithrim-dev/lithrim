@@ -146,4 +146,22 @@ describe("RunPanel (tool-run_panel)", () => {
     const rehydrated = await screen.findByTestId("rehydrated-verdict");
     expect(rehydrated).toHaveTextContent("Flagged"); // BLOCK → verdictLabel
   });
+
+  // Theme B (B2/B3): a failed run shows a CALM, leak-free reason (friendlyError) + a Try again
+  // that re-fires the run — never a raw HTTP/path/stack, never a dead end.
+  it("a failed run shows a friendly reason + a Try again that re-runs", async () => {
+    runEval.mockRejectedValueOnce(new Error("POST /v1/run-eval → 500: traceback ..."));
+    render(<RunPanel />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
+    // the calm reason renders (the raw HTTP envelope/stack is NOT shown)
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/something went wrong on the server/i);
+    expect(alert).not.toHaveTextContent(/traceback|run-eval|500/);
+
+    // Try again re-fires the run; the next call succeeds and the result renders
+    fireEvent.click(within(alert).getByRole("button", { name: /Try again/i }));
+    expect(await screen.findByText("Result")).toBeInTheDocument();
+  });
 });

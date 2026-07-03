@@ -16,6 +16,7 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
   const [name, setName] = useState("");
   const [pack, setPack] = useState("_core");
   const [packs, setPacks] = useState([]);
+  const [err, setErr] = useState(null); // F1: surface invalid-name validation + the server reject inline
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -31,11 +32,22 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
       listPacks().then((r) => setPacks(r.packs || [])).catch(() => {}),
     );
   }, [creating]);
+  // F1: validate client-side against the SAME rule the server enforces (alphanumerics, '-', '_')
+  // BEFORE the call, then surface a server reject (400) inline too — never silently swallow it.
   const submit = async () => {
     const n = name.trim();
     if (!n) return;
-    await onCreate(n, pack);
-    setName(""); setCreating(false); setOpen(false);
+    if (!/^[A-Za-z0-9_-]+$/.test(n)) {
+      setErr("Use letters, digits, '-' or '_' only (no spaces).");
+      return;
+    }
+    try {
+      await onCreate(n, pack);
+    } catch (e) {
+      setErr(String(e?.message || e) || "Create workspace failed.");
+      return;
+    }
+    setName(""); setErr(null); setCreating(false); setOpen(false);
   };
   const menuStyle = {
     position: "absolute", top: "calc(100% + 6px)", left: 0, minWidth: 228, zIndex: 60,
@@ -71,10 +83,10 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
           {creating ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 4px" }}>
               <input autoFocus value={name} placeholder="workspace name"
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); if (err) setErr(null); }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") submit();
-                  if (e.key === "Escape") { setCreating(false); setName(""); }
+                  if (e.key === "Escape") { setCreating(false); setName(""); setErr(null); }
                 }}
                 style={{ padding: "6px 8px", fontSize: 12.5, borderRadius: 6,
                   border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" }} />
@@ -90,6 +102,10 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
                 <button onClick={submit}
                   style={{ ...item(false), width: "auto", color: "var(--accent)", fontWeight: 600 }}>Create</button>
               </div>
+              {err && (
+                <div data-testid="ws-create-error" role="alert"
+                  style={{ fontSize: 11.5, color: "var(--accent)", lineHeight: 1.35 }}>{err}</div>
+              )}
             </div>
           ) : (
             <button style={{ ...item(false), color: "var(--muted)" }} onClick={() => setCreating(true)}>
@@ -226,8 +242,8 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
       <div className="tb-crumb">
         <WorkspaceSwitcher active={activeWs} workspaces={workspaces}
           onSwitch={onSwitchWorkspace} onCreate={onCreateWorkspace} />
-        <span className="crumb-sep"><I name="chevR" size={14} /></span>
-        <ConnectorForm />
+        {/* <span className="crumb-sep"><I name="chevR" size={14} /></span>
+        <ConnectorForm /> */}
         <span className="crumb-sep"><I name="chevR" size={14} /></span>
         <span className="crumb-txt"><b>Evaluations</b></span>
       </div>
@@ -321,6 +337,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // SAME store the grade consumes. A saved grounding contract ticks the rail's Ground-truth step
   // honestly (no eval_profile.tools stuffing). refreshJourney re-fetches it alongside cfg+runs.
   const [contracts, setContracts] = useState([]);
+  // READINESS preflight: the active agent↔pinned-pack report (GET /v1/agents/{agent}/readiness).
+  // Surfaces the silent hole where a pack-declared fact-check can't run for this agent. Fed inline
+  // to CenterPane (setup-gaps card + the paid-run warning) and to the rail's Ground-truth predicate.
+  const [readiness, setReadiness] = useState(null);
   // S-BS-89: "New evaluation" resets the chat to a clean slate by remounting CenterPane
   // (bumping its key clears chat + setup + showExample + input). CRUD-1 (D4) extends it to
   // also create + switch to a fresh runnable blank agent.
@@ -349,14 +369,16 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   useEffect(() => { refreshCases(); }, [activeWs]); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelectCase = (cid) => { setActiveCase(cid); setTab("case"); setOpen(true); };
 
-  const doRun = async (live = false) => {
+  const doRun = async (live = false, caseId = null) => {
+    const cid = caseId ?? activeCase;
     setRunStatus("loading");
     setRunError(null);
+    if (caseId) setActiveCase(caseId); // SCORECARD-CLICK: a row picks the case it runs
     setTab("report");
     setOpen(true);
     try {
       const { runEval } = await import("./bff.js");
-      setRunResult(await runEval({ live, agent: activeAgent, case_id: activeCase }));
+      setRunResult(await runEval({ live, agent: activeAgent, case_id: cid }));
       setRunStatus("ready");
       refreshJourney(); // W1: a run flips Run/Review done in the rail
     } catch (err) {
@@ -370,15 +392,17 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // after a workspace/agent switch, AND on the W3 save signal (onConfigSaved). Offline-safe.
   const refreshJourney = async () => {
     try {
-      const { getAgent, getRuns, getOntology } = await import("./bff.js");
-      const [cfg, runHist, ont] = await Promise.all([
+      const { getAgent, getRuns, getOntology, getReadiness } = await import("./bff.js");
+      const [cfg, runHist, ont, ready] = await Promise.all([
         getAgent(activeAgent).catch(() => null),
         getRuns().then((r) => r.runs || []).catch(() => []),
         getOntology(activeAgent).catch(() => null), // EVAL-FLOW (W1a): the grade's grounding store
+        getReadiness(activeAgent).catch(() => null), // READINESS: agent↔pack contract coverage
       ]);
       setAgentCfg(cfg);
       setRuns(runHist);
       setContracts((ont && ont.verification_contracts) || []);
+      setReadiness(ready);
     } catch { /* offline-safe */ }
   };
   useEffect(() => { refreshJourney(); }, [activeAgent]);
@@ -424,8 +448,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const reloadForWorkspace = async () => {
     const left = await refreshAgents();
     setActiveAgent(left[0] || "ws0_default");
-    setRunResult(null); setRunStatus("idle"); setRunError(null);
-    setActiveCase(null); // ACTIVE-CASE-1: clear the active case on switch — no silent first-case pick
+    resetEvalState(); // E1: clear run + active case (ACTIVE-CASE-1: no silent first-case pick)
     setSessionKey((k) => k + 1);
   };
   const onSwitchWorkspace = async (name) => {
@@ -442,7 +465,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       const { createWorkspace, switchWorkspace } = await import("./bff.js");
       await createWorkspace({ name, pack });
       await switchWorkspace(name);
-    } catch (err) { console.error("Create workspace failed", err); return; }
+    } catch (err) { console.error("Create workspace failed", err); throw err; } // F1: re-throw so the switcher surfaces it inline
     setActiveWs(name);
     await refreshWorkspaces();
     await reloadForWorkspace();
@@ -452,6 +475,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // then create a fresh RUNNABLE empty agent (eval-N) + switch to it when the BFF responds.
   const onNewEval = async () => {
     setSessionKey((k) => k + 1); // synchronous: clean chat now (offline-safe; survives create failure)
+    resetEvalState(); // E1: a fresh evaluation starts clean — drop the prior agent's run/case from the panes
     try {
       const { createAgent } = await import("./bff.js");
       const existing = await refreshAgents();
@@ -466,9 +490,20 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     }
   };
 
+  // STATE-SYNC (E1): the shared run + case state is per-agent — switching or deleting the
+  // active agent must clear it so the three panes (conversation, rail, side panel) agree on
+  // WHICH agent/case/run they show. Without this, the Report/Reviewers tabs bled the prior
+  // agent's verdict and the header chip kept its case. reloadForWorkspace (workspace switch)
+  // already did this inline; this is the same reset, factored so every switch path reuses it.
+  const resetEvalState = () => {
+    setRunResult(null); setRunStatus("idle"); setRunError(null);
+    setActiveCase(null);
+  };
+
   const onSwitchAgent = (name) => {
     if (name === activeAgent) return;
     setActiveAgent(name);
+    resetEvalState(); // E1: clear the prior agent's run/case so the panes don't bleed it
     setSessionKey((k) => k + 1); // a switch starts a clean chat for that agent
   };
 
@@ -483,6 +518,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     const left = await refreshAgents();
     if (name === activeAgent) {
       setActiveAgent(left[0] || "ws0_default");
+      resetEvalState(); // E1: the active agent is gone — clear its run/case from the panes
       setSessionKey((k) => k + 1);
     }
   };
@@ -508,7 +544,21 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // SHEPHERD-1 (W1): derive the rail's plan from the live state. Review `done` ⟺ a run
   // result is loaded/viewed (runResult non-null) — a distinct guided beat past Run.
   // EVAL-FLOW (W1a): `contracts` (the ontology verification_contracts) ticks Ground truth.
-  const journey = deriveSteps(agentCfg, runs, activeAgent, runResult, contracts);
+  // F2: a freshly-created (non-default) workspace re-seeds the `ws0_default` SAMPLE on the
+  // first GET /v1/agents read, so its pre-baked profile (ontology + judges) would show stale
+  // Domain✓/Judges✓ progress the user never set. The sample's progress only reflects the user
+  // on the `default` workspace; elsewhere `ws0_default` is the leaked seed → derive the journey
+  // against the initial blank state (Domain current, 0/5) until they configure a real evaluation.
+  const sampleLeaked = activeWs !== "default" && activeAgent === "ws0_default";
+  const journey = deriveSteps(
+    sampleLeaked ? null : agentCfg, runs, activeAgent, runResult,
+    sampleLeaked ? [] : contracts,
+    sampleLeaked ? null : readiness, // READINESS: a pack-declared floor the agent can't run un-ticks Ground truth
+  );
+
+  // F3: the active workspace's pinned domain pack — so the Setup tab can tell whether the
+  // self-fetched ontology truly belongs to this workspace or is the leaked `_core` seed sample.
+  const wsPack = (workspaces.find((w) => w.name === activeWs) || {}).pack || null;
 
   return (
     <div className="desk">
@@ -525,6 +575,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           <div className="rz" onPointerDown={(e) => drag(e, leftW, setLeftW, 220, 380)} />
           <CenterPane key={sessionKey} agent={activeAgent} onOpenArtifact={openArtifact} artifactOpen={open}
             onRunEval={doRun} runStatus={runStatus}
+            onOpenCaseRun={(cid) => doRun(false, cid)}
             activeCase={activeCase} onActiveCase={setActiveCase}
             onRunResult={(r) => {
               setRunResult(r); setRunStatus("ready");
@@ -532,13 +583,15 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
               // active case in sync so the Case/Report panes show the case the chat just ran.
               if (r && r.case_id) setActiveCase(r.case_id);
             }}
-            onConfigSaved={refreshJourney} nextStepName={nextStep(journey)} />
+            onConfigSaved={refreshJourney} nextStepName={nextStep(journey)}
+            readiness={readiness} />
           {open && !full && (
             <div className="rz" onPointerDown={(e) => drag(e, rightW, setRightW, 340, 680, true)} />
           )}
           {open && (
             <ArtifactPane
               width={rightW} full={full} tab={tab} setTab={setTab} agent={activeAgent}
+              wsPack={wsPack}
               activeCase={activeCase} onSelectCase={onSelectCase}
               onClose={() => { setOpen(false); setFull(false); }}
               onToggleFull={() => setFull((f) => !f)}

@@ -205,7 +205,8 @@ export default function JudgeBuilder({ agent = "ws0_default", role: seedRole, on
         >
           {persist.state !== "idle" ? persist.msg : returned ? "reviewer created ✓" : "Saved when you click Create reviewer"}
         </span>
-        <Button className="ml-auto" size="sm" onClick={apply} disabled={!valid || persist.state === "saving"}>
+        <Button className="ml-auto" size="sm" onClick={apply} disabled={!valid || persist.state === "saving"}
+          title={!valid ? "Give the reviewer a valid id and assign at least one check first" : undefined}>
           {persist.state === "saving" ? "Creating…" : "Create reviewer"}
         </Button>
       </CardFooter>

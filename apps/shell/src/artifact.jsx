@@ -374,7 +374,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
 // The standing ontology config, read from GET /v1/ontology (the §3 "ontology config
 // editor" view, read-only here — edits go through the FlagEditor/PUT path, not a
 // textarea). Self-fetches because the ontology is run-independent.
-function ConfigTab({ agent = "ws0_default" }) {
+function ConfigTab({ agent = "ws0_default", wsPack = null }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [ont, setOnt] = useState(null);
   const [error, setError] = useState(null);
@@ -401,11 +401,19 @@ function ConfigTab({ agent = "ws0_default" }) {
   const contracts = ont.verification_contracts || [];
   const gradeable = flags.filter((f) => f.gradeable).length;
 
+  // F3: before this workspace has a configured evaluation, GET /v1/ontology resolves the
+  // leaked `_core` seed sample — so a non-`_core` workspace would mislabel its Setup as
+  // "generic · _core/1". Suppress that stale domain·version chip until a real ontology for
+  // this workspace's pack is resolved (the chip returns once the user creates an evaluation).
+  const labelMismatch = wsPack && wsPack !== "_core" && ont.ontology_version === "_core/1";
+
   return (
     <div>
       <div className="art-sec">
         <div className="art-h2">
-          What the reviewers check <span className="cnt">{ont.domain} · {ont.ontology_version}</span>
+          What the reviewers check {labelMismatch
+            ? <span className="cnt" data-testid="config-domain-pending">setting up…</span>
+            : <span className="cnt">{ont.domain} · {ont.ontology_version}</span>}
         </div>
         <div className="tiles">
           {[
@@ -683,7 +691,7 @@ function CaseTab({ agent = "ws0_default", caseId = null }) {
   );
 }
 
-export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", activeCase = null, onSelectCase, onClose, onToggleFull, runStatus, runResult, runError }) {
+export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", wsPack = null, activeCase = null, onSelectCase, onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
     case: ["The case", "the input, the AI’s output, and the planted answer"],
     report: ["Evaluation report", "the latest run"],
@@ -718,7 +726,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
           {tab === "case" && <CaseTab agent={agent} caseId={activeCase} />}
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
-          {tab === "config" && <ConfigTab agent={agent} />}
+          {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
           {tab === "corpus" && <CorpusTab activeCase={activeCase} onSelectCase={onSelectCase} />}
         </div>
       </div>

@@ -54,6 +54,8 @@ vi.mock("./bff.js", () => {
     getModelCatalog: vi.fn().mockResolvedValue({ providers: { openai: [], anthropic: [], azure: { models: [], note: "" } } }),
     bindRole: vi.fn().mockResolvedValue({ ok: true }),
     getRoleBindings: vi.fn().mockResolvedValue({ roles: {}, connected_providers: [] }),
+    getCouncilRoster: vi.fn().mockResolvedValue({ panel: [], reviewer_roster: null }),
+    setCouncilRoster: vi.fn().mockResolvedValue({ status: "ok" }),
     // the loop under test: stream a run_result (the $0 replay) + the pane directive
     chatStream: vi.fn(async (_req, { onEvent } = {}) => {
       if (!onEvent) return;

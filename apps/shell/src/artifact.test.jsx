@@ -141,6 +141,34 @@ describe("ConfigTab — ontology config from GET /v1/ontology (A1)", () => {
     await screen.findByText(/radiology · radiology\/1/);
     expect(getOntology).toHaveBeenCalledWith("imported_case_42");
   });
+
+  // F3: before this workspace has its own evaluation, GET /v1/ontology resolves the leaked
+  // `_core` seed sample — so a non-`_core` workspace must NOT mislabel its Setup as "generic ·
+  // _core/1". The stale domain·version chip is suppressed until a real ontology resolves.
+  it("F3: suppresses the misleading `generic · _core/1` chip in a non-_core workspace", async () => {
+    getOntology.mockResolvedValue({
+      domain: "generic",
+      ontology_version: "_core/1",
+      severity_map: { block_at_or_above: 1.0, warn_above: 0, weights: {} },
+      flags: [],
+    });
+    render(<ArtifactPane {...paneProps} tab="config" wsPack="clinverdict" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByTestId("config-domain-pending")).toBeInTheDocument();
+    expect(screen.queryByText(/generic · _core\/1/)).not.toBeInTheDocument();
+  });
+
+  // F3 (non-vacuous): on the `_core` workspace, `_core/1` is the REAL ontology — show it, no suppress.
+  it("F3: still shows `_core/1` when the workspace itself pins _core", async () => {
+    getOntology.mockResolvedValue({
+      domain: "generic",
+      ontology_version: "_core/1",
+      severity_map: { block_at_or_above: 1.0, warn_above: 0, weights: {} },
+      flags: [],
+    });
+    render(<ArtifactPane {...paneProps} tab="config" wsPack="_core" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/generic · _core\/1/)).toBeInTheDocument();
+    expect(screen.queryByTestId("config-domain-pending")).not.toBeInTheDocument();
+  });
 });
 
 describe("CorpusTab — GET /v1/corpus (A2)", () => {

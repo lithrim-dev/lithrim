@@ -13,8 +13,9 @@
    top-bar. Inline styles on the shell CSS vars. */
 import { useEffect, useState } from "react";
 import { getModelCatalog, bindRole, getCouncilRoster, setCouncilRoster } from "../bff.js";
+import { Button } from "../components/ui/button.jsx";
 import { NO_LOGPROBS } from "./ProvidersSection.jsx";
-import { roleLabel } from "./copy.js";
+import { roleLabel, friendlyError } from "./copy.js";
 
 const JUDGE_ROLES = ["risk_judge", "policy_judge", "faithfulness_judge"];
 const ALL_ROLES = [...JUDGE_ROLES, "chat_assistant"];
@@ -24,11 +25,6 @@ const inputStyle = {
   background: "var(--bg)", color: "var(--ink)", width: "100%", boxSizing: "border-box",
 };
 const labelStyle = { fontSize: 11, color: "var(--muted)", fontWeight: 600 };
-const btn = (primary) => ({
-  padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer",
-  background: primary ? "var(--accent)" : "var(--surface-muted)",
-  color: primary ? "#fff" : "var(--ink)", fontWeight: 600,
-});
 // CONNECT-AI-LAYOUT-1: every consumer row shares ONE column grid so label · provider · model · action
 // align across rows; minmax(_,1fr) lets the model input flex (never the variable status label starving
 // it). The assigned `✓ provider · model` status is lifted to its OWN line (STATUS_INDENT) so a long
@@ -121,13 +117,13 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
     setSel((s) => ({ ...s, [key]: { provider: pick(key).provider, model } }));
 
   const doBind = async (role, provider, model) => {
-    setMsg((m) => ({ ...m, [role]: "binding…" }));
+    setMsg((m) => ({ ...m, [role]: { kind: "pending", text: "Binding…" } }));
     try {
       await bindRole({ role, provider, model });
-      setMsg((m) => ({ ...m, [role]: `bound → ${provider} · ${model}` }));
+      setMsg((m) => ({ ...m, [role]: { kind: "ok", text: `Bound → ${provider} · ${model}` } }));
       onBound?.();
     } catch (e) {
-      setMsg((m) => ({ ...m, [role]: String(e.message || e) }));
+      setMsg((m) => ({ ...m, [role]: { kind: "err", text: friendlyError(e) } }));
     }
   };
 
@@ -185,10 +181,10 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
         <div data-testid="reviewer-mode" style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={labelStyle}>reviewers per grade</span>
-            <button data-testid="reviewer-mode-panel" onClick={() => applyReviewerMode("panel")}
-              style={{ ...btn(reviewerMode === "panel"), whiteSpace: "nowrap" }}>Panel · {panel.length}</button>
-            <button data-testid="reviewer-mode-single" onClick={() => applyReviewerMode("single")}
-              style={{ ...btn(reviewerMode === "single"), whiteSpace: "nowrap" }}>Single reviewer</button>
+            <Button data-testid="reviewer-mode-panel" size="sm" className="whitespace-nowrap"
+              variant={reviewerMode === "panel" ? "default" : "outline"} onClick={() => applyReviewerMode("panel")}>Panel · {panel.length}</Button>
+            <Button data-testid="reviewer-mode-single" size="sm" className="whitespace-nowrap"
+              variant={reviewerMode === "single" ? "default" : "outline"} onClick={() => applyReviewerMode("single")}>Single reviewer</Button>
             {reviewerMode === "single" && (
               <select data-testid="reviewer-single-role" value={singleRole}
                 onChange={(e) => applySingleRole(e.target.value)} aria-label="single reviewer" style={inputStyle}>
@@ -211,9 +207,8 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
               <span>— {recommendation.rationale}</span>
               {((recommendation.mode === "panel" && reviewerMode !== "panel") ||
                 (recommendation.mode === "single" && (reviewerMode !== "single" || singleRole !== recommendation.reviewer))) && (
-                <button data-testid="reviewer-apply-recommendation"
-                  onClick={() => { if (recommendation.mode === "panel") applyReviewerMode("panel"); else { setReviewerMode("single"); if (recommendation.reviewer) applySingleRole(recommendation.reviewer); else applyReviewerMode("single"); } }}
-                  style={{ ...btn(false), padding: "1px 7px", fontSize: 10 }}>Use this</button>
+                <Button data-testid="reviewer-apply-recommendation" size="sm" variant="secondary" className="h-5 px-2 text-[10px]"
+                  onClick={() => { if (recommendation.mode === "panel") applyReviewerMode("panel"); else { setReviewerMode("single"); if (recommendation.reviewer) applySingleRole(recommendation.reviewer); else applyReviewerMode("single"); } }}>Use this</Button>
               )}
             </div>
           )}
@@ -224,8 +219,9 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
       <div style={ROW_GRID}>
         <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>use one model for all reviewers</span>
         {pickerControls("*", "all-judges")}
-        <button data-testid="all-judges-submit" onClick={bindAllJudges} disabled={!canBind("*")}
-          style={{ ...btn(false), whiteSpace: "nowrap" }}>Apply to 3 reviewers</button>
+        <Button data-testid="all-judges-submit" size="sm" variant="secondary" className="whitespace-nowrap"
+          onClick={bindAllJudges} disabled={!canBind("*")}
+          title={!canBind("*") ? "Pick a provider and model above first" : undefined}>Apply to 3 reviewers</Button>
       </div>
 
       {/* ── the four consumer rows ── */}
@@ -243,8 +239,9 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
                 {isChat && <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>required</span>}
               </span>
               {pickerControls(role, "role-bind")}
-              <button data-testid={`role-bind-submit-${role}`} onClick={() => bindRow(role)}
-                disabled={!canBind(role)} style={{ ...btn(true), whiteSpace: "nowrap" }}>Assign</button>
+              <Button data-testid={`role-bind-submit-${role}`} size="sm" className="whitespace-nowrap"
+                onClick={() => bindRow(role)} disabled={!canBind(role)}
+                title={!canBind(role) ? "Pick a provider and model first" : undefined}>Assign</Button>
             </div>
             {bound?.provider && (
               <span data-testid={`role-bind-assigned-${role}`}
@@ -257,7 +254,13 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
                 ⚠ this model doesn't report a confidence signal — "{p.provider} · {p.model}" won't show a confidence number
               </div>
             )}
-            {msg[role] && <span style={{ fontSize: 10.5, color: "var(--muted)", paddingLeft: STATUS_INDENT }}>{msg[role]}</span>}
+            {msg[role] && (
+              <span data-testid={`role-bind-msg-${role}`}
+                style={{ fontSize: 10.5, paddingLeft: STATUS_INDENT,
+                  color: msg[role].kind === "err" ? "var(--accent)" : msg[role].kind === "ok" ? "var(--teal)" : "var(--muted)" }}>
+                {msg[role].text}
+              </span>
+            )}
           </div>
         );
       })}

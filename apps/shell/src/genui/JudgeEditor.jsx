@@ -25,6 +25,7 @@ import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
 import { Separator } from "../components/ui/separator.jsx";
 import { Switch } from "../components/ui/switch.jsx";
+import { Spinner } from "../components/Spinner.jsx";
 import { Icon } from "../icons.jsx";
 import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
@@ -149,7 +150,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   }, [assigned, status, role, agent]);
 
   if (status === "loading")
-    return <Card><CardContent className="text-xs text-muted-foreground">Loading reviewer…</CardContent></Card>;
+    return <Card><CardContent className="flex items-center gap-1.5 text-xs text-muted-foreground"><Spinner size={11} /> Loading reviewer…</CardContent></Card>;
   if (status === "error")
     return (
       <Card>

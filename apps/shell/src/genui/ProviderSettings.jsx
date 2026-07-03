@@ -14,16 +14,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { getRoleBindings } from "../bff.js";
+import { Button } from "../components/ui/button.jsx";
 import ProvidersSection from "./ProvidersSection.jsx";
 import AssignModelsSection from "./AssignModelsSection.jsx";
 
-const btn = (primary) => ({
-  padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer",
-  background: primary ? "var(--accent)" : "var(--surface-muted)",
-  color: primary ? "#fff" : "var(--ink)", fontWeight: 600,
-});
-
-export default function ProviderSettings({ onClose }) {
+export default function ProviderSettings({ onClose, agent }) {
   const [bindings, setBindings] = useState({ roles: {}, connected_providers: [] });
 
   const refresh = useCallback(() => {
@@ -43,15 +38,22 @@ export default function ProviderSettings({ onClose }) {
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Connect AI</div>
         <span style={{ fontSize: 11.5, color: "var(--muted)" }}>enter each key once in Providers · assign a model to each reviewer · your key is stored securely and never shown again</span>
         {onClose && (
-          <button data-testid="provider-settings-close" aria-label="Close" onClick={onClose}
-            style={{ marginLeft: "auto", ...btn(false), padding: "4px 8px", display: "inline-flex", alignItems: "center" }}>
+          <Button variant="ghost" size="icon" className="ml-auto h-7 w-7"
+            data-testid="provider-settings-close" aria-label="Close" onClick={onClose}>
             <Icon name="close" size={14} />
-          </button>
+          </Button>
         )}
       </div>
 
+      {/* F4: providers + role bindings are shared across ALL workspaces (adding a key IS the CE
+          onboarding) — a subtle one-line clarity note so a "fresh" workspace's pre-connected
+          provider doesn't read as a bug. Muted-hint style, matching the header subtitle. */}
+      <div data-testid="provider-scope-hint" style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4, marginTop: -4 }}>
+        Providers and reviewer model assignments are shared across all your workspaces.
+      </div>
+
       <ProvidersSection connected={connected} onSaved={refresh} />
-      <AssignModelsSection connected={connected} bindings={roles} onBound={refresh} />
+      <AssignModelsSection connected={connected} bindings={roles} onBound={refresh} agent={agent} />
     </div>
   );
 }
