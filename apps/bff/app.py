@@ -1839,15 +1839,46 @@ def _is_blocked_verdict(verdict) -> bool:
     return str(verdict or "").upper() in {"BLOCK", "FAIL", "REJECT"}
 
 
+def _corpus_gold_verdicts(rows: list[dict]) -> dict[str, bool]:
+    """R3: per-case gold VERDICT (True = should BLOCK) from the ingested envelopes. A declared
+    ``expected_compliance_verdict`` wins (the verdict-only-label corpus — a reject with no flag
+    labels IS a gold BLOCK, which the bool(flags) derivation silently mis-scored); else a
+    non-empty flag set implies blocked. Unlabeled cases are absent."""
+    out: dict[str, bool] = {}
+    for c in rows:
+        cid = c.get("case_id")
+        if not cid or not isinstance(c, dict):
+            continue
+        v = c.get("expected_compliance_verdict")
+        if v is not None:
+            out[cid] = str(v).strip().lower() in {"reject", "block", "fail"}
+        elif c.get("expected_safety_flags"):
+            out[cid] = True
+    return out
+
+
 def _cohort_scorecard(
     rows: list[dict], golds: dict[str, set], labeled: set,
     code_families: dict | None = None,
+    gold_verdicts: dict[str, bool] | None = None,
 ) -> dict:
     """RUN-ALL-1: the consolidated report — compare each graded cohort row to its gold flags →
     per-case caught/missed/spurious + an aggregate flag precision/recall + verdict accuracy + a
     per-flag over/under-fire breakdown. Only LABELED cases feed the accuracy metrics (honest-
     unlabeled — never fabricate numbers on unlabeled data); an unlabeled row still shows its raw
-    result. Pure over the matrix the chat already has, so the report needs zero span-matching."""
+    result. Pure over the matrix the chat already has, so the report needs zero span-matching.
+
+    R3 (REPRO-1): also aggregates the RESEARCH read surface — ``by_judge`` (each reviewer scored
+    against gold), ``majority`` (the cross-model majority, ties reported), ``judge_matrix`` (the
+    case × reviewer table with raw K-splits), and ``floor`` (cleared/enforced/cannot-ground
+    tallies, gold-defect clears — the must-be-zero safety property — and verdict accuracy PRE vs
+    POST floor from the same rows). ``gold_verdicts`` (case → should-block) honors a declared
+    expected_compliance_verdict; absent → the bool(gold-flags) back-compat derivation."""
+    gold_verdicts = gold_verdicts or {}
+
+    def _gold_blocked(cid: str, gold: set) -> bool:
+        return gold_verdicts[cid] if cid in gold_verdicts else bool(gold)
+
     cases: list[dict] = []
     tp = fp = fn = vmatch = n_lab = 0
     by_flag: dict[str, dict] = {}
@@ -1862,7 +1893,7 @@ def _cohort_scorecard(
             blocked = _is_blocked_verdict(r.get("verdict"))
             row.update({"gold": sorted(gold), "caught": sorted(caught),
                         "missed": sorted(missed), "spurious": sorted(spurious),
-                        "verdict_match": bool(gold) == blocked})
+                        "verdict_match": _gold_blocked(cid, gold) == blocked})
             tp += len(caught)
             fp += len(spurious)
             fn += len(missed)
@@ -1887,6 +1918,79 @@ def _cohort_scorecard(
          if r.get("case_id") in labeled and not r.get("error")},
         code_families=code_families,
     )
+
+    # ── R3a: per-reviewer accuracy + the cross-model majority + the case×reviewer matrix ──
+    by_judge: dict[str, dict] = {}
+    majority_tally = {"n": 0, "matches_gold": 0, "misses": 0, "over_flags": 0, "ties": 0}
+    judge_matrix: list[dict] = []
+    # ── R3b: floor tallies + pre/post-floor verdict accuracy (from the SAME rows) ──
+    floor_counts = {"cleared": 0, "enforced": 0, "inconclusive": 0}
+    gold_defect_clears: list[dict] = []
+    pre_match = post_match = pre_n = 0
+    for r in rows:
+        cid = r.get("case_id")
+        if not cid or r.get("error"):
+            continue
+        lab = cid in labeled
+        gold_blocked = _gold_blocked(cid, golds.get(cid, set())) if lab else None
+        votes = r.get("votes") or []
+        cells: list[dict] = []
+        n_block = n_pass = 0
+        for v in votes:
+            role = str(v.get("judge_role") or "judge")
+            vote = str(v.get("vote") or "")
+            cells.append({"judge_role": role, "model": v.get("model"),
+                          "vote": vote, "scores_raw": v.get("scores_raw")})
+            v_blocked = _is_blocked_verdict(vote)
+            n_block += v_blocked
+            n_pass += vote.upper() in ("PASS", "APPROVE")
+            if lab:
+                j = by_judge.setdefault(role, {
+                    "judge_role": role, "model": v.get("model"),
+                    "n": 0, "matches_gold": 0, "misses": 0, "over_flags": 0,
+                })
+                j["n"] += 1
+                if v_blocked == gold_blocked:
+                    j["matches_gold"] += 1
+                elif gold_blocked:
+                    j["misses"] += 1  # a silent miss: gold says block, the reviewer passed
+                else:
+                    j["over_flags"] += 1  # gold says pass, the reviewer blocked
+        majority = (
+            ("BLOCK" if n_block > n_pass else "PASS" if n_pass > n_block else "TIE")
+            if votes else None
+        )
+        if votes:
+            judge_matrix.append({
+                "case_id": cid, "verdict": r.get("verdict"),
+                "gold": None if gold_blocked is None else ("BLOCK" if gold_blocked else "PASS"),
+                "cells": cells, "majority": majority,
+            })
+        if votes and lab:
+            majority_tally["n"] += 1
+            if majority == "TIE":
+                majority_tally["ties"] += 1  # a tie is reported, never spun as a match
+            elif (majority == "BLOCK") == gold_blocked:
+                majority_tally["matches_gold"] += 1
+            elif gold_blocked:
+                majority_tally["misses"] += 1
+            else:
+                majority_tally["over_flags"] += 1
+        fl = r.get("floor") or {}
+        floor_counts["cleared"] += len(fl.get("cleared") or [])
+        floor_counts["enforced"] += len(fl.get("enforced") or [])
+        floor_counts["inconclusive"] += len(fl.get("inconclusive") or [])
+        if lab:
+            for code in fl.get("cleared") or []:
+                # THE safety property: the floor must never clear a genuine (gold) defect.
+                if code in golds.get(cid, set()):
+                    gold_defect_clears.append({"case_id": cid, "code": code})
+            if r.get("verdict"):
+                pre_n += 1
+                pre_v = r.get("verdict_pre_floor") or r.get("verdict")
+                pre_match += _is_blocked_verdict(pre_v) == gold_blocked
+                post_match += _is_blocked_verdict(r.get("verdict")) == gold_blocked
+
     return {
         "cases": cases,
         "n_cases": len(rows),
@@ -1897,6 +2001,15 @@ def _cohort_scorecard(
         "units": units_score,
         "verdict_accuracy": f"{vmatch}/{n_lab}" if n_lab else None,
         "by_flag": dict(sorted(by_flag.items())),
+        "by_judge": list(by_judge.values()),
+        "majority": majority_tally,
+        "judge_matrix": judge_matrix,
+        "floor": {
+            **floor_counts,
+            "gold_defect_clears": gold_defect_clears,
+            "verdict_accuracy_pre_floor": round(pre_match / pre_n, 3) if pre_n else None,
+            "verdict_accuracy_post_floor": round(post_match / pre_n, 3) if pre_n else None,
+        },
     }
 
 
@@ -1943,6 +2056,7 @@ def grade_cases_endpoint(
             ] or (comp.get("active_findings") or [])
             evidence = ((rec.get("result") or {}).get("semantic") or {}).get("evidence") or []
             units = consolidate(active, evidence, code_families)
+            g = rec.get("grounded") or {}
             rows.append(
                 {
                     "case_id": cid,
@@ -1950,11 +2064,24 @@ def grade_cases_endpoint(
                     "stage_verdict": comp.get("stage_verdict"),
                     "findings": comp.get("active_findings") or [],
                     "units": [list(u.codes) for u in units],
+                    # R3: model + raw K-split ride each vote (the per-reviewer scorecard +
+                    # the case×reviewer matrix aggregate these in _cohort_scorecard).
                     "votes": [
                         {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
-                         "confidence": v.get("confidence")}
+                         "confidence": v.get("confidence"), "model": v.get("model"),
+                         "scores_raw": v.get("scores_raw")}
                         for v in (rec.get("council") or {}).get("votes", [])
                     ],
+                    # R3b: the pre-floor verdict + the floor events, from the same record.
+                    "verdict_pre_floor": g.get("original_verdict") or comp.get("verdict"),
+                    "floor": {
+                        "cleared": [s.get("code") for s in g.get("suppressed") or []],
+                        "enforced": [b.get("flag") for b in g.get("floor_blocks") or []
+                                     if b.get("injected")],
+                        "inconclusive": [b.get("flag") or b.get("contract_type")
+                                         for b in g.get("floor_blocks") or []
+                                         if not b.get("injected")],
+                    },
                     "run_id": rec.get("pipeline_run_id"),
                 }
             )
@@ -1980,8 +2107,14 @@ def grade_cases_endpoint(
     # denominator) + credit family-siblings at unit level — both from the same resolved ontology.
     _agent = _load_agent(req.agent, db_path)
     gradeable = _agent_gradeable_codes(_agent, workdir)
-    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus(), gradeable=gradeable)
-    scorecard = _cohort_scorecard(rows, golds, labeled, code_families=code_families)
+    _corpus = _read_ingested_corpus()
+    golds, labeled = _corpus_golds_labeled(_corpus, gradeable=gradeable)
+    scorecard = _cohort_scorecard(
+        rows, golds, labeled, code_families=code_families,
+        # R3: a declared expected_compliance_verdict is the gold verdict (the verdict-only-label
+        # corpus scores honestly); flags-only labels keep the bool(gold) derivation.
+        gold_verdicts=_corpus_gold_verdicts(_corpus),
+    )
     return {"matrix": rows, "summary": summary, "scorecard": scorecard}
 
 

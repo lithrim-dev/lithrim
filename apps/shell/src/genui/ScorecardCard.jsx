@@ -64,7 +64,17 @@ function Chip({ label, color, title }) {
   );
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, onOpenCaseRun }) {
+// R3: the per-sample K-split for a matrix cell (mirrors VerdictCard.sampleSplit).
+function cellSplit(scoresRaw) {
+  if (!Array.isArray(scoresRaw) || scoresRaw.length < 2) return null;
+  let b = 0, w = 0, p = 0;
+  for (const s of scoresRaw) {
+    if (s <= 0.25) b += 1; else if (s >= 0.75) p += 1; else w += 1;
+  }
+  return [b ? `${b}B` : "", w ? `${w}R` : "", p ? `${p}P` : ""].filter(Boolean).join("/");
+}
+
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, onOpenCaseRun }) {
   if (!cases.length) {
     return (
       <div className="rounded-[var(--radius)] border border-border bg-secondary px-3.5 py-3 text-xs font-[family-name:var(--font-mono)] text-muted-foreground">
@@ -107,6 +117,77 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
             precision <strong style={{ color: "var(--ink)" }}>{pct(units.precision)}</strong> <span className="text-muted-foreground">({units.tp}/{units.tp + units.fp})</span>{" "}
             · recall <strong style={{ color: "var(--ink)" }}>{pct(units.recall)}</strong> <span className="text-muted-foreground">({units.matched_gold ?? units.tp}/{(units.matched_gold ?? units.tp) + units.fn})</span>
           </span>
+        </div>
+      )}
+
+      {/* ── R3: the per-reviewer table (each model scored against gold) + the majority row ── */}
+      {by_judge.length > 0 && (
+        <div data-testid="scorecard-by-judge" className="mt-3 border-t border-border pt-2">
+          <div className="mb-1 text-[10.5px] font-semibold text-foreground">By reviewer (vs the answer key)</div>
+          <div className="flex flex-col gap-0.5 font-[family-name:var(--font-mono)] text-[10.5px]">
+            {by_judge.map((j) => (
+              <div key={j.judge_role} data-testid={`by-judge-row-${j.judge_role}`} className="flex flex-wrap gap-x-3">
+                <span className="min-w-[160px] text-foreground">{j.model || j.judge_role}</span>
+                <span style={{ color: "var(--teal)" }}>{j.matches_gold}/{j.n} match</span>
+                <span style={{ color: "var(--amber)" }} title="Silent misses — the reviewer passed a note the answer key rejects.">{j.misses} missed</span>
+                <span style={{ color: "var(--accent)" }} title="Over-flags — the reviewer blocked a note the answer key approves.">{j.over_flags} over-flagged</span>
+              </div>
+            ))}
+            {majority && (
+              <div data-testid="by-judge-majority" className="mt-0.5 flex flex-wrap gap-x-3 border-t border-border pt-1 text-muted-foreground">
+                <span className="min-w-[160px]">cross-model majority</span>
+                <span>{majority.matches_gold}/{majority.n} match</span>
+                <span>{majority.misses} missed · {majority.over_flags} over-flagged{majority.ties ? ` · ${majority.ties} tie${majority.ties === 1 ? "" : "s"}` : ""}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── R3: the case × reviewer matrix (vote + raw K-split per cell; gold column) ── */}
+      {judge_matrix.length > 0 && (
+        <div data-testid="scorecard-judge-matrix" className="mt-3 border-t border-border pt-2">
+          <div className="mb-1 text-[10.5px] font-semibold text-foreground">Case × reviewer</div>
+          <div className="flex flex-col gap-0.5 overflow-x-auto font-[family-name:var(--font-mono)] text-[10px]">
+            {judge_matrix.map((r) => (
+              <div key={r.case_id} data-testid={`judge-matrix-row-${r.case_id}`} className="flex flex-nowrap items-baseline gap-2 whitespace-nowrap">
+                <span className="min-w-[130px] max-w-[130px] truncate text-foreground" title={r.case_id}>{r.case_id}</span>
+                <span className="min-w-[46px]" style={{ color: r.gold ? vColor(r.gold) : "var(--muted)" }} title="The answer key's verdict for this case.">{r.gold || "—"}</span>
+                {(r.cells || []).map((c) => (
+                  <span key={c.judge_role} title={`${c.model || c.judge_role}${cellSplit(c.scores_raw) ? ` · per-sample ${cellSplit(c.scores_raw)}` : ""}`}>
+                    <span style={{ color: vColor(c.vote) }}>{norm(c.vote).charAt(0)}</span>
+                    {cellSplit(c.scores_raw) && <span className="text-muted-foreground"> {cellSplit(c.scores_raw)}</span>}
+                  </span>
+                ))}
+                {r.majority && <span className="text-muted-foreground" title="The cross-model majority on this case.">maj {r.majority}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── R3b: the floor tallies — the thesis headline from ONE run ── */}
+      {floor && (
+        <div data-testid="scorecard-floor" className="mt-3 border-t border-border pt-2 text-[10.5px]">
+          <div className="mb-1 font-semibold text-foreground">Deterministic floor</div>
+          <div className="flex flex-wrap gap-x-3 font-[family-name:var(--font-mono)]">
+            <span style={{ color: "var(--teal)" }} title="False alarms the floor disproved and cleared.">{floor.cleared} cleared</span>
+            <span style={{ color: "var(--accent)" }} title="Blocks the floor enforced that the reviewers missed.">{floor.enforced} enforced</span>
+            <span className="text-muted-foreground" title="Checks that declined to vote — nothing checkable (a feature, not a failure).">{floor.inconclusive} cannot-ground</span>
+            {(floor.gold_defect_clears || []).length === 0
+              ? <span style={{ color: "var(--teal)" }} title="The safety property: the floor never cleared a genuine (answer-key) defect.">0 genuine defects cleared ✓</span>
+              : (
+                <span data-testid="scorecard-gold-defect-clears" style={{ color: "var(--accent)" }}
+                  title="SAFETY VIOLATION — the floor cleared a genuine (answer-key) defect.">
+                  ⚠ {floor.gold_defect_clears.length} genuine defect{floor.gold_defect_clears.length === 1 ? "" : "s"} cleared: {floor.gold_defect_clears.map((g) => `${g.case_id}:${flagLabel(g.code)}`).join(", ")}
+                </span>
+              )}
+          </div>
+          {floor.verdict_accuracy_pre_floor != null && (
+            <div className="mt-1 font-[family-name:var(--font-mono)] text-muted-foreground" title="Verdict accuracy vs the answer key, before and after the deterministic floor corrected the reviewers.">
+              verdict accuracy: reviewers alone <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_pre_floor)}</strong> → with the floor <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_post_floor)}</strong>
+            </div>
+          )}
         </div>
       )}
 
