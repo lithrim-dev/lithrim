@@ -102,3 +102,39 @@ def test_enrich_run_blob_pins_grade_config(tmp_path):
     blob = asyncio.run(store.find_by_id("r-sig1"))
     assert blob["grade_config"] == grade_config
     assert blob["grade_signature"] == "sig-abc"
+
+
+def test_replay_resolves_only_an_authoritative_head(tmp_path):
+    """Caught live (2026-07-03 Docker validation): _resolve_from_provenance used latest_for,
+    so a REPLAY row — stamped with the CURRENT signature at persist time — masqueraded as a
+    fresh head and was served after a criterion edit. The replay baseline must be the newest
+    AUTHORITATIVE row (replay_of falsy); its older signature then trips the freshness refusal."""
+    import asyncio
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import run_eval as re_mod
+
+    from lithrim_bench.harness.backend import provenance_store_for
+
+    db = tmp_path / "prov.sqlite"
+    store = provenance_store_for(db)
+    asyncio.run(store.save_blob({
+        "pipeline_run_id": "auth-1", "verdict": "BLOCK", "agent_id": "ag", "case_id": "c1",
+        "grade_signature": "OLD-SIG", "grade_path": "in_process",
+    }))
+    asyncio.run(store.save_blob({
+        "pipeline_run_id": "replay-1", "verdict": "PASS", "agent_id": "ag", "case_id": "c1",
+        "grade_signature": "CURRENT-SIG", "grade_path": "replay", "replay_of": "auth-1",
+    }))
+    agent = SimpleNamespace(name="ag", dataset=SimpleNamespace(case_id="c1"))
+    # Config drifted since auth-1: the guard must REFUSE — never serve the replay row.
+    try:
+        re_mod._resolve_from_provenance(agent, "CURRENT-SIG", collections_db=db)
+    except SystemExit as exc:
+        assert "config changed" in str(exc)
+    else:
+        raise AssertionError("a replay row was served as a fresh head")
+    # Same config as the authoritative head → served, and it IS the authoritative one.
+    out = re_mod._resolve_from_provenance(agent, "OLD-SIG", collections_db=db)
+    assert out["provenance"]["pipeline_run_id"] == "auth-1"

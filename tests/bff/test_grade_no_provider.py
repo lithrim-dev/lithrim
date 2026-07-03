@@ -66,3 +66,26 @@ def test_other_subprocess_failure_stays_500(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as exc_info:
         bff._grade_via_subprocess(**_call(tmp_path))
     assert exc_info.value.status_code == 500
+
+
+def test_inprocess_no_provider_grade_is_422_connect_ai(monkeypatch, tmp_path):
+    """The DEFAULT (_core) workspace grades IN-PROCESS in the BFF, not via the subprocess —
+    the fresh-Docker live validation caught the ValueError propagating as a bare 500 there.
+    Both choke points must map to the same actionable 422."""
+    def boom(*a, **k):
+        raise ValueError(
+            "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3 is unset; required to bind a live LM "
+            "for role='policy_judge' (COMPLIANCE_COUNCIL_VERSION=v2)."
+        )
+
+    monkeypatch.setattr(bff.run_eval, "run", boom)
+    ws = SimpleNamespace(pack=bff.workspace.DEFAULT_PACK, id="ws0", packs_dir=None)
+    monkeypatch.setattr(bff.workspace, "get_active_workspace", lambda *a, **k: ws)
+    with pytest.raises(HTTPException) as exc_info:
+        bff._grade_case(
+            agent_name="ws0_default", case_id=None, live=True, in_process=True,
+            db_path=tmp_path / "config.sqlite", out_dir=tmp_path / "out",
+            workdir=tmp_path, collections_db=tmp_path / "collections.sqlite",
+        )
+    assert exc_info.value.status_code == 422, exc_info.value.detail
+    assert "Connect AI" in str(exc_info.value.detail)

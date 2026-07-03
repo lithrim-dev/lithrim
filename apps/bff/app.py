@@ -1131,7 +1131,13 @@ def _grade_case(
         # (if present) else PACK_FILES else the active workspace's ingested corpus.
         from dataclasses import replace
 
-        agent = replace(agent, dataset=replace(agent.dataset, case_id=case_id))
+        # The committed baseline FILE speaks only for the agent's OWN dataset case — replaying
+        # it for a DIFFERENT case served another case's captured votes under this case's
+        # identity (caught live, 2026-07-03 Docker validation) and bypassed the SIGNATURE-1
+        # freshness guard. Dropping it routes the $0 replay through replay-from-provenance
+        # (the persisted head + the drift-aware staleness refusal).
+        _baseline = agent.dataset.baseline if case_id == agent.dataset.case_id else None
+        agent = replace(agent, dataset=replace(agent.dataset, case_id=case_id, baseline=_baseline))
     if not agent.dataset.case_id:
         # NO-CASE-GUARD: a single grade with no resolvable case — an ingested-corpus agent has an
         # empty dataset.case_id (the cases live in the corpus, not bound to the agent). Fail with a
@@ -1240,8 +1246,24 @@ def _grade_case(
                 criteria=criteria or None,
                 collections_db=collections_db,
             )
-        except SystemExit as exc:  # run_eval raises this when the case is missing
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except SystemExit as exc:  # run_eval raises this when the case is missing / replay refuses
+            # The drift-aware stale-replay refusal is 409 (same as the subprocess path) — an
+            # expected, actionable outcome after a config change, not a bad request.
+            _status = 409 if "config changed since" in str(exc) else 400
+            raise HTTPException(status_code=_status, detail=str(exc)) from exc
+        except ValueError as exc:
+            # FIRST-CONTACT-1: the in-process (_core default) twin of the subprocess mapping —
+            # a missing provider key is CONFIG, not a server fault (caught live: the fresh-Docker
+            # validation saw build_judge_lm's ValueError propagate as a bare 500 here).
+            if "is unset; required to bind" not in str(exc):
+                raise
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No grading model is configured. Open Connect AI from the ⋯ menu "
+                    "(bottom left) and connect a provider, then run the evaluation again."
+                ),
+            ) from exc
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])

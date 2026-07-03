@@ -191,7 +191,10 @@ def _resolve_from_provenance(
     from lithrim_bench.harness.backend import provenance_store_for
 
     store = provenance_store_for(collections_db)  # PERSIST-2c: LITHRIM_DB_URL → PG, else SQLite
-    head = _run_sync(store.latest_for(agent.name, agent.dataset.case_id))
+    # SIGNATURE-1 (caught live): the baseline must be the newest AUTHORITATIVE grade —
+    # latest_for returns ANY newest row, and a replay row (stamped with the CURRENT signature
+    # at persist) masqueraded as a fresh head after a criterion edit. Never replay a replay.
+    head = _run_sync(store.latest_authoritative_for(agent.name, agent.dataset.case_id))
     if head is None:
         raise SystemExit(
             f"agent {agent.name!r} has no captured baseline — $0 replay is unavailable "
