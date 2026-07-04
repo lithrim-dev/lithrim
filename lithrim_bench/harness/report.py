@@ -32,16 +32,20 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         (grounded.weights.get(f.get("severity"), 0.0) for f in grounded.active),
         default=0.0,
     )
-    adjustments = [
-        {
+    adjustments = []
+    for s in grounded.suppressed:
+        adjustment = {
             "flag": s["finding"].get("code"),
             "action": "suppressed",
             "contract": s["contract"].version,
             "matched_token": s["verdict"].matched_token,
             "reason": s["verdict"].reason,
         }
-        for s in grounded.suppressed
-    ]
+        edition = getattr(s["verdict"], "terminology_edition", None)
+        if edition is not None:
+            # REL-OPS-1 O2: absent (not null) for non-terminology contracts.
+            adjustment["terminology_edition"] = edition
+        adjustments.append(adjustment)
     n_suppressed = len(grounded.suppressed)
     n_reference = len(grounded.skipped_non_gradeable)
 

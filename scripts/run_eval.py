@@ -65,6 +65,23 @@ from lithrim_bench.picklist import (  # noqa: E402
 )
 
 
+def _suppressed_entry(s) -> dict:
+    entry = {
+        "code": s["finding"].get("code"),
+        "contract": s["contract"].version,
+        "disproved": s["verdict"].disproved,
+        "matched_token": s["verdict"].matched_token,
+        "evidence": s["verdict"].evidence,
+        "reason": s["verdict"].reason,
+    }
+    edition = getattr(s["verdict"], "terminology_edition", None)
+    if edition is not None:
+        # REL-OPS-1 O2: the terminology edition that decided this suppression — absent
+        # (not null) for non-terminology contracts, so existing blob shapes are unchanged.
+        entry["terminology_edition"] = edition
+    return entry
+
+
 def _grounded_block(grounded) -> dict:
     """Serialize a ``ground()`` result to the record/blob shape. LAYER0-READ-1: extracted
     from ``build_record`` so the SAME serialization rides both the API record AND the
@@ -73,17 +90,7 @@ def _grounded_block(grounded) -> dict:
         "verdict": grounded.verdict,
         "original_verdict": grounded.original_verdict,
         "active": grounded.active,
-        "suppressed": [
-            {
-                "code": s["finding"].get("code"),
-                "contract": s["contract"].version,
-                "disproved": s["verdict"].disproved,
-                "matched_token": s["verdict"].matched_token,
-                "evidence": s["verdict"].evidence,
-                "reason": s["verdict"].reason,
-            }
-            for s in grounded.suppressed
-        ],
+        "suppressed": [_suppressed_entry(s) for s in grounded.suppressed],
         "ungrounded": grounded.ungrounded,
         "skipped_non_gradeable": grounded.skipped_non_gradeable,
         "floor_blocks": [

@@ -78,6 +78,12 @@ def build_correction(
             "matched_token": verdict.matched_token,
             "evidence": verdict.evidence,
             "reason": verdict.reason,
+            # REL-OPS-1 O2: absent (not null) for non-terminology contracts.
+            **(
+                {"terminology_edition": edition}
+                if (edition := getattr(verdict, "terminology_edition", None)) is not None
+                else {}
+            ),
         },
         "original_label": code,
         "corrected_label": None,
