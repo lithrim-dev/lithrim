@@ -608,6 +608,11 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     // longer chat-only; the confirm is still the sole paid path (the palette itself never spends).
     { id: "grade-all", label: "Grade all cases — one paid cohort batch", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: {} })); } catch {} } },
     { id: "explore-case", label: "Explore case — browse the gradeable cases", run: () => openArtifact(activeCase ? "case" : "corpus") },
+    // RELIABILITY-CARD-1: a NON-chat "Show reliability" — dispatch the lithrim:show-reliability
+    // bridge (same idiom as lithrim:grade-cohort) the CenterPane fetches GET /v1/reliability/{agent}
+    // for and renders the tool-reliability_card INLINE. $0 pure read; adds NO agent tool (the
+    // len(_TOOL_SPECS)==24 pin stays green — the card is emitted by the shell, not the agent).
+    { id: "show-reliability", label: "Reliability metrics — kappa · calibration · floor selective-prediction", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-reliability")); } catch {} } },
     { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
     { id: "new-eval", label: "New evaluation", run: onNewEval },
     { id: "connect-ai", label: "Connect AI — providers & model assignments", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:connect-ai")); } catch {} } },
