@@ -101,6 +101,13 @@ function RunFailed({ runError, activeCase = null }) {
 // stage verdict and the per-reviewer votes. Confidence-HONEST (the no-manufactured-wins
 // moat): a confident reject reads as a confirmed flag; a low-confidence needs-review reads
 // as an uncertain point a person should check — the two are never flattened into one list.
+// FLOOR-STORY-1: the shared flip-story line — the ONE reading of a floor-cleared run
+// (reviewers flagged it, a deterministic fact-check cleared the findings, final verdict
+// stands). Rendered verbatim on BOTH surfaces (Report banner + inline VerdictCard).
+export function floorClearStory(n, finalLabel) {
+  return `Reviewers flagged it · a fact-check cleared ${n} false alarm${n === 1 ? "" : "s"} · final: ${finalLabel}`;
+}
+
 function ReportSummary({ comp, votes }) {
   const verdict = String(comp.stage_verdict || "").toUpperCase();
   const isFlag = (v) => v.vote === "BLOCK" || v.vote === "FAIL" || /reject/i.test(String(v.vote || ""));
@@ -112,18 +119,34 @@ function ReportSummary({ comp, votes }) {
   const unsure = votes.filter(isUnsure);
   const flaggedHighConf = flagged.length > 0 && flagged.every((v) => conf(v) !== null && conf(v) >= 0.5);
   const unsureLowConf = unsure.some((v) => conf(v) !== null && conf(v) < 0.5);
+  // FLOOR-STORY-1: the floor cleared the reviewers' findings — the pass IS the result and the
+  // flip is said explicitly; the layers are never concatenated into a contradiction.
+  const cleared = (comp.grounded_adjustments || []).length;
+  const floorCleared = verdict === "PASS" && flagged.length > 0 && cleared > 0;
 
-  const parts = [
-    verdict === "BLOCK" ? "This case was flagged." : verdict === "PASS" ? "This case passed." : "This case needs a closer look.",
-  ];
-  if (flagged.length)
-    parts.push(`The ${flagged.map(name).join(" and ")} flagged it${flaggedHighConf ? " with high confidence" : ""}.`);
-  if (unsure.length)
-    parts.push(`The ${unsure.map(name).join(" and ")} ${unsure.length > 1 ? "were" : "was"} uncertain${unsureLowConf ? " (low confidence)" : ""} — a person should take a look.`);
-  // vote-less older runs: name the reason off the findings so the summary still says WHY.
-  if (!flagged.length && !unsure.length && verdict !== "PASS" && (comp.active_findings || []).length)
-    parts.push(`Issues raised: ${comp.active_findings.map(flagLabel).join(", ")}.`);
-  parts.push(verdict === "PASS" ? "No reviewer raised an issue." : "Recommend a person review this before it is relied on.");
+  let parts;
+  if (floorCleared) {
+    parts = [
+      "This case passed.",
+      `The ${flagged.map(name).join(" and ")} flagged it; the fact-check layer cleared ${cleared === 1 ? "that finding as a false alarm" : "those findings as false alarms"}.`,
+      "Final: passed.",
+    ];
+  } else {
+    parts = [
+      verdict === "BLOCK" ? "This case was flagged." : verdict === "PASS" ? "This case passed." : "This case needs a closer look.",
+    ];
+    if (flagged.length)
+      parts.push(`The ${flagged.map(name).join(" and ")} flagged it${flaggedHighConf ? " with high confidence" : ""}.`);
+    if (unsure.length)
+      parts.push(`The ${unsure.map(name).join(" and ")} ${unsure.length > 1 ? "were" : "was"} uncertain${unsureLowConf ? " (low confidence)" : ""} — a person should take a look.`);
+    // vote-less older runs: name the reason off the findings so the summary still says WHY.
+    if (!flagged.length && !unsure.length && verdict !== "PASS" && (comp.active_findings || []).length)
+      parts.push(`Issues raised: ${comp.active_findings.map(flagLabel).join(", ")}.`);
+    if (verdict === "PASS")
+      // "No reviewer raised an issue." only when that is TRUE — never beside a "flagged it".
+      parts.push(flagged.length || unsure.length ? "A person should double-check the reviewer notes above." : "No reviewer raised an issue.");
+    else parts.push("Recommend a person review this before it is relied on.");
+  }
 
   return (
     <div className="art-sec" data-testid="report-summary">
@@ -160,7 +183,8 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
     );
 
   const comp = shown.composite;
-  const cal = shown.calibration_check;
+  // hardened: a record with no calibration fold renders the honest unlabeled branch, not a crash.
+  const cal = shown.calibration_check || { label_status: "unlabeled", n_cases: 0 };
   const ui = VERDICT_UI[comp.verdict] || VERDICT_UI.needs_review;
   const gradeLabel = gradeTag(shown.grade_path);
   // The named case outcome (independent-axes rule table) — PRIMARY when present. Humanize
@@ -169,16 +193,30 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
   const outcomeLabel = caseOutcome
     ? String(caseOutcome).replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())
     : null;
+  // FLOOR-STORY-1: the grounding floor cleared the reviewers' findings (votes flagged, final
+  // PASS, clears present) — the flip renders as the product's story, never a contradicting
+  // chip (a "Flagged" title over a "Passed" grade). A pre-fix server may still serve a harsh
+  // pre-floor case_outcome; anything but CLEAR is overridden by the post-floor reading.
+  const clears = comp.grounded_adjustments || [];
+  const findings = comp.active_findings || []; // hardened: a partial/legacy composite must not crash the banner
+  const votedFlag = ((shown.council || {}).votes || []).some((v) => ["BLOCK", "FAIL"].includes(String(v.vote || "").toUpperCase()));
+  const floorCleared = clears.length > 0 && votedFlag && String(comp.stage_verdict || "").toUpperCase() === "PASS";
+  const bannerTitle = floorCleared && String(caseOutcome || "").toUpperCase() !== "CLEAR" ? ui.label : (outcomeLabel || ui.label);
 
   return (
     <div>
       <div className="report-banner">
         <div className="rb-ic" style={{ color: ui.color }}><ICN name={ui.icon} size={20} sw={2.2} /></div>
         <div style={{ minWidth: 0 }}>
-          <div className="rb-t">{outcomeLabel || ui.label}</div>
+          <div className="rb-t">{bannerTitle}</div>
           <div className="rb-s">
-            {comp.active_findings.length} issues found · {comp.grounded_adjustments.length} false alarms cleared by a fact-check · {shown.case_id}
+            {findings.length} issues found · {clears.length} false alarms cleared by a fact-check · {shown.case_id}
           </div>
+          {floorCleared && (
+            <div className="rb-s" style={{ marginTop: 2, color: "var(--teal)" }}>
+              {floorClearStory(clears.length, verdictLabel(comp.stage_verdict))}
+            </div>
+          )}
         </div>
         <div className="rb-grade" style={{ color: ui.color }}>{verdictLabel(comp.stage_verdict)}</div>
       </div>
@@ -193,8 +231,8 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
         <div className="tiles">
           {[
             { k: "Risk score", v: String(comp.score), d: "0–1 · higher is riskier" },
-            { k: "Issues found", v: String(comp.active_findings.length), d: "after fact-checks" },
-            { k: "False alarms cleared", v: String(comp.grounded_adjustments.length), d: "cleared by a fact-check" },
+            { k: "Issues found", v: String(findings.length), d: "after fact-checks" },
+            { k: "False alarms cleared", v: String(clears.length), d: "cleared by a fact-check" },
           ].map((t) => (
             <div className="tile" key={t.k}>
               <div className="tk">{t.k}</div>
@@ -207,12 +245,12 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
 
       <div className="art-sec">
         <div className="art-h2">
-          Issues found <span className="cnt">{comp.active_findings.length}</span>
+          Issues found <span className="cnt">{findings.length}</span>
         </div>
-        {comp.active_findings.length === 0 && (
+        {findings.length === 0 && (
           <div style={{ fontSize: 12.5, color: "var(--muted)" }}>None.</div>
         )}
-        {comp.active_findings.map((f, i) => (
+        {findings.map((f, i) => (
           <div key={i} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
             <ICN name="flag" size={14} style={{ color: "var(--accent)", flex: "0 0 auto", marginTop: 2 }} />
             <span>{flagLabel(f)}</span>
@@ -222,7 +260,14 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
 
       {(comp.floor_adjustments || []).length > 0 && (
         <div className="art-sec">
-          <div className="art-h2">Automated fact-check failures <span className="cnt">a fact-check changed the result</span></div>
+          {/* FLOOR-STORY-1 honesty: "changed the result" ONLY when a floor_block row exists —
+              floor_inconclusive rows are surfaced-never-flipped (grounding.py) and must not
+              claim a flip. The per-row labels below were already honest. */}
+          <div className="art-h2">
+            {(comp.floor_adjustments || []).some((a) => a.action === "floor_block")
+              ? (<>Automated fact-check failures <span className="cnt">a fact-check changed the result</span></>)
+              : (<>Automated fact-checks <span className="cnt">fact-checks ran (inconclusive)</span></>)}
+          </div>
           {(comp.floor_adjustments || []).map((a, i) => {
             const isBlock = a.action === "floor_block";
             return (
@@ -242,10 +287,10 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
         </div>
       )}
 
-      {comp.grounded_adjustments.length > 0 && (
+      {clears.length > 0 && (
         <div className="art-sec">
           <div className="art-h2">Cleared by a fact-check <span className="cnt">fact-checked</span></div>
-          {comp.grounded_adjustments.map((a, i) => (
+          {clears.map((a, i) => (
             <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <span style={{ fontWeight: 600 }}>{flagLabel(a.flag)}</span>
