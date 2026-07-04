@@ -17,7 +17,7 @@
    inline. All fetches route through bff.js (S-BS-50 — no hardcoded :8787). Built on
    shadcn primitives + the @theme token bridge. */
 import { useEffect, useState } from "react";
-import { getJudge, optimizeJudge, putJudge } from "../bff.js";
+import { getJudge, listCases, optimizeJudge, putJudge } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog.jsx";
@@ -110,6 +110,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [save, setSave] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
   const [costOpen, setCostOpen] = useState(false); // the in-DOM cost-confirm modal (S-BS-69)
   const [opt, setOpt] = useState({ state: "idle", result: null, error: null }); // idle|running|done|error
+  // optimize-on-subset: the workspace cases (same GET /v1/cases the Cases browser reads) + the
+  // SME's chosen subset. Empty selection = whole-workspace (back-compat). A $0 selector, never paid.
+  const [cases, setCases] = useState([]);
+  const [selectedCaseIds, setSelectedCaseIds] = useState([]);
 
   useEffect(() => {
     let live = true;
@@ -135,6 +139,17 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       });
     return () => { live = false; };
   }, [role, agent]);
+
+  // optimize-on-subset: load the workspace's ingested cases ($0) so the SME can scope the
+  // optimize to a chosen subset. Same source the Cases browser reads (never drift). A load
+  // failure leaves the picker empty (the whole-workspace optimize still works) — never blocks.
+  useEffect(() => {
+    let live = true;
+    listCases()
+      .then((r) => { if (live) setCases(r.cases || []); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   // The live $0 prompt preview: refetch the EXACT rendered role_key_questions for the
   // current assignment whenever it changes (same render_role_questions the bridge uses).
@@ -167,6 +182,9 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     setAssigned((a) => (a.includes(code) ? a.filter((c) => c !== code) : [...a, code]));
   const toggleValidator = (v) =>
     setValidators((vs) => (vs.includes(v) ? vs.filter((x) => x !== v) : [...vs, v]));
+  // optimize-on-subset: toggle a case in/out of the chosen subset (order-preserving).
+  const toggleCase = (cid) =>
+    setSelectedCaseIds((s) => (s.includes(cid) ? s.filter((c) => c !== cid) : [...s, cid]));
 
   const addedLines = lineCount(preview.rendered) - lineCount(preview.base);
 
@@ -203,7 +221,12 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     setCostOpen(false);
     setOpt({ state: "running", result: null, error: null });
     try {
-      const result = await optimizeJudge(role, { confirm: true });
+      // optimize-on-subset: scope to the chosen cases ONLY when a subset is picked — an empty
+      // selection sends no case_ids, keeping today's whole-workspace optimize byte-identical.
+      const result = await optimizeJudge(role, {
+        confirm: true,
+        ...(selectedCaseIds.length ? { caseIds: selectedCaseIds } : {}),
+      });
       setOpt({ state: "done", result, error: null });
     } catch (e) {
       setOpt({ state: "error", result: null, error: friendlyError(e) });
@@ -372,6 +395,49 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             honest held-out Δ on the fixed test split. Did the edit move the number? — win or loss,
             shown straight.
           </p>
+          {/* optimize-on-subset: scope the calibration to a CHOSEN case set. No selection =
+              the whole workspace (today's behaviour). A $0 selector — the paid confirm is below. */}
+          {cases.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <Label className="text-[10.5px] text-muted-foreground">
+                  Scope to cases (optional)
+                </Label>
+                <span data-testid="optimize-subset-count" className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
+                  {selectedCaseIds.length
+                    ? `${selectedCaseIds.length} chosen`
+                    : `all ${cases.length}`}
+                </span>
+              </div>
+              <div className="flex max-h-40 flex-col gap-1 overflow-y-auto pr-1">
+                {cases.map((c) => (
+                  <label
+                    key={c.case_id}
+                    className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5"
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid={`optimize-case-${c.case_id}`}
+                      checked={selectedCaseIds.includes(c.case_id)}
+                      onChange={() => toggleCase(c.case_id)}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-[family-name:var(--font-mono)] text-[11px] text-foreground">
+                      {c.case_id}
+                    </span>
+                    {c.labeled ? (
+                      <span className="text-[9.5px] text-muted-foreground">labeled</span>
+                    ) : (
+                      <span className="text-[9.5px] text-muted-foreground">no gold</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Leave all unchecked to calibrate on the whole workspace. Only labeled cases feed
+                the split; a subset too small to split is refused, never silently skipped.
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <Button
               size="sm"

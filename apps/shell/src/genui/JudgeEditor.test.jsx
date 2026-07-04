@@ -36,10 +36,18 @@ vi.mock("../bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({ status: "ok", role: "risk_judge", actor: { type: "user", id: "sme@acme" } }),
   optimizeJudge: vi.fn(),
+  listCases: vi.fn().mockResolvedValue({
+    cases: [
+      { case_id: "cv_mts_101", labeled: true },
+      { case_id: "cv_mts_102", labeled: true },
+      { case_id: "cv_mts_103", labeled: false },
+    ],
+    count: 3,
+  }),
 }));
 
 import JudgeEditor from "./JudgeEditor.jsx";
-import { getJudge, putJudge, optimizeJudge } from "../bff.js";
+import { getJudge, putJudge, optimizeJudge, listCases } from "../bff.js";
 
 const deltaResult = (delta, { baseline, optimized } = {}) => ({
   role: "risk_judge",
@@ -55,6 +63,7 @@ beforeEach(() => {
   getJudge.mockClear();
   putJudge.mockClear();
   optimizeJudge.mockReset();
+  listCases.mockClear();
 });
 
 describe("JudgeEditor (tool-judge_editor)", () => {
@@ -187,5 +196,36 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
     fireEvent.click(await screen.findByRole("button", { name: /^Cancel$/i }));
     expect(optimizeJudge).not.toHaveBeenCalled();
+  });
+
+  it("optimize-on-subset: no case selected → whole-workspace (case_ids absent, $0 until confirm)", async () => {
+    optimizeJudge.mockResolvedValueOnce(deltaResult({ graded: 0.1 }));
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    // the case picker lists the workspace cases ($0 read)
+    expect(await screen.findByTestId("optimize-case-cv_mts_101")).toBeInTheDocument();
+    // no selection → the optimize call carries NO caseIds (today's whole-workspace behaviour)
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true }));
+  });
+
+  it("optimize-on-subset: chosen cases scope the optimize (caseIds threaded, still gated)", async () => {
+    optimizeJudge.mockResolvedValueOnce(deltaResult({ graded: 0.1 }));
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    // pick two cases from the picker
+    fireEvent.click(await screen.findByTestId("optimize-case-cv_mts_101"));
+    fireEvent.click(screen.getByTestId("optimize-case-cv_mts_102"));
+    // still paid-gated: nothing fires until confirm
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    expect(optimizeJudge).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    await waitFor(() =>
+      expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", {
+        confirm: true,
+        caseIds: ["cv_mts_101", "cv_mts_102"],
+      }),
+    );
   });
 });
