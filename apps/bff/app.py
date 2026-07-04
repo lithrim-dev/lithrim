@@ -4179,6 +4179,126 @@ def get_case_report_endpoint(
     return record
 
 
+# ── REL-OPS-1 / O3: the longitudinal meta-eval READ surface ─────────────────────────
+# "The evaluator's own accuracy, dated" (SPEC_RELIABILITY_PROGRAM O3): a pure-read join
+# over ingredients that already exist — the immutable run-history blobs (RUNTRAIL SoT),
+# the per-case gold (_corpus_golds_labeled, the SAME derivation the RUN-ALL-1 cohort
+# scorecard reads), and the META-VERDICT-1 clinician AuditRecords. No new write path,
+# no engine edit, no consensus touch. Honesty: an absent join is an explicit null.
+
+
+def _meta_eval_timeline_row(
+    doc: dict, golds: dict[str, set], labeled: set, metas: dict[str, list[dict]]
+) -> dict:
+    """One dated timeline row from a persisted run blob: identity (run_id/ts/case/
+    grade_signature/grade_path), the model roster AS RECORDED (the semantic-stage
+    judge_votes), verdict-vs-gold agreement where the case carries gold, and the
+    clinician meta-verdict where a META-VERDICT-1 record exists — both ``null`` when
+    the join is absent (never a fabricated value)."""
+    semantic = (doc.get("stage_results") or {}).get("semantic") or {}
+    raised = sorted(
+        {
+            f.get("code")
+            for f in (doc.get("findings") or [])
+            if isinstance(f, dict) and f.get("code")
+        }
+    )
+    row = {
+        "run_id": doc.get("pipeline_run_id"),
+        "ts": doc.get("timestamp"),
+        "case_id": doc.get("case_id"),
+        "verdict": doc.get("verdict"),
+        "gate_decision": doc.get("gate_decision"),
+        # null on blobs persisted before grade_path stamping — honest absence
+        "grade_path": doc.get("grade_path"),
+        "grade_signature": doc.get("grade_signature"),
+        "models": [
+            {"judge_role": v.get("judge_role"), "model": v.get("model")}
+            for v in (semantic.get("judge_votes") or [])
+        ],
+        "raised": raised,
+        "gold": None,
+        "meta_verdict": None,
+    }
+    cid = doc.get("case_id")
+    if cid in labeled:
+        gold = golds.get(cid, set())
+        raised_set = set(raised)
+        row["gold"] = {
+            "expected": sorted(gold),
+            "caught": sorted(gold & raised_set),
+            "missed": sorted(gold - raised_set),
+            "spurious": sorted(raised_set - gold),
+            # the RUN-ALL-1 scorecard rule: gold present <=> a blocked verdict
+            "verdict_match": bool(gold) == _is_blocked_verdict(doc.get("verdict")),
+        }
+    recs = metas.get(row["run_id"]) or []
+    if recs:
+        latest = recs[-1]  # AuditLog.query returns oldest-first; the newest record wins
+        after = latest.get("after") or {}
+        row["meta_verdict"] = {
+            "n_records": len(recs),
+            "ts": latest.get("ts"),
+            "actor": (latest.get("actor") or {}).get("id"),
+            "human_verdict": after.get("human_verdict"),
+            "agrees_with_council": after.get("agrees_with_council"),
+            "judge_fallacy_code": after.get("judge_fallacy_code"),
+        }
+    return row
+
+
+def _signature_segments(rows: list[dict]) -> list[dict]:
+    """Contiguous same-``grade_signature`` stretches over the oldest-first timeline —
+    a signature change is a SERIES BREAK (the config drifted; agreement numbers on
+    either side are not comparable). Purely derived from the per-row signatures."""
+    segments: list[dict] = []
+    for row in rows:
+        sig = row.get("grade_signature")
+        if not segments or segments[-1]["grade_signature"] != sig:
+            segments.append(
+                {"grade_signature": sig, "start_ts": row.get("ts"),
+                 "end_ts": row.get("ts"), "n_runs": 0}
+            )
+        segments[-1]["end_ts"] = row.get("ts")
+        segments[-1]["n_runs"] += 1
+    return segments
+
+
+@app.get("/v1/meta-eval/timeline")
+def meta_eval_timeline_endpoint(
+    agent: str = Query(DEFAULT_AGENT),
+    limit: int = Query(500, ge=1, le=2000),
+    db_path: Path = Depends(get_config_db),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """O3 — the agent-scoped, dated series of runs joined to their agreement outcomes,
+    OLDEST-first (a time series, not the newest-first run list). Per run: identity +
+    ``grade_signature`` + recorded models + gold agreement + clinician meta-verdict;
+    plus ``signature_segments`` so a config change reads as a series break. Unknown
+    agent → 404 (the ``_load_agent`` convention); a known agent with no runs → an
+    empty timeline. Pure read, $0."""
+    _load_agent(agent, db_path)
+    docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+    mine = [d for d in docs if d.get("agent_id") == agent]
+    mine.sort(key=lambda d: str(d.get("timestamp") or ""))
+    mine = mine[-limit:]
+    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus())
+    metas: dict[str, list[dict]] = {}
+    for rec in AuditLog(db_path=db_path).query(target_type="verdict"):
+        if rec.get("action") != "meta_verdict":
+            continue
+        rid = (rec.get("target") or {}).get("id")
+        if rid:
+            metas.setdefault(rid, []).append(rec)
+    rows = [_meta_eval_timeline_row(d, golds, labeled, metas) for d in mine]
+    return {
+        "agent": agent,
+        "n_runs": len(rows),
+        "timeline": rows,
+        "signature_segments": _signature_segments(rows),
+    }
+
+
 @app.get("/v1/kb/{namespace}/search")
 def kb_search_endpoint(
     namespace: str,
