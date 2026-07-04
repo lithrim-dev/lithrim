@@ -6886,3 +6886,76 @@ def ingest_commit_endpoint(
         )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+# ── RIGOR-1 read surface: GET /v1/reliability/{agent} ─────────────────────────
+
+
+def _reliability_run_record(doc: dict, golds: dict[str, set]) -> dict:
+    """Normalize a persisted provenance blob into the run-record shape
+    ``reliability.compute_report`` consumes: the per-judge votes (role/vote/confidence/model)
+    AS RECORDED, plus the deterministic-floor outcome (covered / correct-vs-gold) derived from
+    the persisted ``grounded`` block. Pure projection — the same blob the run-audit read projects.
+
+    Floor coverage = the floor spoke on this case (it suppressed a finding OR enforced a block).
+    An absent / empty ``grounded`` block is an ABSTENTION (not covered), not a fabricated pass —
+    the honest "the floor could not ground this" state the selective-prediction metric reports."""
+    semantic = (doc.get("stage_results") or {}).get("semantic") or {}
+    cid = doc.get("case_id")
+    votes = [
+        {
+            "judge_role": v.get("judge_role"),
+            "vote": v.get("vote"),
+            "confidence": v.get("confidence"),
+            "model": v.get("model"),
+        }
+        for v in (semantic.get("judge_votes") or [])
+    ]
+    grounded = doc.get("grounded") or {}
+    floor = None
+    if grounded:
+        covered = bool(grounded.get("suppressed") or grounded.get("floor_blocks"))
+        if covered:
+            gold_block = bool(golds.get(cid))
+            floor = {
+                "covered": True,
+                "correct": _is_blocked_verdict(grounded.get("verdict")) == gold_block,
+            }
+        else:
+            floor = {"covered": False, "correct": None}
+    return {
+        "case_id": cid,
+        "verdict": doc.get("verdict"),
+        "votes": votes,
+        "floor": floor,
+    }
+
+
+@app.get("/v1/reliability/{agent}")
+def get_reliability_endpoint(
+    agent: str,
+    limit: int = Query(500, ge=1, le=2000),
+    db_path: Path = Depends(get_config_db),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """RIGOR-1 in the product: the statistical-rigour reliability metrics — Fleiss/Cohen kappa,
+    10-bin ECE + Brier, pairwise-error phi + effective independent votes, floor selective-
+    prediction, and intra-judge stability — computed from THIS agent's OWN persisted runs joined
+    to the ingested-corpus gold the cohort scorecard reads. Agent-scoped ($0 pure read).
+
+    HONESTY CONTRACT (``lithrim_bench.reliability``): every metric carries its own
+    ``insufficient`` flag with a plain reason — a thin/degenerate workspace (no repeats for
+    intra-judge stability, no gold for calibration, n too small for chance-correction) yields a
+    flagged ``null``, NEVER a fabricated number. Unknown agent → 404 (the ``_load_agent``
+    convention); a known agent with no runs → all-insufficient metrics, not zeros-as-data."""
+    from lithrim_bench import reliability
+
+    _load_agent(agent, db_path)  # 404 on an unknown agent
+    docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+    mine = [d for d in docs if d.get("agent_id") == agent]
+    mine.sort(key=lambda d: str(d.get("timestamp") or ""))
+    mine = mine[-limit:]
+    golds, labeled = _corpus_golds_labeled(_read_ingested_corpus())
+    records = [_reliability_run_record(d, golds) for d in mine]
+    report = reliability.compute_report(runs=records, golds=golds, labeled=labeled)
+    return {"agent": agent, "metrics": report, "n_runs": report["n_runs"]}

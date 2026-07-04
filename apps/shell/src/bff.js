@@ -525,3 +525,13 @@ export async function chatStream(
     }
   }
 }
+
+/* GET /v1/reliability/{agent} — RIGOR-1: the statistical-rigour reliability metrics
+   (Fleiss/Cohen kappa · 10-bin ECE + Brier · pairwise-error phi + effective votes ·
+   floor selective-prediction · intra-judge stability), COMPUTED from this agent's OWN
+   persisted runs + gold. $0 pure read. Each metric carries an honest `insufficient` flag
+   (null value + reason) when it can't be computed — never a fabricated number. 404 on an
+   unknown agent. Shape: {agent, n_runs, metrics: {inter_judge_kappa, cohen_kappa_vs_gold,
+   ece, brier, error_phi, effective_votes, intra_judge_stability, selective_prediction}}. */
+export const getReliability = (agent = "ws0_default") =>
+  call(`/v1/reliability/${encodeURIComponent(agent)}`);
