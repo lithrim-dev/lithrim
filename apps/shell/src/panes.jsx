@@ -77,9 +77,12 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
           <span className="lbl">Evaluations</span>
           <button className="icon-btn" title="New evaluation" aria-label="New evaluation" onClick={onNewEval}><Icon name="plus" size={16} /></button>
         </div>
-        <div className="tb-cmd" style={{ position: "static", transform: "none", width: "100%", height: 32 }}>
+        {/* CMDK-1: was an inert div — now opens the command palette (App listens for the event). */}
+        <button type="button" className="tb-cmd" style={{ position: "static", transform: "none", width: "100%", height: 32 }}
+          title="Search cases & evaluations, or run a command (⌘K)"
+          onClick={() => { try { window.dispatchEvent(new CustomEvent("lithrim:cmdk")); } catch { /* no-op */ } }}>
           <Icon name="search" size={14} /><span>Search</span><span className="kbd">⌘K</span>
-        </div>
+        </button>
       </div>
       <div className="rail-scroll">
         <div style={{ padding: "8px 12px 8px" }}>
@@ -130,7 +133,9 @@ export function LeftRail({ width, agents = [], activeAgent, onSwitchAgent, onDel
           {planSteps.map((s, i) => (
             <div key={s.name} className={"step " + s.state}>
               <div className="nodecol">
-                <div className="node">{s.state === "done" ? <Icon name="check" size={12} sw={2.4} /> : i + 1}</div>
+                {/* number REQUIRED steps only (s.num), matching the "done / total" counter —
+                    positional i+1 numbered the optional KB step 4 and Review 6 in a "/ 5" journey. */}
+                <div className="node">{s.state === "done" ? <Icon name="check" size={12} sw={2.4} /> : (s.num ?? "·")}</div>
                 {i < planSteps.length - 1 && <div className="line" />}
               </div>
               <div className="body-txt">
@@ -364,6 +369,7 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // so a fresh mount = a fresh hydrate; the `agent` dep also re-hydrates a same-instance swap.
   const hydratedRef = useRef(null); // the agent the current chat was hydrated for
   const [clearing, setClearing] = useState(false); // PERSIST-CONV: in-DOM confirm for the destructive clear
+  const [reloadTick, setReloadTick] = useState(0); // REFRESH-1: bump → rehydrate the thread from the durable store
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
   const taRef = useRef(null);
   const fileRef = useRef(null); // CE-INGEST-FRONTDOOR-1: the hidden upload input (the only chrome)
@@ -512,7 +518,7 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent]);
+  }, [agent, reloadTick]);
 
   // PERSIST-CONV: PERSIST the settled thread (debounced) once a turn finishes — not while
   // `sending` (only the final thread persists), only after the hydrate landed for THIS agent
@@ -686,7 +692,12 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
               </button>
             )
           )}
-          <button className="icon-btn" title="Refresh"><Icon name="refresh" size={16} /></button>
+          {/* REFRESH-1: was a dead button — now re-pulls the durable thread (a no-op mid-send:
+              the in-flight turn owns the screen until it settles). */}
+          <button className="icon-btn" title="Reload this conversation" aria-label="Reload this conversation"
+            onClick={() => { if (!sending) setReloadTick((t) => t + 1); }}>
+            <Icon name="refresh" size={16} />
+          </button>
           {!artifactOpen && (
             <>
               {/* FINDING #2 (UI-pass 2026-07-04): with no case selected, "Explore case" opens the

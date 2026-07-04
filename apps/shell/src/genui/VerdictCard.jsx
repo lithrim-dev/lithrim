@@ -168,8 +168,9 @@ export default function VerdictCard({
                     <span className="ivote-role">{roleLabel(v.role)}</span>
                     <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>
                     {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
-                    {/* this axis's OWN sampling variance (independent — never averaged across reviewers). */}
-                    {typeof v.variance === "number" && (
+                    {/* this axis's OWN sampling variance (independent — never averaged across
+                        reviewers). k=1 has no spread, so "var 0.00 · k=1" was pure noise — hidden. */}
+                    {typeof v.variance === "number" && v.k !== 1 && (
                       <span className="ivote-conf" title={`variance over k=${v.k ?? "?"} samples`} style={{ color: v.variance >= 0.2 ? "var(--amber)" : "var(--muted)" }}>
                         var {v.variance.toFixed(2)}{v.k ? ` · k=${v.k}` : ""}
                       </span>
@@ -180,6 +181,16 @@ export default function VerdictCard({
                         title="per-sample verdicts across the k completions"
                         style={{ color: "var(--muted)" }}>
                         {sampleSplit(v.scores_raw)}
+                      </span>
+                    )}
+                    {/* F8: a single GRADED score (a reward model's 0.26 / 0.6 — not a 0|0.5|1
+                        decision scalar) is the research-relevant number; surface it on the row. */}
+                    {!sampleSplit(v.scores_raw) && Array.isArray(v.scores_raw) && v.scores_raw.length === 1 &&
+                      typeof v.scores_raw[0] === "number" && ![0, 0.5, 1].includes(v.scores_raw[0]) && (
+                      <span className="ivote-conf" data-testid={`vote-score-${v.role || i}`}
+                        title="the reward model's raw graded score (low = unsafe; verdict = threshold at 0.5)"
+                        style={{ color: "var(--muted)" }}>
+                        score {v.scores_raw[0].toFixed(2)}
                       </span>
                     )}
                   </div>

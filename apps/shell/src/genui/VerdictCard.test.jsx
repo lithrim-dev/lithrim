@@ -78,6 +78,28 @@ describe("VerdictCard — fully-interactive inline result", () => {
     expect(queryByTestId("vote-split-reviewer_opus")).toBeNull();
   });
 
+  it("k=1 hides the meaningless variance chip; a multi-sample vote keeps it (UI-pass polish)", () => {
+    const votes = [
+      { role: "reviewer_composo", vote: "BLOCK", variance: 0.0, k: 1 }, // "var 0.00 · k=1" was noise
+      { role: "reviewer_gpt41", vote: "PASS", variance: 0.13, k: 5 },
+    ];
+    const { container } = render(<VerdictCard verdict="approve" votes={votes} runId="run-10" />);
+    expect(container.textContent).not.toMatch(/var 0\.00 · k=1/);
+    expect(container.textContent).toMatch(/var 0\.13 · k=5/);
+  });
+
+  it("F8: a single GRADED reward score renders on the row; a decision scalar never does", () => {
+    const votes = [
+      { role: "reviewer_composo", vote: "BLOCK", scores_raw: [0.26], k: 1 }, // graded reward score
+      { role: "reviewer_opus", vote: "PASS", scores_raw: [1], k: 1 }, // plain decision scalar
+    ];
+    const { getByTestId, queryByTestId } = render(
+      <VerdictCard verdict="approve" votes={votes} runId="run-10" />,
+    );
+    expect(getByTestId("vote-score-reviewer_composo")).toHaveTextContent("score 0.26");
+    expect(queryByTestId("vote-score-reviewer_opus")).toBeNull(); // never fabricated
+  });
+
   it("renders the clinician-verdict (dissent) form inline when a runId is present", () => {
     const { getByTestId, getByText } = render(
       <VerdictCard verdict="approve" votes={VOTES} runId="run-10" />,

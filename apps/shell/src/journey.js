@@ -81,9 +81,15 @@ export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult =
     if (!doneFlags[i]) { currentIdx = i; break; }
   }
 
+  // `num` numbers the REQUIRED steps only (1..total) so the rail's node numbers agree with
+  // the "done / total" counter — the optional KB step carries num=null (rendered as a dot),
+  // instead of positional numbering that showed "step 6" in a "/ 5" journey.
+  let reqNum = 0;
   const steps = STEPS.map((s, i) => ({
     ...s,
     state: doneFlags[i] ? "done" : i === currentIdx ? "current" : "todo",
+    optional: OPTIONAL.has(s.name),
+    num: OPTIONAL.has(s.name) ? null : (reqNum += 1),
   }));
 
   // The count is over the required steps only (KB is optional).

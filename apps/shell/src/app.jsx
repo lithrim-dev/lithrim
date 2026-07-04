@@ -5,6 +5,7 @@ import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
 import { ModeSwitch } from "./components/ModeSwitch.jsx";
 import { CostModal } from "./components/CostModal.jsx";
+import { CommandPalette } from "./palette.jsx";
 import { deriveSteps, nextStep } from "./journey.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -96,8 +97,9 @@ export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
                   title="The domain pack this workspace grades under"
                   style={{ flex: 1, minWidth: 0, padding: "6px 8px", fontSize: 12, borderRadius: 6,
                     border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" }}>
+                  {/* dedupe id==domain — "clinical_scribe · clinical_scribe" read as a glitch */}
                   {(packs.length ? packs : [{ id: "_core", domain: "generic" }]).map((p) => (
-                    <option key={p.id} value={p.id}>{p.id}{p.domain ? ` · ${p.domain}` : ""}</option>
+                    <option key={p.id} value={p.id}>{p.id}{p.domain && p.domain !== p.id ? ` · ${p.domain}` : ""}</option>
                   ))}
                 </select>
                 <button onClick={submit}
@@ -235,7 +237,7 @@ export function ConnectorForm() {
   );
 }
 
-function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode, workspaces, activeWs, onSwitchWorkspace, onCreateWorkspace }) {
+function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runStatus, mode, setMode, workspaces, activeWs, onSwitchWorkspace, onCreateWorkspace, onOpenPalette }) {
   return (
     <div className="titlebar">
       {/* <div className="lights"><span className="light r" /><span className="light y" /><span className="light g" /></div> */}
@@ -249,7 +251,11 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
         <span className="crumb-txt"><b>Evaluations</b></span>
       </div>
 
-      <div className="tb-cmd"><I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span></div>
+      {/* CMDK-1: was an inert div advertising ⌘K — now it opens the real command palette. */}
+      <button type="button" className="tb-cmd" onClick={onOpenPalette}
+        title="Search cases & evaluations, or run a command (⌘K)">
+        <I name="search" size={14} /><span>Search or run a command…</span><span className="kbd">⌘K</span>
+      </button>
 
       <div className="tb-right">
         <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
@@ -391,6 +397,23 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // (the same CostModal contract as the chat/composer paid paths; never window.confirm).
   // $0 replays pass straight through. `liveConfirm` holds the pending case id (or true).
   const [liveConfirm, setLiveConfirm] = useState(null);
+
+  // CMDK-1: the ⌘K command palette — the real thing behind both search affordances (the
+  // top-bar bar opens it directly; the rail's dispatches "lithrim:cmdk"). Every action is
+  // an EXISTING App callback, so the paid entry still lands on the S-BS-80 cost confirm.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    const onOpen = () => setPaletteOpen(true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("lithrim:cmdk", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("lithrim:cmdk", onOpen); };
+  }, []);
   const requestRun = (live = false, caseId = null) => {
     if (live) { setLiveConfirm({ caseId }); return; }
     doRun(false, caseId);
@@ -569,6 +592,18 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // self-fetched ontology truly belongs to this workspace or is the leaked `_core` seed sample.
   const wsPack = (workspaces.find((w) => w.name === activeWs) || {}).pack || null;
 
+  // CMDK-1: the palette's command set — thin wrappers over the App's existing callbacks
+  // (nothing here spends: "Run live" goes to requestRun(true) → the S-BS-80 cost confirm).
+  const paletteActions = [
+    { id: "run-eval", label: "Run eval — replay the selected case for $0", run: () => requestRun(false) },
+    { id: "run-live", label: "Run live — one real, paid council run", hint: "cost-confirmed", run: () => requestRun(true) },
+    { id: "explore-case", label: "Explore case — browse the gradeable cases", run: () => openArtifact(activeCase ? "case" : "corpus") },
+    { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
+    { id: "new-eval", label: "New evaluation", run: onNewEval },
+    { id: "connect-ai", label: "Connect AI — providers & model assignments", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:connect-ai")); } catch {} } },
+    { id: "toggle-theme", label: `Switch to the ${theme === "light" ? "dark" : "light"} theme`, run: () => setTheme(theme === "light" ? "dark" : "light") },
+  ];
+
   return (
     <div className="desk">
       <div className="win">
@@ -576,7 +611,11 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
           toggleArtifact={() => { setOpen((o) => !o); setFull(false); }}
           onRunEval={requestRun} runStatus={runStatus} mode={mode} setMode={setMode}
           workspaces={workspaces} activeWs={activeWs}
-          onSwitchWorkspace={onSwitchWorkspace} onCreateWorkspace={onCreateWorkspace} />
+          onSwitchWorkspace={onSwitchWorkspace} onCreateWorkspace={onCreateWorkspace}
+          onOpenPalette={() => setPaletteOpen(true)} />
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)}
+          actions={paletteActions} agents={agents} activeAgent={activeAgent}
+          onSwitchAgent={onSwitchAgent} onSelectCase={onSelectCase} agent={activeAgent} />
         <CostModal
           open={liveConfirm != null}
           title="Run a live, paid evaluation?"

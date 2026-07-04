@@ -221,3 +221,18 @@ describe("SHEPHERD-1c — roster-add on judge save flips the Judges step (S-BS-1
     expect(twiceRostered.done).toBe(onceRostered.done);
   });
 });
+
+// UI-pass 2026-07-04 P1 #9: the rail numbered steps POSITIONALLY (KB=4, Review=6) while the
+// counter said "/ 5" — a guide reader counting along tripped. `num` numbers REQUIRED steps
+// only (1..total); the optional KB carries num=null (the rail renders a dot).
+describe("deriveSteps — required-step numbering matches the done/total counter", () => {
+  it("numbers required steps 1..total and gives the optional KB step num=null", () => {
+    const d = deriveSteps(null, [], null, null);
+    const byName = Object.fromEntries(d.steps.map((s) => [s.name, s]));
+    expect(byName["Knowledge base"].optional).toBe(true);
+    expect(byName["Knowledge base"].num).toBeNull();
+    const requiredNums = d.steps.filter((s) => !s.optional).map((s) => s.num);
+    expect(requiredNums).toEqual([1, 2, 3, 4, 5]); // contiguous — Review is 5 of 5, never "6 / 5"
+    expect(d.total).toBe(5);
+  });
+});

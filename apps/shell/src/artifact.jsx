@@ -372,10 +372,20 @@ function JudgeTab({ runStatus, runResult, runError }) {
                 <span className="d" style={{ background: color }} /> confidence{" "}
                 {conf == null ? "n/a" : conf.toFixed(2)}
               </span>
-              {/* this reviewer's OWN sampling variance over k samples (independent axis; never averaged). */}
-              {typeof v.variance === "number" && (
+              {/* this reviewer's OWN sampling variance over k samples (independent axis; never
+                  averaged). k=1 has no spread — "variance 0.00 · k=1" was noise, so it's hidden. */}
+              {typeof v.variance === "number" && v.k !== 1 && (
                 <span style={{ color: v.variance >= 0.2 ? "var(--amber)" : "var(--muted)" }}>
                   variance {v.variance.toFixed(2)}{v.k ? ` · k=${v.k}` : ""}
+                </span>
+              )}
+              {/* F8: a single GRADED score (a reward model's 0.26/0.6 — never a 0|0.5|1 decision
+                  scalar) is the research-relevant number — same rule as the inline VerdictCard. */}
+              {Array.isArray(v.scores_raw) && v.scores_raw.length === 1 && typeof v.scores_raw[0] === "number" &&
+                ![0, 0.5, 1].includes(v.scores_raw[0]) && (
+                <span data-testid={`judge-score-${v.judge_role || v.role}`}
+                  title="the reward model's raw graded score (low = unsafe; verdict = threshold at 0.5)">
+                  score {v.scores_raw[0].toFixed(2)}
                 </span>
               )}
               {v.reason && <span style={{ color: "var(--muted)" }}>{v.reason.slice(0, 80)}{v.reason.length > 80 ? "…" : ""}</span>}
