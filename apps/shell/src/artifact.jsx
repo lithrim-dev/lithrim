@@ -43,15 +43,42 @@ function ReportMessage({ children }) {
 // baseline (then Run eval replays it for $0). Everything else renders the error through friendlyError
 // (a calm sentence — never the raw HTTP verb/path/status/detail), and only hints "unreachable, restart
 // it" for a genuine no-response/network failure.
-function RunFailed({ runError }) {
+// REPLAY-HONESTY-1: the server's replay refusals are two DIFFERENT states — a config-drift 409 (the
+// baseline exists but the judges/checks/sampling changed since it was graded) and a true no-baseline —
+// and both contain "run it live or in_process", so a single regex collapsed them into one generic card.
+// The drift branch must come first and keep the case the server names; the no-baseline branch says when
+// the real blocker is that no case is selected.
+function RunFailed({ runError, activeCase = null }) {
   const errStr = String(runError || "");
-  if (/no captured baseline|\$0 replay is unavailable|run it live or in_process/i.test(errStr)) {
+  if (/config changed since/i.test(errStr)) {
+    const caseId = (errStr.match(/case '([^']+)'/) || [])[1] || activeCase;
+    return (
+      <ReportMessage>
+        <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>
+          The setup changed since this case was last graded
+        </div>
+        <div style={{ marginTop: 4, lineHeight: 1.5 }}>
+          {caseId ? (<>The saved baseline for <strong>{caseId}</strong> was</>) : (<>This case’s saved baseline was</>)}{" "}
+          captured under an older setup — the judges, checks, or sampling have changed since, so replaying
+          it would show a stale verdict. Use <strong>Run live</strong> to re-grade it once under the current
+          setup; <strong>Run eval</strong> then replays the new baseline for $0.
+        </div>
+      </ReportMessage>
+    );
+  }
+  if (/no captured baseline|\$0 replay is unavailable/i.test(errStr)) {
     return (
       <ReportMessage>
         <div style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>No saved run to replay yet</div>
         <div style={{ marginTop: 4, lineHeight: 1.5 }}>
-          This evaluation has no captured baseline, so the $0 replay (<strong>Run eval</strong>) has nothing
-          to replay. Use <strong>Run live</strong> to grade it once on your configured model — that captures a
+          {activeCase ? (
+            <>Case <strong>{activeCase}</strong> has no captured baseline, so the $0 replay (<strong>Run eval</strong>) has nothing to replay.</>
+          ) : (
+            <>No case is selected, so this run targeted the evaluation’s default case — which has no captured
+            baseline for the $0 replay (<strong>Run eval</strong>) to use. Pick a case first: ask the assistant
+            to open one, or choose one from the <strong>Cases</strong> tab.</>
+          )}{" "}
+          Use <strong>Run live</strong> to grade it once on your configured model — that captures a
           baseline, after which <strong>Run eval</strong> replays it for $0.
         </div>
       </ReportMessage>
@@ -106,10 +133,10 @@ function ReportSummary({ comp, votes }) {
   );
 }
 
-function ReportTab({ runStatus, runResult, runError }) {
+function ReportTab({ runStatus, runResult, runError, activeCase = null }) {
   if (runStatus === "loading")
     return <ReportMessage>Running the evaluation…</ReportMessage>;
-  if (runStatus === "error") return <RunFailed runError={runError} />;
+  if (runStatus === "error") return <RunFailed runError={runError} activeCase={activeCase} />;
   if (!runResult)
     return (
       <ReportMessage>
@@ -724,7 +751,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
           {tab === "case" && <CaseTab agent={agent} caseId={activeCase} />}
-          {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} />}
+          {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
           {tab === "corpus" && <CorpusTab activeCase={activeCase} onSelectCase={onSelectCase} />}

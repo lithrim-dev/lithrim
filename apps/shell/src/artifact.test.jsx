@@ -467,6 +467,55 @@ describe("ReportTab — GRADE-GUARD-2: a no-baseline $0-replay failure → actio
   });
 });
 
+// REPLAY-HONESTY-1 (UI-pass 2026-07-04 finding #3): the BFF's replay refusals are PRECISE —
+// a config-drift 409 ("the config changed since case X was last graded") is a DIFFERENT state
+// from "no captured baseline", but both contain "run it live or in_process", so the old
+// over-broad regex collapsed them into one generic "No saved run to replay yet" card. The
+// drift 409 must render its own explanation (naming the case), and the no-baseline card must
+// say when the real blocker is that no case is selected.
+describe("ReportTab — REPLAY-HONESTY-1: config-drift 409 + no-case-selected get their own copy", () => {
+  // the VERBATIM live 409 (validate stack, 2026-07-04) after a judge-config edit
+  const DRIFT =
+    "POST /v1/run-eval → 409: {\"detail\":\"agent 'repro_agent': the config changed since case " +
+    "'cv_mts_001_clean_control' was last graded — re-grade (run it live or in_process) to see the " +
+    "new verdict.\"}";
+  const NO_BASELINE =
+    "POST /v1/run-eval → 500: {\"detail\":\"grade subprocess failed (pack=healthcare): agent 'eval-1' " +
+    "has no captured baseline — $0 replay is unavailable for imported/live-only cases; run it live or " +
+    "in_process instead.\"}";
+
+  it("a config-drift 409 renders the setup-changed card naming the case — NOT the no-baseline card", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={DRIFT} />,
+    );
+    expect(screen.getByText(/setup changed since this case was last graded/i)).toBeInTheDocument();
+    expect(container.textContent).toMatch(/cv_mts_001_clean_control/); // the server names the case — keep it
+    expect(container.textContent).toMatch(/Run live/); // the actionable next step
+    expect(screen.queryByText(/No saved run to replay yet/i)).toBeNull(); // the old collapse is gone
+    expect(screen.queryByText(/We couldn't finish that run/i)).toBeNull(); // not a raw failure dump
+    expect(container.textContent).not.toMatch(/POST \/v1|→ 409|detail/); // no HTTP envelope leak
+  });
+
+  it("no-baseline with NO case selected says the blocker is picking a case", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="error" runResult={null} runError={NO_BASELINE} />,
+    );
+    expect(screen.getByText(/No saved run to replay yet/i)).toBeInTheDocument();
+    expect(container.textContent).toMatch(/No case is selected/i); // the distinct no-case state
+    expect(container.textContent).toMatch(/Run live/);
+  });
+
+  it("no-baseline WITH a case selected names that case and skips the pick-a-case hint", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" activeCase="clinverdict_case09_pediatrics_adolescent_seizure"
+        runStatus="error" runResult={null} runError={NO_BASELINE} />,
+    );
+    expect(screen.getByText(/No saved run to replay yet/i)).toBeInTheDocument();
+    expect(container.textContent).toMatch(/clinverdict_case09_pediatrics_adolescent_seizure/);
+    expect(container.textContent).not.toMatch(/No case is selected/i);
+  });
+});
+
 // S-BS-168a — the Report's plain-English "What this means" summary. Mirrors live
 // clinverdict_case01: an authored erasure_judge confidently rejects (BLOCK, 0.92) while
 // the faithfulness reviewer is low-confidence uncertain (WARN, 0.32). The summary must
