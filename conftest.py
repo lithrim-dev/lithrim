@@ -249,6 +249,15 @@ _NEEDS_PACK_FUNCS = {
         "test_grounding_contract_route_reuses_the_bound_op",
         "test_add_grounding_contract_tool_is_bounded_by_the_endpoint_guards",
     },
+    # CRITERION-JUTE-1d: the generate/gate/pin endpoint pins an mcp_call contract onto a healthcare
+    # flag (UPCODING_RISK) through the FROZEN put path — a bare CE checkout has neither the flag nor
+    # the pack ontology seed, so it NEEDS the pack (dev-green, bare-CE skip).
+    "test_criterion_jute_1d": {
+        "test_preview_returns_argshape_and_gate_report_no_write",
+        "test_commit_gate_pass_pins_contract_with_jute_and_sha",
+        "test_commit_gate_fail_422_and_no_write",
+        "test_commit_unknown_flag_404_no_write",
+    },
     # the CORE-FLOOR-1 merge reaching the EXTERNAL healthcare pack (the _core + in-repo narrative
     # halves stay green in bare CE — they prove the floor is domain-agnostic standalone).
     "test_value_presence_floor": {"test_value_presence_available_on_the_healthcare_pack"},
