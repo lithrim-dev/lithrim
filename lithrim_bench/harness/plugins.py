@@ -287,8 +287,14 @@ def provenance_snapshot(license: License | None = None) -> dict[str, Any]:
         *tool_plugins(),
     ]
     permitted = [p for p in plugins if not is_gated(p.tier) or license.permits(p.id)]
+    # REL-OPS-1 O4: the last bind-time model-binding check (role → model id + dated flag),
+    # recorded by ``model_policy.check_model_bindings`` at council construction. ``None``
+    # when no council was bound this process (structural-only / replay) — default-safe.
+    from lithrim_bench.harness import model_policy
+
     return {
         "active_pack": active,
         "pack_tier": manifest.tier,
         "plugins": [p.model_dump() for p in permitted],
+        "model_bindings": model_policy.last_model_bindings(),
     }

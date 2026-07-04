@@ -105,6 +105,15 @@ def build_authored_evaluator(
         temperatures=temperatures,
         criteria=criteria,
     )
+    # REL-OPS-1 O4: the dated-model-alias check, ONCE at bind time. ``build_judge_lm`` is
+    # frozen (the O1 fingerprint-deferral precedent), so the check reads the ``llm_model``
+    # VOTE-MODEL-1 stamps on each judge — here, the non-frozen construction site. Default
+    # WARN + record (provenance reads the registry); refuse rides
+    # LITHRIM_BENCH_REQUIRE_DATED_MODELS and raises BEFORE any grade. Offline judges
+    # (``predictors=`` → llm_model None) record ``dated: None`` and never warn/refuse.
+    from lithrim_bench.harness.model_policy import check_model_bindings
+
+    check_model_bindings({j.role: getattr(j, "llm_model", None) for j in trio})
     # Capture each reviewer's build-time role prompt (incl. its global criterion) so the
     # per-CASE policy criterion can be layered on per grade and restored after — the trio is
     # shared, so we never let a per-case prompt leak into the next grade. ``getattr`` keeps
