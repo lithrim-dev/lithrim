@@ -147,6 +147,11 @@ export default function VerdictCard({
                 {(c.evidence || c.reason) && (
                   <div style={{ fontSize: 12, color: "var(--fg)", lineHeight: 1.45, marginTop: 3 }}>{c.evidence || c.reason}</div>
                 )}
+                {/* REL-OPS-1 O2: the terminology release that decided this suppression — muted
+                    secondary metadata; pre-O2 entries carry no field and render nothing. */}
+                {c.terminology_edition && (
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>terminology edition: {c.terminology_edition}</div>
+                )}
               </div>
             ))}
           </div>

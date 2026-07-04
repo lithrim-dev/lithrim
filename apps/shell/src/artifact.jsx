@@ -237,6 +237,8 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null }) {
                 <span style={{ color: "var(--teal)", whiteSpace: "nowrap" }}>{a.action} · {a.contract}</span>
               </div>
               {a.reason && <div style={{ color: "var(--muted)", marginTop: 3 }}>{a.reason}</div>}
+              {/* REL-OPS-1 O2: the terminology release that decided this clear — absent on pre-O2 entries. */}
+              {a.terminology_edition && <div style={{ color: "var(--muted)", marginTop: 2, fontSize: 11.5 }}>terminology edition: {a.terminology_edition}</div>}
             </div>
           ))}
         </div>

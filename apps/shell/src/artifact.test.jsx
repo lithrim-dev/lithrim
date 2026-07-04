@@ -418,6 +418,41 @@ describe("ReportTab — Floor Blocks section (NARR-5 D2)", () => {
   });
 });
 
+// REL-OPS-1 O2 — a terminology-subsumption suppression carries `terminology_edition` on its
+// composite.grounded_adjustments entry (report.py). The Cleared-by-a-fact-check section renders it
+// as muted secondary metadata; a legacy entry (pre-O2 run) renders exactly as before — no placeholder.
+const EDITION_RUN = {
+  case_id: "cv_mts_104",
+  grade_path: "in_process",
+  composite: {
+    verdict: "approve",
+    stage_verdict: "PASS",
+    score: 0.0,
+    active_findings: [],
+    grounded_adjustments: [
+      { flag: "FABRICATED_CLAIM", action: "suppress", contract: "repro/2",
+        reason: "code-grounded by is-a subsumption via the connected terminology tool",
+        terminology_edition: "SNOMED CT 2026-01-31" },
+      { flag: "FABRICATED_HISTORY", action: "suppress", contract: "record-presence/v1",
+        reason: "present in the patient record" },
+    ],
+    floor_adjustments: [],
+  },
+  calibration_check: { label_status: "unlabeled", status: "unlabeled", verdict_match_rate: null, ece: null, n_cases: 1, n_with_confidence: 0 },
+};
+
+describe("ReportTab — terminology edition on cleared entries (REL-OPS-1 O2)", () => {
+  it("renders the edition on the entry that carries it; the legacy entry shows none", () => {
+    const { container } = render(
+      <ArtifactPane {...paneProps} tab="report" runStatus="ready" runResult={EDITION_RUN} runError={null} />,
+    );
+    expect(screen.getByText(/terminology edition: SNOMED CT 2026-01-31/)).toBeInTheDocument();
+    // exactly ONE edition line — the record-presence entry carries no edition and no placeholder
+    expect(container.textContent.match(/terminology edition/gi)).toHaveLength(1);
+    expect(container.textContent).not.toContain("undefined");
+  });
+});
+
 // META-VERDICT-1: the clinician's INDEPENDENT verdict + judge meta-audit (Clinical Scribe Review Layer-3).
 describe("ReportTab — clinician verdict (META-VERDICT-1)", () => {
   const REPORT_RESULT = {

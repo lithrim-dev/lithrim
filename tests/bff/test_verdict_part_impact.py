@@ -141,6 +141,23 @@ def test_verdict_part_omits_floor_clears_when_none():
     assert "floorClears" not in out
 
 
+def test_verdict_part_threads_terminology_edition_on_a_clear():
+    """REL-OPS-1 O2: a terminology-grounded suppression carries the release that decided it
+    (grounded.suppressed[].terminology_edition) — the projection must not strip it, so the card
+    can render the edition as secondary metadata beside the evidence."""
+    rec = _record_with_suppression()
+    rec["grounded"]["suppressed"][0]["terminology_edition"] = "unrecorded"
+    out = verdict_part(rec)["output"]
+    assert out["floorClears"][0]["terminology_edition"] == "unrecorded"
+
+
+def test_verdict_part_omits_terminology_edition_on_a_legacy_clear():
+    """Pre-O2 blobs carry no edition — the projected entry stays shape-identical (absent, not
+    null), so legacy cards render exactly as before."""
+    out = verdict_part(_record_with_suppression())["output"]
+    assert "terminology_edition" not in out["floorClears"][0]
+
+
 # ── the floor INJECTION attribution lives on verdict_part (run_eval no longer narrates a verdict) ──
 
 
