@@ -112,6 +112,30 @@ def contract_builder_part(
     return _part("contract_builder", out, show_intent=show_intent)
 
 
+def criterion_jute_builder_part(
+    agent: str,
+    flag_code: str = "",
+    tool: str = "",
+    call: str = "",
+    criterion: str = "",
+    *,
+    show_intent: str = "auto",
+) -> dict[str, Any]:
+    """CRITERION-JUTE-1d: author_contract, for a TOOL-GROUNDED (``mcp_call``) flag, ADDITIONALLY
+    surfaces the CriterionJuteBuilder INPUT widget inline — the "pick a tool+call, seed generation
+    with a plain-English criterion, gate over the corpus, pin on pass" move. The mirror is
+    contract_builder_part: EMIT-ONLY (this part adds NO write path). The card's "Generate + gate" is
+    a $0 PREVIEW and its "Pin" rides ``POST /v1/criterion-jute/generate`` (commit=true) — the
+    human's Pin is the SOLE audited write, gated on the corpus gate passing; the agent never pins the
+    contract itself. NOT a ``_TOOL_SPECS`` entry (a part-builder, not a chat tool) — the tool-count
+    is unchanged. ``auto`` (an authoring card the agent leads with)."""
+    return _part(
+        "criterion_jute_builder",
+        {"agent": agent, "flag_code": flag_code, "tool": tool, "call": call, "criterion": criterion},
+        show_intent=show_intent,
+    )
+
+
 def tool_builder_part(
     agent: str, *, seed: dict[str, Any] | None = None, show_intent: str = "auto"
 ) -> dict[str, Any]:

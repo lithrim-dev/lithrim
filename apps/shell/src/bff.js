@@ -146,6 +146,15 @@ export const putOntology = (ontology, agent = "ws0_default") =>
 export const putGroundingContract = (contract, agent = "ws0_default") =>
   call("/v1/grounding-contract", { method: "POST", body: { ...contract, agent } });
 
+/* POST /v1/criterion-jute/generate — CRITERION-JUTE-1d: the tool-grounded criterion loop. An SME
+   picks a tool+call, a plain-English criterion seeds generation of the per-case arguments_jute (1b),
+   the bidirectional subsumption corpus gate runs (1c), and the mcp_call + arguments_jute contract
+   PINS on pass (1a). commit:false = a $0 PREVIEW ({status:"preview", arguments_jute,
+   arguments_jute_sha256, gate_report}); commit:true + a passing gate PINS through the same audited
+   put path ({status:"pinned", contract, gate_report}); a failing gate 422s (naming the case ids). */
+export const generateCriterionJute = ({ flag_code, tool, call, criterion = "", sample_case = {}, n_generations = 3, commit = false, agent = "ws0_default" }) =>
+  call("/v1/criterion-jute/generate", { method: "POST", body: { flag_code, tool, call, criterion, sample_case, n_generations, commit, agent } });
+
 /* GET /v1/grounding-contract/types — FAUTH-2 (G3): the active pack's REGISTERED grounding
    executor keys (suppress ∪ floor) — the pack-true contract-type list ContractBuilder drives its
    selector from, so a non-coder can only pick a type the author-time gate will accept (and that

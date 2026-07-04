@@ -40,14 +40,14 @@ AGENT = "cjute1d_test"
 KNOWN_FLAG = "UPCODING_RISK"
 
 # reuse the 1c golden fixtures so the injected gate is the REAL 1c gate, not a stub.
+from lithrim_bench.verification.argshape_gate import (  # noqa: E402
+    gate_contract_over_corpus,
+)
 from tests.test_criterion_jute_1c import (  # noqa: E402
     GOLDEN_ARGUMENTS_JUTE,
     build_snomed_oracle,
     golden_jute_apply,
     wrong_direction_jute_apply,
-)
-from lithrim_bench.verification.argshape_gate import (  # noqa: E402
-    gate_contract_over_corpus,
 )
 
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "subsumption_bidirectional"
@@ -62,6 +62,14 @@ def _corpus_parts():
     negatives = _load_jsonl(FIXTURES / "clean_generalization_negatives.jsonl")
     span_bind = _load_jsonl(FIXTURES / "span_bind_positives.jsonl")
     return positives, negatives, span_bind
+
+
+def _pack_ontology_abspath() -> Path:
+    """The DISCOVERED active-pack ontology (the same self-heal the BFF applies when the in-repo seed
+    is absent post-PACK-DIST). Used to build the hermetic clean draft in the fixture."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    return Path(_pack_mod.pack_ontology_path(_pack_mod.active_pack()))
 
 
 def _fixture_agent() -> Agent:
@@ -97,9 +105,28 @@ def env(tmp_path, monkeypatch):
 
     db = tmp_path / "bench_config.sqlite"
     workdir = tmp_path / "ont"
+    workdir.mkdir(parents=True, exist_ok=True)
     examples = tmp_path / "examples"
     examples.mkdir()
     save_agent(_fixture_agent(), db_path=db)
+
+    # HERMETIC: seed a clean DRAFT ontology (workdir/{agent}.json — _resolve_ontology_path prefers
+    # it) whose gradeable flags are ALL snapshot-admissible, so the FROZEN put_ontology_endpoint's
+    # snapshot lint validates the whole ontology cleanly. This isolates the test from the pack
+    # working-tree's own drift (the "23-vs-25" open condition: the pack ontology may carry a
+    # gradeable flag not yet in the snapshot, which would false-reject ANY unrelated PUT). The pin
+    # target (UPCODING_RISK) survives the filter.
+    from lithrim_bench.harness import pack as _pack_mod
+
+    admissible = set(_pack_mod.pack_taxonomy_codes(active_pack()))
+    seed = json.loads(_pack_ontology_abspath().read_text())
+    seed["flags"] = [
+        f for f in seed.get("flags", [])
+        if (not f.get("gradeable")) or f.get("flag") in admissible
+    ]
+    seed["verification_contracts"] = []
+    (workdir / f"{AGENT}.json").write_text(json.dumps(seed))
+
     bff.app.dependency_overrides[bff.get_config_db] = lambda: db
     bff.app.dependency_overrides[bff.get_ontology_workdir] = lambda: workdir
     bff.app.dependency_overrides[bff.get_examples_dir] = lambda: examples

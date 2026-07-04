@@ -110,6 +110,65 @@ def test_author_contract_defaults_agent_and_handles_missing_flag():
     assert "suggested_params" not in parts[0]["output"]
 
 
+# ── CRITERION-JUTE-1d: a TOOL-GROUNDED (mcp_call) flag ALSO surfaces CriterionJuteBuilder ─────
+
+
+def test_criterion_jute_builder_part_carries_the_seed():
+    """criterion_jute_builder_part projects the seed the inline card mounts pre-bound to: a
+    ``tool-criterion_jute_builder`` part whose flat-spread output carries
+    {agent, flag_code, tool, call, criterion}. The mirror is contract_builder_part."""
+    part = agent_adapter.criterion_jute_builder_part(
+        "ws0_default", flag_code="UPCODING_RISK", tool="hermes_snomed", call="subsumed_by", criterion="c"
+    )
+    assert part["type"] == "tool-criterion_jute_builder"
+    assert part["state"] == "output-available"
+    assert part["output"] == {
+        "agent": "ws0_default", "flag_code": "UPCODING_RISK",
+        "tool": "hermes_snomed", "call": "subsumed_by", "criterion": "c",
+    }
+    assert part.get("show_intent") == "auto"
+
+
+def test_author_contract_also_surfaces_criterion_jute_for_mcp_call():
+    """CRITERION-JUTE-1d: for a TOOL-GROUNDED (mcp_call) flag, author_contract ADDITIONALLY emits
+    the CriterionJuteBuilder card (the generate→gate→pin surface), seeded from the tool/call in the
+    suggested_params. Still EMIT-ONLY (no bound write op) — the human's Pin is the sole write."""
+    ctx = _stub_ctx()
+    out = asyncio.run(
+        agent_tools.author_contract_handler(
+            ctx,
+            {
+                "flag_code": "UPCODING_RISK",
+                "contract_type": "mcp_call",
+                "question": "record-vs-note subsumption",
+                "suggested_params": {"tool": "hermes_snomed", "call": "subsumed_by"},
+            },
+        )
+    )
+    assert "is_error" not in out
+    types = [p.get("type") for p in ctx.parts]
+    # BOTH cards surface: the contract builder AND the criterion-jute builder.
+    assert "tool-contract_builder" in types
+    cj = [p for p in ctx.parts if p.get("type") == "tool-criterion_jute_builder"]
+    assert len(cj) == 1, ctx.parts
+    o = cj[0]["output"]
+    assert o["flag_code"] == "UPCODING_RISK"
+    assert o["tool"] == "hermes_snomed" and o["call"] == "subsumed_by"
+    assert o["criterion"] == "record-vs-note subsumption"
+
+
+def test_author_contract_does_not_surface_criterion_jute_for_non_mcp_call():
+    """The criterion-jute card is scoped to the mcp_call direction — a presence_check flag surfaces
+    ONLY the contract builder (the default path is byte-identical to FAUTH-1)."""
+    ctx = _stub_ctx()
+    asyncio.run(
+        agent_tools.author_contract_handler(
+            ctx, {"flag_code": "WRONG_DOSAGE", "contract_type": "presence_check"}
+        )
+    )
+    assert not [p for p in ctx.parts if p.get("type") == "tool-criterion_jute_builder"]
+
+
 # ── A-SAFE: no paid knob, surfaces-not-spends, allowlist == _TOOL_SPECS ───────
 
 

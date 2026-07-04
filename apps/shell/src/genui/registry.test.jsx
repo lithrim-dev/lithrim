@@ -33,11 +33,12 @@ const EXPECTED = {
   "tool-tool_builder": /Connect a tool/i, // TOOL-AUTHOR-1 — the MCP/API tool-authoring card
   "tool-readiness_card": /Setup readiness/i, // READINESS — the inline agent↔pack setup-gaps card
   "tool-reliability_card": /No graded runs yet/i, // RIGOR-1 — the reliability-metrics card (empty-state mount)
+  "tool-criterion_jute_builder": /^Tool-grounded criterion$/, // anchored: the CardTitle, not the footer's lowercase "author a tool-grounded criterion"
 };
 
 describe("renderTool registry", () => {
-  it("knows all 16 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(16);
+  it("knows all 17 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(17);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

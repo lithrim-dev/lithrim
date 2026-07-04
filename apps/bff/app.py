@@ -663,6 +663,26 @@ class AuthoredToolRequest(BaseModel):
     rationale: str = ""
 
 
+class CriterionJuteGenerateRequest(BaseModel):
+    # CRITERION-JUTE-1d: the orchestration request for the SME tool-grounded criterion loop — pick a
+    # tool+call, seed generation with a plain-English criterion, gate the candidate arguments_jute
+    # over the bidirectional subsumption corpus, PREVIEW ($0), then PIN on pass. Mirrors the
+    # _ingest_cases preview/commit split: commit=False returns the argshape + gate report and writes
+    # NOTHING; commit=True + a PASSING gate pins ONE mcp_call + arguments_jute contract (1a's
+    # _pin_arguments_jute fills the sha256) via the SAME frozen put path; a FAILING gate 422s.
+    flag_code: str
+    tool: str
+    call: str
+    criterion: str = ""
+    sample_case: dict = {}
+    n_generations: int = 3
+    authority: str = "corroborated"
+    match: str = "subsumedBy"
+    commit: bool = False
+    agent: str = DEFAULT_AGENT
+    rationale: str = ""
+
+
 # META-VERDICT-1: the closed judge-fallacy taxonomy (Clinical Scribe Review's "Judge Fallacy" column).
 # A clinician naming WHY the automated judge erred — the dissent's typed reason. Closed by
 # construction: an out-of-enum code 422s at the model boundary (pydantic), never a free string.
@@ -3753,6 +3773,231 @@ def _pin_arguments_jute(params: dict) -> dict:
     pinned = dict(params)
     pinned["arguments_jute_sha256"] = hashlib.sha256(jute.encode("utf-8")).hexdigest()
     return pinned
+
+
+# ── CRITERION-JUTE-1d: the SME tool-grounded criterion loop — generate (1b) → gate (1c) → pin (1a) ──
+# The two orchestration steps are MODULE-LEVEL hooks so a networkless test monkeypatches them (an LM +
+# :3031 + Hermes are needed live). The endpoint below composes: build the candidate arguments_jute,
+# replay the 1c corpus gate, PREVIEW ($0) or PIN-on-pass through the FROZEN put path (422 on fail).
+_CRITERION_JUTE_CORPUS_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "subsumption_bidirectional"
+
+
+def _load_criterion_jute_corpus() -> list[dict]:
+    """The bidirectional subsumption corpus the 1c gate replays a candidate contract over (22 upcoded
+    positives + 22 clean-generalization negatives + 2 SPAN-BIND analogues). Read from the in-repo
+    fixtures; a missing dir yields an empty corpus (the gate then vacuously passes — the endpoint
+    guards against an empty corpus so a preview/commit over nothing is a clean 422)."""
+    cases: list[dict] = []
+    if not _CRITERION_JUTE_CORPUS_DIR.is_dir():
+        return cases
+    for name in (
+        "upcoded_positives.jsonl",
+        "clean_generalization_negatives.jsonl",
+        "span_bind_positives.jsonl",
+    ):
+        p = _CRITERION_JUTE_CORPUS_DIR / name
+        if not p.exists():
+            continue
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if line:
+                cases.append(json.loads(line))
+    return cases
+
+
+def _criterion_jute_generate_argshape(
+    *,
+    flag_code: str,
+    tool: str,
+    call: str,
+    criterion: str,
+    sample_case: dict,
+    input_schema: dict,
+    n_generations: int,
+) -> dict:
+    """Build the candidate ``arguments_jute`` from the plain-English criterion + the tool call's
+    inputSchema over a sample ``{case, finding}`` envelope, via the 1b argshape refine loop
+    (``build_argshape_generator`` + ``best_of_n_argshape``, live-gated on :3031). Returns
+    ``{arguments_jute, arguments_jute_sha256}``. LIVE: needs :3031 (the JUTE apply gate) + an LM
+    (the generator). A networkless test monkeypatches THIS function with a fixed transform, so the
+    endpoint's orchestration + gate + pin are exercised offline."""
+    from lithrim_bench.verification import (
+        EtlpJuteClient,
+        best_of_n_argshape,
+        build_argshape_generator,
+        render_dsl_excerpt,
+    )
+
+    client = EtlpJuteClient(base_url=_jute_base_url())
+    _health = getattr(client, "health", None)
+    if callable(_health) and not _health():
+        raise RuntimeError(
+            f"the JUTE mapper is not reachable at {getattr(client, 'base', _jute_base_url())} "
+            "— criterion-jute generation needs it to live-gate the arg-shaping transform. Start the "
+            "bundled mapper (`docker compose up` includes it) or point LITHRIM_JUTE_URL at one."
+        )
+    # the sample envelope 1a re-applies at grade time: {case, finding}. A finding is the first
+    # _synth_findings entry (the SME's sample case), else an empty dict (the gate then rejects).
+    findings = (sample_case or {}).get("_synth_findings") or []
+    envelope = {"case": sample_case or {}, "finding": findings[0] if findings else {}}
+    dsl_excerpt = render_dsl_excerpt()
+
+    def make_gen():
+        return build_argshape_generator(
+            client, dsl_excerpt, envelope, input_schema=input_schema, criterion=criterion
+        )
+
+    pred = best_of_n_argshape(make_gen, criterion, envelope, n=n_generations)
+    jute = getattr(pred, "jute_transform", "") or ""
+    if not getattr(pred, "accepted", False) or not jute.strip():
+        raise RuntimeError(
+            "the argshape generator did not converge on a transform satisfying the tool call's "
+            f"inputSchema for {tool}.{call} — nothing pinned"
+        )
+    return {
+        "arguments_jute": jute,
+        "arguments_jute_sha256": hashlib.sha256(jute.encode("utf-8")).hexdigest(),
+    }
+
+
+def _criterion_jute_gate(candidate_params: dict):
+    """Replay ``candidate_params`` (an ``mcp_call`` + ``arguments_jute`` contract) over the
+    bidirectional subsumption corpus via the 1c ``gate_contract_over_corpus`` (the REAL frozen
+    ``McpCallGrounding`` executor with the corpus-derived oracle + the pinned :3031 transform). LIVE:
+    needs Hermes SNOMED (the terminology oracle) + :3031 (the JUTE apply). A networkless test
+    monkeypatches THIS function to inject the golden fakes (the disclosed-circularity oracle + a fixed
+    jute_apply), exercising the endpoint's gate → preview/pin decision offline. Returns a GateReport."""
+    from lithrim_bench.verification import EtlpJuteClient
+    from lithrim_bench.verification.argshape_gate import gate_contract_over_corpus
+    from lithrim_bench.verification.mcp_client import McpStdioClient
+
+    corpus = _load_criterion_jute_corpus()
+
+    def jute_apply(case: dict, finding: dict) -> dict:
+        client = EtlpJuteClient(base_url=_jute_base_url())
+        return client.test_template(
+            candidate_params.get("arguments_jute", ""), {"case": case, "finding": finding}
+        )
+
+    def snomed_oracle(call: str, arguments: dict):
+        from lithrim_bench.harness import plugins
+
+        manifest = plugins.resolve_tool(candidate_params.get("tool"))
+        mcp = ((manifest.service if manifest else {}) or {}).get("mcp") or {}
+        with McpStdioClient(command=mcp.get("command"), args=mcp.get("args", [])) as c:
+            return c.call_tool(call, arguments)
+
+    return gate_contract_over_corpus(
+        candidate_params, corpus, jute_apply=jute_apply, snomed_oracle=snomed_oracle
+    )
+
+
+def _gate_report_dict(report) -> dict:
+    """Project a 1c GateReport into the JSON the preview/commit response + the inline card render."""
+    return {
+        "negatives_cleared": report.negatives_cleared,
+        "negatives_total": report.negatives_total,
+        "positives_standing": report.positives_standing,
+        "positives_total": report.positives_total,
+        "span_bind_ok": report.span_bind_ok,
+        "span_bind_cases": report.span_bind_cases,
+        "failures": list(report.failures),
+        "passed": report.passed,
+    }
+
+
+@app.post("/v1/criterion-jute/generate")
+def criterion_jute_generate_endpoint(
+    body: CriterionJuteGenerateRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """CRITERION-JUTE-1d: the SME tool-grounded criterion authoring loop — generate (1b) → gate (1c) →
+    pin (1a). An SME picks a tool+call, a plain-English ``criterion`` seeds generation of the
+    ``arguments_jute`` (the pinned per-case JUTE arg-mapping), the bidirectional subsumption corpus
+    gate replays the candidate contract, and the ``mcp_call`` + ``arguments_jute`` contract PINS on
+    pass. Mirrors ``_ingest_cases`` (the generate→gate→pin front door): ``commit=False`` (the default)
+    returns a PREVIEW (the argshape + the gate report; $0, writes NOTHING); ``commit=True`` + a PASSING
+    gate pins ONE contract through the SAME frozen ``ctx.put_grounding_contract`` path (so the 404
+    unknown-flag / 422 malformed gates + the single audited write hold); a FAILING gate 422s naming the
+    failing case ids and pins NOTHING (labels stay true by construction — a contract that mis-clears a
+    negative or lets a positive through never enters the store)."""
+    # (1) build the candidate arguments_jute (1b). The tool call's inputSchema rides sample_case's
+    # _tool_input_schema if the SME provided it (else empty → the generator/gate surface the gap).
+    input_schema = (body.sample_case or {}).get("_tool_input_schema") or {}
+    gen = _criterion_jute_generate_argshape(
+        flag_code=body.flag_code,
+        tool=body.tool,
+        call=body.call,
+        criterion=body.criterion,
+        sample_case=body.sample_case or {},
+        input_schema=input_schema,
+        n_generations=body.n_generations,
+    )
+    arguments_jute = gen["arguments_jute"]
+    arguments_jute_sha256 = gen["arguments_jute_sha256"]
+
+    # (2) the candidate contract params (1a shape) + the 1c corpus gate.
+    candidate_params = {
+        "tool": body.tool,
+        "call": body.call,
+        "arguments_jute": arguments_jute,
+        "arguments_jute_sha256": arguments_jute_sha256,
+        "authority": body.authority,
+        "match": body.match,
+    }
+    report = _criterion_jute_gate(candidate_params)
+    gate_report = _gate_report_dict(report)
+
+    # (3) PREVIEW ($0, no write).
+    if not body.commit:
+        return {
+            "status": "preview",
+            "arguments_jute": arguments_jute,
+            "arguments_jute_sha256": arguments_jute_sha256,
+            "gate_report": gate_report,
+        }
+
+    # (4/5) COMMIT: a FAILING gate 422s (naming the case ids); a PASSING gate PINS through the frozen
+    # put path (the SAME bound op the ContractBuilder route + add_grounding_contract chat tool use).
+    if not report.passed:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "the candidate mcp_call/arguments_jute contract FAILED the bidirectional corpus gate — "
+                f"failing case ids: {list(report.failures)}; nothing pinned"
+            ),
+        )
+    ctx = _build_tool_context(
+        req_agent=body.agent,
+        db_path=db_path,
+        out_dir=out_dir,
+        workdir=workdir,
+        collections_db=collections_db,
+        actor=default_actor,
+        x_actor=x_actor,
+    )
+    # _pin_arguments_jute is idempotent (a caller-supplied sha256 is trusted as-is); pass it through
+    # so the pinned params carry BOTH the transform AND its sha256 exactly as the ContractBuilder
+    # route does. The 404 (unknown flag) / 422 (malformed) gates fire inside the bound op.
+    pinned = ctx.put_grounding_contract(
+        flag_code=body.flag_code,
+        contract_type="mcp_call",
+        params=_pin_arguments_jute(candidate_params),
+        question=body.rationale or f"tool-grounded criterion: {body.criterion}"[:280],
+        version=f"{body.flag_code}/mcp_call/v1",
+        agent=body.agent,
+    )
+    return {
+        "status": "pinned",
+        "contract": pinned,
+        "gate_report": gate_report,
+        "audit_id": f"contract:{body.flag_code}",
+    }
 
 
 @app.post("/v1/grounding-contract")

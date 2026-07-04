@@ -36,6 +36,7 @@ from .adapter import (
     case_summary_part,
     contract_builder_part,
     criterion_builder_part,
+    criterion_jute_builder_part,
     flag_part,
     judge_builder_part,
     judge_part,
@@ -786,6 +787,23 @@ async def author_contract_handler(ctx: ToolContext, args: dict[str, Any]) -> dic
             contract_type=contract_type,
         )
     )
+    # CRITERION-JUTE-1d: for a TOOL-GROUNDED (mcp_call) flag, ADDITIONALLY surface the
+    # CriterionJuteBuilder inline — the "pick a tool+call, seed generation with a plain-English
+    # criterion, gate over the corpus, pin on pass" surface. EMIT-ONLY (like the contract card): the
+    # human's "Pin" is the sole audited write, gated on the corpus gate passing. The tool prose from
+    # suggested_params (tool/call) seeds the picker when present. This is a part-builder, NOT a new
+    # _TOOL_SPECS entry — the tool-count is unchanged.
+    if contract_type == "mcp_call":
+        _sp = suggested or {}
+        ctx.emit(
+            criterion_jute_builder_part(
+                ctx.default_agent,
+                flag_code=flag_code,
+                tool=str(_sp.get("tool") or ""),
+                call=str(_sp.get("call") or ""),
+                criterion=question or str(_sp.get("criterion") or ""),
+            )
+        )
     seeded = " (pre-filled with a suggested draft you can edit)" if suggested else ""
     return _text(
         f"Surfaced the contract builder inline, pre-bound to flag "
