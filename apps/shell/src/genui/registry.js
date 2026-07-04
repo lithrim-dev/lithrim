@@ -36,6 +36,7 @@ export const KNOWN_TOOLS = [
   "tool-ingest_preview",
   "tool-tool_builder",
   "tool-readiness_card",
+  "tool-reliability_card",
 ];
 
 const TOOL_REGISTRY = {};

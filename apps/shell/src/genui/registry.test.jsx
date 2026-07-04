@@ -32,11 +32,12 @@ const EXPECTED = {
   "tool-ingest_preview": /cases from/i, // CE-INGEST-FRONTDOOR-1 — the upload preview card (empty mount: "0 cases from file")
   "tool-tool_builder": /Connect a tool/i, // TOOL-AUTHOR-1 — the MCP/API tool-authoring card
   "tool-readiness_card": /Setup readiness/i, // READINESS — the inline agent↔pack setup-gaps card
+  "tool-reliability_card": /No graded runs yet/i, // RIGOR-1 — the reliability-metrics card (empty-state mount)
 };
 
 describe("renderTool registry", () => {
-  it("knows all 15 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(15);
+  it("knows all 16 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(16);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

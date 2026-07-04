@@ -17,6 +17,7 @@ import "./ScorecardCard.jsx";
 import "./IngestPreviewCard.jsx";
 import "./ToolBuilder.jsx";
 import "./ReadinessCard.jsx";
+import "./ReliabilityCard.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
 
@@ -36,3 +37,4 @@ export { default as ScorecardCard } from "./ScorecardCard.jsx";
 export { default as IngestPreviewCard } from "./IngestPreviewCard.jsx";
 export { default as ToolBuilder } from "./ToolBuilder.jsx";
 export { default as ReadinessCard } from "./ReadinessCard.jsx";
+export { default as ReliabilityCard } from "./ReliabilityCard.jsx";
