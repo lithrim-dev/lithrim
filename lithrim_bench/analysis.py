@@ -20,6 +20,11 @@ Pack-level rollups:
 - instability_rate: fraction of cases with verdict_instability > 0
 - mean verdict_match_rate with bootstrap 95% CI (B=1000 by default)
 - false_block_rate
+
+Cross-pin refusal (eval spec §1.6, O5): two runs are comparable only if
+their pinned tuples match. compare_runs raises CrossPinError on mixed
+pins unless allow_cross_pin=True, and then labels the output
+cross_pin=True.
 """
 from __future__ import annotations
 
@@ -89,6 +94,59 @@ def _fleiss_kappa(per_judge_verdicts: list[dict[str, str]]) -> float | None:
     if P_e >= 1.0:
         return 1.0
     return (P_bar - P_e) / (1 - P_e)
+
+
+class CrossPinError(ValueError):
+    """Comparing/aggregating runs whose §1.6 pinned tuples differ."""
+
+    def __init__(self, pins: list[dict[str, Any] | None]):
+        self.pins = pins
+        super().__init__(
+            f"refusing a cross-pin comparison: {len(pins)} distinct pinned tuples "
+            "across the given runs; pass allow_cross_pin=True (--allow-cross-pin) "
+            "to compare anyway with the output labeled cross_pin=true"
+        )
+
+
+def _pin_key(pin: dict[str, Any] | None) -> str:
+    return json.dumps(pin, sort_keys=True)
+
+
+def distinct_pins(rows: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+    seen: dict[str, dict[str, Any] | None] = {}
+    for r in rows:
+        pin = r.get("pin")
+        seen.setdefault(_pin_key(pin), pin)
+    return list(seen.values())
+
+
+def compare_runs(
+    runs_by_label: dict[str, list[dict[str, Any]]],
+    *,
+    allow_cross_pin: bool = False,
+    pack_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Aggregate multiple run-row sets (one per label, typically one per NDJSON file).
+
+    Refuses mismatched pinned tuples — including a mix *within* one label,
+    e.g. a concatenated NDJSON — unless allow_cross_pin is set.
+    """
+    all_rows = [r for rows in runs_by_label.values() for r in rows]
+    pins = distinct_pins(all_rows)
+    cross_pin = len(pins) > 1
+    if cross_pin and not allow_cross_pin:
+        raise CrossPinError(pins)
+    return {
+        "cross_pin": cross_pin,
+        "pins": pins,
+        "runs": {
+            label: {
+                "pins": distinct_pins(rows),
+                "pack_summary": analyze_pack(analyze_per_case(rows), pack_rows=pack_rows),
+            }
+            for label, rows in runs_by_label.items()
+        },
+    }
 
 
 def read_runs(path: Path) -> list[dict[str, Any]]:
