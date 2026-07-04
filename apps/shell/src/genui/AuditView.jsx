@@ -212,6 +212,8 @@ export default function AuditView({ runId: runIdProp = "" }) {
                       <span className="text-foreground">{flagLabel(s.code)}</span> disproved by{" "}
                       <span className="font-[family-name:var(--font-mono)]">{s.contract}</span>
                       {s.reason ? <> — {s.reason}</> : null}
+                      {/* REL-OPS-1 O2: the terminology release that decided it — absent on pre-O2 blobs. */}
+                      {s.terminology_edition ? <> · terminology edition: {s.terminology_edition}</> : null}
                     </div>
                   ))}
                   {(run.grounded.suppressed || []).length === 0 && (

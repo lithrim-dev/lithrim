@@ -314,7 +314,8 @@ function verdictShape(rec) {
   // fresh (cost-confirmed) grade renders the SAME "Cleared by a fact-check" badge the agent card does.
   const floorClears = ((rec?.grounded || {}).suppressed || [])
     .filter((s) => s.code)
-    .map((s) => ({ flag: s.code, reason: s.reason, evidence: s.evidence }));
+    // REL-OPS-1 O2: the terminology edition rides along when present (absent otherwise — pre-O2 shape).
+    .map((s) => ({ flag: s.code, reason: s.reason, evidence: s.evidence, ...(s.terminology_edition != null ? { terminology_edition: s.terminology_edition } : {}) }));
   if (floorClears.length) out.floorClears = floorClears;
   const faith = votes.find((v) => String(v.judge_role || "").toLowerCase().includes("faith"));
   if (faith) {

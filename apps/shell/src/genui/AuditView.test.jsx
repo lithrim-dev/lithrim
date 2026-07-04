@@ -155,6 +155,36 @@ describe("AuditView — FLOOR-VIS-1: the grounding floor's outcome is visible", 
     expect(grounded).toHaveTextContent(/grounded in the patient record/i);
   });
 
+  // REL-OPS-1 O2: a terminology-grounded suppression carries the release that decided it.
+  it("F4 — a suppression carrying terminology_edition renders it as muted metadata", async () => {
+    getRunAudit.mockResolvedValueOnce({
+      verdict: "BLOCK", actor: { id: "ws0_default" }, grade_path: "in_process", judges: [],
+      grounded_verdict: "PASS",
+      grounded: {
+        verdict: "PASS", original_verdict: "WARN", active: [],
+        suppressed: [{
+          code: "FABRICATED_CLAIM", contract: "repro/2", disproved: true,
+          reason: "code-grounded by is-a subsumption via the connected terminology tool",
+          terminology_edition: "unrecorded",
+        }],
+      },
+    });
+    render(<AuditView runId="a57bd49d-aaaa" />);
+    await waitFor(() => expect(getAudit).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Load run/i }));
+    const grounded = await screen.findByTestId("run-grounded");
+    expect(grounded).toHaveTextContent(/terminology edition: unrecorded/);
+  });
+
+  it("F5 — a legacy suppression (no edition field) renders NO edition text (no placeholder)", async () => {
+    render(<AuditView runId="a57bd49d-aaaa" />);
+    await waitFor(() => expect(getAudit).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Load run/i }));
+    const grounded = await screen.findByTestId("run-grounded");
+    expect(grounded.textContent).not.toMatch(/terminology edition/i);
+    expect(grounded.textContent).not.toMatch(/undefined/);
+  });
+
   it("F3 — a legacy run report (no grounded block) renders no floor section", async () => {
     getRunAudit.mockResolvedValueOnce({
       verdict: "BLOCK", actor: { id: "ws0_default" }, grade_path: "replay",

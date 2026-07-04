@@ -272,8 +272,19 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
     # Projected from record.grounded.suppressed (code + reason + evidence). The card renders a "Cleared
     # by a fact-check" attribution so the suppression flip reads on-card, not only in the full report.
     # Added only when non-empty (a real clean pass shows nothing — never a fabricated 'cleared').
+    # REL-OPS-1 O2: `terminology_edition` rides along when the suppression carries it —
+    # absent (not null) otherwise, so pre-O2 entries project shape-identical.
     floor_clears = [
-        {"flag": s.get("code"), "reason": s.get("reason"), "evidence": s.get("evidence")}
+        {
+            "flag": s.get("code"),
+            "reason": s.get("reason"),
+            "evidence": s.get("evidence"),
+            **(
+                {"terminology_edition": s["terminology_edition"]}
+                if s.get("terminology_edition") is not None
+                else {}
+            ),
+        }
         for s in ((record.get("grounded") or {}).get("suppressed") or [])
         if s.get("code")
     ]

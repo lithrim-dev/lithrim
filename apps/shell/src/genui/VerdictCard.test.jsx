@@ -176,4 +176,29 @@ describe("VerdictCard — carries the WHY inline (reasoning + floor attribution)
     const { container } = render(<VerdictCard verdict="approve" agreement="3 / 3" votes={[]} runId="r" />);
     expect(container.textContent).not.toMatch(/cleared by a fact-check/i);
   });
+
+  // REL-OPS-1 O2: a terminology-grounded suppression carries the release that decided it —
+  // rendered as muted secondary metadata; a legacy (pre-O2) entry renders exactly as before.
+  it("renders the terminology edition on a floorClears entry that carries it", () => {
+    const floorClears = [
+      { flag: "FABRICATED_CLAIM", reason: "code-grounded by is-a subsumption via the connected terminology tool",
+        evidence: "every flagged term is ==/subsumed-by a record concept", terminology_edition: "unrecorded" },
+    ];
+    const { container } = render(
+      <VerdictCard verdict="approve" agreement="2 / 3" votes={[]} floorClears={floorClears} runId="r" />,
+    );
+    expect(container.textContent).toMatch(/terminology edition: unrecorded/);
+  });
+
+  it("renders NO edition text on a legacy floorClears entry without the field (no placeholder)", () => {
+    const floorClears = [
+      { flag: "FABRICATED_HISTORY", reason: "grounded in the record by SNOMED subsumption",
+        evidence: "all 1 documented PMH item(s) are == or subsumed-by a record concept" },
+    ];
+    const { container } = render(
+      <VerdictCard verdict="approve" agreement="2 / 3" votes={[]} floorClears={floorClears} runId="r" />,
+    );
+    expect(container.textContent).not.toMatch(/terminology edition/i);
+    expect(container.textContent).not.toMatch(/undefined/);
+  });
 });
