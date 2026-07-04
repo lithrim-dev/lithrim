@@ -272,7 +272,7 @@ def test_fallback_is_asafe_directive_only_no_paid_op_no_schema_widening(ctx):
         assert not any(k in schema for k in agent_tools.PAID_KEYS)
 
     # the tool roster is unchanged — the fix adds no tool
-    assert len(agent_tools._TOOL_SPECS) == 23
+    assert len(agent_tools._TOOL_SPECS) == 24
 
     # serialize the whole event stream: no paid knob string leaks into the wire shape
     blob = json.dumps(events, default=str)
@@ -401,4 +401,4 @@ def test_grade_all_directive_is_asafe_empty_output(ctx):
     events = _run_litellm(ctx, _calls_single_run_completion(), message="grade all cases")
     cohort = _cohort_directive_parts(events)
     assert cohort and cohort[0]["output"] == {}
-    assert len(agent_tools._TOOL_SPECS) == 23
+    assert len(agent_tools._TOOL_SPECS) == 24

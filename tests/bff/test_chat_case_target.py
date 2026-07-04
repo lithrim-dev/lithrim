@@ -178,7 +178,7 @@ def test_propose_live_run_schema_carries_no_params():
 
 def test_tool_spec_count_is_unchanged_and_no_schema_carries_a_paid_knob():
     """The fix adds NO tool and widens NO schema (the S-BS-81 floor generalized)."""
-    assert len(agent_tools._TOOL_SPECS) == 23
+    assert len(agent_tools._TOOL_SPECS) == 24
     offenders = {
         name: [k for k in PAID_KEYS if k in schema]
         for _h, name, _d, schema in agent_tools._TOOL_SPECS

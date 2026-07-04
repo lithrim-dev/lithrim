@@ -284,7 +284,7 @@ def test_latest_run_context_uses_only_review_runs_no_paid_op():
 def test_no_new_tool_or_paid_knob_added():
     """T5: the fix adds NO tool to ``_TOOL_SPECS`` and NO paid knob anywhere — the agent surface
     is unchanged. (22 tools today; the parity fix is a context-injection read, not a new tool.)"""
-    assert len(agent_tools._TOOL_SPECS) == 23
+    assert len(agent_tools._TOOL_SPECS) == 24
     for _h, name, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in agent_tools.PAID_KEYS), name
 

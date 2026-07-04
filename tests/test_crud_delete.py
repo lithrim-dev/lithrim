@@ -125,9 +125,10 @@ def test_asafe_delete_judge_is_the_ninth_tool_no_paid_knob():
     # CHATBIND-2 added focus_artifact (12th); CHATBIND-3 show_case (13th); CHATBIND-4 propose_live_run (14th);
     # GROUND-CHAT-1 added add_grounding_contract (15th); KB-CONTEXT-1 added kb_context (16th);
     # NARR-2 added ingest_cases (17th); NARR-CHAT-LOOP added list_cases (18th);
-    # META-VERDICT-1 added record_meta_verdict (19th); FAUTH-1 added author_contract (20th);
-    # NARR-5-CRIT-b added author_criterion (21st); PHASE2-WIRE added create_judge (22nd).
-    assert len(names) == 23 and len(set(names)) == 23, names
+    # then META-VERDICT-1 record_meta_verdict, FAUTH-1 author_contract, TOOL-AUTHOR-1 author_tool,
+    # NARR-5-CRIT-b author_criterion, PHASE2-WIRE create_judge — 24 total (delete_judge stays 9th;
+    # every later addition sits after it, so the ninth-tool position is unchanged).
+    assert len(names) == 24 and len(set(names)) == 24, names
     assert {"delete_judge", "create_flag", "delete_flag"} <= set(names)
     # NON-VACUOUS: every one of the 17 schemas is no-paid-knob, the new tools included.
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:

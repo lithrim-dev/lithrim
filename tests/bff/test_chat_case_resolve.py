@@ -261,4 +261,4 @@ def test_chat_schema_and_tool_specs_are_unchanged_by_the_resolver():
     fields = set(bff.ChatRequest.model_fields)
     assert fields == {"message", "agent", "history", "active_case"}
     assert not any(k in fields for k in PAID_KEYS)
-    assert len(agent_tools._TOOL_SPECS) == 23
+    assert len(agent_tools._TOOL_SPECS) == 24
