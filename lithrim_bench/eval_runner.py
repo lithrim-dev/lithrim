@@ -19,7 +19,7 @@ Output schema (one NDJSON row per run):
       "per_judge": dict[str, {"verdict": str, "flags": list[str], "confidence": float, "reason": str}] | null,
       "findings_rich": list[dict],          # full Finding.model_dump() (detail/code/severity/chunk_id/spans)
       "structural_findings_rich": list[dict],
-      "pin": dict,
+      "pin": dict,      # BackendPin fields + dataset_sha256 (eval spec §1.6 pinned block)
       "expected_compliance_verdict": str | list[str],
       "expected_safety_flags": list[str]
     }
@@ -30,6 +30,7 @@ from the persisted row without re-issuing the paid council call.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections.abc import Iterator
@@ -108,6 +109,7 @@ def run_pack(
     Returns a summary dict with totals.
     """
     pin = asdict(backend.pin)
+    pin["dataset_sha256"] = hashlib.sha256(pack_path.read_bytes()).hexdigest()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cases = list(read_pack(pack_path))
     if case_filter is not None:
