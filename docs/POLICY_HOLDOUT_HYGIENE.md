@@ -31,7 +31,7 @@ Every calibration-corpus row carries a `split` field with exactly two grading ro
 
 `run_optimize` (`lithrim_bench/runtime/council/judge_optimize.py:362`) is the single
 paid optimization entry point (wrapped by `scripts/optimize_judge.py` and the BFF
-`POST /v1/judges/{role}/optimize`, `apps/bff/app.py:2403`). It:
+`POST /v1/judges/{role}/optimize`, `apps/bff/app.py:3167`). It:
 
 - trains only on `split == "calibration"` rows
   (`lithrim_bench/runtime/council/judge_optimize.py:405`),
