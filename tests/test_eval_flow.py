@@ -63,10 +63,23 @@ def _fixture_agent() -> Agent:
 
 
 @pytest.fixture
-def env(tmp_path):
+def env(tmp_path, monkeypatch):
     pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi/httpx)")
     import app as bff
     from fastapi.testclient import TestClient
+
+    # S-BS-154/FAUTH-2a: the audited PUT's snapshot gate + the contract-type gate resolve the
+    # ACTIVE WORKSPACE's pack. The product binds this clinical agent to a workspace pinned to
+    # its pack; construct that binding hermetically (the ws5_bff client pattern) — the suite's
+    # canonical pack under pack-on runs (these funcs are NEEDS_PACK, skipped bare).
+    from lithrim_bench.harness import workspace as _workspace
+    from lithrim_bench.harness.pack import active_pack
+
+    monkeypatch.setattr(
+        _workspace,
+        "get_active_workspace",
+        lambda: _workspace.Workspace(name="default", pack=active_pack()),
+    )
 
     db = tmp_path / "bench_config.sqlite"
     workdir = tmp_path / "ont"
@@ -103,10 +116,12 @@ def test_grounding_contract_persists_audited_and_404s(env):
     bff, ctx, client, db, workdir, examples = env
 
     # A1.1 — a KNOWN-flag contract lands in the agent's ontology verification_contracts.
+    # params are the REAL presence_check schema (med_source + dosage_regex) — GRADE-GUARD-1
+    # (08fbaeb) dry-constructs the contract at author time and 422s the old inert shape.
     res = ctx.put_grounding_contract(
         flag_code=KNOWN_FLAG,
         contract_type="presence_check",
-        params={"source": "response.claims"},
+        params={"med_source": "response.claims", "dosage_regex": r"\b\d+\b"},
         question="Is the flagged dosage actually present?",
         version=f"{KNOWN_FLAG}/v1",
         agent=AGENT,
@@ -120,10 +135,12 @@ def test_grounding_contract_persists_audited_and_404s(env):
     n_after_first = len(contracts)
 
     # A1.2 — re-saving by the SAME flag_code REPLACES in place (idempotent, never appends a dup).
+    # source_grounding: a REGISTERED core type (the FAUTH-2 gate refuses an unregistered one),
+    # all params optional — a genuinely different type from A1.1 so the replace is visible.
     res2 = ctx.put_grounding_contract(
         flag_code=KNOWN_FLAG,
-        contract_type="negation_check",
-        params={"source": "response.claims"},
+        contract_type="source_grounding",
+        params={"source_path": "transcript"},
         question="updated question",
         version=f"{KNOWN_FLAG}/v2",
         agent=AGENT,
@@ -132,7 +149,7 @@ def test_grounding_contract_persists_audited_and_404s(env):
     contracts2 = _draft_contracts(workdir)
     mine2 = [c for c in contracts2 if c.get("flag_code") == KNOWN_FLAG]
     assert len(mine2) == 1, "re-save by flag_code must replace, not append"
-    assert mine2[0]["contract_type"] == "negation_check"  # the new value won
+    assert mine2[0]["contract_type"] == "source_grounding"  # the new value won
     assert len(contracts2) == n_after_first  # no growth on a replace
 
     # A1.3 — the write is AUDITED (an action=edit / target_type=ontology record fires).
@@ -173,7 +190,8 @@ def test_grounding_contract_route_reuses_the_bound_op(env):
         json={
             "flag_code": KNOWN_FLAG,
             "contract_type": "presence_check",
-            "params": {"source": "response.claims"},
+            # the REAL presence_check params schema (GRADE-GUARD-1 422s the old inert shape)
+            "params": {"med_source": "response.claims", "dosage_regex": r"\b\d+\b"},
             "question": "present?",
             "version": f"{KNOWN_FLAG}/v1",
             "agent": AGENT,
@@ -203,10 +221,16 @@ def test_add_grounding_contract_tool_is_bounded_by_the_endpoint_guards(env):
     assert out.get("is_error") is True
     assert UNKNOWN_FLAG in out["content"][0]["text"]
 
-    # and the happy path round-trips through the tool, landing the contract.
+    # and the happy path round-trips through the tool, landing the contract (well-formed
+    # presence_check params — GRADE-GUARD-1 422s the param-less inert default).
     ok = asyncio.run(
         agent_tools.add_grounding_contract_handler(
-            ctx, {"flag_code": KNOWN_FLAG, "contract_type": "presence_check"}
+            ctx,
+            {
+                "flag_code": KNOWN_FLAG,
+                "contract_type": "presence_check",
+                "params": {"med_source": "response.claims", "dosage_regex": r"\b\d+\b"},
+            },
         )
     )
     assert "is_error" not in ok

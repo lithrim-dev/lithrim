@@ -59,9 +59,20 @@ def _fixture_agent(name: str = "ws5_bff_test") -> Agent:
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     db_path = tmp_path / "bench_config.sqlite"
     save_agent(_fixture_agent(), db_path=db_path)
+    # S-BS-154: the BFF lens/snapshot authorities key off the ACTIVE WORKSPACE pack, not the
+    # boot env. The product binds a clinical agent to a workspace pinned to its pack; construct
+    # that binding hermetically (the house_client pattern) — the suite's canonical pack under
+    # pack-on runs, the neutral _core default bare (where the clinical funcs skip, NEEDS_PACK).
+    from lithrim_bench.harness.pack import active_pack
+
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=active_pack()),
+    )
     bff.app.dependency_overrides[bff.get_config_db] = lambda: db_path
     bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
     # PUT writes go to a tmp working dir, never the committed seed (clobber-safety).

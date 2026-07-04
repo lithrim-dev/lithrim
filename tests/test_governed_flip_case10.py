@@ -216,7 +216,9 @@ def test_governed_value_presence_flips_case10_approve_to_block(tmp_path):
     out = _run_governed_flip(tmp_path)
 
     assert out["value_presence_registered"] is True
-    assert out["case_id"] == "clinical_scribe_10_splinter_injury_vaccine_refusal"
+    # the pack's committed fixture id (pack 545aafc — the vendored ClinVerdict case-10; the
+    # 4396d8d rebrand renamed only this bench-side literal, never the pack data)
+    assert out["case_id"] == "clinverdict_10_splinter_injury_vaccine_refusal"
     # the headline: the council APPROVED, the now-GOVERNED floor flips it to BLOCK
     assert out["original_verdict"] == "PASS"
     assert out["stage_verdict"] == "BLOCK"

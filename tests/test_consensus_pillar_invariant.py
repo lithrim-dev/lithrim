@@ -22,8 +22,10 @@ dropped codes — so the headline fix is exercised on the shipped default tier.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,6 +33,30 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _COUNCIL_REL = "lithrim_bench/runtime/council/compliance_council.py"
 _SEAM_BASELINE = "acc4973"
+
+
+def _run_bare_core_probe(code: str) -> dict:
+    """Run ``code`` in a subprocess pinned to the module docstring's bare-CE contract: the
+    neutral ``_core`` pack (``LITHRIM_BENCH_PACK``/``LITHRIM_BENCH_PACKS_DIR`` REMOVED from the
+    env copy) + the same offline vars :func:`_import_council` sets. The t1/t2-core tests are
+    _core-contract tests — importing the council in-process freezes its module constants to
+    whatever pack the ambient suite env resolves, so they must probe hermetically. The
+    subprocess imports the REAL tree, so the driver-named mutations still turn them RED."""
+    pytest.importorskip("openai")
+    pytest.importorskip("tenacity")
+    env = dict(os.environ)
+    env.pop("LITHRIM_BENCH_PACK", None)
+    env.pop("LITHRIM_BENCH_PACKS_DIR", None)
+    env.setdefault("OPENAI_API_KEY", "test-offline-key")
+    env.setdefault("LITHRIM_LLM_PROVIDER", "openai")
+    env.setdefault("COMPLIANCE_COUNCIL_VERSION", "v2")
+    proc = subprocess.run(
+        [sys.executable, "-c", code], cwd=REPO_ROOT, env=env, capture_output=True, text=True
+    )
+    assert proc.returncode == 0, f"bare-core probe failed:\n{proc.stdout}\n{proc.stderr}"
+    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("__JSON__")), None)
+    assert line is not None, f"no payload:\n{proc.stdout}\n{proc.stderr}"
+    return json.loads(line[len("__JSON__") :])
 
 
 def _import_council():
@@ -45,28 +71,43 @@ def _import_council():
     return cc
 
 
-def _seam_results(code: str):
-    """A synthesized seam-results list: one judge solo-rejects with a grounded span on
-    ``code`` (a TIER-1 never-event for _core), the other two approve."""
-    return [
-        {
-            "model": "risk_judge",
-            "decision": "reject",
-            "confidence": 0.99,
-            "errors": [],
-            "findings": [
-                {
-                    "taxonomy_code": code,
-                    "evidence_spans": [{"quote": "unlimited storage", "turn_ids": []}],
-                }
-            ],
-        },
-        {"model": "policy_judge", "decision": "approve", "confidence": 0.9, "errors": [], "findings": []},
-        {"model": "faithfulness_judge", "decision": "approve", "confidence": 0.9, "errors": [], "findings": []},
-    ]
-
-
 # ── T1 — THE FIX (headline, non-vacuous) ─────────────────────────────────────
+# The synthesized seam-results (one judge solo-rejects with a grounded span on a TIER-1
+# _core never-event, the other two approve) live INSIDE the probe script — the whole
+# assertion body must run in the bare-core subprocess.
+
+
+_T1_PROBE = r"""
+import json
+
+from lithrim_bench.runtime.council import compliance_council as cc
+
+code = "UNSUPPORTED_ASSERTION"
+seam_results = [
+    {
+        "model": "risk_judge",
+        "decision": "reject",
+        "confidence": 0.99,
+        "errors": [],
+        "findings": [
+            {
+                "taxonomy_code": code,
+                "evidence_spans": [{"quote": "unlimited storage", "turn_ids": []}],
+            }
+        ],
+    },
+    {"model": "policy_judge", "decision": "approve", "confidence": 0.9, "errors": [], "findings": []},
+    {"model": "faithfulness_judge", "decision": "approve", "confidence": 0.9, "errors": [], "findings": []},
+]
+r = cc.ComplianceCouncil(models=[])._apply_consensus(seam_results)
+print("__JSON__" + json.dumps({
+    "in_tier1": code in cc.TIER_1_NEVER_EVENTS,
+    "in_dual": code in cc.DUAL_PILLAR_CODES,
+    "decision": r["decision"],
+    "tier1_triggered": [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]],
+    "artifact_verdict": r["artifact_verdict"],
+}))
+"""
 
 
 def test_t1_unclassified_tier1_code_now_gates():
@@ -77,14 +118,14 @@ def test_t1_unclassified_tier1_code_now_gates():
     is the never-event one-strike. Pre-fix the code was dropped from both pillars and the
     verdict defaulted to approve. The driver-named MUTATION (revert the
     ``DUAL_PILLAR_CODES = DUAL_PILLAR_CODES | _CONSENSUS_PILLAR_1_UNCLASSIFIED`` rebind) turns
-    this RED (``decision == "approve"``, the bug)."""
-    cc = _import_council()
-    assert "UNSUPPORTED_ASSERTION" in cc.TIER_1_NEVER_EVENTS  # pack-resolved (_core)
-    assert "UNSUPPORTED_ASSERTION" in cc.DUAL_PILLAR_CODES  # the carve-out rescued it
-    r = cc.ComplianceCouncil(models=[])._apply_consensus(_seam_results("UNSUPPORTED_ASSERTION"))
-    assert r["decision"] == "reject"
-    assert [f["violation"] for f in r["evidence_summary"]["tier1_triggered"]] == ["UNSUPPORTED_ASSERTION"]
-    assert r["artifact_verdict"] == "BLOCK"
+    this RED (``decision == "approve"``, the bug). Runs as a bare-core subprocess probe —
+    _core-contract + import-order-coupled, per the module docstring."""
+    out = _run_bare_core_probe(_T1_PROBE)
+    assert out["in_tier1"] is True  # pack-resolved (_core)
+    assert out["in_dual"] is True  # the carve-out rescued it
+    assert out["decision"] == "reject"
+    assert out["tier1_triggered"] == ["UNSUPPORTED_ASSERTION"]
+    assert out["artifact_verdict"] == "BLOCK"
 
 
 # ── T2 — the invariant holds (zero unclassified tiered codes) ─────────────────
@@ -100,12 +141,25 @@ def test_t2_every_tiered_code_is_pillar_classified():
     assert unclassified == set(), f"unclassified tiered codes remain: {sorted(unclassified)}"
 
 
+_T2_CORE_PROBE = r"""
+import json
+
+from lithrim_bench.runtime.council import compliance_council as cc
+
+print("__JSON__" + json.dumps({
+    "tier1": sorted(cc.TIER_1_NEVER_EVENTS),
+    "not_dual": sorted(set(cc.TIER_1_NEVER_EVENTS) - cc.DUAL_PILLAR_CODES),
+}))
+"""
+
+
 def test_t2_core_tier1_codes_all_dual_pillar():
     """Stronger: every _core TIER-1 never-event (all 5) is now dual-pillar — none can be
-    silently dropped on the CE path."""
-    cc = _import_council()
-    for code in cc.TIER_1_NEVER_EVENTS:
-        assert code in cc.DUAL_PILLAR_CODES, f"{code} still not pillar-classified"
+    silently dropped on the CE path. Runs as a bare-core subprocess probe — _core-contract +
+    import-order-coupled, per the module docstring."""
+    out = _run_bare_core_probe(_T2_CORE_PROBE)
+    assert out["tier1"], "the _core snapshot must declare TIER-1 never-events (non-vacuous)"
+    assert out["not_dual"] == [], f"still not pillar-classified: {out['not_dual']}"
 
 
 # ── T3 — anti-overreach / classified codes are unaffected ─────────────────────
