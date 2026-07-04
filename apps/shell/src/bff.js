@@ -471,10 +471,17 @@ export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prom
    confirm=true, so the shell gates it behind an in-DOM cost modal (S-BS-69; never
    window.confirm). A measured Δ — including ≤0 — is the loop-closure; the gate is
    never loosened. Returns {role, n_train, n_heldout, baseline, optimized, delta, …}. */
-export const optimizeJudge = (role, { confirm = false, limit } = {}) =>
+/* optimize-on-subset: pass caseIds to scope the calibration to a CHOSEN case set (the Cases
+   ids), not the whole workspace. Omitted/empty → whole-workspace (back-compat). A selector,
+   never a paid knob — confirm=true is still required (mirrors the limit pattern). */
+export const optimizeJudge = (role, { confirm = false, limit, caseIds } = {}) =>
   call(`/v1/judges/${encodeURIComponent(role)}/optimize`, {
     method: "POST",
-    body: { confirm, ...(limit != null ? { limit } : {}) },
+    body: {
+      confirm,
+      ...(limit != null ? { limit } : {}),
+      ...(caseIds && caseIds.length ? { case_ids: caseIds } : {}),
+    },
   });
 
 /* ── UAP-5b / R11: the conversational shell's agent loop (SSE) ──────────────────

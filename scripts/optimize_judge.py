@@ -40,6 +40,24 @@ if str(_REPO_ROOT) not in sys.path:
 from lithrim_bench.runtime.council.judge_optimize import run_optimize  # noqa: E402
 
 
+def filter_cases_by_ids(cases, case_ids):
+    """optimize-on-subset: keep only the workspace cases whose ``case_id`` is in ``case_ids``,
+    preserving input order; return ``(kept, dropped_ids)``.
+
+    ``case_ids is None`` → the whole corpus, untouched (today's whole-workspace behaviour). Unknown
+    ids are DROPPED (never fabricated) and surfaced in ``dropped_ids`` so the run can note them;
+    an all-unknown set yields an empty ``kept`` → the caller's split-refusal fires (a subset that
+    starves the calibration or held-out split is a clean refusal, never a silent no-op). Applied
+    BEFORE ``build_calib_rows`` so the deterministic every-Nth split is unchanged for the subset."""
+    if case_ids is None:
+        return list(cases), []
+    wanted = list(dict.fromkeys(case_ids))  # de-dup, order-preserving
+    present = {str(c.get("case_id")) for c in cases}
+    kept = [c for c in cases if str(c.get("case_id")) in set(wanted)]
+    dropped = [cid for cid in wanted if cid not in present]
+    return kept, dropped
+
+
 def _print_table(result: dict) -> None:
     base, opt, delta = result["baseline"], result["optimized"], result["delta"]
     cfg = result["compile_config"]
@@ -75,6 +93,14 @@ def main() -> None:
     )
     parser.add_argument("--calib-out", help="where the in-corpus calib JSONL is written (with --collections-db)")
     parser.add_argument("--limit", type=int, default=None, help="cap each split (cost smoke)")
+    parser.add_argument(
+        "--case-ids",
+        action="append",
+        default=None,
+        dest="case_ids",
+        help="optimize-on-subset: scope the in-corpus calib to these case ids (repeatable). "
+        "Omitted → the whole workspace. Unknown ids are dropped with a note.",
+    )
     parser.add_argument("--test-stride", type=int, default=3, help="in-corpus split: every Nth case → test (≈70/30)")
     parser.add_argument("--confirm-cost", action="store_true")
     parser.add_argument(
@@ -129,13 +155,27 @@ def main() -> None:
         )
 
         cases = [r["payload"] for r in cases_store.list_cases(db_path=args.collections_db)]
+        # optimize-on-subset: scope to the chosen ids BEFORE the split (unknown ids dropped w/ a
+        # note; an all-unknown / split-starving subset falls through to the split refusal below —
+        # never a silent no-op). None (no --case-ids) → the whole corpus, unchanged.
+        cases, dropped_ids = filter_cases_by_ids(cases, args.case_ids)
         rows = build_calib_rows(cases, test_stride=args.test_stride)
         split_counts_payload = split_counts(rows)
         if split_counts_payload["calibration"] == 0 or split_counts_payload["test"] == 0:
+            subset_msg = (
+                " (the chosen case subset is too small to split — pick more cases or clear the "
+                "selection to use the whole workspace)"
+                if args.case_ids is not None
+                else ""
+            )
             _fail(
                 "Not enough graded cases to calibrate yet — need cases on BOTH the calibration and "
-                "held-out splits. Grade more of this workspace's corpus first.",
-                extra={"split_counts": split_counts_payload, "n_cases": len(cases)},
+                "held-out splits. Grade more of this workspace's corpus first." + subset_msg,
+                extra={
+                    "split_counts": split_counts_payload,
+                    "n_cases": len(cases),
+                    "dropped_case_ids": dropped_ids,
+                },
             )
         corpus = str(args.calib_out or (out_dir / "calib.jsonl"))
         write_calib_jsonl(rows, corpus)
@@ -161,6 +201,9 @@ def main() -> None:
     if split_counts_payload is not None:
         result["split_counts"] = split_counts_payload
         result["corpus"] = "workspace"
+        if args.case_ids is not None:  # optimize-on-subset: record the scope + any dropped ids
+            result["case_ids"] = list(dict.fromkeys(args.case_ids))
+            result["dropped_case_ids"] = dropped_ids
 
     if args.emit_json:
         _emit_json(result)

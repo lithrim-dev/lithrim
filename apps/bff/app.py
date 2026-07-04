@@ -596,6 +596,11 @@ class OptimizeRequest(BaseModel):
     # so the cost-confirm is explicit — the shell surfaces an in-DOM modal (S-BS-69).
     confirm: bool = False
     limit: int | None = None  # cap each split for a cheaper smoke (per-call cost check)
+    # optimize-on-subset: scope the calibration to a CHOSEN case set (the Cases-browser ids), not
+    # the whole workspace. None = today's whole-workspace behaviour (back-compat, byte-identical
+    # cmd). A subset is a SELECTOR, never a paid knob — confirm=true is still required. Unknown ids
+    # are dropped with a note in the subprocess; an all-unknown subset → the same clean 422 refusal.
+    case_ids: list[str] | None = None
 
 
 class ChatTurn(BaseModel):
@@ -1088,7 +1093,7 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
 
 
-def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit) -> dict:
+def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_ids=None) -> dict:
     """Run the PAID in-corpus optimize in a subprocess bound to the workspace's PACK (Phase 2).
 
     The calib is built from THIS workspace's OWN graded cases (in-domain, in the active pack's
@@ -1118,6 +1123,12 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit) -> dic
     ]
     if limit is not None:
         cmd += ["--limit", str(limit)]
+    # optimize-on-subset: pass each chosen id as its OWN --case-ids (argparse append). Only when
+    # provided — None leaves the cmd byte-identical to the whole-workspace path. The subprocess
+    # filters the workspace cases to this set BEFORE the deterministic split (unknown ids dropped
+    # with a note; an all-unknown / split-starving subset → the existing clean 422 refusal).
+    for cid in case_ids or []:
+        cmd += ["--case-ids", str(cid)]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         _log.error("optimize subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
@@ -3284,7 +3295,8 @@ def optimize_judge_endpoint(
         )
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     return _optimize_via_subprocess(
-        role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit
+        role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
+        case_ids=req.case_ids,
     )
 
 

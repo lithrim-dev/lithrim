@@ -22,6 +22,7 @@ vi.mock("./bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({ status: "ok", role: "risk_judge", actor: { type: "user", id: "sme" } }),
   optimizeJudge: vi.fn().mockResolvedValue({}),
+  listCases: vi.fn().mockResolvedValue({ cases: [], count: 0 }),
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;
     onEvent({ event: "assistant_delta", text: "Let's author your first judge." });

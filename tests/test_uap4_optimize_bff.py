@@ -57,8 +57,11 @@ _FAKE_RESULT = {
 def client(tmp_path, monkeypatch):
     calls: list[dict] = []
 
-    def _fake_optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit):
-        calls.append({"role": role, "limit": limit, "collections_db": str(collections_db)})
+    def _fake_optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_ids=None):
+        calls.append({
+            "role": role, "limit": limit, "collections_db": str(collections_db),
+            "case_ids": case_ids,
+        })
         return {**_FAKE_RESULT, "role": role}
 
     # the PAID optimize is a pack-bound subprocess; inject the seam so no process spawns.
