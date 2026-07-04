@@ -85,6 +85,9 @@ class PackManifest(BaseModel):
     generators: str | None = None
     tools: str | None = None  # TOOL-1: ref to a ``tools.json`` (the pack's kind:tool declarations)
     judges: list[str] = Field(default_factory=list)
+    # PACK-PORTABLE (pack b973867): pack-relative agent JSONs seeded into the config DB at
+    # workspace init (``harness/config.py`` reads the raw manifest; declaration-only here).
+    seed_agents: list[str] = Field(default_factory=list)
 
 
 def validate_pack_manifest(raw: dict[str, Any]) -> PackManifest:
