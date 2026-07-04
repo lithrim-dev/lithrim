@@ -1,7 +1,7 @@
 /* AuditView.test.jsx — RUNTRAIL-8 A3: the run-provenance report surfaces the lineage
    (grade_path tag + the replay_of baseline) beside the verdict. Mocks bff.js (no live
    BFF), reusing the vi.fn() pattern from RunPanel.test.jsx / artifact.test.jsx. */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 vi.mock("../bff.js", () => ({
@@ -120,6 +120,83 @@ describe("AuditView (tool-audit_log) — RUNTRAIL-11 the trail, grouped by case"
     fireEvent.click(within(trail).getAllByTestId("trail-run")[0]);
     await waitFor(() => expect(getRunAudit).toHaveBeenCalledWith("a57bd49d-aaaa"));
     expect(await screen.findByTestId("run-report")).toBeTruthy();
+  });
+});
+
+/* RUN-TRAIL-CASE-SCOPE — given caseId (threaded from the review_runs audit card), the
+   trail fetch is scoped to that case and its group renders alone, with an explicit
+   see-the-full-trail affordance one click away. Without caseId: identical to today. */
+describe("AuditView — RUN-TRAIL-CASE-SCOPE: the trail scopes to the card's case", () => {
+  const ALL_ROWS = [
+    { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z" },
+    { run_id: "d00d1234-dddd", case_id: "case-10", verdict: "PASS", grade_path: "live", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:40:00Z" },
+  ];
+  const SCOPED_ROWS = [ALL_ROWS[0]];
+  const scopeAware = (limit, opts = {}) =>
+    Promise.resolve({ runs: opts.caseId ? SCOPED_ROWS.filter((r) => r.case_id === opts.caseId) : ALL_ROWS });
+
+  afterEach(() => {
+    // restore the module-level default impl (mockImplementation would otherwise leak
+    // into the FLOOR-VIS-1 tests below, which rely on the 3-row fixture)
+    getRuns.mockResolvedValue({
+      runs: [
+        { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z", grounded_verdict: "PASS", floor_suppressed: 2 },
+        { run_id: "c0ffee00-cccc", case_id: "snomed_inj_13_gpa", verdict: "PASS", grade_path: "replay", replay_of: "a57bd49d-aaaa", agent: "eval-1", ts: "2026-06-30T17:50:00Z", grounded_verdict: null, floor_suppressed: null },
+        { run_id: "d00d1234-dddd", case_id: "case-10", verdict: "PASS", grade_path: "live", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:40:00Z" },
+      ],
+    });
+  });
+
+  it("S1 — caseId prop scopes the fetch; only that case's group renders, with the see-all affordance", async () => {
+    getRuns.mockImplementation(scopeAware);
+    render(<AuditView caseId="snomed_inj_13_gpa" />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+    expect(getRuns.mock.calls[0][1]).toMatchObject({ caseId: "snomed_inj_13_gpa" });
+
+    const trail = await screen.findByTestId("run-trail");
+    const groups = within(trail).getAllByTestId("trail-case");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveTextContent("snomed_inj_13_gpa");
+    expect(screen.getByRole("button", { name: /see all runs/i })).toBeTruthy();
+  });
+
+  it("S2 — the see-all affordance is one click away: it refetches unscoped and renders every group", async () => {
+    getRuns.mockImplementation(scopeAware);
+    render(<AuditView caseId="snomed_inj_13_gpa" />);
+    await screen.findByTestId("run-trail");
+
+    fireEvent.click(screen.getByRole("button", { name: /see all runs/i }));
+    await waitFor(() => {
+      const last = getRuns.mock.calls[getRuns.mock.calls.length - 1];
+      expect((last[1] || {}).caseId).toBeFalsy();
+    });
+    await waitFor(() => expect(within(screen.getByTestId("run-trail")).getAllByTestId("trail-case")).toHaveLength(2));
+  });
+
+  it("S3 — without caseId the fetch is unscoped and behavior is identical to today", async () => {
+    getRuns.mockImplementation(scopeAware);
+    render(<AuditView />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+    expect((getRuns.mock.calls[0][1] || {}).caseId).toBeFalsy();
+    const trail = await screen.findByTestId("run-trail");
+    expect(within(trail).getAllByTestId("trail-case")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /see all runs/i })).toBeNull();
+  });
+
+  it("S4 — replay rows carry the explicit replay label; authoritative rows say so (no re-sort)", async () => {
+    getRuns.mockImplementation(() => Promise.resolve({
+      runs: [
+        // the replay row copies its source run's ts (older than the row below it) — the
+        // list stays insertion-ordered; the LABEL is what disambiguates, not a re-sort.
+        { run_id: "c0ffee00-cccc", case_id: "snomed_inj_13_gpa", verdict: "PASS", grade_path: "replay", replay_of: "a57bd49d-aaaa", agent: "eval-1", ts: "2026-06-30T17:00:00Z" },
+        { run_id: "a57bd49d-aaaa", case_id: "snomed_inj_13_gpa", verdict: "BLOCK", grade_path: "in_process", replay_of: null, agent: "eval-1", ts: "2026-06-30T17:53:50Z" },
+      ],
+    }));
+    render(<AuditView />);
+    const trail = await screen.findByTestId("run-trail");
+    const rows = within(trail).getAllByTestId("trail-run");
+    expect(rows[0]).toHaveTextContent(/replays a57bd49d/i); // the explicit replay label
+    expect(rows[1]).toHaveTextContent(/authoritative/i);
   });
 });
 

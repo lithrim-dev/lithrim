@@ -178,7 +178,9 @@ def test_asafe_surface_unchanged_no_new_tool_no_schema_widening():
     ), names
     for _h, n, _d, schema in agent_tools._TOOL_SPECS:
         assert not any(k in schema for k in agent_tools.PAID_KEYS), n
-    assert {"limit": int} == agent_tools.REVIEW_RUNS_SCHEMA  # the $0 tool's schema is untouched
+    # RUN-TRAIL-CASE-SCOPE: the $0 tool gains case_id — a SELECTOR (the RUN_EVAL_SCHEMA
+    # precedent), never a paid knob. Still no PAID_KEY (asserted above).
+    assert {"limit": int, "case_id": str} == agent_tools.REVIEW_RUNS_SCHEMA
 
 
 # ── (iii) the deterministic matchers — an explicit $0 ask is NEVER a run-request ───────────
@@ -373,6 +375,73 @@ def test_litellm_zero_dollar_ask_served_by_review_runs_stays_zero_dollar(ctx):
     assert any(e["event"] == "tool_call" and e["name"] == "review_runs" for e in events)
     assert _paid_directives(events) == []
     assert events[-1]["event"] == "done"
+
+
+# ── RUN-TRAIL-CASE-SCOPE — the $0 route carries the case the user NAMED ────────────────────
+
+
+def test_zero_dollar_case_token_extracts_the_named_case():
+    """The deterministic fallback must not drop the case the user named: a cv_/case-id-shaped
+    (underscore-carrying) token is extracted from the message; prose without one → None; a
+    Lithrim tool name echoed in prose is never mistaken for a case id."""
+    from agent.loop import _zero_dollar_case_token
+
+    assert _zero_dollar_case_token(DEFECT_MESSAGE) == "cv_mts_002_clean_subsumption_alzheimers"
+    assert _zero_dollar_case_token("run a $0 replay and show the report") is None
+    assert _zero_dollar_case_token("replay it via review_runs for free") is None
+
+
+def test_litellm_zero_dollar_fallback_serves_review_runs_with_the_case_token(ctx):
+    """The narrate-only failure on the VERBATIM defect message → the deterministic
+    ZERO-DOLLAR-ROUTE fallback serves the $0 read itself, WITH the named case: a review_runs
+    tool_call carrying case_id, the caseId-threaded audit card, and still NO paid directive."""
+    narrate_only = _stub_completion(
+        [[_text_chunk("Here is the stored result. "), _finish_chunk("stop")]]
+    )
+    events = _run_litellm(ctx, narrate_only, message=DEFECT_MESSAGE)
+    calls = [e for e in events if e["event"] == "tool_call" and e["name"] == "review_runs"]
+    assert len(calls) == 1, [e["event"] for e in events]
+    assert calls[0]["input"] == {"case_id": "cv_mts_002_clean_subsumption_alzheimers"}
+    cards = [
+        e["part"] for e in events
+        if e["event"] == "tool_result" and e["part"].get("type") == "tool-audit_log"
+    ]
+    assert cards and cards[0]["output"].get("caseId") == "cv_mts_002_clean_subsumption_alzheimers"
+    assert _paid_directives(events) == []
+    assert events[-1]["event"] == "done"
+
+
+def test_litellm_zero_dollar_fallback_is_self_limiting(ctx):
+    """When the model DID call review_runs itself, the fallback is SKIPPED — exactly one
+    review_runs call reaches the stream (no double-serve)."""
+    routes_to_review = _stub_completion(
+        [
+            [_toolcall_chunk(index=0, name="review_runs", arguments="{}", call_id="r"), _finish_chunk("tool_calls")],
+            [_text_chunk("Here is the stored report."), _finish_chunk("stop")],
+        ]
+    )
+    events = _run_litellm(ctx, routes_to_review, message=DEFECT_MESSAGE)
+    calls = [e for e in events if e["event"] == "tool_call" and e["name"] == "review_runs"]
+    assert len(calls) == 1
+    assert _paid_directives(events) == []
+
+
+def test_litellm_plain_run_request_does_not_trigger_the_zero_dollar_fallback(ctx):
+    """A plain (paid-table) run request still routes to the cost-confirm fallback, never the
+    $0 read — the new fallback is trigger-phrase-scoped exactly like the guard."""
+    narrate_only = _stub_completion(
+        [[_text_chunk("I will surface the modal. "), _finish_chunk("stop")]]
+    )
+    events = _run_litellm(ctx, narrate_only, message="run eval on this case")
+    assert len(_paid_directives(events)) == 1
+    assert not any(e["event"] == "tool_call" and e["name"] == "review_runs" for e in events)
+
+
+def test_review_runs_description_asks_for_the_named_case():
+    """The tool description tells the model to pass case_id when the human names a case —
+    the model-behavioral half of the fix (the deterministic half is the fallback above)."""
+    desc = _desc("review_runs")
+    assert "case_id" in desc
 
 
 # ── REPLAY-HONESTY — the 409 stale-signature refusal propagates VERBATIM ───────────────────

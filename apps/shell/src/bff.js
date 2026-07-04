@@ -62,8 +62,14 @@ export const runEval = ({ agent = "ws0_default", live = false, in_process = fals
   });
 
 /* GET /v1/runs — the run-history list (newest-first). Each row's run_id round-trips
-   to getRunAudit(run_id). (UAP-3 R6/S-BS-56; all via BASE, no hardcoded :8787.) */
-export const getRuns = (limit = 50) => call(`/v1/runs?limit=${encodeURIComponent(limit)}`);
+   to getRunAudit(run_id). (UAP-3 R6/S-BS-56; all via BASE, no hardcoded :8787.)
+   RUN-TRAIL-CASE-SCOPE: optional { agent, caseId } filters (additive; exact case id). */
+export const getRuns = (limit = 50, { agent, caseId } = {}) => {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (agent) qs.set("agent", agent);
+  if (caseId) qs.set("case_id", caseId);
+  return call(`/v1/runs?${qs.toString()}`);
+};
 
 /* GET /v1/reports/{case_id} — REPORT-HYDRATE-1: the LATEST persisted report record for a case
    (the run-eval record shape, honestly labeled by its stored grade_path; a pure $0 read).

@@ -76,7 +76,9 @@ AUTHOR_FLAG_SCHEMA: dict[str, Any] = {
     "when_NOT_to_use": str,
     "rationale": str,
 }
-REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int}
+# RUN-TRAIL-CASE-SCOPE: case_id is a SELECTOR (the RUN_EVAL_SCHEMA precedent), never a
+# paid knob — it scopes the $0 read to the case the human named (exact id).
+REVIEW_RUNS_SCHEMA: dict[str, Any] = {"limit": int, "case_id": str}
 # UAP-5c-2 — the eval-pack BATCH (the first tool over a PAID-CAPABLE op). The schema
 # carries NO live/confirm/in_process knob; the bound _run_eval_pack hardcodes live=False,
 # so the agent has no path to a paid batch (the A-SAFE re-proof, S-BS-81 generalized).
@@ -456,22 +458,60 @@ async def author_flag_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     )
 
 
+def _verdict_narration(
+    verdict: Any, grounded_verdict: Any, floor_suppressed: Any
+) -> str:
+    """RUN-TRAIL-CASE-SCOPE: narrate BOTH verdict layers whenever they differ — never
+    quote the pre-floor council verdict alone (the 2026-07-04 live defect narrated
+    "verdict=BLOCK" on a floor-cleared clean case whose grounded_verdict was PASS).
+    Agreeing (or single-known-layer / legacy) rows narrate one verdict, grounded
+    preferred."""
+    v = str(verdict or "").strip()
+    g = str(grounded_verdict or "").strip()
+    if not v or not g or v.upper() == g.upper():
+        return f"verdict={g or v or '—'}."
+    n = int(floor_suppressed or 0)
+    council = (
+        f"council flagged ({v})"
+        if v.upper() in ("BLOCK", "WARN", "REJECT")
+        else f"council said {v}"
+    )
+    floor = (
+        f"the grounding floor cleared {n} false alarm{'' if n == 1 else 's'}"
+        if n
+        else "the grounding floor overrode it"
+    )
+    return f"{council}; {floor}; final: {g}."
+
+
 async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # The Review leg ($0 read): run history + the latest run's provenance + the config
-    # audit trail (rendered by AuditView). No paid surface.
+    # audit trail (rendered by AuditView). No paid surface. case_id (RUN-TRAIL-CASE-SCOPE)
+    # scopes the read to the case the human named — latest = that case's latest run.
     limit = args.get("limit")
+    case_id = str(args.get("case_id") or "").strip() or None
     try:
-        res = ctx.review_runs(limit=int(limit) if limit else 5)
+        kwargs: dict[str, Any] = {"limit": int(limit) if limit else 5}
+        if case_id:
+            kwargs["case_id"] = case_id
+        res = ctx.review_runs(**kwargs)
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         return _error(f"Could not read run history: {detail}.")
     runs = res.get("runs") or []
     latest = res.get("latest_run_id") or ""
-    ctx.emit(audit_part(latest))
+    scoped_case = res.get("case_id") or case_id
+    ctx.emit(audit_part(latest, case_id=scoped_case))
     latest_audit = res.get("latest_audit") or {}
-    verdict = latest_audit.get("verdict") or (runs[0].get("verdict") if runs else "—")
+    head = runs[0] if runs else {}
+    verdict_line = _verdict_narration(
+        latest_audit.get("verdict") or head.get("verdict"),
+        latest_audit.get("grounded_verdict") or head.get("grounded_verdict"),
+        head.get("floor_suppressed"),
+    )
+    scope = f" for case {scoped_case!r}" if scoped_case else ""
     return _text(
-        f"{len(runs)} run(s) on record. Latest {latest[:8] or '—'}: verdict={verdict}. "
+        f"{len(runs)} run(s) on record{scope}. Latest {latest[:8] or '—'}: {verdict_line} "
         f"The config-change audit trail (your flag + judge edits) and this run's "
         f"provenance are shown."
     )
@@ -1072,7 +1112,9 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "audit trail ($0, no write) — THE way to serve an explicit '$0 replay', 'show the stored "
         "result', 'last result', 'for free / free of charge / at no cost', 'don't spend', 'without "
         "spending', or 'without paying' ask (never the cost-confirm modal; a $0 ask must never "
-        "escalate to a paid proposal). Use to show what was authored and what a run decided. If the "
+        "escalate to a paid proposal). Pass case_id whenever the human NAMES a case (exact id) — "
+        "the history and the latest stored verdict then scope to THAT case, not whichever case was "
+        "graded most recently. Use to show what was authored and what a run decided. If the "
         "read refuses (e.g. the config changed since the last grade), surface its message verbatim "
         "— never swallow it, never counter-propose a paid run unprompted.",
         REVIEW_RUNS_SCHEMA,

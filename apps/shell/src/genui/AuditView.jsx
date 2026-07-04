@@ -71,7 +71,7 @@ function shortTs(ts) {
   return t ? t[1] : s.slice(0, 19);
 }
 
-export default function AuditView({ runId: runIdProp = "" }) {
+export default function AuditView({ runId: runIdProp = "", caseId = "" }) {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
   const [records, setRecords] = useState([]);
@@ -80,6 +80,9 @@ export default function AuditView({ runId: runIdProp = "" }) {
   const [run, setRun] = useState(null);
   const [runErr, setRunErr] = useState(null);
   const [reload, setReload] = useState(0); // B2: a retry bumps this to re-run the loader
+  // RUN-TRAIL-CASE-SCOPE: a caseId (threaded from the review_runs card) scopes the trail
+  // to the case the conversation is about; "See all runs" is the one-click way out.
+  const [caseScope, setCaseScope] = useState(Boolean(caseId));
 
   useEffect(() => {
     let live = true;
@@ -87,11 +90,11 @@ export default function AuditView({ runId: runIdProp = "" }) {
     getAudit()
       .then((r) => { if (live) { setRecords(r.records || []); setStatus("ready"); } })
       .catch((e) => { if (live) { setError(friendlyError(e)); setStatus("error"); } });
-    getRuns()
+    getRuns(50, caseScope && caseId ? { caseId } : {})
       .then((b) => { if (live) setRuns(b.runs || []); })
       .catch(() => { if (live) setRuns([]); });
     return () => { live = false; };
-  }, [reload]);
+  }, [reload, caseScope, caseId]);
 
   const loadRun = async (id) => {
     const target = id || runId;
@@ -139,6 +142,13 @@ export default function AuditView({ runId: runIdProp = "" }) {
 
         <section className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold text-foreground">Run trail</span>
+          {caseScope && caseId && (
+            <span className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground" data-testid="trail-scope">
+              scoped to <span className="text-foreground">{caseId}</span>
+              <Button size="sm" variant="ghost" className="h-5 px-2 text-[10.5px]"
+                onClick={() => setCaseScope(false)}>See all runs</Button>
+            </span>
+          )}
           {runs.length === 0 ? (
             <span className="text-[10.5px] text-muted-foreground">No runs recorded yet.</span>
           ) : (
