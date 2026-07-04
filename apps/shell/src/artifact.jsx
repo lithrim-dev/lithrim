@@ -587,7 +587,13 @@ const _BASELINE_DOT = {
   unknown: { color: "var(--muted)", title: "baseline: unknown" },
 };
 
-function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelectCase }) {
+// COHORT-SUBSET-1 (feat/cohort-and-subset-ui): the browser also multi-SELECTS a cohort. A per-row
+// checkbox toggles membership in the lifted `selectedIds` Set (App-owned, so panes/palette read it);
+// the row BODY click still ARMS a single case (unchanged default — empty set = today's behavior).
+// "Run selected (N)" (hidden on an empty set) fires the SAME cohort cost-confirm the chat's
+// propose_run_all opens, via the `lithrim:grade-cohort` window bridge carrying the selected case_ids
+// (the subset-capable gradeCases param). The pane never spends — the confirm is the only paid path.
+function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelectCase, selectedIds = null, onToggleSelect }) {
   const [browse, setBrowse] = useState(null);
   const [status, setStatus] = useState("loading");
   useEffect(() => {
@@ -598,6 +604,9 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
     return () => { live = false; };
   }, [agent]);
   if (status !== "ready") return null;
+  const sel = selectedIds || new Set();
+  const multi = typeof onToggleSelect === "function"; // the checkbox column only when the App wired selection
+  const runSelected = () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { case_ids: [...sel] } })); } catch {} };
   const cases = (browse || {}).cases || [];
   if (cases.length === 0)
     return (
@@ -611,15 +620,29 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
     );
   return (
     <div className="art-sec">
-      <div className="art-h2">
-        Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons</span>
+      <div className="art-h2" style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons{multi ? "; check to grade several" : ""}</span>
+        </span>
+        {multi && sel.size > 0 && (
+          <button className="btn btn-primary" data-testid="run-selected" title="Grade the checked cases (opens the paid cost-confirm)"
+            style={{ flexShrink: 0, fontSize: 12, padding: "3px 10px" }} onClick={runSelected}>
+            Run selected ({sel.size})
+          </button>
+        )}
       </div>
       {cases.map((c) => {
         const active = c.case_id === activeCase;
+        const checked = sel.has(c.case_id);
         const dot = _BASELINE_DOT[c.baseline] || _BASELINE_DOT.unknown;
         return (
           <div key={c.case_id} onClick={() => onSelectCase?.(c.case_id)}
             style={{ padding: "8px 6px", margin: "0 -6px", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", gap: 8, alignItems: "baseline", cursor: onSelectCase ? "pointer" : "default", borderRadius: 6, background: active ? "var(--surface-2, rgba(127,127,127,0.10))" : "transparent" }}>
+            {multi && (
+              <input type="checkbox" data-testid={`case-check-${c.case_id}`} checked={checked}
+                onClick={(e) => e.stopPropagation()} onChange={() => onToggleSelect(c.case_id)}
+                title="Add this case to the cohort to grade" style={{ flexShrink: 0, cursor: "pointer", alignSelf: "center" }} />
+            )}
             <span title={dot.title} style={{ color: dot.color, flexShrink: 0 }}>●</span>
             <span style={{ fontFamily: "var(--mono)", fontWeight: active ? 600 : 400, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{c.case_id}</span>
             {c.labeled ? (
@@ -640,10 +663,10 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
 }
 
 // The Cases tab = the browsable case list (above) + the correction flywheel (below).
-function CorpusTab({ agent = "ws0_default", activeCase = null, onSelectCase }) {
+function CorpusTab({ agent = "ws0_default", activeCase = null, onSelectCase, selectedIds = null, onToggleSelect }) {
   return (
     <div>
-      <CaseBrowserSection agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} />
+      <CaseBrowserSection agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />
       <CorrectionCorpus />
     </div>
   );
@@ -834,7 +857,7 @@ function CaseTab({ agent = "ws0_default", caseId = null, onBrowseCases }) {
   );
 }
 
-export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", wsPack = null, activeCase = null, onSelectCase, onClose, onToggleFull, runStatus, runResult, runError }) {
+export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", wsPack = null, activeCase = null, onSelectCase, selectedIds = null, onToggleSelect, onClose, onToggleFull, runStatus, runResult, runError }) {
   const titles = {
     case: ["The case", "the input, the AI’s output, and the planted answer"],
     report: ["Evaluation report", "the latest run"],
@@ -870,7 +893,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} agent={agent} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
-          {tab === "corpus" && <CorpusTab agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} />}
+          {tab === "corpus" && <CorpusTab agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />}
         </div>
       </div>
     </section>

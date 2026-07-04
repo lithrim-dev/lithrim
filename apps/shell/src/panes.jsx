@@ -372,6 +372,19 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   const [clearing, setClearing] = useState(false); // PERSIST-CONV: in-DOM confirm for the destructive clear
   const [reloadTick, setReloadTick] = useState(0); // REFRESH-1: bump → rehydrate the thread from the durable store
   const [paid, setPaid] = useState({ open: false, busy: false }); // the in-DOM cost gate
+  // COHORT-SUBSET-1: non-chat cohort triggers (the Cases-browser "Run selected", the ⌘K "Grade all")
+  // reach the SAME in-DOM cohort cost-confirm the chat's propose_run_all opens — via the
+  // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
+  // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
+  // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  useEffect(() => {
+    const onGradeCohort = (e) => {
+      const ids = e?.detail?.case_ids;
+      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null });
+    };
+    window.addEventListener("lithrim:grade-cohort", onGradeCohort);
+    return () => window.removeEventListener("lithrim:grade-cohort", onGradeCohort);
+  }, []);
   const taRef = useRef(null);
   const fileRef = useRef(null); // CE-INGEST-FRONTDOOR-1: the hidden upload input (the only chrome)
   const [uploading, setUploading] = useState(false);
@@ -619,7 +632,10 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       // RUN-ALL-1: the COHORT path — grade ALL ingested cases (one cost-confirmed batch) and render
       // the consolidated scorecard INLINE in the chat (the same registry card the agent would emit).
       if (paid.cohort) {
-        const resp = await gradeCases({ agent, in_process: true });
+        // COHORT-SUBSET-1: paid.caseIds (from "Run selected") scopes the grade to the checked subset;
+        // null (from "Grade all" / propose_run_all) grades EVERY ingested case. The scorecard the
+        // ScorecardCard renders is scoped to whatever gradeCases returns for that request.
+        const resp = await gradeCases({ agent, in_process: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
         const output = { ...(resp.scorecard || {}), grade_path: resp.summary?.grade_path };
         setChat((c) => [
           ...c,

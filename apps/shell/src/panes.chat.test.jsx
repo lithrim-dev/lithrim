@@ -8,6 +8,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("./bff.js", () => ({
   runEval: vi.fn().mockResolvedValue({ composite: { verdict: "reject" }, council: { votes: [] } }),
+  // COHORT-SUBSET-1: the cohort/subset grade the confirmPaidRun cohort branch calls.
+  gradeCases: vi.fn().mockResolvedValue({ scorecard: { cases: [], n_cases: 0 }, summary: { grade_path: "in_process" } }),
+  ingestPreview: vi.fn().mockResolvedValue({}),
   getRuns: vi.fn().mockResolvedValue({ runs: [] }),
   runEvalPack: vi.fn().mockResolvedValue({}),
   getCorpus: vi.fn().mockResolvedValue({ rows: [] }),
@@ -68,11 +71,12 @@ vi.mock("./bff.js", () => ({
 
 import { CenterPane } from "./panes.jsx";
 import App from "./app.jsx";
-import { chatStream, runEval } from "./bff.js";
+import { chatStream, runEval, gradeCases } from "./bff.js";
 
 beforeEach(() => {
   chatStream.mockClear();
   runEval.mockClear();
+  gradeCases.mockClear();
 });
 
 describe("CenterPane — the R11 conversational loop", () => {
@@ -606,5 +610,51 @@ describe("CenterPane — CONV-UX-1 W3: GenUI dedup / intent / error-guard", () =
     // ...and NO card (the audit_log part) rendered alongside it — the W3 error-guard held
     expect(screen.queryByDisplayValue("run-x")).toBeNull();
     expect(screen.queryByText(/Unsupported component/)).toBeNull();
+  });
+});
+
+// COHORT-SUBSET-1 (feat/cohort-and-subset-ui): non-chat cohort triggers reach the SAME in-DOM
+// cohort cost-confirm the chat's propose_run_all opens — via a window `lithrim:grade-cohort` event
+// (the same CustomEvent bridge as lithrim:cmdk / connect-ai). detail.case_ids carries a subset
+// (the Cases-browser "Run selected"); omitting it means ALL (the palette "Grade all"). The confirm
+// is the ONLY paid path; it calls the subset-capable gradeCases and renders ScorecardCard inline.
+describe("CenterPane — COHORT-SUBSET-1: non-chat cohort trigger + subset grade", () => {
+  const props = { agent: "ws0_default", onOpenArtifact: vi.fn(), artifactOpen: false, onRunEval: vi.fn(), runStatus: "idle" };
+  const fireCohort = (detail) => window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail }));
+
+  it("a lithrim:grade-cohort event WITH case_ids opens the cohort cost-confirm; NO paid call before confirm", async () => {
+    render(<CenterPane {...props} />);
+    fireCohort({ case_ids: ["case_a", "case_c"] });
+    // the SAME cohort modal the chat directive opens
+    expect(await screen.findByText(/Grade all cases \(paid\)\?/i)).toBeInTheDocument();
+    // credit-safety: NOTHING graded yet — the human hasn't confirmed
+    expect(gradeCases).not.toHaveBeenCalled();
+  });
+
+  it("on confirm, a SUBSET cohort calls gradeCases WITH the case_ids + renders the scorecard inline", async () => {
+    gradeCases.mockResolvedValueOnce({
+      scorecard: { cases: [{ case_id: "case_a", verdict: "PASS", labeled: true, gold: [], caught: [], missed: [], spurious: [] }], n_cases: 1, n_labeled: 1, flag: { precision: 1, recall: 1 }, verdict_accuracy: "1/1" },
+      summary: { grade_path: "in_process" },
+    });
+    render(<CenterPane {...props} />);
+    fireCohort({ case_ids: ["case_a", "case_c"] });
+    fireEvent.click(await screen.findByTestId("cost-confirm"));
+    await waitFor(() =>
+      expect(gradeCases).toHaveBeenCalledWith(
+        expect.objectContaining({ agent: "ws0_default", in_process: true, case_ids: ["case_a", "case_c"] }),
+      ),
+    );
+    // the SAME inline scorecard gen-UI the cohort path renders (ScorecardCard), scoped to the subset
+    expect(await screen.findByText(/Scorecard · 1 case/)).toBeInTheDocument();
+  });
+
+  it("Grade all (no case_ids) calls gradeCases WITHOUT case_ids — the whole cohort", async () => {
+    render(<CenterPane {...props} />);
+    fireCohort({}); // palette "Grade all cases" — no subset
+    fireEvent.click(await screen.findByTestId("cost-confirm"));
+    await waitFor(() => expect(gradeCases).toHaveBeenCalledTimes(1));
+    const arg = gradeCases.mock.calls[0][0];
+    expect(arg.in_process).toBe(true);
+    expect(arg.case_ids).toBeUndefined(); // all-cases grade passes no subset
   });
 });

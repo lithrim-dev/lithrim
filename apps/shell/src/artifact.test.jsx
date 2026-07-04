@@ -240,6 +240,70 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
   });
 });
 
+// COHORT-SUBSET-1 (feat/cohort-and-subset-ui): the Cases browser gets MULTI-SELECT + a
+// "Run selected (N)" cohort trigger, closing the one-or-all/chat-only gap. Selection is a Set
+// lifted into shared state; the row-body click still ARMS a single case (unchanged default);
+// a per-row checkbox toggles cohort membership. "Run selected (N)" is hidden on an empty set and,
+// on click, dispatches the SAME cohort cost-confirm the chat's propose_run_all opens — carrying
+// the selected case_ids (the existing subset-capable gradeCases param). No paid call from the pane.
+describe("CaseBrowserSection — multi-select cohort (COHORT-SUBSET-1)", () => {
+  const THREE = {
+    agent: "ws0_default", count: 3, truncated: false,
+    cases: [
+      { case_id: "case_a", source: "pinned", labeled: true, defect: "FABRICATED_CLAIM", runs: 0, baseline: "none" },
+      { case_id: "case_b", source: "pinned", labeled: true, defect: null, runs: 0, baseline: "none" },
+      { case_id: "case_c", source: "ingested", labeled: false, defect: null, runs: 0, baseline: "none" },
+    ],
+  };
+
+  it("empty selection: no 'Run selected' button — single-arm behavior is unchanged (row click still arms)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onSelectCase = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={onSelectCase} selectedIds={new Set()} onToggleSelect={vi.fn()} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    expect(screen.queryByTestId("run-selected")).toBeNull(); // hidden on empty set
+    fireEvent.click(screen.getByText("case_a")); // row body still arms a single case
+    expect(onSelectCase).toHaveBeenCalledWith("case_a");
+  });
+
+  it("toggling a checkbox calls onToggleSelect(case_id) without arming (independent of single-select)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onSelectCase = vi.fn();
+    const onToggleSelect = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={onSelectCase} selectedIds={new Set()} onToggleSelect={onToggleSelect} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    fireEvent.click(screen.getByTestId("case-check-case_b"));
+    expect(onToggleSelect).toHaveBeenCalledWith("case_b");
+    expect(onSelectCase).not.toHaveBeenCalled(); // toggling membership must NOT arm the single case
+  });
+
+  it("a non-empty selection shows 'Run selected (N)' and, on click, dispatches lithrim:grade-cohort with the selected case_ids", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const heard = [];
+    const onHear = (e) => heard.push(e.detail);
+    window.addEventListener("lithrim:grade-cohort", onHear);
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={vi.fn()} selectedIds={new Set(["case_a", "case_c"])} onToggleSelect={vi.fn()} runStatus="idle" runResult={null} runError={null} />);
+    const btn = await screen.findByTestId("run-selected");
+    expect(btn.textContent).toMatch(/Run selected \(2\)/);
+    fireEvent.click(btn);
+    window.removeEventListener("lithrim:grade-cohort", onHear);
+    expect(heard).toHaveLength(1);
+    expect(new Set(heard[0].case_ids)).toEqual(new Set(["case_a", "case_c"]));
+  });
+
+  it("a selected row is visually checked (checkbox reflects the lifted Set)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={vi.fn()} selectedIds={new Set(["case_b"])} onToggleSelect={vi.fn()} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    expect(screen.getByTestId("case-check-case_b").checked).toBe(true);
+    expect(screen.getByTestId("case-check-case_a").checked).toBe(false);
+  });
+});
+
 // FINDING #2 (UI-pass 2026-07-04): the pane used to render the agent's DEFAULT case while the
 // header said "No case selected" — two case states silently out of sync. The CaseTab now labels
 // the fallback explicitly and offers the jump to the browser; a SELECTED case gets no notice.
