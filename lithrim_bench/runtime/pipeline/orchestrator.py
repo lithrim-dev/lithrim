@@ -362,6 +362,9 @@ class PipelineOrchestrator:
             loaded_plugins=_plugin_snapshot["plugins"],
             active_pack=_plugin_snapshot["active_pack"],
             pack_tier=_plugin_snapshot["pack_tier"],
+            # REL-OPS-1 O4: the bind-time dated-alias record (role → model + dated flag);
+            # .get keeps the degraded-snapshot fallback above default-safe.
+            model_bindings=_plugin_snapshot.get("model_bindings"),
             # Cycle 16: persist final orchestration summary so the audit-view
             # denormaliser doesn't have to re-derive verdict / findings from
             # stage_results. ``unioned_findings`` is the same list passed to

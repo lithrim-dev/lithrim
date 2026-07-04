@@ -268,6 +268,11 @@ class PipelineProvenance(BaseModel):
     loaded_plugins: list[dict[str, Any]] = Field(default_factory=list)
     active_pack: str | None = None
     pack_tier: str | None = None
+    # REL-OPS-1 O4: the bind-time model-binding record — each role's resolved model id +
+    # ``dated: true/false`` (``None`` when that judge bound no LM, e.g. offline predictors).
+    # ``None`` on older docs / runs where no council was constructed. Additive + default-
+    # safe (the Cycle-16/D5 precedent); observation-only, never feeds verdict derivation.
+    model_bindings: list[dict[str, Any]] | None = None
 
 
 class PipelineRequest(BaseModel):
