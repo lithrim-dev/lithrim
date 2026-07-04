@@ -53,6 +53,7 @@ Run:  uvicorn app:app --app-dir apps/bff --port 8787   (needs the [bff] extra)
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import logging
@@ -3740,6 +3741,20 @@ def create_judge_endpoint(
     }
 
 
+def _pin_arguments_jute(params: dict) -> dict:
+    """CRITERION-JUTE-1a authoring-side pin-write: when a contract declares ``arguments_jute`` (the
+    pinned per-case JUTE arg-mapping) but no ``arguments_jute_sha256``, compute + store the sha256 so
+    the authored mapping is PINNED — the grade-time executor hash-verifies against it and refuses a
+    drifted transform. A caller-supplied sha256 is trusted as-is (the caller may pin explicitly). No
+    ``arguments_jute`` -> params returned unchanged (byte-identical for every existing contract)."""
+    jute = params.get("arguments_jute")
+    if not jute or params.get("arguments_jute_sha256"):
+        return params
+    pinned = dict(params)
+    pinned["arguments_jute_sha256"] = hashlib.sha256(jute.encode("utf-8")).hexdigest()
+    return pinned
+
+
 @app.post("/v1/grounding-contract")
 def put_grounding_contract_endpoint(
     body: GroundingContractRequest,
@@ -3769,10 +3784,11 @@ def put_grounding_contract_endpoint(
         actor=default_actor,
         x_actor=x_actor,
     )
+    params = _pin_arguments_jute(body.params or {})
     return ctx.put_grounding_contract(
         flag_code=body.flag_code,
         contract_type=body.contract_type,
-        params=body.params or {},
+        params=params,
         question=body.question,
         version=body.version,
         agent=body.agent,

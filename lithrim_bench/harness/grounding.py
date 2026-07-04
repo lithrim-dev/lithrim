@@ -33,6 +33,7 @@ declared flag at all) is left in active unchanged, as before.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import re
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
@@ -609,6 +610,17 @@ def _truthy_match(result: Any, key: str | None) -> bool:
     return bool(result)
 
 
+def _jute_client() -> Any:
+    """The :3031 JUTE-apply seam for CRITERION-JUTE-1a's pinned arg-shaping — an
+    ``EtlpJuteClient`` whose ``test_template`` applies the pinned template IN-MEMORY (no DB write,
+    no :3031 mutation), exactly the seam ``jute_gen`` uses. Isolated in a factory so tests inject a
+    fake (:3031 is not required offline). The live client creates its ``httpx.Client`` lazily (the
+    optional ``[verification]`` extra), so importing it is cheap and networkless until first apply."""
+    from lithrim_bench.verification import EtlpJuteClient
+
+    return EtlpJuteClient()
+
+
 class McpCallGrounding(VerificationContract):
     """TOOL-AUTHOR-1: the GENERIC MCP-tool suppress executor — wire ANY authored MCP tool
     (web-scraper, terminology, KB) into a judge's flag with no per-tool Python. Resolves the bound
@@ -661,11 +673,24 @@ class McpCallGrounding(VerificationContract):
                 disproved=False,
                 reason=f"mcp_call: tool {tool_id!r} has no stdio MCP transport yet (not_applicable)",
             )
+        # CRITERION-JUTE-1a: shape the tool arguments — a pinned per-case JUTE transform if declared,
+        # else the static dict (today's byte-identical path). A drifted transform REFUSES (None):
+        # never grade through it — the finding stands.
+        arguments = self._shape_arguments(case, finding)
+        if arguments is None:
+            return Verdict(
+                disproved=False,
+                reason=(
+                    "mcp_call: arguments_jute hash mismatch (pinned transform drifted); "
+                    "refusing to grade — finding stands"
+                ),
+            )
+
         from lithrim_bench.verification.mcp_client import McpStdioClient
 
         client = McpStdioClient(command=mcp.get("command"), args=mcp.get("args", []))
         try:
-            result = client.call_tool(call, p.get("arguments") or {})
+            result = client.call_tool(call, arguments)
         except Exception as exc:  # noqa: BLE001 — unreachable server: finding stands, never a 500
             return Verdict(
                 disproved=False, reason=f"mcp_call: {tool_id}.{call} unreachable ({exc}); finding stands"
@@ -690,6 +715,36 @@ class McpCallGrounding(VerificationContract):
                 else "mcp_call corroborated: no positive match; finding stands (never cleared by silence)"
             ),
         )
+
+    def _shape_arguments(self, case: dict[str, Any], finding: dict[str, Any]) -> dict | None:
+        """CRITERION-JUTE-1a: the argument source for the tool call.
+
+        - No ``arguments_jute`` -> ``params.get("arguments") or {}`` (today's behaviour, byte-identical
+          for every existing contract — those carry no ``arguments_jute``, so this is the only branch
+          they reach and the moat is 0-delta on the current corpus).
+        - ``arguments_jute`` present -> HASH-VERIFY it against ``arguments_jute_sha256`` FIRST; on
+          mismatch return ``None`` (the REFUSE sentinel — never grade through a drifted transform,
+          mirroring the ``jute_gen`` ``pinned_template_sha256`` refusal). On match, apply the pinned
+          JUTE to ``{case, finding}`` in-memory via the same :3031 ``test_template`` seam ``jute_gen``
+          uses (no DB write) and return the shaped arguments object. If the transform fails to compile
+          or does not yield an object (should be impossible after the corpus gate, but defensively),
+          return ``None`` so the finding stands rather than grade through a broken shape.
+        """
+        p = self._params
+        jute = p.get("arguments_jute")
+        if not jute:
+            return p.get("arguments") or {}
+        want = p.get("arguments_jute_sha256")
+        if not want or hashlib.sha256(jute.encode("utf-8")).hexdigest() != want:
+            return None  # drift: refuse, finding stands
+        try:
+            applied = _jute_client().test_template(jute, {"case": case, "finding": finding})
+        except Exception:  # noqa: BLE001 — a dead :3031 must not grade through; finding stands
+            return None
+        if not isinstance(applied, dict) or applied.get("compiled") is False:
+            return None
+        output = applied.get("output")
+        return output if isinstance(output, dict) else None
 
 
 def _terminology_edition(client: Any, edition_op: Any) -> str:
