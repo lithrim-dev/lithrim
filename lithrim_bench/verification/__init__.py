@@ -8,6 +8,13 @@ with per-claim routing + verdict composition (the false-negative guardrail) in
 See `.devloop/state/STREAM_bench-salvage.md` (WS-3 row).
 """
 
+from .argshape_gate import (
+    FindingResult,
+    GateFailure,
+    GateReport,
+    assert_gate_passes,
+    gate_contract_over_corpus,
+)
 from .etlp_client import EtlpJuteClient
 from .extraction_floors import FactPreservationTool, SpeakerAttributionTool
 from .jute_argshape import (
@@ -143,4 +150,9 @@ __all__ = [
     "CLEARED",
     "CONFIRMED",
     "UNRESOLVED",
+    "GateReport",
+    "FindingResult",
+    "GateFailure",
+    "gate_contract_over_corpus",
+    "assert_gate_passes",
 ]
