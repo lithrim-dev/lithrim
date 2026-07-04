@@ -28,6 +28,7 @@ const EXPECTED = {
   "tool-run_panel": /Run evaluation/i, // UAP-3 R4 — the processing surface
   "tool-case_summary": /Loading the case|Source case/i, // CHATBIND-3 — the inline source-case summary
   "tool-judge_builder": /a new reviewer/i, // PHASE2-WIRE — the inline create-a-new-reviewer card
+  "tool-criterion_builder": /^Gradeable criterion$/, // NARR-5-CRIT-b — anchored to the CardTitle, not the footer's "net-new gradeable criterion"
   "tool-scorecard": /run all cases/i, // RUN-ALL-1 — the consolidated cohort scorecard (empty-state mount)
   "tool-ingest_preview": /cases from/i, // CE-INGEST-FRONTDOOR-1 — the upload preview card (empty mount: "0 cases from file")
   "tool-tool_builder": /Connect a tool/i, // TOOL-AUTHOR-1 — the MCP/API tool-authoring card
@@ -37,8 +38,8 @@ const EXPECTED = {
 };
 
 describe("renderTool registry", () => {
-  it("knows all 17 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(17);
+  it("knows all 18 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(18);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

@@ -32,6 +32,7 @@ export const KNOWN_TOOLS = [
   "tool-run_panel",
   "tool-case_summary",
   "tool-judge_builder",
+  "tool-criterion_builder",
   "tool-scorecard",
   "tool-ingest_preview",
   "tool-tool_builder",
