@@ -367,6 +367,12 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // arbitrary, invisible case (incoherent cold-open). It stays null until the user names/picks a
   // case (the chat's None-branch then calls list_cases + asks); the header shows the active case.
   const [activeCase, setActiveCase] = useState(null);
+  // COHORT-SUBSET-1: the Cases-browser MULTI-select — a lifted Set the browser toggles (checkbox) and
+  // the "Run selected (N)" cohort trigger reads. Single-select arming (activeCase) is untouched: an
+  // EMPTY set = today's behavior. Lifted here so it's the same shared state panes/palette can read.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const onToggleSelect = (cid) =>
+    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(cid)) next.delete(cid); else next.add(cid); return next; });
   const refreshCases = async () => {
     try {
       const { listCases } = await import("./bff.js");
@@ -597,6 +603,10 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const paletteActions = [
     { id: "run-eval", label: "Run eval — replay the selected case for $0", run: () => requestRun(false) },
     { id: "run-live", label: "Run live — one real, paid council run", hint: "cost-confirmed", run: () => requestRun(true) },
+    // COHORT-SUBSET-1: a NON-chat "Grade all cases" — dispatch the same lithrim:grade-cohort bridge
+    // (no case_ids = ALL) the CenterPane opens the cohort cost-confirm for. cohort grading is no
+    // longer chat-only; the confirm is still the sole paid path (the palette itself never spends).
+    { id: "grade-all", label: "Grade all cases — one paid cohort batch", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: {} })); } catch {} } },
     { id: "explore-case", label: "Explore case — browse the gradeable cases", run: () => openArtifact(activeCase ? "case" : "corpus") },
     { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
     { id: "new-eval", label: "New evaluation", run: onNewEval },
@@ -648,6 +658,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
               width={rightW} full={full} tab={tab} setTab={setTab} agent={activeAgent}
               wsPack={wsPack}
               activeCase={activeCase} onSelectCase={onSelectCase}
+              selectedIds={selectedIds} onToggleSelect={onToggleSelect}
               onClose={() => { setOpen(false); setFull(false); }}
               onToggleFull={() => setFull((f) => !f)}
               runStatus={runStatus} runResult={runResult} runError={runError}
