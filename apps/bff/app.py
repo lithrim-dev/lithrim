@@ -1876,6 +1876,53 @@ def list_cases_endpoint() -> dict:
 _BROWSER_MAX_CASES = 500
 
 
+def _agent_known_case_ids(agent: str, db_path: Path) -> list[str]:
+    """CHAT-CASE-TOKEN-RESOLVE — the case ids ``load_case`` can resolve for this agent, in the
+    SAME resolution order the browser uses (the agent's pinned source file → the legacy
+    ``PACK_FILES`` fixtures → the workspace's ingested corpus; first-wins dedup). This is the
+    known-case source the chat/tool layer maps a SHORT/PREFIX token against — the same list that
+    backs GET /v1/cases/browser, deliberately reused so the two never drift. $0 read; never raises
+    (a resolution failure → whatever ids were collected so far)."""
+    ids: list[str] = []
+    seen: set[str] = set()
+
+    def _add_id(row: dict) -> None:
+        cid = row.get("case_id") or row.get("id")
+        if cid and cid not in seen and len(ids) < _BROWSER_MAX_CASES:
+            seen.add(cid)
+            ids.append(cid)
+
+    def _jsonl_ids(path: Path):
+        try:
+            for line in path.open():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+        except OSError:
+            return
+
+    try:
+        ag = _load_agent(agent, db_path)
+        src = ag.source_abspath()
+        if src and Path(src).is_file():
+            for row in _jsonl_ids(Path(src)):
+                _add_id(row)
+        for _pack_name, paths in picklist.PACK_FILES.items():
+            for fp in paths:
+                if fp.exists():
+                    for row in _jsonl_ids(fp):
+                        _add_id(row)
+        for row in _read_ingested_corpus():
+            _add_id(row)
+    except Exception:  # noqa: BLE001 — a known-case read must never break the chat
+        pass
+    return ids
+
+
 @app.get("/v1/cases/browser")
 def case_browser_endpoint(
     agent: str = DEFAULT_AGENT,
@@ -4520,6 +4567,11 @@ def _build_tool_context(
         # workspace's ingested_cases.jsonl. $0/read.
         return list_cases_endpoint()
 
+    def _known_case_ids() -> list[str]:
+        # CHAT-CASE-TOKEN-RESOLVE: the agent's resolvable case ids (the GET /v1/cases/browser
+        # source) so the tool layer can map a short/prefix token to the unique full id. $0/read.
+        return _agent_known_case_ids(req_agent, db_path)
+
     def _load_case_full(case_id: str) -> dict | None:
         # GROUNDED-EXPLAIN-1: resolve a case's raw dict (transcript/context + artifacts + gold)
         # the SAME way GET /v1/case does — pin the active agent's source so the workspace-corpus
@@ -5259,6 +5311,7 @@ def _build_tool_context(
         default_agent=req_agent,
         active_case=active_case,
         load_case_full=_load_case_full,
+        known_case_ids=_known_case_ids,
     )
 
 
