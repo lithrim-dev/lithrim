@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import contextlib
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any
 
@@ -43,12 +43,18 @@ from .ontology import Ontology, VerificationContractDecl, load_ontology
 
 @dataclass(frozen=True)
 class Verdict:
-    """The outcome of running one contract against one finding."""
+    """The outcome of running one contract against one finding.
+
+    ``terminology_edition`` (REL-OPS-1 O2, record-only) is the terminology release that
+    decided a ``terminology_subsumption`` execution — the edition string when an
+    ``edition_op`` is configured and answers, the honest ``"unrecorded"`` otherwise, and
+    ``None`` for every non-terminology contract (so their record shapes are unchanged)."""
 
     disproved: bool
     matched_token: str | None = None
     evidence: str | None = None
     reason: str = ""
+    terminology_edition: str | None = None
 
 
 @dataclass(frozen=True)
@@ -686,6 +692,33 @@ class McpCallGrounding(VerificationContract):
         )
 
 
+def _terminology_edition(client: Any, edition_op: Any) -> str:
+    """REL-OPS-1 O2: the terminology release/edition that decided this grounding execution.
+
+    Record-only and fail-honest: no configured op, an erroring op, or an answer whose release
+    identifier cannot be read from a NAMED key stamps ``"unrecorded"`` — never a guess, and
+    never an exception (an edition-lookup failure must not change any verdict). Called once
+    per tool session, AFTER the grounding calls, so it cannot perturb them."""
+    if not edition_op:
+        return "unrecorded"
+    try:
+        result = client.call_tool(str(edition_op), {})
+    except Exception:  # noqa: BLE001 — never fail the grounding over the edition lookup
+        return "unrecorded"
+    if isinstance(result, str) and result.strip():
+        return result.strip()
+    if isinstance(result, (int, float)) and not isinstance(result, bool):
+        return str(result)
+    candidates = [result] if isinstance(result, dict) else result if isinstance(result, list) else []
+    for item in candidates[:1]:
+        if not isinstance(item, dict):
+            continue
+        for key in ("edition", "release", "version", "release_date", "releaseDate"):
+            if item.get(key):
+                return str(item[key])
+    return "unrecorded"
+
+
 class TerminologySubsumption(VerificationContract):
     """REPRO-1 R4c: the CORE-GENERIC terminology-subsumption suppress executor — ground the
     FLAGGED SPAN's term(s) against the case's record concepts by is-a subsumption through a
@@ -704,10 +737,16 @@ class TerminologySubsumption(VerificationContract):
     empty record, an unresolvable term, an un-subsumed term, or an absent/unreachable tool →
     the finding STANDS.
 
+    REL-OPS-1 O2 (record-only): every execution stamps ``terminology_edition`` on its
+    verdict — the release identifier returned by the ``edition_op`` named in the contract
+    params or the tool's service config, else ``"unrecorded"`` (a failed lookup never
+    changes the verdict; change detection / golden re-run triggering is a later cut).
+
     params = {"tool": "<kind:tool terminology id>",     # required (ToolBuilder-authored)
               "record_path": "<case path of record terms>",  # required
               "term_regex": "<optional candidate extractor over the span quote>",
-              "search_call": "search", "subsumes_call": "subsumed_by"}  # op names (data)
+              "search_call": "search", "subsumes_call": "subsumed_by",  # op names (data)
+              "edition_op": "<optional release/edition lookup op>"}     # O2 pinning
     """
 
     contract_type = "terminology_subsumption"
@@ -745,6 +784,16 @@ class TerminologySubsumption(VerificationContract):
         return None
 
     def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        # O2: the edition holder is written by the tool session's ``finally`` (after every
+        # verdict-determining call), so the lookup can NEVER perturb the grounding itself;
+        # a path that never opens a session honestly stays "unrecorded".
+        edition = ["unrecorded"]
+        verdict = self._span_grounding(finding, case, edition)
+        return replace(verdict, terminology_edition=edition[0])
+
+    def _span_grounding(
+        self, finding: dict[str, Any], case: dict[str, Any], edition: list[str]
+    ) -> Verdict:
         from lithrim_bench.harness import plugins
 
         p = self._params
@@ -765,7 +814,8 @@ class TerminologySubsumption(VerificationContract):
                 reason=f"no record terms at '{record_path}'; nothing to ground against",
             )
         manifest = plugins.resolve_tool(tool_id)
-        mcp = ((manifest.service if manifest else None) or {}).get("mcp") or {}
+        service = (manifest.service if manifest else None) or {}
+        mcp = service.get("mcp") or {}
         if not mcp.get("command"):
             return Verdict(
                 disproved=False,
@@ -775,6 +825,7 @@ class TerminologySubsumption(VerificationContract):
 
         search_call = p.get("search_call") or "search"
         subsumes_call = p.get("subsumes_call") or "subsumed_by"
+        edition_op = p.get("edition_op") or service.get("edition_op") or mcp.get("edition_op")
         client = McpStdioClient(command=mcp.get("command"), args=mcp.get("args", []))
         try:
             record_codes = [
@@ -815,6 +866,7 @@ class TerminologySubsumption(VerificationContract):
                 reason=f"terminology tool unreachable ({exc}); the finding stands",
             )
         finally:
+            edition[0] = _terminology_edition(client, edition_op)
             with contextlib.suppress(Exception):
                 client.close()
 

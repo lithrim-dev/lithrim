@@ -62,18 +62,24 @@ def audit_grounding_checks(
         if str(code) not in declared_set:
             continue
         verdict = s["verdict"]
+        why = {
+            "contract": s["contract"].version,
+            "conforms": False,
+            "deterministic_result": "disproved",
+            "grounded_fact": verdict.evidence,
+            "matched_token": verdict.matched_token,
+        }
+        edition = getattr(verdict, "terminology_edition", None)
+        if edition is not None:
+            # REL-OPS-1 O2: WHICH terminology edition decided it — absent (not null) for
+            # non-terminology contracts, so their audit shape is byte-identical.
+            why["terminology_edition"] = edition
         records.append(
             AuditRecord(
                 actor=Actor(type="grounding_check", id=str(code)),
                 action="suppress",
                 target=Target(type="finding", id=str(code)),
-                why={
-                    "contract": s["contract"].version,
-                    "conforms": False,
-                    "deterministic_result": "disproved",
-                    "grounded_fact": verdict.evidence,
-                    "matched_token": verdict.matched_token,
-                },
+                why=why,
                 run_id=run_id,
                 case_id=case_id,
             )
