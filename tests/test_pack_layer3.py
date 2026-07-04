@@ -118,7 +118,8 @@ def test_pack_floors_register_the_clinical_executors():
     # TOOL-2 added snomed_subsumption (code-based record-presence over the Hermes MCP terminology
     # server) alongside the original snomed_core record_presence.
     assert set(mod.SUPPRESS_EXECUTORS) == {"record_presence", "snomed_subsumption"}
-    assert set(mod.FLOOR_EXECUTORS) == {"dosage_grounding"}
+    # CONCEPT-PRESERVATION-1 (pack 0fd3e4b) added the concept_preservation floor.
+    assert set(mod.FLOOR_EXECUTORS) == {"dosage_grounding", "concept_preservation"}
     # merged into the engine's registries (core-generic ∪ pack)
     assert "record_presence" in grounding.suppress_executors()
     assert "record_presence" not in grounding._CONTRACT_EXECUTORS  # from the pack, not core

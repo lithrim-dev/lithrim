@@ -60,17 +60,28 @@ _EXPECTED_SUPPRESS = {
     "kb_grounding",
     # GROUND-FLOOR-SOURCE-1: the core-generic answer⊆source faithfulness suppress executor.
     "source_grounding",
+    # CONN-WEBSEARCH-1: the core web-search reference connector (non-authoritative suppress).
+    "web_search",
     "record_presence",
     "snomed_subsumption",
 }
 # CORE-FLOOR-1: value_presence is a CORE floor now (domain-agnostic completeness floor, promoted
 # out of the narrative pack so it is available on EVERY pack incl. healthcare).
-_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "dosage_grounding"}
+# CONCEPT-PRESERVATION-1 (pack 0fd3e4b): the healthcare pack grew the concept_preservation floor.
+_EXPECTED_FLOOR = {
+    "structural_jute",
+    "jute_gen",
+    "value_presence",
+    "dosage_grounding",
+    "concept_preservation",
+}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
     "kb_grounding": ("contract", "core", "service", "grounding.suppress"),
     # GROUND-FLOOR-SOURCE-1: core, pure-stdlib (in_process), answer⊆source suppress executor.
     "source_grounding": ("contract", "core", "in_process", "grounding.suppress"),
+    # CONN-WEBSEARCH-1: core, service-transport, non-authoritative suppress connector.
+    "web_search": ("contract", "core", "service", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),
@@ -79,6 +90,9 @@ _EXPECTED_CONTRACT_PLUGINS = {
     # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology
     # MCP server — pack-tier (pro), service-transport (the pack's SERVICE_CONTRACT_TYPES).
     "snomed_subsumption": ("contract", "pro", "service", "grounding.suppress"),
+    # CONCEPT-PRESERVATION-1 (pack 0fd3e4b): the refusal-preservation floor over the same
+    # Hermes terminology MCP server — pack-tier (pro), service-transport.
+    "concept_preservation": ("contract", "pro", "service", "grounding.floor"),
 }
 
 
