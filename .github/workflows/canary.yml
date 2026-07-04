@@ -1,0 +1,53 @@
+name: Provider-drift canary
+
+# REL-OPS-1 O1: scheduled re-grade of the frozen golden set against the live
+# judges, diffed verdict-by-verdict against the pinned baseline
+# (scripts/canary_judges.py). Runs ONLY when provider secrets are configured
+# AND a baseline has been pinned — forks / bare-CE checkouts stay green (the
+# gate step succeeds with a notice). The credential-free CI (ci.yml) is
+# untouched by this workflow.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    env:
+      LITHRIM_API_KEY: ${{ secrets.LITHRIM_API_KEY }}
+      LITHRIM_ORG_ID: ${{ secrets.LITHRIM_ORG_ID }}
+      LITHRIM_BASE_URL: ${{ vars.LITHRIM_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate — provider secrets + pinned baseline required
+        id: gate
+        run: |
+          if [ -z "$LITHRIM_API_KEY" ] || [ -z "$LITHRIM_ORG_ID" ]; then
+            echo "::notice::provider secrets not configured — canary skipped (fork / bare-CE stays green)"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ ! -f data/canary/golden.jsonl ] || [ ! -f data/canary/baseline.json ]; then
+            echo "::notice::no pinned golden set / baseline under data/canary/ — mint one with scripts/canary_judges.py --record"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+      - name: Install
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,bff]"
+      - name: Re-grade the golden set against the pinned baseline
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          args=(--pack-path data/canary/golden.jsonl --baseline data/canary/baseline.json --backend lithrim-pipeline)
+          if [ -n "$LITHRIM_BASE_URL" ]; then args+=(--base-url "$LITHRIM_BASE_URL"); fi
+          python scripts/canary_judges.py "${args[@]}"
