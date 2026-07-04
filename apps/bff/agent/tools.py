@@ -316,6 +316,12 @@ class ToolContext:
     # "what's wrong with this case" answer grounds in the real artifact + gold. Optional — a ctx
     # built without it (or a test stub) degrades to no artifact injection.
     load_case_full: Callable[..., dict] | None = None
+    # CHAT-CASE-TOKEN-RESOLVE: the agent's known case ids (the SAME source that backs
+    # GET /v1/cases/browser — pinned source ⊕ pack fixtures ⊕ ingested corpus), so the chat/tool
+    # layer can map a SHORT/PREFIX token a user typed ("cv_mts_002") to the UNIQUE full case_id
+    # BEFORE the exact-match GET /v1/runs query. Optional — a ctx built without it (or a test stub)
+    # degrades to today's exact-match pass-through (the shared endpoint query is never loosened).
+    known_case_ids: Callable[..., list[str]] | None = None
     # CE-INGEST-FRONTDOOR-1: the first-class data front door — decode (JSON/JSONL/CSV) then the
     # human-in-the-loop PREVIEW (select/gen a template + apply, pin + write NOTHING) -> COMMIT (pin
     # the approved template + upsert). Optional — a ctx built without them (or a test stub) simply
@@ -484,12 +490,64 @@ def _verdict_narration(
     return f"{council}; {floor}; final: {g}."
 
 
+def _resolve_case_token(
+    token: str | None, known_ids: list[str]
+) -> tuple[str | None, str | None]:
+    """CHAT-CASE-TOKEN-RESOLVE — map a SHORT/PREFIX case token a user typed to the UNIQUE full
+    case_id, in the CHAT/TOOL layer (NEVER by loosening the exact-match GET /v1/runs query the
+    replay-baseline resolver depends on). Returns ``(resolved_id, ambiguity_note)``:
+
+    * exact known id → ``(token, None)`` (wins outright);
+    * unique PREFIX of exactly ONE known id → ``(full_id, None)``;
+    * matches MULTIPLE known ids → ``(None, "<honest note listing the matches>")`` — do NOT
+      guess a scope; stay UNSCOPED and let the caller narrate the ambiguity;
+    * matches ZERO → ``(token, None)`` — today's honest-empty behavior (the exact-match query
+      returns 0 runs, unchanged);
+    * no token / empty known list → the token passes through unchanged.
+
+    A PREFIX (not an arbitrary substring): case ids are hierarchical (``cv_mts_002_…``), so a
+    typed prefix is the natural short form; an arbitrary-substring match would silently over-hit
+    and pick a wrong scope. Pure — no I/O, never raises."""
+    tok = (token or "").strip() or None
+    if tok is None or not known_ids:
+        return tok, None
+    if tok in known_ids:
+        return tok, None
+    prefix_hits = [cid for cid in known_ids if cid.startswith(tok)]
+    if len(prefix_hits) == 1:
+        return prefix_hits[0], None
+    if len(prefix_hits) > 1:
+        note = (
+            f"{tok!r} matches {len(prefix_hits)} cases: "
+            + ", ".join(sorted(prefix_hits))
+            + " — which one?"
+        )
+        return None, note
+    return tok, None
+
+
 async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # The Review leg ($0 read): run history + the latest run's provenance + the config
     # audit trail (rendered by AuditView). No paid surface. case_id (RUN-TRAIL-CASE-SCOPE)
     # scopes the read to the case the human named — latest = that case's latest run.
     limit = args.get("limit")
     case_id = str(args.get("case_id") or "").strip() or None
+    # CHAT-CASE-TOKEN-RESOLVE — resolve the case to scope to, in the TOOL layer, BEFORE the
+    # exact-match GET /v1/runs query (the shared endpoint semantics stay EXACT — the replay
+    # baseline resolver depends on it). Precedence: an ARMED case (ctx.active_case, a known full
+    # id) WINS over a typed short token; else map a short/prefix token to the UNIQUE full id.
+    ambiguity_note: str | None = None
+    known_ids = []
+    if ctx.known_case_ids is not None:
+        try:
+            known_ids = [c for c in (ctx.known_case_ids() or []) if c]
+        except Exception:  # noqa: BLE001 — a known-case read must never break the $0 read
+            known_ids = []
+    armed = (ctx.active_case or "").strip() or None
+    if armed and armed in known_ids:
+        case_id = armed  # armed beats typed
+    elif case_id and known_ids:
+        case_id, ambiguity_note = _resolve_case_token(case_id, known_ids)
     try:
         kwargs: dict[str, Any] = {"limit": int(limit) if limit else 5}
         if case_id:
@@ -510,10 +568,11 @@ async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
         head.get("floor_suppressed"),
     )
     scope = f" for case {scoped_case!r}" if scoped_case else ""
+    ask = f" {ambiguity_note}" if ambiguity_note else ""
     return _text(
         f"{len(runs)} run(s) on record{scope}. Latest {latest[:8] or '—'}: {verdict_line} "
         f"The config-change audit trail (your flag + judge edits) and this run's "
-        f"provenance are shown."
+        f"provenance are shown.{ask}"
     )
 
 
