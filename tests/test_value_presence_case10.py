@@ -197,7 +197,9 @@ def test_value_presence_flips_case10_approve_to_block():
     out = json.loads(line[len("__JSON__") :])
 
     assert out["value_presence_registered"] is True
-    assert out["case_id"] == "clinical_scribe_10_splinter_injury_vaccine_refusal"
+    # the pack's committed fixture id (pack 545aafc — the vendored ClinVerdict case-10; the
+    # 4396d8d rebrand renamed only this bench-side literal, never the pack data)
+    assert out["case_id"] == "clinverdict_10_splinter_injury_vaccine_refusal"
     # the headline: the council APPROVED, the floor flips it to BLOCK on the real erased refusal
     assert out["original_verdict"] == "PASS"
     assert out["stage_verdict"] == "BLOCK"
