@@ -1043,7 +1043,8 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "fresh grade targets; omit it for the case the human is exploring. No paid knob — you only "
         "PROPOSE (surface the modal); the human authorizes the spend. (propose_live_run opens the "
         "same modal — both are the fresh-grade path.) NOT for an explicit '$0 replay / stored (last) "
-        "result / don't spend / without spending' ask — serve that with review_runs, the $0 read.",
+        "result / for free / at no cost / don't spend / without spending or paying' ask — serve "
+        "that with review_runs, the $0 read.",
         RUN_EVAL_SCHEMA,
     ),
     (
@@ -1069,11 +1070,11 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "review_runs",
         "Review the run history, the latest run's STORED verdict/provenance, and the config-change "
         "audit trail ($0, no write) — THE way to serve an explicit '$0 replay', 'show the stored "
-        "result', 'last result', 'don't spend', or 'without spending' ask (never the cost-confirm "
-        "modal; a $0 ask must never escalate to a paid proposal). Use to show what was authored and "
-        "what a run decided. If the read refuses (e.g. the config changed since the last grade), "
-        "surface its message verbatim — never swallow it, never counter-propose a paid run "
-        "unprompted.",
+        "result', 'last result', 'for free / free of charge / at no cost', 'don't spend', 'without "
+        "spending', or 'without paying' ask (never the cost-confirm modal; a $0 ask must never "
+        "escalate to a paid proposal). Use to show what was authored and what a run decided. If the "
+        "read refuses (e.g. the config changed since the last grade), surface its message verbatim "
+        "— never swallow it, never counter-propose a paid run unprompted.",
         REVIEW_RUNS_SCHEMA,
     ),
     (
@@ -1160,9 +1161,9 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "case|case X]'. It surfaces the cost-confirm modal; the human's confirm runs the fresh paid "
         "(live, in-process) grade. A fresh grade makes real (paid) model calls, so you only PROPOSE: "
         "this opens the modal, the human's confirm is the only thing that spends. You can NEVER fire "
-        "a paid run yourself. (For an explicit '$0 replay / stored (last) result / don't spend / "
-        "without spending' ask, use review_runs — the $0 read — instead; never open this modal for "
-        "a $0 ask.) No params.",
+        "a paid run yourself. (For an explicit '$0 replay / stored (last) result / for free / at no "
+        "cost / don't spend / without spending or paying' ask, use review_runs — the $0 read — "
+        "instead; never open this modal for a $0 ask.) No params.",
         PROPOSE_LIVE_RUN_SCHEMA,
     ),
     (

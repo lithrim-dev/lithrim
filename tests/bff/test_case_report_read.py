@@ -174,3 +174,19 @@ def test_another_agents_record_is_refused_never_served_under_this_agent(client):
     res = cli.get(f"/v1/reports/{CASE}", params={"agent": AGENT})
     assert res.status_code == 404
     assert "someone_else" in res.json()["detail"]
+
+
+def test_legacy_agent_less_record_is_refused_not_served_under_any_agent(client):
+    """Critic tighten: a legacy record with NO ``agent`` stamp is UNATTRIBUTABLE — serving it
+    under whatever agent happens to ask is the same silent mis-attribution the mismatch guard
+    exists to stop. It 404s with a 'legacy' detail (re-grading stamps + reclaims it).
+
+    MUTATION (named): revert the guard to ``stored_agent and stored_agent != agent`` → the
+    agent-less record is served under AGENT → RED."""
+    cli, out_dir = client
+    rec = _record()
+    del rec["agent"]
+    persist(CASE, rec, out_dir=out_dir)
+    res = cli.get(f"/v1/reports/{CASE}", params={"agent": AGENT})
+    assert res.status_code == 404
+    assert "legacy" in res.json()["detail"]

@@ -129,8 +129,9 @@ _SYSTEM_PROMPT = (
     "(propose_live_run opens the SAME cost-confirm -- both run_eval and propose_live_run are the "
     "fresh-grade path, so 'run eval' and 'run it' both land on a fresh cost-confirmed grade.) "
     "EXCEPTION (ZERO-DOLLAR-ROUTE): an explicit '$0' / 'replay' / 'stored result' / 'last result' / "
-    "'don't spend' / 'without spending' ask is NOT this tool -- serve it with review_runs (the $0 "
-    "read of the stored result); never answer a $0 ask with the cost-confirm modal.\n"
+    "'for free / free of charge / at no cost' / 'don't spend / without spending / without paying' "
+    "ask is NOT this tool -- serve it with review_runs (the $0 read of the stored result); never "
+    "answer a $0 ask with the cost-confirm modal.\n"
     "  - run_eval_pack: run a $0 REPLAY eval-pack BATCH over one or more agents and show "
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - propose_run_all: GRADE ALL ingested cases at once -- THE way to 'run all / grade all / run "
@@ -139,11 +140,12 @@ _SYSTEM_PROMPT = (
     "precision/recall). You only PROPOSE; the human's confirm spends. You can NEVER fire it.\n"
     "  - review_runs: review the run history, the latest run's STORED verdict/provenance, and the "
     "audit trail of everything you authored -- $0. THE way to serve an explicit '$0 replay' / "
-    "'show the stored result' / 'last result' / 'don't spend' / 'without spending' ask: show the "
-    "stored result at $0 and NEVER surface the cost-confirm modal for it (a $0 ask must never "
-    "escalate to a paid proposal unless the human then asks for a live/fresh grade). If the stored "
-    "read refuses (e.g. the config changed since the last grade), surface its message VERBATIM and "
-    "let the human decide -- never swallow it, never counter-propose a paid run unprompted.\n"
+    "'show the stored result' / 'last result' / 'for free / free of charge / at no cost' / "
+    "'don't spend / without spending / without paying' ask: show the stored result at $0 and NEVER "
+    "surface the cost-confirm modal for it (a $0 ask must never escalate to a paid proposal unless "
+    "the human then asks for a live/fresh grade). If the stored read refuses (e.g. the config "
+    "changed since the last grade), surface its message VERBATIM and let the human decide -- never "
+    "swallow it, never counter-propose a paid run unprompted.\n"
     "  - ingest_cases: INGEST an arbitrary JSON dump of AI-system output into eval cases (the "
     "'eval anything' tool; an audited $0 write, never a paid run). ARGS: `json` = the JSON dump "
     "(paste it verbatim); `extraction_rules` = a plain-language description that says what ONE case "
@@ -166,9 +168,10 @@ _SYSTEM_PROMPT = (
     "human says 'run / grade / evaluate / run eval [this case|case X]' -- surface the cost-confirm "
     "modal so THEY authorize the fresh paid grade. A fresh grade makes real (paid) model calls, so "
     "the human's confirm runs it; you only PROPOSE, you never spend. (EXCEPTION: an explicit "
-    "'$0' / 'replay' / 'stored/last result' / 'don't spend' / 'without spending' ask is served by "
-    "review_runs -- the $0 read -- NEVER by this modal; run_eval opens this SAME paid modal, so "
-    "never use run_eval for a $0 ask either.)\n"
+    "'$0' / 'replay' / 'stored/last result' / 'for free / free of charge / at no cost' / 'don't "
+    "spend / without spending / without paying' ask is served by review_runs -- the $0 read -- "
+    "NEVER by this modal; run_eval opens this SAME paid modal, so never use run_eval for a $0 ask "
+    "either.)\n"
     "ALL of the tools above are ALREADY loaded and directly callable by their exact names with "
     "the documented arguments -- there is no tool-discovery or loader step in this environment, so "
     "always call the tool you need directly. If you are unsure of an argument, use the names "
@@ -456,10 +459,10 @@ _SHEPHERD_STANZA = (
     "grade; you can never spend. 'run / grade / evaluate / run eval [this case|case X]' ALWAYS means "
     "this fresh cost-confirmed grade -- never a stale stored replay. EXCEPTION (ZERO-DOLLAR-ROUTE, "
     "credit-safety): when the human EXPLICITLY says '$0' / 'replay' / 'stored result' / 'last "
-    "result' / 'don't spend' / 'without spending', that is a review_runs ask -- show the stored "
-    "result at $0 and do NOT surface the cost-confirm for it (a $0 ask never escalates to a paid "
-    "proposal unless they then ask for a live/fresh grade). A run for this agent ticks Run; "
-    "reviewing its verdict ticks Review.\n"
+    "result' / 'for free / free of charge / at no cost' / 'don't spend / without spending / "
+    "without paying', that is a review_runs ask -- show the stored result at $0 and do NOT surface "
+    "the cost-confirm for it (a $0 ask never escalates to a paid proposal unless they then ask for "
+    "a live/fresh grade). A run for this agent ticks Run; reviewing its verdict ticks Review.\n"
     "  If setup is already COMPLETE (every required step done), do NOT lead -- drop back to the "
     "reactive operator posture and simply answer what the human asks."
 )
@@ -958,14 +961,18 @@ _RUN_REQUEST_QUESTION_OPENERS = (
 # "grade THIS" request, not a stray "run" inside prose.
 _RUN_REQUEST_VERB = re.compile(r"\b(run|re-?run|grade|evaluate|score)\b")
 _RUN_REQUEST_OBJECT = re.compile(r"\b(eval|evaluation|case|live|grade|run|it|this)\b")
-# ZERO-DOLLAR-ROUTE: an EXPLICIT "$0 / replay / stored (last) result / don't spend / without
-# spending" ask is NEVER a run-request — "run a $0 replay of case X" contains "run", so without
-# this guard the deterministic fallback below opened the PAID cost-confirm on a $0 ask (the
-# live 2026-07-04 defect). The credit-safety invariant: a $0 path never escalates to a paid
-# proposal on its own; the chat serves it with review_runs (the $0 read) instead.
+# ZERO-DOLLAR-ROUTE: an EXPLICIT "$0 / replay / stored (last) result / for free / at no cost /
+# don't spend / without spending|paying" ask is NEVER a run-request — "run a $0 replay of case X"
+# contains "run", so without this guard the deterministic fallback below opened the PAID
+# cost-confirm on a $0 ask (the live 2026-07-04 defect; the "for free" family was a
+# critic-verified residual red). The credit-safety invariant: a $0 path never escalates to a
+# paid proposal on its own; the chat serves it with review_runs (the $0 read) instead. The
+# free-alternates are PHRASE-bounded ("for free" / "free of charge"), so a "freeform"/
+# "free-text" token never over-excludes a legitimate paid proposal.
 _ZERO_DOLLAR_RE = re.compile(
     r"\$\s*0\b|\bzero[- ]dollar\b|\breplay\b|\bstored\b|\blast result\b"
     r"|\bdon'?t spend\b|\bdo not spend\b|\bwithout spending\b|\bno spend\b"
+    r"|\bfor free\b|\bfree of charge\b|\bno cost\b|\bwithout paying\b"
 )
 
 

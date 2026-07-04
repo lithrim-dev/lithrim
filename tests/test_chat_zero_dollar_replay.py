@@ -94,8 +94,11 @@ def test_always_clause_carries_the_zero_dollar_exception_adjacent():
     stanza = agent_loop._SHEPHERD_STANZA
     idx = stanza.find("ALWAYS means")
     assert idx != -1, "the ALWAYS clause left the shepherd stanza — re-pin this test to the new home"
-    adjacent = stanza[idx : idx + 700]
-    for phrase in ("$0", "replay", "stored", "last result", "don't spend", "without spending"):
+    adjacent = stanza[idx : idx + 900]
+    for phrase in (
+        "$0", "replay", "stored", "last result", "don't spend", "without spending",
+        "for free", "no cost", "without paying",
+    ):
         assert phrase in adjacent, f"the ALWAYS clause lost the {phrase!r} trigger"
     assert "review_runs" in adjacent, "the exception must point at the $0 tool BY NAME"
     assert "cost-confirm" in adjacent  # …and say the modal is NOT the answer for it
@@ -133,7 +136,10 @@ def test_review_runs_description_claims_the_zero_dollar_phrases_affirmatively():
     to …") so both engines' tool-choice lands on it for an explicit $0 ask."""
     desc = _desc("review_runs")
     assert "THE way" in desc
-    for phrase in ("$0", "replay", "stored", "last result", "don't spend", "without spending"):
+    for phrase in (
+        "$0", "replay", "stored", "last result", "don't spend", "without spending",
+        "for free", "no cost", "without paying",
+    ):
         assert phrase in desc, f"review_runs' description lost the {phrase!r} claim"
 
 
@@ -203,6 +209,43 @@ def test_is_run_request_still_matches_plain_run_intents():
     the modal path."""
     for msg in ("run eval on this case", "grade this case", "run live eval on this case"):
         assert _is_run_request(msg) is True, msg
+
+
+def test_is_run_request_excludes_the_for_free_family():
+    """Critic-verified reds (cold review of this branch): the "for free"-family phrasings are
+    as explicit a $0 ask as '$0' itself — they must NOT hit the deterministic PAID fallback.
+
+    MUTATION (named): drop the for-free / no-cost / without-paying alternates from
+    _ZERO_DOLLAR_RE → every probe here matches the run-intent again → RED."""
+    for msg in (
+        "run it for free",
+        "rerun it for free",
+        "run it at no cost",
+        "run this case free of charge",
+        "rerun this without paying",
+    ):
+        assert _is_run_request(msg) is False, msg
+
+
+def test_is_grade_all_request_excludes_the_for_free_family():
+    assert _is_grade_all_request("grade all cases for free") is False
+
+
+def test_free_guard_is_word_bounded_no_freeform_over_match():
+    """'free' counts only inside the explicit phrases — a 'freeform'/'free-text' token in a
+    case description must NOT be swallowed into the $0 route (an over-exclusion would silently
+    drop legitimate paid proposals)."""
+    assert _is_run_request("run eval on the freeform case") is True
+    assert _is_run_request("grade the free-text case") is True
+
+
+def test_paid_run_table_is_not_excluded_by_the_zero_dollar_guard():
+    """The PAID table stays paid: none of these carry a $0 trigger, so the deterministic
+    cost-confirm fallback still serves them (the guard never over-reaches)."""
+    for msg in ("run it live", "fresh grade", "run eval", "run this case"):
+        assert _is_run_request(msg) is True, msg
+    for msg in ("grade all the cases", "run the whole suite"):
+        assert _is_grade_all_request(msg) is True, msg
 
 
 def test_is_grade_all_request_excludes_zero_dollar_cohort_asks():

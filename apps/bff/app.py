@@ -4153,7 +4153,17 @@ def get_case_report_endpoint(
             detail=f"no persisted report for case {case_id!r} (run an evaluation first)",
         )
     stored_agent = record.get("agent")
-    if agent and stored_agent and stored_agent != agent:
+    if agent and stored_agent is None:
+        # Critic tighten: an agent-LESS (legacy) record is unattributable — serving it under
+        # whatever agent asks is the same silent mis-attribution the mismatch guard stops.
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"the persisted report for case {case_id!r} is a legacy record with no agent "
+                f"stamp — re-grade the case to claim it for {agent!r}"
+            ),
+        )
+    if agent and stored_agent != agent:
         raise HTTPException(
             status_code=404,
             detail=(
