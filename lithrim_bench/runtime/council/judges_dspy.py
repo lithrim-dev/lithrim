@@ -676,6 +676,17 @@ def build_trio(
             if role_temp is not None:
                 lm_overrides["temperature"] = float(role_temp)
             lm = build_judge_lm(role, **lm_overrides)
+            # REWARD-SEMANTICS-1 (measured — the case09 six-call table): a reward LM's
+            # evaluation_criteria must be SME TEXT, never the rendered lens/refinement machinery
+            # (which dragged the score ~+0.2). Hand it the reviewer's one-sentence criterion when
+            # authored, else the BASE role prompt (A4 parity: refinement-free). Chat-LM judges are
+            # untouched — their role_prompt keeps carrying the full rendered lens as before.
+            if getattr(lm, "is_reward_lm", False) and not getattr(lm, "criterion", ""):
+                lm.criterion = (role_criterion or "").strip() or (
+                    render_role_questions(ontology, role)
+                    if ontology is not None
+                    else load_role_prompt(role)
+                )
 
             # The judge_call-backed predictor. ``dspy.Predict`` is built lazily INSIDE
             # ``judge_call`` (on first forward), never at build_trio time, so a

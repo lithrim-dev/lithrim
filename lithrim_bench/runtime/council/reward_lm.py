@@ -73,6 +73,7 @@ class RewardModelLM:
         model: str = "composo-reward",
         criterion: str = "",
         threshold: float = DEFAULT_THRESHOLD,
+        task_instruction: str = "",
         transport: Transport | None = None,
     ) -> None:
         self._api_key = api_key
@@ -80,6 +81,11 @@ class RewardModelLM:
         self.model = model
         self.criterion = criterion
         self.threshold = float(threshold)
+        # REWARD-SEMANTICS-1: the task line the user message is framed with (a reward model
+        # scores "did the assistant serve the request" — the request must exist). Empty → the
+        # sampling layer's generic default; SME-overridable so a domain pack/reviewer can name
+        # the artifact kind its scribe was actually asked to produce.
+        self.task_instruction = task_instruction
         self._transport = transport
 
     def __repr__(self) -> str:  # the key must never leak into a log/blob
@@ -108,6 +114,7 @@ def build_composo_reward_lm(
     model: str | None = None,
     criterion: str = "",
     threshold: float = DEFAULT_THRESHOLD,
+    task_instruction: str = "",
     transport: Transport | None = None,
 ) -> RewardModelLM:
     """The ``provider: composo`` construction point ``build_judge_lm`` dispatches to."""
@@ -117,5 +124,6 @@ def build_composo_reward_lm(
         model=model or "composo-reward",
         criterion=criterion,
         threshold=threshold,
+        task_instruction=task_instruction,
         transport=transport,
     )

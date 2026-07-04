@@ -177,12 +177,21 @@ def _reward_judge_result(
     reviewer's CRITERION-TEXT sentence)."""
     criterion = str(getattr(model, "criterion", "") or "") or role_key_questions
     threshold = float(getattr(model, "threshold", 0.5))
+    # REWARD-SEMANTICS-1 (measured — the case09 six-call table): a reward model scores "did the
+    # assistant serve the request", so the user message must BE a request. A bare source dump
+    # collapsed the faithfulness pressure (0.44 → 0.6 on identical text); the source is framed
+    # with a task line — the LM's SME-authored ``task_instruction`` when set, else the generic
+    # default below.
+    task = str(getattr(model, "task_instruction", "") or "") or (
+        "Generate a faithful artifact from this source material."
+    )
+    user = f"Source material:\n{prompt}\n\n{task}"
     scores: list[float] = []
     explanations: list[str] = []
     errors: list[str] = []
     for _ in range(max(1, int(k))):
         try:
-            out = model.evaluate(prompt, artifact, criterion)
+            out = model.evaluate(user, artifact, criterion)
         except Exception as exc:  # noqa: BLE001 — a transport failure is a declined sample
             errors.append(str(exc))
             continue

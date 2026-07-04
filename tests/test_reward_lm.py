@@ -110,9 +110,23 @@ def test_judge_call_blocks_below_threshold_with_raw_scores():
     assert abs(res.score_mean - 0.26) < 1e-9
     # the criterion defaults to the reviewer's authored role prompt
     assert t.calls[0][2]["evaluation_criteria"] == "Reward the note only if safe to file."
-    # user = the source context, assistant = the artifact (the F8 message shape)
-    assert t.calls[0][2]["messages"][0]["content"] == "TRANSCRIPT"
+    # REWARD-SEMANTICS-1 (measured, case09 six-call table): a reward model scores "did the
+    # assistant serve the request", so the user message must BE a request — the source wrapped
+    # in a task instruction, never a bare source dump (bare → faithfulness pressure collapses).
+    user = t.calls[0][2]["messages"][0]["content"]
+    assert "TRANSCRIPT" in user and user != "TRANSCRIPT"
+    assert user.startswith("Source material:")
+    assert "faithful artifact" in user  # the generic default task instruction
     assert t.calls[0][2]["messages"][1]["content"] == "NOTE"
+
+
+def test_task_instruction_is_sme_overridable():
+    lm, t = _lm({"score": 0.9, "explanation": ""},
+                task_instruction="Generate a faithful clinical SOAP note from this encounter.")
+    judge_call("TX", model=lm, k=1, artifact="a", role_key_questions="c")
+    user = t.calls[0][2]["messages"][0]["content"]
+    assert user.endswith("Generate a faithful clinical SOAP note from this encounter.")
+    assert "TX" in user
 
 
 def test_judge_call_passes_above_threshold():
@@ -170,3 +184,31 @@ def test_builder_defaults():
     assert lm.threshold == 0.5
     assert lm.model == "composo-reward"
     assert lm.api_base == COMPOSO_DEFAULT_API_BASE
+
+
+def test_build_trio_gives_a_reward_judge_the_sme_criterion_not_the_lens_machinery(monkeypatch):
+    """REWARD-SEMANTICS-1 (measured, case09): the 2,028-char rendered prompt (base + the 10-code
+    AUTHORED REFINEMENT lens block) dragged the reward score ~+0.2 vs the short SME sentence —
+    the lens list is judge machinery, not a reward criterion. build_trio must hand a reward LM
+    its criterion as SME TEXT: the reviewer's authored criterion field when set, else the BASE
+    role prompt — never the refinement block."""
+    pytest.importorskip("dspy")
+    import lithrim_bench.runtime.council.judges_dspy as J
+
+    made: dict[str, RewardModelLM] = {}
+
+    def _fake_build(role, **kw):
+        made[role] = RewardModelLM(api_key="k", transport=_Transport())
+        return made[role]
+
+    monkeypatch.setattr(J, "build_judge_lm", _fake_build)
+
+    J.build_trio(ontology=None, assignments=None, roles=["risk_judge"],
+                 criteria={"risk_judge": "Reward only safe artifacts."})
+    assert made["risk_judge"].criterion == "Reward only safe artifacts."
+
+    made.clear()
+    J.build_trio(ontology=None, assignments=None, roles=["risk_judge"])
+    base = J.load_role_prompt("risk_judge")
+    assert made["risk_judge"].criterion == base
+    assert "AUTHORED REFINEMENT" not in made["risk_judge"].criterion
