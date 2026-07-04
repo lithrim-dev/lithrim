@@ -6,7 +6,7 @@
      - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
 import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
 import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./genui/copy.js";
 
@@ -133,24 +133,39 @@ function ReportSummary({ comp, votes }) {
   );
 }
 
-function ReportTab({ runStatus, runResult, runError, activeCase = null }) {
+function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = "ws0_default" }) {
+  // REPORT-HYDRATE-1: an ARMED case with no in-session run hydrates the LATEST persisted
+  // report for it (GET /v1/reports/{case_id}, a pure $0 read) and feeds the SAME renderer
+  // below — never a parallel view. In-session state always wins (loading/error/fresh result);
+  // a 404 (no saved run) keeps the honest empty state.
+  const [hydrated, setHydrated] = useState(null);
+  useEffect(() => {
+    if (runResult || runStatus !== "idle" || !activeCase) { setHydrated(null); return; }
+    let live = true;
+    getCaseReport(agent, activeCase)
+      .then((r) => { if (live) setHydrated(r); })
+      .catch(() => { if (live) setHydrated(null); }); // no saved run / offline → empty state
+    return () => { live = false; };
+  }, [agent, activeCase, runResult, runStatus]);
+
   if (runStatus === "loading")
     return <ReportMessage>Running the evaluation…</ReportMessage>;
   if (runStatus === "error") return <RunFailed runError={runError} activeCase={activeCase} />;
-  if (!runResult)
+  const shown = runResult || hydrated;
+  if (!shown)
     return (
       <ReportMessage>
         No evaluation yet. Run one to see the verdict and report here.
       </ReportMessage>
     );
 
-  const comp = runResult.composite;
-  const cal = runResult.calibration_check;
+  const comp = shown.composite;
+  const cal = shown.calibration_check;
   const ui = VERDICT_UI[comp.verdict] || VERDICT_UI.needs_review;
-  const gradeLabel = gradeTag(runResult.grade_path);
+  const gradeLabel = gradeTag(shown.grade_path);
   // The named case outcome (independent-axes rule table) — PRIMARY when present. Humanize
   // CRITICAL/POLICY_VIOLATION/… for the headline; the PASS/WARN/BLOCK grade stays on the right.
-  const caseOutcome = (runResult.council || {}).case_outcome || comp.case_outcome || null;
+  const caseOutcome = (shown.council || {}).case_outcome || comp.case_outcome || null;
   const outcomeLabel = caseOutcome
     ? String(caseOutcome).replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())
     : null;
@@ -162,13 +177,13 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null }) {
         <div style={{ minWidth: 0 }}>
           <div className="rb-t">{outcomeLabel || ui.label}</div>
           <div className="rb-s">
-            {comp.active_findings.length} issues found · {comp.grounded_adjustments.length} false alarms cleared by a fact-check · {runResult.case_id}
+            {comp.active_findings.length} issues found · {comp.grounded_adjustments.length} false alarms cleared by a fact-check · {shown.case_id}
           </div>
         </div>
         <div className="rb-grade" style={{ color: ui.color }}>{verdictLabel(comp.stage_verdict)}</div>
       </div>
 
-      <ReportSummary comp={comp} votes={(runResult.council || {}).votes || []} />
+      <ReportSummary comp={comp} votes={(shown.council || {}).votes || []} />
 
       <div className="art-sec">
         <div className="art-h2">
@@ -271,7 +286,7 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null }) {
         )}
       </div>
 
-      <ClinicianVerdict runId={runResult.pipeline_run_id} councilVerdict={comp.verdict} />
+      <ClinicianVerdict runId={shown.pipeline_run_id} councilVerdict={comp.verdict} />
     </div>
   );
 }
@@ -807,7 +822,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
           {tab === "case" && <CaseTab agent={agent} caseId={activeCase} onBrowseCases={() => setTab("corpus")} />}
-          {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} />}
+          {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} agent={agent} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
           {tab === "corpus" && <CorpusTab agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} />}

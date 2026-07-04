@@ -4123,6 +4123,62 @@ def get_run_rehydrate_endpoint(
         ) from exc
 
 
+@app.get("/v1/reports/{case_id}")
+def get_case_report_endpoint(
+    case_id: str,
+    agent: str = DEFAULT_AGENT,
+    out_dir: Path | None = Depends(get_out_dir),
+) -> dict:
+    """REPORT-HYDRATE-1 — the LATEST persisted report record for ``case_id``, as a pure $0
+    READ (no re-grade, no replay, no run-row append): the SAME record shape POST /v1/run-eval
+    returns, so the shell's Report tab hydrates an armed case's last saved result with the
+    EXACT renderer the in-session run feeds (no parallel projection). Reads the ``persist()``
+    store (the per-case upserted record every grade path writes) and applies the SAME
+    read-side folds run-eval applies (calibration_check / grade_path / council /
+    pipeline_run_id).
+
+    HONESTY: 404 when nothing is persisted for the case, and 404 when the stored record
+    belongs to a DIFFERENT agent (never serve another agent's verdict under this agent's
+    name). It never trips the SIGNATURE-1 freshness guard — this serves what IS stored,
+    honestly labeled by its stored ``grade_path``; staleness policy stays on the replay/grade
+    paths (a hydrated view is a record of the last grade, not a claim of freshness)."""
+    from lithrim_bench.harness.persist import DEFAULT_OUT_DIR
+    from lithrim_bench.harness.persist import load as load_report
+
+    root = Path(out_dir) if out_dir else DEFAULT_OUT_DIR
+    record = load_report(case_id, db_path=root / "ws0.sqlite")
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no persisted report for case {case_id!r} (run an evaluation first)",
+        )
+    stored_agent = record.get("agent")
+    if agent and stored_agent is None:
+        # Critic tighten: an agent-LESS (legacy) record is unattributable — serving it under
+        # whatever agent asks is the same silent mis-attribution the mismatch guard stops.
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"the persisted report for case {case_id!r} is a legacy record with no agent "
+                f"stamp — re-grade the case to claim it for {agent!r}"
+            ),
+        )
+    if agent and stored_agent != agent:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"the persisted report for case {case_id!r} belongs to agent "
+                f"{stored_agent!r}, not {agent!r} (run an evaluation for this agent first)"
+            ),
+        )
+    record.pop("_persisted", None)
+    record["calibration_check"] = calibration_check([record])
+    record["grade_path"] = (record.get("provenance") or {}).get("grade_path")
+    record["council"] = _council_view(record)
+    record["pipeline_run_id"] = _pipeline_run_id(record)
+    return record
+
+
 @app.get("/v1/kb/{namespace}/search")
 def kb_search_endpoint(
     namespace: str,

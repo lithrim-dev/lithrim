@@ -127,15 +127,25 @@ _SYSTEM_PROMPT = (
     "PROPOSE, you never spend. It does NOT replay a stored run (that stale-verdict replay was a bug). "
     "Pass case_id (from list_cases) for a SPECIFIC case; omit it for the case they're exploring. "
     "(propose_live_run opens the SAME cost-confirm -- both run_eval and propose_live_run are the "
-    "fresh-grade path, so 'run eval' and 'run it' both land on a fresh cost-confirmed grade.)\n"
+    "fresh-grade path, so 'run eval' and 'run it' both land on a fresh cost-confirmed grade.) "
+    "EXCEPTION (ZERO-DOLLAR-ROUTE): an explicit '$0' / 'replay' / 'stored result' / 'last result' / "
+    "'for free / free of charge / at no cost' / 'don't spend / without spending / without paying' "
+    "ask is NOT this tool -- serve it with review_runs (the $0 read of the stored result); never "
+    "answer a $0 ask with the cost-confirm modal.\n"
     "  - run_eval_pack: run a $0 REPLAY eval-pack BATCH over one or more agents and show "
     "the run history -- a live batch (one paid call per agent) is the human's.\n"
     "  - propose_run_all: GRADE ALL ingested cases at once -- THE way to 'run all / grade all / run "
     "the whole suite / score every case'. Surfaces the cost-confirm for the whole cohort; the human's "
     "confirm grades them all and renders the consolidated scorecard inline (per-case vs gold + "
     "precision/recall). You only PROPOSE; the human's confirm spends. You can NEVER fire it.\n"
-    "  - review_runs: review the run history, the latest run's provenance, and the audit "
-    "trail of everything you authored -- $0.\n"
+    "  - review_runs: review the run history, the latest run's STORED verdict/provenance, and the "
+    "audit trail of everything you authored -- $0. THE way to serve an explicit '$0 replay' / "
+    "'show the stored result' / 'last result' / 'for free / free of charge / at no cost' / "
+    "'don't spend / without spending / without paying' ask: show the stored result at $0 and NEVER "
+    "surface the cost-confirm modal for it (a $0 ask must never escalate to a paid proposal unless "
+    "the human then asks for a live/fresh grade). If the stored read refuses (e.g. the config "
+    "changed since the last grade), surface its message VERBATIM and let the human decide -- never "
+    "swallow it, never counter-propose a paid run unprompted.\n"
     "  - ingest_cases: INGEST an arbitrary JSON dump of AI-system output into eval cases (the "
     "'eval anything' tool; an audited $0 write, never a paid run). ARGS: `json` = the JSON dump "
     "(paste it verbatim); `extraction_rules` = a plain-language description that says what ONE case "
@@ -157,8 +167,11 @@ _SYSTEM_PROMPT = (
     "  - propose_live_run: the way to GRADE A CASE FRESH. This is your DEFAULT response when the "
     "human says 'run / grade / evaluate / run eval [this case|case X]' -- surface the cost-confirm "
     "modal so THEY authorize the fresh paid grade. A fresh grade makes real (paid) model calls, so "
-    "the human's confirm runs it; you only PROPOSE, you never spend. (Reach for run_eval ONLY on an "
-    "explicit '$0 replay / show the last stored result' ask.)\n"
+    "the human's confirm runs it; you only PROPOSE, you never spend. (EXCEPTION: an explicit "
+    "'$0' / 'replay' / 'stored/last result' / 'for free / free of charge / at no cost' / 'don't "
+    "spend / without spending / without paying' ask is served by review_runs -- the $0 read -- "
+    "NEVER by this modal; run_eval opens this SAME paid modal, so never use run_eval for a $0 ask "
+    "either.)\n"
     "ALL of the tools above are ALREADY loaded and directly callable by their exact names with "
     "the documented arguments -- there is no tool-discovery or loader step in this environment, so "
     "always call the tool you need directly. If you are unsure of an argument, use the names "
@@ -444,8 +457,12 @@ _SHEPHERD_STANZA = (
     "done), guide the human to RUN their eval. To GRADE the case, propose a FRESH grade -- run_eval "
     "OR propose_live_run both surface the cost-confirm, and the human's confirm runs the fresh paid "
     "grade; you can never spend. 'run / grade / evaluate / run eval [this case|case X]' ALWAYS means "
-    "this fresh cost-confirmed grade -- never a stale stored replay. A run for this agent ticks Run; "
-    "reviewing its verdict ticks Review.\n"
+    "this fresh cost-confirmed grade -- never a stale stored replay. EXCEPTION (ZERO-DOLLAR-ROUTE, "
+    "credit-safety): when the human EXPLICITLY says '$0' / 'replay' / 'stored result' / 'last "
+    "result' / 'for free / free of charge / at no cost' / 'don't spend / without spending / "
+    "without paying', that is a review_runs ask -- show the stored result at $0 and do NOT surface "
+    "the cost-confirm for it (a $0 ask never escalates to a paid proposal unless they then ask for "
+    "a live/fresh grade). A run for this agent ticks Run; reviewing its verdict ticks Review.\n"
     "  If setup is already COMPLETE (every required step done), do NOT lead -- drop back to the "
     "reactive operator posture and simply answer what the human asks."
 )
@@ -944,6 +961,19 @@ _RUN_REQUEST_QUESTION_OPENERS = (
 # "grade THIS" request, not a stray "run" inside prose.
 _RUN_REQUEST_VERB = re.compile(r"\b(run|re-?run|grade|evaluate|score)\b")
 _RUN_REQUEST_OBJECT = re.compile(r"\b(eval|evaluation|case|live|grade|run|it|this)\b")
+# ZERO-DOLLAR-ROUTE: an EXPLICIT "$0 / replay / stored (last) result / for free / at no cost /
+# don't spend / without spending|paying" ask is NEVER a run-request — "run a $0 replay of case X"
+# contains "run", so without this guard the deterministic fallback below opened the PAID
+# cost-confirm on a $0 ask (the live 2026-07-04 defect; the "for free" family was a
+# critic-verified residual red). The credit-safety invariant: a $0 path never escalates to a
+# paid proposal on its own; the chat serves it with review_runs (the $0 read) instead. The
+# free-alternates are PHRASE-bounded ("for free" / "free of charge"), so a "freeform"/
+# "free-text" token never over-excludes a legitimate paid proposal.
+_ZERO_DOLLAR_RE = re.compile(
+    r"\$\s*0\b|\bzero[- ]dollar\b|\breplay\b|\bstored\b|\blast result\b"
+    r"|\bdon'?t spend\b|\bdo not spend\b|\bwithout spending\b|\bno spend\b"
+    r"|\bfor free\b|\bfree of charge\b|\bno cost\b|\bwithout paying\b"
+)
 
 
 def _is_run_request(message: str) -> bool:
@@ -952,8 +982,10 @@ def _is_run_request(message: str) -> bool:
     explain/show asks are excluded (they mean "tell me about the run", not "run it"). Empty → False.
 
     A run-request iff: the message is NOT a question (no ``?``, not opened by a question/explain word)
-    AND it contains an imperative grade verb (run/re-run/grade/evaluate/score) AND a run/case object
-    cue (eval/evaluation/case/live/grade/run/it/this). Pure (no I/O); the fallback in ``_litellm_loop``
+    AND it is NOT an explicit $0/replay/stored-result ask (``_ZERO_DOLLAR_RE`` — ZERO-DOLLAR-ROUTE:
+    the fallback must never open the PAID modal on a $0 ask) AND it contains an imperative grade
+    verb (run/re-run/grade/evaluate/score) AND a run/case object cue
+    (eval/evaluation/case/live/grade/run/it/this). Pure (no I/O); the fallback in ``_litellm_loop``
     calls it post-loop to decide whether to deterministically surface the cost-confirm directive."""
     text = (message or "").strip().lower()
     if not text:
@@ -963,6 +995,8 @@ def _is_run_request(message: str) -> bool:
     if any(
         text == opener or text.startswith(opener + " ") for opener in _RUN_REQUEST_QUESTION_OPENERS
     ):
+        return False
+    if _ZERO_DOLLAR_RE.search(text):
         return False
     return bool(_RUN_REQUEST_VERB.search(text)) and bool(_RUN_REQUEST_OBJECT.search(text))
 
@@ -983,9 +1017,13 @@ _GRADE_ALL_RE = re.compile(
 def _is_grade_all_request(message: str) -> bool:
     """RUN-ALL-ROUTE — conservative cohort-intent matcher (see ``_GRADE_ALL_RE``). Pure; the
     ``_litellm_loop`` route calls it to (a) UPGRADE a mis-picked single directive to the cohort
-    one and (b) emit the cohort directive in the no-directive fallback. Empty/question → False."""
+    one and (b) emit the cohort directive in the no-directive fallback. Empty/question → False.
+    ZERO-DOLLAR-ROUTE: an explicit $0/replay ask is excluded here too — the cohort modal is as
+    paid as the single one, and a $0 ask must never escalate to either."""
     text = (message or "").strip().lower()
     if not text or "?" in text:
+        return False
+    if _ZERO_DOLLAR_RE.search(text):
         return False
     return bool(_GRADE_ALL_RE.search(text))
 

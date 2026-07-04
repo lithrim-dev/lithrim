@@ -65,6 +65,12 @@ export const runEval = ({ agent = "ws0_default", live = false, in_process = fals
    to getRunAudit(run_id). (UAP-3 R6/S-BS-56; all via BASE, no hardcoded :8787.) */
 export const getRuns = (limit = 50) => call(`/v1/runs?limit=${encodeURIComponent(limit)}`);
 
+/* GET /v1/reports/{case_id} — REPORT-HYDRATE-1: the LATEST persisted report record for a case
+   (the run-eval record shape, honestly labeled by its stored grade_path; a pure $0 read).
+   404 when the case has no saved run for this agent — the caller keeps its empty state. */
+export const getCaseReport = (agent = "ws0_default", caseId) =>
+  call(`/v1/reports/${encodeURIComponent(caseId)}?agent=${encodeURIComponent(agent)}`);
+
 /* POST /v1/eval-pack/run — batch a pack of agents (R6). replay ($0) by default. */
 export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false }) =>
   call("/v1/eval-pack/run", { method: "POST", body: { pack_id, agents, live } });
