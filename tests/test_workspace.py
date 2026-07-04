@@ -7,6 +7,7 @@ ontology / out) + a pinned pack. Switching repoints every store. The schema carr
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -16,6 +17,27 @@ from lithrim_bench.harness import workspace as W
 from lithrim_bench.harness.config import list_agents
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _expected_default_agents() -> list[str]:
+    """The default workspace's EXACT seeded set: the committed core ``ws0_default`` PLUS every
+    discoverable pack's declared ``seed_agents`` (PACK-DROPIN-1 / PACK-PORTABLE, pack b973867).
+    Bare CE (no discoverable pack declaring ``seed_agents``) reduces to ``["ws0_default"]``."""
+    from lithrim_bench.harness.pack import discover_packs, pack_root
+
+    names = {"ws0_default"}
+    for entry in discover_packs():
+        root = pack_root(entry["id"])
+        try:
+            manifest = json.loads((root / "pack.json").read_text())
+        except (OSError, ValueError):
+            continue
+        for ref in manifest.get("seed_agents") or []:
+            try:
+                names.add(json.loads((root / ref).read_text())["name"])
+            except (OSError, ValueError, KeyError):
+                continue
+    return sorted(names)
 
 
 @pytest.fixture
@@ -30,8 +52,9 @@ def test_default_workspace_self_heals_and_seeds_clean(ws_root):
     ws = W.get_active_workspace()
     assert ws.name == "default" and ws.pack == "_core"
     assert ws.config_db.is_file()
-    # the default workspace seeds the blank CE default agent — nothing clinical
-    assert list_agents(db_path=ws.config_db) == ["ws0_default"]
+    # the default workspace seeds the blank CE default agent + every discoverable pack's
+    # declared seed agents (PACK-DROPIN-1) — bare CE stays exactly ["ws0_default"]
+    assert list_agents(db_path=ws.config_db) == _expected_default_agents()
     assert W.list_workspaces() == ["default"]
     assert W.active_workspace_name() == "default"
 
@@ -107,13 +130,14 @@ def test_fresh_workspace_starts_empty_default_keeps_ws0(ws_root):
     from fastapi.testclient import TestClient
 
     c = TestClient(bff.app)
-    assert c.get("/v1/agents").json()["agents"] == ["ws0_default"]  # the default workspace
+    seeded = _expected_default_agents()  # ws0_default + discoverable packs' seed agents
+    assert c.get("/v1/agents").json()["agents"] == seeded  # the default workspace
     c.post("/v1/workspaces", json={"name": "fresh", "pack": "_core"})
     c.post("/v1/workspace", json={"name": "fresh"})
     assert c.get("/v1/agents").json()["agents"] == []  # EMPTY — the isolation is visible
     assert c.get("/v1/agent/template").json()["name"] == "ws0_default"  # clone source still there
     c.post("/v1/workspace", json={"name": "default"})
-    assert c.get("/v1/agents").json()["agents"] == ["ws0_default"]  # default unchanged
+    assert c.get("/v1/agents").json()["agents"] == seeded  # default unchanged
 
 
 def test_grade_subprocess_binds_the_workspace_pack(ws_root, monkeypatch):
