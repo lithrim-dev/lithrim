@@ -170,3 +170,29 @@ describe("CenterPane — CHAT-CASE-TARGET-1: the directive's case is the case gr
     expect(onRunEval).not.toHaveBeenCalled();
   });
 });
+
+// FINDING #2 (UI-pass 2026-07-04): "Explore case" used to open the Case tab even with NO case
+// selected — the pane then rendered the agent's default case under a "No case selected" header
+// (two case states silently out of sync). With nothing selected it now opens the Cases BROWSER
+// so the user picks explicitly; with a selection it still jumps straight to that case.
+describe("CenterPane — Explore case targets the browser when no case is selected", () => {
+  it("no active case → Explore case opens the Cases tab (the browser)", () => {
+    const onOpenArtifact = vi.fn();
+    render(
+      <CenterPane agent="ws0_default" activeCase={null} onActiveCase={vi.fn()}
+        onOpenArtifact={onOpenArtifact} artifactOpen={false} onRunEval={vi.fn()} onRunResult={vi.fn()} runStatus="idle" />,
+    );
+    fireEvent.click(screen.getByText("Explore case"));
+    expect(onOpenArtifact).toHaveBeenCalledWith("corpus");
+  });
+
+  it("an active case → Explore case still opens that case directly", () => {
+    const onOpenArtifact = vi.fn();
+    render(
+      <CenterPane agent="ws0_default" activeCase="run_001_fabricates" onActiveCase={vi.fn()}
+        onOpenArtifact={onOpenArtifact} artifactOpen={false} onRunEval={vi.fn()} onRunResult={vi.fn()} runStatus="idle" />,
+    );
+    fireEvent.click(screen.getByText("Explore case"));
+    expect(onOpenArtifact).toHaveBeenCalledWith("case");
+  });
+});

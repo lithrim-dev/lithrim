@@ -9,13 +9,13 @@ vi.mock("./bff.js", () => ({
   getOntology: vi.fn(),
   getCorpus: vi.fn(),
   getCase: vi.fn(),
-  listCases: vi.fn(),
+  listCaseBrowser: vi.fn(),
   recordMetaVerdict: vi.fn(),
   getRunAudit: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";
-import { getOntology, getCorpus, getCase, listCases, recordMetaVerdict, getRunAudit } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCaseBrowser, recordMetaVerdict, getRunAudit } from "./bff.js";
 
 const paneProps = { width: 440, full: false, setTab: () => {}, onClose: () => {}, onToggleFull: () => {} };
 
@@ -23,8 +23,8 @@ beforeEach(() => {
   getOntology.mockReset();
   getCorpus.mockReset();
   getCase.mockReset();
-  listCases.mockReset();
-  listCases.mockResolvedValue({ cases: [], count: 0 }); // default: no ingested cases
+  listCaseBrowser.mockReset();
+  listCaseBrowser.mockResolvedValue({ cases: [], count: 0 }); // default: nothing to browse
   recordMetaVerdict.mockReset();
   getRunAudit.mockReset();
   getRunAudit.mockResolvedValue({ withstands: [] }); // default: no lens unless a test provides one
@@ -194,21 +194,75 @@ describe("CorpusTab — GET /v1/corpus (A2)", () => {
     expect(await screen.findByText(/No corrections yet/i)).toBeInTheDocument();
   });
 
-  it("NARR-LOOP: the Corpus tab self-fetches the INGESTED cases so they survive a reload", async () => {
-    // the refresh-poof fix: GET /v1/cases is fetched on mount, independent of any chat session.
+  // CASE-BROWSER-1 (UI-pass 2026-07-04 finding #1): the Cases tab is the case-DISCOVERY surface —
+  // every loadable case (pinned source + pack fixtures + ingested), each row carrying the
+  // by-construction label, this agent's run count, and the baseline-freshness dot. Self-fetched
+  // (GET /v1/cases/browser) so it survives a reload, independent of any chat session.
+  it("CASE-BROWSER-1: lists every loadable case with its label chip, run count and baseline dot", async () => {
     getCorpus.mockResolvedValue({ rows: [] });
-    listCases.mockResolvedValue({
-      count: 2,
+    listCaseBrowser.mockResolvedValue({
+      agent: "ws0_default", count: 3, truncated: false,
       cases: [
-        { case_id: "clinical_scribe_01_neurology", labeled: false, has_context: true, has_artifact: true },
-        { case_id: "clinical_scribe_10_splinter", labeled: false, has_context: false, has_artifact: true },
+        { case_id: "case_a_defect", source: "pinned", labeled: true, defect: "FABRICATED_CLAIM", runs: 2, baseline: "fresh" },
+        { case_id: "case_b_clean", source: "pinned", labeled: true, defect: null, runs: 1, baseline: "stale" },
+        { case_id: "case_c_ingested", source: "ingested", labeled: false, defect: null, runs: 0, baseline: "none" },
       ],
     });
     render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
-    expect(await screen.findByText("clinical_scribe_01_neurology")).toBeInTheDocument();
-    expect(screen.getByText("clinical_scribe_10_splinter")).toBeInTheDocument();
-    expect(screen.getByText(/2 loaded · 1 include a transcript/)).toBeInTheDocument(); // fidelity signal
-    expect(screen.getByText("transcript ✓")).toBeInTheDocument(); // case 01 carries its transcript
+    expect(await screen.findByText("case_a_defect")).toBeInTheDocument();
+    expect(screen.getByText("Fabricated claim")).toBeInTheDocument(); // the defect chip via flagLabel
+    expect(screen.getByText("clean")).toBeInTheDocument(); // labeled + nothing planted = clean negative
+    expect(screen.getByText("unlabeled")).toBeInTheDocument(); // BYO data: unknown ground truth, honest
+    expect(screen.getByText(/2 runs/)).toBeInTheDocument();
+    // the baseline dot is title-explained, never a bare colored circle
+    expect(screen.getByTitle(/baseline: fresh/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/baseline: stale/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/no saved baseline/i)).toBeInTheDocument();
+  });
+
+  it("CASE-BROWSER-1: clicking a row selects the case for the Run buttons (onSelectCase)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue({
+      cases: [{ case_id: "case_a_defect", source: "pinned", labeled: true, defect: "FABRICATED_CLAIM", runs: 0, baseline: "none" }],
+      count: 1,
+    });
+    const onSelectCase = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={onSelectCase} runStatus="idle" runResult={null} runError={null} />);
+    fireEvent.click(await screen.findByText("case_a_defect"));
+    expect(onSelectCase).toHaveBeenCalledWith("case_a_defect");
+  });
+
+  it("CASE-BROWSER-1: an empty browser says how to load cases (not a silent blank)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue({ cases: [], count: 0 });
+    render(<ArtifactPane {...paneProps} tab="corpus" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/No cases to browse yet/i)).toBeInTheDocument();
+  });
+});
+
+// FINDING #2 (UI-pass 2026-07-04): the pane used to render the agent's DEFAULT case while the
+// header said "No case selected" — two case states silently out of sync. The CaseTab now labels
+// the fallback explicitly and offers the jump to the browser; a SELECTED case gets no notice.
+describe("CaseTab — the default-case notice (displayed case ≠ armed case, finding #2)", () => {
+  const KASE = {
+    case_id: "default_case_01", transcript: "T", artifact: null, artifact_text: null,
+    conditions: [], expected_safety_flags: [], injection_recipe: null, labeled: false,
+  };
+
+  it("a null caseId labels the shown case as the evaluation's default + Browse cases jumps to the Cases tab", async () => {
+    getCase.mockResolvedValue(KASE);
+    const setTab = vi.fn();
+    render(<ArtifactPane {...paneProps} setTab={setTab} tab="case" activeCase={null} runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/no case is selected/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Browse cases/i }));
+    expect(setTab).toHaveBeenCalledWith("corpus");
+  });
+
+  it("(non-vacuous) a SELECTED case renders with no default-case notice", async () => {
+    getCase.mockResolvedValue({ ...KASE, case_id: "picked_case" });
+    render(<ArtifactPane {...paneProps} tab="case" activeCase="picked_case" runStatus="idle" runResult={null} runError={null} />);
+    expect(await screen.findByText(/picked_case/)).toBeInTheDocument();
+    expect(screen.queryByText(/no case is selected/i)).toBeNull();
   });
 });
 

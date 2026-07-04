@@ -49,7 +49,6 @@ from lithrim_bench.harness.correction import (  # noqa: E402
 from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
 from lithrim_bench.harness.grounding import ground  # noqa: E402
 from lithrim_bench.harness.grounding_check import audit_grounding_checks  # noqa: E402
-from lithrim_bench.harness.judges import list_judges  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
 from lithrim_bench.harness.persist import persist  # noqa: E402
 from lithrim_bench.harness.replay import (  # noqa: E402
@@ -726,36 +725,27 @@ def main() -> int:
     # role → model) into the in-process grade so an authored judge re-votes with its
     # authored lens + provider. Empty before any PUT /v1/judges → run() defaults each judge
     # to its full pack lens / Azure (the authored path is the only in-process grade).
-    judges_cfg = list_judges(db_path=db_path)
-    assignments = {role: jc.assigned_flags for role, jc in judges_cfg.items() if jc.assigned_flags}
-    models = {role: jc.model for role, jc in judges_cfg.items() if jc.model}
-    # Per-reviewer sampling/temperature/criterion (independent-axes model): role → k / temp /
-    # criterion. Empty before any PUT /v1/judges → run() falls back to the per-role defaults.
-    samples = {role: jc.k for role, jc in judges_cfg.items() if jc.k is not None}
-    temperatures = {role: jc.temperature for role, jc in judges_cfg.items() if jc.temperature is not None}
-    criteria = {role: jc.criterion for role, jc in judges_cfg.items() if jc.criterion}
+    # CASE-BROWSER-1: the assembly (per-role projections + the GENERALIST-1 unauthored-
+    # roster-role lens seeding) lives in the SHARED ``grade_signature_inputs`` — the BFF's
+    # baseline-freshness read computes with the same code, so it can never drift from what
+    # this grade hashes.
+    from lithrim_bench.harness.replay import grade_signature_inputs
+
+    _council_config = agent.eval_profile.council_config or {}
+    _si = grade_signature_inputs(db_path, _council_config)
+    assignments, models = _si["assignments"], _si["models"]
+    samples, temperatures = _si["samples"], _si["temperatures"]
+    criteria = _si["criteria"]
     # PHASE2-B: derive the grade roster — production_judges FIRST, then any authored extra role
     # (created via POST /v1/judges) appended — so the authored judge reaches build_trio and votes.
     # ``None`` when there are no extras (the default trio). run() threads roles= → build_trio.
+    # REVIEWER-MODE: then the per-agent single/panel override — a len==1 roster becomes the
+    # single-judge grade. An extra reviewer (GENERALIST-1) survives the override (allow-set =
+    # derived).
     from lithrim_bench.harness.judges import resolve_grade_roster
-    from lithrim_bench.harness.pack import pack_lenses, pack_production_judges
+    from lithrim_bench.harness.pack import pack_production_judges
 
-    # GENERALIST-1: a reviewer_roster may name a pack-declared lens role (e.g. a generalist) the
-    # SME SELECTED without authoring an explicit lens. Default such a role to its FULL pack lens so
-    # the selection actually grades — else resolve_grade_roster drops the unauthored role and falls
-    # back to the panel (a silent wrong-result). Only seeds a roster role ABSENT from the authored
-    # assignments; explicit authoring (a narrower lens / per-role k) is untouched.
-    _council_config = agent.eval_profile.council_config or {}
-    _pack_lenses = pack_lenses()
-    for _sel_role in _council_config.get("reviewer_roster") or []:
-        if _sel_role in _pack_lenses and _sel_role not in assignments:
-            assignments[_sel_role] = tuple(sorted(_pack_lenses[_sel_role]))
-    # REVIEWER-MODE: the derived roster (production_judges ∪ any authored/selected extra) then the
-    # per-agent single/panel override — a len==1 roster becomes the single-judge grade. An extra
-    # reviewer (GENERALIST-1) survives the override (allow-set = derived).
-    roles = resolve_grade_roster(
-        pack_production_judges(), assignments, models, _council_config
-    )
+    roles = resolve_grade_roster(pack_production_judges(), assignments, models, _council_config)
 
     record = run(
         agent,

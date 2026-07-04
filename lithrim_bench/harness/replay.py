@@ -75,6 +75,45 @@ def demo_digests(out_dir: Any) -> dict[str, str]:
     }
 
 
+def grade_signature_inputs(
+    db_path: Any, council_config: Any, *, lenses: dict[str, Any] | None = None
+) -> dict[str, dict]:
+    """The judges-store-derived :func:`grade_signature` inputs — the per-role
+    assignments/models/samples/temperatures/criteria projections PLUS the GENERALIST-1
+    seeding (a ``reviewer_roster`` role selected without an authored lens gets its full
+    pack lens, sorted) — assembled EXACTLY as the grade site does.
+
+    CASE-BROWSER-1: this is the shared assembly ``scripts/run_eval.py`` main() grades
+    through AND the BFF's baseline-freshness read computes with, so "would the $0 replay
+    serve?" is answered by the same code that decides it at grade time — a freshness dot
+    that could drift from the grade would be a manufactured consistency. ``lenses`` is the
+    role→codes authority (``None`` → the active pack's, matching the grade subprocess);
+    the BFF passes its workspace-resolved lenses explicitly (S-BS-154). Lazy imports keep
+    this module import-light for the $0 replay path."""
+    from lithrim_bench.harness.judges import list_judges
+
+    cfg = list_judges(db_path=db_path)
+    assignments = {r: jc.assigned_flags for r, jc in cfg.items() if jc.assigned_flags}
+    models = {r: jc.model for r, jc in cfg.items() if jc.model}
+    samples = {r: jc.k for r, jc in cfg.items() if jc.k is not None}
+    temperatures = {r: jc.temperature for r, jc in cfg.items() if jc.temperature is not None}
+    criteria = {r: jc.criterion for r, jc in cfg.items() if jc.criterion}
+    if lenses is None:
+        from lithrim_bench.harness.pack import pack_lenses
+
+        lenses = pack_lenses()
+    for role in (council_config or {}).get("reviewer_roster") or []:
+        if role in lenses and role not in assignments:
+            assignments[role] = tuple(sorted(lenses[role]))
+    return {
+        "assignments": assignments,
+        "models": models,
+        "samples": samples,
+        "temperatures": temperatures,
+        "criteria": criteria,
+    }
+
+
 def grade_signature(
     ontology: Any,
     *,

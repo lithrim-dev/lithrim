@@ -689,7 +689,10 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           <button className="icon-btn" title="Refresh"><Icon name="refresh" size={16} /></button>
           {!artifactOpen && (
             <>
-              <button className="btn btn-ghost" onClick={() => onOpenArtifact("case")}>
+              {/* FINDING #2 (UI-pass 2026-07-04): with no case selected, "Explore case" opens the
+                  Cases BROWSER (pick explicitly) — never the default-case view under a "No case
+                  selected" header. With a selection it jumps straight to that case. */}
+              <button className="btn btn-ghost" onClick={() => onOpenArtifact(activeCase ? "case" : "corpus")}>
                 <Icon name="search" size={15} /> Explore case
               </button>
               <button className="btn btn-ghost" onClick={() => onOpenArtifact("report")}>

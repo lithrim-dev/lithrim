@@ -101,6 +101,13 @@ export const testTool = (manifest) => call("/v1/tools/test", { method: "POST", b
 export const deleteTool = (toolId) => call(`/v1/tools/${encodeURIComponent(toolId)}`, { method: "DELETE" });
 
 export const getCorpus = () => call("/v1/corpus");
+/* GET /v1/cases/browser — CASE-BROWSER-1: the browsable union of every case load_case can
+   resolve for the agent (pinned source → pack fixtures → ingested), each row carrying the
+   by-construction label (labeled/defect), this agent's run count, and the baseline-freshness
+   state (fresh | stale | none | unknown) for the $0-replay dot. The Cases tab's discovery read. */
+export const listCaseBrowser = (agent = "ws0_default") =>
+  call(`/v1/cases/browser?agent=${encodeURIComponent(agent)}`);
+
 /* GET /v1/cases — NARR-LOOP: the active workspace's INGESTED eval cases (case_id + fidelity
    flags). Self-fetched by the Corpus tab so ingested cases survive a reload. */
 export const listCases = () => call("/v1/cases");

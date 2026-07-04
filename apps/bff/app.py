@@ -77,6 +77,7 @@ for _p in (str(REPO_ROOT), str(_SCRIPTS)):
 
 import run_eval  # noqa: E402  (scripts/ — the canonical run entry; mirrors tests/test_ws4a.py)
 
+from lithrim_bench import picklist  # noqa: E402  (CASE-BROWSER-1: PACK_FILES enumeration)
 from lithrim_bench.harness import (  # noqa: E402
     admissibility,
     corpus,
@@ -116,6 +117,7 @@ from lithrim_bench.harness.judges import (  # noqa: E402
 )
 from lithrim_bench.harness.ontology import from_dict as ontology_from_dict  # noqa: E402
 from lithrim_bench.harness.ontology import load_ontology  # noqa: E402
+from lithrim_bench.harness.replay import is_fresh  # noqa: E402  (CASE-BROWSER-1; import-light)
 from lithrim_bench.harness.report import calibration_check  # noqa: E402
 from lithrim_bench.harness.versioning import (  # noqa: E402  (PERSIST-2b config-object history)
     ledger_history,
@@ -280,6 +282,39 @@ def _resolve_ontology_path(agent, workdir: Path) -> tuple[Path, str]:
     if wc.exists():
         return wc, "draft"
     return agent.ontology_abspath(), "committed"
+
+
+def _current_grade_signature(agent, *, db_path: Path, workdir: Path, out_dir: Path | None):
+    """The grade signature POST /v1/run-eval's grade would stamp RIGHT NOW — for the case
+    browser's baseline-freshness dot (CASE-BROWSER-1). Assembled with the SAME shared code
+    the grade uses (``grade_signature_inputs``, called by scripts/run_eval.py main) over the
+    SAME resolved inputs (draft→committed ontology via ``_resolve_ontology_path``, the
+    workspace out_dir's pinned demos), INCLUDING run_eval's exact ``or None`` threading —
+    ``grade_signature`` embeds assignments/models RAW, so hashing ``{}`` where the grade
+    passes ``None`` would misreport every pre-authoring baseline as stale. The lens authority
+    is the ACTIVE-WORKSPACE pack (S-BS-154), matching the grade subprocess's env-bound pack.
+    Returns ``None`` when unassemblable (e.g. no ontology) — the caller renders "unknown",
+    never a guess."""
+    from lithrim_bench.harness import pack as pack_mod
+    from lithrim_bench.harness.replay import demo_digests, grade_signature, grade_signature_inputs
+
+    try:
+        cc = agent.eval_profile.council_config or {}
+        lenses = pack_mod.pack_lenses(workspace.get_active_workspace().pack)
+        si = grade_signature_inputs(db_path, cc, lenses=lenses)
+        ontology_path, _src = _resolve_ontology_path(agent, workdir)
+        return grade_signature(
+            json.loads(Path(ontology_path).read_text()),
+            assignments=si["assignments"] or None,
+            models=si["models"] or None,
+            council_config=cc,
+            criteria=si["criteria"] or None,
+            samples=si["samples"] or None,
+            temperatures=si["temperatures"] or None,
+            demo_digests=demo_digests(out_dir),
+        )
+    except Exception:  # noqa: BLE001 — a freshness read must never 500 the browser
+        return None
 
 
 def _agent_code_families(agent, workdir: Path) -> dict:
@@ -1799,6 +1834,100 @@ def list_cases_endpoint() -> dict:
             }
         )
     return {"cases": cases, "count": len(cases)}
+
+
+_BROWSER_MAX_CASES = 500
+
+
+@app.get("/v1/cases/browser")
+def case_browser_endpoint(
+    agent: str = DEFAULT_AGENT,
+    db_path: Path = Depends(get_config_db),
+    collections_db: Path = Depends(get_collections_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+) -> dict:
+    """CASE-BROWSER-1 (UI-pass 2026-07-04 finding #1) — the browsable case list: every case
+    ``load_case`` can resolve for this agent, in its EXACT resolution order (the agent's
+    pinned source file → the legacy ``PACK_FILES`` fixtures → the workspace's ingested
+    corpus; first-wins dedup), so the pane's Cases tab can show what's gradeable instead of
+    leaving case IDs discoverable only via chat.
+
+    Per row: the by-construction label (``labeled`` via the shared ``_case_has_gold``;
+    ``defect`` = the injection_recipe's ``defect_type``, else the first expected flag —
+    ``None`` on a labeled row means a first-class CLEAN negative), this agent's persisted
+    ``runs`` count, and ``baseline`` — fresh | stale | none | unknown: whether the $0 replay
+    would serve, judged by the head's ``grade_signature`` against ``_current_grade_signature``
+    (the SAME assembly the grade stamps — never a parallel guess). ``unknown`` = a head
+    exists but the current signature is unassemblable."""
+    ag = _load_agent(agent, db_path)
+    seen: set[str] = set()
+    rows: list[dict] = []
+
+    def _add(row: dict, source: str) -> None:
+        cid = row.get("case_id") or row.get("id")
+        if not cid or cid in seen or len(rows) >= _BROWSER_MAX_CASES:
+            return
+        seen.add(cid)
+        recipe = row.get("injection_recipe")
+        flags = row.get("expected_safety_flags") or []
+        defect = (recipe.get("defect_type") if isinstance(recipe, dict) else None) or (
+            flags[0] if flags else None
+        )
+        rows.append(
+            {"case_id": cid, "source": source, "labeled": _case_has_gold(row), "defect": defect}
+        )
+
+    def _jsonl_rows(path: Path):
+        try:
+            for line in path.open():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+        except OSError:
+            return
+
+    src = ag.source_abspath()
+    if src and Path(src).is_file():
+        for row in _jsonl_rows(Path(src)):
+            _add(row, "pinned")
+    for _pack_name, paths in picklist.PACK_FILES.items():
+        for fp in paths:
+            if fp.exists():
+                for row in _jsonl_rows(fp):
+                    _add(row, "pack")
+    for row in _read_ingested_corpus():
+        _add(row, "ingested")
+
+    store = provenance_store_for(collections_db)
+    counts: dict[str, int] = {}
+    for d in run_coro(store.list_all(limit=_BROWSER_MAX_CASES)):
+        if d.get("agent_id") == agent and d.get("case_id"):
+            counts[d["case_id"]] = counts.get(d["case_id"], 0) + 1
+    current_sig = _current_grade_signature(ag, db_path=db_path, workdir=workdir, out_dir=out_dir)
+    for r in rows:
+        r["runs"] = counts.get(r["case_id"], 0)
+        if r["runs"] == 0:
+            r["baseline"] = "none"
+            continue
+        head = run_coro(store.latest_authoritative_for(agent, r["case_id"]))
+        if head is None:
+            r["baseline"] = "none"
+        elif current_sig is None:
+            r["baseline"] = "unknown"
+        else:
+            r["baseline"] = "fresh" if is_fresh(head, current_sig) else "stale"
+    return {
+        "agent": agent,
+        "cases": rows,
+        "count": len(rows),
+        # no silent caps: a truncated browse says so instead of reading as "everything".
+        "truncated": len(rows) >= _BROWSER_MAX_CASES,
+    }
 
 
 class GradeCasesRequest(BaseModel):

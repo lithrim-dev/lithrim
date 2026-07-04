@@ -6,7 +6,7 @@
      - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
 import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { getOntology, getCorpus, getCase, listCases, getRunAudit } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
 import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./genui/copy.js";
 
@@ -499,38 +499,67 @@ function ConfigTab({ agent = "ws0_default", wsPack = null }) {
   );
 }
 
-// NARR-LOOP: the INGESTED eval corpus (GET /v1/cases) — the cases a user dropped via ingest,
-// self-fetched so they SURVIVE A RELOAD (the "refresh poof": before /v1/cases they only flashed
-// via the chat tool-result and vanished on reload). `has_context` surfaces the transcript-fidelity
-// the 2026-06-18 ingest fix guards. Renders nothing when there are none (no empty-state noise —
-// the correction flywheel below owns the empty case). Distinct from the correction corpus.
-function IngestedCasesSection({ activeCase = null, onSelectCase }) {
-  const [cases, setCases] = useState([]);
+// CASE-BROWSER-1 (UI-pass 2026-07-04 finding #1): the case-DISCOVERY surface — GET
+// /v1/cases/browser lists every case the grade can load for this agent (pinned source +
+// pack fixtures + ingested, the exact load_case resolution order), each row carrying the
+// by-construction label, this agent's run count, and the baseline-freshness dot ("would
+// the $0 replay serve?" — computed server-side with the SAME assembly the grade hashes).
+// Clicking a row SELECTS the case for the Run buttons (the same activeCase state the
+// assistant's open-case tool sets — the displayed case IS the armed case). Self-fetched
+// so it survives a reload, independent of any chat session (supersedes the NARR-LOOP
+// ingested-only list, which hid pack/pinned cases and showed nothing on a fresh clone).
+const _BASELINE_DOT = {
+  fresh: { color: "var(--teal)", title: "baseline: fresh — Run eval replays it for $0" },
+  stale: { color: "var(--amber)", title: "baseline: stale — the setup changed since; re-grade live once" },
+  none: { color: "var(--muted)", title: "no saved baseline — grade it live once, then Run eval replays for $0" },
+  unknown: { color: "var(--muted)", title: "baseline: unknown" },
+};
+
+function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelectCase }) {
+  const [browse, setBrowse] = useState(null);
   const [status, setStatus] = useState("loading");
   useEffect(() => {
     let live = true;
-    listCases()
-      .then((b) => { if (live) { setCases(b.cases || []); setStatus("ready"); } })
-      .catch(() => { if (live) setStatus("ready"); }); // offline-safe: show nothing, never crash
+    listCaseBrowser(agent)
+      .then((b) => { if (live) { setBrowse(b); setStatus("ready"); } })
+      .catch(() => { if (live) setStatus("ready"); }); // offline-safe: empty-state, never a crash
     return () => { live = false; };
-  }, []);
-  if (status !== "ready" || cases.length === 0) return null;
-  const withCtx = cases.filter((c) => c.has_context).length;
+  }, [agent]);
+  if (status !== "ready") return null;
+  const cases = (browse || {}).cases || [];
+  if (cases.length === 0)
+    return (
+      <div className="art-sec">
+        <div className="art-h2">Cases <span className="cnt">what the evaluation can grade</span></div>
+        <div style={{ color: "var(--muted)", fontSize: 12.5 }}>
+          No cases to browse yet — load cases from a JSON, JSONL, or CSV file (the 📎 in the
+          chat composer), or ask the assistant to load a sample.
+        </div>
+      </div>
+    );
   return (
     <div className="art-sec">
       <div className="art-h2">
-        Eval cases <span className="cnt">{cases.length} loaded · {withCtx} include a transcript</span>
+        Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons</span>
       </div>
-      <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 6px" }}>Click a case to explore it.</div>
       {cases.map((c) => {
         const active = c.case_id === activeCase;
+        const dot = _BASELINE_DOT[c.baseline] || _BASELINE_DOT.unknown;
         return (
           <div key={c.case_id} onClick={() => onSelectCase?.(c.case_id)}
-            style={{ padding: "8px 6px", margin: "0 -6px", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", cursor: onSelectCase ? "pointer" : "default", borderRadius: 6, background: active ? "var(--surface-2, rgba(127,127,127,0.10))" : "transparent" }}>
-            <span style={{ fontFamily: "var(--mono)", fontWeight: active ? 600 : 400 }}>{c.case_id}</span>
-            <span className="cnt" style={{ color: c.has_context ? "var(--teal)" : "var(--accent)" }}>
-              {c.has_context ? "transcript ✓" : "no transcript"}{c.labeled ? " · labeled" : ""}
-            </span>
+            style={{ padding: "8px 6px", margin: "0 -6px", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", gap: 8, alignItems: "baseline", cursor: onSelectCase ? "pointer" : "default", borderRadius: 6, background: active ? "var(--surface-2, rgba(127,127,127,0.10))" : "transparent" }}>
+            <span title={dot.title} style={{ color: dot.color, flexShrink: 0 }}>●</span>
+            <span style={{ fontFamily: "var(--mono)", fontWeight: active ? 600 : 400, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{c.case_id}</span>
+            {c.labeled ? (
+              c.defect ? (
+                <span className="cnt" style={{ color: "var(--accent)", whiteSpace: "nowrap" }}>{flagLabel(c.defect)}</span>
+              ) : (
+                <span className="cnt" style={{ color: "var(--teal)" }}>clean</span>
+              )
+            ) : (
+              <span className="cnt">unlabeled</span>
+            )}
+            <span className="cnt" style={{ whiteSpace: "nowrap" }}>{c.runs} run{c.runs === 1 ? "" : "s"}</span>
           </div>
         );
       })}
@@ -538,11 +567,11 @@ function IngestedCasesSection({ activeCase = null, onSelectCase }) {
   );
 }
 
-// The Corpus tab = the ingested eval cases (above) + the correction flywheel (below).
-function CorpusTab({ activeCase = null, onSelectCase }) {
+// The Cases tab = the browsable case list (above) + the correction flywheel (below).
+function CorpusTab({ agent = "ws0_default", activeCase = null, onSelectCase }) {
   return (
     <div>
-      <IngestedCasesSection activeCase={activeCase} onSelectCase={onSelectCase} />
+      <CaseBrowserSection agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} />
       <CorrectionCorpus />
     </div>
   );
@@ -646,7 +675,7 @@ function prettyArtifact(art) {
   catch { return { text: typeof art === "string" ? art : JSON.stringify(art, null, 2), kind: "free text" }; }
 }
 
-function CaseTab({ agent = "ws0_default", caseId = null }) {
+function CaseTab({ agent = "ws0_default", caseId = null, onBrowseCases }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [kase, setKase] = useState(null);
   const [error, setError] = useState(null);
@@ -673,6 +702,21 @@ function CaseTab({ agent = "ws0_default", caseId = null }) {
   const art = prettyArtifact(kase.artifact);
   return (
     <div>
+      {/* FINDING #2 (UI-pass 2026-07-04): with nothing selected this tab falls back to the
+          evaluation's DEFAULT case — say so, instead of silently contradicting the header's
+          "No case selected" chip, and offer the jump to the browser. */}
+      {caseId == null && (
+        <div className="art-sec" style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 12, color: "var(--muted)" }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            Showing the evaluation’s default case — no case is selected.
+          </span>
+          {onBrowseCases && (
+            <button className="btn btn-ghost" style={{ whiteSpace: "nowrap" }} onClick={onBrowseCases}>
+              Browse cases
+            </button>
+          )}
+        </div>
+      )}
       <div className="art-sec">
         <div className="art-h2">Transcript <span className="cnt">{kase.case_id}</span></div>
         <pre style={_PRE}>{kase.transcript || "(no transcript)"}</pre>
@@ -724,7 +768,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
     report: ["Evaluation report", "the latest run"],
     judges: ["Reviewers", "how each one voted on this case"],
     config: ["Setup", "what the reviewers check for"],
-    corpus: ["Cases & corrections", "the cases you loaded + fixes a fact-check made"],
+    corpus: ["Cases & corrections", "the cases you can grade + fixes a fact-check made"],
   };
   const [t1, t2] = titles[tab];
   return (
@@ -750,11 +794,11 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
       </div>
       <div className="art-bd">
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
-          {tab === "case" && <CaseTab agent={agent} caseId={activeCase} />}
+          {tab === "case" && <CaseTab agent={agent} caseId={activeCase} onBrowseCases={() => setTab("corpus")} />}
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} />}
           {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
           {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
-          {tab === "corpus" && <CorpusTab activeCase={activeCase} onSelectCase={onSelectCase} />}
+          {tab === "corpus" && <CorpusTab agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} />}
         </div>
       </div>
     </section>
