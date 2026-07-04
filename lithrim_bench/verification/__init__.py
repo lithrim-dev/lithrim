@@ -10,6 +10,14 @@ See `.devloop/state/STREAM_bench-salvage.md` (WS-3 row).
 
 from .etlp_client import EtlpJuteClient
 from .extraction_floors import FactPreservationTool, SpeakerAttributionTool
+from .jute_argshape import (
+    argshape_feedback_from,
+    best_of_n_argshape,
+    build_argshape_generator,
+    make_argshape_metric,
+    required_keys_of,
+    score_argshape,
+)
 from .jute_dspy import (
     GOLDEN_US_CORE_PATIENT_VALIDATOR,
     US_CORE_PATIENT_RULES,
@@ -116,6 +124,12 @@ __all__ = [
     "build_extractor_generator",
     "best_of_n_extractor",
     "required_case_fields",
+    "score_argshape",
+    "argshape_feedback_from",
+    "make_argshape_metric",
+    "build_argshape_generator",
+    "best_of_n_argshape",
+    "required_keys_of",
     "mutation_coverage",
     "joint_coverage",
     "mutants_to_cases",

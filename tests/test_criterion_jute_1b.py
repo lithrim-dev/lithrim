@@ -136,15 +136,24 @@ def test_score_argshape_number_accepts_int_and_float():
         "properties": {"score": {"type": "number"}},
         "required": ["score"],
     }
-    assert score_argshape(
-        FakeClient({"T": _compiled({"score": 3})}), "T", SAMPLE_INPUT, input_schema=schema
-    )["accepted"] is True
-    assert score_argshape(
-        FakeClient({"T": _compiled({"score": 3.5})}), "T", SAMPLE_INPUT, input_schema=schema
-    )["accepted"] is True
-    assert score_argshape(
-        FakeClient({"T": _compiled({"score": True})}), "T", SAMPLE_INPUT, input_schema=schema
-    )["accepted"] is False
+    assert (
+        score_argshape(
+            FakeClient({"T": _compiled({"score": 3})}), "T", SAMPLE_INPUT, input_schema=schema
+        )["accepted"]
+        is True
+    )
+    assert (
+        score_argshape(
+            FakeClient({"T": _compiled({"score": 3.5})}), "T", SAMPLE_INPUT, input_schema=schema
+        )["accepted"]
+        is True
+    )
+    assert (
+        score_argshape(
+            FakeClient({"T": _compiled({"score": True})}), "T", SAMPLE_INPUT, input_schema=schema
+        )["accepted"]
+        is False
+    )
 
 
 # --------------------------------------------------------------------------- #
