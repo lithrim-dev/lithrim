@@ -385,12 +385,23 @@ def run_optimize(
             "explicit cost check"
         )
 
+    # Holdout hygiene (REL-OPS-1 O6, docs/POLICY_HOLDOUT_HYGIENE.md): only `calibration`
+    # rows may tune. A corpus with no calibration rows is certify-only — refuse HERE,
+    # before `import dspy` / LM construction, so no paid work and no possibility of the
+    # held-out `test` split leaking into the trainset.
+    rows = load_corpus(corpus_path)
+    if not any(r.get("split") == "calibration" for r in rows):
+        raise ValueError(
+            f"certify-only corpus: {corpus_path} carries no `split == \"calibration\"` rows. "
+            "The held-out `test` split may CERTIFY a judge, never tune it "
+            "(docs/POLICY_HOLDOUT_HYGIENE.md); refusing before any paid call."
+        )
+
     import dspy
 
     from .judges_dspy import build_judge_lm, default_taxonomy_context, load_role_prompt
 
     lens = LENS_BY_ROLE[role]
-    rows = load_corpus(corpus_path)
     train_rows = [r for r in rows if r.get("split") == "calibration" and role_relevant(r, lens)]
     heldout_rows = [r for r in rows if r.get("split") == "test" and role_relevant(r, lens)]
     if limit is not None:
