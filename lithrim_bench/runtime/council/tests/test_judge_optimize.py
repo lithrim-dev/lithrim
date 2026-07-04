@@ -8,6 +8,7 @@ the live ``dspy.Predict``). The one live test is env-gated and skips $0 by defau
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -206,6 +207,30 @@ def test_bind_compiled_demos_copies_onto_judge():
 def test_run_optimize_refuses_without_confirm_cost(tmp_path):
     with pytest.raises(RuntimeError):
         run_optimize("risk_judge", corpus_path=CORPUS, out_dir=tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# holdout hygiene ($0, REL-OPS-1 O6 / docs/POLICY_HOLDOUT_HYGIENE.md) — the
+# optimization entry point refuses a CERTIFY-ONLY corpus (no `calibration` rows):
+# the held-out `test` split may certify a judge, never tune it. The refusal must
+# fire BEFORE any paid work (no dspy import, no LM construction).
+# --------------------------------------------------------------------------- #
+def test_run_optimize_refuses_certify_only_corpus(tmp_path):
+    corpus = tmp_path / "certify_only.jsonl"
+    rows = [
+        {
+            "case_id": f"held_out_{i}",
+            "split": "test",
+            "transcript": "T",
+            "artifacts": [{"content": "A"}],
+            "expected_safety_flags": ["WRONG_DOSAGE"],
+        }
+        for i in range(3)
+    ]
+    corpus.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="certify-only"):
+        run_optimize("risk_judge", corpus_path=corpus, confirm_cost=True, out_dir=tmp_path)
 
 
 # --------------------------------------------------------------------------- #
