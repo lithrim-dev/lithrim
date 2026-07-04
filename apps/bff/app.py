@@ -4042,15 +4042,37 @@ def _run_summary(doc: dict) -> dict:
 @app.get("/v1/runs")
 def list_runs_endpoint(
     limit: int = Query(50, ge=1, le=500),
+    agent: str | None = None,
+    case_id: str | None = None,
     collections_db: Path = Depends(get_collections_db),
 ) -> dict:
     """The run-history list (R6 read half / S-BS-56): persisted runs newest-first,
     each addressable via its ``run_id`` (round-trips to ``GET /v1/runs/{id}/audit``).
     Replay + in_process + live all persist a provenance blob (S-BS-52), so the $0
-    replay default appears here too. Empty list before any run is persisted."""
+    replay default appears here too. Empty list before any run is persisted.
+
+    RUN-TRAIL-CASE-SCOPE: ``agent``/``case_id`` are ADDITIVE filters (the bare call is
+    byte-identical). Both given → the store's case-scoped lineage query
+    (``list_versions(agent, case_id)`` — Postgres + SQLite twins, newest-first), the same
+    query the replay-baseline resolver rides. ``case_id`` is EXACT-match (the
+    ``GET /v1/reports/{case_id}`` / ``latest_authoritative_for`` convention — no prefix
+    matching exists on this plane). An unknown case is an empty list, never an error.
+    Plain (non-Query) defaults on purpose: ``_review_runs`` calls this endpoint directly
+    (S-BS-82 — a Query(None) default would arrive as a truthy FieldInfo sentinel)."""
     # PERSIST-2c: read through the factory so run-history reflects the active backend
     # (LITHRIM_DB_URL → Postgres, else the local SQLite at collections_db).
-    docs = run_coro(provenance_store_for(collections_db).list_all(limit=limit))
+    store = provenance_store_for(collections_db)
+    if agent and case_id:
+        docs = run_coro(store.list_versions(agent, case_id))[:limit]
+    else:
+        # single-filter path: filter over the full newest-first read, THEN truncate —
+        # a windowed read would silently drop older matching runs.
+        docs = run_coro(store.list_all(limit=None if (agent or case_id) else limit))
+        if agent:
+            docs = [d for d in docs if d.get("agent_id") == agent]
+        if case_id:
+            docs = [d for d in docs if d.get("case_id") == case_id]
+        docs = docs[:limit]
     return {"runs": [_run_summary(d) for d in docs]}
 
 
@@ -4588,15 +4610,28 @@ def _build_tool_context(
             x_actor=x_actor,
         )
 
-    def _review_runs(limit: int = 5) -> dict:
+    def _review_runs(limit: int = 5, case_id: str | None = None) -> dict:
         # CHATBIND-1 (S-BS-103): SCOPE the run history to the ACTIVE agent (req_agent) so
         # "review the runs" shows the rail-selected case's runs, not the global history. The
         # frozen list_runs_endpoint is unscoped, so fetch a generous newest-first window (200,
         # < the endpoint's 500 cap), filter on the `agent` field every row already carries
         # (_run_summary -> agent_id; replay/in_process/live all backfill it), then truncate to
         # `limit`. latest_id/latest_audit then reflect the ACTIVE agent's latest run.
-        listing = list_runs_endpoint(limit=200, collections_db=collections_db)
-        runs = [r for r in (listing.get("runs") or []) if r.get("agent") == req_agent][:limit]
+        # RUN-TRAIL-CASE-SCOPE: case_id given → the case the human NAMED is the scope —
+        # the endpoint's (agent, case_id) lineage read; latest_id = the latest run OF THAT
+        # CASE, not the agent's newest run on any case (the 2026-07-04 live defect). The
+        # scope echoes back (`case_id`) so the tool narrates what it scoped to.
+        if case_id:
+            listing = list_runs_endpoint(
+                limit=int(limit) if limit else 5, agent=req_agent, case_id=case_id,
+                collections_db=collections_db,
+            )
+            runs = listing.get("runs") or []
+        else:
+            listing = list_runs_endpoint(
+                limit=200, agent=None, case_id=None, collections_db=collections_db
+            )
+            runs = [r for r in (listing.get("runs") or []) if r.get("agent") == req_agent][:limit]
         latest_id = runs[0].get("run_id") if runs else None
         latest_audit = None
         if latest_id:
@@ -4604,7 +4639,10 @@ def _build_tool_context(
                 latest_audit = get_run_audit_endpoint(latest_id, collections_db=collections_db)
             except HTTPException:
                 latest_audit = None
-        return {"runs": runs, "latest_run_id": latest_id, "latest_audit": latest_audit}
+        return {
+            "runs": runs, "latest_run_id": latest_id, "latest_audit": latest_audit,
+            "case_id": case_id,
+        }
 
     # ── UAP-5c-2: the eval-pack BATCH closure (the first wrapper over a PAID-CAPABLE op).
     def _run_eval_pack(pack_id: str, agents: list[str]) -> dict:

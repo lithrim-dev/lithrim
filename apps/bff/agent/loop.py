@@ -139,7 +139,8 @@ _SYSTEM_PROMPT = (
     "confirm grades them all and renders the consolidated scorecard inline (per-case vs gold + "
     "precision/recall). You only PROPOSE; the human's confirm spends. You can NEVER fire it.\n"
     "  - review_runs: review the run history, the latest run's STORED verdict/provenance, and the "
-    "audit trail of everything you authored -- $0. THE way to serve an explicit '$0 replay' / "
+    "audit trail of everything you authored -- $0. Pass case_id when the human NAMES a case, so "
+    "the history + latest verdict scope to THAT case. THE way to serve an explicit '$0 replay' / "
     "'show the stored result' / 'last result' / 'for free / free of charge / at no cost' / "
     "'don't spend / without spending / without paying' ask: show the stored result at $0 and NEVER "
     "surface the cost-confirm modal for it (a $0 ask must never escalate to a paid proposal unless "
@@ -1028,6 +1029,41 @@ def _is_grade_all_request(message: str) -> bool:
     return bool(_GRADE_ALL_RE.search(text))
 
 
+# RUN-TRAIL-CASE-SCOPE — a case-id-shaped token: starts with a letter and carries at least
+# one underscore (every corpus/ingested case id does — cv_mts_*, snomed_inj_*, case_10).
+# Deliberately conservative: prose words don't carry underscores, so a miss means an
+# UNSCOPED $0 read (today's behavior), never a wrong scope.
+_CASE_TOKEN_RE = re.compile(r"\b[A-Za-z][\w.-]*_[\w.-]*[A-Za-z0-9]\b")
+
+
+def _zero_dollar_case_token(message: str) -> str | None:
+    """The case the user NAMED in a $0 ask ("run a $0 replay of cv_mts_002_… and show the
+    report") — the first case-id-shaped token that is not a Lithrim tool name (a user
+    echoing 'review_runs' must not scope the read to a bogus case). None when no such
+    token exists (the read stays unscoped). Pure."""
+    for tok in _CASE_TOKEN_RE.findall(message or ""):
+        if tok not in _LITHRIM_HANDLERS:
+            return tok
+    return None
+
+
+def _is_zero_dollar_replay_request(message: str) -> bool:
+    """ZERO-DOLLAR-ROUTE, the SERVING half: True for an unambiguous "$0 replay / stored
+    result" request the deterministic fallback should serve with review_runs (the $0 read)
+    when the model narrated without calling it. The same trigger family the paid-fallback
+    GUARD excludes (``_ZERO_DOLLAR_RE``), plus a run/replay/show cue so a stray mention of
+    'replay' inside a question or bare prose doesn't auto-fire a card. Pure."""
+    text = (message or "").strip().lower()
+    if not text or "?" in text:
+        return False
+    if not _ZERO_DOLLAR_RE.search(text):
+        return False
+    return bool(
+        _RUN_REQUEST_VERB.search(text)
+        or re.search(r"\b(replay|show|report|result)\b", text)
+    )
+
+
 async def _litellm_loop(
     message: str,
     ctx: ToolContext,
@@ -1105,6 +1141,9 @@ async def _litellm_loop(
     # True → no double-open. A-SAFE: the fallback emits ONLY the directive (opens the modal); it
     # never fires a paid op — the human's modal-confirm stays the sole spend.
     directive_emitted = False
+    # RUN-TRAIL-CASE-SCOPE: whether the model called review_runs itself this turn — the
+    # zero-dollar fallback below is skipped when it did (self-limiting, like the above).
+    review_runs_called = False
     # RUN-ALL-ROUTE: an unambiguous "grade all cases" message routes to the COHORT directive — both
     # by UPGRADING a mis-picked single directive (below) and in the no-directive fallback — so it
     # never lands on a single-case run that 500s on a corpus agent with no bound case.
@@ -1195,6 +1234,10 @@ async def _litellm_loop(
                         continue
                 # dispatch the whitelisted handler (it drops paid knobs by construction; run_eval is replay)
                 yield {"event": "tool_call", "name": bare, "input": args}
+                if bare == "review_runs":
+                    # RUN-TRAIL-CASE-SCOPE: the model served the $0 read itself — the
+                    # post-loop zero-dollar fallback is SKIPPED (no double-serve).
+                    review_runs_called = True
                 handler = _LITHRIM_HANDLERS[bare]
                 result = await handler(ctx, args)
                 # drain the gen-UI parts + any $0 replay record this handler emitted
@@ -1239,6 +1282,34 @@ async def _litellm_loop(
             # directive targets the SAME case the handler directives do (a present-only selector,
             # not a paid field) — else confirmPaidRun grades the stale client selection.
             yield {"event": "tool_result", "part": propose_live_run_part(ctx.active_case)}
+        elif (
+            not directive_emitted
+            and not review_runs_called
+            and _is_zero_dollar_replay_request(message)
+        ):
+            # RUN-TRAIL-CASE-SCOPE — the ZERO-DOLLAR-ROUTE fallback's SERVING half. The guard
+            # above keeps a "$0 replay of case X" ask off the paid modal, but a narrate-only
+            # model then served NOTHING (and the case the user NAMED was dropped before any
+            # tool ran — the 2026-07-04 trace). Deterministically serve the $0 read WITH the
+            # named case token, mirroring CONFIRM-MODAL-FALLBACK-1 (self-limiting via
+            # ``review_runs_called``). A-SAFE: review_runs is a pure read — no paid surface.
+            zd_args: dict[str, Any] = {}
+            token = _zero_dollar_case_token(message)
+            if token:
+                zd_args["case_id"] = token
+            yield {"event": "tool_call", "name": "review_runs", "input": zd_args}
+            zd_result = await _LITHRIM_HANDLERS["review_runs"](ctx, zd_args)
+            while ctx.parts:
+                yield {"event": "tool_result", "part": ctx.parts.pop(0)}
+            zd_text = "".join(
+                b.get("text", "")
+                for b in (zd_result or {}).get("content", [])
+                if b.get("type") == "text"
+            )
+            if zd_text:
+                # relay the read's narration (incl. a refusal's verbatim guard message) —
+                # the fallback makes the model's narrated intent TRUE, honestly labeled.
+                yield {"event": "assistant_delta", "text": "\n" + zd_text}
     except Exception as exc:  # surface a loop/transport failure to the pane, don't 500
         yield {"event": "error", "detail": str(exc)}
         return

@@ -171,14 +171,22 @@ def judge_builder_part(
     return _part("judge_builder", {"agent": agent, "role": role}, show_intent=show_intent)
 
 
-def audit_part(run_id: str = "", *, show_intent: str = "ondemand") -> dict[str, Any]:
+def audit_part(
+    run_id: str = "", *, case_id: str | None = None, show_intent: str = "ondemand"
+) -> dict[str, Any]:
     """review_runs (and UAP-5c-2 run_eval_pack — the batch's newest run) -> the AuditView
     card. AuditView defaults to the config-change audit stream (GET /v1/audit — every
     authored judge/flag write) and, given ``runId``, loads that run's provenance
     (GET /v1/runs/{id}/audit). The Review/batch leg — pure-read. W3: a PASSIVE orientation
     read, so ``ondemand`` by default (the off-context Audit-trail-next-to-404 the live drive
-    hit was exactly this card firing on the agent's incidental review_runs)."""
-    return _part("audit_log", {"runId": run_id}, show_intent=show_intent)
+    hit was exactly this card firing on the agent's incidental review_runs).
+    RUN-TRAIL-CASE-SCOPE: ``caseId`` (present-only, additive) is the case the review was
+    scoped to — AuditView then requests the CASE-scoped run trail (full trail one click
+    away) instead of leading with whichever case anyone graded most recently."""
+    output: dict[str, Any] = {"runId": run_id}
+    if case_id:
+        output["caseId"] = case_id
+    return _part("audit_log", output, show_intent=show_intent)
 
 
 def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
