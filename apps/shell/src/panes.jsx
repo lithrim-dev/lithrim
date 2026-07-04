@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
@@ -385,6 +385,27 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
     window.addEventListener("lithrim:grade-cohort", onGradeCohort);
     return () => window.removeEventListener("lithrim:grade-cohort", onGradeCohort);
   }, []);
+  // RELIABILITY-CARD-1: the ⌘K "Show reliability" trigger — fetch the REAL endpoint
+  // (GET /v1/reliability/{agent}, $0 read) and render the tool-reliability_card INLINE as a
+  // fresh assistant turn (the same registry card the agent would emit; conversational-first,
+  // no new tab). The endpoint returns {agent, metrics, n_runs}; the card reads the flat-spread
+  // metrics + n_runs. On an error/404/insufficient data the card's own honest empty state shows
+  // (an empty output → "No graded runs yet"); NEVER a fabricated number, never a crash.
+  useEffect(() => {
+    const onShow = async () => {
+      let output = {};
+      try {
+        const r = await getReliability(agent);
+        output = { ...(r?.metrics || {}), n_runs: r?.n_runs ?? r?.metrics?.n_runs };
+      } catch { output = {}; }
+      setChat((c) => [
+        ...c,
+        { role: "assistant", text: "", parts: [{ type: "tool-reliability_card", state: "output-available", output }] },
+      ]);
+    };
+    window.addEventListener("lithrim:show-reliability", onShow);
+    return () => window.removeEventListener("lithrim:show-reliability", onShow);
+  }, [agent]);
   const taRef = useRef(null);
   const fileRef = useRef(null); // CE-INGEST-FRONTDOOR-1: the hidden upload input (the only chrome)
   const [uploading, setUploading] = useState(false);
@@ -989,11 +1010,24 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       <CostModal
         open={paid.open}
         busy={paid.busy}
-        title={paid.cohort ? "Grade all cases (paid)?" : "Run a live, paid evaluation?"}
+        title={paid.cohort
+          // COHORT-SUBSET-1 last-mile: a non-empty paid.caseIds means the user picked a SUBSET
+          // ("Run selected (N)") — the copy must name the N-case subset, not "all cases". An
+          // absent/empty caseIds ("Grade all" / propose_run_all) keeps the whole-cohort copy.
+          ? (paid.caseIds?.length
+            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)?`
+            : "Grade all cases (paid)?")
+          : "Run a live, paid evaluation?"}
         body={paid.cohort
-          ? "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it."
+          ? (paid.caseIds?.length
+            ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`
+            : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
           : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
-        confirmLabel={paid.cohort ? "Grade all cases (paid)" : "Run live (paid)"}
+        confirmLabel={paid.cohort
+          ? (paid.caseIds?.length
+            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)`
+            : "Grade all cases (paid)")
+          : "Run live (paid)"}
         warning={readiness && readiness.ok === false
           ? `Setup readiness: this agent has a fact-check that won't run for the ${readiness.pack || "pinned"} pack — a false alarm could go uncaught. Fix it first, or run anyway.`
           : null}

@@ -625,8 +625,9 @@ describe("CenterPane — COHORT-SUBSET-1: non-chat cohort trigger + subset grade
   it("a lithrim:grade-cohort event WITH case_ids opens the cohort cost-confirm; NO paid call before confirm", async () => {
     render(<CenterPane {...props} />);
     fireCohort({ case_ids: ["case_a", "case_c"] });
-    // the SAME cohort modal the chat directive opens
-    expect(await screen.findByText(/Grade all cases \(paid\)\?/i)).toBeInTheDocument();
+    // the SAME cohort modal the chat directive opens — but COHORT-SUBSET-1 last-mile: on a subset
+    // the copy names the N selected cases (2 here), it does NOT read "Grade all cases".
+    expect(await screen.findByText(/Grade 2 selected cases \(paid\)\?/i)).toBeInTheDocument();
     // credit-safety: NOTHING graded yet — the human hasn't confirmed
     expect(gradeCases).not.toHaveBeenCalled();
   });
