@@ -47,6 +47,21 @@ def _fold_usage(r: dict, jr: Any) -> None:
         r["usage"] = usage
 
 
+def _fold_rationale(r: dict, jr: Any) -> None:
+    """F8-RATIONALE: copy a findings-less JudgeResult's prose rationale onto its seam dict
+    (where ``stages._judge_votes_from_models`` reads ``rationale`` ahead of the synthesized
+    reason). A verdict-only reviewer — a reward-model judge — types no defect codes, so
+    ``_synth_reason`` has nothing to reconstruct from and its vote rendered mute; the captured
+    explanation is its only "why". Scoped to the findings-less case so a coded judge's
+    synthesized ``decision — CODES`` reason stays byte-identical; never clobbers, never
+    fabricates (no rationale / no JudgeResult → the dict is untouched)."""
+    if jr is None or r.get("rationale") or (r.get("findings") or []):
+        return
+    rationale = str(getattr(jr, "rationale", "") or "")
+    if rationale:
+        r["rationale"] = rationale
+
+
 def build_authored_evaluator(
     *,
     ontology: Any,
@@ -217,6 +232,10 @@ def build_authored_evaluator(
             # here, which nothing populated (every persisted blob said cost 0). Absent usage
             # (offline predictors, no-usage LMs) leaves the dict byte-identical.
             _fold_usage(r, jr)
+            # F8-RATIONALE: a verdict-only reviewer's prose explanation is its only "why" —
+            # fold it so the vote's reason renders instead of an empty synth. Coded judges
+            # are untouched (the guard is inside the helper).
+            _fold_rationale(r, jr)
 
         # Independent-axes case outcome (the rule table) — computed ABOVE the frozen seam
         # from each reviewer's OWN verdict + variance; never an aggregate score. This, not
