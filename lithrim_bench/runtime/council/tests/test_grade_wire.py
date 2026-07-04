@@ -159,10 +159,13 @@ def _semantic_stage_from(baseline: dict):
 def test_inprocess_dict_shape_matches_baseline_keys():
     """The grade_inprocess dict has the SAME top-level keys as the captured
     :8002 baseline — the frozen-seam shape that keeps ground/composite path-
-    agnostic (§6/§7)."""
+    agnostic (§6/§7). ``case_outcome`` (the named-outcome axis on
+    ``PipelineResult``, additive at fc6d7ad) post-dates the pinned baseline, so
+    the FULL exact contract is baseline-keys ∪ {case_outcome} — still equality,
+    never a subset check."""
     base = _baseline()
     result = grade_inprocess(_case(), semantic_stage=_semantic_stage_from(base))
-    assert set(result.keys()) == set(base.keys())
+    assert set(result.keys()) == set(base.keys()) | {"case_outcome"}
     assert set(result["semantic"]).issuperset(
         {"status", "findings", "evidence", "judge_votes"}
     )
