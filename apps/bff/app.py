@@ -1358,6 +1358,37 @@ def _case_outcome_from_votes(votes: list[dict]) -> str | None:
     return derive_case_outcome(seams) if seams else None
 
 
+# stage verdict severity order + the named outcome a post-floor verdict reads as.
+_STAGE_RANK = {"PASS": 0, "WARN": 1, "BLOCK": 2}
+_VERDICT_TO_OUTCOME = {"PASS": "CLEAR", "WARN": "NEEDS_REVIEW", "BLOCK": "FLAGGED"}
+
+
+def _floor_exception(vote_outcome: str | None, grounded: dict) -> tuple[str | None, int]:
+    """FLOOR-STORY-1: cc2aa33's anti-milder-drift rule with its ONE sanctioned exception.
+
+    The grounding floor is the single mechanism allowed to be MILDER than the votes —
+    that is the product's thesis (a deterministic fact-check legitimately CLEARS council
+    findings, e.g. SNOMED subsumption disproving FABRICATED_*). The exception fires only
+    when the record's grounded block shows real suppressions that made the verdict milder;
+    the post-floor grounded verdict is then the authoritative FINAL reading and the vote
+    re-derivation stays as PROVENANCE. With no floor involvement the vote re-derivation
+    stands, so a stale stored outcome milder than the votes still escalates (cc2aa33
+    preserved). Returns ``(final_outcome, floor_cleared_count)``.
+    """
+    from lithrim_bench.runtime.council.outcomes import case_outcome_to_verdict
+
+    suppressed = grounded.get("suppressed") or []
+    gv = str(grounded.get("verdict") or "").upper()
+    ov = str(grounded.get("original_verdict") or "").upper()
+    if not vote_outcome or not suppressed or gv not in _STAGE_RANK or ov not in _STAGE_RANK:
+        return vote_outcome, 0
+    if _STAGE_RANK[gv] >= _STAGE_RANK[ov]:
+        return vote_outcome, 0  # the floor did not make the verdict milder
+    if _STAGE_RANK[gv] >= _STAGE_RANK.get(case_outcome_to_verdict(vote_outcome), 1):
+        return vote_outcome, 0  # the votes already read at-or-below the grounded verdict
+    return _VERDICT_TO_OUTCOME[gv], len(suppressed)
+
+
 def _council_view(record: dict) -> dict:
     """Project the REALIZED per-judge council votes for the JudgeTab (D0).
 
@@ -1391,15 +1422,21 @@ def _council_view(record: dict) -> dict:
     # RE-DERIVED from the realized votes (single source of truth) so it can never drift milder
     # than the votes/consensus the way a stale stored value could; falls back to the stored value
     # only when no votes are present (e.g. a council error).
-    case_outcome = (
+    vote_outcome = (
         _case_outcome_from_votes(votes)
         or result.get("case_outcome")
         or (result.get("provenance") or {}).get("case_outcome")
     )
+    # FLOOR-STORY-1: the post-floor grounded verdict is the authoritative FINAL reading;
+    # the pre-floor vote re-derivation survives as `council_outcome` (the flip's provenance)
+    # and `floor_cleared` counts the suppressions that flipped it (0 = no flip).
+    case_outcome, floor_cleared = _floor_exception(vote_outcome, record.get("grounded") or {})
     return {
         "votes": votes,
         "configured": list(prov_council.get("judges") or []),
         "case_outcome": case_outcome,
+        "council_outcome": vote_outcome,
+        "floor_cleared": floor_cleared,
     }
 
 

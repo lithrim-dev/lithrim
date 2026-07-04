@@ -27,11 +27,17 @@ const pillarColor = (s) => (/clear|pass|ok|✓/i.test(String(s || "")) ? "var(--
 const OUTCOME = {
   CRITICAL: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Critical" },
   POLICY_VIOLATION: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Policy violation" },
+  FLAGGED: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Flagged" },
   RISK_FLAG: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Risk flag" },
   FINDING: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Finding" },
   NEEDS_REVIEW: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Needs review" },
   CLEAR: { cls: "pass", icon: "check", color: "var(--teal)", label: "Clear" },
 };
+
+// FLOOR-STORY-1: the shared flip-story line (verbatim the Report banner's copy) — the ONE
+// reading of a floor-cleared run: reviewers flagged it, a fact-check cleared the findings.
+const floorClearStory = (n, finalLabel) =>
+  `Reviewers flagged it · a fact-check cleared ${n} false alarm${n === 1 ? "" : "s"} · final: ${finalLabel}`;
 
 // a per-judge vote (PASS|WARN|FAIL|BLOCK) -> chip color (mirrors artifact.jsx VOTE_COLOR).
 const VOTE_COLOR = { PASS: "var(--teal)", WARN: "var(--amber)", FAIL: "var(--accent)", BLOCK: "var(--accent)" };
@@ -77,7 +83,11 @@ export default function VerdictCard({
   }
 
   // The named case outcome is PRIMARY when present; else fall back to the PASS/WARN/BLOCK tone.
-  const oc = caseOutcome ? OUTCOME[String(caseOutcome).toUpperCase()] : null;
+  // FLOOR-STORY-1: on a floor-cleared run (a passing verdict WITH fact-check clears) the pass IS
+  // the result — a harsh pre-floor case_outcome (e.g. a pre-fix server's FLAGGED) never overrides
+  // it into a contradicting headline; the flip renders as the story strip below instead.
+  const flipStory = Array.isArray(floorClears) && floorClears.length > 0 && /^(approve|pass)$/i.test(String(verdict || ""));
+  const oc = !flipStory && caseOutcome ? OUTCOME[String(caseOutcome).toUpperCase()] : null;
   const t = oc || tone(verdict);
   const headline = oc ? oc.label : verdictLabel(verdict);
   return (
@@ -140,6 +150,14 @@ export default function VerdictCard({
         {Array.isArray(floorClears) && floorClears.length > 0 && (
           <div className="ifloor" style={{ margin: "10px 0", padding: "8px 10px", borderRadius: 8, background: "var(--teal-bg, rgba(20,160,130,0.07))", borderLeft: "3px solid var(--teal)" }}>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--teal)", marginBottom: 5 }}>Cleared by a fact-check</div>
+            {/* FLOOR-STORY-1: the flip story (same copy as the Report banner) — only when the
+                clears decided a passing final verdict, never a false "final: Passed" on a
+                still-flagged partial clear. */}
+            {flipStory && (
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 6 }}>
+                {floorClearStory(floorClears.length, verdictLabel(verdict))}
+              </div>
+            )}
             {floorClears.map((c, i) => (
               <div key={c.flag || i} style={{ marginBottom: i < floorClears.length - 1 ? 6 : 0 }}>
                 <span className="tag pass" style={{ marginRight: 6 }}>{flagLabel(c.flag)}</span>
