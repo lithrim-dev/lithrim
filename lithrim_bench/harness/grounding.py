@@ -615,10 +615,21 @@ def _jute_client() -> Any:
     ``EtlpJuteClient`` whose ``test_template`` applies the pinned template IN-MEMORY (no DB write,
     no :3031 mutation), exactly the seam ``jute_gen`` uses. Isolated in a factory so tests inject a
     fake (:3031 is not required offline). The live client creates its ``httpx.Client`` lazily (the
-    optional ``[verification]`` extra), so importing it is cheap and networkless until first apply."""
+    optional ``[verification]`` extra), so importing it is cheap and networkless until first apply.
+
+    The base URL honours ``LITHRIM_JUTE_URL`` (the deployment mapper URL — e.g.
+    ``http://jute:3000`` inside the container), falling back to the ``etlp_jute`` manifest default
+    (``localhost:3031``, the SINGLE source of the default — JUTE-ADDON-1) when unset — byte-identical
+    for offline/test callers, which inject a fake anyway. This retires the localhost:3031→jute:3000
+    port-forward: the live floor now reaches the mapper the deployment configured, so a dead-mapper
+    None from ``_shape_arguments`` is a real reachability failure, not a hostname mismatch."""
+    import os
+
+    from lithrim_bench.harness import plugins
     from lithrim_bench.verification import EtlpJuteClient
 
-    return EtlpJuteClient()
+    base_url = os.environ.get("LITHRIM_JUTE_URL") or plugins.etlp_jute_default_base_url()
+    return EtlpJuteClient(base_url=base_url)
 
 
 class McpCallGrounding(VerificationContract):
