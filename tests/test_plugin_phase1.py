@@ -68,6 +68,8 @@ _EXPECTED_SUPPRESS = {
     "evidence_presence",
     # REPRO-1 R4c: the core-generic terminology-subsumption suppress (span-driven, tool-driven).
     "terminology_subsumption",
+    # FLOOR-BATTERY-1: the core-generic ordered terminology battery (validity/mislabel/category/is-a).
+    "snomed_battery",
     "record_presence",
     "snomed_subsumption",
 }
@@ -92,6 +94,8 @@ _EXPECTED_CONTRACT_PLUGINS = {
     "evidence_presence": ("contract", "core", "in_process", "grounding.suppress"),
     # REPRO-1 R4c: core generic terminology subsumption (builds its own McpStdioClient, like mcp_call).
     "terminology_subsumption": ("contract", "core", "in_process", "grounding.suppress"),
+    # FLOOR-BATTERY-1: core generic ordered terminology battery (builds its own McpStdioClient).
+    "snomed_battery": ("contract", "core", "in_process", "grounding.suppress"),
     "structural_jute": ("contract", "core", "service", "grounding.floor"),
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),

@@ -934,6 +934,215 @@ class TerminologySubsumption(VerificationContract):
         )
 
 
+def _norm(s: str) -> str:
+    """Lowercase, strip non-alnum-space, collapse whitespace — the term-match normalizer."""
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", str(s).lower()).split())
+
+
+def _semantic_tag(fsn: str | None) -> str | None:
+    """The SNOMED semantic tag = the trailing parenthetical of the FSN, e.g. ``(disorder)`` /
+    ``(finding)`` / ``(situation)`` / ``(procedure)``. ``None`` if the FSN has no trailing tag."""
+    if not fsn:
+        return None
+    m = re.search(r"\(([^()]+)\)\s*$", str(fsn))
+    return m.group(1).strip().lower() if m else None
+
+
+def _term_of(result: Any) -> str | None:
+    """``result.get("term")`` if the result is a dict, else the result itself (a bare string)."""
+    if isinstance(result, dict):
+        term = result.get("term")
+        return str(term) if term else None
+    return str(result) if result else None
+
+
+class SnomedBatteryGrounding(VerificationContract):
+    """FLOOR-BATTERY-1: the ORDERED terminology-battery suppress executor — a live-validated
+    note-vs-record diagnosis check (checks 1-3 + 7) over a SNOMED MCP tool (Hermes), resolved and
+    opened EXACTLY the way :class:`McpCallGrounding` resolves a tool and builds its
+    :class:`McpStdioClient`. It CLEARS a raised finding (``disproved=True``) ONLY on positive
+    terminology evidence; on anything short of that the finding STANDS.
+
+    The battery, applied in order to ``{record_code, record_term, note_code, note_term}`` (shaped
+    from the case via the same pinned-JUTE mechanism ``McpCallGrounding`` uses — a drifted transform
+    REFUSES, the finding stands):
+
+      1. VALIDITY  — both the note and record codes exist. ``concept`` RAISES :class:`McpError` on a
+                     non-existent id (not ``None``), so we branch on the exception; a missing code
+                     leaves the finding standing.
+      2. MISLABEL  — the ``note_term`` must match SOME description (synonym) of ``note_code``, not
+                     just the FSN. A term matching no synonym means the code is mislabeled → stands.
+      3. CATEGORY  — the note and record FSN semantic tags (``(disorder)`` etc.) must match; a
+                     disorder-vs-procedure mismatch → stands.
+      7. IS-A DIRECTION — the SUPPORTED generalization is ``record is-a note`` (the record concept
+                     is subsumed-by the note concept): SUPPRESS. The reverse (``note`` strict
+                     descendant of ``record``) is an UPCODE and is NEVER cleared. No is-a either
+                     direction DEFERS (advisory relatedness; the finding stands).
+
+    The three asymmetries hold by construction: never clear an upcode (only the ``record is-a note``
+    branch suppresses), never clear without a positive ``subsumedBy`` / valid+labeled result, and
+    DEFER on any error/absence.
+
+    Graceful-absent (non-negotiable, mirroring :class:`McpCallGrounding`): an unresolvable tool, a
+    tool with no stdio transport, an unreachable server, any ``McpError`` OUTSIDE check 1's validity
+    branch, or a shape that will not produce the 4 fields → ``disproved=False`` (the finding STANDS),
+    no 500, never a silent clear. This executor is ADDITIVE: it does not touch the frozen council
+    seam or :class:`McpCallGrounding`.
+
+    params = {"tool": "<terminology tool id, e.g. hermes_snomed>",   # required
+              "arguments_jute": "<pinned JUTE shaping the 4 fields>",
+              "arguments_jute_sha256": "<pin hash — refuse on drift>",
+              "arguments": {record_code, record_term, note_code, note_term}}  # static fallback
+    """
+
+    contract_type = "snomed_battery"
+
+    def __init__(self, decl: VerificationContractDecl, *, http_client: Any | None = None) -> None:
+        self.flag_code = decl.flag_code
+        self.question = decl.question
+        self.version = decl.version
+        self._params = decl.params
+
+    def check(self, finding: dict[str, Any], case: dict[str, Any]) -> Verdict:
+        from lithrim_bench.harness import plugins
+
+        p = self._params
+        tool_id = p.get("tool")
+        if not tool_id:
+            return Verdict(disproved=False, reason="snomed_battery: missing tool (inconclusive)")
+        manifest = plugins.resolve_tool(tool_id)
+        if manifest is None:
+            return Verdict(
+                disproved=False,
+                reason=f"snomed_battery: tool {tool_id!r} not available (not_applicable; finding stands)",
+            )
+        mcp = (manifest.service or {}).get("mcp") or {}
+        if not mcp.get("command"):
+            return Verdict(
+                disproved=False,
+                reason=f"snomed_battery: tool {tool_id!r} has no stdio MCP transport yet (not_applicable)",
+            )
+        # Shape the 4 battery fields via the pinned JUTE (or the static dict) — a drifted transform
+        # or an absent shape REFUSES: never grade through it, the finding stands.
+        shape = self._shape_arguments(case, finding)
+        if not isinstance(shape, dict):
+            return Verdict(
+                disproved=False,
+                reason=(
+                    "snomed_battery: arguments_jute hash mismatch or absent shape "
+                    "(pinned transform drifted or produced no object); refusing to grade — finding stands"
+                ),
+            )
+        rec_code, rec_term = shape.get("record_code"), shape.get("record_term")
+        note_code, note_term = shape.get("note_code"), shape.get("note_term")
+        if rec_code in (None, "") or note_code in (None, ""):
+            return Verdict(
+                disproved=False,
+                reason="snomed_battery: shape did not yield record_code/note_code; finding stands",
+            )
+
+        from lithrim_bench.verification.mcp_client import McpError, McpStdioClient
+
+        client = McpStdioClient(command=mcp.get("command"), args=mcp.get("args", []))
+        try:
+            decision, reason = self._battery(
+                client, McpError, rec_code, rec_term, note_code, note_term
+            )
+        except McpError as exc:  # an McpError outside check 1: finding stands, never a 500 or a clear
+            return Verdict(
+                disproved=False,
+                reason=f"snomed_battery: {tool_id} tool error ({exc}); finding stands",
+            )
+        except Exception as exc:  # noqa: BLE001 — unreachable server: finding stands, never a 500
+            return Verdict(
+                disproved=False,
+                reason=f"snomed_battery: {tool_id} unreachable ({exc}); finding stands",
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                client.close()
+
+        return Verdict(disproved=(decision == "SUPPRESS"), reason=reason)
+
+    def _battery(
+        self,
+        client: Any,
+        mcp_error: type[BaseException],
+        rec_code: Any,
+        rec_term: Any,
+        note_code: Any,
+        note_term: Any,
+    ) -> tuple[str, str]:
+        """The ordered check 1-3 + 7 battery. Returns ``(decision, reason)`` where decision is one
+        of ``SUPPRESS`` (clear), ``STAND`` (positive disproof of a clear), or ``DEFER`` (advisory,
+        not cleared). An ``McpError`` raised OUTSIDE check 1's validity branch propagates (the caller
+        maps it to a graceful non-clear)."""
+        rc, nc = int(rec_code), int(note_code)
+
+        # check 1 VALIDITY: concept() RAISES McpError on a non-existent id -> branch on the exception.
+        for who, cid in (("note", nc), ("record", rc)):
+            try:
+                client.call_tool("concept", {"concept_id": cid})
+            except mcp_error:
+                return ("STAND", f"check1 validity: {who} code {cid} does not exist")
+
+        # check 2 MISLABEL: note_term must match SOME description (synonym) of note_code, not just FSN.
+        fsn = _term_of(client.call_tool("fully_specified_name", {"concept_id": nc}))
+        descs = client.call_tool("descriptions", {"concept_id": nc}) or []
+        terms = [d.get("term") for d in descs if isinstance(d, dict)]
+        terms.append(fsn)
+        if note_term and not any(
+            set(_norm(note_term).split()).issubset(set(_norm(t).split())) for t in terms if t
+        ):
+            return (
+                "STAND",
+                f"check2 mislabel: code {nc} ({fsn}) has no synonym matching note '{note_term}'",
+            )
+
+        # check 3 CATEGORY: the FSN semantic tags of note vs record must match.
+        rf = _term_of(client.call_tool("fully_specified_name", {"concept_id": rc}))
+        note_tag, rec_tag = _semantic_tag(fsn), _semantic_tag(rf)
+        if note_tag and rec_tag and note_tag != rec_tag:
+            return ("STAND", f"check3 category: note({note_tag}) != record({rec_tag})")
+
+        # check 7 IS-A DIRECTION: clear ONLY on the supported ``record is-a note`` generalization.
+        if (client.call_tool("subsumed_by", {"concept_id": rc, "subsumer_id": nc}) or {}).get(
+            "subsumedBy"
+        ):
+            return ("SUPPRESS", "check7: record is-a note (supported generalization)")
+        if (client.call_tool("subsumed_by", {"concept_id": nc, "subsumer_id": rc}) or {}).get(
+            "subsumedBy"
+        ):
+            return ("STAND", "check7: note strict-descendant of record (upcode)")
+        return ("DEFER", "check7: no is-a either direction (advisory relatedness/synonym; not cleared)")
+
+    def _shape_arguments(self, case: dict[str, Any], finding: dict[str, Any]) -> dict | None:
+        """The battery-field source, mirroring :meth:`McpCallGrounding._shape_arguments`:
+
+        - No ``arguments_jute`` -> ``params.get("arguments") or {}`` (the static path).
+        - ``arguments_jute`` present -> HASH-VERIFY against ``arguments_jute_sha256`` FIRST; on
+          mismatch return ``None`` (REFUSE — never grade through a drifted transform). On match,
+          apply the pinned JUTE to ``{case, finding}`` in-memory via the same :3031 ``test_template``
+          seam and return the shaped object; a broken/absent shape returns ``None`` so the finding
+          stands rather than grade through it.
+        """
+        p = self._params
+        jute = p.get("arguments_jute")
+        if not jute:
+            return p.get("arguments") or {}
+        want = p.get("arguments_jute_sha256")
+        if not want or hashlib.sha256(jute.encode("utf-8")).hexdigest() != want:
+            return None  # drift: refuse, finding stands
+        try:
+            applied = _jute_client().test_template(jute, {"case": case, "finding": finding})
+        except Exception:  # noqa: BLE001 — a dead :3031 must not grade through; finding stands
+            return None
+        if not isinstance(applied, dict) or applied.get("compiled") is False:
+            return None
+        output = applied.get("output")
+        return output if isinstance(output, dict) else None
+
+
 # contract_type -> executor factory. This is the core-GENERIC SUPPRESS registry
 # (per-finding contracts that disprove an existing confident-but-wrong finding). The
 # structural FLOOR direction (artifact-level contracts that inject a BLOCK the council
@@ -968,6 +1177,10 @@ _CONTRACT_EXECUTORS = {
     # REPRO-1 R4c: the core-generic terminology-subsumption suppress executor — span-driven,
     # tool-driven (a ToolBuilder-authored terminology server), zero domain strings in core.
     "terminology_subsumption": TerminologySubsumption,
+    # FLOOR-BATTERY-1: the ordered terminology battery (validity/mislabel/category/is-a) over a
+    # SNOMED MCP tool — clears a note-vs-record diagnosis ONLY on the supported ``record is-a note``
+    # generalization; never clears an upcode, a bad/mislabeled code, or a category mismatch.
+    "snomed_battery": SnomedBatteryGrounding,
 }
 _HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 

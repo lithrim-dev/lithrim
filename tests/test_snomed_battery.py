@@ -196,11 +196,6 @@ def test_synonym_note_term_passes_check2(monkeypatch):
     # note_term matches a NON-FSN description (a synonym); check 2 must PASS (not flag) and,
     # with same category + record is-a note, the finding CLEARS.
     NOTE = 239928004
-    fake = _FakeHermes(
-        concepts={NOTE: "Microscopic polyarteritis nodosa (disorder)", _DEM: "Dementia (disorder)"},
-        subsumes={(NOTE, _DEM): True},  # record(NOTE) is-a note(_DEM): supported direction
-        descriptions={NOTE: ["Microscopic polyarteritis nodosa", "Microscopic polyangiitis"]},
-    )
     # record = NOTE (the specific), note = Dementia; note_term "Dementia" is a synonym of note_code.
     fake_dementia_descr = _FakeHermes(
         concepts={NOTE: "Microscopic polyarteritis nodosa (disorder)", _DEM: "Dementia (disorder)"},
