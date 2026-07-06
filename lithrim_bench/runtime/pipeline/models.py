@@ -38,6 +38,12 @@ class JudgeVote(BaseModel):
     # logprobs under v2). Must NOT be coerced to 0.0 — that conflates "no
     # signal" with "0% confident". See PIPELINE_GRADING_AUDIT_2026-05-28 §3.
     confidence: float | None = None
+    # REPRO-1 R2c (dual-confidence): the reviewer's OWN self-reported decision aggregate —
+    # the sampled ``score_mean`` (0.0 reject … 1.0 approve over k completions). Kept DISTINCT
+    # from the logprob-derived ``confidence`` above so the two channels are readable side by
+    # side (the logprob no longer silently overwrites the self-report). None when unsampled;
+    # never coerced (an absent self-report must not read as 0% self-confident).
+    confidence_self: float | None = None
     reason: str = ""
     model: str = ""  # LLM model id, e.g. "gpt-4.1" (NOT the role name)
     findings: list[str] = Field(default_factory=list)  # taxonomy codes

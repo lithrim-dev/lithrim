@@ -184,13 +184,25 @@ export default function VerdictCard({
             {votes.map((v, i) => {
               const c = VOTE_COLOR[String(v.vote || "").toUpperCase()] || "var(--muted)";
               const conf = typeof v.confidence === "number" ? v.confidence : null;
+              // R2c dual-confidence: the reviewer's own self-reported decision aggregate,
+              // shown alongside the logprob confidence (never overwriting it). Null → no chip.
+              const selfConf = typeof v.confidence_self === "number" ? v.confidence_self : null;
               return (
                 <div key={v.role || i} style={{ marginBottom: v.reason ? 7 : 0 }}>
                   <div className="ivote">
                     <span className="ivote-av" style={{ background: c }}>{roleLabel(v.role).charAt(0).toUpperCase()}</span>
                     <span className="ivote-role">{roleLabel(v.role)}</span>
                     <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>
-                    {conf != null && <span className="ivote-conf">{conf.toFixed(2)}</span>}
+                    {conf != null && <span className="ivote-conf" title="calibrated confidence (from the model's logprobs)">{conf.toFixed(2)}</span>}
+                    {/* R2c: the reviewer's own self-reported confidence, side-by-side with the
+                        logprob number above — the two channels no longer collapse into one. */}
+                    {selfConf != null && (
+                      <span className="ivote-conf" data-testid={`vote-selfconf-${v.role || i}`}
+                        title="self-reported confidence (the reviewer's sampled decision aggregate)"
+                        style={{ color: "var(--muted)" }}>
+                        self {selfConf.toFixed(2)}
+                      </span>
+                    )}
                     {/* this axis's OWN sampling variance (independent — never averaged across
                         reviewers). k=1 has no spread, so "var 0.00 · k=1" was pure noise — hidden. */}
                     {typeof v.variance === "number" && v.k !== 1 && (

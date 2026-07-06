@@ -1437,7 +1437,10 @@ def _council_view(record: dict) -> dict:
         {
             "judge_role": v.get("judge_role"),
             "vote": v.get("vote"),
-            "confidence": v.get("confidence"),  # float | null
+            "confidence": v.get("confidence"),  # float | null (the logprob channel)
+            # R2c dual-confidence: the reviewer's own self-reported decision aggregate,
+            # carried side-by-side with the logprob confidence (float | null).
+            "confidence_self": v.get("confidence_self"),
             "model": v.get("model"),
             "reason": v.get("reason"),
             # Per-reviewer sampling distribution (independent-axes model): THIS axis's own
@@ -6742,6 +6745,12 @@ class RoleBindRequest(BaseModel):
     role: str = Field(pattern=_ROLE_ID_PATTERN)
     provider: Literal["openai", "azure", "anthropic", "gemini", "bedrock", "openai_compatible", "composo"]
     model: str
+    # NEW-G1: an OPTIONAL PER-ROLE endpoint (api_base) + api_version that OVERRIDE the provider's
+    # stored global — so two judges on the SAME azure/openai_compatible provider can target DIFFERENT
+    # deployments (distinct endpoints / api-versions) from the UI, without re-editing the connect env.
+    # Absent → the existing fallback to the stored global (back-compat, binds unchanged). NOT secrets.
+    endpoint: str | None = None
+    api_version: str | None = None
 
 
 def _stored_provider_key(provider: str) -> str | None:
@@ -6811,15 +6820,17 @@ def roles_bind_endpoint(
             status_code=422,
             detail=f"provider {req.provider!r} is not connected (connect it in Providers first)",
         )
-    endpoint = _stored_provider_endpoint(req.provider)
+    # NEW-G1: a PER-ROLE endpoint on the request wins over the provider's stored global (so two
+    # judges on the same provider can hit different deployments); absent → the stored global.
+    endpoint = (req.endpoint or "").strip() or _stored_provider_endpoint(req.provider)
     if req.provider in ("azure", "openai_compatible") and not endpoint:
         raise HTTPException(
             status_code=422,
             detail=f"provider {req.provider!r} has no stored endpoint (re-connect it with an endpoint)",
         )
-    # CONNECT-AI-AZURE-1: REUSE the stored Azure api_version (no re-entry — the bind body carries
-    # NO version, just like NO key); default to the council default. None for non-azure.
-    api_version = _stored_provider_api_version(req.provider) or (
+    # CONNECT-AI-AZURE-1 + NEW-G1: a PER-ROLE api_version on the request wins; else REUSE the stored
+    # Azure api_version (no re-entry); default to the council default. None for non-azure.
+    api_version = (req.api_version or "").strip() or _stored_provider_api_version(req.provider) or (
         _settings_azure_api_version() if req.provider == "azure" else None
     )
 

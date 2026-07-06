@@ -613,6 +613,10 @@ def _judge_votes_from_models(
         raw_var = samp.get("score_variance")
         raw_k = samp.get("k")
         raw_scores = samp.get("scores_raw")
+        # R2c dual-confidence: the reviewer's OWN sampled decision aggregate (score_mean) —
+        # a SECOND, independent channel from the logprob confidence below. Kept distinct so
+        # the logprob never overwrites the self-report on the read surface.
+        raw_self = samp.get("score_mean")
         votes.append(JudgeVote(
             judge_role=role,
             vote=vote,
@@ -620,6 +624,8 @@ def _judge_votes_from_models(
             # coercing to 0.0, which would read as "0% confident". See
             # PIPELINE_GRADING_AUDIT_2026-05-28 §3.
             confidence=float(raw_conf) if isinstance(raw_conf, (int, float)) else None,
+            # R2c: the self-report channel — None when unsampled (no score_mean), never coerced.
+            confidence_self=float(raw_self) if isinstance(raw_self, (int, float)) else None,
             reason=m.get("summary") or m.get("rationale") or _synth_reason(decision, finding_codes),
             # The real deployment, in priority: the prompt-council's role→model lookup;
             # then the authored seam's own ``llm_model`` (VOTE-MODEL-1 — the LM the judge

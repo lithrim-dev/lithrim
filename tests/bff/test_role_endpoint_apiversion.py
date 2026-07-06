@@ -21,11 +21,18 @@ tests/bff/test_azure_api_version.py.
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 import pytest
 
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi)")
 
+_BFF = Path(__file__).resolve().parents[2] / "apps" / "bff"
+if str(_BFF) not in sys.path:
+    sys.path.insert(0, str(_BFF))
+
+import app as bff  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from tests.bff.test_azure_api_version import (  # noqa: E402
@@ -34,7 +41,6 @@ from tests.bff.test_azure_api_version import (  # noqa: E402
     _install_probe,
     azure_env,  # noqa: F401 — pytest fixture, imported for reuse
 )
-import app as bff  # noqa: E402
 
 _PER_ROLE_ENDPOINT = "https://role-specific.openai.azure.com/"
 _PER_ROLE_VERSION = "2025-03-01-preview"
