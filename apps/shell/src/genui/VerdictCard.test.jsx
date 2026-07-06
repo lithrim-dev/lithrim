@@ -78,6 +78,27 @@ describe("VerdictCard — fully-interactive inline result", () => {
     expect(queryByTestId("vote-split-reviewer_opus")).toBeNull();
   });
 
+  it("R2c dual-confidence: BOTH the logprob and the self-report confidence render side by side", () => {
+    const votes = [
+      { role: "reviewer_gpt41", vote: "PASS", confidence: 0.71, confidence_self: 0.6, k: 5 },
+    ];
+    const { getByTestId, container } = render(
+      <VerdictCard verdict="approve" votes={votes} runId="run-10" />,
+    );
+    // the logprob channel keeps rendering as the primary confidence number
+    expect(container.textContent).toMatch(/0\.71/);
+    // the self-report (sampled decision aggregate) renders alongside it, distinctly
+    expect(getByTestId("vote-selfconf-reviewer_gpt41")).toHaveTextContent(/0\.60/);
+  });
+
+  it("R2c: a vote with only a logprob confidence shows NO fabricated self-report chip", () => {
+    const votes = [{ role: "reviewer_opus", vote: "PASS", confidence: 0.9 }];
+    const { queryByTestId } = render(
+      <VerdictCard verdict="approve" votes={votes} runId="run-10" />,
+    );
+    expect(queryByTestId("vote-selfconf-reviewer_opus")).toBeNull();
+  });
+
   it("k=1 hides the meaningless variance chip; a multi-sample vote keeps it (UI-pass polish)", () => {
     const votes = [
       { role: "reviewer_composo", vote: "BLOCK", variance: 0.0, k: 1 }, // "var 0.00 · k=1" was noise

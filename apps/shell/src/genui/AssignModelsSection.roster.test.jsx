@@ -98,3 +98,57 @@ describe("AssignModelsSection — custom multi-roster (R2b)", () => {
     expect(screen.getByTestId("roster-check-reviewer_sonnet")).not.toBeChecked();
   });
 });
+
+describe("AssignModelsSection — per-role endpoint / api_version (NEW-G1)", () => {
+  it("shows the endpoint + api_version inputs ONLY when the row's provider is azure", async () => {
+    render(<AssignModelsSection connected={["openai", "azure"]} bindings={{}} agent="a" />);
+    const providerSel = await screen.findByTestId("role-bind-provider-reviewer_gpt41");
+    // openai: no per-role endpoint/version inputs
+    fireEvent.change(providerSel, { target: { value: "openai" } });
+    expect(screen.queryByTestId("role-bind-endpoint-reviewer_gpt41")).toBeNull();
+    // azure: the optional endpoint + api_version inputs appear
+    fireEvent.change(providerSel, { target: { value: "azure" } });
+    expect(screen.getByTestId("role-bind-endpoint-reviewer_gpt41")).toBeInTheDocument();
+    expect(screen.getByTestId("role-bind-apiversion-reviewer_gpt41")).toBeInTheDocument();
+  });
+
+  it("binds an authored azure role WITH its per-role endpoint + api_version", async () => {
+    bindRole.mockResolvedValue({ ok: true });
+    render(<AssignModelsSection connected={["azure"]} bindings={{}} agent="a" />);
+    const providerSel = await screen.findByTestId("role-bind-provider-reviewer_gpt41");
+    fireEvent.change(providerSel, { target: { value: "azure" } });
+    fireEvent.change(screen.getByTestId("role-bind-model-reviewer_gpt41"), { target: { value: "my-deploy" } });
+    fireEvent.change(screen.getByTestId("role-bind-endpoint-reviewer_gpt41"), {
+      target: { value: "https://role.openai.azure.com/" },
+    });
+    fireEvent.change(screen.getByTestId("role-bind-apiversion-reviewer_gpt41"), {
+      target: { value: "2025-03-01-preview" },
+    });
+    fireEvent.click(screen.getByTestId("role-bind-submit-reviewer_gpt41"));
+    await waitFor(() =>
+      expect(bindRole).toHaveBeenCalledWith({
+        role: "reviewer_gpt41",
+        provider: "azure",
+        model: "my-deploy",
+        endpoint: "https://role.openai.azure.com/",
+        api_version: "2025-03-01-preview",
+      }),
+    );
+  });
+
+  it("an azure bind WITHOUT the optional fields omits them (falls back to the stored global)", async () => {
+    bindRole.mockResolvedValue({ ok: true });
+    render(<AssignModelsSection connected={["azure"]} bindings={{}} agent="a" />);
+    const providerSel = await screen.findByTestId("role-bind-provider-reviewer_sonnet");
+    fireEvent.change(providerSel, { target: { value: "azure" } });
+    fireEvent.change(screen.getByTestId("role-bind-model-reviewer_sonnet"), { target: { value: "d" } });
+    fireEvent.click(screen.getByTestId("role-bind-submit-reviewer_sonnet"));
+    await waitFor(() =>
+      expect(bindRole).toHaveBeenCalledWith({
+        role: "reviewer_sonnet",
+        provider: "azure",
+        model: "d",
+      }),
+    );
+  });
+});

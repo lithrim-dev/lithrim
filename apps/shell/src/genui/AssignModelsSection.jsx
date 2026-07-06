@@ -150,16 +150,24 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
     });
   }, [bindings, panel, selectable]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pick = (key) => sel[key] || { provider: "", model: "" };
+  const pick = (key) => sel[key] || { provider: "", model: "", endpoint: "", api_version: "" };
   const setProvider = (key, provider) =>
-    setSel((s) => ({ ...s, [key]: { provider, model: pick(key).model } }));
+    setSel((s) => ({ ...s, [key]: { ...pick(key), provider } }));
   const setModel = (key, model) =>
-    setSel((s) => ({ ...s, [key]: { provider: pick(key).provider, model } }));
+    setSel((s) => ({ ...s, [key]: { ...pick(key), model } }));
+  // NEW-G1: the OPTIONAL per-role endpoint (api_base) + api_version — only meaningful for a
+  // deployment-endpoint provider (azure / openai_compatible), passed to bindRole when set.
+  const setEndpoint = (key, endpoint) =>
+    setSel((s) => ({ ...s, [key]: { ...pick(key), endpoint } }));
+  const setApiVersion = (key, api_version) =>
+    setSel((s) => ({ ...s, [key]: { ...pick(key), api_version } }));
+  // NEW-G1: the providers whose per-role endpoint/api_version inputs are shown (deployment-based).
+  const wantsEndpoint = (provider) => provider === "azure" || provider === "openai_compatible";
 
-  const doBind = async (role, provider, model) => {
+  const doBind = async (role, provider, model, endpoint, api_version) => {
     setMsg((m) => ({ ...m, [role]: { kind: "pending", text: "Binding…" } }));
     try {
-      await bindRole({ role, provider, model });
+      await bindRole({ role, provider, model, endpoint, api_version });
       setMsg((m) => ({ ...m, [role]: { kind: "ok", text: `Bound → ${provider} · ${model}` } }));
       onBound?.();
     } catch (e) {
@@ -168,11 +176,20 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
   };
 
   const canBind = (key) => { const p = pick(key); return !!p.provider && !!p.model.trim(); };
-  const bindRow = (role) => { const p = pick(role); if (canBind(role)) doBind(role, p.provider, p.model.trim()); };
+  // NEW-G1: thread the per-role endpoint/api_version (trimmed → undefined when blank, so the
+  // bind body omits them and falls back to the stored global — back-compat).
+  const bindRow = (role) => {
+    const p = pick(role);
+    if (!canBind(role)) return;
+    doBind(role, p.provider, p.model.trim(),
+      (p.endpoint || "").trim() || undefined, (p.api_version || "").trim() || undefined);
+  };
   const bindAllJudges = () => {
     const p = pick("*");
     if (!canBind("*")) return;
-    for (const role of judgeRoles) doBind(role, p.provider, p.model.trim());
+    for (const role of judgeRoles)
+      doBind(role, p.provider, p.model.trim(),
+        (p.endpoint || "").trim() || undefined, (p.api_version || "").trim() || undefined);
   };
 
   // R2a — the HONEST readiness gate: the reviewers that will ACTUALLY grade (the persisted
@@ -303,6 +320,18 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
                 onClick={() => bindRow(role)} disabled={!canBind(role)}
                 title={!canBind(role) ? "Pick a provider and model first" : undefined}>Assign</Button>
             </div>
+            {/* NEW-G1: the OPTIONAL per-role endpoint + api_version — only for a deployment-endpoint
+                provider (azure / openai_compatible); blank → the stored global (back-compat). */}
+            {wantsEndpoint(p.provider) && (
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 1fr) 140px", gap: 8, paddingLeft: STATUS_INDENT }}>
+                <input value={p.endpoint || ""} onChange={(e) => setEndpoint(role, e.target.value)}
+                  aria-label={`${role} endpoint`} data-testid={`role-bind-endpoint-${role}`}
+                  placeholder="endpoint (optional — else your saved one)" autoComplete="off" style={inputStyle} />
+                <input value={p.api_version || ""} onChange={(e) => setApiVersion(role, e.target.value)}
+                  aria-label={`${role} api version`} data-testid={`role-bind-apiversion-${role}`}
+                  placeholder="api version (optional)" autoComplete="off" style={inputStyle} />
+              </div>
+            )}
             {bound?.provider && (
               <span data-testid={`role-bind-assigned-${role}`}
                 style={{ fontSize: 10.5, color: "var(--teal)", paddingLeft: STATUS_INDENT, wordBreak: "break-word" }}>

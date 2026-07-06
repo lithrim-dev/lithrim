@@ -281,8 +281,17 @@ export const getProviderStatus = () => call("/v1/provider/status");
    model, reusing the stored key. A judge writes LITHRIM_LLM_*_<ROLE>; chat_assistant writes the
    LITHRIM_CHAT_* contract. 422 if the provider isn't connected / unknown role / a bad endpoint /
    a failing probe. Returns {ok, role, provider, model} — NEVER a key. */
-export const bindRole = ({ role, provider, model } = {}) =>
-  call("/v1/roles/bind", { method: "POST", body: { role, provider, model } });
+export const bindRole = ({ role, provider, model, endpoint, api_version } = {}) =>
+  call("/v1/roles/bind", {
+    method: "POST",
+    // NEW-G1: a per-role endpoint/api_version rides the body ONLY when provided (azure /
+    // openai_compatible) — omitted otherwise so the bind falls back to the stored global.
+    body: {
+      role, provider, model,
+      ...(endpoint ? { endpoint } : {}),
+      ...(api_version ? { api_version } : {}),
+    },
+  });
 
 /* GET /v1/roles/bindings — the non-secret per-consumer readout ({roles: {role → {provider, model} |
    null}}) + connected_providers (those with a stored key, for the Providers list). NEVER a key. */
