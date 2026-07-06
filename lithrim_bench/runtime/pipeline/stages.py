@@ -256,6 +256,17 @@ async def _build_transcript_payload(
             transcript_segments = segs
     retrieval = await retrieve_for_request(request)
 
+    # REPRO-1 R1b: carry the case's config-declared structured source record — a `record` dict
+    # (field name → value) supplied on the dict context alongside the transcript — onto
+    # call_context so the authored stage can fold it into the judge-visible context. Data-driven:
+    # the field NAMES are whatever the caller declared (never hardcoded here). Absent (string
+    # context / no record) → nothing added, the payload is byte-identical to before.
+    record_context: dict[str, Any] = {}
+    if isinstance(request.context, dict):
+        _record = request.context.get("record")
+        if isinstance(_record, dict) and _record:
+            record_context["record"] = dict(_record)
+
     payload: dict[str, Any] = {
         "organization_id": request.org_id,
         "conversation_item_id": request.conversation_id or "pipeline_run",
@@ -263,6 +274,7 @@ async def _build_transcript_payload(
         "call_context": {
             "transcript": transcript,
             "file_type": "text",
+            **record_context,
         },
         "artifacts": [
             {

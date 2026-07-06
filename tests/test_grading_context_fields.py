@@ -74,12 +74,27 @@ def test_live_request_body_reads_the_ontology_declaration():
 
 
 def test_local_backend_threads_context_fields_into_the_judge_payload():
+    """The declared-fold folds the record into the transcript string AND (REPRO-1 R1b, the
+    record-fidelity cut) additionally carries the DECLARED record fields STRUCTURALLY on a dict
+    context under ``record`` (field name → value) so the authored stage folds them into the
+    judge-visible context. Data-driven: the fold is strictly config-gated — a case with NO
+    declared ``grading_context_fields`` is a bare transcript string, byte-identical to before."""
     from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
 
+    # DECLARED: a dict context; the declared fold still folds into the transcript, and the record
+    # rides structurally under `record` (keyed by the config-declared field name) for the authored
+    # render. No core-hardcoded field name — the backend reads whatever context_fields declares.
     backend = LocalPipelineBackend(context_fields=("patient_profile",))
     request = backend._build_request(_CASE)
-    assert "SOURCE RECORD: patient_profile" in request.context
+    assert isinstance(request.context, dict)
+    assert "SOURCE RECORD: patient_profile" in request.context["transcript"]
+    assert request.context["record"] == {"patient_profile": _CASE["patient_profile"]}
+    # UNDECLARED: even a case carrying a record object is a bare transcript string (config-gated)
     assert LocalPipelineBackend()._build_request(_CASE).context == _CASE["transcript"]
+    # a record-less case is likewise a bare transcript string
+    record_less = {k: v for k, v in _CASE.items() if k != "patient_profile"}
+    declared = LocalPipelineBackend(context_fields=("patient_profile",))
+    assert declared._build_request(record_less).context == _CASE["transcript"]
 
 
 def test_run_eval_threads_the_agents_ontology_declaration(tmp_path, monkeypatch):

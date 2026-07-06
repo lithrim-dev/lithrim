@@ -37,6 +37,52 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+# REPRO-1 R1b: the structured source-record field(s) a case supplies (an account state, a
+# problem list, any config-declared context object the grounding floor reasons over) that the
+# authored stage renders into the judge-visible context. A council whose only context is
+# transcript + artifact grades the fidelity check on incomplete input; folding the record in
+# makes the record-vs-artifact behaviour reproducible. Fully data-driven: the field NAMES come
+# from config (the agent's `grading_context_fields`, carried onto the payload under `record`) —
+# core hardcodes NO field name, and renders whatever the case supplies.
+
+
+def _render_record_section(name: str, value: Any) -> str:
+    """One delimited SOURCE RECORD section (strings verbatim, scalar lists as bullets,
+    anything structured as sorted JSON) — the same rendering the request-body fold uses, so a
+    record is presented identically whichever path folds it. Never called for an empty value."""
+    import json as _json
+
+    if isinstance(value, str):
+        body = value
+    elif isinstance(value, list) and all(isinstance(x, (str, int, float)) for x in value):
+        body = "\n".join(f"- {x}" for x in value)
+    else:
+        body = _json.dumps(value, indent=2, sort_keys=True)
+    return f"--- SOURCE RECORD: {name} ---\n{body}"
+
+
+def _fold_record_into_transcript(transcript: str, call_context: dict[str, Any]) -> str:
+    """Append the case's structured source record (the config-named fields carried on
+    ``call_context['record']``) to the transcript as delimited SOURCE RECORD sections, so EVERY
+    judge votes on the record alongside the conversation. Field NAMES are config/DATA (never a
+    core constant); a field that is absent/empty is skipped; no record → the transcript is
+    returned byte-unchanged (the default-path parity guard). Pure; no LM. Deterministic order
+    (sorted by field name) so the folded prompt is stable."""
+    record = call_context.get("record")
+    if not isinstance(record, dict) or not record:
+        return transcript or ""
+    context = transcript or ""
+    for name in sorted(record):
+        value = record.get(name)
+        if value in (None, "", [], {}):
+            continue
+        # idempotent: if the declared grading_context_fields fold already rendered this record
+        # into the transcript string (the same `SOURCE RECORD: <name>` header), do not double-render.
+        if f"SOURCE RECORD: {name}" in context:
+            continue
+        context = f"{context}\n\n{_render_record_section(name, value)}"
+    return context
+
 
 def _fold_usage(r: dict, jr: Any) -> None:
     """LAYER0-READ-1: copy a JudgeResult's captured token spend onto its per-judge seam
@@ -161,7 +207,11 @@ def build_authored_evaluator(
         # the artifact(s) the same way _build_transcript_payload assembles them; the
         # DSPy signature takes the transcript + a single flattened artifact string
         # (the ab_harness precedent).
-        transcript = (payload.get("call_context") or {}).get("transcript", "")
+        call_context = payload.get("call_context") or {}
+        # REPRO-1 R1b: fold the case's config-declared structured record into the transcript every
+        # judge votes on, so the record-vs-artifact check sees the full input. No record on the
+        # payload → byte-unchanged (the default-path parity guard).
+        transcript = _fold_record_into_transcript(call_context.get("transcript", ""), call_context)
         artifact = "\n\n".join(
             (a.get("content") or "")
             for a in (payload.get("artifacts") or [])
