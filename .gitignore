@@ -31,6 +31,12 @@ _archive/
 docs/rendered/
 # Specs — kept local; the public ones are shared explicitly, not committed by default.
 docs/specs/
+# Local clinverdict/clinical research data + onboarding guide — kept local, out of the public
+# core surface (PACK-DIST-1: the clinical realm ships external). The self-skipping clinverdict
+# tests stay in-repo but skip/ignore cleanly when this data is absent.
+docs/clinverdict/
+docs/guides/
+samples/injected_snomed/
 
 # Live-stack credentials — do not commit (the template is .env.example)
 .live_env
