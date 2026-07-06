@@ -7243,3 +7243,52 @@ def get_reliability_endpoint(
     records = [_reliability_run_record(d, golds) for d in mine]
     report = reliability.compute_report(runs=records, golds=golds, labeled=labeled)
     return {"agent": agent, "metrics": report, "n_runs": report["n_runs"]}
+
+
+def _sweep_sample_runs(docs: list[dict], *, role: str | None = None) -> list[list[float]]:
+    """The per-case ``scores_raw`` for the K-sweep — one sample list per (case, reviewer) with
+    >= 1 recorded sample. Pure projection off ``stage_results.semantic.judge_votes[*].scores_raw``
+    (the same blob the reliability read projects). ``role`` scopes to a single reviewer when given;
+    otherwise every reviewer's own sampled runs contribute (each is its OWN self-consistency
+    curve — the sweep never mixes samples across reviewers on a case). A vote with no ``scores_raw``
+    (a k=1 run may omit it) is skipped — the sweep needs the raw K samples."""
+    runs: list[list[float]] = []
+    for doc in docs:
+        semantic = (doc.get("stage_results") or {}).get("semantic") or {}
+        for v in semantic.get("judge_votes") or []:
+            if role is not None and v.get("judge_role") != role:
+                continue
+            raw = v.get("scores_raw")
+            if isinstance(raw, list) and raw:
+                runs.append([float(s) for s in raw if isinstance(s, (int, float))])
+    return [r for r in runs if r]
+
+
+@app.get("/v1/reliability/{agent}/sweep")
+def get_reliability_sweep_endpoint(
+    agent: str,
+    k_max: int | None = Query(None, ge=1, le=64),
+    role: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+    db_path: Path = Depends(get_config_db),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """RIGOR-1 / Q1 (NEW-G3) in the product: the single-reviewer K-sweep self-consistency curve —
+    flip-rate / majority-convergence / variance with Wilson CIs, for K = 1..``k_max``, computed
+    from THIS agent's OWN persisted per-sample scores (``scores_raw``). Agent-scoped ($0 pure read),
+    NO gold dependency (the sweep measures a reviewer against ITSELF, not the answer key).
+
+    HONESTY CONTRACT (``lithrim_bench.reliability.sweep_series``): no sampled runs → an
+    ``insufficient`` sweep with an empty series and a plain reason, NEVER a fabricated 0.0 curve.
+    Unknown agent → 404 (the ``_load_agent`` convention). ``k_max`` defaults to (and is clamped to)
+    the longest sample run seen; ``role`` scopes to one reviewer."""
+    from lithrim_bench import reliability
+
+    _load_agent(agent, db_path)  # 404 on an unknown agent
+    docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+    mine = [d for d in docs if d.get("agent_id") == agent]
+    mine.sort(key=lambda d: str(d.get("timestamp") or ""))
+    mine = mine[-limit:]
+    cases = _sweep_sample_runs(mine, role=role)
+    sweep = reliability.sweep_series(cases, k_max=k_max)
+    return {"agent": agent, "sweep": sweep, "n_cases": len(cases)}

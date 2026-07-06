@@ -164,4 +164,18 @@ describe("RunPanel (tool-run_panel)", () => {
     fireEvent.click(within(alert).getByRole("button", { name: /Try again/i }));
     expect(await screen.findByText("Result")).toBeInTheDocument();
   });
+
+  // SWEEP (RIGOR-1 / Q1 — NEW-G3): the "Reliability sweep" control is a $0 read that dispatches
+  // the lithrim:show-sweep window bridge (the CenterPane renders the tool-sweep_card inline).
+  // It never spends and never calls runEval — it only emits the bridge event.
+  it("the 'Reliability sweep' control dispatches lithrim:show-sweep (a $0 read, no run)", async () => {
+    const heard = vi.fn();
+    window.addEventListener("lithrim:show-sweep", heard);
+    render(<RunPanel />);
+    await waitFor(() => expect(getRuns).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("sweep-trigger"));
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(runEval).not.toHaveBeenCalled(); // $0 — the sweep read spends nothing
+    window.removeEventListener("lithrim:show-sweep", heard);
+  });
 });
