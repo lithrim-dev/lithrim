@@ -39,6 +39,62 @@ def _healthcare_discoverable() -> bool:
         return False
 
 
+def _pack_discoverable(name: str) -> bool:
+    try:
+        _pack._pack_root(name)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def _clinverdict_sample_data_present() -> bool:
+    return (Path(__file__).parent / "examples" / "clinverdict" / "clinverdict_mts_v1.jsonl").exists()
+
+
+# OSS-PREP: narrative/story_audit were archived out of the CE tree (kept under ``_archive/``) to trim
+# the public surface. Tests that load them skip/ignore when the pack is absent (mirrors NEEDS_PACK),
+# and run again if you restore ``packs/<name>``. Unlike the healthcare demarcation this applies in
+# BOTH dev and bare-CE, since these packs are absent regardless of healthcare discoverability.
+_IGNORE_MODULES_WHEN_NARRATIVE_ABSENT = {
+    "test_narrative_floor",
+    "test_narrative_pack",
+}
+# The clinical-sample corpus (examples/clinverdict/) was archived too; its one reader ignores when absent.
+_IGNORE_MODULES_WHEN_CLINVERDICT_DATA_ABSENT = {
+    "test_clinverdict_mts_sample",
+}
+_NEEDS_NARRATIVE_FUNCS = {
+    "test_value_presence_floor": {
+        "test_value_presence_grades_under_pack_narrative",
+        "test_value_presence_is_a_core_floor_available_to_every_pack",
+    },
+    "test_value_presence_case10": {"test_value_presence_flips_case10_approve_to_block"},
+    "test_governed_flip_case10": {
+        "test_without_a_mint_the_code_is_inadmissible",
+        "test_mint_makes_dissent_erasure_admissible",
+        "test_governed_value_presence_flips_case10_approve_to_block",
+    },
+    "test_narrative_corpus_bridge": {"test_pack_files_first_precedence_preserved_on_collision"},
+    "test_pack_layer2c": {
+        "test_pack_lenses_accessor_follows_the_named_pack",
+        "test_pack_production_judges_accessor_follows_the_named_pack",
+    },
+    "test_connectors_registry": {
+        "test_connectors_list_lists_ingest_sources_only_no_secret",
+        "test_connectors_list_follows_active_workspace_pack_not_process_env",
+    },
+    "test_fauth3_value_presence": {"test_value_presence_skeleton_grades_valid_and_injects"},
+    "test_jute_extractor": {"test_proven_template_yields_five_admissible_cases"},
+    "test_jute_extractor_newsource": {"test_github_golden_yields_six_admissible_cases"},
+}
+_NEEDS_STORY_AUDIT_FUNCS = {
+    "test_pack_layer2c": {
+        "test_council_roster_stays_canonical_under_story_audit_subprocess",
+        "test_council_follows_story_audit_roster_and_lens_subprocess",
+    },
+}
+
+
 # PACK-DIST-2 (cleanup batch C1): the RELOCATED-class demarcation is now FULLY RETIRED. Every whole
 # clinical-only test module MOVED to the pack repo (``../lithrim-pack-healthcare/tests/``) in batch 2,
 # and every MIXED module's RELOCATED funcs were EXTRACTED into the pack
@@ -271,10 +327,33 @@ def pytest_ignore_collect(collection_path, config):
     stem = Path(str(collection_path)).stem
     if not _healthcare_discoverable() and stem in _IGNORE_MODULES_WHEN_BARE_CE:
         return True
+    if not _pack_discoverable("narrative") and stem in _IGNORE_MODULES_WHEN_NARRATIVE_ABSENT:
+        return True
+    if not _clinverdict_sample_data_present() and stem in _IGNORE_MODULES_WHEN_CLINVERDICT_DATA_ABSENT:
+        return True
     return None
 
 
 def pytest_collection_modifyitems(config, items):
+    # OSS-PREP parked-pack skips (narrative/story_audit under _archive/) — apply in BOTH dev and
+    # bare-CE, before the healthcare early-return, since these packs are absent either way.
+    narr = _pack_discoverable("narrative")
+    story = _pack_discoverable("story_audit")
+    if not narr or not story:
+        skip_narr = pytest.mark.skip(
+            reason="OSS-PREP: pack 'narrative' parked under _archive/ — restore packs/narrative to run"
+        )
+        skip_story = pytest.mark.skip(
+            reason="OSS-PREP: pack 'story_audit' parked under _archive/ — restore packs/story_audit to run"
+        )
+        for item in items:
+            stem = Path(str(item.fspath)).stem
+            name = item.originalname or item.name
+            if not narr and name in _NEEDS_NARRATIVE_FUNCS.get(stem, ()):
+                item.add_marker(skip_narr)
+            if not story and name in _NEEDS_STORY_AUDIT_FUNCS.get(stem, ()):
+                item.add_marker(skip_story)
+
     bare_ce = not _healthcare_discoverable()
     if not bare_ce:
         return  # the pack is discoverable — run everything
