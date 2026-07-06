@@ -74,12 +74,29 @@ def test_live_request_body_reads_the_ontology_declaration():
 
 
 def test_local_backend_threads_context_fields_into_the_judge_payload():
+    """The declared-fold still folds the record into the transcript string; REPRO-1 R1b (the
+    record-fidelity cut) additionally carries the record STRUCTURALLY on a dict context so the
+    authored stage renders it even WITHOUT a grading_context_fields declaration. So a case with a
+    ``patient_profile`` now yields a dict context ``{transcript, patient_profile}`` — the folded
+    transcript still carries the declared SOURCE RECORD section, and the structural record rides
+    alongside for the authored render. A record-less case is still a bare transcript string."""
     from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
 
     backend = LocalPipelineBackend(context_fields=("patient_profile",))
     request = backend._build_request(_CASE)
-    assert "SOURCE RECORD: patient_profile" in request.context
-    assert LocalPipelineBackend()._build_request(_CASE).context == _CASE["transcript"]
+    # a record-carrying case → dict context; the declared fold still folds into the transcript
+    assert isinstance(request.context, dict)
+    assert "SOURCE RECORD: patient_profile" in request.context["transcript"]
+    # the record also rides structurally for the authored stage (R1b, no declaration needed)
+    assert request.context["patient_profile"] == _CASE["patient_profile"]
+    # undeclared: the record still rides structurally (the R1b fix), transcript is unfolded
+    undeclared = LocalPipelineBackend()._build_request(_CASE).context
+    assert isinstance(undeclared, dict)
+    assert undeclared["transcript"] == _CASE["transcript"]
+    assert undeclared["patient_profile"] == _CASE["patient_profile"]
+    # a record-less case stays a bare transcript string (byte-identical to before)
+    record_less = {k: v for k, v in _CASE.items() if k != "patient_profile"}
+    assert LocalPipelineBackend()._build_request(record_less).context == _CASE["transcript"]
 
 
 def test_run_eval_threads_the_agents_ontology_declaration(tmp_path, monkeypatch):

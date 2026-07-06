@@ -103,11 +103,23 @@ class LocalPipelineBackend(BackendClient):
             return None
         artifact = artifacts[0]
         agent_type = case.get("agent_type")
+        # REPRO-1 R1b: when the case carries a structured record (patient_profile), pass the
+        # context as a dict {transcript, patient_profile} so the authored stage renders the record
+        # into the judge-visible context — the record reaches the judge even without an ontology
+        # grading_context_fields declaration. No record → a plain transcript string (byte-identical
+        # to before). _context_as_transcript unwraps the dict's transcript for every string caller.
+        transcript = _build_context(case, artifacts, context_fields=self.context_fields)
+        record = case.get("patient_profile")
+        context: dict[str, Any] | str = (
+            {"transcript": transcript, "patient_profile": record}
+            if record not in (None, "", [], {})
+            else transcript
+        )
         return PipelineRequest(
             artifact=artifact["content"],
             artifact_type=self.artifact_type_override or artifact.get("type") or "unknown",
             context_kind="transcript",
-            context=_build_context(case, artifacts, context_fields=self.context_fields),
+            context=context,
             org_id=self.org_id,
             # agent_metadata.category historically selected build_prompt's scribe prompt
             # branch (deleted in CE-PACK-6b-CLEAN; the authored default path ignores

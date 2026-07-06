@@ -1877,6 +1877,73 @@ def _native_eval_rows(sample: Any) -> list | None:
     return rows
 
 
+# REPRO-1 R1a: the structured RECORD a case supplies (the problem list / account state the
+# floor grounds against) is a first-class ingest passthrough — preserved into the stored case
+# independent of any contract declaration. The non-native envelope (`_to_envelope`) projects a
+# fixed §4.1 shape and carries only the criteria-required `*_path` fields, silently dropping
+# `patient_profile` on every template / LM path; without the record, R1b has nothing to render
+# and the record-vs-note floor grades incomplete input. We copy it back OPTIONALLY (absent →
+# untouched, never a rejection) — exactly the BYO-label merge pattern, so the gating invariant
+# (`score_extraction`) is untouched. Generic by construction: `patient_profile` is a structural
+# envelope field name (corpus-A §4.1 shape), never a clinical string.
+_RECORD_PASSTHROUGH_FIELDS = ("patient_profile",)
+
+
+def _source_records_by_id(sample: Any) -> dict[str, dict]:
+    """Index the source dump's structured record(s) by case id — the R1a analog of
+    `_source_labels_by_id`. Scans the top-level list (or any top-level list-valued key, e.g.
+    `rows`/`runs`) for entries carrying an `id`/`case_id` AND a `_RECORD_PASSTHROUGH_FIELDS`
+    field; returns `{id: {record fields present}}`. Pure; no record → `{}` (byte-identical)."""
+    out: dict[str, dict] = {}
+
+    def _collect(entries: Any) -> None:
+        if not isinstance(entries, list):
+            return
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            cid = e.get("id") or e.get("case_id")
+            if not isinstance(cid, str) or not cid:
+                continue
+            record = {
+                k: e[k]
+                for k in _RECORD_PASSTHROUGH_FIELDS
+                if e.get(k) not in (None, "", [], {})
+            }
+            if record:
+                out[cid] = record
+
+    if isinstance(sample, list):
+        _collect(sample)
+    elif isinstance(sample, dict):
+        for v in sample.values():
+            _collect(v)
+    return out
+
+
+def _merge_source_record(cases: list[dict], sample: Any) -> int:
+    """Copy the source record (`patient_profile`, R1a) onto produced cases by `case_id`
+    (deterministic; no LM). Returns the count enriched. Absent record / no matching id → cases
+    unchanged, returns 0. Never overwrites a record the envelope already carried (the native path
+    keeps its verbatim record)."""
+    by_id = _source_records_by_id(sample)
+    n = 0
+    for c in cases:
+        if not isinstance(c, dict):
+            continue
+        record = by_id.get(c.get("case_id"))
+        if not record:
+            continue
+        added = False
+        for k, v in record.items():
+            if c.get(k) in (None, "", [], {}):
+                c[k] = v
+                added = True
+        if added:
+            n += 1
+    return n
+
+
 @app.get("/v1/cases")
 def list_cases_endpoint() -> dict:
     """NARR-LOOP — list the active workspace's INGESTED corpus (the gradeable cases a user
@@ -5207,6 +5274,11 @@ def _build_tool_context(
             native: bool = False,
         ) -> dict:
             labeled = _merge_byo_labels(cases, sample)
+            # REPRO-1 R1a: preserve the source's structured record (`patient_profile`) onto the
+            # produced cases — the non-native envelope drops it, and the record is what R1b renders
+            # for the record-vs-note floor. Optional + non-clobbering (the native verbatim record
+            # stays), mirroring the label merge above.
+            _merge_source_record(cases, sample)
             normalized = _normalize_case_source(cases)
             if not commit_corpus:
                 return {

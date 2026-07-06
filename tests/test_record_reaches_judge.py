@@ -90,6 +90,24 @@ def test_patient_profile_is_rendered_into_the_judge_transcript():
         assert "my memory has been slipping" in seen
 
 
+def test_record_is_not_double_rendered_when_already_folded():
+    """Idempotency: if the declared grading_context_fields fold already put the record's SOURCE
+    RECORD section in the transcript, the authored render does NOT append a second copy."""
+    from lithrim_bench.runtime.council.authored_stage import _fold_record_into_transcript
+
+    already = (
+        "Doctor: hi\n\n--- SOURCE RECORD: patient_profile ---\n"
+        '{\n "conditions": [\n  "Dementia"\n ]\n}'
+    )
+    call_context = {
+        "transcript": already,
+        "patient_profile": {"conditions": ["Dementia"]},
+    }
+    out = _fold_record_into_transcript(already, call_context)
+    assert out == already  # not appended a second time
+    assert out.count("SOURCE RECORD: patient_profile") == 1
+
+
 def test_no_record_leaves_the_transcript_byte_identical():
     """A case with no record is byte-unchanged: the judge sees exactly its transcript, no
     empty SOURCE RECORD section (the default-path parity guard)."""
