@@ -103,17 +103,20 @@ class LocalPipelineBackend(BackendClient):
             return None
         artifact = artifacts[0]
         agent_type = case.get("agent_type")
-        # REPRO-1 R1b: when the case carries a structured record (patient_profile), pass the
-        # context as a dict {transcript, patient_profile} so the authored stage renders the record
-        # into the judge-visible context — the record reaches the judge even without an ontology
-        # grading_context_fields declaration. No record → a plain transcript string (byte-identical
-        # to before). _context_as_transcript unwraps the dict's transcript for every string caller.
+        # REPRO-1 R1b: when the agent declared structured source-record fields (its ontology's
+        # `grading_context_fields`, DATA), carry those case fields on a dict context under `record`
+        # so the authored stage folds them into the judge-visible context — the record reaches the
+        # judge. Data-driven: the field NAMES come from config, never hardcoded here. No declared
+        # record (or none present on the case) → a plain transcript string (byte-identical to
+        # before). `_context_as_transcript` unwraps the dict's transcript for every string caller.
         transcript = _build_context(case, artifacts, context_fields=self.context_fields)
-        record = case.get("patient_profile")
+        record = {
+            name: case[name]
+            for name in self.context_fields
+            if case.get(name) not in (None, "", [], {})
+        }
         context: dict[str, Any] | str = (
-            {"transcript": transcript, "patient_profile": record}
-            if record not in (None, "", [], {})
-            else transcript
+            {"transcript": transcript, "record": record} if record else transcript
         )
         return PipelineRequest(
             artifact=artifact["content"],

@@ -74,29 +74,27 @@ def test_live_request_body_reads_the_ontology_declaration():
 
 
 def test_local_backend_threads_context_fields_into_the_judge_payload():
-    """The declared-fold still folds the record into the transcript string; REPRO-1 R1b (the
-    record-fidelity cut) additionally carries the record STRUCTURALLY on a dict context so the
-    authored stage renders it even WITHOUT a grading_context_fields declaration. So a case with a
-    ``patient_profile`` now yields a dict context ``{transcript, patient_profile}`` — the folded
-    transcript still carries the declared SOURCE RECORD section, and the structural record rides
-    alongside for the authored render. A record-less case is still a bare transcript string."""
+    """The declared-fold folds the record into the transcript string AND (REPRO-1 R1b, the
+    record-fidelity cut) additionally carries the DECLARED record fields STRUCTURALLY on a dict
+    context under ``record`` (field name → value) so the authored stage folds them into the
+    judge-visible context. Data-driven: the fold is strictly config-gated — a case with NO
+    declared ``grading_context_fields`` is a bare transcript string, byte-identical to before."""
     from lithrim_bench.backends.local_pipeline import LocalPipelineBackend
 
+    # DECLARED: a dict context; the declared fold still folds into the transcript, and the record
+    # rides structurally under `record` (keyed by the config-declared field name) for the authored
+    # render. No core-hardcoded field name — the backend reads whatever context_fields declares.
     backend = LocalPipelineBackend(context_fields=("patient_profile",))
     request = backend._build_request(_CASE)
-    # a record-carrying case → dict context; the declared fold still folds into the transcript
     assert isinstance(request.context, dict)
     assert "SOURCE RECORD: patient_profile" in request.context["transcript"]
-    # the record also rides structurally for the authored stage (R1b, no declaration needed)
-    assert request.context["patient_profile"] == _CASE["patient_profile"]
-    # undeclared: the record still rides structurally (the R1b fix), transcript is unfolded
-    undeclared = LocalPipelineBackend()._build_request(_CASE).context
-    assert isinstance(undeclared, dict)
-    assert undeclared["transcript"] == _CASE["transcript"]
-    assert undeclared["patient_profile"] == _CASE["patient_profile"]
-    # a record-less case stays a bare transcript string (byte-identical to before)
+    assert request.context["record"] == {"patient_profile": _CASE["patient_profile"]}
+    # UNDECLARED: even a case carrying a record object is a bare transcript string (config-gated)
+    assert LocalPipelineBackend()._build_request(_CASE).context == _CASE["transcript"]
+    # a record-less case is likewise a bare transcript string
     record_less = {k: v for k, v in _CASE.items() if k != "patient_profile"}
-    assert LocalPipelineBackend()._build_request(record_less).context == _CASE["transcript"]
+    declared = LocalPipelineBackend(context_fields=("patient_profile",))
+    assert declared._build_request(record_less).context == _CASE["transcript"]
 
 
 def test_run_eval_threads_the_agents_ontology_declaration(tmp_path, monkeypatch):
