@@ -1,8 +1,13 @@
 """WS-4a offline acceptance: the flywheel slice (corpus + eval-pack + calibration check).
 
-Replay-only, no network, byte-deterministic. Everything runs against the vendored
-WS-0 fixtures + the committed clinical ontology; the floor-projection case is
-synthesized offline via a fake replay http client exactly as
+Replay-only, no network, byte-deterministic. The flywheel-projection slice (A1/A2 —
+the suppress-record corpus row, the corpus round-trip, and the eval-pack round-trip)
+runs against a SELF-CONTAINED, in-repo ``support_ticket_qa`` fixture pack
+(``packs/support_ticket_qa/`` — its real ``taxonomy_snapshot.json`` flag codes), so the
+plumbing exercises with NO external ``healthcare`` Pro pack: the case, its captured
+baseline, and a ``presence_check``-carrying ontology are all synthesized inline below,
+exactly the "author the fixture inline" pattern the floor-projection case already uses.
+The floor-projection case is synthesized offline via a fake replay http client exactly as
 tests/verification/test_grounding_floor.py does (no live :3031). Covers driver
 §5 A1–A4 (A4 = full-suite-green + ruff, checked at the suite level).
 """
@@ -19,13 +24,218 @@ from lithrim_bench.harness.correction import build_correction, build_floor_corre
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.ontology import from_dict
 from lithrim_bench.harness.report import calibration_check
-from tests._house_fixture import HOUSE_CASE_ID, house_agent, pack_ws0_dir  # noqa: E402
+from tests._house_fixture import HOUSE_CASE_ID, house_agent  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WS4A_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ws4a"
-CASE_ID = "bench_scribe_v1_inject_condition_1bd0f10dc7b5"
-ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
 PINNED_VALIDATOR = REPO_ROOT / "validators" / "fhir_us_core_patient_validator.generated.jute"
+
+# ── the self-contained support_ticket_qa flywheel fixture (no external healthcare pack) ──
+# The case, its captured baseline, and the ontology are authored inline so the A1/A2
+# projection plumbing runs on the in-repo `support_ticket_qa` pack (real taxonomy codes:
+# FABRICATED_POLICY stands; UNSUPPORTED_COMMITMENT is the suppressible finding a
+# presence_check clears because the committed term IS present in the source thread).
+CASE_ID = "support_ticket_qa_unsupported_commitment"
+
+_STQ_ONTOLOGY = {
+    "ontology_version": "support_ticket_qa/1",
+    "domain": "support_ticket_qa",
+    "flags": [
+        {
+            "flag": "FABRICATED_POLICY",
+            "category": "accuracy",
+            "definition": "",
+            "when_to_use": "",
+            "when_NOT_to_use": "",
+            "owner_roles": ["policy_judge"],
+            "tier": "TIER_1",
+            "gradeable": True,
+        },
+        {
+            "flag": "UNSUPPORTED_COMMITMENT",
+            "category": "accuracy",
+            "definition": "",
+            "when_to_use": "",
+            "when_NOT_to_use": "",
+            "owner_roles": [],
+            "tier": "TIER_1",
+            "gradeable": True,
+        },
+    ],
+    "questions": [],
+    "verification_contracts": [
+        {
+            "flag_code": "UNSUPPORTED_COMMITMENT",
+            "contract_type": "presence_check",
+            "version": "commitment-presence-check/v1",
+            "question": "Is the committed term actually present in the source thread (the transcript)?",
+            "params": {
+                "med_source": "source_facts.referenced_terms",
+                "dosage_regex": r"\b\d+(?:\.\d+)?\s*(?:%|x)\b",
+                "token_min_len": 4,
+                "noise_tokens": ["the", "and", "that"],
+            },
+        }
+    ],
+    "severity_map": {
+        "weights": {"HIGH": 1.0, "MEDIUM": 0.5, "LOW": 0.2},
+        "block_at_or_above": 0.5,
+        "warn_above": 0.0,
+    },
+}
+
+_STQ_CASE = {
+    "case_id": CASE_ID,
+    "pack": "support_ticket_qa",
+    "ground_truth_basis": "constructed",
+    "transcript": (
+        "Customer: Will my subscription include priority support once I upgrade?\n"
+        "Agent: Yes, the premium plan includes priority support and a dedicated account manager."
+    ),
+    "source_facts": {"referenced_terms": ["priority support"]},
+    "artifacts": [
+        {
+            "type": "support_reply",
+            "content": (
+                "Thanks for reaching out! Your premium plan includes priority support. "
+                "We also guarantee a full refund at any time for any reason, and every "
+                "customer receives lifetime free hardware replacements."
+            ),
+        }
+    ],
+    "expected_compliance_verdict": "reject",
+    "expected_artifact_verdict": "BLOCK",
+    "expected_safety_flags": ["FABRICATED_POLICY"],
+    "clean_negative": False,
+    "multi_defect": False,
+    "severity": "high",
+    "injection_recipes": [
+        {
+            "defect_type": "inject_fabricated_policy",
+            "safety_flag": "FABRICATED_POLICY",
+            "mutated_projection": "artifact_text",
+            "mutated_field_or_span": "support_reply.content",
+            "pre_value": "(no such policy)",
+            "post_value": "full refund at any time; lifetime free hardware replacements",
+        }
+    ],
+    "expected_owner_map": {"FABRICATED_POLICY": ["policy_judge"]},
+    "pinned": {
+        "generator_version": "lithrim-bench/0.1.0",
+        "pack": "support_ticket_qa",
+        "taxonomy_snapshot": "packs/support_ticket_qa/taxonomy_snapshot.json",
+    },
+}
+
+# The captured /v1/pipeline/evaluate baseline: the council BLOCKED, raising both the
+# suppressible UNSUPPORTED_COMMITMENT and the standing FABRICATED_POLICY. The graded
+# result + the top-level findings live under provenance.stage_results (the shape
+# grade_replay -> provenance_to_result rehydrates), so replay grounds identically.
+_STQ_FINDINGS = [
+    {
+        "type": "semantic",
+        "severity": "HIGH",
+        "code": "UNSUPPORTED_COMMITMENT",
+        "detail": "UNSUPPORTED_COMMITMENT (judges=2)",
+        "field": None,
+        "check_name": None,
+        "chunk_id": None,
+        "start_ms": None,
+        "end_ms": None,
+        "speaker": None,
+    },
+    {
+        "type": "semantic",
+        "severity": "HIGH",
+        "code": "FABRICATED_POLICY",
+        "detail": "FABRICATED_POLICY (judges=2)",
+        "field": None,
+        "check_name": None,
+        "chunk_id": None,
+        "start_ms": None,
+        "end_ms": None,
+        "speaker": None,
+    },
+]
+
+_STQ_SEMANTIC = {
+    "status": "BLOCK",
+    "findings": ["UNSUPPORTED_COMMITMENT", "FABRICATED_POLICY"],
+    "evidence": [
+        {
+            "violation_code": "UNSUPPORTED_COMMITMENT",
+            "judge": "risk_judge",
+            "spans": [{"quote": "the premium plan includes priority support", "turn_ids": []}],
+        }
+    ],
+    "judge_votes": [
+        {
+            "judge_role": "risk_judge",
+            "vote": "BLOCK",
+            "findings": ["UNSUPPORTED_COMMITMENT", "FABRICATED_POLICY"],
+            "confidence": 1.0,
+            "model": "x",
+        },
+        {
+            "judge_role": "policy_judge",
+            "vote": "BLOCK",
+            "findings": ["UNSUPPORTED_COMMITMENT", "FABRICATED_POLICY"],
+            "confidence": 1.0,
+            "model": "x",
+        },
+        {
+            "judge_role": "faithfulness_judge",
+            "vote": "PASS",
+            "findings": [],
+            "confidence": 1.0,
+            "model": "x",
+        },
+    ],
+    "metadata": {},
+}
+
+_STQ_BASELINE = {
+    "verdict": "BLOCK",
+    "gate_decision": "escalate",
+    "findings": _STQ_FINDINGS,
+    "duration_ms": 0,
+    "structural": {
+        "status": "PASS",
+        "findings": [],
+        "evidence": [],
+        "judge_votes": None,
+        "metadata": {},
+    },
+    "semantic": _STQ_SEMANTIC,
+    "artifact": {
+        "status": "PASS",
+        "findings": [],
+        "evidence": [],
+        "judge_votes": None,
+        "metadata": {},
+    },
+    "transform": None,
+    "provenance": {
+        "pipeline_run_id": "b1c2d3e4-f5a6-4788-9a0b-1c2d3e4f5a6b",
+        "org_id": "0000000000000000000000aa",
+        "timestamp": "2026-06-01T00:00:00.000000Z",
+        "request_hash": "0" * 64,
+        "stages_executed": ["structural", "semantic", "artifact", "verdict"],
+        "stage_results": {
+            "structural": {
+                "status": "PASS",
+                "findings": [],
+                "evidence": [],
+                "judge_votes": None,
+                "metadata": {},
+            },
+            "semantic": _STQ_SEMANTIC,
+        },
+        "verdict": "BLOCK",
+        "findings": _STQ_FINDINGS,
+    },
+    "regenerate_hints": [],
+}
 
 # scripts/ on path so the test can drive the canonical run_eval.run core (the run_ws0 precedent).
 _SCRIPTS = REPO_ROOT / "scripts"
@@ -35,37 +245,54 @@ if str(_SCRIPTS) not in sys.path:
 import run_eval  # noqa: E402
 
 
-def _agent() -> Agent:
+def _stq_ontology():
+    return from_dict(_STQ_ONTOLOGY)
+
+
+def _write_stq_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Materialize the inline support_ticket_qa case / baseline / ontology to files
+    (run_eval.run + grade_replay read paths); returns (case, baseline, ontology)."""
+    case_path = tmp_path / f"case.{CASE_ID}.jsonl"
+    case_path.write_text(json.dumps(_STQ_CASE))
+    baseline_path = tmp_path / f"baseline.{CASE_ID}.json"
+    baseline_path.write_text(json.dumps(_STQ_BASELINE))
+    ontology_path = tmp_path / "ontology.json"
+    ontology_path.write_text(json.dumps(_STQ_ONTOLOGY))
+    return case_path, baseline_path, ontology_path
+
+
+def _agent(tmp_path: Path) -> Agent:
+    case_path, baseline_path, ontology_path = _write_stq_fixture(tmp_path)
     return Agent(
         name="ws4a_test",
         eval_profile=EvalProfile(
             judges=("risk_judge", "policy_judge", "faithfulness_judge"),
             council_config={"disposition": "compose-over-live-v2"},
-            ontology_ref="clinical/1",
-            ontology_path=str(ONTOLOGY_SEED),
+            ontology_ref="support_ticket_qa/1",
+            ontology_path=str(ontology_path),
             tools=("presence_check",),
             kb_bindings={},
-            severity_map_ref="ontology:clinical/1",
+            severity_map_ref="ontology:support_ticket_qa/1",
         ),
         dataset=Dataset(
             case_id=CASE_ID,
-            source=str(pack_ws0_dir() / f"case.{CASE_ID}.jsonl"),
-            baseline=str(pack_ws0_dir() / f"baseline.{CASE_ID}.json"),
+            source=str(case_path),
+            baseline=str(baseline_path),
         ),
     )
 
 
 def _suppress_record() -> dict:
-    """A real ws0-correction/1 record from the WS-0 replay flywheel."""
-    fixtures = pack_ws0_dir()
-    baseline = json.loads((fixtures / f"baseline.{CASE_ID}.json").read_text())
-    case = json.loads((fixtures / f"case.{CASE_ID}.jsonl").read_text().splitlines()[0])
-    grounded = ground(baseline, case)
+    """A ws0-correction/1 record from the self-contained support_ticket_qa flywheel:
+    the presence_check disproves UNSUPPORTED_COMMITMENT (the committed term is present)."""
+    ont = _stq_ontology()
+    grounded = ground(_STQ_BASELINE, _STQ_CASE, ontology=ont)
     return build_correction(
         suppressed_entry=grounded.suppressed[0],
-        result=baseline,
+        result=_STQ_BASELINE,
         composite_before=grounded.original_verdict,
         composite_after=grounded.verdict,
+        ontology=ont,
     )
 
 
@@ -199,11 +426,11 @@ def test_project_suppress_record():
     assert row["schema_version"] == "corpus-row/1"
     assert row["case_id"] == CASE_ID
     assert row["action"] == "suppress"
-    assert row["flag_code"] == "MEDICATION_NOT_IN_TRANSCRIPT"
+    assert row["flag_code"] == "UNSUPPORTED_COMMITMENT"
     assert row["verdict_before"] == "BLOCK" and row["verdict_after"] == "BLOCK"
     assert row["contract"] == "PresenceCheck"  # the executor class name, not the flag
-    assert row["contract_version"] == "med-presence-check/v1"
-    assert row["ontology_version"] == "clinical/1"
+    assert row["contract_version"] == "commitment-presence-check/v1"
+    assert row["ontology_version"] == "support_ticket_qa/1"
     assert row["owner_roles"] == []
     assert row["rollout_ref"] == corpus.rollout_ref(rec)
     assert corpus.project(rec, case_id=CASE_ID) == row  # deterministic re-projection
@@ -255,14 +482,14 @@ def test_committed_example_corpus_fixture_shape():
 
 
 def test_evalpack_build_load_roundtrip(tmp_path):
-    """A2 — an eval-pack built over the WS-0 case round-trips (build -> dump -> load identical)."""
-    pack = evalpack.build_pack("ws4a_thin", [_agent()], out_dir=tmp_path / "out")
+    """A2 — an eval-pack built over the support_ticket_qa case round-trips (build -> dump -> load)."""
+    pack = evalpack.build_pack("ws4a_thin", [_agent(tmp_path)], out_dir=tmp_path / "out")
     assert pack["schema_version"] == "evalpack/1"
     assert pack["pack_id"] == "ws4a_thin"
     assert [c["case_id"] for c in pack["cases"]] == [CASE_ID]
     assert pack["cases"][0]["expected"] == {
         "compliance_verdict": "reject",
-        "safety_flags": ["FABRICATED_HISTORY"],
+        "safety_flags": ["FABRICATED_POLICY"],
     }
 
     outcome = pack["outcomes"][0]

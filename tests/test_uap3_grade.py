@@ -51,6 +51,64 @@ _REPO = Path(__file__).resolve().parents[1]
 _MARKER = "=== AUTHORED REFINEMENT (ontology assignment) ==="
 _ASSIGNED_FLAG = "WRONG_DOSAGE"  # a risk_judge Tier-1 lens code
 
+# The self-contained fixture pack (packs/support_ticket_qa/) — a genuinely independent,
+# in-repo, non-clinical CORE pack (its OWN ontology/roles/taxonomy, no packs/healthcare/
+# reuse). The headline flip below re-points onto it so it is discoverable + PASSES in a
+# bare CE checkout (healthcare Pro pack absent). Its risk_judge Tier-1 lens code is
+# UNSUPPORTED_COMMITMENT — the direct analog of the clinical WRONG_DOSAGE (owner:
+# risk_judge, tier: TIER_1) the other two funcs still exercise against healthcare.
+_FIXTURE_PACK = "support_ticket_qa"
+_FIXTURE_PACK_DIR = _REPO / "packs" / _FIXTURE_PACK
+_FIXTURE_ONTOLOGY_PATH = _FIXTURE_PACK_DIR / "ontology.json"
+_FIXTURE_ASSIGNED_FLAG = "UNSUPPORTED_COMMITMENT"  # a risk_judge Tier-1 lens code (fixture pack)
+
+
+def _pin_consensus_to_fixture_pack(monkeypatch):
+    """Re-point the FROZEN council's pack-derived tiering constants at the in-repo
+    support_ticket_qa snapshot, for the duration of ONE test, regardless of the ambient
+    active pack.
+
+    The consensus tier sets / owner-map / known-codes / dual-pillar set are bound ONCE at
+    import time (the PACK-1b/2b carve-outs) from the active pack, and re-imported BY VALUE
+    into ``judges_dspy`` (``KNOWN_TAXONOMY_CODES``) and ``judge_metric`` (``LENS_BY_ROLE``).
+    ``monkeypatch.setattr`` overrides each binding locally (auto-restored on teardown) so
+    the flip runs against the fixture pack's codes even when the module was first imported
+    under ``healthcare`` (the canonical suite) — order-independent, no reload, no env race,
+    and the frozen ``_apply_consensus`` BODY is untouched (its reads see the patched globals).
+    """
+    from lithrim_bench.harness.pack import pack_lenses, pack_tier1_owners, pack_tiers
+    from lithrim_bench.runtime.council import (
+        compliance_council as _cc,
+    )
+    from lithrim_bench.runtime.council import (
+        judge_metric as _jm,
+    )
+    from lithrim_bench.runtime.council import (
+        judges_dspy as _jd,
+    )
+
+    tiers = pack_tiers(_FIXTURE_PACK)
+    owners = pack_tier1_owners(_FIXTURE_PACK)
+    known = tiers["TIER_1_NEVER_EVENTS"] | tiers["TIER_2_HIGH_RISK"] | tiers["TIER_3_MEDIUM"]
+    # DUAL_PILLAR_CODES is import-time-derived (CONSENSUS-PILLAR-INVARIANT-1): every tiered
+    # code NOT in the hardcoded healthcare ARTIFACT/CONVERSATION pillar sets is dual-pillar,
+    # so a fixture-pack tier-1 finding is never silently dropped from both pillars.
+    unclassified = (
+        set(tiers["TIER_1_NEVER_EVENTS"])
+        | set(tiers["TIER_2_HIGH_RISK"])
+        | set(tiers["TIER_3_MEDIUM"])
+    ) - _cc.ARTIFACT_CODES - _cc.CONVERSATION_CODES
+    dual = _cc._CONSENSUS_PILLAR_1_DUAL_SEED | unclassified
+
+    monkeypatch.setattr(_cc, "TIER_1_NEVER_EVENTS", tiers["TIER_1_NEVER_EVENTS"])
+    monkeypatch.setattr(_cc, "TIER_2_HIGH_RISK", tiers["TIER_2_HIGH_RISK"])
+    monkeypatch.setattr(_cc, "TIER_3_MEDIUM", tiers["TIER_3_MEDIUM"])
+    monkeypatch.setattr(_cc, "KNOWN_TAXONOMY_CODES", known)
+    monkeypatch.setattr(_cc, "_TIER1_OWNERS", dict(owners))
+    monkeypatch.setattr(_cc, "DUAL_PILLAR_CODES", dual)
+    monkeypatch.setattr(_jd, "KNOWN_TAXONOMY_CODES", known)  # the by-value re-import in judges_dspy
+    monkeypatch.setattr(_jm, "LENS_BY_ROLE", dict(pack_lenses(_FIXTURE_PACK)))
+
 
 def _case():
     c = load_case(_CASE_ID, source=str(_CASE_SRC))
@@ -80,16 +138,25 @@ def _recording_predictors(captured: dict, flag: str):
     return {role: make(role) for role in V2_ROLES}
 
 
-def test_authored_assignment_flips_the_in_process_verdict():
-    """The headline (A1): assigning WRONG_DOSAGE to risk_judge flips the composite
-    verdict from non-reject (default trio) to reject (authored trio), $0/offline."""
-    ont = load_ontology()
+def test_authored_assignment_flips_the_in_process_verdict(monkeypatch):
+    """The headline (A1): assigning UNSUPPORTED_COMMITMENT to risk_judge flips the composite
+    verdict from non-reject (default trio) to reject (authored trio), $0/offline.
+
+    Self-contained against the in-repo support_ticket_qa fixture pack (its OWN ontology +
+    taxonomy, no healthcare reuse), so it PASSES in a bare CE checkout with the healthcare
+    Pro pack absent. ``_pin_consensus_to_fixture_pack`` re-points the frozen council's
+    pack-derived tiering at the fixture snapshot for this test only; the MECHANISM (single
+    owning-judge Tier-1 BLOCK → tier1_triggered → composite reject) is identical."""
+    _pin_consensus_to_fixture_pack(monkeypatch)
+    ont = load_ontology(_FIXTURE_ONTOLOGY_PATH)
     case = _case()
 
     # default (no authoring) → no marker → every judge approves → NOT reject
     cap0: dict = {}
     stage0 = build_authored_semantic_stage(
-        ontology=ont, assignments=None, predictors=_recording_predictors(cap0, _ASSIGNED_FLAG)
+        ontology=ont,
+        assignments=None,
+        predictors=_recording_predictors(cap0, _FIXTURE_ASSIGNED_FLAG),
     )
     r0 = grade_inprocess(case, semantic_stage=stage0)
     comp0 = composite(ground(r0, case, ontology=ont))
@@ -100,8 +167,8 @@ def test_authored_assignment_flips_the_in_process_verdict():
     cap1: dict = {}
     stage1 = build_authored_semantic_stage(
         ontology=ont,
-        assignments={"risk_judge": [_ASSIGNED_FLAG]},
-        predictors=_recording_predictors(cap1, _ASSIGNED_FLAG),
+        assignments={"risk_judge": [_FIXTURE_ASSIGNED_FLAG]},
+        predictors=_recording_predictors(cap1, _FIXTURE_ASSIGNED_FLAG),
     )
     r1 = grade_inprocess(case, semantic_stage=stage1)
     comp1 = composite(ground(r1, case, ontology=ont))
@@ -109,7 +176,7 @@ def test_authored_assignment_flips_the_in_process_verdict():
 
     risk_vote = next(v for v in r1["semantic"]["judge_votes"] if v["judge_role"] == "risk_judge")
     assert risk_vote["vote"] == "BLOCK"
-    assert _ASSIGNED_FLAG in risk_vote["findings"]
+    assert _FIXTURE_ASSIGNED_FLAG in risk_vote["findings"]
     # the OTHER roles, unassigned, did not flip → the move is the authoring, not the case
     others = [v for v in r1["semantic"]["judge_votes"] if v["judge_role"] != "risk_judge"]
     assert all(v["vote"] != "BLOCK" for v in others)

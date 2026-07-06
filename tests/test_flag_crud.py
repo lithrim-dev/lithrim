@@ -29,7 +29,10 @@ import pytest
 from lithrim_bench.harness.config import Agent, Dataset, EvalProfile, save_agent
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ONTOLOGY_SEED = REPO_ROOT / "packs" / "healthcare" / "ontology.json"
+# Self-contained against the in-repo public sample pack (clinical_scribe, tier:core) — no
+# external healthcare Pro pack. Its ontology carries gradeable in-snapshot contract codes
+# (e.g. WRONG_DOSAGE), which is all GUARD 1 (the delete refusal) needs.
+ONTOLOGY_SEED = REPO_ROOT / "packs" / "clinical_scribe" / "ontology.json"
 
 # The agent package is import-safe on the default core (SDK is pulled LAZILY; no fastapi at
 # module level), so the STRUCTURAL + HANDLER layers run in BOTH suites — not only under [bff].

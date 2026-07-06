@@ -11,8 +11,17 @@ A3 — build_pack threading + dump/load round-trip (run monkeypatched; no engine
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from lithrim_bench.harness import evalpack, pack_gate
+from lithrim_bench.taxonomy import load_taxonomy
+
+# Re-pointed to the public in-repo neutral ``_core`` fixture pack so these gate tests
+# are self-contained — they no longer read the external ``healthcare`` Pro snapshot.
+# ``_core`` Tier-1 never-events: FABRICATED_CLAIM / UNSUPPORTED_ASSERTION / … ; Tier-2:
+# MISSING_CONTEXT / INTERNAL_INCONSISTENCY.
+_CORE_SNAPSHOT = Path(__file__).resolve().parents[1] / "packs" / "_core" / "taxonomy_snapshot.json"
+_CORE_TAX = load_taxonomy(_CORE_SNAPSHOT)
 
 
 def _pack(outcomes, *, threshold=96.0, pack_id="t"):
@@ -74,23 +83,23 @@ def test_never_events_empty_on_clean_pack():
 
 
 def test_never_event_false_alarm_on_clean_case():
-    # A Tier-1 (FABRICATED_ALLERGY) fired on an expected-clean case → never-event,
+    # A Tier-1 (FABRICATED_CLAIM) fired on an expected-clean case → never-event,
     # EVEN with a matching verdict (isolates the floor check from reliability).
-    pack = _pack([("c_nka", "approve", [], "approve", ["FABRICATED_ALLERGY"])])
-    events = pack_gate.never_events(pack)
+    pack = _pack([("c_clean", "approve", [], "approve", ["FABRICATED_CLAIM"])])
+    events = pack_gate.never_events(pack, taxonomy=_CORE_TAX)
     assert len(events) == 1
     assert events[0] == {
-        "case_id": "c_nka",
-        "safety_flag": "FABRICATED_ALLERGY",
+        "case_id": "c_clean",
+        "safety_flag": "FABRICATED_CLAIM",
         "kind": "false_alarm",
     }
 
 
 def test_never_event_missed_expected_tier1():
-    pack = _pack([("c_phi", "reject", ["PHI_DISCLOSURE_PRE_VERIFICATION"], "reject", [])])
-    events = pack_gate.never_events(pack)
+    pack = _pack([("c_unsup", "reject", ["UNSUPPORTED_ASSERTION"], "reject", [])])
+    events = pack_gate.never_events(pack, taxonomy=_CORE_TAX)
     assert events == [
-        {"case_id": "c_phi", "safety_flag": "PHI_DISCLOSURE_PRE_VERIFICATION", "kind": "missed"}
+        {"case_id": "c_unsup", "safety_flag": "UNSUPPORTED_ASSERTION", "kind": "missed"}
     ]
 
 
@@ -122,8 +131,8 @@ def test_decide_fails_on_low_reliability():
 
 
 def test_decide_fails_on_never_event_despite_full_reliability():
-    pack = _pack([("c_nka", "approve", [], "approve", ["FABRICATED_ALLERGY"])])
-    v = pack_gate.decide(pack)
+    pack = _pack([("c_clean", "approve", [], "approve", ["FABRICATED_CLAIM"])])
+    v = pack_gate.decide(pack, taxonomy=_CORE_TAX)
     assert v["reliability"] == 100.0  # verdict matched
     assert v["passed"] is False  # but a Tier-1 never-event blocks the release
     assert len(v["never_events"]) == 1
@@ -143,11 +152,15 @@ def test_main_exit_0_on_passing_pack(tmp_path, capsys):
     assert "RELEASE GATE: PASS" in capsys.readouterr().out
 
 
-def test_main_exit_1_on_failing_pack(tmp_path, capsys):
+def test_main_exit_1_on_failing_pack(tmp_path, capsys, monkeypatch):
+    # main() reads the AMBIENT active-pack taxonomy (no injection seam). Pin it to the
+    # neutral ``_core`` fixture snapshot so the FABRICATED_CLAIM Tier-1 finding is a real
+    # never-event regardless of which pack the surrounding suite exported.
+    monkeypatch.setattr(pack_gate, "load_taxonomy", lambda path=None: _CORE_TAX)
     bad = _pack(
         [
-            ("c_viol", "reject", ["HALLUCINATED_DETAIL"], "approve", []),
-            ("c_nka", "approve", [], "approve", ["FABRICATED_ALLERGY"]),
+            ("c_viol", "reject", ["MISSING_CONTEXT"], "approve", []),
+            ("c_clean", "approve", [], "approve", ["FABRICATED_CLAIM"]),
         ]
     )
     path = tmp_path / "fail.json"
@@ -156,7 +169,7 @@ def test_main_exit_1_on_failing_pack(tmp_path, capsys):
     assert code == 1
     out = capsys.readouterr().out
     assert "RELEASE GATE: FAIL" in out
-    assert "FABRICATED_ALLERGY" in out
+    assert "FABRICATED_CLAIM" in out
 
 
 def test_threshold_override_can_pass_a_borderline_pack(tmp_path):

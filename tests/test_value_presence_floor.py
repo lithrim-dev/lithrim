@@ -108,12 +108,15 @@ def test_value_presence_is_a_core_floor_available_to_every_pack():
     assert "value_presence" in floor_executors("narrative")
 
 
-def test_value_presence_available_on_the_healthcare_pack():
-    """The CORE-FLOOR-1 merge reaches the EXTERNAL clinical pack too, so a clinician can author the
-    floor on the healthcare workspace (NEEDS_PACK — skips in a bare CE checkout)."""
+def test_value_presence_available_on_the_clinical_scribe_pack():
+    """The CORE-FLOOR-1 merge reaches the in-repo clinical_scribe sample pack too, so a clinician can
+    author the floor on a clinical workspace (self-contained against the public fixture pack — no
+    external healthcare Pro pack required)."""
     from lithrim_bench.harness.grounding import floor_executors
 
-    assert "value_presence" in floor_executors("healthcare"), "must be available on the clinical pack"
+    assert "value_presence" in floor_executors("clinical_scribe"), (
+        "must be available on the clinical pack"
+    )
 
 
 # ── A1 — ValuePresenceTool fires on absence, clears on presence, inconclusive otherwise ──

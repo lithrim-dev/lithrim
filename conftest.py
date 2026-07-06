@@ -129,10 +129,6 @@ _IGNORE_MODULES_WHEN_BARE_CE = {
 # in dev (pack discoverable), skip in a bare CE checkout (active pack is the neutral _core).
 _NEEDS_PACK_FUNCS = {
     "test_ab_harness": {"test_per_role_score_uses_the_lens"},
-    "test_backend_importer": {
-        "test_unknown_flag_is_quarantined_not_admitted",
-        "test_violation_row_maps_to_second_class_bench_shape",
-    },
     "test_byoc_provider": {
         "test_model_composition_effect_a_claude_seat_flips_the_verdict",
         "test_risk_judge_on_byo_claude_grades_a_case",
@@ -153,8 +149,6 @@ _NEEDS_PACK_FUNCS = {
     },
     # PACK-DIST-2 D5 (batch-1 fold): the route-revert func seeds the BFF config DB, whose seed path
     # loads the healthcare pack ontology → bare-CE FileNotFoundError; it NEEDS the pack (dev-green).
-    "test_crud_delete": {"test_delete_judge_route_reverts_idempotent_and_404"},
-    "test_flag_crud": {"test_delete_guard_refuses_gradeable_in_snapshot"},
     "test_grade_wire": {"test_inprocess_reproduces_baseline_semantic_and_composite_verdict"},
     "test_judge_bridge": {
         "test_render_authored_lens_and_questions_reach_the_prompt",
@@ -184,12 +178,6 @@ _NEEDS_PACK_FUNCS = {
         "test_a3_tier2_single_judge_needs_review",
         "test_seam_shape_is_exactly_what_apply_consensus_reads",
         "test_unknown_code_and_evidenceless_findings_are_dropped",
-    },
-    "test_pack_gate": {
-        "test_decide_fails_on_never_event_despite_full_reliability",
-        "test_main_exit_1_on_failing_pack",
-        "test_never_event_false_alarm_on_clean_case",
-        "test_never_event_missed_expected_tier1",
     },
     "test_pack_layer1a": {
         "test_active_pack_defaults_to_healthcare",
@@ -229,16 +217,6 @@ _NEEDS_PACK_FUNCS = {
         "test_load_pack_generators_cache_identity",
     },
     "test_pack_layer5b": {"test_active_packs_all_five_pack_sourced_and_core_empty"},
-    "test_plugin_phase1": {
-        "test_a1_contract_plugins_enumerate_exactly_the_merge",
-        "test_a1_merged_registries_value_equal_the_expected_snapshot",
-        "test_a2_gate_keyed_to_pro_only",
-        "test_a3_additive_fields_round_trip_through_model_dump",
-        "test_a3_denied_plugin_is_absent_from_the_snapshot",
-        "test_a3_provenance_snapshot_records_pack_and_plugins",
-        # the A5 frozen-seam guard resolves the clinical ontology/prompts THROUGH discovery
-        "test_a5_frozen_seam_guards_green",
-    },
     "test_taxonomy": {
         "test_snapshot_loads_and_has_known_codes",
         "test_wrong_dosage_has_production_owners",
@@ -253,7 +231,6 @@ _NEEDS_PACK_FUNCS = {
         "test_policy_owns_fabricated_consent_one_strike",
         "test_policy_owns_phi_disclosure_one_strike",
     },
-    "test_uap3_grade": {"test_authored_assignment_flips_the_in_process_verdict"},
     "test_uap3b2_grounding_check": {"test_declared_groundingcheck_audited_as_independent_entity"},
     "test_uap3b2_provenance": {
         "test_gate_cannot_relabel_true_case",
@@ -276,11 +253,6 @@ _NEEDS_PACK_FUNCS = {
         "test_correction_records_owner_roles_and_real_version",
     },
     "test_ws2": {"test_run_eval_passes_agent_config_to_live_grade"},
-    "test_ws4a": {
-        "test_corpus_append_read_roundtrip_and_deterministic",
-        "test_evalpack_build_load_roundtrip",
-        "test_project_suppress_record",
-    },
     "test_ws5_bff": {
         "test_judges_list_returns_the_v2_trio",
         "test_ontology_read",
@@ -316,7 +288,6 @@ _NEEDS_PACK_FUNCS = {
     },
     # the CORE-FLOOR-1 merge reaching the EXTERNAL healthcare pack (the _core + in-repo narrative
     # halves stay green in bare CE — they prove the floor is domain-agnostic standalone).
-    "test_value_presence_floor": {"test_value_presence_available_on_the_healthcare_pack"},
     # binds the council from the sibling pack via discovery — already self-skips without the sibling;
     # also skip when healthcare is undiscoverable so a local env-unset run matches the stranger.
     "test_pack_dist": {"test_a1_council_binds_from_external_pack"},

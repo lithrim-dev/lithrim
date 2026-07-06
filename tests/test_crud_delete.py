@@ -227,8 +227,18 @@ def _client_for(db: Path):
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     bff, c = _client_for(tmp_path / "bench_config.sqlite")
+    # Self-contained against the in-repo _core fixture pack: pin the active workspace to the
+    # neutral _core pack so the judge-lens offer/gate (_active_lens_by_role) resolves against
+    # packs/_core/ instead of whatever workspace happens to be active on the machine (which may
+    # be a healthcare/clinical workspace on disk). risk_judge is a _core production-judge role,
+    # so the DELETE/PUT mechanism is unchanged. Mirrors tests/test_bff_units.py::client.
+    monkeypatch.setattr(
+        bff.workspace,
+        "get_active_workspace",
+        lambda: bff.workspace.Workspace(name="default", pack=bff.workspace.DEFAULT_PACK),
+    )
     yield c
     bff.app.dependency_overrides.clear()
 

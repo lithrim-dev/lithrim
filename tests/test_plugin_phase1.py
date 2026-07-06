@@ -40,6 +40,14 @@ from lithrim_bench.harness import pack as PK
 from lithrim_bench.harness import plugins as P
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+# PACK-DIST self-containment: the A1/A2/A3 parity assertions run against PUBLIC in-repo fixture
+# packs instead of the external ``healthcare`` Pro pack, so they are green with the pack absent.
+# ``_core`` (the neutral core-tier default) anchors the core-only registry parity + a core-tier
+# provenance snapshot; ``_plugin_fixture`` (a public ``tier: pro`` fixture pack, already used by
+# A2/A4 below) anchors the assertions that STRUCTURALLY need a pro pack (the gate raise + a pro
+# plugin present to be per-plugin-denied). The MECHANISMS are identical — only the pack + its
+# real codes differ.
+_CORE_PACK = "_core"
 _COUNCIL_REL = "lithrim_bench/runtime/council/compliance_council.py"
 _SEAM_BASELINE = (
     "acc4973"  # the moat AST-identity baseline (_apply_consensus / extract_verdict_confidence)
@@ -53,8 +61,12 @@ _FIXTURE_PACK = "_plugin_fixture"
 
 # ─────────────────────────── A1 — parity by value-equality (R1) ───────────────────────────
 
-# The EXPLICIT expected registry snapshot under the healthcare pack (the suite's active pack via
-# conftest). Value-equality against this — not "no exception" — is what makes A1 non-vacuous (R1).
+# The EXPLICIT expected registry snapshot under the neutral ``_core`` pack (self-contained: no
+# external Pro pack needed). ``_core`` is ``tier: core`` with NO ``floors`` module, so the merged
+# registries are exactly the CORE-generic executors — every entry is ``tier: core`` (the pro
+# clinical executors record_presence/snomed_subsumption/dosage_grounding/concept_preservation are
+# healthcare-only and correctly ABSENT here). Value-equality against this EXPLICIT set — not "no
+# exception" — is what makes A1 non-vacuous (R1).
 _EXPECTED_SUPPRESS = {
     "presence_check",
     "kb_grounding",
@@ -70,17 +82,11 @@ _EXPECTED_SUPPRESS = {
     "terminology_subsumption",
     # FLOOR-BATTERY-1: the core-generic ordered terminology battery (validity/mislabel/category/is-a).
     "snomed_battery",
-    "record_presence",
-    "snomed_subsumption",
 }
-# CORE-FLOOR-1: value_presence is a CORE floor now (domain-agnostic completeness floor, promoted
-# out of the narrative pack so it is available on EVERY pack incl. healthcare).
+# CORE-FLOOR-1: value_presence is a CORE floor (domain-agnostic completeness floor).
 # REPRO-1 R4a/R4b: fact_preservation + speaker_attribution are the core bounded-extraction floors.
 _EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence",
-                   "fact_preservation", "speaker_attribution",
-                   "dosage_grounding",
-                   # CONCEPT-PRESERVATION-1: the healthcare refusal-preservation floor (Hermes MCP).
-                   "concept_preservation"}
+                   "fact_preservation", "speaker_attribution"}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
     "kb_grounding": ("contract", "core", "service", "grounding.suppress"),
@@ -102,27 +108,24 @@ _EXPECTED_CONTRACT_PLUGINS = {
     # REPRO-1 R4a/R4b: the core bounded-extraction floors (LM via the provider seam, in_process).
     "fact_preservation": ("contract", "core", "in_process", "grounding.floor"),
     "speaker_attribution": ("contract", "core", "in_process", "grounding.floor"),
-    "record_presence": ("contract", "pro", "in_process", "grounding.suppress"),
-    "dosage_grounding": ("contract", "pro", "in_process", "grounding.floor"),
-    # TOOL-2: the healthcare pack's code-based record-presence over the Hermes terminology
-    # MCP server — pack-tier (pro), service-transport (the pack's SERVICE_CONTRACT_TYPES).
-    "snomed_subsumption": ("contract", "pro", "service", "grounding.suppress"),
-    # CONCEPT-PRESERVATION-1: the healthcare refusal-preservation floor over the Hermes MCP server.
-    "concept_preservation": ("contract", "pro", "service", "grounding.floor"),
 }
 
 
-def test_a1_merged_registries_value_equal_the_expected_snapshot():
-    """A1: under healthcare (the conftest default), the merged suppress/floor registries equal the
-    EXPLICIT expected sets — the pure refactor did not change the registry contents."""
+def test_a1_merged_registries_value_equal_the_expected_snapshot(monkeypatch):
+    """A1: under the neutral ``_core`` pack, the merged suppress/floor registries equal the EXPLICIT
+    expected sets — the pure refactor did not change the registry contents. Self-contained: pins the
+    active pack to ``_core`` (no external Pro pack), so it is green with healthcare absent."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", _CORE_PACK)
     assert set(G.suppress_executors()) == _EXPECTED_SUPPRESS
     assert set(G.floor_executors()) == _EXPECTED_FLOOR
 
 
-def test_a1_contract_plugins_enumerate_exactly_the_merge():
+def test_a1_contract_plugins_enumerate_exactly_the_merge(monkeypatch):
     """A1: ``contract_plugins()`` declares exactly the merged registry — same ids, with the
-    expected kind/tier/transport/implements (healthcare's clinical floors are tier=pro), and the
-    enumeration ids == ``suppress_executors() ∪ floor_executors()`` (non-vacuous, no drift)."""
+    expected kind/tier/transport/implements (under ``_core`` every executor is tier=core), and the
+    enumeration ids == ``suppress_executors() ∪ floor_executors()`` (non-vacuous, no drift).
+    Self-contained: pins the active pack to ``_core``."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", _CORE_PACK)
     got = {p.id: (p.kind, p.tier, p.transport, p.implements) for p in G.contract_plugins()}
     assert got == _EXPECTED_CONTRACT_PLUGINS
     assert set(got) == set(G.suppress_executors()) | set(G.floor_executors())
@@ -191,13 +194,16 @@ def test_a2_core_pack_under_deny_still_loads():
 
 
 def test_a2_gate_keyed_to_pro_only():
-    """The gate predicate: only ``pro`` requires a license; core/fixture/demo never do."""
+    """The gate predicate: only ``pro`` requires a license; core/fixture/demo never do. Self-contained:
+    the pro-tier raise is proven on the PUBLIC in-repo ``_plugin_fixture`` (tier: pro) pack instead of
+    the external healthcare pack — the MECHANISM (a pro pack raises under deny, clears under permit) is
+    identical, no external pack needed."""
     assert P.is_gated("pro")
     assert not any(P.is_gated(t) for t in ("core", "fixture", "demo"))
-    # the active pack's pro tier under permit-all does not raise; under deny it does
-    PK.assert_pack_licensed("healthcare", P.License("permit-all"))
+    # a pro-tier pack under permit-all does not raise; under deny it does
+    PK.assert_pack_licensed(_FIXTURE_PACK, P.License("permit-all"))
     with pytest.raises(PK.PackLicenseError):
-        PK.assert_pack_licensed("healthcare", P.License("deny-all"))
+        PK.assert_pack_licensed(_FIXTURE_PACK, P.License("deny-all"))
 
 
 def test_a2_license_grammar():
@@ -215,14 +221,16 @@ def test_a2_license_grammar():
 # ─────────────────────────── A3 — provenance records the loaded set ───────────────────────────
 
 
-def test_a3_provenance_snapshot_records_pack_and_plugins():
-    """A3: under healthcare, the snapshot records the active pack + tier + the loaded plugin set
-    (the pack itself + the contract plugins + the providers)."""
+def test_a3_provenance_snapshot_records_pack_and_plugins(monkeypatch):
+    """A3: under the neutral ``_core`` pack, the snapshot records the active pack + tier + the loaded
+    plugin set (the pack itself + the contract plugins + the providers + the core tool). Self-contained:
+    pins the active pack to ``_core`` — a core-tier snapshot needs no external Pro pack."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", _CORE_PACK)
     snap = P.provenance_snapshot()
-    assert snap["active_pack"] == "healthcare" and snap["pack_tier"] == "pro"
+    assert snap["active_pack"] == _CORE_PACK and snap["pack_tier"] == "core"
     ids = {p["id"] for p in snap["plugins"]}
     assert {
-        "healthcare",
+        _CORE_PACK,
         "azure_openai",
         "byo_claude",
         "etlp_jute",
@@ -232,18 +240,24 @@ def test_a3_provenance_snapshot_records_pack_and_plugins():
     assert kinds == {"pack", "contract", "provider", "tool"}  # TOOL-1 folds in kind:tool
 
 
-def test_a3_denied_plugin_is_absent_from_the_snapshot():
+def test_a3_denied_plugin_is_absent_from_the_snapshot(monkeypatch):
     """A3 / R2 skip path: a denylisted pro plugin is ABSENT from the recorded set (the per-plugin
-    skip — distinct from the A2 active-pack RAISE)."""
-    snap = P.provenance_snapshot(P.License("denylist", frozenset({"record_presence"})))
+    skip — distinct from the A2 active-pack RAISE). Self-contained: the pro plugin denied is the
+    PUBLIC in-repo ``_plugin_fixture`` pack's ``fixture_suppress`` (a pack-contributed, tier=pro
+    contract) instead of the clinical ``record_presence`` — the MECHANISM (per-plugin skip of a
+    denied pro plugin while core + the permitted pack stay) is identical."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", _FIXTURE_PACK)
+    snap = P.provenance_snapshot(P.License("denylist", frozenset({"fixture_suppress"})))
     ids = {p["id"] for p in snap["plugins"]}
-    assert "record_presence" not in ids  # the denied pro plugin is skipped
-    assert "presence_check" in ids and "healthcare" in ids  # core + the (permitted) pack stay
+    assert "fixture_suppress" not in ids  # the denied pro plugin is skipped
+    assert "presence_check" in ids and _FIXTURE_PACK in ids  # core + the (permitted) pack stay
 
 
-def test_a3_additive_fields_round_trip_through_model_dump():
+def test_a3_additive_fields_round_trip_through_model_dump(monkeypatch):
     """A3: the PipelineProvenance fields auto-persist (model_dump) and are default-safe for older
-    docs / replay blobs (the orchestrator wiring; a live grade is cost-gated)."""
+    docs / replay blobs (the orchestrator wiring; a live grade is cost-gated). Self-contained: pins
+    the active pack to ``_core`` — the additive-field round-trip is pack-agnostic."""
+    monkeypatch.setenv("LITHRIM_BENCH_PACK", _CORE_PACK)
     from datetime import datetime, timezone
 
     from lithrim_bench.runtime.pipeline.models import PipelineProvenance
@@ -260,7 +274,7 @@ def test_a3_additive_fields_round_trip_through_model_dump():
         pack_tier=snap["pack_tier"],
     )
     doc = prov.model_dump(mode="json")
-    assert doc["active_pack"] == "healthcare" and doc["pack_tier"] == "pro"
+    assert doc["active_pack"] == _CORE_PACK and doc["pack_tier"] == "core"
     assert {p["id"] for p in doc["loaded_plugins"]} == {p["id"] for p in snap["plugins"]}
     # default-safe: an old doc with no plugin keys re-parses cleanly
     old = {
@@ -389,16 +403,22 @@ def test_tool1_pro_tool_skipped_under_denylist():
 
 
 def test_a5_frozen_seam_guards_green():
-    """A5: the three frozen-seam guards stay green (the refactor touched none of the pinned seams)."""
+    """A5 (the moat): the frozen-seam guards stay green (the refactor touched none of the pinned
+    seams). Self-contained: pins the two PACK-AGNOSTIC moat seams — the ``judges_dspy`` consensus
+    seam (``_apply_consensus`` reader + the finding shape) and the ``compliance_council``
+    carve-outs-only guard — both AST/difflib byte-freezes vs ``acc4973`` over CORE files, green with
+    no external pack. (The third guard in the healthcare suite, ``assert_clinical_ontology_seam_frozen``,
+    verifies the byte-freeze of the external HEALTHCARE clinical ontology — inherently
+    healthcare-specific content with no ``_core`` analogue — so it is not part of this self-contained
+    variant; the moat/consensus mechanism this A5 pins is fully carried by the two kept guards, which
+    stay non-vacuous, i.e. they FAIL if any pinned core seam drifts.)"""
     from ._seam_freeze import (
-        assert_clinical_ontology_seam_frozen,
         assert_compliance_council_carveouts_only,
         assert_judges_dspy_consensus_seam_frozen,
     )
 
     assert_judges_dspy_consensus_seam_frozen(REPO_ROOT)
     assert_compliance_council_carveouts_only(REPO_ROOT)
-    assert_clinical_ontology_seam_frozen(REPO_ROOT)
 
 
 def _named_func_source(src: str, name: str) -> str:
