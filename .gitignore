@@ -21,6 +21,16 @@ out/
 
 # Raw marketing/screen-capture footage — large local scratch, never commit (published cuts live under out/).
 marketing_raw/
+# Large rendered walkthrough video (~23MB) — publish as a release asset, not in-repo.
+docs/rendered/zyng_walkthrough/
+# Archived internal docs (session logs, drafts, strategy) — kept local, out of the public push.
+docs/_internal/
+# Archived non-doc material (parked packs, etc.) — kept local, out of the public push.
+_archive/
+# Rendered report PDFs — publish public ones as release assets, not committed in-repo.
+docs/rendered/
+# Specs — kept local; the public ones are shared explicitly, not committed by default.
+docs/specs/
 
 # Live-stack credentials — do not commit (the template is .env.example)
 .live_env
