@@ -151,6 +151,13 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
           <Button size="sm" onClick={runNow} disabled={runStatus === "running"}>
             {runStatus === "running" ? "Running…" : "Run now"}
           </Button>
+          {/* SWEEP (RIGOR-1 / Q1 — NEW-G3): a $0 read that plots this reviewer's self-consistency
+              across K samples INLINE via the lithrim:show-sweep window bridge (the same idiom as
+              the ⌘K trigger). Adds NO agent tool; the shell emits the tool-sweep_card. */}
+          <Button size="sm" variant="outline" data-testid="sweep-trigger"
+            onClick={() => { try { window.dispatchEvent(new CustomEvent("lithrim:show-sweep")); } catch {} }}>
+            Reliability sweep <span className="ml-1.5 opacity-60">$0</span>
+          </Button>
           {result?.pipeline_run_id && (
             <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
               run {result.pipeline_run_id.slice(0, 8)} · {result.grade_path}

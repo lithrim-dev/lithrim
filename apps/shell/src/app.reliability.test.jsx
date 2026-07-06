@@ -38,7 +38,9 @@ describe("RELIABILITY-CARD-1: the ⌘K 'Show reliability' trigger renders the ca
   it("fetches the real reliability endpoint for the active agent and renders the tool-reliability_card", async () => {
     render(<App mode="shell" setMode={() => {}} />);
     openPalette();
-    fireEvent.click(await screen.findByText(/reliability/i));
+    // /reliability metrics/ (not a bare /reliability/) — the palette also carries a "Reliability
+    // sweep" entry (RIGOR-1 / Q1 — NEW-G3); this test targets the reliability-METRICS card.
+    fireEvent.click(await screen.findByText(/reliability metrics/i));
     // the palette + bridge hit the REAL endpoint scoped to the active agent
     await waitFor(() => expect(reliabilityCalls(fetch).length).toBeGreaterThanOrEqual(1));
     expect(String(reliabilityCalls(fetch)[0][0])).toMatch(/\/v1\/reliability\/ws0_default/);

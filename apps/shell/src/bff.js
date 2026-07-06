@@ -551,3 +551,17 @@ export async function chatStream(
    ece, brier, error_phi, effective_votes, intra_judge_stability, selective_prediction}}. */
 export const getReliability = (agent = "ws0_default") =>
   call(`/v1/reliability/${encodeURIComponent(agent)}`);
+
+/* GET /v1/reliability/{agent}/sweep — RIGOR-1 / Q1 (NEW-G3): the single-reviewer K-sweep
+   self-consistency curve (flip-rate / majority-convergence / variance with Wilson CIs, for
+   K = 1..k_max), COMPUTED from this agent's OWN per-sample scores. $0 pure read; NO gold (the
+   sweep measures a reviewer against itself). `insufficient` + reason when no sampled runs — never
+   a fabricated curve. 404 on an unknown agent. Shape: {agent, n_cases, sweep: {insufficient,
+   k_max, series: [{k, flip_rate, majority_convergence, variance}]}}. */
+export const getReliabilitySweep = (agent = "ws0_default", { k_max, role } = {}) => {
+  const qs = new URLSearchParams();
+  if (k_max != null) qs.set("k_max", String(k_max));
+  if (role != null) qs.set("role", role);
+  const q = qs.toString();
+  return call(`/v1/reliability/${encodeURIComponent(agent)}/sweep${q ? `?${q}` : ""}`);
+};

@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
@@ -406,6 +406,27 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
     };
     window.addEventListener("lithrim:show-reliability", onShow);
     return () => window.removeEventListener("lithrim:show-reliability", onShow);
+  }, [agent]);
+  // SWEEP (RIGOR-1 / Q1 — NEW-G3): the "Reliability sweep" trigger — fetch the REAL sweep endpoint
+  // (GET /v1/reliability/{agent}/sweep, $0 read) and render the tool-sweep_card INLINE as a fresh
+  // assistant turn (the same window-bridge idiom as show-reliability; conversational-first, no new
+  // tab, NO 25th agent tool). detail.k_max / detail.role scope the sweep when set. The endpoint
+  // returns {agent, sweep, n_cases}; the card reads the flat-spread `sweep`. On error/404/no samples
+  // the card's honest empty state shows ("No sampled runs yet"); NEVER a fabricated curve.
+  useEffect(() => {
+    const onSweep = async (e) => {
+      let output = {};
+      try {
+        const r = await getReliabilitySweep(agent, { k_max: e?.detail?.k_max, role: e?.detail?.role });
+        output = { ...(r?.sweep || {}) };
+      } catch { output = {}; }
+      setChat((c) => [
+        ...c,
+        { role: "assistant", text: "", parts: [{ type: "tool-sweep_card", state: "output-available", output }] },
+      ]);
+    };
+    window.addEventListener("lithrim:show-sweep", onSweep);
+    return () => window.removeEventListener("lithrim:show-sweep", onSweep);
   }, [agent]);
   const taRef = useRef(null);
   const fileRef = useRef(null); // CE-INGEST-FRONTDOOR-1: the hidden upload input (the only chrome)

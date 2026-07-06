@@ -38,6 +38,7 @@ export const KNOWN_TOOLS = [
   "tool-tool_builder",
   "tool-readiness_card",
   "tool-reliability_card",
+  "tool-sweep_card",
   "tool-criterion_jute_builder",
 ];
 

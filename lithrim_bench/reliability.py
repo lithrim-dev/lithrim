@@ -273,6 +273,99 @@ def selective_prediction(outcomes: list[dict]) -> dict:
     }
 
 
+# ── K-sweep self-consistency curve (RIGOR-1 / Q1 — NEW-G3) ────────────────────
+
+
+def _majority_verdict(scores: list[float]) -> str | None:
+    """The majority BLOCK/PASS verdict of a reviewer's per-sample decision scores.
+
+    Scores are the sampling layer's ``scores_raw`` (0.0=block, 0.5=needs_review, 1.0=pass); a
+    sample votes BLOCK iff its score < 0.5, PASS iff > 0.5, and abstains at exactly 0.5. The
+    majority is BLOCK / PASS by count, or ``None`` on a tie (or all-abstain) — an undecided case,
+    never a coin-flip guess. This is the self-consistency reduction, NOT the frozen consensus."""
+    block = sum(1 for s in scores if s < 0.5)
+    passed = sum(1 for s in scores if s > 0.5)
+    if block > passed:
+        return "BLOCK"
+    if passed > block:
+        return "PASS"
+    return None  # tie / all needs_review → undecided
+
+
+def _variance(scores: list[float]) -> float:
+    n = len(scores)
+    if n == 0:
+        return 0.0
+    mean = sum(scores) / n
+    return sum((s - mean) ** 2 for s in scores) / n
+
+
+def sweep_series(cases: list[list[float]], k_max: int | None = None) -> dict:
+    """The single-reviewer K-sweep self-consistency curve (Coin-Flip-Judge, arXiv:2606.13685).
+
+    ``cases`` is one list of per-sample decision scores (``scores_raw``) per case — the SAME
+    reviewer sampled K times on each case. For each K = 1..``k_max`` we take the first K samples
+    of each case (only cases with >= K samples count at that K) and report:
+
+    - ``flip_rate`` — share of ELIGIBLE cases (>= K samples) whose majority verdict at K differs
+      from the ``k_max`` converged reference verdict. A tie (``None``) is its own value, so a
+      decided-at-K vs undecided-reference (or the reverse) also counts as a flip — the honest
+      "you would have answered differently with fewer samples" measure.
+    - ``majority_convergence`` — share of cases already decided AND agreeing with the ``k_max``
+      reference verdict at K (rises to the decided-share at ``k_max``).
+    - ``variance`` — mean per-case variance of the first-K sample scores (the spread that k
+      averages out).
+
+    ``flip_rate`` + ``majority_convergence`` carry a Wilson 95% CI (proportions over cases). An
+    empty / all-empty input is flagged insufficient — never a fabricated 0.0-as-data. ``k_max``
+    defaults to the longest sample run seen (and is clamped to it, so the series never reports a
+    K no case can reach)."""
+    runs = [c for c in cases if c]
+    if not runs:
+        return {
+            "insufficient": True,
+            "reason": "no sampled runs — the K-sweep needs a reviewer's per-sample scores (k >= 1)",
+            "k_max": 0,
+            "series": [],
+        }
+    longest = max(len(c) for c in runs)
+    kmax = longest if k_max is None else max(1, min(int(k_max), longest))
+
+    # the converged reference verdict per case = its majority over ALL its samples (its own k_max).
+    reference = [_majority_verdict(c) for c in runs]
+
+    series: list[dict] = []
+    for k in range(1, kmax + 1):
+        eligible = [(c, reference[i]) for i, c in enumerate(runs) if len(c) >= k]
+        n = len(eligible)
+        # flip: majority-at-K != the k_max reference verdict, over ALL eligible cases. A tie
+        # (None) is a distinct value, so decided-vs-undecided counts as a flip too.
+        flips = sum(1 for c, ref in eligible if _majority_verdict(c[:k]) != ref)
+        flip = wilson_proportion(flips, n) if n else _insufficient(
+            "no eligible case at this K", n=0
+        )
+        # convergence: decided-at-K AND == reference.
+        converged = sum(
+            1 for c, ref in eligible
+            if ref is not None and _majority_verdict(c[:k]) == ref
+        )
+        conv = wilson_proportion(converged, n) if n else _insufficient(
+            "no eligible case at this K", n=0
+        )
+        variances = [_variance(c[:k]) for c, _ in eligible]
+        var = _metric(round(sum(variances) / n, 6), n) if n else _insufficient(
+            "no eligible case at this K", n=0
+        )
+        series.append({
+            "k": k,
+            "flip_rate": flip,
+            "majority_convergence": conv,
+            "variance": var,
+        })
+
+    return {"insufficient": False, "k_max": kmax, "series": series}
+
+
 # ── intra-judge stability (needs repeats) ─────────────────────────────────────
 
 
