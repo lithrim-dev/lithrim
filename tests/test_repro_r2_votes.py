@@ -48,6 +48,22 @@ def test_votes_carry_the_raw_sampled_scores():
     assert v.k == 5 and v.variance == 0.24
 
 
+def test_votes_carry_BOTH_confidence_channels_side_by_side():
+    """R2c dual-confidence: the logprob `confidence` must NOT overwrite the reviewer's own
+    self-reported decision aggregate. The sampled `score_mean` rides `confidence_self`, kept
+    DISTINCT from the logprob-derived `confidence` — both readable on one vote."""
+    votes = _judge_votes_from_models(_SEAM)
+    v = votes[0]
+    assert v.confidence == 0.71  # the logprob channel is untouched
+    assert v.confidence_self == 0.6  # the self-report (sampled decision mean) is preserved
+    assert v.confidence != v.confidence_self  # two channels, not one clobbering the other
+
+
+def test_unsampled_vote_has_none_confidence_self_never_fabricated():
+    votes = _judge_votes_from_models(_SEAM)
+    assert votes[1].confidence_self is None
+
+
 def test_unsampled_vote_has_none_scores_raw_never_a_fabricated_list():
     votes = _judge_votes_from_models(_SEAM)
     assert votes[1].scores_raw is None
@@ -67,6 +83,7 @@ def test_council_view_projects_scores_raw_to_the_read_surface():
                 "judge_votes": [
                     {
                         "judge_role": "reviewer_gpt41", "vote": "PASS", "confidence": 0.7,
+                        "confidence_self": 0.6,
                         "model": "gpt-4.1", "reason": "r", "variance": 0.24, "k": 5,
                         "scores_raw": [0.0, 0.0, 1.0, 1.0, 1.0],
                     }
@@ -76,6 +93,9 @@ def test_council_view_projects_scores_raw_to_the_read_surface():
     }
     view = bff._council_view(record)
     assert view["votes"][0]["scores_raw"] == [0.0, 0.0, 1.0, 1.0, 1.0]
+    # R2c dual-confidence: BOTH channels reach the read surface, side by side.
+    assert view["votes"][0]["confidence"] == 0.7
+    assert view["votes"][0]["confidence_self"] == 0.6
 
 
 def test_roster_endpoint_accepts_a_multi_role_subset(tmp_path, monkeypatch):
