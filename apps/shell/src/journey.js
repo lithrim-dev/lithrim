@@ -106,3 +106,21 @@ export function nextStep(derived) {
   const cur = (derived.steps || []).find((s) => s.state === "current");
   return cur ? cur.name : null;
 }
+
+/* isSampleLeaked(activeWs, activeAgent, runs) → boolean. SHEPHERD-1 F2 (+ refine).
+
+   `ws0_default` is the shared blank-slate SAMPLE agent, pre-baked with an ontology + judges.
+   A freshly-created non-`default` workspace re-seeds it on the first GET /v1/agents read, so
+   its pre-baked profile would show stale Domain✓/Judges✓ progress the user never set — the
+   guard derives that agent's journey against blank state until a real evaluation is configured.
+
+   REFINE: the sample is only "leaked" while it is UNTOUCHED here. `runs` is the active
+   workspace's run list (server-scoped to the workspace out_dir — apps/bff/app.py: "switching
+   the workspace switches agents/judges/flags/audit"), so a run whose agent is `ws0_default`
+   means the sample has been genuinely graded ON THIS workspace and is a real evaluation, not a
+   leaked seed — its true journey should show. On `default` (the sample's home) it is never
+   leaked; a non-`ws0_default` agent is never the sample. */
+export function isSampleLeaked(activeWs, activeAgent, runs = []) {
+  if (activeWs === "default" || activeAgent !== "ws0_default") return false;
+  return !(runs || []).some((r) => r && r.agent === "ws0_default");
+}

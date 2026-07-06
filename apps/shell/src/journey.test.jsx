@@ -2,7 +2,7 @@
    (the static "4 / 6" literal is gone) + the save->advance flip (W3). Hermetic, no fetch. */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { deriveSteps, nextStep } from "./journey.js";
+import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
 import { LeftRail } from "./panes.jsx";
 
 const cfg = (ep) => ({ name: "eval-1", eval_profile: ep });
@@ -234,5 +234,39 @@ describe("deriveSteps — required-step numbering matches the done/total counter
     const requiredNums = d.steps.filter((s) => !s.optional).map((s) => s.num);
     expect(requiredNums).toEqual([1, 2, 3, 4, 5]); // contiguous — Review is 5 of 5, never "6 / 5"
     expect(d.total).toBe(5);
+  });
+});
+
+// SHEPHERD-1 F2-refine: the leaked-sample guard blanked `ws0_default`'s journey on ANY
+// non-`default` workspace — but once the sample has been genuinely graded on THIS workspace
+// (a run exists; runs are the active workspace's, server-scoped by out_dir) it is a real
+// evaluation, not a leaked seed, so it must show its true journey.
+describe("isSampleLeaked — a graded ws0_default is not a leaked sample", () => {
+  const RUN = { agent: "ws0_default", run_id: "r1" };
+
+  it("never leaked on the `default` workspace (the sample's home)", () => {
+    expect(isSampleLeaked("default", "ws0_default", [])).toBe(false);
+    expect(isSampleLeaked("default", "ws0_default", [RUN])).toBe(false);
+  });
+
+  it("a non-default workspace with a fresh (un-run) ws0_default IS leaked (blank journey)", () => {
+    expect(isSampleLeaked("clinverdict-guide", "ws0_default", [])).toBe(true);
+  });
+
+  it("a non-default workspace whose ws0_default has a run is NOT leaked (used here)", () => {
+    expect(isSampleLeaked("clinverdict-guide", "ws0_default", [RUN])).toBe(false);
+  });
+
+  it("only ws0_default's OWN runs release the guard (another agent's run does not) — NON-VACUOUS", () => {
+    expect(isSampleLeaked("clinverdict-guide", "ws0_default", [{ agent: "eval-1" }])).toBe(true);
+  });
+
+  it("a real (non-ws0_default) agent is never treated as the leaked sample", () => {
+    expect(isSampleLeaked("clinverdict-guide", "eval-1", [])).toBe(false);
+  });
+
+  it("tolerates a null/absent runs list", () => {
+    expect(isSampleLeaked("clinverdict-guide", "ws0_default", null)).toBe(true);
+    expect(isSampleLeaked("clinverdict-guide", "ws0_default")).toBe(true);
   });
 });

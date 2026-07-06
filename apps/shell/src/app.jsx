@@ -6,7 +6,7 @@ import { ArtifactPane } from "./artifact.jsx";
 import { ModeSwitch } from "./components/ModeSwitch.jsx";
 import { CostModal } from "./components/CostModal.jsx";
 import { CommandPalette } from "./palette.jsx";
-import { deriveSteps, nextStep } from "./journey.js";
+import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -582,12 +582,13 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // SHEPHERD-1 (W1): derive the rail's plan from the live state. Review `done` ⟺ a run
   // result is loaded/viewed (runResult non-null) — a distinct guided beat past Run.
   // EVAL-FLOW (W1a): `contracts` (the ontology verification_contracts) ticks Ground truth.
-  // F2: a freshly-created (non-default) workspace re-seeds the `ws0_default` SAMPLE on the
-  // first GET /v1/agents read, so its pre-baked profile (ontology + judges) would show stale
-  // Domain✓/Judges✓ progress the user never set. The sample's progress only reflects the user
-  // on the `default` workspace; elsewhere `ws0_default` is the leaked seed → derive the journey
-  // against the initial blank state (Domain current, 0/5) until they configure a real evaluation.
-  const sampleLeaked = activeWs !== "default" && activeAgent === "ws0_default";
+  // F2 (+ refine): a freshly-created (non-default) workspace re-seeds the `ws0_default` SAMPLE
+  // on the first GET /v1/agents read, so its pre-baked profile (ontology + judges) would show
+  // stale Domain✓/Judges✓ progress the user never set → derive against blank state. BUT once
+  // the sample has been genuinely graded on THIS workspace (a run for it — `runs` is the active
+  // workspace's, server-scoped by out_dir), it is a real evaluation, not a leaked seed, so its
+  // true journey shows. `isSampleLeaked` (journey.js) is the pure, unit-tested predicate.
+  const sampleLeaked = isSampleLeaked(activeWs, activeAgent, runs);
   const journey = deriveSteps(
     sampleLeaked ? null : agentCfg, runs, activeAgent, runResult,
     sampleLeaked ? [] : contracts,

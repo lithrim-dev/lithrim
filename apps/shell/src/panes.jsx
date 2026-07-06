@@ -248,6 +248,7 @@ const PART_LABELS = {
   "tool-agent_editor": "the agent",
   "tool-judge_editor": "the judge",
   "tool-judge_builder": "the new judge",
+  "tool-criterion_builder": "the new check",
   "tool-flag_editor": "the ontology",
   "tool-verdict_card": "the verdict",
   "tool-case_summary": "the case",
