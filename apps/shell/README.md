@@ -1,8 +1,7 @@
 # Lithrim Product Shell (`apps/shell`)
 
-The 3-pane conversational eval workspace — the shell skeleton, ported from the
-Claude Design handoff (`api.anthropic.com/v1/design/h/pIAWkwsx2ASYYEZ-7lHzjQ`) into a
-real Vite + React app, pixel-faithful to the prototype.
+The 3-pane conversational eval workspace, the shell skeleton, ported from a
+design prototype into a real Vite + React app, pixel-faithful to the prototype.
 
 ## Run
 
@@ -112,8 +111,8 @@ and the Shell host mounting the input tool-parts. 30 tests.
 | `chrome.jsx` | journey rail / top bar / status bar / phase footer + the shared `AgentMsg` |
 | `jp1.jsx … jp4.jsx` | the four acts (center conversation + right-pane artifact); jp2 verify-reveal + jp3 calibration are the hero screens |
 | `JourneyApp.jsx` | composition: phase state machine (1–4), `runVerify`/`runCalib` hero timers, ←/→ nav, resizable panes |
-- Fonts load from Google Fonts (dev). A later phase swaps to self-hosted `@fontsource`
-  for offline/desktop.
+- Fonts use the system font stack (the `--sans`/`--mono` tokens carry the
+  fallbacks); no external font CDN is fetched.
 - Stack note: the design's bespoke chrome CSS is kept verbatim for fidelity; the
   Tailwind v4 + shadcn foundation layers in over the same token source for the
   net-new components, without rewriting the chrome.

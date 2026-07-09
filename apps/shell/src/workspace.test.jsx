@@ -55,12 +55,12 @@ describe("WorkspaceSwitcher", () => {
     fireEvent.click(screen.getByTitle("Switch workspace"));
     fireEvent.click(screen.getByText("New workspace"));
     const input = screen.getByPlaceholderText("workspace name");
-    fireEvent.change(input, { target: { value: "Sharif Onboarding" } });
+    fireEvent.change(input, { target: { value: "Team Onboarding" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onCreate).not.toHaveBeenCalled();
     expect(screen.getByTestId("ws-create-error")).toBeInTheDocument();
     // editing the name clears the error
-    fireEvent.change(input, { target: { value: "Sharif_Onboarding" } });
+    fireEvent.change(input, { target: { value: "Team_Onboarding" } });
     expect(screen.queryByTestId("ws-create-error")).not.toBeInTheDocument();
   });
 
