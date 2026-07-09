@@ -16,6 +16,7 @@ adds the heavy bindings (``Judge``/``dspy.LM``) above this module, never below i
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from ...harness.pack import pack_prompts_path

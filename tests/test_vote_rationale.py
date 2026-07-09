@@ -16,9 +16,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+pytest.importorskip("openai")  # `stages` -> compliance_council imports openai at module load
 
 from lithrim_bench.runtime.council.authored_stage import _fold_rationale  # noqa: E402
 from lithrim_bench.runtime.council.sampling import JudgeResult  # noqa: E402

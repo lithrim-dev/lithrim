@@ -37,6 +37,7 @@ make demo          # replays a built-in case: council votes → floor flip PASS�
 **Run it live on your own case (BYOK):**
 
 ```bash
+pip install -e ".[bff,council,verification]"   # the extras the local BFF stack needs
 export LITHRIM_LLM_PROVIDER=openai
 export OPENAI_API_KEY=sk-...
 make up          # local BFF + UI; grade your own artifact, nothing leaves the box
@@ -172,7 +173,7 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 
 ## Contributing
 
-Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactured wins** — a benchmark result must be reproducible, a label must be justified by construction, and a claim must say where it *doesn't* hold. Lint is `ruff` (`make lint`). Run the full suite with the optional extras installed: `pip install -e ".[dev,council,bff,verification]"` then `make test`.
+Issues and PRs welcome. The one rule that mirrors the philosophy: **no manufactured wins** — a benchmark result must be reproducible, a label must be justified by construction, and a claim must say where it *doesn't* hold. Lint is `ruff` (`make lint`). Run the full suite with the optional extras installed: `pip install -e ".[dev,council,verification,bff,agent]"` then `make test`.
 
 ## License
 

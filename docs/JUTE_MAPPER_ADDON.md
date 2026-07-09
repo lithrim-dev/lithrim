@@ -28,7 +28,10 @@ If you never use the "paste arbitrary JSON" ingest, you can run **core-only**:
 
 `docker compose up` starts the `jute` service automatically:
 
-- **image** — `ghcr.io/etlp-clj/etlp-mapper:feat-sqlite-backend` (public; override with `JUTE_IMAGE`)
+- **image** — `ghcr.io/etlp-clj/etlp-mapper@sha256:bc2242…` (public; **digest-pinned** to an
+  immutable build of the `feat-sqlite-backend` branch tag, resolved 2026-07-09, so `docker compose
+  up` stays reproducible even if the tag moves; override with `JUTE_IMAGE` — e.g. the moving
+  branch tag, or your own build)
 - **boots standalone** — `OIDC_ENABLED=false`, embedded SQLite (`JDBC_URL=jdbc:sqlite:/data/...`),
   no Postgres; serves the JUTE endpoints on container port **`3000`**
 - **the BFF reaches it** at **`http://jute:3000`** (the default `LITHRIM_JUTE_URL`), over the

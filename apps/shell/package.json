@@ -2,7 +2,11 @@
   "name": "lithrim-shell",
   "private": true,
   "version": "0.0.0",
+  "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Lithrim product shell — 3-pane conversational eval workspace (ported from the Claude Design handoff).",
   "scripts": {
     "dev": "vite",

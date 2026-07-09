@@ -21,6 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+pytest.importorskip("openai")  # `stages` -> compliance_council imports openai at module load
+
 from lithrim_bench.runtime.pipeline.stages import _judge_votes_from_models  # noqa: E402
 
 _SEAM = [

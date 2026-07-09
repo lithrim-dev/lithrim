@@ -73,7 +73,7 @@ start_bff() {
   if bff_healthy; then ok "BFF already healthy on :$BFF_PORT"; return 0; fi
   if [ -z "$UVICORN_BIN" ] || [ ! -x "$UVICORN_BIN" ]; then
     err "uvicorn not found (checked \$LITHRIM_UVICORN, pyenv '$PYENV_VER', and PATH)"
-    err "  → pip install -e '.[bff]' in your active env, or set LITHRIM_UVICORN=/path/to/uvicorn"; return 1
+    err "  → pip install -e '.[bff,council,verification]' in your active env, or set LITHRIM_UVICORN=/path/to/uvicorn"; return 1
   fi
   [ -f "$REPO_ROOT/.env" ] || info "no $REPO_ROOT/.env — provider keys live there or in the UI's Connect AI; live grades need one (replay still works)"
   if [ -n "$PACKS_DIR" ]; then info "pack discovery: LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR"

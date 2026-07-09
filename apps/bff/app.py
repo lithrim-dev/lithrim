@@ -53,6 +53,7 @@ Run:  uvicorn app:app --app-dir apps/bff --port 8787   (needs the [bff] extra)
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -130,9 +131,6 @@ from lithrim_bench.runtime.council.judge_assignment import (  # noqa: E402  (cou
     render_role_questions,
 )
 from lithrim_bench.runtime.council.judge_metric import LENS_BY_ROLE  # noqa: E402  (pure; no openai)
-from lithrim_bench.runtime.council.judge_optimize import (  # noqa: E402  (import-safe: no dspy/openai at import; lazily pulled inside run_optimize)
-    run_optimize,
-)
 from lithrim_bench.verification.spec import (  # noqa: E402  (pure constants: no [verification] heavy deps)
     TOOL_DOSAGE_GROUNDING,
     TOOL_IN_ROW,
@@ -1129,10 +1127,9 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_i
     via ``LITHRIM_LLM_PROVIDER_<ROLE>`` — exactly like a grade. Else ``build_judge_lm`` falls back to
     the role's DEFAULT deployment, which may be un-deployed / n-less / logprob-less (faithfulness
     defaults to Llama, policy to Mistral). Idempotent; mirrors the startup hydration."""
-    try:
+    # a binding-store hiccup must never block the run (startup already set keys)
+    with contextlib.suppress(Exception):
         _hydrate_role_bindings_into_env()
-    except Exception:  # a binding-store hiccup must never block the run (startup already set keys)
-        pass
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir

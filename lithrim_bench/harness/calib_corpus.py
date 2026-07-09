@@ -17,8 +17,9 @@ scores against) — plus the ``split`` tag (``calibration`` = trainset, ``test``
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 def build_calib_rows(
