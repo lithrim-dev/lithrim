@@ -1,4 +1,12 @@
-# Lithrim
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/shell/public/light-color-transparent-bg.png">
+  <img src="apps/shell/public/dark-color-transparent-bg.png" alt="Lithrim" width="360">
+</picture>
+
+[![CI](https://github.com/lithrim-dev/lithrim/actions/workflows/ci.yml/badge.svg)](https://github.com/lithrim-dev/lithrim/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21270268.svg)](https://doi.org/10.5281/zenodo.21270268)
 
 **A self-hostable evaluation harness for AI agents — with a tool-grounded verification *floor* that can override a confident LLM judge, and an immutable audit trail on every run.**
 
@@ -27,7 +35,7 @@ Two ways in: **`make demo`** proves the loop in ~10s with no key or network; **`
 **Zero-config demo — no keys, no network, runs in seconds.** See the full loop on a built-in case:
 
 ```bash
-git clone <repo> && cd lithrim-bench
+git clone https://github.com/lithrim-dev/lithrim && cd lithrim
 pip install -e .   # core deps only (pydantic, pandas) — no LLM SDK needed for the demo
 make demo          # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
 ```
@@ -48,10 +56,15 @@ You provide the key; Lithrim provides the harness. No accounts, no hosted infere
 **Run it in containers — `docker compose up`.** No local Python/Node toolchain needed; a stranger gets the whole stack in two commands:
 
 ```bash
-docker compose up   # builds + starts BFF (:8787) and UI (:5180)
+docker compose up   # builds + starts BFF (:8787), UI (:5180), and the JUTE mapper (:3031)
 ```
 
+That's three services: the **BFF** (the API, `:8787`), the **UI** (`:5180`), and the bundled **JUTE mapper** (`:3031`, used only for ingesting arbitrary JSON; see [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md)). If you never paste arbitrary JSON, `docker compose up bff ui` runs core-only and skips the mapper.
+
 Then open **http://localhost:5180**, connect your own LLM key from the UI (or pass it as env — see below), and grade a case. The BFF auto-seeds the neutral `_core` sample on first boot, so the loop works immediately.
+
+<!-- screenshot: docs/assets/ui-grade-loop.png: capture the :5180 grade loop when the stack is up and embed here -->
+
 
 - **BYOK via env** — set keys in your shell or a repo-root `.env` (compose auto-loads `.env`); the `bff` service passes through `OPENAI_API_KEY`, the `AZURE_OPENAI_*` vars, `LITHRIM_LLM_PROVIDER`, `LITHRIM_BFF_TOKEN`, and `LITHRIM_BENCH_PACKS_DIR`. None are required for the offline demo.
 - **Chat (conversational assistant)** — the local `claude` CLI can't run in a container, so in Docker assign the assistant a model in **Connect AI** (⋯ menu, bottom left → Assign models → `chat_assistant`) from **OpenAI, Azure, Gemini, or an OpenAI-compatible endpoint** (env alternative: `LITHRIM_CHAT_PROVIDER=openai` + `LITHRIM_CHAT_API_KEY`/`LITHRIM_CHAT_MODEL`). The Anthropic/BYO-Claude path needs the host CLI and is host-run only. **Grading and the offline demo do not need chat.**
@@ -168,6 +181,35 @@ The engine, the harness, the neutral `_core` pack, the sample packs, and the plu
 ## Research
 
 Lithrim backs the technical report *A grounded evaluation architecture for clinical scribes: a configuration-controlled study of LLM judges and a deterministic grounding floor*, the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. Report + data: DOI [10.5281/zenodo.21270268](https://doi.org/10.5281/zenodo.21270268) (concept DOI [10.5281/zenodo.21270267](https://doi.org/10.5281/zenodo.21270267), resolves to the latest version); preregistration: OSF [10.17605/OSF.IO/2ZU4H](https://doi.org/10.17605/OSF.IO/2ZU4H). To reproduce the study from this repo, see [`REPRODUCING.md`](REPRODUCING.md). The engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+
+---
+
+## Docs
+
+| Doc | What it covers |
+|---|---|
+| [`SETUP.md`](SETUP.md) | The hands-on path: Docker stack, connect a key, first grade (~15 min). |
+| [`docs/CAPABILITY_CARD.md`](docs/CAPABILITY_CARD.md) | What the deterministic floor verifies, what it does not, and how it abstains. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The components (engine, packs, council, floor, BFF, UI, mapper) and how they connect. |
+| [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
+| [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
+
+The full index of tracked docs is [`docs/README.md`](docs/README.md).
+
+---
+
+## FAQ
+
+**Is it local-first?** Yes. Self-hosted, no accounts, no Lithrim-hosted inference, no telemetry. The only outbound traffic is the calls your own model key makes to your own provider.
+
+**What does it cost to run?** The harness is free (Apache-2.0). `make demo` is $0 (no key, no network). A live grade spends your own provider key (BYOK), one council run is one set of model calls, and the UI shows a cost-confirm before any paid run.
+
+**Is it clinically validated?** No. Lithrim is a developer evaluation harness, not a medical device, not clinical decision support, not HIPAA-certified, not FDA-cleared. All bundled sample data is synthetic. See the intended-use note above.
+
+**What's the research behind it?** A configuration-controlled study of LLM judges over a deterministic grounding floor: DOI [10.5281/zenodo.21270268](https://doi.org/10.5281/zenodo.21270268). [`REPRODUCING.md`](REPRODUCING.md) re-runs it from this repo.
+
+**Do I need the clinical pack?** No. The core is domain-agnostic and grades standalone on the neutral `_core` pack. Domains are pluggable packs; a small synthetic clinical sample ships for the demo.
 
 ---
 

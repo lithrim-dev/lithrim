@@ -85,6 +85,12 @@ pg = [
     "yoyo-migrations>=8.2",
 ]
 
+[project.urls]
+Homepage = "https://github.com/lithrim-dev/lithrim"
+Repository = "https://github.com/lithrim-dev/lithrim"
+Issues = "https://github.com/lithrim-dev/lithrim/issues"
+Research = "https://doi.org/10.5281/zenodo.21270268"
+
 [project.scripts]
 # DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).
 lithrim-pack = "lithrim_bench.harness.pack_gate:main"

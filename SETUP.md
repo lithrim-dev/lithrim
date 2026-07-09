@@ -24,7 +24,7 @@ deps only), then `make demo` — it replays a built-in case and runs the live fl
 ## 1. Start the stack
 
 ```bash
-git clone <repo> && cd lithrim-bench
+git clone https://github.com/lithrim-dev/lithrim && cd lithrim
 docker compose up        # first run builds the images
 ```
 

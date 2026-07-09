@@ -1,76 +1,134 @@
 # Architecture
 
-## Engine spine
+What ships in this repo, and how the pieces connect. For what each layer can
+honestly claim, see [`CAPABILITY_CARD.md`](CAPABILITY_CARD.md); for the hands-on
+setup path, see [`../SETUP.md`](../SETUP.md).
+
+## The grade path
+
+One evaluation run, end to end:
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│                       Synthea CSV cohort (pinned)                     │
-└────────────────────────────────┬──────────────────────────────────────┘
-                                 │
-                       lithrim_bench.synthea_loader
-                                 │
-                         ┌───────▼───────┐
-                         │ EncounterSpec │   ← single source of truth
-                         └───────┬───────┘
-                                 │
-        ┌────────────────────────┼────────────────────────────┐
-        │                        │                            │
-synthesizers.transcript   synthesizers.scribe_artifact   (synth.hl7  P3)
-        │                        │                            │
-        └───────────┬────────────┴────────────────┬───────────┘
-                    │                             │
-                    ▼                             ▼
-            transcript: str            artifact: dict[str, Any]
-                    │                             │
-                    └──────────────┬──────────────┘
-                                   │
-                       ┌───────────▼───────────┐
-                       │ injectors.<DefectName>│   ← typed, modality-aware
-                       └───────────┬───────────┘
-                                   │
-                                   ▼
-                       (transcript, artifact, recipe)
-                                   │
-                          lithrim_bench.packager
-                                   │
-                                   ▼
-                       JSONL row (eval spec §1.1)
-                                   │
-                                   ▼
-                       lint_golden_against_taxonomy
-                       build_label_owner_matrix
+                 case (case_id · response · context)
+                                │
+                                ▼
+              ┌───────────────────────────────────┐
+              │  judge council                    │  lithrim_bench/runtime/council/
+              │  multi-model LLM judges, per-role │
+              │  lenses, evidence-based consensus,│
+              │  logprob-calibrated confidence    │
+              └───────────────┬───────────────────┘
+                              │  findings + calibrated confidence
+                              ▼
+              ┌───────────────────────────────────┐
+              │  grounding floor (deterministic)  │  lithrim_bench/harness/grounding.py
+              │  contract_type → executor, checked│
+              │  against a pinned reference       │
+              │  (record / schema / terminology)  │
+              └───────────────┬───────────────────┘
+              ┌───────────────┼───────────────────┐
+              ▼               ▼                   ▼
+     suppress a wrong   block a missed      inconclusive →
+     finding            defect              surfaced, never flipped
+                              │
+                              ▼
+              ┌───────────────────────────────────┐
+              │  verdict + immutable audit record │  lithrim_bench/harness/audit.py,
+              │  (votes, floor decision, evidence,│  persist.py
+              │  provenance), replayable at $0   │
+              └───────────────────────────────────┘
 ```
+
+The floor is three-state by design: grounded-true, grounded-false, or
+inconclusive. An unconfigured or unreachable grounding tool resolves to
+inconclusive, the run still grades, it just says what it could not verify.
+
+## The services
+
+`docker compose up` starts three services; the first two are the core stack:
+
+```
+ browser ──▶  UI (React shell, :5180)          apps/shell/
+                │  /v1 …
+                ▼
+              BFF (FastAPI, :8787)             apps/bff/
+                │  imports lithrim_bench.harness (in-process grade,
+                │  config plane, run trail)
+                │
+                ├──▶ your model provider (BYOK: OpenAI / Azure /
+                │    Anthropic / Gemini / OpenAI-compatible)
+                │
+                └──▶ JUTE mapper (:3031, optional)   external service, bundled
+                     ingest of arbitrary agent-trace JSON
+```
+
+- **BFF** (`apps/bff/`), the backend-for-frontend the UI talks to. It fronts the
+  harness: agents (the things under evaluation), ontologies, judges, cases, runs,
+  packs, provider config, and the conversational assistant loop.
+- **UI** (`apps/shell/`), the conversational evaluation workspace. The center
+  conversation is the primary surface; verdicts, votes, and calibration render as
+  inline cards over real BFF data.
+- **JUTE mapper** (`:3031`), a separate service (bundled in compose) used only
+  to ingest arbitrary/nested JSON: the harness generates a JUTE transform that
+  maps your shape into eval cases, previews it, and pins it on approval. Never
+  needed for grading authored cases or the offline demo; see
+  [`JUTE_MAPPER_ADDON.md`](JUTE_MAPPER_ADDON.md). JUTE (a JSON-to-JSON transform
+  DSL) is the only server-executed transform language, models never emit
+  server-executed Python/JS.
 
 ## Module responsibilities
 
-| Module | Responsibility | Stability |
-|---|---|---|
-| `encounter_spec` | Canonical Pydantic schema for a clinical encounter. Read by every synthesizer and injector. | Stable; widening is additive. |
-| `synthea_loader` | Build EncounterSpec from Synthea CSV. Deterministic ordering. | Stable. Phase 2 will add observation/condition density. |
-| `taxonomy` | Read-only handle over `taxonomy_snapshot.json`. Single coupling point to `lithrim-backend`. | Stable; never hand-edit the JSON. |
-| `synthesizers.transcript` | Deterministic template-based transcript synth. v1 = no LLM. | v1; LLM-backed alternative in Phase 2. |
-| `synthesizers.scribe_artifact` | FHIR DocumentReference + embedded SOAP body. | v1 scribe shape. New synthesizers per agent type in Phase 2. |
-| `injectors.base` | `DefectInjector` ABC, `InjectionRecipe` dataclass. | Stable; new defect types subclass this. |
-| `injectors.wrong_dosage` | v1 reference injector. WRONG_DOSAGE → SOAP PLAN section. | v1 reference. Pattern (locate-anchor / substitute / verify) replicates for every text-projection injector. |
-| `packager` | Build a JSONL row that conforms to eval spec §1.1. Enforces defect D1/D3 in-process. | Stable; widening row fields is additive. |
-| `scripts/snapshot_taxonomy` | Refresh `taxonomy_snapshot.json` from a `lithrim-backend` checkout. | Stable. |
-| `scripts/lint_golden_against_taxonomy` | Closes D1. Run in CI. | Stable. |
-| `scripts/build_label_owner_matrix` | Closes D3. Run in CI. | Stable. |
-| `scripts/generate_proof_case` | v1 smoke: one clean + one injected case end-to-end. | Will be subsumed by `scripts/generate_pack.py` in Phase 2. |
+| Module | Responsibility |
+|---|---|
+| `lithrim_bench/harness/` | The config plane and grade engine: agents/ontologies/judges in a local SQLite config DB, in-process grading (`grade.py`), the grounding floor (`grounding.py`), pack resolution (`pack.py`), the plugin registry (`plugins.py`), audit + persistence (`audit.py`, `persist.py`), replay (`replay.py`). |
+| `lithrim_bench/runtime/council/` | The judge council: role prompts, multi-model dispatch, evidence-based consensus, calibrated-confidence extraction. The consensus mechanism is frozen against a pinned baseline (guard tests keep it byte-stable). |
+| `lithrim_bench/verification/` | The JUTE plane: generating, gating, and pinning JSON-transform templates for ingestion and extraction floors; MCP client for tool-grounded checks. |
+| `lithrim_bench/` (top level) | Case generation and admissibility: encounter schema, Synthea CSV/FHIR loaders, defect injectors, the packager that enforces by-construction labels, taxonomy handling. |
+| `packs/` | Shipped packs: the neutral `_core` default, the synthetic `clinical_scribe` sample, the non-clinical `support_ticket_qa` fixture. |
+| `apps/bff/` | FastAPI backend-for-frontend (`:8787`) + the conversational agent loop. |
+| `apps/shell/` | React/Vite UI (`:5180`): conversation, gen-UI cards, artifact pane. |
+| `scripts/` | Operational entry points: the offline demo, taxonomy snapshot, lint gates. |
+| `repro/` | The published study's reproduction surface (see [`../REPRODUCING.md`](../REPRODUCING.md)). |
 
-## Why no LLM in v1
+## Packs: the domain is a plugin
 
-The synthesizers are deliberately template-based. Three reasons:
+The core is domain-agnostic. A **pack** supplies a domain: ontology, taxonomy
+snapshot, judge roster + per-role lenses, prompts, grounding floors, and optional
+seed agents. Resolution order (`lithrim_bench/harness/pack.py`):
 
-1. **Reproducibility for the paper.** A reviewer running `python scripts/generate_proof_case.py` should get byte-identical output to ours. No API keys, no `temperature`, no per-vendor drift.
-2. **CI cost.** Lint and matrix scripts run on every change; LLM calls in the pipeline make CI slow and expensive.
-3. **Honesty.** The transcripts are obviously synthetic at v1. That's correct: we're testing the *verifier*, not benchmarking transcript naturalness. Naturalness can come from an LLM-backed synthesizer in Phase 2, behind the same `synthesize_*` interface, opt-in.
+1. an installed entry point in the `lithrim_bench.packs` group (the pip path);
+2. `LITHRIM_BENCH_PACKS_DIR`, external directories (the drop-in / air-gap path),
+   pinned active with `LITHRIM_BENCH_PACK`;
+3. the in-repo `packs/`.
 
-## Phase progression
+With no pack configured, the core stays on the neutral `_core` default and grades
+fine. An undiscoverable pack fails closed, never a silent fallback. The pack
+carries *which* judges run; the per-role deployment binding (provider, model id)
+stays in core, so a pack never carries infra or secrets.
 
-| Phase | New modules | Output |
-|---|---|---|
-| **1** (now) | `wrong_dosage`, more injectors (`missing_allergy`, `fabricated_history`, `value_mismatch`, `phi_pre_verification`, `hallucinated_detail`, `upcoding_risk`, `missed_escalation`) | ~400 scribe + scheduling cases |
-| **2** | `synthesizers.coding_artifact`, `synthesizers.triage_artifact`, `synthesizers.intake_artifact`, `synthesizers.scheduling_artifact`; LLM-backed transcript synth (opt-in) | ~1000 cases across 5 agents |
-| **3** | `hl7_emitter` (simhospital pathway YAML adapter), `hl7_mutator` (post-emit defect injection on HL7 text), structural-projection injectors | ~1500 cases, multi-modal |
-| **4** | `lithrim_bench_api/` (FastAPI), org scoping, scoring endpoint, dashboard | Bench-as-a-product |
+## Plugins and tools
+
+`lithrim_bench/harness/plugins.py` is one registry for packs, grounding
+contracts, judge providers, and tools. Adding one is manifest-only, zero engine
+edits (pinned by an open/closed test). Tools are `kind: tool` declarations; MCP
+is the tool-transport standard (`transport: service` for external MCP/HTTP
+services, `in_process` for SDK tools). Secrets ride environment variables, never
+a manifest. The contract details are in
+[`specs/SPEC_TOOL_CONNECTORS.md`](specs/SPEC_TOOL_CONNECTORS.md).
+
+## The run trail
+
+Every grade produces an append-only audit record: which cases, which judges on
+which models, every vote with its confidence, the floor's decision and evidence,
+and the active config. Records are replayable, `make demo` replays a captured
+council baseline through the live floor at $0, and the immutable record is what
+makes a verdict auditable after the fact.
+
+## By-construction labels
+
+Where this repo ships labeled benchmark cases, the label is generated, not
+annotated: a case is admissible only if its injection recipe (defect type,
+mutated field/span, pre/post values) fully justifies the expected flags, every
+flag code exists in the active pack's taxonomy snapshot, and every flag has an
+owner in the running judge roster. Clean negatives are first-class. The spec is
+[`EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
