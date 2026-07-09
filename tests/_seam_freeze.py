@@ -88,17 +88,49 @@ _CLINICAL_ONTOLOGY_REL = "packs/healthcare/ontology.json"
 # guards (ontology / role prompts) SKIP (the healthcare pack is not part of the public cut).
 
 
-def _resolve_baseline(repo: Path, rel: str) -> str | None:
+def _resolve_baseline(repo: Path, rel: str, *, baseline: str = _SEAM_BASELINE) -> str | None:
     """``git show`` the frozen baseline for ``rel``; ``None`` when it is unresolvable
-    (public fresh-cut / shallow clone — the baseline commit or path is absent)."""
+    (public fresh-cut / shallow clone — the baseline commit or path is absent).
+    REL-5c (S-REL-19): ``baseline`` defaults to the ``acc4973`` moat pin but may name the
+    PLUGIN-1 parent (``_PLUGIN1_PARENT``) — the ONE resolution seam serves BOTH baselines."""
     proc = subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{rel}"],
+        ["git", "show", f"{baseline}:{rel}"],
         cwd=repo,
         capture_output=True,
         text=True,
         check=False,
     )
     return proc.stdout if proc.returncode == 0 else None
+
+
+# REL-5c (S-REL-19): the withstands-gate moat pin. ``signals.py`` / ``withstands.py``
+# post-date ``acc4973`` (they did not exist there), so their honest baseline is the PLUGIN-1
+# parent (D-2, test_plugin_phase1.py). Baseline resolvable → whole-file byte-identity vs the
+# parent (WORKING TREE vs blob — strictly stronger than the old committed-HEAD-only diff);
+# unresolvable → the whole-FILE sha256 pins below (provenance-chained by
+# tests/test_seam_guard_public_mode.py: pins == parent-derived while the history exists).
+_PLUGIN1_PARENT = "6234164"
+_FROZEN_FILE_SHA256 = {
+    "lithrim_bench/runtime/council/signals.py": (
+        "78c458fca34d9fff2d089612163ddae4542d86aa9246ccbfd224b44d3955a94e"
+    ),
+    "lithrim_bench/runtime/council/withstands.py": (
+        "facc261244e7b0b5e598cc366a8cc34e6b8e285187964fafc2099f0a65dd574f"
+    ),
+}
+
+
+def assert_withstands_gate_file_frozen(repo: Path, rel: str) -> None:
+    """``rel`` (a withstands-gate file) is byte-identical to the PLUGIN-1 parent. Public
+    mode falls back to the whole-file sha256 pin — same strength per file as the byte-diff."""
+    cur = (repo / rel).read_text()
+    base = _resolve_baseline(repo, rel, baseline=_PLUGIN1_PARENT)
+    if base is None:
+        assert hashlib.sha256(cur.encode("utf-8")).hexdigest() == _FROZEN_FILE_SHA256[rel], (
+            f"public-mode hash pin: withstands-gate file drifted vs the PLUGIN-1 parent: {rel}"
+        )
+        return
+    assert cur == base, f"{rel} changed vs the PLUGIN-1 parent (the moat must stay untouched)"
 
 
 _FROZEN_SECTION_SHA256 = {

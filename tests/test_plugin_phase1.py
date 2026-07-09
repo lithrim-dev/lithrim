@@ -54,8 +54,8 @@ _SEAM_BASELINE = (
 )
 # D-2: signals.py / withstands.py are NET-NEW after acc4973 (landed 8cb388b / d9a5bb0), so
 # "byte-identical vs acc4973" is ill-defined for them. The honest moat pin for THIS cycle is
-# 0-diff vs the PLUGIN-1 parent (the commit before D1).
-_PLUGIN1_PARENT = "6234164"
+# byte-identity vs the PLUGIN-1 parent (the commit before D1) — the baseline constant
+# (``_PLUGIN1_PARENT``) and the dual-mode attestation live in tests/_seam_freeze.py (S-REL-19).
 _FIXTURE_PACK = "_plugin_fixture"
 
 
@@ -458,14 +458,11 @@ def test_a5_moat_apply_consensus_byte_identical_vs_acc4973():
 )
 def test_a5_withstands_gate_unchanged_vs_parent(rel: str):
     """A5 (D-2 honest pin): the withstands-gate files post-date ``acc4973`` (they did not exist
-    there), so the meaningful moat pin for THIS cycle is 0-diff vs the PLUGIN-1 parent."""
-    diff = subprocess.run(
-        ["git", "diff", f"{_PLUGIN1_PARENT}", "HEAD", "--", rel],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert diff == "", (
-        f"{rel} changed vs the PLUGIN-1 parent (the moat must stay untouched):\n{diff}"
-    )
+    there), so the meaningful moat pin for THIS cycle is byte-identity vs the PLUGIN-1 parent.
+    S-REL-19: routed through the dual-mode seam — private history → byte-diff of the WORKING
+    TREE vs the parent blob (strictly stronger than the old committed-HEAD-only diff); public
+    clone → the whole-file sha256 pins (``_FROZEN_FILE_SHA256``), so the attestation stays
+    live without the private history."""
+    import tests._seam_freeze as sf
+
+    sf.assert_withstands_gate_file_frozen(REPO_ROOT, rel)

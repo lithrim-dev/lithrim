@@ -309,36 +309,105 @@ def test_public_mode_plugin_phase1_a5_passes_via_hash_pin(monkeypatch):
     site.test_a5_moat_apply_consensus_byte_identical_vs_acc4973()
 
 
-# ── S-REL-18 sweep: no test file outside the seam module git-shows the baseline ─
+# ── S-REL-18/20 sweep: no tracked *.py outside the seam module git-reads a baseline ─
 
 # The list-form subprocess invocation (how every site did it — the baseline ref rides in a
-# separate f-string arg, so it must be caught pack-wide via the file-level conjunction below).
-_GIT_SHOW_LIST_FORM = re.compile(r"""["']git["']\s*,\s*["']show["']""")
+# separate f-string arg, so it must be caught repo-wide via the file-level conjunction below).
+_GIT_BASELINE_LIST_FORM = re.compile(r"""["']git["']\s*,\s*["'](?:show|diff)["']""")
 # The inline shell form, baseline-adjacent (defense in depth for a shell=True variant).
-_GIT_SHOW_BASELINE_INLINE = re.compile(r"git\s+show\s+\S*acc4973")
-_BASELINE_REF = re.compile(r"acc4973|_SEAM_BASELINE")
+_GIT_BASELINE_INLINE = re.compile(r"git\s+(?:show|diff)\s+\S*(?:acc4973|6234164)")
+_BASELINE_REF = re.compile(r"acc4973|_SEAM_BASELINE|6234164|_PLUGIN1_PARENT")
+# The ONE module allowed to read baseline commits out of git — proven load-bearing below.
+_SWEEP_ALLOWED = frozenset({"tests/_seam_freeze.py"})
 
 
-def test_no_test_file_outside_the_seam_module_git_shows_the_baseline():
-    """S-REL-18 regression sweep: ``tests/_seam_freeze.py::_resolve_baseline`` is the ONE
-    place allowed to ``git show`` the seam baseline. A tracked test file that both invokes
-    the list-form git-show AND references the baseline (or inlines the two) fails here, so
-    a raw-``git show``-on-acc4973 site can never come back."""
+def _git_reads_a_baseline(text: str) -> bool:
+    if _GIT_BASELINE_LIST_FORM.search(text) and _BASELINE_REF.search(text):
+        return True
+    return bool(_GIT_BASELINE_INLINE.search(text))
+
+
+def test_no_tracked_py_outside_the_seam_module_git_reads_a_baseline():
+    """S-REL-18 + S-REL-20 regression sweep: ``tests/_seam_freeze.py::_resolve_baseline`` is
+    the ONE place allowed to read the seam-baseline commits (``acc4973`` AND the PLUGIN-1
+    parent ``6234164``) out of git. EVERY tracked ``*.py`` is swept (tests/, scripts/,
+    repro/, apps/, lithrim_bench/): a file that both invokes a list-form git show/diff AND
+    references a baseline (or inlines the two on one line) fails here, so a raw-subprocess
+    baseline read can never come back anywhere in the tree."""
     tracked = subprocess.run(
         ["git", "ls-files", "*.py"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
     ).stdout.splitlines()
-    offenders = []
-    for rel in tracked:
-        if rel == "tests/_seam_freeze.py":
-            continue
-        p = Path(rel)
-        if not (p.name.startswith("test_") or p.name == "conftest.py" or "tests" in p.parts):
-            continue
-        text = (REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace")
-        list_form_on_baseline = _GIT_SHOW_LIST_FORM.search(text) and _BASELINE_REF.search(text)
-        if list_form_on_baseline or _GIT_SHOW_BASELINE_INLINE.search(text):
-            offenders.append(rel)
+    offenders = [
+        rel
+        for rel in tracked
+        if rel not in _SWEEP_ALLOWED
+        and _git_reads_a_baseline((REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace"))
+    ]
     assert offenders == [], (
-        "S-REL-18: test file(s) git-show the seam baseline directly (route through "
-        f"tests/_seam_freeze.py::_resolve_baseline instead): {offenders}"
+        "S-REL-18/20: tracked *.py file(s) read a seam baseline out of git directly (route "
+        f"through tests/_seam_freeze.py::_resolve_baseline instead): {offenders}"
     )
+
+
+def test_sweep_whitelist_is_non_vacuous():
+    """The ``_SWEEP_ALLOWED`` exclusion is load-bearing: the whitelisted seam module ITSELF
+    matches the offender predicate (it is where the sanctioned git-show lives), so removing
+    the exclusion would turn the sweep RED — the whitelist is not dead weight."""
+    for rel in sorted(_SWEEP_ALLOWED):
+        assert _git_reads_a_baseline((REPO_ROOT / rel).read_text()), (
+            f"whitelisted file no longer matches the offender predicate (drop it): {rel}"
+        )
+
+
+# ── S-REL-19 (REL-5c): the withstands-gate parent attestation is dual-mode too ─
+# test_plugin_phase1.py's withstands pin ran a raw list-form git-diff subprocess against the
+# PLUGIN-1 parent (a SECOND baseline commit, ``_PLUGIN1_PARENT``) with ``check=True`` — the
+# same public-clone ERROR class as S-REL-18 with a different verb + baseline. The attestation
+# is whole-FILE 0-diff, so public mode pins the whole files: ``_FROZEN_FILE_SHA256``.
+
+
+def test_pinned_file_hashes_equal_plugin1_parent_derived():
+    """REL-5c provenance chain: every ``_FROZEN_FILE_SHA256`` pin equals the sha256 of the
+    PLUGIN-1 parent blob for that path (asserted where the private history IS resolvable),
+    and the pin set covers exactly the two withstands-gate files. Skips on a public clone."""
+    assert set(sf._FROZEN_FILE_SHA256) == {
+        "lithrim_bench/runtime/council/signals.py",
+        "lithrim_bench/runtime/council/withstands.py",
+    }
+    derived = {}
+    for rel in sf._FROZEN_FILE_SHA256:
+        base = sf._resolve_baseline(REPO_ROOT, rel, baseline=sf._PLUGIN1_PARENT)
+        if base is None:
+            pytest.skip(
+                "PLUGIN-1 parent unresolvable (public clone) — provenance attested in the "
+                "private tree"
+            )
+        derived[rel] = _sha(base)
+    assert derived == sf._FROZEN_FILE_SHA256, (
+        "file pins must be EXACTLY the PLUGIN-1-parent-derived hashes (provenance chain)"
+    )
+
+
+def test_public_mode_plugin_phase1_withstands_parent_passes_via_file_pin(monkeypatch):
+    """Site 8 (S-REL-19, test_plugin_phase1.py): the withstands-gate parent attestation
+    passes via the whole-file sha256 pins in public mode, zero git."""
+    import tests.test_plugin_phase1 as site
+
+    _force_public_mode(monkeypatch, site)
+    for rel in (
+        "lithrim_bench/runtime/council/signals.py",
+        "lithrim_bench/runtime/council/withstands.py",
+    ):
+        site.test_a5_withstands_gate_unchanged_vs_parent(rel)
+
+
+def test_public_mode_withstands_file_pin_trips_on_tampered_file(tmp_path, monkeypatch):
+    """NON-VACUITY: tampering a withstands-gate file trips the whole-file pin in public
+    mode (the pin is a real tripwire, not decoration)."""
+    monkeypatch.setattr(sf, "_resolve_baseline", lambda *a, **k: None)
+    repo = _tmp_council_repo(tmp_path)
+    rel = "lithrim_bench/runtime/council/signals.py"
+    cur = (REPO_ROOT / rel).read_text()
+    (repo / rel).write_text(cur + "\n# TAMPERED-FROZEN-EDIT\n")
+    with pytest.raises(AssertionError, match="public-mode hash pin"):
+        sf.assert_withstands_gate_file_frozen(repo, rel)
