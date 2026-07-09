@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import copy
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -30,7 +29,6 @@ from tests._seam_freeze import (
     _CLINICAL_ONTOLOGY_BASELINE_REL,
     _COMPLIANCE_COUNCIL_REL,
     _JUDGES_DSPY_REL,
-    _SEAM_BASELINE,
     _assert_clinical_ontology_frozen,
     _assert_judges_dspy_seam_frozen,
     assert_council_carveouts_only,
@@ -39,14 +37,16 @@ from tests._seam_freeze import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _git_show(rel: str) -> str:
-    return subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{rel}"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+def _baseline_or_skip(rel: str) -> str:
+    """The acc4973 baseline text for ``rel`` via the ONE resolution seam (S-REL-18) —
+    public-mode SKIP when the baseline commit is unavailable (fresh-cut public history).
+    Every guard family here tampers REAL baseline text, so none is pin-expressible."""
+    import tests._seam_freeze as sf
+
+    base = sf._resolve_baseline(REPO_ROOT, rel)
+    if base is None:
+        pytest.skip("public-mode: baseline commit unavailable; attested in the private history")
+    return base
 
 
 # ── council carve-out guard (assert_council_carveouts_only) ──────────────────
@@ -62,7 +62,7 @@ _RAISE_6BCLEAN = (
 
 
 def _council_base_lines() -> list[str]:
-    return _git_show(_COMPLIANCE_COUNCIL_REL).splitlines(keepends=True)
+    return _baseline_or_skip(_COMPLIANCE_COUNCIL_REL).splitlines(keepends=True)
 
 
 def _council_cur_text() -> str:
@@ -175,7 +175,7 @@ def test_source_message_raise_without_6c_marker_fails():
 def test_signature_genericization_is_authorized():
     """A5: changing ``_build_signature``'s clinical prose is admitted (it is in the
     authorized seam) — the D3 genericization passes."""
-    base = _git_show(_JUDGES_DSPY_REL)
+    base = _baseline_or_skip(_JUDGES_DSPY_REL)
     needle = "HIPAA / clinical-safety compliance council"
     assert base.count(needle) == 1  # the prose lives only in _build_signature
     tampered = base.replace(needle, "audit council")
@@ -185,7 +185,7 @@ def test_signature_genericization_is_authorized():
 def test_unauthorized_edit_to_evaluate_dspy_still_fails():
     """C4(b): editing a FROZEN symbol (``evaluate_dspy``, the ``_apply_consensus`` call)
     drifts it → the guard FAILS."""
-    base = _git_show(_JUDGES_DSPY_REL)
+    base = _baseline_or_skip(_JUDGES_DSPY_REL)
     assert base.count("def evaluate_dspy(") == 1
     tampered = base.replace(
         "def evaluate_dspy(", "def evaluate_dspy(  # TAMPERED-FROZEN-EDIT", 1
@@ -196,7 +196,7 @@ def test_unauthorized_edit_to_evaluate_dspy_still_fails():
 
 def test_unauthorized_new_symbol_in_judges_dspy_still_fails():
     """C4(b) addendum: a smuggled NEW top-level symbol changes the symbol set → FAILS."""
-    base = _git_show(_JUDGES_DSPY_REL)
+    base = _baseline_or_skip(_JUDGES_DSPY_REL)
     tampered = base + "\n\ndef _smuggled_backdoor():\n    return True\n"
     with pytest.raises(AssertionError, match="symbol set changed"):
         _assert_judges_dspy_seam_frozen(base, tampered)
@@ -206,7 +206,7 @@ def test_unauthorized_new_symbol_in_judges_dspy_still_fails():
 
 
 def _ontology_base() -> dict:
-    return json.loads(_git_show(_CLINICAL_ONTOLOGY_BASELINE_REL))
+    return json.loads(_baseline_or_skip(_CLINICAL_ONTOLOGY_BASELINE_REL))
 
 
 def test_unauthorized_flag_edit_still_fails():

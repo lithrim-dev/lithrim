@@ -32,7 +32,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _COUNCIL_REL = "lithrim_bench/runtime/council/compliance_council.py"
-_SEAM_BASELINE = "acc4973"
 
 
 def _run_bare_core_probe(code: str) -> dict:
@@ -194,13 +193,14 @@ def test_t3_carveout_is_exactly_the_unclassified_set():
 
 
 def _council_base_lines():
-    return subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{_COUNCIL_REL}"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines(keepends=True)
+    """The acc4973 council baseline via the ONE resolution seam (S-REL-18) — public-mode
+    SKIP when the baseline commit is unavailable (fresh-cut public history)."""
+    import tests._seam_freeze as sf
+
+    base = sf._resolve_baseline(REPO_ROOT, _COUNCIL_REL)
+    if base is None:
+        pytest.skip("public-mode: baseline commit unavailable; attested in the private history")
+    return base.splitlines(keepends=True)
 
 
 def _council_cur_text():
@@ -232,8 +232,20 @@ def test_t4_marker_is_load_bearing_non_vacuity(monkeypatch):
 
 def test_t4_apply_consensus_body_byte_identical_to_acc4973():
     """The carve-out is module-level ONLY: ``_apply_consensus``'s method body is byte-identical
-    to ``acc4973``. Extracts the method source from both via AST and asserts equality."""
+    to ``acc4973``. Extracts the method source from both via AST and asserts equality. Public
+    mode (S-REL-18): the same section is hash-pinned (``_FROZEN_SECTION_SHA256``), so the
+    attestation stays live without the private history."""
     import ast
+
+    import tests._seam_freeze as sf
+
+    cur_text = _council_cur_text()
+    base_text = sf._resolve_baseline(REPO_ROOT, _COUNCIL_REL)
+    if base_text is None:
+        sf._assert_sections_match_hash_pins(
+            "compliance_council.py", sf._council_frozen_sections(cur_text)
+        )
+        return
 
     def _method_src(text: str) -> str:
         tree = ast.parse(text)
@@ -244,6 +256,6 @@ def test_t4_apply_consensus_body_byte_identical_to_acc4973():
                         return ast.get_source_segment(text, sub)
         raise AssertionError("_apply_consensus not found")
 
-    base = _method_src("".join(_council_base_lines()))
-    cur = _method_src(_council_cur_text())
-    assert cur == base, "_apply_consensus body drifted vs acc4973 (must be byte-frozen)"
+    assert _method_src(cur_text) == _method_src(base_text), (
+        "_apply_consensus body drifted vs acc4973 (must be byte-frozen)"
+    )

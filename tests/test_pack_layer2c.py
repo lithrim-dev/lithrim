@@ -44,7 +44,6 @@ from ._seam_freeze import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _COUNCIL_REL = "lithrim_bench/runtime/council/compliance_council.py"
-_SEAM_BASELINE = "acc4973"
 
 # The acc4973 lens VALUES, transcribed from judge_metric.py:54-106 — the 0-delta target the
 # pack-resolution must preserve (A1).
@@ -188,13 +187,14 @@ def test_council_roster_stays_canonical_under_story_audit_subprocess():
 
 
 def _council_base_lines() -> list[str]:
-    return subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{_COUNCIL_REL}"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines(keepends=True)
+    """The acc4973 council baseline via the ONE resolution seam (S-REL-18) — public-mode
+    SKIP when the baseline commit is unavailable (fresh-cut public history)."""
+    import tests._seam_freeze as sf
+
+    base = sf._resolve_baseline(REPO_ROOT, _COUNCIL_REL)
+    if base is None:
+        pytest.skip("public-mode: baseline commit unavailable; attested in the private history")
+    return base.splitlines(keepends=True)
 
 
 def _council_cur_text() -> str:

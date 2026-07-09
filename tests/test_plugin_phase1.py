@@ -431,15 +431,18 @@ def _named_func_source(src: str, name: str) -> str:
 
 def test_a5_moat_apply_consensus_byte_identical_vs_acc4973():
     """A5 (the moat): ``_apply_consensus`` + ``extract_verdict_confidence`` are byte-identical
-    (AST-extracted source) between ``acc4973`` and HEAD — the consensus mechanism is untouched."""
-    base = subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{_COUNCIL_REL}"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    (AST-extracted source) between ``acc4973`` and HEAD — the consensus mechanism is untouched.
+    Public mode (S-REL-18): the same two sections are hash-pinned (``_FROZEN_SECTION_SHA256``),
+    so the attestation stays live without the private history."""
+    import tests._seam_freeze as sf
+
     cur = (REPO_ROOT / _COUNCIL_REL).read_text()
+    base = sf._resolve_baseline(REPO_ROOT, _COUNCIL_REL)
+    if base is None:
+        sf._assert_sections_match_hash_pins(
+            "compliance_council.py", sf._council_frozen_sections(cur)
+        )
+        return
     for name in ("_apply_consensus", "extract_verdict_confidence"):
         assert _named_func_source(base, name) == _named_func_source(cur, name), (
             f"MOAT VIOLATION: {name} changed vs {_SEAM_BASELINE}"
