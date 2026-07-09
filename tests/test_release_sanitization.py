@@ -15,8 +15,11 @@ Pins the public-tree hygiene invariants for the community release:
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from pathlib import Path
+
+from tests._needles import require_needle
 
 from .test_pack_dist import (
     _DATA_SURFACE,
@@ -28,26 +31,6 @@ from .test_pack_dist import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# REL-5e (critic finding): the sensitive needles are ASSEMBLED at runtime from codepoints so
-# neither string ever appears in this (published) source — a visible split like
-# "/Users/" + <name> still ships the name. Integrity-pinned below so a codepoint typo
-# cannot silently neuter the sweeps.
-_MAINTAINER_USER = "".join(chr(c) for c in (97, 114, 101, 103, 101, 101))
-_COLLABORATOR = "".join(chr(c) for c in (83, 104, 97, 114, 105, 102))
-
-
-def test_assembled_needles_are_intact():
-    """Planted-needle-grade self-check: the assembled needles hash to their pins, so the
-    sweeps below are proven to hunt the REAL strings (never visible in source)."""
-    assert (
-        hashlib.sha256(("/Users/" + _MAINTAINER_USER).encode()).hexdigest()
-        == "45ca16eb3eb4f7a554ed0ec89390ba752e506099d51b11742a5137391b98992d"
-    )
-    assert (
-        hashlib.sha256(_COLLABORATOR.encode()).hexdigest()
-        == "524b30f818bf83fc541d0cb25109686e77c39fbed86bf11da3db0130f49e5e15"
-    )
-
 
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
@@ -57,21 +40,45 @@ def _tracked_files() -> list[str]:
     return [p for p in _git("ls-files").stdout.splitlines() if p]
 
 
-def test_no_tracked_file_contains_the_maintainer_home_path():
-    """(a) the maintainer's absolute home path appears in NO tracked file (git grep over the
-    tracked tree). The needle is runtime-assembled (integrity-pinned above) so this tripwire
-    never trips itself and never publishes the username."""
-    needle = "/Users/" + _MAINTAINER_USER
-    out = _git("grep", "-I", "-l", "--fixed-strings", needle, "--", ".")
-    assert out.returncode == 1, f"tracked files leak a personal path:\n{out.stdout}"
+def test_no_tracked_file_contains_a_macos_home_path():
+    """(a) NO tracked file carries ANY macOS home path — a PATTERN sweep
+    (``/Users/<name>``), strictly wider than the old single-username needle and needing
+    no needle at all (REL-5f: a pattern wherever a pattern suffices)."""
+    out = _git("grep", "-I", "-nE", r"/Users/[a-z0-9_-]+", "--", ".")
+    assert out.returncode == 1, f"tracked files leak a home path:\n{out.stdout}"
 
 
 def test_no_collaborator_name_in_fixtures_or_samples():
-    """(b) no tracked file under tests/fixtures/ or samples/ names the collaborator. The
-    surname is runtime-assembled (integrity-pinned above) — it must not appear in THIS file
-    either (it is a published test)."""
-    out = _git("grep", "-I", "-l", "--fixed-strings", _COLLABORATOR, "--", "tests/fixtures", "samples")
-    assert out.returncode == 1, f"fixtures/samples still name the collaborator:\n{out.stdout}"
+    """(b) no tracked file under tests/fixtures/ or samples/ carries the local needle
+    (loaded from the untracked ``.release_needles.json``, integrity-pinned; skips where
+    the file is absent — see tests/_needles.py)."""
+    needle = require_needle("collaborator")
+    out = _git("grep", "-I", "-l", "--fixed-strings", needle, "--", "tests/fixtures", "samples")
+    assert out.returncode == 1, f"fixtures/samples carry the needle:\n{out.stdout}"
+
+
+# REL-5f (final-gate B2): a codepoint tuple is a decodable ENCODING, not a redaction.
+# This sweep decodes every int-tuple in every tracked text file and fails if any decodes
+# to a pinned needle — the pattern that shipped in REL-5e can never return.
+_INT_TUPLE_RE = re.compile(r"\(\s*\d{1,3}\s*(?:,\s*\d{1,3}\s*){2,},?\s*\)")
+
+
+def test_no_tracked_file_encodes_a_pinned_needle_as_an_int_tuple():
+    from tests._needles import NEEDLE_PINS
+
+    pins = set(NEEDLE_PINS.values())
+    offenders = []
+    for rel in _tracked_files():
+        try:
+            text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for m in _INT_TUPLE_RE.finditer(text):
+            nums = [int(x) for x in re.findall(r"\d{1,3}", m.group(0))]
+            decoded = "".join(chr(n) for n in nums)
+            if hashlib.sha256(decoded.encode("utf-8")).hexdigest() in pins:
+                offenders.append(f"{rel}: {m.group(0)}")
+    assert offenders == [], f"decodable needle encoding(s) in the tracked tree: {offenders}"
 
 
 def test_synthea_symlink_is_untracked():

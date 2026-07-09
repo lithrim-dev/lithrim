@@ -21,7 +21,7 @@ workspace, by construction):
 | `stream-b-ensemble` | Multi-model ensemble, same instruction, k=1, t=0.0 | 6 |
 | `stream-c-same` | Specialist council (risk/policy/faithfulness lenses), one model | 3 |
 | `stream-c-mixed` | Specialist council, mixed models | 3 |
-| `baseline-scalar-reward` | Commercial scalar-reward baseline (anonymized) | 1 |
+| `baseline-scalar-reward` | Commercial scalar-reward baseline (vendor not named in the published report, pending vendor notice) | 1 |
 
 The two arms differ only in the floor ontology: **armT** (transcript-only) vs **armR**
 (record-informed: `grading_context_fields: ["patient_profile"]` exposes the clinical
@@ -70,9 +70,10 @@ file, point `LITHRIM_REPRO_PHYSICIAN_CASES` at it and the assertion becomes 54.
    - **Anthropic** (`claude-opus-4-8`, `claude-sonnet-5`),
    - an **OpenAI-compatible endpoint** serving `Llama-4-Maverick-17B-128E-Instruct-FP8`
      and `Mistral-Large-3` (ensemble members; optional if you drop those two roles),
-   - the **commercial scalar-reward baseline is optional and anonymized** in the published
-     record; skip `baseline-scalar-reward` if you don't hold a key for that class of
-     product.
+   - the **commercial scalar-reward baseline is optional**; the published report does not
+     name its vendor pending vendor notice, and this repo's provider plane is generic
+     product integration. Skip `baseline-scalar-reward` if you don't hold a key for that
+     class of product.
 3. The SNOMED floor tooling: a Hermes SNOMED jar + db under `snomed/` (see
    `snomed/README.md`). The floor contracts call it as an MCP tool (`hermes_snomed`).
 

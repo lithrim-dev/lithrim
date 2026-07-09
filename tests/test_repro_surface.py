@@ -40,33 +40,20 @@ def test_repro_scripts_have_no_local_hardcodes(script):
 # --- A1b: sanitized data files (no physician name, no facility name) ---
 
 
-# REL-5e (critic finding): the needles are ASSEMBLED from codepoints — a visible
-# concatenation split still publishes the strings. Integrity-pinned below so a typo
-# cannot silently neuter the sweep; neither string ever appears in this source.
-_NAME_NEEDLE = "".join(chr(c) for c in (83, 104, 97, 114, 105, 102))
-_FACILITY_NEEDLE = "".join(chr(c) for c in (87, 97, 108, 116, 101, 114))
-
-
-def test_sanitization_needles_are_intact():
-    """The assembled needles hash to their pins (planted-needle-grade self-check: the
-    sweep below provably hunts the real strings without publishing them)."""
-    import hashlib
-
-    assert (
-        hashlib.sha256(_NAME_NEEDLE.encode()).hexdigest()
-        == "524b30f818bf83fc541d0cb25109686e77c39fbed86bf11da3db0130f49e5e15"
-    )
-    assert (
-        hashlib.sha256(_FACILITY_NEEDLE.encode()).hexdigest()
-        == "d1289e5a730e1e6790a48093f470913a1a1dd0942518d3fb5aeab2a0d163bbc0"
-    )
+# REL-5f (final-gate B2): the name/facility needles come from the UNTRACKED local file
+# (.release_needles.json; integrity-pinned in tests/_needles.py) — no decodable form may
+# live in tracked source. The sweep skips where the local file is absent.
 
 
 @pytest.mark.parametrize("relpath", CORPUS_FILES + ONTOLOGY_FILES + ["role_binds.json"])
 def test_repro_data_is_sanitized(relpath):
+    from tests._needles import require_needle
+
+    name = require_needle("collaborator")
+    facility = require_needle("facility")
     text = (REPRO / relpath).read_text()
-    assert _NAME_NEEDLE not in text, f"{relpath} leaks the physician collaborator's name"
-    assert _FACILITY_NEEDLE not in text, f"{relpath} leaks a facility name"
+    assert name not in text, f"{relpath} leaks the physician collaborator's name"
+    assert facility not in text, f"{relpath} leaks a facility name"
 
 
 # --- A1c: REPRODUCING.md exists and carries both DOIs ---

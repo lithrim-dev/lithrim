@@ -188,18 +188,18 @@ export const JUTE = [
 ];
 
 // a real SESSION you upload — the audio your agent heard + the artifact it produced + the transcript, bound.
-// This one ships REAL audio (demo_dataset/audio_demo/10) so link 1 of the chain actually plays.
+// The recording itself is not shipped in the public tree; the journey renders the session metadata
+// (jp4 shows the audio player only when an audioSrc is present).
 export const SESSION = {
   id: "scribe-htn-dosage-10",
   label: "Hypertension · medication review",
-  audioSrc: "/demo/case10.mp3",
   audioLen: "2:03",
   artifact: "Clinical note · scribe-v4",
   transcript: "auto-aligned · 14 turns",
   packCount: 12,
   verdict: "reject",
   finding: "WRONG_DOSAGE",
-  provenance: "real recording — demo_dataset/audio_demo/10 · run live on the v2 council",
+  provenance: "recorded session (audio not shipped) · run live on the v2 council",
 };
 
 // the v2 council's REAL scores on this session (recorded run: BLOCK · WRONG_DOSAGE, all three judges).

@@ -88,7 +88,7 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     TOOL_IN_ROW: {"oracle_path", "extractor", "match"},
     TOOL_STRUCTURAL_JUTE: {"service", "mapping_selector", "artifact_kind"},
     TOOL_RECORD_RAG: {"client", "filters"},
-    # kb_rag: namespace into the backend KB index (hipaa-compliancev2); index resolved
+    # kb_rag: namespace into the backend KB index (deployment-configured); index resolved
     # from reference.index / env. Optional: regulation_filter, top_k, rerank, predicate,
     # match_field, expected, min_score, pinned{corpus_version,embedding_model_version,...}.
     TOOL_KB_RAG: {"namespace"},

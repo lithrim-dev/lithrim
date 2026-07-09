@@ -996,9 +996,12 @@ async def kb_context_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str
     # hardwire; "hipaa" stays the unset fallback for byte-compat with the reference deployment.
     default_ns = os.environ.get("LITHRIM_KB_NAMESPACE") or "hipaa"
     namespace = str(args.get("namespace") or default_ns)
-    # The model sometimes passes an INDEX name (e.g. "hipaa-compliancev2") or "DEFAULT" — both
-    # 400. Normalize those to the configured namespace so the aid doesn't fail on name confusion.
-    if namespace.lower() in {"hipaa-compliancev2", "default", ""}:
+    # The backing INDEX name is deployment config too (LITHRIM_KB_INDEX; generic default —
+    # REL-5f: never a product hardwire). The model sometimes passes it (or "DEFAULT") instead
+    # of a catalog namespace — both 400. Normalize to the configured namespace so the aid
+    # doesn't fail on name confusion.
+    kb_index = os.environ.get("LITHRIM_KB_INDEX") or "kb-index"
+    if namespace.lower() in {kb_index.lower(), "default", ""}:
         namespace = default_ns
     top_k = int(args.get("top_k") or 3)
     if not query:
@@ -1373,8 +1376,9 @@ _TOOL_SPECS: list[tuple[Callable, str, str, dict]] = [
         "them as CONTEXT — the honest 'what does the policy actually say' aid. Args: {query, "
         "[namespace], [top_k=3]}. LEAVE namespace unset (defaults to 'hipaa'); the only valid "
         "namespaces are 'hipaa' (default), 'medication-safety', 'clinical-escalation' — do NOT pass "
-        "the index name 'hipaa-compliancev2'. $0, READ-ONLY — it retrieves and displays; it NEVER "
-        "changes a verdict or clears a finding. Use it to ground a discussion in the source policy.",
+        "the backing index name (deployment config, LITHRIM_KB_INDEX). $0, READ-ONLY — it retrieves "
+        "and displays; it NEVER changes a verdict or clears a finding. Use it to ground a "
+        "discussion in the source policy.",
         KB_CONTEXT_SCHEMA,
     ),
     (

@@ -28,7 +28,7 @@ export function Center4() {
             <span className="sub">{SESSION.audioLen} · audio + transcript + note</span>
           </div>
           <div className="icard-bd" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <audio controls preload="metadata" src={SESSION.audioSrc} style={{ width: "100%", height: 38 }} />
+            {SESSION.audioSrc && <audio controls preload="metadata" src={SESSION.audioSrc} style={{ width: "100%", height: 38 }} />}
             <div className="kb-row"><span className="kb-ic"><Icon name="shield" size={15} /></span><span className="kb-name">Verdict · {SESSION.verdict}</span><span className="kb-meta">{SESSION.finding}</span></div>
           </div>
         </div>

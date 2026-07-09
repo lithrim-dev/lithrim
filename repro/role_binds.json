@@ -1,8 +1,8 @@
 {
   "_provenance": {
-    "note": "The study's per-role provider/model bind record, sanitized for the public tree. stream_role_binds is the authoritative role->model map for the published run, recovered from the per-configuration scorecards in the Zenodo deposit (data/consolidated_armT.json / _armR.json, identical binds in both arms). reference_workspace_binds is the pre-study bind readout of the reference workspace the streams were cloned from. The commercial scalar-reward vendor is anonymized ('scalar-reward'), matching the published record. Apply binds via POST /v1/roles/bind \u2014 see REPRODUCING.md.",
+    "note": "The study's per-role provider/model bind record, sanitized for the public tree. stream_role_binds is the authoritative role->model map for the published run, recovered from the per-configuration scorecards in the Zenodo deposit (data/consolidated_armT.json / _armR.json, identical binds in both arms). reference_workspace_binds is the pre-study bind readout of the reference workspace the streams were cloned from. The published report does not name the commercial scalar-reward baseline vendor pending vendor notice ('scalar-reward' is the placeholder label, matching the published record); this repo's provider plane is generic product integration. Apply binds via POST /v1/roles/bind \u2014 see REPRODUCING.md.",
     "source": "Zenodo DOI 10.5281/zenodo.21270268 (data/consolidated_arm{T,R}.json) + the rescued pre-study bind readout",
-    "sanitization": "scalar-reward vendor anonymized; no other changes"
+    "sanitization": "the scalar-reward baseline vendor is not named (pending vendor notice); no other changes"
   },
   "stream_role_binds": {
     "stream-a-single": {

@@ -63,7 +63,7 @@ That's three services: the **BFF** (the API, `:8787`), the **UI** (`:5180`), and
 
 Then open **http://localhost:5180**, connect your own LLM key from the UI (or pass it as env — see below), and grade a case. The BFF auto-seeds the neutral `_core` sample on first boot, so the loop works immediately.
 
-<!-- screenshot: docs/assets/ui-grade-loop.png: capture the :5180 grade loop when the stack is up and embed here -->
+<!-- screenshot placeholder: docs/assets/ui-grade-loop.png -->
 
 
 - **BYOK via env** — set keys in your shell or a repo-root `.env` (compose auto-loads `.env`); the `bff` service passes through `OPENAI_API_KEY`, the `AZURE_OPENAI_*` vars, `LITHRIM_LLM_PROVIDER`, `LITHRIM_BFF_TOKEN`, and `LITHRIM_BENCH_PACKS_DIR`. None are required for the offline demo.

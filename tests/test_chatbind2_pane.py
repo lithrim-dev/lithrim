@@ -97,10 +97,13 @@ def test_add_grounding_contract_accepts_flag_alias():
     assert not res.get("is_error")
 
 
-def test_kb_context_normalizes_index_name_to_namespace():
-    """KB-CONTEXT-1 robustness: the model sometimes passes the Pinecone INDEX name
-    'hipaa-compliancev2' (which 400s) instead of the 'hipaa' catalog namespace; the handler
-    normalizes it so the read-only context aid doesn't fail on a name confusion (it did live)."""
+def test_kb_context_normalizes_index_name_to_namespace(monkeypatch):
+    """KB-CONTEXT-1 robustness: the model sometimes passes the backing INDEX name (which
+    400s) instead of a catalog namespace; the handler normalizes the CONFIGURED index name
+    (``LITHRIM_KB_INDEX``, REL-5f: deployment config with a generic default, never a
+    product hardwire) to the default namespace so the read-only context aid doesn't fail
+    on a name confusion (it did live)."""
+    monkeypatch.setenv("LITHRIM_KB_INDEX", "acme-kb-v2")
     captured: dict = {}
 
     class _Ctx:
@@ -111,9 +114,17 @@ def test_kb_context_normalizes_index_name_to_namespace():
             return [{"text": "§ 164.508 ...", "score": 1.2}]
 
     res = asyncio.run(
-        kb_context_handler(_Ctx(), {"query": "phi disclosure", "namespace": "hipaa-compliancev2"})
+        kb_context_handler(_Ctx(), {"query": "phi disclosure", "namespace": "acme-kb-v2"})
     )
     assert captured["namespace"] == "hipaa"  # the index name was normalized to the catalog namespace
+    assert not res.get("is_error")
+
+    # the generic unset-default index label normalizes too
+    monkeypatch.delenv("LITHRIM_KB_INDEX")
+    res = asyncio.run(
+        kb_context_handler(_Ctx(), {"query": "phi disclosure", "namespace": "kb-index"})
+    )
+    assert captured["namespace"] == "hipaa"
     assert not res.get("is_error")
 
 

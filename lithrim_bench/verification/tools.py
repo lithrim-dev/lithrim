@@ -350,7 +350,7 @@ class KbRagTool(VerificationTool):
     """Ground a council claim against the backend knowledge base — the S-BS-7
     presence-check generalized from the transcript to the KB corpus.
 
-    The heavy retrieval (Pinecone hybrid dense+SPLADE over ``hipaa-compliancev2``)
+    The heavy retrieval (Pinecone hybrid dense+SPLADE over the deployment-configured index)
     STAYS in lithrim-backend, already served at ``GET :8002/v1/kb/{namespace}/search``.
     This tool is bench-side wiring only: a lazy ``httpx`` GET to that endpoint plus a
     deterministic verdict over the returned matches. No vector store, no ONNX, no
