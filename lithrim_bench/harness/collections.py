@@ -31,6 +31,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_COLLECTIONS_DB = REPO_ROOT / "out" / "config" / "bench_collections.sqlite"
 
 
+def _connect(db_path: str | Path) -> sqlite3.Connection:
+    """The one sqlite connect chokepoint. sqlite creates a missing DB *file* but not a
+    missing parent *directory* — ``DEFAULT_COLLECTIONS_DB`` lives under the gitignored
+    ``out/``, so a fresh clone crashed with ``unable to open database file`` on first use
+    (REL-5d, S-REL-23). Ensure the parent exists, then connect."""
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    return sqlite3.connect(db_path)
+
+
 @dataclass(frozen=True)
 class DocShimCollection:
     """A single doc-shim table: a JSON document + one indexed foreign key.
@@ -96,7 +105,7 @@ class DocShimCollection:
         fk_val = str(fk_val) if fk_val is not None else None
         payload = json.dumps(doc, sort_keys=True)
         created_at = datetime.now(timezone.utc).isoformat()
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             if self.versioned:
@@ -148,7 +157,7 @@ class DocShimCollection:
             return []
         order = "DESC" if newest_first else "ASC"
         where = " AND ".join(f"json_extract(json, '$.{k}') = ?" for k in fields)
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             rows = conn.execute(
@@ -170,7 +179,7 @@ class DocShimCollection:
         shape mirrors ``find_by_json`` (the stored doc dicts)."""
         if not self.versioned:
             return []
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             conn.executescript(self._history_schema())
@@ -184,7 +193,7 @@ class DocShimCollection:
         return [json.loads(r[0]) for r in rows]
 
     def get(self, doc_id: str, *, db_path: str | Path = DEFAULT_COLLECTIONS_DB) -> dict | None:
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             row = conn.execute(f"SELECT json FROM {self.name} WHERE id = ?", (doc_id,)).fetchone()
@@ -195,7 +204,7 @@ class DocShimCollection:
     def find_by_fk(
         self, fk_val: str, *, db_path: str | Path = DEFAULT_COLLECTIONS_DB
     ) -> list[dict]:
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             rows = conn.execute(
@@ -220,7 +229,7 @@ class DocShimCollection:
         sql = f"SELECT json FROM {self.name} ORDER BY created_at {order}, id {order}"
         if limit is not None:
             sql += f" LIMIT {int(limit)}"
-        conn = sqlite3.connect(db_path)
+        conn = _connect(db_path)
         try:
             conn.executescript(self._schema())
             rows = conn.execute(sql).fetchall()

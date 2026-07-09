@@ -446,11 +446,13 @@ def assert_council_roles_relocated_only(repo: Path) -> None:
 
     PACK-DIST-1: the prompts relocated to the external pack, so the CURRENT side resolves
     through the discovery SEAM (``pack.pack_prompts_path('healthcare')``) — wherever the active
-    healthcare pack now lives. Raises ``FileNotFoundError`` in a bare CE checkout; callers carry
-    ``requires_healthcare_pack``."""
-    from lithrim_bench.harness import pack as _pack
+    healthcare pack now lives. Raises ``FileNotFoundError`` in a bare CE checkout WITH the
+    private history; callers carry ``requires_healthcare_pack``.
 
-    prompts_dir = _pack.pack_prompts_path("healthcare")
+    REL-5d (S-REL-22): the public-mode skip is decided BEFORE any pack discovery. A fresh-cut
+    clone lacks BOTH the baseline history AND the pack; discovery-first raised
+    ``FileNotFoundError`` from harness/pack.py instead of the honest public-mode skip."""
+    bases: dict[str, str] = {}
     for name in _COUNCIL_ROLE_FILES:
         base = _resolve_baseline(repo, f"{_COUNCIL_ROLES_OLD_DIR}/{name}.txt")
         if base is None:
@@ -458,6 +460,12 @@ def assert_council_roles_relocated_only(repo: Path) -> None:
                 "public-mode: the acc4973 role-prompt baselines need the private history "
                 "(the healthcare pack is not part of the public cut)"
             )
+        bases[name] = base
+
+    from lithrim_bench.harness import pack as _pack
+
+    prompts_dir = _pack.pack_prompts_path("healthcare")
+    for name, base in bases.items():
         cur = (prompts_dir / f"{name}.txt").read_text()
         assert cur == base, (
             f"{name}.txt drifted vs {_SEAM_BASELINE} (the relocation must be content-identical)"

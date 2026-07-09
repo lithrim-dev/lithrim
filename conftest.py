@@ -291,6 +291,40 @@ _NEEDS_PACK_FUNCS = {
     # binds the council from the sibling pack via discovery — already self-skips without the sibling;
     # also skip when healthcare is undiscoverable so a local env-unset run matches the stranger.
     "test_pack_dist": {"test_a1_council_binds_from_external_pack"},
+    # REL-5d (fresh-cut sim): these stub the ACTIVE WORKSPACE to ``pack="healthcare"`` inside the
+    # test itself (test_tools_endpoint.py:40, test_uap4_optimize_bff.py:74/131,
+    # test_optimize_subset.py:113/162 — "the test env discovers ``healthcare``"), so the endpoint's
+    # pack resolution FileNotFoundErrors in a bare public clone → NEEDS the pack (dev-green).
+    "test_tools_endpoint": {
+        "test_post_authors_a_tool_then_get_lists_it",
+        "test_get_lists_declared_core_tools_when_none_authored",
+        "test_delete_removes_the_authored_tool",
+    },
+    "test_optimize_subset": {
+        "test_endpoint_threads_case_ids_to_the_subprocess",
+        "test_endpoint_none_case_ids_is_whole_workspace",
+        "test_case_ids_does_not_weaken_the_cost_gate",
+    },
+    "test_uap4_optimize_bff": {
+        "test_optimize_refuses_without_confirm",
+        "test_optimize_returns_the_honest_delta_shape",
+        "test_optimize_unknown_role_is_404",
+        "test_optimize_wires_role_and_limit_to_the_subprocess",
+    },
+}
+
+# REL-5d: the clinverdict DROP-IN pack (packs-dropin/clinverdict) is deliberately gitignored
+# (local-only clinical content; docs/guides/CLINVERDICT_SETUP_GUIDE.md) — absent in any public
+# clone. The reviewer-roster funcs that READ it skip when it is not on disk (dev has it → runs).
+_CLINVERDICT_DROPIN = Path(__file__).parent / "packs-dropin" / "clinverdict"
+_NEEDS_CLINVERDICT_DROPIN_FUNCS = {
+    "test_reviewer_roster": {
+        "test_clinverdict_generalist_is_not_a_panel_member",
+        "test_clinverdict_generalist_is_owner_resident_for_its_tier1_codes",
+        "test_clinverdict_generalist_lens_is_full_coverage_union",
+        "test_clinverdict_generalist_role_prompt_seed_exists",
+        "test_load_role_prompt_resolves_against_an_explicit_prompts_dir",
+    },
 }
 
 
@@ -324,6 +358,19 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_narr)
             if not story and name in _NEEDS_STORY_AUDIT_FUNCS.get(stem, ()):
                 item.add_marker(skip_story)
+
+    # REL-5d: clinverdict drop-in demarcation — applies in BOTH dev and bare-CE (the drop-in is
+    # gitignored local content, so its presence is orthogonal to healthcare discoverability).
+    if not _CLINVERDICT_DROPIN.is_dir():
+        skip_dropin = pytest.mark.skip(
+            reason="clinverdict drop-in pack absent (packs-dropin/clinverdict is gitignored, "
+            "local-only clinical content — not part of the public cut)"
+        )
+        for item in items:
+            stem = Path(str(item.fspath)).stem
+            name = item.originalname or item.name
+            if name in _NEEDS_CLINVERDICT_DROPIN_FUNCS.get(stem, ()):
+                item.add_marker(skip_dropin)
 
     bare_ce = not _healthcare_discoverable()
     if not bare_ce:

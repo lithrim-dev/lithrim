@@ -167,10 +167,28 @@ def test_public_mode_council_guard_trips_on_deleted_verdict_confidence(tmp_path,
 
 
 # ── public mode: the pack-relocation guards SKIP (pack is not in the public cut) ─
+# REL-5d (S-REL-22): a REAL fresh-cut clone lacks BOTH the private history AND the external
+# healthcare pack, and pack discovery must not run before the public-mode skip is decided —
+# the guards raised FileNotFoundError (lithrim_bench/harness/pack.py) instead of skipping.
+# These tests now simulate the pack absence too, so the main-repo run reproduces cut reality.
+
+
+def _simulate_absent_pack(monkeypatch):
+    """Fresh-cut reality: the healthcare pack is not discoverable anywhere — any discovery
+    call for it raises FileNotFoundError (the bare-clone behavior of harness/pack.py).
+    Patched at the accessor seam (not env) because the accessors are lru_cached."""
+    from lithrim_bench.harness import pack as _pack
+
+    def _gone(*a, **k):
+        raise FileNotFoundError("simulated fresh-cut: pack 'healthcare' is not discoverable")
+
+    monkeypatch.setattr(_pack, "pack_ontology_path", _gone)
+    monkeypatch.setattr(_pack, "pack_prompts_path", _gone)
 
 
 def test_public_mode_pack_relocation_guards_skip_with_reason(monkeypatch):
     monkeypatch.setattr(sf, "_resolve_baseline", lambda *a, **k: None)
+    _simulate_absent_pack(monkeypatch)
     with pytest.raises(pytest.skip.Exception, match="public-mode"):
         sf.assert_clinical_ontology_seam_frozen(REPO_ROOT)
     with pytest.raises(pytest.skip.Exception, match="public-mode"):
@@ -182,6 +200,7 @@ def test_public_mode_pack_relocation_guards_skip_with_reason(monkeypatch):
 
 def test_public_mode_run_exercises_zero_git_show_calls(monkeypatch):
     monkeypatch.setattr(sf, "_resolve_baseline", lambda *a, **k: None)
+    _simulate_absent_pack(monkeypatch)
 
     def _boom(*a, **k):
         raise AssertionError(f"public-mode guard shelled out: {a} {k}")
