@@ -166,7 +166,7 @@ The engine, the harness, the neutral `_core` pack, the sample packs, and the plu
 
 ## Research
 
-Lithrim backs the research paper *A Deterministic Structural Floor Under LLM-as-Judge* — the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. The locked outline is [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md); the engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+Lithrim backs the technical report *A grounded evaluation architecture for clinical scribes: a configuration-controlled study of LLM judges and a deterministic grounding floor*, the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. Report + data: DOI [10.5281/zenodo.21270268](https://doi.org/10.5281/zenodo.21270268) (concept DOI [10.5281/zenodo.21270267](https://doi.org/10.5281/zenodo.21270267), resolves to the latest version); preregistration: OSF [10.17605/OSF.IO/2ZU4H](https://doi.org/10.17605/OSF.IO/2ZU4H). To reproduce the study from this repo, see [`REPRODUCING.md`](REPRODUCING.md). The engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
 
 ---
 
