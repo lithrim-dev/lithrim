@@ -74,21 +74,30 @@ def client(tmp_path, db_path, coll_db, monkeypatch):
 
 
 def test_run_eval_surfaces_pipeline_run_id(client):
-    """A3 — POST /v1/run-eval carries the graded run's pipeline_run_id (replay → the
-    captured baseline's id)."""
+    """A3 — POST /v1/run-eval carries the graded run's pipeline_run_id. RUNTRAIL-1
+    (b1bbf94, SPEC_RUN_AUDIT_TRAIL.md §1) REPLACED the old reuse-the-baseline-id contract:
+    a replay mints a FRESH identity pointing at its baseline via ``replay_of``, so the id
+    is a well-formed uuid that is NOT the baked baseline id (the stale pre-RUNTRAIL
+    assertion this test carried until REL-5e)."""
+    import uuid as _uuid
+
     body = client.post("/v1/run-eval", json={"agent": _AGENT, "live": False}).json()
-    assert body["pipeline_run_id"] == BASELINE_RUN_ID
+    rid = body["pipeline_run_id"]
+    _uuid.UUID(rid)  # well-formed
+    assert rid != BASELINE_RUN_ID  # RUNTRAIL-1: fresh identity, never the baseline's
 
 
 def test_runs_lists_the_persisted_replay_run(client):
-    """A3/A4 (S-BS-52) — a replay run persists its provenance, so GET /v1/runs lists
-    it (the $0 default shows in run-history)."""
+    """A3/A4 — a replay run persists its provenance under its FRESH (RUNTRAIL-1) id, so
+    GET /v1/runs lists it (the $0 default shows in run-history)."""
     assert client.get("/v1/runs").json()["runs"] == []  # empty before any run
-    client.post("/v1/run-eval", json={"agent": _AGENT, "live": False})
+    rid = client.post("/v1/run-eval", json={"agent": _AGENT, "live": False}).json()[
+        "pipeline_run_id"
+    ]
     runs = client.get("/v1/runs").json()["runs"]
     assert len(runs) == 1
     row = runs[0]
-    assert row["run_id"] == BASELINE_RUN_ID
+    assert row["run_id"] == rid  # the minted replay id, not the baked baseline id
     assert row["verdict"] == "BLOCK"
     assert row["agent"] == _AGENT  # backfilled from the eval-profile
 
@@ -107,13 +116,17 @@ def test_run_id_round_trips_to_audit(client):
     assert isinstance(body["judges"], list)
 
 
-def test_replay_run_id_is_idempotent_in_history(client):
-    """S-BS-52 by-design: deterministic replay reuses the baseline's fixed id, so
-    re-running replay upserts ONE row per baseline (not one-per-invocation)."""
+def test_replay_appends_one_row_per_invocation(client):
+    """RUNTRAIL-1 REVERSED the S-BS-52 upsert semantics this test used to pin: every
+    replay is an immutable APPEND under a fresh id (the audit-trail invariant), so three
+    replays leave THREE distinct rows — and none reuses the baked baseline id."""
     for _ in range(3):
         client.post("/v1/run-eval", json={"agent": _AGENT, "live": False})
     runs = client.get("/v1/runs").json()["runs"]
-    assert len([r for r in runs if r["run_id"] == BASELINE_RUN_ID]) == 1
+    ids = [r["run_id"] for r in runs]
+    assert len(ids) == 3
+    assert len(set(ids)) == 3  # all distinct (append-only, never an upsert)
+    assert BASELINE_RUN_ID not in ids
 
 
 # ── R6: POST /v1/eval-pack/run ────────────────────────────────────────────────
@@ -129,10 +142,13 @@ def test_eval_pack_run_batches_and_surfaces_run_ids(client):
     body = res.json()
     assert body["pack"]["schema_version"] == "evalpack/1"
     assert body["pack"]["pack_id"] == "uap3"
-    assert body["run_ids"] == [BASELINE_RUN_ID]
+    # RUNTRAIL-1: the batch's replay run carries a FRESH minted id (not the baked baseline id)
+    assert len(body["run_ids"]) == 1
+    rid = body["run_ids"][0]
+    assert rid != BASELINE_RUN_ID
     assert body["pack"]["outcomes"][0]["verdict"] == "reject"
-    # the batch's run is now addressable in run-history
-    assert any(r["run_id"] == BASELINE_RUN_ID for r in client.get("/v1/runs").json()["runs"])
+    # the batch's run is now addressable in run-history under its minted id
+    assert any(r["run_id"] == rid for r in client.get("/v1/runs").json()["runs"])
 
 
 def test_eval_pack_unknown_agent_is_404(client):

@@ -37,7 +37,7 @@ if str(_BFF) not in sys.path:
 
 import app as bff  # noqa: E402
 
-_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "narrative" / "storyworld_real_session.json"
+_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "narrative" / "storyworld_synthetic_session.json"
 _SECRET = "sw-secret-do-not-leak-INGEST"
 _INLINE_PII = "jane.doe@example.com"
 
@@ -62,6 +62,11 @@ def ws_env(tmp_path, monkeypatch):
         )
         yield ws_mod, ws
     finally:
+        # S-REL-24 (REL-5e): un-patch the env BEFORE the reload — workspace.py binds
+        # WORKSPACES_DIR at import, and monkeypatch's env restore runs AFTER this finally,
+        # so reloading under the patched env froze the tmp dir (and its .active workspace)
+        # into the module for the REST OF THE SESSION (the gate0 bff-victim leak).
+        monkeypatch.delenv("LITHRIM_BENCH_WORKSPACES_DIR", raising=False)
         importlib.reload(ws_mod)
 
 

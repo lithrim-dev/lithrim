@@ -68,6 +68,11 @@ def registry_env(tmp_path, monkeypatch):
         yield tmp_path, ws
     finally:
         council_settings.settings = original
+        # S-REL-24 (REL-5e): un-patch the env BEFORE the reload — workspace.py binds
+        # WORKSPACES_DIR at import, and monkeypatch's env restore runs AFTER this finally,
+        # so reloading under the patched env froze the tmp dir (and its .active workspace)
+        # into the module for the REST OF THE SESSION (the gate0 bff-victim leak).
+        monkeypatch.delenv("LITHRIM_BENCH_WORKSPACES_DIR", raising=False)
         importlib.reload(ws_mod)
 
 

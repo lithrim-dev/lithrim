@@ -266,4 +266,6 @@ def test_relocated_file_is_still_write_only_no_key_in_a_response(tmp_path, monke
     assert written.is_file()
     assert f"OPENAI_API_KEY={secret}" in written.read_text()
 
+    # S-REL-24 (REL-5e): un-patch the env BEFORE the reload (see the ws_env fixtures).
+    monkeypatch.delenv("LITHRIM_BENCH_WORKSPACES_DIR", raising=False)
     importlib.reload(ws_mod)

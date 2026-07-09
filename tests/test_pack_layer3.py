@@ -54,6 +54,15 @@ _CLINICAL_CODE_NEEDLES = (
 #         constant + its required-reference key: the interface VOCABULARY the pack registers
 #         against (stays in spec.py; referenced by the engine's floor docstrings).
 #   (iii) patient_profile.active_medications — the generic `_resolve_path` docstring EXAMPLE.
+#   (iv)  REL-5e (BL-4) — the SNOMED-battery/argshape interface vocabulary (TOOL-2 onward):
+#         snomed_battery + SnomedBatteryGrounding (the generic MCP-terminology contract type
+#         + its executor class, engine-resident by design like `dosage_grounding`),
+#         snomed_subsumption (the PACK-registered executor NAME the engine merges + the
+#         readiness/boundary docstrings naming it), snomed_oracle (the argshape gate's
+#         terminology-fact-source callable param), hermes_snomed (a tool-id EXAMPLE in a
+#         params docstring), and the "SNOMED MCP tool" / "SNOMED semantic tag" docstring
+#         phrases describing that interface. All identifier-anchored CODE vocabulary/prose —
+#         zero clinical data (no codes, meds, doses, or patient content).
 _CARVEOUT_MARKERS = (
     "dosage_regex",
     "_dosage_re",
@@ -61,6 +70,13 @@ _CARVEOUT_MARKERS = (
     "TOOL_DOSAGE_GROUNDING",
     "dose_regex",
     "patient_profile.active_medications",
+    "snomed_battery",
+    "SnomedBatteryGrounding",
+    "snomed_subsumption",
+    "snomed_oracle",
+    "hermes_snomed",
+    "SNOMED MCP tool",
+    "SNOMED semantic tag",
 )
 _BROAD_SWEEP = (
     "snomed",
