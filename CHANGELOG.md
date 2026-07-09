@@ -13,8 +13,8 @@ First public Community Edition release.
   by-construction labeling and an audit spine.
 - `make demo` — a $0, offline, no-key, no-pack replay that shows the floor flip a
   council `PASS` to `BLOCK` on a neutral fabricated-claim case.
-- Neutral open packs: `_core` (generic content review), `support_ticket_qa`, and
-  `narrative` (all `tier: core`), plus the plugin / connector (MCP) interface.
+- Neutral open packs: `_core` (generic content review) and `support_ticket_qa`
+  (both `tier: core`), plus the plugin / connector (MCP) interface.
 - A synthetic clinical sample pack (`clinical_scribe`, `tier: core`) — a by-construction
   teaser of the ambient-scribe note-review domain (missing allergy, wrong dosage, fabricated
   history, negation reversal, diagnosis upcoding, + a clean negative). Synthetic, not the

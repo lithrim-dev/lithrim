@@ -1,6 +1,6 @@
 # Lithrim Product Shell (`apps/shell`)
 
-The 3-pane conversational eval workspace — the WS-5 shell skeleton, ported from the
+The 3-pane conversational eval workspace — the shell skeleton, ported from the
 Claude Design handoff (`api.anthropic.com/v1/design/h/pIAWkwsx2ASYYEZ-7lHzjQ`) into a
 real Vite + React app, pixel-faithful to the prototype.
 
@@ -12,7 +12,7 @@ npm install
 npm run dev          # http://localhost:5180
 ```
 
-### With the real eval-report (WS-5-BFF)
+### With the real eval-report
 
 The **Report** tab in **Shell** mode renders a real `run_eval` result over the BFF. Start
 the BFF alongside vite (see [`../bff/README.md`](../bff/README.md)):
@@ -24,7 +24,7 @@ npm run dev --prefix apps/shell                      # http://localhost:5180
 ```
 
 The vite dev proxy forwards `/v1` → `:8787` (override with `VITE_BFF_URL`). Switch to
-**Shell** mode and press **Run eval** (replay, $0) or **Run live** (one paid `:8002` call).
+**Shell** mode and press **Run eval** (replay, $0) or **Run live** (one paid live council call).
 
 ### Tests
 
@@ -33,20 +33,20 @@ npm test            # vitest (watch)
 npm run test:run    # vitest run (CI / one-shot)
 ```
 
-Vitest + React Testing Library + jsdom (WS-5c, the shell's first JS test infra). Covers
+Vitest + React Testing Library + jsdom (the shell's first JS test infra). Covers
 the gen-UI registry (all 5 tools render + graceful fallback + the locked flat-spread
 datapoint prop convention), the 3 input widgets (collect + return a result; FlagEditor
-reads ontology via GET + persists a draft via PUT), the `bff.js → ReportTab` binding
-(S-BS-18), the wired artifact tabs (Judge council / Config / Corpus over real BFF data),
-and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
+reads ontology via GET + persists a draft via PUT), the `bff.js → ReportTab` binding,
+the wired artifact tabs (Judge council / Config / Corpus over real BFF data),
+and the Shell host mounting the input tool-parts. 30 tests.
 
 ## What's here
 
 - **Pixel-faithful port** of the design's shell: floating window, 3 resizable panes,
   the Domain→Judge→Oracle→KB→Run→Review journey stepper, three inline cards
   (config / verdict / calibration), and the right artifact pane (Report · Judge council ·
-  Config · Corpus — all over real BFF data, WS-5d) with fullscreen + a light/dark theme toggle.
-- **Generative-UI layer (WS-5c)** — a `tool-<name>` → React component registry
+  Config · Corpus — all over real BFF data) with fullscreen + a light/dark theme toggle.
+- **Generative-UI layer** — a `tool-<name>` → React component registry
   (`src/genui/`, AI-SDK message-parts shape): input widgets (flag/severity editor,
   contract builder, KB picker) + datapoint cards (verdict, calibration). `renderTool(part)`
   resolves the component on `state === "output-available"`; unknown tools degrade gracefully.
@@ -56,7 +56,7 @@ and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
   `v0-lithrim-landing-page`. The conversation's assistant avatar is the Lithrim mark.
 - **Design system** — two layers, one token source. `src/styles.css` / `src/journey.css`
   are the prototype's bespoke chrome CSS, kept verbatim (coral `#E85C3D`, navy `#1A2845`,
-  Geist + Geist Mono, 10px radius). `src/theme.css` (WS-5c) adds the **Tailwind v4 + shadcn**
+  Geist + Geist Mono, 10px radius). `src/theme.css` adds the **Tailwind v4 + shadcn**
   foundation via an `@theme inline` bridge over those same `:root` tokens, so the net-new
   gen-UI components (`src/components/ui/`, `src/genui/`) stay brand-consistent. Adopted
   **incrementally** — the chrome CSS is not rewritten into utilities.
@@ -69,11 +69,11 @@ and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
 | `src/app.jsx` | shell composition: titlebar, resizable panes, status bar, theme |
 | `src/panes.jsx` | left rail (brand + threads + journey stepper) + center conversation |
 | `src/cards.jsx` | inline cards: config widget / verdict / calibration chart |
-| `src/artifact.jsx` | right pane: Report / Judge council / Config / Corpus tabs — all real BFF data (WS-5d) + fullscreen |
-| `src/bff.js` | the React↔Python bridge client (run-eval / corpus / get+put ontology; WS-5-BFF + WS-5d) |
+| `src/artifact.jsx` | right pane: Report / Judge council / Config / Corpus tabs — all real BFF data + fullscreen |
+| `src/bff.js` | the React↔Python bridge client (run-eval / corpus / get+put ontology) |
 | `src/brand.jsx` | the real Lithrim logo (mark + wordmark) |
 | `src/icons.jsx` · `src/data.jsx` | line-icon set · representative content — clinical/Scribe demo (rail threads / journey stepper) |
-| `src/theme.css` | Tailwind v4 + `@theme` token bridge over `styles.css` (WS-5c) |
+| `src/theme.css` | Tailwind v4 + `@theme` token bridge over `styles.css` |
 | `src/components/ui/` | shadcn/ui copy-ins (button/input/label/card/separator/switch/slider/select/dialog) |
 | `src/components/ModeSwitch.jsx` | the Shell↔Journey segmented control (in the titlebar) |
 | `src/genui/` | gen-UI registry (`registry.js`) + 5 tool components + tests |
@@ -81,31 +81,30 @@ and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
 
 ## Status & next
 
-- **Done:** the shell skeleton (WS-5) + the conversational **journey layer** (WS-5b) —
+- **Done:** the shell skeleton + the conversational **journey layer** —
   the 4-act activation arc (`src/journey/`, ESM port of `jp1–jp4`) with a top-level
   Shell↔Journey switch (`src/root.jsx`, default Journey) sharing the window theme.
-- **WS-5-BFF:** the FastAPI BFF + React↔Python bridge + one real `run_eval`
+- **BFF wire-up:** the FastAPI BFF + React↔Python bridge + one real `run_eval`
   eval-report vertical (the Report tab renders live harness output; see above).
-- **WS-5c (this phase):** the generative-UI `tool-<name>` registry + input widgets +
+- **Generative-UI layer:** the generative-UI `tool-<name>` registry + input widgets +
   datapoint cards; the **Tailwind v4 / `@theme` / shadcn foundation**; the mode-switch
-  moved into the titlebar chrome; the demo domain reconciled to clinical/Scribe (S-BS-17);
+  moved into the titlebar chrome; the demo domain reconciled to clinical/Scribe;
   and the shell's first JS test infra (Vitest + RTL) incl. the `bff.js → ReportTab`
-  binding test (S-BS-18).
-- **WS-5d (this phase):** the artifact pane is **wired** — JudgeTab renders the realized
+  binding test.
+- **Artifact-pane wiring:** the artifact pane is **wired** — JudgeTab renders the realized
   per-case council votes + ConfigTab the live ontology (`GET /v1/ontology`); a 4th
   **Corpus** tab renders the correction flywheel (`GET /v1/corpus`); the deferred
   **`PUT /v1/ontology`** write surface landed (clobber-safe working copy + validated),
-  making the FlagEditor read-write; S-BS-19 closed for the Shell host (input tool-parts
-  mount + thread `onResult` into config-plane state) + the datapoint prop convention
+  making the FlagEditor read-write; the Shell host input tool-part mounting landed
+  (mount + thread `onResult` into config-plane state) + the datapoint prop convention
   locked to flat-spread. *Edits persist as a draft working copy — they do not yet feed
   an eval run (run_eval reads the committed seed); wiring drafts into grading is a
   follow-up.*
-- **Next (WS-5e per `docs/specs/SPEC_PRODUCT_SHELL.md`):** Tauri desktop installers +
-  the deferred Tauri sidecar + VPC packaging + offline-license + the Playwright/E2E layer
-  for Radix popover/drag interactions (S-BS-20). Journey-act (`jp1–jp4`) tool-part
-  mounting is also still open.
+- **Next:** Tauri desktop installers + the deferred Tauri sidecar + VPC packaging +
+  offline-license + the Playwright/E2E layer for Radix popover/drag interactions.
+  Journey-act (`jp1–jp4`) tool-part mounting is also still open.
 
-### Journey layer (`src/journey/`, WS-5b)
+### Journey layer (`src/journey/`)
 
 | File | Role |
 |---|---|
@@ -113,8 +112,8 @@ and the Shell host mounting the input tool-parts (S-BS-19). 30 tests.
 | `chrome.jsx` | journey rail / top bar / status bar / phase footer + the shared `AgentMsg` |
 | `jp1.jsx … jp4.jsx` | the four acts (center conversation + right-pane artifact); jp2 verify-reveal + jp3 calibration are the hero screens |
 | `JourneyApp.jsx` | composition: phase state machine (1–4), `runVerify`/`runCalib` hero timers, ←/→ nav, resizable panes |
-- Fonts load from Google Fonts (dev). WS-5e swaps to self-hosted `@fontsource` for
-  offline/desktop.
+- Fonts load from Google Fonts (dev). A later phase swaps to self-hosted `@fontsource`
+  for offline/desktop.
 - Stack note: the design's bespoke chrome CSS is kept verbatim for fidelity; the
-  Tailwind v4 + shadcn foundation (WS-5c) layers in over the same token source for the
+  Tailwind v4 + shadcn foundation layers in over the same token source for the
   net-new components, without rewriting the chrome.

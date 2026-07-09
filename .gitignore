@@ -11,7 +11,9 @@ dist/
 .DS_Store
 .devloop/
 .codex/
-# Local data — track only the manifest pointer, not the cohort itself.
+# Local data — track only the manifest pointer, not the cohort itself (the no-slash line
+# also covers a local SYMLINK at that path; see data/MANIFEST.md).
+data/synthea_sample_data_csv_latest
 data/synthea_sample_data_csv_latest/
 data/synthea/
 data/synthea_*/*
@@ -29,8 +31,12 @@ docs/_internal/
 _archive/
 # Rendered report PDFs — publish public ones as release assets, not committed in-repo.
 docs/rendered/
-# Specs — kept local; the public ones are shared explicitly, not committed by default.
-docs/specs/
+# Specs — kept local by default; public ones are re-included explicitly below.
+docs/specs/*
+!docs/specs/SPEC_TOOL_CONNECTORS.md
+
+# The internal agent playbook — local-only companion to the public CLAUDE.md.
+CLAUDE.local.md
 # Local clinverdict/clinical research data + onboarding guide — kept local, out of the public
 # core surface (PACK-DIST-1: the clinical realm ships external). The self-skipping clinverdict
 # tests stay in-repo but skip/ignore cleanly when this data is absent.

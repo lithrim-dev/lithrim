@@ -1,4 +1,4 @@
-# `tests/fixtures/_core/` — the NEUTRAL house fixture (S-BS-137)
+# `tests/fixtures/_core/` — the NEUTRAL house fixture
 
 These files are the **domain-neutral** house fixture that ~18 PLUMBING tests use. They let
 the run-id / verdict round-trip / audit-shape / suppression-wired plumbing tests run on the

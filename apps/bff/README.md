@@ -1,12 +1,12 @@
 # Lithrim Shell BFF (`apps/bff`)
 
-The local **FastAPI backend-for-frontend** — the *judge-capability API v1* (WS-5-BFF).
-It is the React↔Python bridge from `SPEC_PRODUCT_SHELL.md` §5: a thin app that imports
+The local **FastAPI backend-for-frontend** — the *judge-capability API v1*.
+It is the React↔Python bridge: a thin app that imports
 `lithrim_bench.harness` + `scripts/run_eval` and fronts them for the React/Tauri shell.
 
-Strangler-fig (sequencing B): the BFF targets the **harness**, which composes over live
-`:8002`/`:3031`. No Mongo, no `../lithrim-backend`. One BFF, two packagings (Tauri sidecar
-desktop ↔ containerized VPC) — WS-5e.
+The BFF targets the **harness** (which can compose over external services such as the
+`:3031` JUTE mapper). No Mongo, no separate backend checkout. One BFF, two packagings
+(Tauri sidecar desktop ↔ containerized VPC).
 
 ## Run (dev)
 
@@ -27,13 +27,13 @@ cd apps/shell && npm run dev                        # http://localhost:5180
 In the shell (switch to **Shell** mode, top-center), press **Run eval** → the real
 `run_eval.run()` composite renders in the right artifact pane. **Run live** opts into one
 real, paid council run on the configured backend — `LITHRIM_COUNCIL_BACKEND` selects it:
-unset/`in_process` (the OSS default, BYO Azure/Claude key, no `:8002`) or `http` (a live
-`:8002` deployment). See [`docs/QUICKSTART.md`](../../docs/QUICKSTART.md).
+unset/`in_process` (the OSS default, BYO Azure/Claude key, fully local) or `http` (a live
+hosted council deployment). See [`docs/QUICKSTART.md`](../../docs/QUICKSTART.md).
 
 Override the BFF target with `VITE_BFF_URL` (e.g. an absolute Tauri/VPC URL); unset, the
 client uses a relative base through the vite proxy.
 
-## v1 endpoint surface (locked, SPEC §10)
+## v1 endpoint surface (locked)
 
 | Endpoint | Returns |
 |---|---|
@@ -42,9 +42,9 @@ client uses a relative base through the vite proxy.
 | `GET /v1/ontology` `{agent?}` | the agent's committed ontology JSON (the same "stored ontology" sent to the live council). **Read-only in v1.** |
 | `GET /health` | `{status: "ok"}` |
 
-> `PUT /v1/ontology` is **deferred** to the phase that wires an ontology editor
-> (WS-5c/WS-5d). The folded `calibration_check` is a degenerate **N=1 diagnostic** on the
-> WS-0 baseline (`ece==0.5`, small-N caveat) — **not** the WS-4b locked calibration gate.
+> `PUT /v1/ontology` is **deferred** to the phase that wires an ontology editor. The
+> folded `calibration_check` is a degenerate **N=1 diagnostic** on the seed baseline
+> (`ece==0.5`, small-N caveat) — **not** the locked calibration gate.
 
 ## Test
 
