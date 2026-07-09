@@ -30,12 +30,19 @@ this directory. The regeneration is deterministic; the checked-in fixtures ARE i
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
-# The read-only source corpus (the main tree). Deliverable 1 copies FROM here.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# The read-only source corpus (a maintainer-local research tree, absent on a public clone).
+# Deliverable 1 copies FROM here; override with LITHRIM_BENCH_SUBSUMPTION_SOURCE_DIR.
 SOURCE_DIR = Path(
-    "/Users/aregee/Workspace/github.com/lithrim-bench/docs/clinverdict/bidirectional_proposal"
+    os.environ.get(
+        "LITHRIM_BENCH_SUBSUMPTION_SOURCE_DIR",
+        str(_REPO_ROOT / "docs" / "clinverdict" / "bidirectional_proposal"),
+    )
 )
 OUT_DIR = Path(__file__).resolve().parent
 
@@ -89,6 +96,11 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def main() -> None:
+    if not SOURCE_DIR.is_dir():
+        raise SystemExit(
+            f"source corpus not found: {SOURCE_DIR} (maintainer-only regeneration input; "
+            "set LITHRIM_BENCH_SUBSUMPTION_SOURCE_DIR)"
+        )
     for name in ("upcoded_positives.jsonl", "clean_generalization_negatives.jsonl"):
         src = SOURCE_DIR / name
         rows = [normalize_case(c) for c in load_jsonl(src)]

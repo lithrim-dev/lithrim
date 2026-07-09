@@ -56,8 +56,16 @@ _NEEDLES = (
     "prescri",
 )
 # Tracked DATA-surface dirs that ship in / alongside the core (NOT lithrim_bench/ code — that
-# residual is test_6bclean_attestation's domain).
-_DATA_SURFACE = ("packs", "examples", "data/config")
+# residual is test_6bclean_attestation's domain). REL-2 widened the sweep to samples/ + the
+# subsumption fixture dir, so the sanctioned clinical surfaces below sit UNDER the tripwire.
+_DATA_SURFACE = (
+    "packs",
+    "examples",
+    "data/config",
+    "samples",
+    "tests/fixtures/subsumption_bidirectional",
+    "repro",
+)
 # The ENUMERATED passive carve-out: files allowed to contain a needle WORD because it is provenance
 # prose / a docstring (no clinical DATA). A NEW needle in any OTHER data-surface file fails A2.
 _PASSIVE_CARVE_OUT = frozenset(
@@ -66,15 +74,29 @@ _PASSIVE_CARVE_OUT = frozenset(
         "packs/support_ticket_qa/ontology.json",  # ditto (the standalone sample pack)
         "packs/support_ticket_qa/taxonomy_snapshot.json",  # ditto
         "packs/_plugin_fixture/floors.py",  # docstring: "the clinical record_presence uses"
+        "samples/README.md",  # needle "scribe" only as a substring of "describe" — no clinical data
     }
 )
-# PACK-DIST-1 AMENDMENT (2026-06-28): the CE ships ONE deliberately-sanctioned SYNTHETIC clinical
-# SAMPLE — packs/clinical_scribe/ + its examples/clinical_scribe/ corpus — a small by-construction
-# teaser of the clinical thesis (NOT the curated Pro `healthcare` pack, which stays external). Unlike
-# the passive carve-out (provenance prose), this is genuine clinical DATA, deliberately sanctioned. It
-# is the ONLY place clinical sample data is allowed; a needle in any OTHER data-surface file, or a
-# clinical corpus outside this prefix, still fails A2 (see the "only sanctioned surface" test below).
-_SYNTHETIC_CLINICAL_SAMPLE = ("packs/clinical_scribe/", "examples/clinical_scribe/")
+# PACK-DIST-1 AMENDMENT (2026-06-28) + REL-2 (2026-07-09): the CE ships an ENUMERATED set of
+# deliberately-sanctioned SYNTHETIC clinical surfaces — packs/clinical_scribe/ + its
+# examples/clinical_scribe/ corpus (the by-construction teaser of the clinical thesis),
+# samples/quickstart/ (the ingest-front-door sample notes), and
+# tests/fixtures/subsumption_bidirectional/ (the blind bidirectional subsumption fixture corpus).
+# NOT the curated Pro `healthcare` pack, which stays external. Unlike the passive carve-out
+# (provenance prose), these carry genuine clinical DATA, deliberately sanctioned. They are the ONLY
+# places clinical sample data is allowed; a needle in any OTHER swept file, or a clinical corpus
+# outside these prefixes, still fails A2 (see the "only sanctioned surface" test below).
+_SYNTHETIC_CLINICAL_SAMPLE = (
+    "packs/clinical_scribe/",
+    "examples/clinical_scribe/",
+    "samples/quickstart/",
+    "tests/fixtures/subsumption_bidirectional/",
+    # The published study's reproduction surface (REPRODUCING.md): the sanitized
+    # 44-case corpus plus the graded ontologies, whose lens definitions carry
+    # clinical wording by design. Sanctioned wholesale; the sweep still trips on
+    # any NEW dir outside these prefixes.
+    "repro/",
+)
 
 
 def _is_sample(path: str) -> bool:
@@ -88,11 +110,11 @@ def _tracked(*dirs: str) -> list[str]:
     return [p for p in out.splitlines() if p]
 
 
-def _needle_hits(rel_paths: list[str]) -> list[str]:
+def _needle_hits(rel_paths: list[str], root: Path = REPO_ROOT) -> list[str]:
     """``"path:lineno:line"`` for every line under ``rel_paths`` containing a clinical needle."""
     hits = []
     for rel in rel_paths:
-        fp = REPO_ROOT / rel
+        fp = root / rel
         if not fp.is_file():
             continue
         try:

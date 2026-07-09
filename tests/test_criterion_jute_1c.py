@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -47,12 +48,16 @@ from lithrim_bench.verification.argshape_gate import (
 
 FIXTURES = Path(__file__).parent / "fixtures" / "subsumption_bidirectional"
 
-# The source corpus (the main tree) — read ONLY to derive the disclosed-circularity oracle's
-# parent/child annotation (the fixtures themselves are blind). If the main tree is absent (a
-# fresh clone), the oracle falls back to the case-expectation-derived direction, which is
-# equivalent for these labels.
+# The source corpus (a maintainer-local research tree) — read ONLY to derive the
+# disclosed-circularity oracle's parent/child annotation (the fixtures themselves are blind).
+# Override with LITHRIM_BENCH_SUBSUMPTION_SOURCE_DIR. If it is absent (a fresh clone), the
+# oracle falls back to the case-expectation-derived direction, which is equivalent for these
+# labels.
 SOURCE_DIR = Path(
-    "/Users/aregee/Workspace/github.com/lithrim-bench/docs/clinverdict/bidirectional_proposal"
+    os.environ.get(
+        "LITHRIM_BENCH_SUBSUMPTION_SOURCE_DIR",
+        str(Path(__file__).resolve().parents[1] / "docs" / "clinverdict" / "bidirectional_proposal"),
+    )
 )
 
 

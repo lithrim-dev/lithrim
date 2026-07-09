@@ -18,13 +18,14 @@ data/synthea_sample_data_csv_latest/
 
 ## How to provide it
 
-**Option A (local, fastest):** symlink the existing checkout
+**Option A (local, fastest):** symlink or copy an existing local checkout of the cohort
+into place (the path is gitignored either way):
 
 ```bash
-ln -s ~/Workspace/github.com/synthea_sample_data_csv_latest data/synthea_sample_data_csv_latest
+ln -s /path/to/synthea_sample_data_csv_latest data/synthea_sample_data_csv_latest
 ```
 
-**Option B (fresh download):** the Synthea sample cohort can be regenerated with the [Synthea](https://github.com/synthetichealth/synthea) Java generator, or downloaded from the public sample tarball. Pin the seed before regenerating; the bench's reproducibility claim depends on it.
+**Option B (fresh download):** the Synthea sample cohort can be regenerated with the [Synthea](https://github.com/synthetichealth/synthea) Java generator, or downloaded from the project's public sample tarball. Pin the seed before regenerating; the bench's reproducibility claim depends on it.
 
 ## Provenance fields
 
