@@ -25,12 +25,16 @@ human contributors and coding agents (`AGENTS.md` symlinks here).
   synthetic clinical sample; `support_ticket_qa` is a standalone non-clinical fixture).
 - `apps/bff/` (FastAPI backend-for-frontend, port 8787) and `apps/shell/` (React UI, port 5180).
 - `examples/`, `samples/`, `data/`: shipped sample corpora and data pointers (all synthetic).
-- `tests/`: pytest suite, runnable offline on a bare clone.
+- `tests/`: pytest suite; offline by design (LLM-dependent tests use mocks/replay). The full
+  run needs the documented extras (see `CONTRIBUTING.md`); pack-dependent tests skip when the
+  external pack is absent.
 
 ## Commands
 
-- Test: `pytest -q`. A bare clone is green: clinical/pack-dependent tests skip when the
-  external pack is absent (see the pack-env note below).
+- Test: `pytest -q`. On a fresh clone with the documented extras installed
+  (`pip install -e ".[dev,council,verification,bff,agent]"`, see `CONTRIBUTING.md`) the suite
+  runs with no model key and no external pack: pack-dependent tests skip when the pack is
+  absent. A minimal `.[dev]` install collects cleanly but runs only a subset.
 - With the external `healthcare` pack checked out as a sibling directory, the full dev suite is
   `LITHRIM_BENCH_PACK=healthcare LITHRIM_BENCH_PACKS_DIR=../lithrim-pack-healthcare pytest -q`.
 - Lint: `ruff check .` and `ruff format .` (the frozen council seam is excluded in `ruff.toml`).
@@ -55,10 +59,12 @@ human contributors and coding agents (`AGENTS.md` symlinks here).
 3. **Sanctioned clinical surfaces are enumerated.** The tracked tree is clinical-free except
    for the deliberately sanctioned synthetic samples: `packs/clinical_scribe/` +
    `examples/clinical_scribe/`, `samples/quickstart/`,
-   `tests/fixtures/subsumption_bidirectional/`, and `repro/` (the published
+   `tests/fixtures/subsumption_bidirectional/`, `repro/` (the published
    study's reproduction surface: sanitized corpus + graded ontologies; see
-   `REPRODUCING.md`). This is pinned by the clinical sweep in
-   `tests/test_pack_dist.py`; do not add clinical content anywhere else. The curated
+   `REPRODUCING.md`), `tests/fixtures/standalone/` (the standalone-demo case fixtures),
+   `data/verification_packs/` (synthetic Synthea-derived FHIR validator corpora), and
+   `apps/shell/public/demo/` (the demo narration audio). This is pinned by the clinical
+   sweep in `tests/test_pack_dist.py`; do not add clinical content anywhere else. The curated
    `healthcare` domain pack is distributed separately and never merges back into this core.
 4. **Never hand-edit a taxonomy snapshot.** Refresh via `scripts/snapshot_taxonomy.py`; the
    curated `lenses` block and role names are carried over on re-snapshot. If lint fails after

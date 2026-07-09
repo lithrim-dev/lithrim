@@ -14,6 +14,7 @@ Pins the public-tree hygiene invariants for the community release:
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 
@@ -27,6 +28,26 @@ from .test_pack_dist import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# REL-5e (critic finding): the sensitive needles are ASSEMBLED at runtime from codepoints so
+# neither string ever appears in this (published) source — a visible split like
+# "/Users/" + <name> still ships the name. Integrity-pinned below so a codepoint typo
+# cannot silently neuter the sweeps.
+_MAINTAINER_USER = "".join(chr(c) for c in (97, 114, 101, 103, 101, 101))
+_COLLABORATOR = "".join(chr(c) for c in (83, 104, 97, 114, 105, 102))
+
+
+def test_assembled_needles_are_intact():
+    """Planted-needle-grade self-check: the assembled needles hash to their pins, so the
+    sweeps below are proven to hunt the REAL strings (never visible in source)."""
+    assert (
+        hashlib.sha256(("/Users/" + _MAINTAINER_USER).encode()).hexdigest()
+        == "45ca16eb3eb4f7a554ed0ec89390ba752e506099d51b11742a5137391b98992d"
+    )
+    assert (
+        hashlib.sha256(_COLLABORATOR.encode()).hexdigest()
+        == "524b30f818bf83fc541d0cb25109686e77c39fbed86bf11da3db0130f49e5e15"
+    )
+
 
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
@@ -38,15 +59,18 @@ def _tracked_files() -> list[str]:
 
 def test_no_tracked_file_contains_the_maintainer_home_path():
     """(a) the maintainer's absolute home path appears in NO tracked file (git grep over the
-    tracked tree). The needle is assembled at runtime so this tripwire never trips itself."""
-    needle = "/Users/" + "aregee"
+    tracked tree). The needle is runtime-assembled (integrity-pinned above) so this tripwire
+    never trips itself and never publishes the username."""
+    needle = "/Users/" + _MAINTAINER_USER
     out = _git("grep", "-I", "-l", "--fixed-strings", needle, "--", ".")
     assert out.returncode == 1, f"tracked files leak a personal path:\n{out.stdout}"
 
 
 def test_no_collaborator_name_in_fixtures_or_samples():
-    """(b) no tracked file under tests/fixtures/ or samples/ names the collaborator."""
-    out = _git("grep", "-I", "-l", "Sharif", "--", "tests/fixtures", "samples")
+    """(b) no tracked file under tests/fixtures/ or samples/ names the collaborator. The
+    surname is runtime-assembled (integrity-pinned above) — it must not appear in THIS file
+    either (it is a published test)."""
+    out = _git("grep", "-I", "-l", "--fixed-strings", _COLLABORATOR, "--", "tests/fixtures", "samples")
     assert out.returncode == 1, f"fixtures/samples still name the collaborator:\n{out.stdout}"
 
 

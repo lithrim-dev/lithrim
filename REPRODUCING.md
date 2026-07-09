@@ -21,7 +21,7 @@ workspace, by construction):
 | `stream-b-ensemble` | Multi-model ensemble, same instruction, k=1, t=0.0 | 6 |
 | `stream-c-same` | Specialist council (risk/policy/faithfulness lenses), one model | 3 |
 | `stream-c-mixed` | Specialist council, mixed models | 3 |
-| `baseline-composo` (published as `baseline-scalar-reward`) | Commercial scalar-reward baseline (anonymized) | 1 |
+| `baseline-scalar-reward` | Commercial scalar-reward baseline (anonymized) | 1 |
 
 The two arms differ only in the floor ontology: **armT** (transcript-only) vs **armR**
 (record-informed: `grading_context_fields: ["patient_profile"]` exposes the clinical
@@ -71,7 +71,8 @@ file, point `LITHRIM_REPRO_PHYSICIAN_CASES` at it and the assertion becomes 54.
    - an **OpenAI-compatible endpoint** serving `Llama-4-Maverick-17B-128E-Instruct-FP8`
      and `Mistral-Large-3` (ensemble members; optional if you drop those two roles),
    - the **commercial scalar-reward baseline is optional and anonymized** in the published
-     record; skip `baseline-composo` if you don't have that vendor's key.
+     record; skip `baseline-scalar-reward` if you don't hold a key for that class of
+     product.
 3. The SNOMED floor tooling: a Hermes SNOMED jar + db under `snomed/` (see
    `snomed/README.md`). The floor contracts call it as an MCP tool (`hermes_snomed`).
 
@@ -116,28 +117,31 @@ target workspace active; switch via `POST /v1/workspace {"name": ...}`):
 ```bash
 # stream-a-single
 curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
-  -d '{"role": "a_generalist", "provider": "azure", "model": "gpt-4.1"}'
+  -d '{"role": "single_generalist", "provider": "azure", "model": "gpt-4.1"}'
 
 # stream-b-ensemble (repeat per role; a per-role "endpoint"/"api_version" override is
 # supported so two judges on the same provider can hit different deployments)
 curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
-  -d '{"role": "b_gpt41", "provider": "azure", "model": "gpt-4.1"}'
+  -d '{"role": "ens_gpt41", "provider": "azure", "model": "gpt-4.1"}'
 curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
-  -d '{"role": "b_gpt5", "provider": "azure", "model": "gpt-5.4"}'
+  -d '{"role": "ens_gpt5", "provider": "azure", "model": "gpt-5.4"}'
 curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
-  -d '{"role": "b_opus", "provider": "anthropic", "model": "claude-opus-4-8"}'
+  -d '{"role": "ens_opus", "provider": "anthropic", "model": "claude-opus-4-8"}'
 curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
-  -d '{"role": "b_sonnet", "provider": "anthropic", "model": "claude-sonnet-5"}'
+  -d '{"role": "ens_sonnet", "provider": "anthropic", "model": "claude-sonnet-5"}'
+curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
+  -d '{"role": "ens_llama", "provider": "openai_compatible", "model": "Llama-4-Maverick-17B-128E-Instruct-FP8"}'
+curl -sX POST localhost:8787/v1/roles/bind -H 'Content-Type: application/json' \
+  -d '{"role": "ens_mistral", "provider": "openai_compatible", "model": "Mistral-Large-3"}'
 
 # stream-c-same: cs_risk / cs_policy / cs_faith all -> azure gpt-4.1
 # stream-c-mixed: cm_risk -> anthropic claude-opus-4-8, cm_policy -> azure gpt-4.1,
 #                 cm_faith -> azure gpt-5.4
 ```
 
-Note on naming: the setup script authors the initial roles (`a_generalist`, `b_*`,
-`d_composo`); the published record reports the final/anonymized names
-(`single_generalist`, `ens_*` with two extra ensemble members, `scalar_reward_baseline`).
-`repro/role_binds.json` carries the authoritative role-to-model map and the mapping note.
+Note on naming: the setup script authors the published role and workspace names directly
+(`single_generalist`, the six `ens_*` members, `cs_*`/`cm_*`, `scalar_reward_baseline`).
+`repro/role_binds.json` carries the authoritative role-to-model map.
 
 ### 3. Grade the cohort (PAID)
 

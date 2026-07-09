@@ -105,15 +105,40 @@ def test_shell_fetches_no_external_fonts():
     assert "fonts.gstatic" not in html, "index.html still preconnects fonts.gstatic"
 
 
+# REL-5e (critic finding): the surname is ASSEMBLED at runtime so it never appears in this
+# published source; integrity + detection are self-checked below.
+_COLLABORATOR = "".join(chr(c) for c in (83, 104, 97, 114, 105, 102))
+
+
+def _names_collaborator(text: str) -> bool:
+    return _COLLABORATOR in text
+
+
+def test_collaborator_needle_assembly_detects_a_planted_needle():
+    """Planted-needle self-check: the detector fires on a synthetic text carrying the
+    assembled surname (and stays quiet on clean text), and the needle hashes to its pin —
+    so the sweep below is proven live without the string ever appearing in source."""
+    import hashlib
+
+    planted = "attribution: reviewed by Dr. " + _COLLABORATOR + " (panel)"
+    assert _names_collaborator(planted)
+    assert not _names_collaborator("attribution: reviewed by the physician collaborator")
+    assert (
+        hashlib.sha256(_COLLABORATOR.encode()).hexdigest()
+        == "524b30f818bf83fc541d0cb25109686e77c39fbed86bf11da3db0130f49e5e15"
+    )
+
+
 def test_no_personal_name_under_shell_src():
-    """(e) S-REL-8: no "Sharif" literal in any tracked file under apps/shell/src."""
+    """(e) S-REL-8: no collaborator-surname literal in any tracked file under
+    apps/shell/src (needle runtime-assembled; see the self-check above)."""
     tracked = _tracked_files()
     hits = []
     for rel in sorted(tracked):
         if not rel.startswith("apps/shell/src/"):
             continue
         text = (REPO / rel).read_text(encoding="utf-8", errors="ignore")
-        if "Sharif" in text:
+        if _names_collaborator(text):
             hits.append(rel)
     assert not hits, f"personal-name literal under apps/shell/src: {hits}"
 

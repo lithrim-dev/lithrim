@@ -1,8 +1,7 @@
 """REL-1 acceptance: the tracked study-reproduction surface (repro/ + REPRODUCING.md + CITATION.cff).
 
-The published study's orchestration inputs were ephemeral (/private/tmp) or gitignored; these
-tests pin the tracked, sanitized, parameterized reproduction surface a stranger clones.
-Driver: .devloop/prompts/community-release_phase1_repro-surface_driver.md §5.
+The published study's orchestration inputs were ephemeral or untracked; these tests pin
+the tracked, sanitized, parameterized reproduction surface a stranger clones.
 """
 
 import json
@@ -41,10 +40,26 @@ def test_repro_scripts_have_no_local_hardcodes(script):
 # --- A1b: sanitized data files (no physician name, no facility name) ---
 
 
-# Needles built by concatenation so this tracked file never carries the searchable
-# literals itself (the test_release_sanitization.py pattern).
-_NAME_NEEDLE = "Sha" + "rif"
-_FACILITY_NEEDLE = "Wal" + "ter"
+# REL-5e (critic finding): the needles are ASSEMBLED from codepoints — a visible
+# concatenation split still publishes the strings. Integrity-pinned below so a typo
+# cannot silently neuter the sweep; neither string ever appears in this source.
+_NAME_NEEDLE = "".join(chr(c) for c in (83, 104, 97, 114, 105, 102))
+_FACILITY_NEEDLE = "".join(chr(c) for c in (87, 97, 108, 116, 101, 114))
+
+
+def test_sanitization_needles_are_intact():
+    """The assembled needles hash to their pins (planted-needle-grade self-check: the
+    sweep below provably hunts the real strings without publishing them)."""
+    import hashlib
+
+    assert (
+        hashlib.sha256(_NAME_NEEDLE.encode()).hexdigest()
+        == "524b30f818bf83fc541d0cb25109686e77c39fbed86bf11da3db0130f49e5e15"
+    )
+    assert (
+        hashlib.sha256(_FACILITY_NEEDLE.encode()).hexdigest()
+        == "d1289e5a730e1e6790a48093f470913a1a1dd0942518d3fb5aeab2a0d163bbc0"
+    )
 
 
 @pytest.mark.parametrize("relpath", CORPUS_FILES + ONTOLOGY_FILES + ["role_binds.json"])
@@ -110,9 +125,12 @@ def test_setup_streams_dry_run_is_offline_and_prints_the_plan():
     assert proc.returncode == 0, f"dry-run exited {proc.returncode}: {proc.stderr[:800]}"
     out = proc.stdout
     for ws in ("stream-a-single", "stream-b-ensemble", "stream-c-same",
-               "stream-c-mixed", "baseline-composo"):
+               "stream-c-mixed", "baseline-scalar-reward"):
         assert ws in out, f"dry-run plan missing workspace {ws}"
-    for role in ("a_generalist", "b_gpt41", "cs_risk", "cm_faith", "d_composo"):
+    # REL-5e: the script authors the PUBLISHED names, incl. ALL SIX ensemble members
+    # (repro/role_binds.json stream_role_binds is the authoritative set).
+    for role in ("single_generalist", "ens_gpt41", "ens_gpt5", "ens_opus", "ens_sonnet",
+                 "ens_llama", "ens_mistral", "cs_risk", "cm_faith", "scalar_reward_baseline"):
         assert role in out, f"dry-run plan missing judge {role}"
     assert "lens" in out.lower(), "dry-run plan does not describe lenses"
 

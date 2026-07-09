@@ -1,5 +1,5 @@
-Synthea cohort — paper-1-copilot P1-FHIR-CONFORMANCE-MINI
-==========================================================
+Synthea cohort — synthetic FHIR conformance sample data
+========================================================
 
 Generated: 2026-05-28 06:01 IST
 Generator: Synthea v4.0.0
@@ -16,8 +16,8 @@ Command
        --exporter.baseDirectory=data/synthea_2026-05-28 \
        Massachusetts
 
-Reproducibility check (driver §2.1 A2 falsifier)
-------------------------------------------------
+Reproducibility check
+---------------------
 Two independent runs at seed=1, p=3 produced:
   - Patient resources (resourceType=Patient): BYTE-IDENTICAL
     Verified via SHA256 of canonicalized Patient JSON: b00aadfd48e57c9a (both runs)
@@ -29,8 +29,8 @@ Two independent runs at seed=1, p=3 produced:
   - hospitalInformation*.json filename:        DIFFERS (millisecond-epoch suffix)
 
 Verdict: Patient-resource deterministic; non-Patient resources partially
-non-deterministic on time-component and downstream UUIDs. SUFFICIENT for
-MINI scope (Patient-only).
+non-deterministic on time-component and downstream UUIDs — sufficient for
+Patient-only conformance checks.
 
 Cohort contents
 ---------------
@@ -48,11 +48,10 @@ Layout
     x12/                       — empty (x12 export not requested)
 
 This cohort is INDEPENDENT of <workspace>/synthea_sample_data_csv_latest/
-which P1-CANONICAL-PACK eval_case docs reference. Do NOT mutate either cohort.
+which other eval-case docs reference. Do NOT mutate either cohort.
 
 Used by
 -------
-  - P1-FHIR-CONFORMANCE-MINI cycle (this cycle): 3 cases on 3 Patient resources
-  - P1-FHIR-CONFORMANCE-FULL (queued, conditional on MINI go): up to 30 cases × 5 resource types
+  - FHIR conformance verification cases over Patient resources
 
 To regenerate: run the command above (Patient-level reproducibility guaranteed).

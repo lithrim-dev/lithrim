@@ -17,7 +17,7 @@ OUT_DIR = Path(os.environ.get("LITHRIM_REPRO_OUT", "./out/repro"))
 ACTOR = os.environ.get("LITHRIM_REPRO_ACTOR", "repro@lithrim-bench")
 HOME_WS = os.environ.get("LITHRIM_REPRO_HOME_WORKSPACE", "")
 STREAMS = ["stream-a-single", "stream-b-ensemble", "stream-c-same",
-           "stream-c-mixed", "baseline-composo"]
+           "stream-c-mixed", "baseline-scalar-reward"]
 
 
 def call(m, p, b=None, t=900):

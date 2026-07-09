@@ -1,4 +1,5 @@
 {
+  "synthetic": true,
   "id": "sess_real_001",
   "story_id": "jinn-of-jebel-hafeet",
   "mode": "adult",
@@ -44,7 +45,7 @@
       "prompt": "Enhance the reckoning scene.",
       "prompt_chars": 28,
       "prompt_truncated": false,
-      "response_preview": "The confrontation unfolded near the old well, where—",
+      "response_preview": "The confrontation unfolded near the old well, where\u2014",
       "response_chars": 60,
       "response_truncated": true,
       "ms": 410
@@ -69,9 +70,21 @@
       }
     },
     "llm_calls": [
-      {"scene_node_id": "scene_ranger_arrival", "model": "gpt-5", "finish_reason": "stop"},
-      {"scene_node_id": "scene_mountain_road", "model": "gpt-5", "finish_reason": "stop"},
-      {"scene_node_id": "scene_content_filtered_fallback", "model": "gpt-5", "finish_reason": "content_filter"}
+      {
+        "scene_node_id": "scene_ranger_arrival",
+        "model": "gpt-5",
+        "finish_reason": "stop"
+      },
+      {
+        "scene_node_id": "scene_mountain_road",
+        "model": "gpt-5",
+        "finish_reason": "stop"
+      },
+      {
+        "scene_node_id": "scene_content_filtered_fallback",
+        "model": "gpt-5",
+        "finish_reason": "content_filter"
+      }
     ]
   }
 }

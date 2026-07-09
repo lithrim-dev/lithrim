@@ -65,6 +65,11 @@ _DATA_SURFACE = (
     "samples",
     "tests/fixtures/subsumption_bidirectional",
     "repro",
+    # REL-5e (critic finding): three shipped clinical surfaces existed OUTSIDE the swept set —
+    # now swept (and sanctioned by prefix below), so a NEW clinical file near them still trips.
+    "tests/fixtures/standalone",
+    "data/verification_packs",
+    "apps/shell/public/demo",
 )
 # The ENUMERATED passive carve-out: files allowed to contain a needle WORD because it is provenance
 # prose / a docstring (no clinical DATA). A NEW needle in any OTHER data-surface file fails A2.
@@ -96,6 +101,13 @@ _SYNTHETIC_CLINICAL_SAMPLE = (
     # clinical wording by design. Sanctioned wholesale; the sweep still trips on
     # any NEW dir outside these prefixes.
     "repro/",
+    # REL-5e: the standalone-demo clinical case fixture (one synthetic clinical_scribe case
+    # among the three standalone samples), the Synthea-derived FHIR verification packs
+    # (synthetic JUTE-validator corpora), and the demo narration mp3 (clinical narration
+    # audio for the shell demo). All synthetic; enumerated in CLAUDE.md.
+    "tests/fixtures/standalone/",
+    "data/verification_packs/",
+    "apps/shell/public/demo/",
 )
 
 

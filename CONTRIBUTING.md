@@ -16,7 +16,8 @@ Python 3.10+.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"        # pytest + ruff — enough to run the suite + lint
+pip install -e ".[dev]"        # pytest + ruff — lint + a clean collect + a subset of the suite
+                               # (the FULL suite needs the extras table below)
 ```
 
 The base install (`pydantic`, `pandas`) is enough to run the **$0 offline demo**:

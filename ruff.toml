@@ -14,9 +14,6 @@ ignore = ["E501"]
 # B011: tests assert-False idiom. SIM105: try/except/pass cleanup in tmp-dir teardown is clearer
 # than contextlib.suppress here.
 "tests/*" = ["B011", "SIM105"]
-# docs/research one-off reproducibility scripts: imports after a sys.path/REPO_ROOT setup (E402)
-# and a throwaway open() (SIM115) are intentional, not library code held to the same bar.
-"docs/research/*" = ["E402", "SIM115"]
 # utility / dev scripts: a one-line probe (E702) / a guard-style nested if (SIM102) are fine.
 "scripts/*" = ["E702", "SIM102"]
 

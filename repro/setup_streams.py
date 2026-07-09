@@ -68,7 +68,7 @@ FAITH_LENS = ["HALLUCINATED_DETAIL", "MISSING_CONTEXT", "SOURCE_CONTRADICTION",
 
 STREAMS = [
     {"ws": "stream-a-single",
-     "judges": [{"role": "a_generalist", "lens": "FULL", "k": 8, "temperature": 1.0}],
+     "judges": [{"role": "single_generalist", "lens": "FULL", "k": 8, "temperature": 1.0}],
      "prompt": ("You are a single generalist clinical-documentation reviewer. Review the note "
                 "against the transcript across ALL defect lenses you are given: fabrication, "
                 "unsupported or contradicted assertions, value mismatches, omissions and erasures "
@@ -76,7 +76,7 @@ STREAMS = [
                 "inconsistency, and style. Raise every code the evidence supports.")},
     {"ws": "stream-b-ensemble",
      "judges": [{"role": r, "lens": "FULL", "k": 1, "temperature": 0.0}
-                for r in ("b_gpt41", "b_gpt5", "b_opus", "b_sonnet")],
+                for r in ("ens_gpt41", "ens_gpt5", "ens_opus", "ens_sonnet", "ens_llama", "ens_mistral")],
      "prompt": ("You are one reviewer in a multi-model ensemble; each ensemble member receives "
                 "this SAME instruction. Review the note against the transcript across ALL defect "
                 "lenses you are given: fabrication, unsupported or contradicted assertions, value "
@@ -93,8 +93,8 @@ STREAMS = [
                 {"role": "cm_policy", "lens": POLICY_LENS, "k": 1, "temperature": 0.0},
                 {"role": "cm_faith", "lens": FAITH_LENS, "k": 1, "temperature": 0.0}],
      "prompt": None},
-    {"ws": "baseline-composo",
-     "judges": [{"role": "d_composo", "lens": "FULL", "k": 1, "temperature": 0.0}],
+    {"ws": "baseline-scalar-reward",
+     "judges": [{"role": "scalar_reward_baseline", "lens": "FULL", "k": 1, "temperature": 0.0}],
      "prompt": ("You are a holistic quality reviewer scoring the note against the transcript. "
                 "Assess overall faithfulness, completeness, and safety of the documentation.")},
 ]
