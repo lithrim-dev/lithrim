@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import ast
 import difflib
+import hashlib
 import json
 import subprocess
 from pathlib import Path
+
+import pytest
 
 _JUDGES_DSPY_REL = "lithrim_bench/runtime/council/judges_dspy.py"
 _SEAM_BASELINE = "acc4973"  # the UAP-3b parent — the moat-seam pin
@@ -75,6 +78,78 @@ _COUNCIL_ROLE_FILES = (
 _CLINICAL_ONTOLOGY_BASELINE_REL = "data/ontology/clinical_v1.json"
 _CLINICAL_ONTOLOGY_REL = "packs/healthcare/ontology.json"
 
+# REL-5a (S-REL-13): DUAL-MODE baseline resolution. The public release is a fresh-cut orphan
+# history where ``acc4973`` does not exist, and vendoring the baseline is forbidden (it embeds
+# clinical ontology + role prompts). ``_resolve_baseline`` is the ONE resolution seam:
+# baseline resolvable → the byte-diff attestation below, UNCHANGED; unresolvable → the guards
+# compare the SAME extracted frozen sections against ``_FROZEN_SECTION_SHA256`` ("public-mode
+# hash pin"; pins computed from the tree at authoring, provenance-chained by
+# tests/test_seam_guard_public_mode.py: pins == acc4973-derived), and the two pack-relocation
+# guards (ontology / role prompts) SKIP (the healthcare pack is not part of the public cut).
+
+
+def _resolve_baseline(repo: Path, rel: str) -> str | None:
+    """``git show`` the frozen baseline for ``rel``; ``None`` when it is unresolvable
+    (public fresh-cut / shallow clone — the baseline commit or path is absent)."""
+    proc = subprocess.run(
+        ["git", "show", f"{_SEAM_BASELINE}:{rel}"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.stdout if proc.returncode == 0 else None
+
+
+_FROZEN_SECTION_SHA256 = {
+    "compliance_council.py::_apply_consensus": "d1b7956e70a8f2efe70dba7f1e8a48c10e4914d24d333791cba6f7476ebbe432",
+    "compliance_council.py::extract_verdict_confidence": "ed867bce8be313fda9f5d6f40f97f0c45e527203354cbae2982ab9eb1e7ff26a",
+    "judges_dspy.py::EvidenceSpan": "e9763529431ac1428ea5c726c31563c8ac400b43f5036b00a64d4b5350056cfc",
+    "judges_dspy.py::Finding": "38739c4c94463fc94d03c830dd58364b54bc869024089b9084285096e2ea8497",
+    "judges_dspy.py::Judge": "77f8ebb1f716149271f83d0253d63e9cbc4beae94f631a209c1c94b32ba933d4",
+    "judges_dspy.py::_get": "e0c3eff117f9900225891b11dce2512016a77443b2c4fb7e32e8f2ccd698ddba",
+    "judges_dspy.py::_norm_decision": "ef344d26d551940804024a26ea678fa0e6e49ecf26150bef3c3bf840e329e9ab",
+    "judges_dspy.py::_raw_response_for": "b4286ef7f08f8716f287786ef485bd7621ef384567701f391cf9dc37051fd114",
+    "judges_dspy.py::_span_to_dict": "564a00929801b8ae827bd173c898d09717799069aaf7c6e756aca53bd18230bc",
+    "judges_dspy.py::_validate_findings": "4af6058a1a28d918bb69323aae96421716d9a16c29c24fb42d3fb113084aea39",
+    "judges_dspy.py::default_taxonomy_context": "530d2a2718934e3db55676f3786bd28d5a5fff98f3e576ce225a39a66e183dbb",
+    "judges_dspy.py::evaluate_dspy": "68486b17807fe7bb47989a12a4b688bf4319076b1515fd631c5a299c74565fa8",
+}
+_COUNCIL_FROZEN_SECTION_NAMES = ("_apply_consensus", "extract_verdict_confidence")
+
+
+def _council_frozen_sections(src_text: str) -> dict[str, str]:
+    """Extract the pinned council sections by name (method or top-level def). A duplicated
+    name concatenates ALL matches, so a shadowing second def still trips its hash pin."""
+    found: dict[str, list[str]] = {}
+    for node in ast.walk(ast.parse(src_text)):
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in _COUNCIL_FROZEN_SECTION_NAMES
+        ):
+            found.setdefault(node.name, []).append(ast.get_source_segment(src_text, node))
+    return {name: "\n\n".join(srcs) for name, srcs in found.items()}
+
+
+def _assert_sections_match_hash_pins(file_label: str, sections: dict[str, str]) -> None:
+    """Public-mode hash pin — same assertion strength per section as the byte-diff: the
+    pinned symbol SET must match exactly (a deleted or smuggled section fails), and every
+    section's sha256 must equal its pin (any drift fails)."""
+    prefix = f"{file_label}::"
+    pins = {k[len(prefix) :]: v for k, v in _FROZEN_SECTION_SHA256.items() if k.startswith(prefix)}
+    assert set(sections) == set(pins), (
+        f"public-mode hash pin: frozen symbol set changed in {file_label}: "
+        f"added={sorted(set(sections) - set(pins))} removed={sorted(set(pins) - set(sections))}"
+    )
+    drifted = [
+        name
+        for name, src in sections.items()
+        if hashlib.sha256(src.encode("utf-8")).hexdigest() != pins[name]
+    ]
+    assert not drifted, (
+        f"public-mode hash pin: frozen section(s) drifted in {file_label}: {drifted}"
+    )
+
 
 def _toplevel_defs(src_text: str, *, exclude: frozenset[str]) -> dict[str, str]:
     """Map ``{name: verbatim source}`` for every top-level def/class not in ``exclude``."""
@@ -107,14 +182,13 @@ def assert_judges_dspy_consensus_seam_frozen(repo: Path) -> None:
     """The consensus seam in ``judges_dspy.py`` (everything except the BYOC-1 provider
     binder ``build_judge_lm``/``build_trio`` and the CE-PACK-6b-CLEAN ``_build_signature``
     genericization) is byte-identical to ``acc4973``."""
-    base_src = subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{_JUDGES_DSPY_REL}"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    base_src = _resolve_baseline(repo, _JUDGES_DSPY_REL)
     cur_src = (repo / _JUDGES_DSPY_REL).read_text()
+    if base_src is None:
+        _assert_sections_match_hash_pins(
+            "judges_dspy.py", _toplevel_defs(cur_src, exclude=_AUTHORIZED_JUDGES_SEAM)
+        )
+        return
     _assert_judges_dspy_seam_frozen(base_src, cur_src)
 
 
@@ -138,15 +212,13 @@ def assert_clinical_ontology_seam_frozen(repo: Path) -> None:
     ``requires_healthcare_pack`` so they skip-when-absent."""
     from lithrim_bench.harness import pack as _pack
 
-    base = json.loads(
-        subprocess.run(
-            ["git", "show", f"{_SEAM_BASELINE}:{_CLINICAL_ONTOLOGY_BASELINE_REL}"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    )
+    base_text = _resolve_baseline(repo, _CLINICAL_ONTOLOGY_BASELINE_REL)
+    if base_text is None:
+        pytest.skip(
+            "public-mode: the acc4973 ontology baseline needs the private history "
+            "(the healthcare pack is not part of the public cut)"
+        )
+    base = json.loads(base_text)
     cur = json.loads(_pack.pack_ontology_path("healthcare").read_text())
     _assert_clinical_ontology_frozen(base, cur)
 
@@ -273,15 +345,14 @@ def assert_compliance_council_carveouts_only(repo: Path) -> None:
     line smuggled inside an authorized hunk FAILS (the PACK-2b per-line hardening, S-BS-124 —
     closes the prior 'a marker-bearing hunk can hide an extra line' residual); (lower bound) all
     three carve-out call signatures must be present, so reverting ANY carve-out FAILS."""
-    base = subprocess.run(
-        ["git", "show", f"{_SEAM_BASELINE}:{_COMPLIANCE_COUNCIL_REL}"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines(keepends=True)
+    base_text = _resolve_baseline(repo, _COMPLIANCE_COUNCIL_REL)
     cur_text = (repo / _COMPLIANCE_COUNCIL_REL).read_text()
-    assert_council_carveouts_only(base, cur_text)
+    if base_text is None:
+        _assert_sections_match_hash_pins(
+            "compliance_council.py", _council_frozen_sections(cur_text)
+        )
+        return
+    assert_council_carveouts_only(base_text.splitlines(keepends=True), cur_text)
 
 
 def assert_council_carveouts_only(base_lines: list[str], cur_text: str) -> None:
@@ -349,13 +420,12 @@ def assert_council_roles_relocated_only(repo: Path) -> None:
 
     prompts_dir = _pack.pack_prompts_path("healthcare")
     for name in _COUNCIL_ROLE_FILES:
-        base = subprocess.run(
-            ["git", "show", f"{_SEAM_BASELINE}:{_COUNCIL_ROLES_OLD_DIR}/{name}.txt"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+        base = _resolve_baseline(repo, f"{_COUNCIL_ROLES_OLD_DIR}/{name}.txt")
+        if base is None:
+            pytest.skip(
+                "public-mode: the acc4973 role-prompt baselines need the private history "
+                "(the healthcare pack is not part of the public cut)"
+            )
         cur = (prompts_dir / f"{name}.txt").read_text()
         assert cur == base, (
             f"{name}.txt drifted vs {_SEAM_BASELINE} (the relocation must be content-identical)"
