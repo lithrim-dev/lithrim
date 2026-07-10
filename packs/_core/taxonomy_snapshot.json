@@ -1,0 +1,63 @@
+{
+  "snapshot_metadata": {
+    "source": "CE-PACK-NEUTRAL-DEFAULT — the neutral core-shipped DEFAULT_PACK (harness/pack.py DEFAULT_PACK)",
+    "note": "The domain-neutral DEFAULT pack: the core boots STANDALONE against this snapshot with no Pro domain pack on disk. It carries the canonical capability-roster IDENTITY the council validates ANY active pack against — council_roster() = the AST-parsed CouncilModel role names UNION the owner roles of pack_tier1_owners(DEFAULT_PACK). So this snapshot's tier1_owners MUST cover the SAME canonical owner-role SET as the former Pro domain default did (risk_judge / policy_judge / faithfulness_judge / behavior_judge / source_message_judge — the last two owner-only, in declared_but_not_running), over NEUTRAL codes, so every existing pack still subset-validates against the canonical roster under the new default. production_judges reuses the role NAMES of the core deployable trio (a pack subsets KNOWN deployable identities; it does not introduce a new deployable judge). tier: core = the OSS default tier. ZERO domain content — this pack must remain domain-agnostic (grep-verifiable: no Pro-domain literal)."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "FABRICATED_CLAIM",
+      "UNSUPPORTED_ASSERTION",
+      "SOURCE_CONTRADICTION",
+      "OUT_OF_SCOPE_ACTION",
+      "SOURCE_MISATTRIBUTION"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "MISSING_CONTEXT",
+      "INTERNAL_INCONSISTENCY"
+    ],
+    "TIER_3_MEDIUM": [
+      "STYLE_VIOLATION"
+    ]
+  },
+  "tier1_owners": {
+    "FABRICATED_CLAIM": [
+      "policy_judge"
+    ],
+    "UNSUPPORTED_ASSERTION": [
+      "risk_judge"
+    ],
+    "SOURCE_CONTRADICTION": [
+      "faithfulness_judge"
+    ],
+    "OUT_OF_SCOPE_ACTION": [
+      "behavior_judge"
+    ],
+    "SOURCE_MISATTRIBUTION": [
+      "source_message_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "UNSUPPORTED_ASSERTION",
+      "INTERNAL_INCONSISTENCY"
+    ],
+    "policy_judge": [
+      "FABRICATED_CLAIM",
+      "MISSING_CONTEXT"
+    ],
+    "faithfulness_judge": [
+      "SOURCE_CONTRADICTION",
+      "MISSING_CONTEXT",
+      "STYLE_VIOLATION"
+    ]
+  },
+  "declared_but_not_running": [
+    "behavior_judge",
+    "source_message_judge"
+  ]
+}

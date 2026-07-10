@@ -1,0 +1,10 @@
+{
+  "pack_id": "_tiers_fixture",
+  "version": "0.0.0",
+  "tier": "fixture",
+  "domain": "fixture",
+  "ontology": "packs/_core/ontology.json",
+  "flags_ref": "taxonomy_snapshot.json",
+  "council_roles": "council_roles",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}

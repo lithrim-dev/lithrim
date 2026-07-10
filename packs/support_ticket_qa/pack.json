@@ -1,0 +1,10 @@
+{
+  "pack_id": "support_ticket_qa",
+  "version": "0.1.0",
+  "tier": "core",
+  "domain": "support_ticket_qa",
+  "ontology": "ontology.json",
+  "flags_ref": "taxonomy_snapshot.json",
+  "council_roles": "council_roles",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}

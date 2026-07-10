@@ -1,0 +1,90 @@
+{
+  "synthetic": true,
+  "id": "sess_real_001",
+  "story_id": "jinn-of-jebel-hafeet",
+  "mode": "adult",
+  "language": "en",
+  "child_name": "Noor Al-Mansoori",
+  "age": 9,
+  "reader_note": "Noor's mum (jane.doe@example.com) asked to keep it gentle. Call her at 555-867-5309.",
+  "llm_calls": [
+    {
+      "at": "2026-06-17T10:00:00Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "stop",
+      "prompt": "Enhance the ranger-arrival scene for Noor Al-Mansoori, age 9, gentle tone. Reply to jane.doe@example.com.",
+      "prompt_chars": 104,
+      "prompt_truncated": false,
+      "response_preview": "Dust and sand rasped on her tongue as the ranger arrived. (reply to jane.doe@example.com)",
+      "response_chars": 220,
+      "response_truncated": true,
+      "ms": 1180
+    },
+    {
+      "at": "2026-06-17T10:00:05Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "stop",
+      "prompt": "Continue with the mountain-road scene.",
+      "prompt_chars": 38,
+      "prompt_truncated": false,
+      "response_preview": "The vehicle tore up the mountain road, tires skidding on bare rock.",
+      "response_chars": 150,
+      "response_truncated": false,
+      "ms": 990
+    },
+    {
+      "at": "2026-06-17T10:00:09Z",
+      "purpose": "enhancement",
+      "provider": "azure",
+      "model": "gpt-5",
+      "finish_reason": "content_filter",
+      "prompt": "Enhance the reckoning scene.",
+      "prompt_chars": 28,
+      "prompt_truncated": false,
+      "response_preview": "The confrontation unfolded near the old well, where\u2014",
+      "response_chars": 60,
+      "response_truncated": true,
+      "ms": 410
+    }
+  ],
+  "metadata": {
+    "enhanced_scenes": {
+      "scene_ranger_arrival": {
+        "title": "The Ranger's Arrival",
+        "enhancement_status": "success",
+        "clean_text": "Dust and sand rasped on Noor's tongue, the heat from Zahra's wake still buzzing under her skin. She registered a change in the ranger: a composed, deliberate certainty where there had been only urgency."
+      },
+      "scene_mountain_road": {
+        "title": "The Mountain Road",
+        "enhancement_status": "success",
+        "clean_text": "The vehicle tore up the mountain road, tires skidding as the ranger fought the incline. The headlights swung across bare rock, and for a moment the dark beyond them seemed to lean closer."
+      },
+      "scene_content_filtered_fallback": {
+        "title": "The Reckoning",
+        "enhancement_status": "content_filtered",
+        "clean_text": "The confrontation unfolded near the old well, where the family had once drawn water. The night gave no answer, only the long road back down the mountain."
+      }
+    },
+    "llm_calls": [
+      {
+        "scene_node_id": "scene_ranger_arrival",
+        "model": "gpt-5",
+        "finish_reason": "stop"
+      },
+      {
+        "scene_node_id": "scene_mountain_road",
+        "model": "gpt-5",
+        "finish_reason": "stop"
+      },
+      {
+        "scene_node_id": "scene_content_filtered_fallback",
+        "model": "gpt-5",
+        "finish_reason": "content_filter"
+      }
+    ]
+  }
+}

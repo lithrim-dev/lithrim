@@ -1,0 +1,142 @@
+{
+  "ontology_version": "_core_house/1",
+  "domain": "generic",
+  "taxonomy_version": "_core/1",
+  "flags": [
+    {
+      "category": "accuracy",
+      "definition": "The response asserts a fact, figure, rule, or entitlement that does not appear in the provided source material and was not established earlier in the exchange.",
+      "flag": "FABRICATED_CLAIM",
+      "gradeable": true,
+      "owner_roles": [
+        "policy_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The claim is supported by the source material or was already established earlier in the exchange. The response faithfully paraphrases a real source statement without changing its meaning.",
+      "when_to_use": "1) The response cites a figure or rule that the source material does not contain. 2) The response invents an entitlement with no basis in the provided material."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The response makes a strong or definitive assertion the available material does not support, presenting a guess or inference as established fact.",
+      "flag": "UNSUPPORTED_ASSERTION",
+      "gradeable": true,
+      "owner_roles": [
+        "risk_judge"
+      ],
+      "reliability_pillar": "trustworthiness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The assertion is backed by the source material, or is clearly framed as an inference or estimate rather than an established fact.",
+      "when_to_use": "1) The response states an outcome as guaranteed when the material gives no basis for it. 2) The response presents a speculative conclusion as if it were confirmed."
+    },
+    {
+      "category": "faithfulness",
+      "definition": "The response states something that directly contradicts the provided source material or an earlier point in the exchange.",
+      "flag": "SOURCE_CONTRADICTION",
+      "gradeable": true,
+      "owner_roles": [
+        "faithfulness_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The response corrects an earlier mistake and clearly says so. The apparent contradiction is a reasonable clarification rather than a reversal of the source.",
+      "when_to_use": "1) The source says one thing and the response asserts the opposite. 2) An earlier point is reversed by the response without acknowledgement."
+    },
+    {
+      "category": "completeness",
+      "definition": "The response omits material context the situation requires the reader to know in order to act correctly on it.",
+      "flag": "MISSING_CONTEXT",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "completeness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "No additional context is required for the situation, or the required context is already present in the response or earlier in the exchange.",
+      "when_to_use": "1) The response states a conclusion but omits a caveat the material requires. 2) The response gives a step but omits a precondition the reader must satisfy first."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The response contradicts itself \u2014 two statements within the same response cannot both be true.",
+      "flag": "INTERNAL_INCONSISTENCY",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "trustworthiness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "The two statements are about different things, or one clearly supersedes the other with an explicit correction.",
+      "when_to_use": "1) The response gives one figure in one sentence and a different figure for the same quantity in the next. 2) The response both affirms and denies the same point."
+    },
+    {
+      "category": "style",
+      "definition": "The response violates a stated style or formatting requirement for the output.",
+      "flag": "STYLE_VIOLATION",
+      "gradeable": true,
+      "owner_roles": [],
+      "reliability_pillar": "professionalism",
+      "tier": "TIER_3",
+      "when_NOT_to_use": "The response meets the stated style requirements, or no style requirement was given.",
+      "when_to_use": "1) A required format (a list, a heading, a length bound) is not followed. 2) The response adopts a register the instructions explicitly disallowed."
+    }
+  ],
+  "questions": [
+    {
+      "ordinal": 1,
+      "role": "policy_judge",
+      "text": "Does every fact, figure, or rule the response cites appear in the provided source material or earlier in the exchange?"
+    },
+    {
+      "ordinal": 2,
+      "role": "policy_judge",
+      "text": "Does the response include the context the situation requires the reader to know?"
+    },
+    {
+      "ordinal": 1,
+      "role": "risk_judge",
+      "text": "Does the response avoid presenting guesses or inferences as established facts the material does not support?"
+    },
+    {
+      "ordinal": 2,
+      "role": "risk_judge",
+      "text": "Is the response internally consistent \u2014 do its statements all hold together?"
+    },
+    {
+      "ordinal": 1,
+      "role": "faithfulness_judge",
+      "text": "Does anything in the response contradict the provided source material or an earlier point in the exchange?"
+    },
+    {
+      "ordinal": 2,
+      "role": "faithfulness_judge",
+      "text": "Does the response follow any stated style or formatting requirement?"
+    }
+  ],
+  "verification_contracts": [
+    {
+      "flag_code": "UNSUPPORTED_ASSERTION",
+      "contract_type": "presence_check",
+      "version": "house-presence-check/v1",
+      "question": "Is the flagged term actually present in the source exchange (the transcript)?",
+      "params": {
+        "med_source": "source_facts.referenced_terms",
+        "dosage_regex": "\\b\\d+(?:\\.\\d+)?\\s*(?:%|x)\\b",
+        "token_min_len": 4,
+        "noise_tokens": [
+          "the",
+          "and",
+          "that"
+        ]
+      }
+    }
+  ],
+  "severity_map": {
+    "block_at_or_above": 0.5,
+    "warn_above": 0.0,
+    "weights": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.5,
+      "LOW": 0.2
+    }
+  },
+  "_provenance": {
+    "note": "Hand-authored for S-BS-137 \u2014 the NEUTRAL _core house fixture ontology used by the genericized plumbing tests. It is the packs/_core flags + questions + severity_map (copied so the fixture is self-contained and does not assume a domain-pack pin) PLUS exactly ONE core-generic presence_check verification_contract on UNSUPPORTED_ASSERTION. PresenceCheck is reused unchanged from harness/grounding.py. The contract lets the house baseline carry one SUPPRESSIBLE finding (UNSUPPORTED_ASSERTION, whose source_facts.referenced_terms token is present in the transcript) alongside one STANDING finding (FABRICATED_CLAIM) so grounded_adjustments is non-empty. The vocabulary is domain-neutral by construction \u2014 a content-review domain.",
+    "seeded_by": "hand-authored from packs/_core/ontology.json"
+  }
+}

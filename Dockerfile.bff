@@ -1,0 +1,50 @@
+# Lithrim — BFF (judge-capability API v1, apps/bff) container.
+# CE Build C. Mirrors scripts/dev/devstack.sh: uvicorn app:app from the repo root,
+# --app-dir apps/bff, on :8787. The [bff,council] extras (pyproject.toml) are the
+# FastAPI/uvicorn surface + the vendored compliance council; the core install stays
+# the offline pydantic+pandas base. No clinical pack is baked in — a bare image boots
+# on the neutral `_core` default; mount/point LITHRIM_BENCH_PACKS_DIR for a Pro pack.
+
+# A JRE 21 for stdio MCP tools whose server is a jar (e.g. Hermes/SNOMED,
+# `java -jar /snomed/hermes.jar ... mcp`), spawned IN-CONTAINER by McpStdioClient. The Hermes
+# uberjar is built on JDK 21, so it needs a 21 runtime — Debian's `default-jre-headless` is 17
+# (a 21-built uberjar would fail there). Copied from the official Temurin JRE image rather than
+# apt to pin 21 without backports. The jar + db are NOT baked in — bind-mount them (see ./snomed
+# in docker-compose.yml). A core-only/offline image never invokes it; harmless when no jar tool.
+FROM eclipse-temurin:21-jre AS jre
+
+FROM python:3.10-slim
+
+COPY --from=jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+# git: setuptools editable install + any VCS dep resolution. curl: the HEALTHCHECK probe.
+# build-essential: source builds for any wheel without a slim-platform binary (pandas et al.).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the whole repo (the editable install resolves lithrim_bench + apps/bff from here).
+# .dockerignore keeps node_modules / out / .git / caches / dist out of the build context.
+COPY . /app
+
+# The default install stays offline pydantic+pandas; [bff] adds FastAPI/uvicorn/httpx,
+# [council] adds the vendored council's openai/tenacity/pydantic-settings, and
+# [verification] adds dspy + litellm — the LIVE multi-provider plane: the provider probe
+# (POST /v1/provider/config), per-role grading (build_judge_lm), and the provider-agnostic
+# conversation loop (_litellm_loop) all import litellm. WITHOUT it a live Azure/OpenAI/Gemini
+# connect 400s with ModuleNotFoundError (the offline $0 demo/replay needs none of it).
+RUN pip install --no-cache-dir -e ".[bff,council,verification]"
+
+EXPOSE 8787
+
+# The same liveness path make/devstack probe. /health stays open even with LITHRIM_BFF_TOKEN set.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+    CMD curl -sf http://localhost:8787/health || exit 1
+
+# Repo root is CWD so the council resolves config exactly as devstack.sh runs it.
+# No --reload: a container is a fixed image, not a watched dev tree.
+CMD ["uvicorn", "app:app", "--app-dir", "apps/bff", "--host", "0.0.0.0", "--port", "8787"]

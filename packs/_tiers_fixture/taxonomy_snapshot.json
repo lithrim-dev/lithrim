@@ -1,0 +1,41 @@
+{
+  "snapshot_metadata": {
+    "source": "PACK-1b/2b non-vacuity fixture (tests/test_pack_layer1b.py, tests/test_pack_layer2b.py)",
+    "note": "SENTINEL tiers + owner-map \u2014 NOT the real taxonomy. Proves the FROZEN council reads its tier sets (layer 1b) AND its _TIER1_OWNERS map (layer 2b) FROM the active pack (the source-of-truth flips): under LITHRIM_BENCH_PACK=_tiers_fixture the council's KNOWN_TAXONOMY_CODES must become these sentinel codes (not the 19 healthcare codes) and its _TIER1_OWNERS must become {FIXTURE_SENTINEL_T1: [FIXTURE_SENTINEL_OWNER]} (not the real 8). INERT in normal use: pack discovery is active-pack-only (lithrim_bench.packs._active_packs(active_pack())), so nothing loads this pack unless that env var selects it. REL-5e (BL-3): the snapshot gained the PACK-2c 'lenses' block (role -> codes-you-may-raise, over the SENTINEL codes) \u2014 pack.py's judge-consistency gate reads pack_lenses() at council import, so a lenses-less snapshot KeyErrored the layer-1b/2b subprocess proofs."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "FIXTURE_SENTINEL_T1"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "FIXTURE_SENTINEL_T2"
+    ],
+    "TIER_3_MEDIUM": [
+      "FIXTURE_SENTINEL_T3"
+    ]
+  },
+  "tier1_owners": {
+    "FIXTURE_SENTINEL_T1": [
+      "FIXTURE_SENTINEL_OWNER"
+    ]
+  },
+  "lenses": {
+    "risk_judge": [
+      "FIXTURE_SENTINEL_T1",
+      "FIXTURE_SENTINEL_T2"
+    ],
+    "policy_judge": [
+      "FIXTURE_SENTINEL_T2"
+    ],
+    "faithfulness_judge": [
+      "FIXTURE_SENTINEL_T1",
+      "FIXTURE_SENTINEL_T3"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "declared_but_not_running": []
+}

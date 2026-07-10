@@ -1,0 +1,110 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+.devloop/
+.codex/
+# Local data — track only the manifest pointer, not the cohort itself (the no-slash line
+# also covers a local SYMLINK at that path; see data/MANIFEST.md).
+data/synthea_sample_data_csv_latest
+data/synthea_sample_data_csv_latest/
+data/synthea/
+data/synthea_*/*
+!data/synthea_*/MANIFEST.txt
+
+out/
+
+# Raw marketing/screen-capture footage — large local scratch, never commit (published cuts live under out/).
+marketing_raw/
+# Large rendered walkthrough video (~23MB) — publish as a release asset, not in-repo.
+docs/rendered/zyng_walkthrough/
+# Archived internal docs (session logs, drafts, strategy) — kept local, out of the public push.
+docs/_internal/
+# Archived non-doc material (parked packs, etc.) — kept local, out of the public push.
+_archive/
+# Rendered report PDFs — publish public ones as release assets, not committed in-repo.
+docs/rendered/
+# Specs — kept local by default; public ones are re-included explicitly below.
+docs/specs/*
+!docs/specs/SPEC_TOOL_CONNECTORS.md
+
+# The internal agent playbook — local-only companion to the public CLAUDE.md.
+CLAUDE.local.md
+# Local clinverdict/clinical research data + onboarding guide — kept local, out of the public
+# core surface (PACK-DIST-1: the clinical realm ships external). The self-skipping clinverdict
+# tests stay in-repo but skip/ignore cleanly when this data is absent.
+docs/clinverdict/
+docs/guides/
+samples/injected_snomed/
+
+# Live-stack credentials — do not commit (the template is .env.example)
+.live_env
+.connector_env
+
+# CE-PROVIDER-BACKEND: the in-app-configured LLM provider key (write-only; never SQLite/manifest)
+# + its non-secret status sidecar (provider/model/last_tested). Repo-root, gitignored by design.
+.provider_env
+.provider_status.json
+
+# MODEL-REGISTRY-1a: the configured-model POOL sidecar — non-secret metadata + capabilities only
+# (the key lives write-only on .provider_env). Repo-root, gitignored by design.
+.models_registry.json
+
+# Dev-stack runtime — logs + pidfiles from scripts/dev/devstack.sh
+.devstack/
+
+# Local Claude Code tooling — agent worktrees (GBs), local settings (tokens), launch config.
+# NEVER commit; concurrent agent sessions write here. (git-commit-pathspec-dirty-index)
+.claude/
+
+# MCP server config — may hold local tool credentials (do not commit)
+.mcp.json
+
+# Local release-audit inputs (never tracked)
+.release_needles.json
+
+# PACK-DROPIN-1: the pack drop-in volume — drop a pack FOLDER here (mounted to /dropin-packs) and
+# restart. The dropped packs are local DATA, never committed; only the tracked .gitkeep + README
+# keep the directory present so the compose bind-mount has a target.
+packs-dropin/*
+!packs-dropin/.gitkeep
+!packs-dropin/README.md
+
+# TOOL-MCP-STDIO: host-supplied jar-based stdio MCP server + data (Hermes jar + SNOMED db),
+# bind-mounted read-only into the BFF container. Licensed/multi-GB — never tracked; only the
+# tracked .gitkeep + README keep the directory present so the compose bind-mount has a target.
+snomed/*
+!snomed/.gitkeep
+!snomed/README.md
+# tracked: tiny logback config that routes Hermes' logs to STDERR so the MCP stdout stays pure
+# JSON-RPC (without it the client chokes on a log line). Not licensed/large — ship it turn-key.
+!snomed/logback-stderr.xml
+
+# Local LLM-provider config DB (CE-PROVIDER) + any stray SQLite — never commit.
+*.sqlite
+*.sqlite3
+provider_config.sqlite
+
+# Node deps for the shell UI — never commit.
+node_modules/
+
+# Local agent scratch (Claude/Codex session agents) — never commit.
+.agents/
+
+# Internal working docs — process notes, research logs, paper draft, design + strategy.
+# Kept on disk for the maintainers, never shipped in the public release.
+docs/research/
+docs/paper_draft/
+docs/design/
+docs/strategy/
+docs/runbooks/
+docs/*_2026-*.md
+docs/KICKOFF_*.md
+docs/label_owner_matrix.md

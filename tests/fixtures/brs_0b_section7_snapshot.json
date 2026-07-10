@@ -1,0 +1,58 @@
+{
+  "coding_v1": {
+    "cases": 37,
+    "false_block_rate": 0.0,
+    "instability_rate": 0.1081,
+    "mean_decision_layer_kappa": 0.7336,
+    "mean_structural_match_rate": 1.0,
+    "mean_verdict_match_rate": 1.0,
+    "n_per_case": 10,
+    "structural_cases": 0,
+    "verdict_match_rate_ci95": [
+      1.0,
+      1.0
+    ]
+  },
+  "scheduling_v1": {
+    "cases": 37,
+    "false_block_rate": 0.3846,
+    "instability_rate": 0.3243,
+    "mean_decision_layer_kappa": 1.0,
+    "mean_structural_match_rate": 1.0,
+    "mean_verdict_match_rate": 0.6378,
+    "n_per_case": 10,
+    "structural_cases": 0,
+    "verdict_match_rate_ci95": [
+      0.5027,
+      0.773
+    ]
+  },
+  "scribe_v1": {
+    "cases": 32,
+    "false_block_rate": 0.25,
+    "instability_rate": 0.2812,
+    "mean_decision_layer_kappa": 0.2795,
+    "mean_structural_match_rate": 1.0,
+    "mean_verdict_match_rate": 0.65,
+    "n_per_case": 10,
+    "structural_cases": 0,
+    "verdict_match_rate_ci95": [
+      0.4906,
+      0.7937
+    ]
+  },
+  "triage_v1": {
+    "cases": 32,
+    "false_block_rate": 0.0769,
+    "instability_rate": 0.1562,
+    "mean_decision_layer_kappa": 0.7141,
+    "mean_structural_match_rate": 1.0,
+    "mean_verdict_match_rate": 0.9531,
+    "n_per_case": 10,
+    "structural_cases": 0,
+    "verdict_match_rate_ci95": [
+      0.8938,
+      0.9938
+    ]
+  }
+}

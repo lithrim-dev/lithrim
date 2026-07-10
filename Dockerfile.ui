@@ -1,0 +1,32 @@
+# Lithrim — shell UI (apps/shell, the 3-pane conversational eval workspace) container.
+# CE Build C. node 20, npm ci, vite build, then `vite preview` bound to 0.0.0.0:5180.
+#
+# VITE_BFF_URL: the shell client (src/bff.js) reads import.meta.env.VITE_BFF_URL and, when set,
+# makes ABSOLUTE requests straight to that origin (else relative /v1 via the dev proxy). vite
+# exposes every VITE_-prefixed env var to the client bundle, so the value baked here is the URL
+# the END USER's BROWSER hits — it must be host-reachable AND CORS-allowed by the BFF
+# (app.py allow_origins = http://localhost:5180). The compose default is therefore
+# http://localhost:8787 (the host-published BFF port), NOT the container-internal http://bff:8787
+# (unreachable from the host browser + not in the CORS allow-list). Override --build-arg /
+# environment for a different published BFF origin.
+FROM node:20-slim
+
+WORKDIR /app/apps/shell
+
+# Install deps against the committed lockfile first (cache layer), then bring in the source.
+COPY apps/shell/package.json apps/shell/package-lock.json* ./
+RUN npm ci
+
+COPY apps/shell/ ./
+
+# VITE_BFF_URL is consumed at BUILD time (baked into the static bundle). Default to the
+# host-published BFF; override via `docker compose build --build-arg VITE_BFF_URL=...`.
+ARG VITE_BFF_URL=http://localhost:8787
+ENV VITE_BFF_URL=${VITE_BFF_URL}
+RUN npm run build
+
+EXPOSE 5180
+
+# `vite preview` serves the production build. --host 0.0.0.0 makes it reachable from outside the
+# container; --strictPort fails loud rather than silently drifting off 5180.
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5180", "--strictPort"]

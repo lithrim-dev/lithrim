@@ -1,0 +1,23 @@
+{
+  "name": "ws0_default",
+  "eval_profile": {
+    "judges": ["risk_judge", "policy_judge", "faithfulness_judge"],
+    "council_config": {
+      "disposition": "compose-over-live-v2",
+      "compliance_council_version": "v2",
+      "endpoint": "http://localhost:8002/v1/pipeline/evaluate",
+      "note": "The neutral blank-slate default agent (CE). The deployable v2 trio is risk_judge / policy_judge / faithfulness_judge; bind your own ontology + dataset to author a real eval. STORED ONLY here; council_config injection into the backend PipelineRequest is WS-2."
+    },
+    "ontology_ref": "_core/1",
+    "ontology_path": "packs/_core/ontology.json",
+    "tools": ["presence_check"],
+    "kb_bindings": {},
+    "severity_map_ref": "ontology:_core/1"
+  },
+  "dataset": {
+    "case_id": "_core_fabricated_claim",
+    "source": "tests/fixtures/standalone/case._core_fabricated_claim.jsonl",
+    "baseline": "examples/_core/baseline._core_fabricated_claim.json",
+    "mode": "replay"
+  }
+}

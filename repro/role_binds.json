@@ -1,0 +1,146 @@
+{
+  "_provenance": {
+    "note": "The study's per-role provider/model bind record, sanitized for the public tree. stream_role_binds is the authoritative role->model map for the published run, recovered from the per-configuration scorecards in the Zenodo deposit (data/consolidated_armT.json / _armR.json, identical binds in both arms). reference_workspace_binds is the pre-study bind readout of the reference workspace the streams were cloned from. The published report does not name the commercial scalar-reward baseline vendor pending vendor notice ('scalar-reward' is the placeholder label, matching the published record); this repo's provider plane is generic product integration. Apply binds via POST /v1/roles/bind \u2014 see REPRODUCING.md.",
+    "source": "Zenodo DOI 10.5281/zenodo.21270268 (data/consolidated_arm{T,R}.json) + the rescued pre-study bind readout",
+    "sanitization": "the scalar-reward baseline vendor is not named (pending vendor notice); no other changes"
+  },
+  "stream_role_binds": {
+    "stream-a-single": {
+      "single_generalist": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 8,
+        "temperature": 1.0
+      }
+    },
+    "stream-b-ensemble": {
+      "ens_gpt41": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "ens_gpt5": {
+        "provider": "azure",
+        "model": "gpt-5.4",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "ens_opus": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-8",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "ens_sonnet": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-5",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "ens_llama": {
+        "provider": "openai_compatible",
+        "model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "ens_mistral": {
+        "provider": "openai_compatible",
+        "model": "Mistral-Large-3",
+        "k": 1,
+        "temperature": 0.0
+      }
+    },
+    "stream-c-same": {
+      "cs_risk": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "cs_policy": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "cs_faith": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 1,
+        "temperature": 0.0
+      }
+    },
+    "stream-c-mixed": {
+      "cm_risk": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-8",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "cm_policy": {
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "k": 1,
+        "temperature": 0.0
+      },
+      "cm_faith": {
+        "provider": "azure",
+        "model": "gpt-5.4",
+        "k": 1,
+        "temperature": 0.0
+      }
+    },
+    "baseline-scalar-reward": {
+      "scalar_reward_baseline": {
+        "provider": "scalar-reward",
+        "model": "scalar-reward",
+        "k": 1,
+        "temperature": 0.0
+      }
+    }
+  },
+  "reference_workspace_binds": {
+    "risk_judge": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-8"
+    },
+    "policy_judge": {
+      "provider": "openai",
+      "model": "gpt-4.1"
+    },
+    "faithfulness_judge": {
+      "provider": "openai",
+      "model": "gpt-5.5"
+    },
+    "reviewer_scalar": {
+      "provider": "scalar-reward",
+      "model": "scalar-reward"
+    },
+    "reviewer_gpt41": {
+      "provider": "openai",
+      "model": "gpt-4.1"
+    },
+    "reviewer_gpt55": {
+      "provider": "openai",
+      "model": "gpt-5.5"
+    },
+    "reviewer_opus": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-8"
+    },
+    "reviewer_sonnet": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5"
+    },
+    "chat_assistant": {
+      "provider": "openai",
+      "model": "gpt-4.1"
+    }
+  },
+  "physician_arm_note": "The ten physician-curated cases (withheld pending consent; see REPRODUCING.md) were graded with the dated deployment gpt-5.5-2026-04-23.",
+  "notes": {
+    "workspace_naming": "The setup script (repro/setup_streams.py) authors the published workspace and role names directly ('stream-a-single'..'baseline-scalar-reward'; 'single_generalist', the six 'ens_*' members, 'cs_*'/'cm_*', 'scalar_reward_baseline'). stream_role_binds above is the authoritative role-to-model map.",
+    "provider_labels": "azure = Azure OpenAI deployment; openai_compatible = an OpenAI-compatible endpoint (the study served Llama-4-Maverick and Mistral-Large-3 through one); the reference workspace recorded its OpenAI-compatible binds under the label 'openai'."
+  }
+}

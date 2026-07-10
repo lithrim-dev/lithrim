@@ -1,0 +1,23 @@
+line-length = 100
+target-version = "py310"
+
+# The council consensus seam is byte-frozen vs acc4973 (tests/_seam_freeze.py) — a deliberate
+# frozen artifact. It MUST NOT be auto-fixed/reformatted (that would break the freeze guard), so
+# exclude it from the linter entirely rather than carry per-rule ignores.
+exclude = ["lithrim_bench/runtime/council/compliance_council.py"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+# B011: tests assert-False idiom. SIM105: try/except/pass cleanup in tmp-dir teardown is clearer
+# than contextlib.suppress here.
+"tests/*" = ["B011", "SIM105"]
+# utility / dev scripts: a one-line probe (E702) / a guard-style nested if (SIM102) are fine.
+"scripts/*" = ["E702", "SIM102"]
+
+# FastAPI idiom: `Depends()`/`Query()` in argument defaults are not mutable-default
+# bugs (B008). Whitelist them so the WS-5-BFF shell BFF (apps/bff/) lints clean.
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

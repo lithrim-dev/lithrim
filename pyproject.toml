@@ -1,0 +1,108 @@
+[project]
+name = "lithrim"
+version = "0.1.0"
+description = "Self-hostable evaluation harness for AI agents — a tool-grounded verification floor under the LLM judge. Backs the Lithrim research paper and developer product."
+authors = [{name = "Lithrim"}]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "pandas>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+# WS-3a: the optional verification harness (DSPy bench-gated JUTE validator
+# generator + live :3031 apply). Kept OUT of `dependencies` so the default
+# install stays offline-deterministic (pydantic+pandas only). The KB/RAG/ONNX
+# stack (pinecone, onnxruntime) lands as a separate `verification-kb` extra in
+# WS-3b with that code. Versions track the spike venv (dspy 3.2.1, httpx 0.28.1).
+verification = [
+    "dspy>=3.2",
+    "httpx>=0.27",
+]
+# WS-5-BFF: the optional shell BFF (the judge-capability API v1 — apps/bff/).
+# FastAPI/uvicorn are kept OUT of `dependencies` so the default install stays
+# the offline-deterministic pydantic+pandas core. httpx is the FastAPI TestClient
+# transport (and run_eval's live :8002 client). Mirrors the `[verification]` pattern.
+bff = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "httpx>=0.27",
+    # Connect AI's anthropic probe does `import anthropic`; without it the provider is
+    # unconnectable in Docker with a cryptic ModuleNotFoundError (FIRST-CONTACT-1).
+    "anthropic>=0.30",
+]
+# WS-6c: the vendored compliance council (lithrim_bench/runtime/council/, ported
+# from lithrim-backend@493b533). openai + tenacity are the council module's
+# top-level imports; pydantic-settings backs its config subset. Kept OUT of core
+# so the default install stays the offline pydantic+pandas core — the council
+# tests `importorskip("openai")` and skip cleanly when this extra is absent.
+council = [
+    "openai>=1.0",
+    "tenacity>=8.0",
+    "pydantic-settings>=2.0",
+]
+# WS-6c-OBS: the optional observation / KPI agents (lithrim_bench/runtime/observation/,
+# recomposed from lithrim-backend observation_workflow + app/agents). The 3 LLM KPI
+# agents (intent_quality/sentiment/safety) reach an OpenAI/Azure client through the
+# vendored council llm_provider, so a REAL KPI extraction needs the same SDK set as
+# [council]. Kept OUT of core so the default install stays the offline pydantic+pandas
+# core — the agents inject a stub LLM in tests and lazy-import openai only on a real
+# call. The audio-DSP bodies (transcription=whisper/torch, audio_analysis=numpy,
+# technical_metrics=librosa) are a DEFERRED follow-up; their deps (openai-whisper,
+# torch, librosa, numpy, soundfile) land WITH that port, not here.
+observation = [
+    "openai>=1.0",
+    "tenacity>=8.0",
+    "pydantic-settings>=2.0",
+]
+# UAP-5b / R11: the conversational shell's agent loop (apps/bff/agent/). The Claude
+# Agent SDK hosts a multi-turn author->process loop in the BFF, with the BFF ops
+# wrapped as in-process SDK-MCP tools and BYO-Claude (local `claude` CLI / desktop
+# auth — no API key; the licensing guardrail). Kept OUT of core so the default
+# install stays the offline pydantic+pandas core; the loop module lazy-imports
+# claude_agent_sdk only when the SSE chat route is hit (the isolation test asserts
+# no leak into default deps). Pin CAPPED <0.3 — the SDK is pre-1.0, so a minor bump
+# can change the tool/stream surface captured in the UAP-5b D0 spike (0.2.90).
+# NOTE: the SDK transitively bumps pydantic-settings (2.1->2.14); proven
+# non-regressing against the [council]/[bff] suites at UAP-5b D0.
+agent = [
+    "claude-agent-sdk>=0.2.90,<0.3",
+]
+# PERSIST-2c: the managed/VPC Postgres tier (plugin `tier: pro`). `psycopg` is the driver
+# the PostgresProvenanceStore lazy-imports; `yoyo-migrations` is the managed-tier migration
+# framework (the SQLite OSS core self-provisions via inline CREATE TABLE IF NOT EXISTS + needs
+# no framework). Kept OUT of `dependencies` so the default install stays the offline
+# pydantic+pandas stdlib-sqlite3 core — neither is ever imported at module load; the
+# `make_provenance_store` factory gates the Postgres backend behind LITHRIM_BENCH_LICENSE.
+pg = [
+    "psycopg[binary]>=3.1",
+    "yoyo-migrations>=8.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/lithrim-dev/lithrim"
+Repository = "https://github.com/lithrim-dev/lithrim"
+Issues = "https://github.com/lithrim-dev/lithrim/issues"
+Research = "https://doi.org/10.5281/zenodo.21270268"
+
+[project.scripts]
+# DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).
+lithrim-pack = "lithrim_bench.harness.pack_gate:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lithrim_bench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "lithrim_bench/runtime/council/tests", "lithrim_bench/runtime/observation/tests"]
+addopts = "-ra"

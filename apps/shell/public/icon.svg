@@ -1,0 +1,14 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Lithrim">
+  <!-- The two-bar Lithrim mark (matches src/brand.jsx + the public/ icon set).
+       Theme-aware like the app avatar: dark navy square + light bars on the light
+       theme, inverted on dark. Supersedes the earlier monogram favicon. -->
+  <style>
+    @media (prefers-color-scheme: light) { .bg { fill: #1A2845; } .fg { fill: #FFFFFF; } }
+    @media (prefers-color-scheme: dark)  { .bg { fill: #EAEDF4; } .fg { fill: #0F1524; } }
+  </style>
+  <rect class="bg" width="180" height="180" rx="40" />
+  <g transform="translate(90 90) scale(6.3) translate(-12 -12)">
+    <rect class="fg" x="6.2" y="2.5" width="4.1" height="19" rx="1.4" />
+    <rect class="fg" x="12.7" y="4.9" width="4.1" height="14.5" rx="1.4" />
+  </g>
+</svg>

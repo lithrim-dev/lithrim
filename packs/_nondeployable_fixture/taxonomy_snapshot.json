@@ -1,0 +1,32 @@
+{
+  "snapshot_metadata": {
+    "source": "PACK-2c A8 negative-test fixture (tests/test_pack_layer2c.py)",
+    "note": "production_judges names behavior_judge — a CANONICAL-roster role (it has a council_roles prompt and an owner-map presence, so it PASSES the judges-consistency gate) that is NOT in the core _ROLE_DEPLOYMENT trio {risk,policy,faithfulness}. Proves the deployment boundary fails-CLEAN: the FROZEN council raises KeyError at construction when it binds the pack identity to a core deployment that does not exist. The invariant: packs SELECT a subset of known deployable identities; introducing a brand-new deployable judge needs CORE deployment support (infra is not domain content). Inert in normal use (pack discovery is active-pack-only)."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "FIXTURE_ND_T1"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "FIXTURE_ND_T2"
+    ],
+    "TIER_3_MEDIUM": [
+      "FIXTURE_ND_T3"
+    ]
+  },
+  "tier1_owners": {
+    "FIXTURE_ND_T1": [
+      "risk_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "behavior_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "FIXTURE_ND_T1"
+    ]
+  },
+  "declared_but_not_running": []
+}

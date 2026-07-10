@@ -1,0 +1,44 @@
+{
+  "resource": {
+    "id": "story_jinn_v3_sess001",
+    "story_id": "jinn-of-jebel-hafeet",
+    "mode": "adult",
+    "language": "en",
+    "metadata": {
+      "enhanced_scenes": {
+        "scene_ranger_arrival": {
+          "title": "The Ranger's Arrival",
+          "source": "enhanced",
+          "clean_text": "Dust and sand rasped on Noor's tongue, the heat from Zahra's wake still buzzing under her skin. Even so, she registered a change in the ranger: a composed, deliberate certainty where there had been only urgency. The surge of the vehicle felt controlled rather than wild, and that control gathered her scattered thoughts into a line. Fear stayed, quick and bright, but his confidence gave it a shape she could hold."
+        },
+        "scene_mountain_road": {
+          "title": "The Mountain Road",
+          "source": "enhanced",
+          "clean_text": "The vehicle tore up the mountain road, tires skidding as the ranger fought the incline. 'Those things back there are called jinn.' 'You mean like genies?' Noor asked. 'Sort of. But not the kind that grant wishes.' The headlights swung across bare rock, and for a moment the dark beyond them seemed to lean closer."
+        },
+        "scene_the_warning": {
+          "title": "The Warning",
+          "source": "enhanced",
+          "clean_text": "He killed the engine where the road forked and turned to face her fully. 'When we stop, you do exactly what I say. No questions, no hesitation.' Noor nodded, though her hands had not stopped shaking. The silence outside the cab was the wrong kind of quiet, the kind that listens back."
+        },
+        "scene_the_descent": {
+          "title": "The Descent",
+          "source": "enhanced",
+          "clean_text": "They left the SUV and picked their way down a goat track slick with scree. The ranger moved like a man who had done this before and disliked it every time. Below them, a single light burned in a window that should have been empty. 'That,' he murmured, 'is where they want us to go.'"
+        },
+        "scene_content_filtered_fallback": {
+          "title": "The Reckoning",
+          "source": "baseline",
+          "clean_text": "The confrontation unfolded near the old well, where the family had once drawn water. Words were exchanged, and a decision was made that neither of them would speak of afterward. The night gave no answer, only the long road back down the mountain."
+        }
+      },
+      "llm_calls": [
+        {"scene_node_id": "scene_ranger_arrival", "model": "gpt-5", "finish_reason": "stop"},
+        {"scene_node_id": "scene_mountain_road", "model": "gpt-5", "finish_reason": "stop"},
+        {"scene_node_id": "scene_the_warning", "model": "gpt-5", "finish_reason": "stop"},
+        {"scene_node_id": "scene_the_descent", "model": "gpt-5", "finish_reason": "stop"},
+        {"scene_node_id": "scene_content_filtered_fallback", "model": "gpt-5", "finish_reason": "content_filter"}
+      ]
+    }
+  }
+}

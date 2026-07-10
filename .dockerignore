@@ -1,0 +1,48 @@
+# Keep the Docker build context small + reproducible. The BFF image installs the repo
+# editable; the UI image runs `npm ci` from the committed lockfile — neither needs host
+# build artifacts, caches, secrets, or run output.
+
+# VCS
+.git
+.gitignore
+
+# Python build/runtime artifacts + caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node — reinstalled in-image via `npm ci`
+node_modules/
+apps/shell/node_modules/
+apps/shell/dist/
+
+# Runtime-written data (the config SQLite + run blobs are mounted as a volume, not baked)
+out/
+
+# Host-supplied stdio MCP server + data (Hermes jar + the multi-GB SNOMED db). Bind-mounted
+# at runtime (./snomed:/snomed in docker-compose.yml), NEVER baked into the image — excluding
+# it keeps `COPY . /app` from pulling 2.3GB+ of licensed data into the build.
+snomed/
+
+# Secrets + local env (BYOK keys reach the container via compose env passthrough / volumes)
+.env
+.env.*
+.live_env
+.provider_env
+.connector_env
+
+# Dev-stack runtime + local tooling
+.devstack/
+.claude/
+.mcp.json
+marketing_raw/
+
+# OS cruft
+.DS_Store

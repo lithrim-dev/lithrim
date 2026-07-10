@@ -1,0 +1,169 @@
+# Lithrim — Community Edition local stack (CE Build C).
+#
+#   docker compose up        # → BFF :8787, UI :5180, JUTE mapper :3031 (arbitrary-JSON ingest)
+#
+# Zero-config: the BFF auto-seeds the neutral `_core` sample on first boot and `make demo`
+# (offline, $0, no keys) runs without any of the env vars below. Bring a model key (BYOK) to
+# grade live — set it in your shell or a repo-root `.env` (docker compose auto-loads `.env`).
+#
+# Clean by construction: state lives in a Docker-managed named volume (`lithrim_out`), NOT a host
+# bind — so a fresh `up` seeds only the neutral `_core` sample and never inherits the maintainer's
+# host `out/` (dev workspaces + agents pinned to packs the container doesn't ship). State persists
+# across `up`/`down`; `docker compose down -v` wipes it back to the clean seed.
+#
+# Chat: the local `claude` CLI (BYO-Claude) assistant cannot run in a container. Instead, assign the
+# chat_assistant a provider in the Connect AI panel (Azure/OpenAI/Gemini/… — the cross-provider
+# conversation runs through litellm, no CLI needed); the UI writes the binding to .provider_env live.
+# An Anthropic-API chat (LITHRIM_CHAT_PROVIDER=anthropic + ANTHROPIC_API_KEY) needs the [agent] extra +
+# the claude CLI binary, neither baked into this image — so in Docker, drive chat via a litellm provider.
+# Grading and `make demo` do NOT need any of this.
+
+services:
+  bff:
+    build:
+      context: .
+      dockerfile: Dockerfile.bff
+    image: lithrim-bff
+    ports:
+      - "8787:8787"
+    environment:
+      # BYOK — grading provider (all unset by default; the demo/replay needs none).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+      LITHRIM_LLM_PROVIDER: ${LITHRIM_LLM_PROVIDER:-}
+      # Conversational assistant. Preferred: assign chat_assistant a provider in the Connect AI panel
+      # (cross-provider via litellm — written to .provider_env live, no CLI). The env alternative the
+      # README documents (LITHRIM_CHAT_PROVIDER + LITHRIM_CHAT_API_KEY/LITHRIM_CHAT_MODEL, or the
+      # Anthropic-API path via ANTHROPIC_API_KEY) passes through here.
+      LITHRIM_CHAT_PROVIDER: ${LITHRIM_CHAT_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITHRIM_CHAT_API_KEY: ${LITHRIM_CHAT_API_KEY:-}
+      LITHRIM_CHAT_MODEL: ${LITHRIM_CHAT_MODEL:-}
+      # CONFIG-PERSIST-1: where the in-app-configured provider KEYS + per-role/chat bindings
+      # (.provider_env + the .models_registry.json sidecar) persist. Defaulted to /app/out = the
+      # named volume below, so the keys + judge/chat bindings configured in the Connect AI panel
+      # SURVIVE `docker compose down`/`up` (wiped only by `down -v`, exactly like the config DB +
+      # .connector_env). Unset locally → the BFF falls back to the repo root (dev back-compat).
+      LITHRIM_PROVIDER_ENV_DIR: ${LITHRIM_PROVIDER_ENV_DIR:-/app/out}
+      # PACK-OVERLAY-1: UI-authored criteria/judges (the taxonomy-snapshot splice + the
+      # council_roles/<role>.txt prompt seeds, POST /v1/criterion + POST /v1/judges) are pack
+      # STATE. Without this overlay they land in the image's writable layer (/app/packs/_core),
+      # so recreating the container silently reverted them and the next grade 500'd on the
+      # missing authored role prompt (FileNotFoundError, confirmed live 2026-07-03). Pointed at
+      # /app/out (the lithrim_out volume), authored judge identity survives `up`/`down` exactly
+      # like the config DB + provider bindings; `down -v` still resets to the clean seed.
+      # Applies to drop-in packs too: authored edits land in the overlay, leaving ./packs-dropin
+      # as pristine DATA.
+      LITHRIM_BENCH_PACK_OVERLAY_DIR: ${LITHRIM_BENCH_PACK_OVERLAY_DIR:-/app/out/pack_overlay}
+      # Optional inbound auth (set a token to require Bearer auth on every non-/health request).
+      LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
+      # PACK-DROPIN-1: the pack drop-in path INSIDE the container, default /dropin-packs (the host
+      # ./packs-dropin DIRECTORY bind-mounted below). EMPTY drop-in → discovery falls through to the
+      # in-repo packs/_core → a clean `_core` CE. Drop a pack FOLDER into ./packs-dropin/ (e.g.
+      # `healthcare/`) and restart → it is discoverable, GET /v1/packs shows it, and its `seed_agents`
+      # are seeded into the rail. Pro packs are tier:pro (license-gated; default permit-all).
+      LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-/dropin-packs}
+      # JUTE-ADDON-1: the JUTE mapper ingests arbitrary/nested agent-trace + clinical JSON ("open any
+      # JSON"). It is now BUNDLED — the `jute` service below starts with a plain `docker compose up`
+      # using the public SQLite-backed mapper image (no key, no external DB). The BFF reaches it over
+      # the compose network at http://jute:3000 (the mapper listens on :3000). Grading + the clean
+      # demo do NOT need it; run core-only with `docker compose up bff ui`. Override LITHRIM_JUTE_URL
+      # to point at a host/remote mapper instead. Configuration, not a secret.
+      LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-http://jute:3000}
+    volumes:
+      # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
+      # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
+      # Persists config SQLite + run blobs + per-workspace .connector_env across `up`/`down`;
+      # `docker compose down -v` resets to the clean seed. CONFIG-PERSIST-1: the in-app provider
+      # keys + judge/chat bindings (.provider_env + the .models_registry.json sidecar) ALSO persist
+      # here now — LITHRIM_PROVIDER_ENV_DIR defaults to /app/out (this volume), so UI-configured keys
+      # + bindings survive `up`/`down` and are wiped back to the clean seed only by `down -v`, exactly
+      # like the config DB + .connector_env. (Never bind-mount single files that may not exist on the
+      # host — docker creates them as DIRECTORIES and crashes the env-loader.)
+      - lithrim_out:/app/out
+      # PACK-DROPIN-1: the pack drop-in volume. A DIRECTORY bind (host ./packs-dropin, gitignored,
+      # empty by default — a tracked .gitkeep keeps it present). Packs are DATA the container
+      # loads, never state it writes: with PACK-OVERLAY-1 above, UI authoring
+      # (CriterionBuilder/JudgeBuilder) splices into the /app/out overlay, NOT this dir — it stays
+      # pristine. Kept rw only for dev back-compat when the overlay is explicitly disabled
+      # (LITHRIM_BENCH_PACK_OVERLAY_DIR=""). (Pro packs stay locked by their tier:pro gate, not
+      # by the mount.)
+      - ./packs-dropin:/dropin-packs:rw
+      # TOOL-MCP-STDIO: a host dir holding a jar-based stdio MCP server + its data (e.g. Hermes
+      # SNOMED: hermes.jar + the snomed db), bind-mounted read-only. EMPTY by default (gitignored,
+      # a tracked .gitkeep keeps it present) so a stock `up` is unaffected. Drop the jar + db here,
+      # then author a tool with CONTAINER paths — COMMAND `java`, ARGS `-jar /snomed/hermes.jar
+      # --db /snomed/<db> mcp` — and McpStdioClient spawns it in-container (Dockerfile.bff ships
+      # a JRE 21). Read-only: it is DATA the container reads, never state it writes. (snomed.db
+      # is multi-GB + SNOMED CT is licensed — bring your own; it is never baked into the image.)
+      - ./snomed:/snomed:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    networks:
+      - lithrim
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        # The browser hits this origin directly (CORS-allowed, host-published). NOT http://bff:8787
+        # — that is container-internal and unreachable from the host browser.
+        VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
+    image: lithrim-ui
+    ports:
+      - "5180:5180"
+    environment:
+      VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
+    depends_on:
+      bff:
+        condition: service_started
+    networks:
+      - lithrim
+
+  # JUTE-ADDON-1: the JUTE mapper, now BUNDLED so `docker compose up` gives turn-key "open any JSON"
+  # ingestion out of the box. Defaults to the PUBLIC SQLite-backed image — boots standalone with no
+  # auth (OIDC off) and an embedded SQLite DB (no Postgres), listening on :3000. Override JUTE_IMAGE to
+  # supply your own mapper. The BFF talks to it at http://jute:3000 over the compose network (the host
+  # publish below is for debugging/curl only). Core-only, skip the mapper: `docker compose up bff ui`.
+  # See docs/JUTE_MAPPER_ADDON.md.
+  jute:
+    # Digest-pinned (immutable) build of the public SQLite-backed mapper — the
+    # `feat-sqlite-backend` branch tag as resolved 2026-07-09. Pinning by digest keeps
+    # `docker compose up` reproducible even if the branch tag moves; override JUTE_IMAGE
+    # (e.g. back to the tag, or your own build) to opt out.
+    image: ${JUTE_IMAGE:-ghcr.io/etlp-clj/etlp-mapper@sha256:bc2242ec687d94d3afcd7dfe5925c42029806218f2ed54096d04de0bb44ecd2f}
+    environment:
+      # No OIDC + an embedded SQLite DB (WAL) → boots with zero external deps. The DB persists in the
+      # jute_data named volume (wiped by `docker compose down -v`, like the BFF state).
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      JDBC_URL: ${JDBC_URL:-jdbc:sqlite:/data/etlp-mapper.db?journal_mode=WAL&busy_timeout=5000}
+    ports:
+      - "3031:3000"   # host:container — the mapper serves on :3000; host 3031 for debugging/curl
+    healthcheck:
+      # An attach in the first seconds after `up` would 422 "mapper not reachable" while the JVM
+      # boots — the healthcheck makes `docker compose ps` honest and lets tooling wait on it.
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/jute-dsl-spec.json || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    volumes:
+      - jute_data:/data
+    networks:
+      - lithrim
+
+networks:
+  lithrim:
+    driver: bridge
+
+volumes:
+  lithrim_out:   # clean-seeded CE state; `docker compose down -v` resets it
+  jute_data:     # JUTE mapper SQLite DB; `docker compose down -v` resets it

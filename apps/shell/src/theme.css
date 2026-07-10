@@ -1,0 +1,91 @@
+/* theme.css — the Tailwind v4 foundation + @theme token bridge (WS-5c).
+
+   This is the contract that lets the net-new generative-UI components (genui/*,
+   components/ui/*) use Tailwind utilities + shadcn primitives while staying
+   brand-consistent with the bespoke chrome. It bridges the SINGLE token source —
+   the :root / [data-theme="dark"] custom properties in styles.css — into Tailwind's
+   @theme namespace (mirrors ../v0-lithrim-landing-page/app/globals.css:1/:57).
+
+   Incremental adoption (SPEC §4, 2026-06-01): the existing chrome CSS in styles.css
+   / journey.css is NOT rewritten into utilities. styles.css is unlayered, so it wins
+   the cascade over Tailwind's @layer base Preflight — chrome stays visually unchanged.
+   The brand tokens themselves live in styles.css; this file only re-exposes them. */
+
+@import "tailwindcss";
+
+/* The shell's dark mode is [data-theme="dark"] on <html> (set by app.jsx/root.jsx),
+   NOT the shadcn-default `.dark`. Map the variant so `dark:` utilities resolve. */
+@custom-variant dark (&:where([data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+
+  /* surfaces + text (shadcn-semantic names → the shell's brand tokens) */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--bg);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--bg);
+  --color-popover-foreground: var(--ink);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--slate);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted);
+
+  /* brand accent (coral) */
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-ink);
+
+  /* borders / inputs / focus ring */
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  /* data / status accents */
+  --color-teal: var(--teal);
+  --color-amber: var(--amber);
+  --color-slate: var(--slate);
+  --color-navy: var(--navy);
+
+  /* radii (the shell's --r scale) */
+  --radius-sm: var(--r-sm);
+  --radius: var(--r);
+  --radius-lg: var(--r-lg);
+}
+
+/* === Act 2 premium reveal animations (Claude-Design incorporation, 2026-06-03) ===
+   Hand-authored for the journey reveal (NOT copied from the prototype's act2.css).
+   Base state = the final/visible state, so prefers-reduced-motion keeps all info. */
+@keyframes lr-rowin   { from { opacity: 0; transform: translateY(7px); }  to { opacity: 1; transform: none; } }
+@keyframes lr-drop    { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes lr-draw    { from { transform: scaleX(0); }                    to { transform: scaleX(1); } }
+@keyframes lr-rise    { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: none; } }
+@keyframes lr-clause  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes lr-shimmer { from { background-position: 100% 0; }             to { background-position: -100% 0; } }
+@keyframes lr-stagein { from { opacity: 0; }                              to { opacity: 1; } }
+@keyframes lr-stageout{ from { opacity: 1; }                              to { opacity: 0; } }
+@keyframes lr-popin   { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+@keyframes lr-pulse   { 0%,100% { opacity: .35; }                         50% { opacity: 1; } }
+@keyframes lr-svdrop  { from { opacity: 0; transform: translateY(-12px) scale(1.04); } to { opacity: 1; transform: none; } }
+@keyframes lr-spin    { to { transform: rotate(360deg); } }
+
+.lr-spin { animation: lr-spin .8s linear infinite; }
+.lr-shimmer-bg { background-size: 300% 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .lr-rowin   { animation: lr-rowin .26s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-drop    { animation: lr-drop .22s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-draw    { animation: lr-draw .6s cubic-bezier(.2,.7,.3,1) .12s both; transform-origin: left center; }
+  .lr-rise    { animation: lr-rise .82s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-clause  { animation: lr-clause .72s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-stagein { animation: lr-stagein .6s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-stageout{ animation: lr-stageout .56s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-popin   { animation: lr-popin .16s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-svdrop  { animation: lr-svdrop .3s cubic-bezier(.2,.7,.3,1) both; }
+  .lr-shimmer-bg { animation: lr-shimmer 1.3s ease-in-out infinite; }
+  .lr-pulse   { animation: lr-pulse 1.2s ease-in-out infinite; }
+}

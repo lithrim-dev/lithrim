@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the metadata below. If you use or
+  discuss the study (the judge-vs-floor configuration-controlled results), cite the
+  report via its Zenodo DOI.
+type: software
+title: "Lithrim"
+abstract: >-
+  A self-hostable evaluation harness for AI agents with a deterministic, tool-grounded
+  verification floor beneath LLM-as-judge councils. Labels are true by construction;
+  every grade leaves an immutable, rehydratable audit record.
+authors:
+  - family-names: Gaur
+    given-names: Rahul
+    orcid: "https://orcid.org/0009-0002-7303-2065"
+license: Apache-2.0
+repository-code: "https://github.com/lithrim-dev/lithrim"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21270268"
+    description: "The technical report + reproducibility bundle (version DOI, v1)."
+  - type: doi
+    value: "10.5281/zenodo.21270267"
+    description: "Concept DOI for the report (resolves to the latest version)."
+  - type: doi
+    value: "10.17605/OSF.IO/2ZU4H"
+    description: "OSF preregistration of the corrected-rerun prediction (F10)."
+preferred-citation:
+  type: report
+  title: >-
+    A grounded evaluation architecture for clinical scribes: a configuration-controlled
+    study of LLM judges and a deterministic grounding floor
+  authors:
+    - family-names: Gaur
+      given-names: Rahul
+      orcid: "https://orcid.org/0009-0002-7303-2065"
+  doi: "10.5281/zenodo.21270268"
+  year: 2026

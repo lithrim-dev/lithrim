@@ -1,0 +1,12 @@
+{
+  "pack_id": "_plugin_fixture",
+  "version": "0.0.0",
+  "tier": "pro",
+  "domain": "fixture",
+  "ontology": "packs/_core/ontology.json",
+  "flags_ref": "taxonomy_snapshot.json",
+  "council_roles": "council_roles",
+  "floors": "floors.py",
+  "tools": "tools.json",
+  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+}

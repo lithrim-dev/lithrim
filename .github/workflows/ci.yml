@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+# The suite is designed to pass without any model API key: LLM-dependent tests
+# importorskip their extra, and the clinical pack tests skip when the separately
+# distributed healthcare pack is absent. CI therefore needs no secrets.
+jobs:
+  bare-ce:
+    name: bare-CE (no model keys)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.10", "3.12" ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (non-credential extras — the full credential-free suite)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,council,verification,bff,agent]"
+      - name: Lint
+        run: ruff check .
+      - name: Offline demo ($0, no key, no network)
+        run: python scripts/demo.py
+      - name: Test suite (credential-free — no API keys; key-needing tests skip)
+        run: pytest -q

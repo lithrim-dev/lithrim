@@ -1,0 +1,53 @@
+{
+  "snapshot_metadata": {
+    "source": "clinical_scribe synthetic CE sample (PACK-DIST-1 amendment, 2026-06-28)",
+    "note": "A small, SYNTHETIC, by-construction clinical SAMPLE pack for the Community Edition — the ambient-scribe note-review domain expressed as an independent tier:core pack (its OWN ontology + council_roles + taxonomy, no packs/healthcare/ reuse). It is NOT the full curated Pro `healthcare` pack (real calibrated corpus + calibration loop), which stays separately distributed. Under LITHRIM_BENCH_PACK=clinical_scribe the FROZEN council resolves its tiers (pack_tiers), Tier-1 owner-map (pack_tier1_owners), roster identity (pack_production_judges), and lens authority (pack_lenses) entirely from THIS snapshot. production_judges reuses the role NAMES of the core deployable trio (the PACK-2c boundary — a pack subsets KNOWN deployable identities; it does NOT introduce a new deployable judge). tier: core = the OSS sample tier.",
+    "synthetic": true
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "MISSING_ALLERGY",
+      "WRONG_DOSAGE",
+      "FABRICATED_HISTORY"
+    ],
+    "TIER_2_HIGH_RISK": [
+      "NEGATION_REVERSAL",
+      "UPCODED_DIAGNOSIS"
+    ],
+    "TIER_3_MEDIUM": [
+      "INCOMPLETE_PLAN"
+    ]
+  },
+  "tier1_owners": {
+    "MISSING_ALLERGY": [
+      "risk_judge"
+    ],
+    "WRONG_DOSAGE": [
+      "risk_judge"
+    ],
+    "FABRICATED_HISTORY": [
+      "faithfulness_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "MISSING_ALLERGY",
+      "WRONG_DOSAGE",
+      "NEGATION_REVERSAL"
+    ],
+    "policy_judge": [
+      "UPCODED_DIAGNOSIS"
+    ],
+    "faithfulness_judge": [
+      "FABRICATED_HISTORY",
+      "NEGATION_REVERSAL",
+      "INCOMPLETE_PLAN"
+    ]
+  },
+  "declared_but_not_running": []
+}

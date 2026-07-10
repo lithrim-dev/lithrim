@@ -1,0 +1,57 @@
+Synthea cohort — synthetic FHIR conformance sample data
+========================================================
+
+Generated: 2026-05-28 06:01 IST
+Generator: Synthea v4.0.0
+JAR path:  <synthea>/synthea-with-dependencies.jar
+JAR SHA256: ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1
+Java:      OpenJDK Zulu21.44+17-CA 21.0.8 LTS
+
+Command
+-------
+  java -jar <synthea>/synthea-with-dependencies.jar \
+       -s 1 -p 112 \
+       --exporter.csv.export=true \
+       --exporter.fhir.export=true \
+       --exporter.baseDirectory=data/synthea_2026-05-28 \
+       Massachusetts
+
+Reproducibility check
+---------------------
+Two independent runs at seed=1, p=3 produced:
+  - Patient resources (resourceType=Patient): BYTE-IDENTICAL
+    Verified via SHA256 of canonicalized Patient JSON: b00aadfd48e57c9a (both runs)
+    Patient ids, gender, birthDate, name.family, n_extensions all match.
+  - patients.csv:                              BYTE-IDENTICAL (diff exit 0)
+  - Encounter UUIDs:                           IDENTICAL across runs
+  - Encounter period timestamps:               DIFFER by ~14 seconds
+  - Claim UUIDs:                               DIFFER (fresh randomness per run)
+  - hospitalInformation*.json filename:        DIFFERS (millisecond-epoch suffix)
+
+Verdict: Patient-resource deterministic; non-Patient resources partially
+non-deterministic on time-component and downstream UUIDs — sufficient for
+Patient-only conformance checks.
+
+Cohort contents
+---------------
+  Total records:    121 (112 alive + 9 dead per Synthea report)
+  Patient bundles:  121 .json files in fhir/
+  CSV rows:         121 patients, 8445 encounters
+  Total size:       ~497 MB (fhir/ 423 MB + csv/ 74 MB)
+
+Layout
+------
+  data/synthea_2026-05-28/
+    csv/                       — Synthea CSV export (sibling to synthea_sample_data_csv_latest/)
+    fhir/                      — 121 patient bundles + 1 hospitalInformation + 1 practitionerInformation
+    metadata/                  — Synthea run metadata
+    x12/                       — empty (x12 export not requested)
+
+This cohort is INDEPENDENT of <workspace>/synthea_sample_data_csv_latest/
+which other eval-case docs reference. Do NOT mutate either cohort.
+
+Used by
+-------
+  - FHIR conformance verification cases over Patient resources
+
+To regenerate: run the command above (Patient-level reproducibility guaranteed).
