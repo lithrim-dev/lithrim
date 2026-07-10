@@ -1,7 +1,4 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="apps/shell/public/light-color-transparent-bg.png">
-  <img src="apps/shell/public/dark-color-transparent-bg.png" alt="Lithrim" width="360">
-</picture>
+<img src="docs/assets/lit_banner.svg" alt="Lithrim: noisy judge signals above, one verifiable floor beneath" width="100%">
 
 [![CI](https://github.com/lithrim-dev/lithrim/actions/workflows/ci.yml/badge.svg)](https://github.com/lithrim-dev/lithrim/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
