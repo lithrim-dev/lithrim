@@ -62,7 +62,10 @@ samples/injected_snomed/
 
 # Local Claude Code tooling — agent worktrees (GBs), local settings (tokens), launch config.
 # NEVER commit; concurrent agent sessions write here. (git-commit-pathspec-dirty-index)
-.claude/
+# EXCEPT .claude/skills/: the shipped Agent Skills are a tracked public surface
+# (the docs/specs re-include pattern: ignore the dir's entries, unignore the one surface).
+.claude/*
+!.claude/skills/
 
 # MCP server config — may hold local tool credentials (do not commit)
 .mcp.json

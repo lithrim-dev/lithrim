@@ -60,6 +60,10 @@ That's three services: the **BFF** (the API, `:8787`), the **UI** (`:5180`), and
 
 Then open **http://localhost:5180**, connect your own LLM key from the UI (or pass it as env — see below), and grade a case. The BFF auto-seeds the neutral `_core` sample on first boot, so the loop works immediately.
 
+**No clone needed (prebuilt images).** Tagged releases publish `ghcr.io/lithrim-dev/lithrim-bff` and `ghcr.io/lithrim-dev/lithrim-ui` (multi-arch, via [`deploy/docker-compose.yml`](deploy/docker-compose.yml)): `mkdir lithrim && cd lithrim && curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/main/deploy/docker-compose.yml && docker compose up`. The prebuilt UI image is localhost-only by design (the BFF origin is baked at build time; the compose header documents the build-arg escape hatch).
+
+**Agent setup.** Using Claude Code or another skills-aware agent? Point it at this repo: setup skills ship in `.claude/skills/` (bring the stack up, wire the optional SNOMED terminology floor, run a first grade).
+
 <!-- screenshot placeholder: docs/assets/ui-grade-loop.png -->
 
 
@@ -189,6 +193,7 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/CAPABILITY_CARD.md`](docs/CAPABILITY_CARD.md) | What the deterministic floor verifies, what it does not, and how it abstains. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The components (engine, packs, council, floor, BFF, UI, mapper) and how they connect. |
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
+| [`docs/SNOMED_SETUP.md`](docs/SNOMED_SETUP.md) | Optional SNOMED terminology floor: licensing reality first, building the Hermes index, in-container MCP wiring. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
 
