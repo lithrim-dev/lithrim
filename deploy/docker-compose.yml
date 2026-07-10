@@ -1,0 +1,132 @@
+# Lithrim Community Edition: the prebuilt-image stack. No clone, no build, no local
+# Python/Node toolchain. Consumes only published images (GHCR + the digest-pinned
+# JUTE mapper); the in-repo docker-compose.yml is the build-from-source sibling.
+#
+# Quickstart (an empty directory is enough):
+#
+#   mkdir lithrim && cd lithrim
+#   curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/main/deploy/docker-compose.yml
+#   docker compose up
+#
+# Then open http://localhost:5180 (UI). BFF is :8787, JUTE mapper is :3031.
+# Pin a release instead of latest: LITHRIM_BFF_IMAGE / LITHRIM_UI_IMAGE (e.g.
+# ghcr.io/lithrim-dev/lithrim-bff:v0.1.0).
+#
+# BYOK: bring a model key to grade live (set it in your shell or a local `.env`;
+# compose auto-loads `.env`). The offline demo path and first boot need none.
+#
+# LOCALHOST-ONLY BY DESIGN: the published UI image bakes VITE_BFF_URL at BUILD time,
+# defaulting to http://localhost:8787 (the host-published BFF port). Serving the UI
+# from any other origin needs a rebuilt UI image from the repo's Dockerfile.ui with
+# `--build-arg VITE_BFF_URL=<your BFF origin>` (and a matching BFF CORS allow-list).
+#
+# Optional host directories (created on first `up` if absent; both start empty):
+#   ./packs-dropin   drop a pack FOLDER here and restart to add a domain pack
+#   ./snomed         hermes.jar + a SNOMED db for the terminology floor; see
+#                    docs/SNOMED_SETUP.md in the repo (SNOMED CT is licensed data,
+#                    bring your own; nothing here is baked into any image)
+#
+# State lives in Docker-managed named volumes: `docker compose down -v` resets to
+# the clean seed; a plain `down`/`up` persists evaluations, config, and UI-connected
+# keys. Upgrading: `docker compose pull && docker compose up`.
+
+services:
+  bff:
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:latest}
+    ports:
+      - "8787:8787"
+    environment:
+      # BYOK grading provider (all unset by default; the demo/replay needs none).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+      LITHRIM_LLM_PROVIDER: ${LITHRIM_LLM_PROVIDER:-}
+      # Conversational assistant. Preferred: assign chat_assistant a provider in the
+      # UI's Connect AI panel (cross-provider via litellm, no CLI). The env
+      # alternative passes through here.
+      LITHRIM_CHAT_PROVIDER: ${LITHRIM_CHAT_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITHRIM_CHAT_API_KEY: ${LITHRIM_CHAT_API_KEY:-}
+      LITHRIM_CHAT_MODEL: ${LITHRIM_CHAT_MODEL:-}
+      # Where UI-configured provider keys + per-role bindings persist. Defaulted to
+      # /app/out (the named volume), so they survive `up`/`down` like the config DB.
+      LITHRIM_PROVIDER_ENV_DIR: ${LITHRIM_PROVIDER_ENV_DIR:-/app/out}
+      # UI-authored criteria/judges are pack STATE: kept in the overlay on the named
+      # volume so authoring survives container recreation.
+      LITHRIM_BENCH_PACK_OVERLAY_DIR: ${LITHRIM_BENCH_PACK_OVERLAY_DIR:-/app/out/pack_overlay}
+      # Optional inbound auth (set a token to require Bearer auth on every
+      # non-/health request).
+      LITHRIM_BFF_TOKEN: ${LITHRIM_BFF_TOKEN:-}
+      # The pack drop-in path INSIDE the container (the host ./packs-dropin bind
+      # below). Empty means a clean neutral `_core` install.
+      LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-/dropin-packs}
+      # The bundled JUTE mapper (arbitrary-JSON ingest) over the compose network.
+      # Grading and the demo do not need it; override to point at your own mapper.
+      LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-http://jute:3000}
+    volumes:
+      # Docker-managed named volume: a fresh `up` starts EMPTY and auto-seeds the
+      # neutral `_core` sample. Persists config + run blobs + UI-connected keys
+      # across `up`/`down`; `docker compose down -v` resets to the clean seed.
+      - lithrim_out:/app/out
+      # Optional pack drop-in (host dir, created on first `up` if absent). Packs are
+      # DATA the container loads; UI authoring lands in the overlay volume above.
+      - ./packs-dropin:/dropin-packs:rw
+      # Optional jar-based stdio MCP server + its data (e.g. Hermes SNOMED:
+      # hermes.jar + the db), read-only. Empty by default; a stock `up` is
+      # unaffected. See docs/SNOMED_SETUP.md in the repo. The db is multi-GB and
+      # SNOMED CT is licensed: bring your own, it is never baked into an image.
+      - ./snomed:/snomed:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8787/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    networks:
+      - lithrim
+
+  ui:
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:latest}
+    ports:
+      - "5180:5180"
+    environment:
+      # Baked into the published bundle at BUILD time (see the header note); the env
+      # var here cannot re-point a prebuilt image. Kept for parity with the
+      # build-from-source compose file.
+      VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
+    depends_on:
+      bff:
+        condition: service_started
+    networks:
+      - lithrim
+
+  # The JUTE mapper: turn-key "open any JSON" ingestion. Public SQLite-backed image,
+  # digest-pinned (immutable); boots standalone with no auth and no external DB.
+  # Core-only, skip the mapper: `docker compose up bff ui`.
+  jute:
+    image: ${JUTE_IMAGE:-ghcr.io/etlp-clj/etlp-mapper@sha256:bc2242ec687d94d3afcd7dfe5925c42029806218f2ed54096d04de0bb44ecd2f}
+    environment:
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      JDBC_URL: ${JDBC_URL:-jdbc:sqlite:/data/etlp-mapper.db?journal_mode=WAL&busy_timeout=5000}
+    ports:
+      - "3031:3000"   # host:container; the mapper serves on :3000, host 3031 for debugging/curl
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/jute-dsl-spec.json || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    volumes:
+      - jute_data:/data
+    networks:
+      - lithrim
+
+networks:
+  lithrim:
+    driver: bridge
+
+volumes:
+  lithrim_out:   # clean-seeded CE state; `docker compose down -v` resets it
+  jute_data:     # JUTE mapper SQLite DB; `docker compose down -v` resets it
