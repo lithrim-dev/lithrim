@@ -1,0 +1,438 @@
+{
+ "preregistration": "OSF 10.17605/OSF.IO/2ZU4H",
+ "granularity": "Pure deletion at line or sentence granularity (sentences split on '. '/'! '/'? ' after a leading 'Label:' prefix). Sub-sentence unsupported fragments embedded in transcript-supported sentences are RETAINED and enumerated in residual_fragments — excising them would require rewriting, which the pure-deletion scrub prohibits.",
+ "pairs": {
+  "cv_mts_002_PAIR_alzheimers": [
+   {
+    "line": "O: No acute distress. Blood pressure at goal.",
+    "sentences": [
+     "No acute distress."
+    ],
+    "reason": "Category 1 canned exam phrase: general-appearance boilerplate with zero transcript support (transcript covers only symptom denials and medication continuation, never appearance/distress)."
+   }
+  ],
+  "cv_mts_148_PAIR_alzheimers": [
+   {
+    "line": "Vitals: BP 138/82, HR 74, Temp 98.6°F, SpO2 98% on room air.",
+    "sentences": null,
+    "reason": "Category 2 (synthesized vitals block): no vitals values are stated or supported anywhere in the transcript."
+   },
+   {
+    "line": "Examination of the right ankle reveals mild pitting edema, trace erythema, no warmth on palpation, and no point tenderness over bony landmarks. ROM mildly limited secondary to swelling. Distal pulses intact.",
+    "sentences": null,
+    "reason": "Category 3 (synthesized examination-maneuver findings): the doctor announces the exam but states no findings; pitting quality, palpation warmth/tenderness, ROM limitation, and distal pulses are all synthesized examiner observations."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_149_PAIR_t2dm": [
+   {
+    "line": "O: Vital signs stable. Patient is a well-appearing adult male in no acute distress. Diminished light-touch sensation over the palmar surface of the left middle finger. Positive Tinel's sign at the left carpal tunnel. Positive Phalen's test at 30 seconds. Mild reduction in grip strength on the left compared with the right. No thenar atrophy. Cervical range of motion intact; no Spurling's sign.",
+    "sentences": null,
+    "reason": "Categories (1) and (3): canned exam phrases (Vital signs stable, well-appearing, no acute distress) plus synthesized examination-maneuver findings (sensory exam, Tinel's, Phalen's, grip strength, thenar atrophy, cervical ROM, Spurling's); the transcript contains only the intent statement 'I'm going to examine your hand and wrist' with no findings or vitals, so every sentence is unsupported and the whole line is removed."
+   }
+  ],
+  "cv_mts_150_PAIR_gpa": [
+   {
+    "line": "Vitals: BP 130/78, HR 74, RR 14, Temp 98.5°F, SpO2 98% on room air.",
+    "sentences": null,
+    "reason": "Synthesized vitals block: no vital-sign value is stated or supported anywhere in the transcript."
+   },
+   {
+    "line": "General: Well-appearing woman in no acute distress.",
+    "sentences": null,
+    "reason": "Canned exam phrase (well-appearing / no acute distress general-appearance boilerplate) with no transcript support."
+   },
+   {
+    "line": "Cardiovascular: Regular rate and rhythm, no murmurs.",
+    "sentences": null,
+    "reason": "Synthesized examination-maneuver finding (cardiac auscultation): the transcript contains no cardiac exam; the patient only denies chest pain/palpitations in history."
+   },
+   {
+    "line": "Respiratory: Clear to auscultation bilaterally.",
+    "sentences": null,
+    "reason": "Synthesized examination-maneuver finding (lung auscultation): no respiratory exam finding in the transcript, only the patient denying dyspnea."
+   }
+  ],
+  "cv_mts_151_PAIR_crohns": [
+   {
+    "line": "Vitals: BP 128/76, HR 72, Wt 181 lbs. Right knee: no effusion on inspection. Full active range of motion — extension 0 degrees, flexion approximately 120 degrees. Mild bilateral ligamentous laxity on varus and valgus stress testing. No fixed flexion contracture. Recent weight-bearing radiographs reviewed in office.",
+    "sentences": [
+     "BP 128/76, HR 72, Wt 181 lbs.",
+     "Right knee: no effusion on inspection."
+    ],
+    "reason": "Category 2 (synthesized vitals block: no BP/HR/weight value appears anywhere in the transcript) and category 3 (synthesized inspection finding: effusion is never examined or mentioned in the transcript); both spans unsupported. Per the label-prefix rule the leading 'Vitals:' stays with the line, and the header 'OBJECTIVE:' is not emptied because supported exam sentences remain on this line."
+   }
+  ],
+  "cv_mts_152_PAIR_acute_mi": [
+   {
+    "line": "Vitals: Within normal limits for age. Alert and cooperative male in no acute distress.",
+    "sentences": null,
+    "reason": "Synthesized vitals content plus canned general-appearance boilerplate ('no acute distress', 'alert and cooperative'): the transcript records no vital signs and no general-appearance observation, so both sentences are unsupported category members and the whole line goes."
+   },
+   {
+    "line": "Musculoskeletal: Left elbow with well-healed surgical scar. Active range of motion intact; mild discomfort at extremes of extension. Neurovascular status intact distally.",
+    "sentences": [
+     "Left elbow with well-healed surgical scar.",
+     "Neurovascular status intact distally."
+    ],
+    "reason": "Synthesized examination-maneuver findings: the transcript's 'well-healed' refers to the fracture on imaging, not an inspected surgical scar, and no neurovascular exam (sensation/pulses/capillary refill) is performed or stated; the ROM sentence is retained as directly supported (doctor watches the patient bend/straighten, says 'Perfect', patient reports 'A little bit' of pain)."
+   }
+  ],
+  "cv_mts_153_PAIR_allergic_asthma": [
+   {
+    "line": "Temperature: 99.8°F. Heart rate: 102 bpm. Blood pressure: 96/62 mmHg. Weight: 23 kg. General: Alert, mildly fatigued 7-year-old male in no acute respiratory distress. Abdomen: soft, mildly diffusely tender, hyperactive bowel sounds, no guarding or rigidity. Mucous membranes mildly dry.",
+    "sentences": null,
+    "reason": "Categories 2+1+3: synthesized vitals values (temp/HR/BP/weight never measured or stated in the transcript; the 103°F fever is a parental history report already in SUBJECTIVE), canned general-appearance boilerplate (alert, no acute respiratory distress), and examination-maneuver findings (abdominal palpation/auscultation, mucous membrane assessment) with no exam performed or reported anywhere in the transcript."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_154_PAIR_bacterial_pna": [
+   {
+    "line": "O: Patient is a 70-year-old male in no acute distress. EMG study previously performed to assess neuromuscular health. Vital signs stable. Re-evaluation of symptoms is negative on today's encounter.",
+    "sentences": [
+     "Patient is a 70-year-old male in no acute distress.",
+     "Vital signs stable."
+    ],
+    "reason": "Category 1 canned exam phrases: 'no acute distress' is general-appearance boilerplate and 'Vital signs stable' is vitals boilerplate; the transcript contains no examination and no vitals discussion, so neither sentence has transcript support."
+   }
+  ],
+  "cv_mts_155_PAIR_ra": [
+   {
+    "line": "Vital signs stable. Alert and oriented male in no acute distress. Left shoulder exam: tenderness to palpation over the posterior shoulder. Range of motion limited by discomfort at end range but functional. No anterior joint line tenderness. Strength testing 5/5 in deltoid, rotator cuff maneuvers not provocative for weakness. Right shoulder: non-tender, full range of motion.",
+    "sentences": null,
+    "reason": "Categories 1+3: canned exam phrases plus synthesized examination-maneuver findings; the transcript contains no physical exam or vitals, so every sentence is unsupported."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_156_PAIR_paf": [
+   {
+    "line": "Vitals: BP 140/84 mmHg, HR 70 bpm regular, RR 16, Temp 98.5°F, SpO2 97% on room air.",
+    "sentences": null,
+    "reason": "Synthesized vitals block: no BP/HR/RR/temp/SpO2 value is stated anywhere in the transcript; the doctor's 'We will check your blood pressure today' is future intent, not a value."
+   },
+   {
+    "line": "General: Alert, well-appearing elderly female in no acute distress.",
+    "sentences": null,
+    "reason": "Canned exam phrases: 'Alert', 'well-appearing', 'no acute distress' general-appearance boilerplate with no transcript support."
+   },
+   {
+    "line": "MSK: Mild periarticular soft tissue puffiness bilateral PIP and MCP joints. No erythema or warmth. Grip strength reduced bilaterally. ROM limited at wrists.",
+    "sentences": [
+     "ROM limited at wrists."
+    ],
+    "reason": "Synthesized examination-maneuver finding: no ROM assessment or ROM limitation is stated in the transcript; 'wake up stiff every morning' is a symptom report, not a stated range-of-motion finding."
+   },
+   {
+    "line": "Cardiovascular: Regular rate and rhythm, no murmurs or irregular beats.",
+    "sentences": null,
+    "reason": "Synthesized examination-maneuver finding: cardiac auscultation findings (rate/rhythm regularity, murmur absence) appear nowhere in the transcript."
+   }
+  ],
+  "cv_mts_157_PAIR_diverticulitis": [
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header — every content line under OBJECTIVE is removed as unsupported synthesized vitals and exam findings"
+   },
+   {
+    "line": "Vitals: BP 138/82, HR 74, RR 16, SpO2 97% on room air, Temp 36.8 C.",
+    "sentences": null,
+    "reason": "synthesized vitals block — no vital sign value is stated or measured anywhere in the transcript"
+   },
+   {
+    "line": "General: Alert, cooperative, no acute distress.",
+    "sentences": null,
+    "reason": "canned exam phrase (general-appearance boilerplate) — transcript contains no general-appearance observation"
+   },
+   {
+    "line": "Neuro: Cranial nerves II-XII intact. Mild bilateral lower-extremity weakness, 4/5 proximal. Sensation intact to light touch in upper and lower extremities at time of examination. Gait slightly unsteady.",
+    "sentences": null,
+    "reason": "synthesized examination-maneuver findings (cranial nerve exam, 4/5 strength grade, light-touch sensory testing, gait exam) — no exam is performed in the transcript; the patient's self-report of feeling 'unsteady and weak' is history, and the line recasts it as objective findings with a strength grade and proximal/bilateral distribution the transcript never supports"
+   },
+   {
+    "line": "Cardiovascular: Regular rate and rhythm, no murmurs.",
+    "sentences": null,
+    "reason": "synthesized examination-maneuver finding (cardiac auscultation) — no cardiac exam is stated or supported in the transcript"
+   },
+   {
+    "line": "Abdomen: Soft, non-tender, non-distended.",
+    "sentences": null,
+    "reason": "synthesized examination-maneuver finding (abdominal palpation) — transcript contains only the patient's subjective denial of abdominal symptoms, no palpation"
+   }
+  ],
+  "cv_mts_158_PAIR_hashimoto": [
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header: every sentence under OBJECTIVE is removed, leaving the header empty"
+   },
+   {
+    "line": "Vital signs stable. Alert and in no acute distress. Right hand dorsum and distal forearm with 3+ pitting edema and erythema centered around the sting site. No urticaria or angioedema. Lungs clear to auscultation. Heart rate and rhythm regular.",
+    "sentences": null,
+    "reason": "synthesized vitals + canned exam phrases + exam-maneuver findings, none stated in the transcript: no vitals given ('Vital signs stable'), 'Alert and in no acute distress' is general-appearance boilerplate, '3+ pitting edema and erythema' is a palpation grade and skin-exam observation never dictated (transcript supports only patient-reported swelling, retained in SUBJECTIVE), 'No urticaria or angioedema' is an unexamined skin finding, and 'Lungs clear to auscultation' / 'Heart rate and rhythm regular' are auscultation findings never performed; all six sentences are unsupported category content so the whole line goes"
+   }
+  ],
+  "cv_mts_159_PAIR_lung_scc": [
+   {
+    "line": "Vitals stable. Alert and oriented x3. No acute distress. Cervical spine: mild paraspinal tenderness C4-C6 bilaterally, range of motion mildly restricted in flexion and lateral rotation. Lumbar spine: mild midline and paraspinal tenderness, no step-off, straight leg raise negative bilaterally. Neurological exam of upper and lower extremities intact.",
+    "sentences": null,
+    "reason": "Categories 1+2+3: synthesized vitals ('Vitals stable'), canned exam phrases ('Alert and oriented x3', 'No acute distress'), and examination-maneuver findings (palpation tenderness, ROM restriction, straight leg raise, neuro exam); transcript states no vitals and no exam findings — the encounter ends at 'Let's do a full exam'."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_160_PAIR_knee_oa": [
+   {
+    "line": "Vital signs: BP 128/76 mmHg, HR 72 bpm, RR 14, Temp 98.4 F, SpO2 98% on room air. Weight 171 lb. General: alert, pleasant, mildly anxious affect. Cardiovascular: regular rate and rhythm. Musculoskeletal: no acute knee swelling or erythema noted on brief inspection; deferred detailed joint exam per patient preference today. Neurological: grossly intact.",
+    "sentences": null,
+    "reason": "Categories 2+1+3: synthesized vitals block (no BP/HR/RR/Temp/SpO2/weight anywhere in the transcript), canned general-appearance boilerplate ('alert, pleasant, mildly anxious affect'), and synthesized exam findings (cardiac RRR auscultation, knee inspection, neuro grossly intact); the transcript contains no physical exam or vitals at all, so every sentence on the line is unsupported category content and the whole line is deleted."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_161_PAIR_migraine_aura": [
+   {
+    "line": "Vital signs stable. Alert and oriented. Affect appropriate, no signs of acute distress. No focal neurological deficits on exam.",
+    "sentences": null,
+    "reason": "canned exam phrases + synthesized exam findings: the transcript is pure history-taking (sleep complaint, appetite, caffeine, plan discussion); no vitals were measured or stated, no orientation/mental-status assessment, no affect observation, and no neurological exam performed or verbalized, so all four sentences are category-member and unsupported."
+   },
+   {
+    "line": "O:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "cv_mts_162_PAIR_cap": [
+   {
+    "line": "O: Examination of the right knee reveals medial joint line tenderness to palpation. Mild effusion present. No warmth. McMurray test equivocal. Range of motion preserved but painful at extremes of flexion.",
+    "sentences": [
+     "McMurray test equivocal.",
+     "Range of motion preserved but painful at extremes of flexion."
+    ],
+    "reason": "Category 3 (examination-maneuver findings): no McMurray test is performed or mentioned and no range-of-motion assessment occurs anywhere in the transcript; the only examination performed is medial joint line palpation."
+   }
+  ],
+  "cv_mts_164_PAIR_oxalate_nephro": [
+   {
+    "line": "Vitals stable. Musculoskeletal exam reveals tenderness over bilateral lumbar paraspinal muscles. No midline bony tenderness on percussion. Range of motion at lumbar spine is full with mild discomfort at extremes of flexion. Neurological exam of lower extremities intact; strength 5/5, sensation intact, reflexes symmetric.",
+    "sentences": [
+     "Vitals stable."
+    ],
+    "reason": "Category 2 (synthesized vitals): no vital signs are measured, stated, or referenced anywhere in the transcript, so 'Vitals stable.' is unsupported synthesized content; the rest of the line stays (see exceptions)."
+   }
+  ],
+  "cv_mts_165_PAIR_copd_bronchitis": [
+   {
+    "line": "Vitals stable. Right knee: mild periarticular swelling, no erythema, no warmth. Full range of motion with crepitus on flexion. No ligamentous laxity. Lungs: diffusely reduced air entry, mild expiratory wheeze bilaterally, consistent with known history.",
+    "sentences": [
+     "Vitals stable.",
+     "Full range of motion with crepitus on flexion.",
+     "No ligamentous laxity.",
+     "Lungs: diffusely reduced air entry, mild expiratory wheeze bilaterally, consistent with known history."
+    ],
+    "reason": "Category 1/2/3 content with no transcript support: 'Vitals stable' is a canned vitals phrase with no vitals spoken; ROM/crepitus, ligamentous-laxity testing, and lung auscultation findings never occur in the transcript (patient only denies increased dyspnea, which is captured in SUBJECTIVE)."
+   }
+  ],
+  "snomed_inj_12_alzheimers_PAIR_alzheimers": [
+   {
+    "line": "  BP 138/82, HR 72, afebrile.",
+    "sentences": null,
+    "reason": "synthesized vitals block (category 2): transcript contains no measured in-office vitals; the daughter's home-report 'around the 130s' is a range, not a stated measurement, and does not directly support 138/82, HR 72, or afebrile."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ],
+  "snomed_inj_13_gpa_PAIR_gpa": [
+   {
+    "line": "  Vitals within normal limits.",
+    "sentences": null,
+    "reason": "synthesized vitals content (category 2, also canned 'vitals stable'-style boilerplate): the transcript contains no vital-sign measurement or statement at all (refill visit, no exam performed)"
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header: the vitals line is the sole content of the OBJECTIVE section"
+   }
+  ],
+  "snomed_inj_14_crohns_PAIR_crohns": [
+   {
+    "line": "  Abdomen soft, non-tender.",
+    "sentences": null,
+    "reason": "Category 3 (examination-maneuver finding): abdominal palpation finding; the transcript contains only history questions (pain, bowel habits) and a plan statement, with no exam performed or any finding stated, so it is unsupported."
+   },
+   {
+    "line": "OBJECTIVE:",
+    "sentences": null,
+    "reason": "emptied section header"
+   }
+  ]
+ },
+ "exceptions": {
+  "cv_mts_150_PAIR_gpa": [
+   {
+    "phrase": "Extremities: Mild bilateral pitting edema at the ankles, left greater than right. No erythema, no warmth, no tenderness. Distal pulses 2+ bilaterally.",
+    "justification": "Doctor states on exam: 'mild pitting edema bilaterally, left greater than right. No erythema, no warmth. Distal pulses are intact.' Each sentence of the line is substantively transcript-supported; the embellishments ('no tenderness', pulse grade '2+') are embedded in sentences whose other content is directly stated, so sentence-granularity pure deletion cannot remove them without deleting supported findings."
+   }
+  ],
+  "cv_mts_151_PAIR_crohns": [
+   {
+    "phrase": "Mild bilateral ligamentous laxity on varus and valgus stress testing.",
+    "justification": "Category-3 exam-maneuver finding but directly supported: doctor says 'Let me check stability. I'm feeling some laxity on both sides.'"
+   },
+   {
+    "phrase": "No fixed flexion contracture.",
+    "justification": "Category-3 exam finding but directly supported: doctor says 'Good, no fixed contracture' after the patient straightens the knee fully."
+   },
+   {
+    "phrase": "Full active range of motion — extension 0 degrees, flexion approximately 120 degrees.",
+    "justification": "Retained under sentence-granularity pure deletion: the ROM maneuver and full extension are directly supported ('Can you bend and straighten the knee fully', 'I can straighten it all the way', 'Good, no fixed contracture'), so the sentence-atom fails the unsupported condition; the embedded 'flexion approximately 120 degrees' value is synthesized and is flagged in concerns."
+   },
+   {
+    "phrase": "Recent weight-bearing radiographs reviewed in office.",
+    "justification": "Imaging-review statement, not exam-maneuver or vitals category; the review itself is supported ('I'm looking at your most recent X-rays'), so no removal target."
+   }
+  ],
+  "cv_mts_152_PAIR_acute_mi": [
+   {
+    "phrase": "Active range of motion intact; mild discomfort at extremes of extension.",
+    "justification": "Exam-maneuver finding directly supported by the transcript: the doctor asks the patient to bend and straighten the arm, observes it ('Perfect'), and the patient reports 'A little bit, not too bad' of pain on the maneuver, supporting intact active ROM with mild discomfort."
+   }
+  ],
+  "cv_mts_154_PAIR_bacterial_pna": [
+   {
+    "phrase": "Re-evaluation of symptoms is negative on today's encounter.",
+    "justification": "Directly supported: doctor says 'We did a re-evaluation of your symptoms today — it came back essentially negative.' Category-member-adjacent phrasing but transcript-stated, so it stays."
+   },
+   {
+    "phrase": "EMG study previously performed to assess neuromuscular health.",
+    "justification": "Not a canned phrase, vitals value, or exam-maneuver finding (historical diagnostic-study reference), and transcript-supported: 'We've done electromyography studies before to assess the muscles and nerves.'"
+   }
+  ],
+  "cv_mts_156_PAIR_paf": [
+   {
+    "phrase": "MSK: Mild periarticular soft tissue puffiness bilateral PIP and MCP joints.",
+    "justification": "Directly supported: patient states 'there is a little puffiness around my knuckles'; knuckle puffiness maps to the MCP/PIP periarticular observation."
+   },
+   {
+    "phrase": "No erythema or warmth.",
+    "justification": "Supported: doctor asks 'Any swelling or redness in the affected joints?' and patient answers 'No redness'; the unsupported 'warmth' fragment is sub-sentence and cannot be excised under pure-deletion sentence granularity."
+   },
+   {
+    "phrase": "Grip strength reduced bilaterally.",
+    "justification": "Directly supported: patient states 'It is making it hard to grip things' in the context of bilateral hand/wrist pain; per the registered rule, category content the transcript directly supports stays."
+   },
+   {
+    "phrase": "Extremities: 1+ pitting edema bilateral ankles, stable and unchanged.",
+    "justification": "Substantially supported: patient states 'My ankles have been a little puffy, same as usual. Nothing new.' supporting bilateral ankle edema, stable and unchanged; only the '1+ pitting' grade is synthesized and is inseparable at sentence granularity."
+   }
+  ],
+  "cv_mts_162_PAIR_cap": [
+   {
+    "phrase": "Examination of the right knee reveals medial joint line tenderness to palpation.",
+    "justification": "Directly supported: doctor says \"I'm going to press along the medial joint line — does that hurt there?\" and patient answers \"Yes, right there, that's the spot.\""
+   },
+   {
+    "phrase": "No warmth.",
+    "justification": "Directly supported: patient states \"no real warmth\" when asked about swelling or warmth around the joint."
+   },
+   {
+    "phrase": "Mild effusion present.",
+    "justification": "Retained under the registered support-based decision rule: patient states \"a little swelling in the evening after I've been on my feet all day,\" which directly supports mild effusion, on the same evidentiary basis (patient statement) used to retain \"No warmth.\" Removing one while keeping the other would be inconsistent."
+   }
+  ],
+  "cv_mts_163_PAIR_ischemic_stroke": [
+   {
+    "phrase": "O: MRI report reviewed in clinic confirming anterior cruciate ligament tear. Detailed physical examination of the knee deferred pending review of imaging.",
+    "justification": "MRI review and ACL-tear confirmation are directly transcript-supported (doctor: \"Let me take a look. This confirms an anterior cruciate ligament tear\"); the deferral sentence asserts no exam finding, no vitals value, and no maneuver result, so neither sentence is a member of the three registered categories (canned exam phrase, vitals block, synthesized exam finding)."
+   }
+  ],
+  "cv_mts_164_PAIR_oxalate_nephro": [
+   {
+    "phrase": "Musculoskeletal exam reveals tenderness over bilateral lumbar paraspinal muscles.",
+    "justification": "Doctor states 'Tenderness over the lumbar paraspinals' during the exam; directly supported (note the 'bilateral' qualifier is an elaboration, but the finding is stated and deletion is sentence-granular, see concerns)."
+   },
+   {
+    "phrase": "No midline bony tenderness on percussion.",
+    "justification": "Doctor states 'no midline bony tenderness' after pressing along the spine; directly supported."
+   },
+   {
+    "phrase": "Range of motion at lumbar spine is full with mild discomfort at extremes of flexion.",
+    "justification": "Doctor states 'full range of motion with mild pain at extremes of flexion'; directly supported."
+   },
+   {
+    "phrase": "Neurological exam of lower extremities intact; strength 5/5, sensation intact, reflexes symmetric.",
+    "justification": "Doctor states 'neurological exam intact'. This is one sentence under the registered '. ' split rule (the semicolon is not a sentence boundary), so it can only be removed whole or kept whole; removing it whole would delete directly supported content, which the decision rule forbids. Moreover 'strength 5/5, sensation intact, reflexes symmetric' is the standard componentwise statement of an intact neurological exam, so the transcript directly supports it; it fails the 'unsupported' half of the removal rule."
+   }
+  ],
+  "cv_mts_165_PAIR_copd_bronchitis": [
+   {
+    "phrase": "Right knee: mild periarticular swelling, no erythema, no warmth.",
+    "justification": "Exam-category sentence RETAINED: the transcript directly supports its core findings (patient: 'A little swelling, yes, but no redness that I can see'); per the decision rule supported matching content stays, and sub-sentence deletion is not permitted."
+   }
+  ]
+ },
+ "residual_fragments": {
+  "cv_mts_002_PAIR_alzheimers": [
+   "'Blood pressure at goal.' RETAINED (reviewer flagged it borderline, I concur with keeping): it carries no numeric value and is not a 'Vitals:' block, so category-2 membership (defined as values and Vitals: content) is doubtful; it is also not an exam-maneuver finding (category 3) nor general-appearance boilerplate (category 1). The decision rule requires category membership AND lack of support; membership fails, and the transcript's 'keep your blood pressure medicine the same' at a routine BP check gives at least weak support. Conservative preregistered scope says keep."
+  ],
+  "cv_mts_148_PAIR_alzheimers": [
+   "The exam line partially echoes patient-reported swelling and redness, but the examiner-observed framing (pitting quality, palpation, ROM, pulses) is synthesized and the sentence granularity cannot separate the echoed fragments from the unsupported palpation findings; whole-line removal is correct and the patient-reported facts remain in SUBJECTIVE."
+  ],
+  "cv_mts_150_PAIR_gpa": [
+   "The Extremities line retains two unsupported embellishments ('no tenderness' and the '2+' pulse grade) that are exam-category content but cannot be excised under sentence-granularity pure deletion without removing transcript-stated findings ('No erythema, no warmth', 'Distal pulses are intact'); flagged, not removed.",
+   "'OBJECTIVE:' header retained because the transcript-supported Extremities line remains under it after the four removals."
+  ],
+  "cv_mts_151_PAIR_crohns": [
+   "Residual fabrication retained: 'flexion approximately 120 degrees' has no transcript support (patient only says 'I can bend it to about here'), but it shares a sentence with directly supported findings (full ROM, extension 0 degrees); sentence-granularity pure deletion offers no way to remove the number without deleting supported content, and the registered rule protects supported findings (STAYS) while requiring BOTH category-membership AND lack of support at the removable unit. Retained; downstream graders should expect this hedged estimate to survive in the clean twin.",
+   "The removal leaves a dangling 'Vitals:' label at the start of the retained line ('Vitals: Full active range of motion ...'). This follows the registered mechanics (a leading 'Label:' prefix stays with the line, and 'Vitals:' is not its own header line, so the emptied-header rule does not apply), but the orchestrator may want a post-pass to drop inline labels whose content was fully removed."
+  ],
+  "cv_mts_152_PAIR_acute_mi": [
+   "The retained qualifier 'at extremes of extension' over-localizes the transcript's generic 'a little bit' of pain on bend/straighten; the mechanics allow only whole-sentence deletion and the core finding is supported, so it stays, but it remains slightly more specific than the source.",
+   "OBJECTIVE: header stays because Musculoskeletal (partially retained) and Imaging remain under it; the Imaging line is supported by the transcript (operative report reviewed, doctor says the fracture looks well-healed on imaging) and imaging review is outside the exam/vitals categories anyway."
+  ],
+  "cv_mts_154_PAIR_bacterial_pna": [
+   "Sentence-granularity deletion of 'Patient is a 70-year-old male in no acute distress.' also removes the age/sex restatement, which is out-of-scope demographic content; it cannot be separated at the registered sentence granularity (no rewriting allowed) and the same demographics remain verbatim in the S: line ('S: 70-year-old male ...'), so no demographic information is lost from the note."
+  ],
+  "cv_mts_156_PAIR_paf": [
+   "The two vetoes hinge on reading 'directly support' to include patient-reported symptoms recast as objective findings; the reviewer's stricter maneuver-was-never-performed reading is defensible but was applied inconsistently within the same proposal (erythema and knuckle puffiness retained on identical patient-statement support). The orchestrator should issue a study-wide consistency ruling on the patient-report-to-objective-finding pattern, since it will recur across pairs.",
+   "Residual sub-sentence unsupported fragments remain in the note after this scrub: 'or warmth' (no palpation stated) and '1+ pitting' (no graded edema exam stated); pure deletion at sentence granularity cannot excise them without deleting transcript-supported content in the same sentence."
+  ],
+  "cv_mts_160_PAIR_knee_oa": [
+   "'deferred detailed joint exam per patient preference today' describes a patient preference never voiced in the transcript; it is exam-narrative content on the removed OBJECTIVE line and cannot be preserved without rewriting, which the mechanics forbid, so whole-line deletion is correct."
+  ],
+  "cv_mts_161_PAIR_migraine_aura": [
+   "Note on cv_mts_163_PAIR_ischemic_stroke: not this pair's file, so I cannot verify it here; no basis to dispute the expected empty removal set."
+  ],
+  "cv_mts_162_PAIR_cap": [
+   "The reviewer's exception list omitted \"Mild effusion present.\" (left as borderline); this verifier resolved it to RETAIN for consistency with the \"No warmth.\" retention."
+  ],
+  "cv_mts_164_PAIR_oxalate_nephro": [
+   "The O: section retains four sentences after the scrub, so the 'O:' header is not emptied and is not removed."
+  ],
+  "cv_mts_165_PAIR_copd_bronchitis": [
+   "'no warmth' within the retained knee sentence is unsupported by the transcript, but it shares a sentence with supported findings and sub-sentence deletion is prohibited; retained per mechanics.",
+   "The retained knee sentence promotes patient-reported symptoms to an OBJECTIVE exam finding ('periarticular' precision is scribe-added); under a stricter reading of 'synthesized examination finding' it could be removed, but the decision rule keys on transcript support of the content, which exists."
+  ]
+ }
+}
