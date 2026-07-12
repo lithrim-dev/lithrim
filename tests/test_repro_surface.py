@@ -14,11 +14,18 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 REPRO = REPO / "repro"
-SCRIPTS = ["setup_streams.py", "cohort_runner.py", "consolidate.py"]
+SCRIPTS = ["setup_streams.py", "cohort_runner.py", "consolidate.py", "scrub_corpus.py"]
 CORPUS_FILES = [
     "corpus/cv_bidirectional_44_bundle.jsonl",
     "corpus/upcoded_positives.jsonl",
     "corpus/clean_generalization_negatives.jsonl",
+    # SCRUB-1 (preregistered F10 correction, OSF 10.17605/OSF.IO/2ZU4H): the scrubbed
+    # v2 corpus + its audit surfaces carry the same sanitization guarantee as v1.
+    "corpus_v2/cv_bidirectional_44_bundle.jsonl",
+    "corpus_v2/upcoded_positives.jsonl",
+    "corpus_v2/clean_generalization_negatives.jsonl",
+    "corpus_v2/scrub_map.json",
+    "corpus_v2/SCRUB_DIFF.md",
 ]
 ONTOLOGY_FILES = ["ontology_armT.json", "ontology_armR.json"]
 ZENODO_DOI = "10.5281/zenodo.21270268"
@@ -107,17 +114,36 @@ def test_setup_streams_dry_run_is_offline_and_prints_the_plan():
     env["LITHRIM_REPRO_BASE"] = "http://127.0.0.1:9"
     proc = subprocess.run(
         [sys.executable, str(REPRO / "setup_streams.py"), "--dry-run"],
-        capture_output=True, text=True, timeout=60, env=env, cwd=str(REPO),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+        cwd=str(REPO),
     )
     assert proc.returncode == 0, f"dry-run exited {proc.returncode}: {proc.stderr[:800]}"
     out = proc.stdout
-    for ws in ("stream-a-single", "stream-b-ensemble", "stream-c-same",
-               "stream-c-mixed", "baseline-scalar-reward"):
+    for ws in (
+        "stream-a-single",
+        "stream-b-ensemble",
+        "stream-c-same",
+        "stream-c-mixed",
+        "baseline-scalar-reward",
+    ):
         assert ws in out, f"dry-run plan missing workspace {ws}"
     # REL-5e: the script authors the PUBLISHED names, incl. ALL SIX ensemble members
     # (repro/role_binds.json stream_role_binds is the authoritative set).
-    for role in ("single_generalist", "ens_gpt41", "ens_gpt5", "ens_opus", "ens_sonnet",
-                 "ens_llama", "ens_mistral", "cs_risk", "cm_faith", "scalar_reward_baseline"):
+    for role in (
+        "single_generalist",
+        "ens_gpt41",
+        "ens_gpt5",
+        "ens_opus",
+        "ens_sonnet",
+        "ens_llama",
+        "ens_mistral",
+        "cs_risk",
+        "cm_faith",
+        "scalar_reward_baseline",
+    ):
         assert role in out, f"dry-run plan missing judge {role}"
     assert "lens" in out.lower(), "dry-run plan does not describe lenses"
 
