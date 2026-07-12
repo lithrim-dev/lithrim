@@ -14,6 +14,11 @@ Parameterized for reproduction (see REPRODUCING.md):
                                  for the record-informed arm)
   LITHRIM_REPRO_PHYSICIAN_CASES  optional path to the 10 physician-curated cases (withheld
                                  from this repo pending consent); absent -> 44-case corpus
+  LITHRIM_REPRO_CORPUS_DIR       corpus directory (default repro/corpus; the preregistered
+                                 v2 rerun sets repro/corpus_v2, the scrubbed corpus)
+  LITHRIM_REPRO_WS_SUFFIX        suffix appended to every workspace name (default none;
+                                 the v2 rerun uses e.g. -v2t / -v2r so fresh workspaces
+                                 are created instead of reusing the v1 study workspaces)
   LITHRIM_REPRO_ACTOR            audit-trail actor (default repro@lithrim-bench)
   LITHRIM_REPRO_HOME_WORKSPACE   workspace to switch back to at the end (default: skip)
 
@@ -34,10 +39,12 @@ ONTOLOGY_PATH = Path(os.environ.get("LITHRIM_REPRO_ONTOLOGY", REPRO_DIR / "ontol
 ACTOR = os.environ.get("LITHRIM_REPRO_ACTOR", "repro@lithrim-bench")
 HOME_WS = os.environ.get("LITHRIM_REPRO_HOME_WORKSPACE", "")
 PHYSICIAN_CASES = os.environ.get("LITHRIM_REPRO_PHYSICIAN_CASES", "")
+CORPUS_DIR = Path(os.environ.get("LITHRIM_REPRO_CORPUS_DIR", REPRO_DIR / "corpus"))
+WS_SUFFIX = os.environ.get("LITHRIM_REPRO_WS_SUFFIX", "")
 
 CORPUS_FILES = [
-    (str(REPRO_DIR / "corpus/upcoded_positives.jsonl"), 22, "native"),
-    (str(REPRO_DIR / "corpus/clean_generalization_negatives.jsonl"), 22, "native"),
+    (str(CORPUS_DIR / "upcoded_positives.jsonl"), 22, "native"),
+    (str(CORPUS_DIR / "clean_generalization_negatives.jsonl"), 22, "native"),
 ]
 if PHYSICIAN_CASES:
     CORPUS_FILES.append((PHYSICIAN_CASES, 10, "template"))
@@ -98,6 +105,8 @@ STREAMS = [
      "prompt": ("You are a holistic quality reviewer scoring the note against the transcript. "
                 "Assess overall faithfulness, completeness, and safety of the documentation.")},
 ]
+for _s in STREAMS:
+    _s["ws"] += WS_SUFFIX
 
 SPECIALIST_PROMPTS = {
     "risk": ("You are the patient-safety risk reviewer on a specialist council. Focus ONLY on "
