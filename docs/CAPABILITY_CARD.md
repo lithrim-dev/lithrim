@@ -98,7 +98,14 @@ layer sees it.
 - **Defects with no declared contract.** The floor runs only where a flag has an
   authored verification contract. A flag without a contract, or a contract whose
   declared type has no registered executor, is surfaced by the readiness preflight
-  (`lithrim_bench/harness/readiness.py:1-46`) but is not silently graded.
+  (`lithrim_bench/harness/readiness.py:1-46`) but is not silently graded. At the
+  verdict layer this is made explicit per grade: `ground()` labels every surviving
+  finding with a coverage tag (`grounded` / `cleared` / `declined` / `unrefuted` /
+  `judge_only` / `reference` / `null`) and stamps `floor_backstopped` — **False when a
+  BLOCK rests solely on judge-only findings the deterministic floor never grounded**, so
+  a judge-only reject is never presented as if the floor grounded it. The annotation is
+  purely derived and does not change the grade (`ground()` in
+  `lithrim_bench/harness/grounding.py`; surfaced by `composite()` in `report.py`).
 - **Content leakage between corpora and similar-but-not-identical duplication** in
   evaluation data (see `docs/POLICY_HOLDOUT_HYGIENE.md`, Enforcement status).
 

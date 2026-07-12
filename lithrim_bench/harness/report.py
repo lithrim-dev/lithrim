@@ -82,6 +82,11 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
             f"{f', {n_floor_inconclusive} inconclusive' if n_floor_inconclusive else ''}."
         )
 
+    # FLOOR-COVERAGE-1: per-verdict floor-coverage provenance. ``floor_backstopped=False`` on a
+    # BLOCK means the reject rests solely on judge-only findings the deterministic floor never
+    # grounded — the record/UI can mark it. Absent on pre-annotation results (defaults to {}).
+    coverage = getattr(grounded, "coverage", {}) or {}
+
     return {
         "verdict": _STAGE_TO_COMPLIANCE.get(grounded.verdict, "needs_review"),
         "stage_verdict": grounded.verdict,
@@ -93,6 +98,8 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         "ungrounded_count": len(grounded.ungrounded),
         "skipped_non_gradeable_count": n_reference,
         "floor_block_count": n_floor_block,
+        "coverage": coverage,
+        "floor_backstopped": coverage.get("floor_backstopped"),
     }
 
 
