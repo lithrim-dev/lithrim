@@ -179,10 +179,11 @@ def test_setup_streams_dry_run_supports_scrubbed_corpus_and_ws_suffix():
     assert "corpus_v2" in out, "dry-run plan not reading the scrubbed corpus dir"
 
 
-def test_cohort_runner_honors_ws_suffix():
-    text = (REPRO / "cohort_runner.py").read_text()
+@pytest.mark.parametrize("script", ["cohort_runner.py", "consolidate.py"])
+def test_run_scripts_honor_ws_suffix(script):
+    text = (REPRO / script).read_text()
     assert "LITHRIM_REPRO_WS_SUFFIX" in text, (
-        "cohort_runner.py missing the workspace-suffix seam the v2 rerun needs"
+        f"{script} missing the workspace-suffix seam the v2 rerun needs"
     )
 
 
