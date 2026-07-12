@@ -3907,7 +3907,11 @@ def _criterion_jute_generate_argshape(
     # _synth_findings entry (the SME's sample case), else an empty dict (the gate then rejects).
     findings = (sample_case or {}).get("_synth_findings") or []
     envelope = {"case": sample_case or {}, "finding": findings[0] if findings else {}}
-    dsl_excerpt = render_dsl_excerpt()
+    # the argshape generator authors a JUTE arg-mapping (extractor-style), so ground it on the LIVE
+    # DSL spec with the EXTRACTOR addendum — mirroring the _ingest_cases LM-gen path (NARR-7/G1).
+    dsl_excerpt = render_dsl_excerpt(
+        client.get_dsl_spec(), include_envelope_example=False, for_extractor=True
+    )
 
     def make_gen():
         return build_argshape_generator(

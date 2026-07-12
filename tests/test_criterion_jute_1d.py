@@ -291,3 +291,87 @@ def test_commit_unknown_flag_404_no_write(env, monkeypatch):
     )
     assert r.status_code == 404, r.text
     assert _draft_contracts(workdir) == []
+
+
+# --------------------------------------------------------------------------- #
+# REGRESSION — the REAL argshape fn must call render_dsl_excerpt(spec, ...), not ()
+# --------------------------------------------------------------------------- #
+def test_generate_argshape_passes_live_dsl_spec_to_excerpt(env, monkeypatch):
+    """The other 1d tests stub ``_criterion_jute_generate_argshape`` wholesale, so its
+    ``render_dsl_excerpt(...)`` call was never exercised — and it shipped calling it with NO args
+    (``TypeError: render_dsl_excerpt() missing 1 required positional argument: 'spec'`` -> 500).
+    Here we leave the REAL argshape fn in place and stub ONLY its network seams (the JUTE client +
+    the LM generator), leaving ``render_dsl_excerpt`` REAL, so a signature regression on that call
+    surfaces as a non-200. We assert the live DSL spec is fetched and a non-empty excerpt is
+    rendered from it and threaded to the generator (the fix mirrors the ``_ingest_cases`` LM-gen
+    call: ``render_dsl_excerpt(client.get_dsl_spec(), include_envelope_example=False,
+    for_extractor=True)``)."""
+    bff, client, db, workdir = env
+    import lithrim_bench.verification as V
+
+    seen: dict = {}
+
+    class _FakeJute:
+        def __init__(self, *a, **k):
+            self.base = "http://fake-jute:3031"
+
+        def health(self):
+            return True
+
+        def get_dsl_spec(self):
+            seen["dsl_spec_fetched"] = True
+            return {
+                "directives": {"$map": "..."},
+                "operators": {"precedence_order": ["+", "$reduce"]},
+            }
+
+        def test_template(self, *a, **k):
+            return {}
+
+    class _FakePred:
+        jute_transform = GOLDEN_ARGUMENTS_JUTE
+        accepted = True
+
+    def _fake_build_argshape_generator(client_, dsl_excerpt, envelope, **kw):
+        seen["excerpt"] = dsl_excerpt  # what the REAL render_dsl_excerpt produced
+        return object()
+
+    def _fake_best_of_n_argshape(make_gen, *a, **k):
+        make_gen()  # trips build_argshape_generator with the rendered excerpt
+        return _FakePred()
+
+    # leave render_dsl_excerpt + _criterion_jute_generate_argshape REAL; stub only the seams.
+    monkeypatch.setattr(V, "EtlpJuteClient", _FakeJute)
+    monkeypatch.setattr(V, "build_argshape_generator", _fake_build_argshape_generator)
+    monkeypatch.setattr(V, "best_of_n_argshape", _fake_best_of_n_argshape)
+
+    # gate: the REAL 1c gate over the golden fakes (no Hermes, no :3031) — argshape stays real.
+    positives, negatives, span_bind = _corpus_parts()
+    corpus = [*positives, *negatives, *span_bind]
+    oracle = build_snomed_oracle(positives, negatives, span_bind)
+    monkeypatch.setattr(
+        bff,
+        "_criterion_jute_gate",
+        lambda cp: gate_contract_over_corpus(
+            cp, corpus, jute_apply=golden_jute_apply, snomed_oracle=oracle
+        ),
+    )
+
+    r = client.post(
+        "/v1/criterion-jute/generate",
+        json={
+            "flag_code": KNOWN_FLAG,
+            "tool": "gate_snomed_subsumption",
+            "call": "subsumed_by",
+            "criterion": "The note diagnosis must not be more specific than the record supports.",
+            "commit": False,
+            "agent": AGENT,
+        },
+    )
+    assert r.status_code == 200, r.text  # RED before the fix: render_dsl_excerpt() 500s
+    body = r.json()
+    assert body["status"] == "preview"
+    assert body["gate_report"]["passed"] is True
+    # the live DSL spec WAS fetched, and a non-empty excerpt was rendered from it and threaded on:
+    assert seen.get("dsl_spec_fetched") is True
+    assert isinstance(seen.get("excerpt"), str) and seen["excerpt"].strip()
