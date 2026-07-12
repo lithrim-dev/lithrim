@@ -82,6 +82,13 @@ class GroundedResult:
     (``conforms is True``) is a no-op and not recorded — so ``floor_blocks == []``
     whenever no floor is declared OR every floor passes, and ``ground()`` is
     otherwise identical to its pre-WS-3 behaviour.
+
+    ``coverage`` (FLOOR-COVERAGE-1) is a PURELY DERIVED, read-only provenance summary
+    computed AFTER ``active``/``suppressed``/``floor_blocks`` are finalized — it labels
+    every surviving finding with a coverage tag and stamps ``floor_backstopped`` (False
+    when a BLOCK rests solely on judge-only findings the deterministic floor never
+    grounded). It never perturbs the grade: ``active``/``suppressed``/``verdict`` are
+    byte-identical with or without it, so it stays OUT of the signed grade digest.
     """
 
     active: list[dict[str, Any]]
@@ -93,6 +100,7 @@ class GroundedResult:
     floor_blocks: list[dict[str, Any]] = field(default_factory=list)
     skipped_malformed: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
+    coverage: dict[str, Any] = field(default_factory=dict)
     result: dict[str, Any] = field(repr=False, default_factory=dict)
     case: dict[str, Any] = field(repr=False, default_factory=dict)
 
@@ -1543,6 +1551,71 @@ def _run_floor(decl: VerificationContractDecl, case: dict[str, Any], *, http_cli
     return tool.verify(claim, spec)
 
 
+def _classify_coverage(
+    active: list[dict[str, Any]],
+    suppressed: list[dict[str, Any]],
+    skipped_non_gradeable: list[dict[str, Any]],
+    suppress_codes: set[str],
+    verdict: str,
+) -> dict[str, Any]:
+    """FLOOR-COVERAGE-1 — label every surviving finding by what backed it, read-only.
+
+    Each ACTIVE finding falls in exactly one bucket:
+      - ``grounded``   — a structural floor injected it (``_floor``): deterministic block support.
+      - ``declined``   — a bound contract ran but errored/could-not-decide (``_grounding_error``).
+      - ``unrefuted``  — a suppress contract EXISTS for the code, ran, and did not clear it: the
+                         finding stands as a judge assertion the floor examined but could not refute.
+      - ``judge_only`` — a coded finding with NO deterministic contract covering it: the pure-judge,
+                         no-backstop case (the F10-shaped residual reproduced live).
+      - ``null``       — a null-code finding (S-BS-8).
+    ``suppressed`` findings are ``cleared``; ``skipped_non_gradeable`` are ``reference``.
+
+    ``floor_backstopped`` answers "does the deterministic floor materially support THIS verdict":
+    a BLOCK is backstopped iff a finding is ``grounded``; a PASS iff a finding was ``cleared``.
+    A BLOCK resting solely on ``judge_only``/``unrefuted`` findings is NOT backstopped — the exact
+    false-BLOCK the honesty moat was previously silent about.
+    """
+    counts = {
+        "grounded": 0,
+        "cleared": 0,
+        "declined": 0,
+        "unrefuted": 0,
+        "judge_only": 0,
+        "reference": 0,
+        "null": 0,
+    }
+    per_finding: list[dict[str, Any]] = []
+    for f in active:
+        code = f.get("code")
+        if code is None:
+            tag = "null"
+        elif f.get("_floor"):
+            tag = "grounded"
+        elif "_grounding_error" in f:
+            tag = "declined"
+        elif code in suppress_codes:
+            tag = "unrefuted"
+        else:
+            tag = "judge_only"
+        counts[tag] += 1
+        per_finding.append({"code": code, "coverage": tag})
+    for s in suppressed:
+        counts["cleared"] += 1
+        per_finding.append({"code": s["finding"].get("code"), "coverage": "cleared"})
+    for r in skipped_non_gradeable:
+        counts["reference"] += 1
+        per_finding.append({"code": r.get("code"), "coverage": "reference"})
+
+    if verdict == "BLOCK":
+        backstopped = counts["grounded"] > 0
+    elif verdict == "PASS":
+        backstopped = counts["cleared"] > 0
+    else:
+        backstopped = counts["grounded"] > 0 or counts["cleared"] > 0
+
+    return {**counts, "floor_backstopped": backstopped, "per_finding": per_finding}
+
+
 def ground(
     result: dict[str, Any],
     case: dict[str, Any],
@@ -1692,6 +1765,12 @@ def ground(
                 {"decl": decl, "stage": "floor", "error": f"{type(exc).__name__}: {exc}"}
             )
 
+    verdict = ontology.severity_map.rescore(active)
+    # FLOOR-COVERAGE-1: derive the coverage provenance READ-ONLY from the finalized buckets —
+    # ``active``/``suppressed``/``verdict`` above are untouched (the invariance guard).
+    coverage = _classify_coverage(
+        active, suppressed, skipped_non_gradeable, set(contracts.keys()), verdict
+    )
     return GroundedResult(
         active=active,
         suppressed=suppressed,
@@ -1699,9 +1778,10 @@ def ground(
         skipped_non_gradeable=skipped_non_gradeable,
         floor_blocks=floor_blocks,
         skipped_malformed=skipped_malformed,
-        verdict=ontology.severity_map.rescore(active),
+        verdict=verdict,
         original_verdict=result.get("verdict"),
         weights=dict(ontology.severity_map.weights),
+        coverage=coverage,
         result=result,
         case=case,
     )
