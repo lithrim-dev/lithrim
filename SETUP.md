@@ -31,6 +31,9 @@ docker compose up        # first run builds the images
 > **Upgrading later:** after a `git pull`, run `docker compose up --build` — a plain `up` reuses
 > the previously built images and silently runs the old code.
 
+> **Don't want to clone?** Run the same stack from the published images with no source checkout: see
+> [`docs/DEPLOY.md`](docs/DEPLOY.md). Then pick this walkthrough back up at section 2.
+
 This brings up three services:
 
 | Service | URL | What it is |
@@ -129,6 +132,61 @@ That's the full loop: **setup → key → judges → load → grade.**
 
 ---
 
+## 7. Read your verdict and audit trail
+
+A score is not the point; the *why* is. Here is where to look, and what the labels mean.
+
+**The scorecard (inline in chat).** After a cohort grade, a **Scorecard** card renders in the
+thread. Read it top to bottom:
+
+- The tally line: **`N flagged · N need a look · N passed`**. Verdicts read in plain words, not codes:
+  **Passed**, **Flagged**, and **Needs a look**. Hover any verdict for the one-line meaning.
+- Per-case rows: the `case_id`, its verdict, and flag chips. On *labeled* cases a fully-correct row
+  shows **`clean ✓`**; a missed flag is prefixed **`miss`**, a false positive **`FP`**. Sample cases
+  are unlabeled, so you see verdicts without accuracy chips (the honest display with no answer key).
+- The **Deterministic floor** section: **`N cleared · N enforced · N cannot-ground`**, a safety line
+  (**`0 genuine defects cleared ✓`**, or a warning if any were), and the before/after that is the
+  whole thesis: **`verdict accuracy: reviewers alone X% → with the floor Y%`**. "Cleared" means the
+  floor disproved a reviewer's false alarm; "enforced" means it blocked a defect; "cannot-ground"
+  means it abstained rather than guess.
+
+**Open one case.** The scorecard hints **"Click any case to open its full result →"**. Click a row
+and the right-hand pane opens on the **Report** tab for that case:
+
+- **What this means**: a plain-English summary of the outcome, which reviewers flagged it and at what
+  confidence, and the recommended action.
+- **Headline metrics**: **Risk score**, **Issues found**, **False alarms cleared**.
+- **Issues found**: the findings that drove the verdict (flag names are humanized, e.g. "Medication
+  not in transcript", not a raw code).
+- **Cleared by a fact-check** / **Automated fact-check failures**: what the floor did on this case,
+  the false alarm(s) it disproved (which the council raised) and the defect(s) it enforced, each with
+  the contract that decided it and the reason.
+
+**See how each reviewer voted.** In the same pane, switch to the **Reviewers** tab. Each reviewer
+shows its vote, the flags it checks for, and a **confidence** bar. That number is
+**calibrated confidence read from the model's own logprobs**, not a self-reported score (the tooltip
+says so); where a reviewer was sampled *k* times you also see its variance.
+
+**The audit trail.** The full provenance record is the **Audit trail** card (**"What · When · Why ·
+Who"**). It is a card the assistant surfaces on request, not a fixed tab: ask in chat, e.g.
+**"show the audit trail"**. It has two streams:
+
+- **Config changes**: every authoring write (e.g. "Edited the Faithfulness reviewer") with its
+  timestamp, rationale, and who did it.
+- **Run trail**: every grade, grouped by case; click a run (or paste a run id and **Load run**) to
+  open a **Run report** with the result, the grounding-floor decision (`orig → final`), and each
+  reviewer's vote and reasoning.
+
+Every run is attributable, replayable evidence. Records are immutable: even the optional **Clinician
+verdict** (an independent human sign-off with a regulator-readable rationale) is recorded and audited
+without ever changing the machine verdict.
+
+> This is the product's signature: not "a better judge", but a grounded floor under the judges with
+> an audit trail that shows its work. For the mechanism behind it, see [`README.md`](README.md) and
+> [`docs/CAPABILITY_CARD.md`](docs/CAPABILITY_CARD.md).
+
+---
+
 ## Troubleshooting
 
 - **UI loads but grading fails / "configure a provider"** — finish step 2 (Connect AI), and confirm
@@ -150,4 +208,6 @@ That's the full loop: **setup → key → judges → load → grade.**
   from outside the repo".
 - **Put it on a network** — set `LITHRIM_BFF_TOKEN=<token>` to require a Bearer token on every request.
 - **The grounding floor** (the deterministic layer that can override a confident judge) and the audit
-  spine — see [`README.md`](README.md).
+  spine: how to read them in the UI is section 7 above; the mechanism is in [`README.md`](README.md).
+- **Drive it with an AI agent**: the shipped Agent Skills automate this whole path; see
+  [`docs/AGENT_SKILLS.md`](docs/AGENT_SKILLS.md).

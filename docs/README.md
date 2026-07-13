@@ -8,6 +8,8 @@ The tracked documentation for Lithrim. Start with the repo-root
 
 | Doc | What it covers |
 |---|---|
+| [`DEPLOY.md`](DEPLOY.md) | Run the prebuilt images with no clone or build: fetch the compose file and `docker compose up`, BYOK, pin/upgrade/reset, the localhost-only caveat. |
+| [`AGENT_SKILLS.md`](AGENT_SKILLS.md) | The shipped Agent Skills (stack up, first grade, SNOMED floor), what each does, and how to install them clone or no-clone. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | The components, engine, packs/plugins, judge council, grounding floor, BFF, UI, JUTE mapper, run trail, and how they connect. |
 | [`CAPABILITY_CARD.md`](CAPABILITY_CARD.md) | The honest capability card: what the deterministic floor verifies, what it does not, how it abstains, and what it depends on. |
 | [`EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md) | The determinism spec the engine implements: the defect register (D1–D7) and the by-construction case-generation protocol. |

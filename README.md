@@ -60,12 +60,9 @@ That's three services: the **BFF** (the API, `:8787`), the **UI** (`:5180`), and
 
 Then open **http://localhost:5180**, connect your own LLM key from the UI (or pass it as env — see below), and grade a case. The BFF auto-seeds the neutral `_core` sample on first boot, so the loop works immediately.
 
-**No clone needed (prebuilt images).** Tagged releases publish `ghcr.io/lithrim-dev/lithrim-bff` and `ghcr.io/lithrim-dev/lithrim-ui` (multi-arch, via [`deploy/docker-compose.yml`](deploy/docker-compose.yml)): `mkdir lithrim && cd lithrim && curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/main/deploy/docker-compose.yml && docker compose up`. The prebuilt UI image is localhost-only by design (the BFF origin is baked at build time; the compose header documents the build-arg escape hatch).
+**No clone needed (prebuilt images).** Tagged releases publish `ghcr.io/lithrim-dev/lithrim-bff` and `ghcr.io/lithrim-dev/lithrim-ui` (multi-arch, via [`deploy/docker-compose.yml`](deploy/docker-compose.yml)): `mkdir lithrim && cd lithrim && curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/main/deploy/docker-compose.yml && docker compose up`. The prebuilt UI image is localhost-only by design (the BFF origin is baked at build time; the compose header documents the build-arg escape hatch). Full no-clone guide: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-**Agent setup.** Using Claude Code or another skills-aware agent? Point it at this repo: setup skills ship in `.claude/skills/` (bring the stack up, wire the optional SNOMED terminology floor, run a first grade).
-
-<!-- screenshot placeholder: docs/assets/ui-grade-loop.png -->
-
+**Agent setup.** Using Claude Code or another skills-aware agent? Setup skills ship in `.claude/skills/` (bring the stack up, wire the optional SNOMED terminology floor, run a first grade). Point the agent at a clone, or install the skills without one: see [`docs/AGENT_SKILLS.md`](docs/AGENT_SKILLS.md).
 
 - **BYOK via env** — set keys in your shell or a repo-root `.env` (compose auto-loads `.env`); the `bff` service passes through `OPENAI_API_KEY`, the `AZURE_OPENAI_*` vars, `LITHRIM_LLM_PROVIDER`, `LITHRIM_BFF_TOKEN`, and `LITHRIM_BENCH_PACKS_DIR`. None are required for the offline demo.
 - **Chat (conversational assistant)** — the local `claude` CLI can't run in a container, so in Docker assign the assistant a model in **Connect AI** (⋯ menu, bottom left → Assign models → `chat_assistant`) from **OpenAI, Azure, Gemini, or an OpenAI-compatible endpoint** (env alternative: `LITHRIM_CHAT_PROVIDER=openai` + `LITHRIM_CHAT_API_KEY`/`LITHRIM_CHAT_MODEL`). The Anthropic/BYO-Claude path needs the host CLI and is host-run only. **Grading and the offline demo do not need chat.**
@@ -189,7 +186,9 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 
 | Doc | What it covers |
 |---|---|
-| [`SETUP.md`](SETUP.md) | The hands-on path: Docker stack, connect a key, first grade (~15 min). |
+| [`SETUP.md`](SETUP.md) | The hands-on path: Docker stack, connect a key, first grade, read the verdict + audit trail (~15 min). |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Run the prebuilt images with no clone or build: `curl` the compose file and `docker compose up`. |
+| [`docs/AGENT_SKILLS.md`](docs/AGENT_SKILLS.md) | The shipped Agent Skills (stack up, first grade, SNOMED floor) and how to install them, clone or no-clone. |
 | [`docs/CAPABILITY_CARD.md`](docs/CAPABILITY_CARD.md) | What the deterministic floor verifies, what it does not, and how it abstains. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The components (engine, packs, council, floor, BFF, UI, mapper) and how they connect. |
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
