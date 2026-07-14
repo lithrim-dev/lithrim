@@ -17,7 +17,7 @@ Bring your own model key. Run it on your laptop or in your VPC. **Your data neve
 
 Most AI-eval tools end at an LLM-as-judge — a second model scoring the first. But a judge is as fallible as the thing it grades: it can confidently approve a fabricated fact, or confidently flag a correct one. Lithrim adds the layer underneath:
 
-1. **A multi-model council** grades an artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags, with **logprob-calibrated confidence** (a real probability from the model's own tokens — not a self-reported number).
+1. **A multi-model council** grades an artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags, with **per-judge confidence read from token logprobs where the provider exposes them** (Azure/OpenAI), and an honest `None` (never a self-reported number) where it doesn't (e.g. Anthropic, Mistral).
 2. **A deterministic, tool-grounded floor** then re-checks the council's findings against ground truth — a record, a schema, a terminology service — and can **override the verdict**: suppress a finding the council got confidently wrong, or block an output the council missed.
 3. **An immutable audit record** captures every run — the votes, the floor's decision, and the evidence — so you can see *why*, not just *what*.
 
@@ -102,7 +102,7 @@ artifact ─▶ multi-model council ─▶ findings + calibrated confidence
 
 | Layer | What it does |
 |---|---|
-| **Council** | Multi-model LLM judges, evidence-based consensus, logprob-calibrated confidence. (Frozen, byte-stable core.) |
+| **Council** | Multi-model LLM judges, evidence-based consensus, per-judge confidence from token logprobs where the provider exposes them (else `None`, never faked). (Frozen, byte-stable core.) |
 | **Grounding floor** | `contract_type → executor` (in-process or service-transport); three-state, verdict-overriding, never silently flips. |
 | **Packs** | A pack supplies the domain (ontology, flags, prompts, floors). The shipped default is the neutral `_core`; domain packs are pluggable and load from outside the repo. |
 | **Plugins** | A unified registry (`kind: contract / provider / tool / pack`) — add a scorer, provider, or connector by manifest. |
@@ -162,7 +162,7 @@ Lithrim is self-hosted. There is no Lithrim-hosted inference, no account, no tel
 
 This is a **community release** — a working harness and a runnable demo, not a finished product.
 
-- **Stable:** the council, the calibrated-confidence read, the grounding-floor mechanism, the by-construction labeling, the audit spine, the neutral `_core` pack, BYOK (single-provider).
+- **Stable:** the council, the confidence read (token logprobs where the provider exposes them), the grounding-floor mechanism, the by-construction labeling, the audit spine, the neutral `_core` pack, BYOK (single-provider).
 - **Experimental / evolving:** the full connector plane (reference connectors are wired; the SPEC is the design), the conversational UI surface, multi-provider councils.
 - **Not included here:** auth (a local self-hosted run doesn't need it — coming for exposed deployments).
 
@@ -178,7 +178,7 @@ The engine, the harness, the neutral `_core` pack, the sample packs, and the plu
 
 ## Research
 
-Lithrim backs the technical report *A grounded evaluation architecture for clinical scribes: a configuration-controlled study of LLM judges and a deterministic grounding floor*, the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real measurably corrects it. Report + data: DOI [10.5281/zenodo.21270268](https://doi.org/10.5281/zenodo.21270268) (concept DOI [10.5281/zenodo.21270267](https://doi.org/10.5281/zenodo.21270267), resolves to the latest version); preregistration: OSF [10.17605/OSF.IO/2ZU4H](https://doi.org/10.17605/OSF.IO/2ZU4H). To reproduce the study from this repo, see [`REPRODUCING.md`](REPRODUCING.md). The engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
+Lithrim backs the technical report *A grounded evaluation architecture for clinical scribes: a configuration-controlled study of LLM judges and a deterministic grounding floor*, the empirical case that an LLM judge cannot be trusted to certify its own safety, and that a deterministic floor grounded in something real bounds it: across every judge configuration tested it never false-cleared an upcoded diagnosis (0 of 22), confirmed 15 of 22 directly from live terminology, and returned typed, auditable reasons no judge configuration produced. Before the corrected rerun we preregistered its numeric decision rules and predicted the judges would be partly vindicated; the prediction lost (0 of 8 configuration cells), and the registration commits the refutation to publication either way. Report + data: DOI [10.5281/zenodo.21270268](https://doi.org/10.5281/zenodo.21270268) (concept DOI [10.5281/zenodo.21270267](https://doi.org/10.5281/zenodo.21270267), resolves to the latest version); preregistration: OSF [10.17605/OSF.IO/2ZU4H](https://doi.org/10.17605/OSF.IO/2ZU4H). To reproduce the study from this repo, see [`REPRODUCING.md`](REPRODUCING.md). The engine spec (the by-construction defect taxonomy) is [`docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](docs/EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md).
 
 ---
 
