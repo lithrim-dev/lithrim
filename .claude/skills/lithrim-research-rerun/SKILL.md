@@ -103,7 +103,8 @@ docker compose exec bff rm -rf /root/.dspy_cache && docker compose restart bff
 # then re-select the arm workspace, grade ONE case, confirm cost_tokens > 0 in GET /v1/runs
 ```
 
-Then the cohort, for one arm the user has authorized:
+Then the cohort, for one arm the user has authorized. `--grade` grades the workspace(s) authored
+in Stage 4 and does NOT re-author (no re-ingest), so run Stage 4 first:
 
 ```bash
 python3 repro/run_arms.py --arm arm-single-frontier-plain --grade            # armT + armR

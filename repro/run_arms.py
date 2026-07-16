@@ -10,14 +10,17 @@ ADDITIVE by design: this file and arms.json do NOT modify or run the deposited 5
 scripts. The deposited reproduction (setup_streams main, cohort_runner, consolidate over the
 fixed streams) is untouched and stays byte-reproducible.
 
-Modes (combine as needed):
-  (default)   author + bind every ready arm x ontology-arm                       ($0)
+Modes (author first, then grade, then score):
+  (default)   AUTHOR + bind every ready arm x ontology-arm workspace             ($0)
+  --grade     GRADE the PAID cohort for the already-authored arm workspace(s). Does NOT
+              re-author (no re-ingest, can't trip the case-count assert); reuses
+              cohort_runner.run_stream; strictly sequential. Clear the DSPy cache and confirm
+              cost_tokens>0 on one case BEFORE using this (see the plan's Stage 5).
+  --score     SCORE ($0 replay) the already-authored/graded arm workspace(s):
+              POST /v1/cases/grade live:False -> scorecard_<ws>.json.
   --arm ID    restrict to a single arm id
+  --ontology armT|armR   restrict to a single ontology arm
   --dry-run   print the plan; makes zero HTTP calls
-  --grade     ALSO run the PAID cohort per arm workspace (reuses cohort_runner.run_stream).
-              Grades the ACTIVE workspace; strictly sequential. Clear the DSPy cache and
-              confirm cost_tokens>0 on one case BEFORE using this (see the plan's Stage 5).
-  --score     ALSO write a $0 replay scorecard per arm (POST /v1/cases/grade live:False)
 
 Env (shared with setup_streams / cohort_runner, read at import):
   LITHRIM_REPRO_BASE (default http://localhost:8787), LITHRIM_REPRO_CORPUS_DIR,
@@ -120,6 +123,7 @@ def main():
     score = "--score" in argv
     only = _opt_value(argv, "--arm")
     onto_filter = _opt_value(argv, "--ontology")
+    author = not (grade or score)  # default mode authors; --grade/--score act on an existing ws
 
     # Guardrail: a paid cohort must be scoped and individually authorized. Refuse an unscoped
     # --grade so one command cannot fire every arm x ontology cohort past a single sentinel
@@ -153,19 +157,24 @@ def main():
             continue
         onto_keys = [k for k in a["ontology_arms"] if onto_filter is None or k == onto_filter]
         for onto_key in onto_keys:
-            onto = ontology_for(cfg, onto_key)
-            assert len(onto.get("verification_contracts", [])) == 7, \
-                f"{onto_key}: floor ontology must have 7 verification_contracts"
-            lens_full = S.full_lens(onto)
-            expected = sum(expect for _, expect, _ in S.CORPUS_FILES)
-            stream = build_stream(a, cfg, onto_key)
-            print(f"\n=== {stream['ws']} ({a['id']} / {onto_key}) ===")
-            S.setup_workspace(stream, onto, lens_full, expected)
-            apply_binds(a)
+            ws = f"{a['id']}-{onto_key}{WS_SUFFIX}"
+            print(f"\n=== {ws} ({a['id']} / {onto_key}) ===")
+            # AUTHOR is a separate phase: --grade/--score operate on the already-authored ws and
+            # never re-run setup_workspace, so a re-grade can't re-ingest cases or trip the
+            # case-count assert. Author first (default mode), then grade, then score.
+            if author:
+                onto = ontology_for(cfg, onto_key)
+                assert len(onto.get("verification_contracts", [])) == 7, \
+                    f"{onto_key}: floor ontology must have 7 verification_contracts"
+                lens_full = S.full_lens(onto)
+                expected = sum(expect for _, expect, _ in S.CORPUS_FILES)
+                stream = build_stream(a, cfg, onto_key)
+                S.setup_workspace(stream, onto, lens_full, expected)
+                apply_binds(a)
             if grade:
-                C.run_stream(stream["ws"])
+                C.run_stream(ws)
             if score:
-                score_arm(stream["ws"])
+                score_arm(ws)
 
 
 if __name__ == "__main__":
