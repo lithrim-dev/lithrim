@@ -38,6 +38,19 @@ WS_SUFFIX = os.environ.get("LITHRIM_REPRO_WS_SUFFIX", "")
 sys.path.insert(0, str(REPRO_DIR))
 import setup_streams as S  # noqa: E402 — reuse the proven authoring seam ($0)
 
+# Make corpus selection self-contained: build CORPUS_FILES from LITHRIM_REPRO_CORPUS_DIR here and
+# override setup_streams' module global, so the driver works against ANY setup_streams version —
+# including public-cut's, which predates the LITHRIM_REPRO_CORPUS_DIR seam and would otherwise
+# hardcode repro/corpus (the v1, unscrubbed corpus) and silently ignore corpus_v2.
+_CORPUS_DIR = os.environ.get("LITHRIM_REPRO_CORPUS_DIR", str(REPRO_DIR / "corpus"))
+_PHYSICIAN = os.environ.get("LITHRIM_REPRO_PHYSICIAN_CASES", "")
+S.CORPUS_FILES = [
+    (str(Path(_CORPUS_DIR) / "upcoded_positives.jsonl"), 22, "native"),
+    (str(Path(_CORPUS_DIR) / "clean_generalization_negatives.jsonl"), 22, "native"),
+]
+if _PHYSICIAN:
+    S.CORPUS_FILES.append((_PHYSICIAN, 10, "template"))
+
 
 def load_arms():
     return json.loads(ARMS_PATH.read_text())
