@@ -122,16 +122,28 @@ Two orthogonal dials sit outside the per-arm config:
 - **Corpus** (`LITHRIM_REPRO_CORPUS_DIR` + `LITHRIM_REPRO_WS_SUFFIX`): `repro/corpus_v2` (scrubbed,
   44 = 22 upcode + 22 clean). Optional +10 physician via `LITHRIM_REPRO_PHYSICIAN_CASES` -> 54.
 
-The judge configs the paper covered, refined into a clean arm list:
+The matrix has two classes (filter with `run_arms.py --class registered|exploratory`).
+
+**REGISTERED** — the five published study streams (the roster-structure comparison backing Zenodo;
+models exactly as `role_binds.json` records them). This is the faithful reproduction.
+
+| arm id | roster | model(s) | K / temp | lens | provider |
+|---|---|---|---|---|---|
+| `arm-single` | 1 generalist | gpt-4.1 | 8 / 1.0 | FULL | azure |
+| `arm-ensemble` | 6 judges | gpt-4.1, gpt-5.4, opus-4-8, sonnet-5, Llama-4-Maverick, Mistral-Large-3 | 1 / 0.0 | FULL | azure + anthropic + openai_compatible |
+| `arm-specialist-same` | 3 specialists (risk/policy/faith) | all gpt-4.1 | 1 / 0.0 | RISK/POLICY/FAITH | azure |
+| `arm-specialist-mixed` | 3 specialists | risk→opus-4-8, policy→gpt-4.1, faith→gpt-5.4 | 1 / 0.0 | RISK/POLICY/FAITH | anthropic + azure |
+| `arm-scalar-reward` | reward model | Composo reward (score→verdict, findings empty) | 1 / 0.0 | FULL | composo |
+
+**EXPLORATORY** — unregistered post-study cells. Never quote as study results.
 
 | arm id | roster | model(s) | K / temp | CoT | provider |
 |---|---|---|---|---|---|
-| `single-frontier-plain` | `single_generalist` | gpt-5.x (dated) | 8 / 1.0 | no | azure |
-| `single-frontier-cot` | `single_generalist` | gpt-5.x (dated) | 8 / 1.0 | yes | azure |
-| `single-openbio-plain` | `single_generalist` | OpenBioLLM-70B | 1 / 1.0 | no | openai_compatible |
-| `single-openbio-cot` | `single_generalist` | OpenBioLLM-70B | 1 / 1.0 | yes | openai_compatible |
-| `ensemble-mixed` | 6x `ens_*` | gpt-4.1, gpt-5.x, opus-4-8, sonnet-5, Llama-4-Maverick, Mistral-Large-3 | 1 / 0.0 | no | azure + anthropic + openai_compatible |
-| `composo-judge` | `composo_reviewer` | Composo (per-flag) | 1 / 0.0 | no | composo (adapter, see Stage 4.5) |
+| `arm-single-frontier-plain` | 1 generalist | gpt-5.5 | 8 / 1.0 | no | azure |
+| `arm-single-frontier-cot` | 1 generalist | gpt-5.5 | 8 / 1.0 | yes | azure |
+| `arm-single-openbio-plain` | 1 generalist | OpenBioLLM-70B | 1 / 1.0 | no | openai_compatible |
+| `arm-single-openbio-cot` | 1 generalist | OpenBioLLM-70B | 1 / 1.0 | yes | openai_compatible |
+| `arm-composo-judge` | `composo_reviewer` | Composo (per-flag) | 1 / 0.0 | no | composo (adapter, Stage 4.5, **blocked**) |
 
 Notes that matter for fidelity:
 
@@ -183,9 +195,11 @@ touching `_apply_consensus` or the consensus/withstands seam:
    call with a token/response sentinel before the paid cohort, keep the adapter out of the frozen
    seam, secrets stay in `.provider_env`.
 
-Sequencing choice: run the five config-only arms first (they need no code), land the Composo
-adapter in parallel, and slot `composo-judge` in as the sixth arm once its acceptance test is green.
-This keeps the matrix moving without blocking on the spike.
+Sequencing choice: run the registered study arms and the other exploratory cells first (they need
+no code), land the Composo adapter in parallel, and flip `arm-composo-judge` from `blocked` to
+`ready` once its acceptance test is green. This keeps the matrix moving without blocking on the
+spike. Note the reward-model baseline (`arm-scalar-reward`) is a separate, already-runnable arm and
+does not depend on this adapter.
 
 ## Stage 5 — Grade one arm (the inner loop, cache-hygiene gated)
 
@@ -274,22 +288,26 @@ restart. A new arm is an `arms.json` entry; a new defect family is a new corpus 
 
 ---
 
-## Locked run configuration (2026-07-15)
+## Locked run configuration (2026-07-16)
 
-1. **Composo** = a new per-flag LLM-judge surface, NOT the reward baseline. Requires the Stage 4.5
-   adapter before it can grade. The other five arms are config-only.
-2. **Isolation** = one public-cut stack, strictly sequential. Zero contamination risk; slower
-   wall-clock accepted.
-3. **Matrix scope** = all six arms x both ontology arms (armT + armR). ~528 paid grades
-   (6 arms x 2 arms x 44 cases), plus the 10 physician cases where applicable, plus $0 replay
-   scoring. CoT arms retained despite the dead-lever prior, for a complete control.
-4. **SNOMED** = wire Hermes now (release available locally). Full code-grounded floor active from
-   the first arm.
+1. **Matrix** = the faithful superset. REGISTERED = the 5 published study streams (`arm-single`,
+   `arm-ensemble`, `arm-specialist-same`, `arm-specialist-mixed`, `arm-scalar-reward`), with the
+   exact study models. EXPLORATORY = 4 ready unregistered cells (frontier, CoT, OpenBio) plus
+   `arm-composo-judge` (blocked pending the Stage 4.5 adapter). `run_arms.py --class registered`
+   runs exactly the study.
+2. **Composo** appears twice, distinct: `arm-scalar-reward` is the study's reward-model baseline
+   (the shipped `provider: composo` wire, runnable now); `arm-composo-judge` is a per-flag judge
+   surface that needs the Stage 4.5 adapter (blocked).
+3. **Isolation** = one public-cut stack, strictly sequential. Zero contamination; slower wall-clock.
+4. **Scope** = both ontology arms (armT + armR). Registered = 5 arms x 2 = 10 cohorts (~440 grades);
+   the full ready set = 9 arms x 2 = 18 cohorts (~792 grades). Plus the 10 physician cases where
+   applicable, plus $0 replay scoring.
+5. **SNOMED** = wire Hermes now (release available locally). Full code-grounded floor from arm one.
 
-Execution order (when the owner gives the go): Stage 1 stack -> Stage 2 providers -> Stage 3
-Hermes -> Stage 4/7 refactor to `arms.json` + driver -> run the five config arms sequentially
-(Stage 5/6) while the Stage 4.5 Composo adapter lands tests-first in parallel -> add `composo-judge`
-as the sixth arm once green -> re-run the whole set under `ontology_armR.json`.
+Execution order (when the owner gives the go): Stage 1 stack -> Stage 2 providers -> Stage 3 Hermes
+-> Stage 4 `run_arms.py --class registered` (author + bind the study, $0) -> Stage 5/6 grade each
+registered arm on the owner's go, then score -> optionally `--class exploratory` for the extensions,
+with the Stage 4.5 Composo adapter landing tests-first before `arm-composo-judge` flips to ready.
 
-Not started yet: this is the plan only. No service is up, no grade has run. Awaiting the go to
-begin Stage 1, and a separate go before any paid cohort (Stage 5).
+Not started yet: this is the plan only. No service is up, no grade has run. Awaiting the go to begin
+Stage 1, and a separate go before any paid cohort (Stage 5).

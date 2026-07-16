@@ -65,17 +65,24 @@ the per-role binds. This is additive; the deposited 5-stream scripts are untouch
 
 Dry-run first (zero HTTP), then author for real. Point the corpus at the scrubbed v2 set:
 
+The matrix has two classes: **registered** (the 5 published study streams: `arm-single`,
+`arm-ensemble`, `arm-specialist-same`, `arm-specialist-mixed`, `arm-scalar-reward` — the faithful
+reproduction) and **exploratory** (unregistered cells: frontier, CoT, OpenBio, per-flag Composo).
+Filter with `--class registered|exploratory`.
+
 ```bash
 export LITHRIM_REPRO_BASE=http://localhost:8787
 export LITHRIM_REPRO_CORPUS_DIR=repro/corpus_v2
 export LITHRIM_REPRO_OUT=./out/public_cut_run
-python3 repro/run_arms.py --dry-run                    # inspect the plan
-python3 repro/run_arms.py                              # author + bind every ready arm ($0)
+python3 repro/run_arms.py --dry-run                        # inspect the full plan
+python3 repro/run_arms.py --class registered              # author + bind the 5 study streams ($0)
+python3 repro/run_arms.py --class exploratory             # (optional) author + bind the exploratory cells ($0)
 ```
 
 Verify: each arm prints `roster pinned`, `readiness ok=True`, and every bind returns `[200]`. A
-bind that returns `[400]`/`[422]` means that provider is not connected yet (Stage 2). The five
-ready arms are authored; `arm-composo-judge` is skipped (blocked, see Stage 4.5).
+bind that returns `[400]`/`[422]` means that provider is not connected yet (Stage 2). Nine arms are
+authored; `arm-composo-judge` is skipped (blocked, see Stage 4.5). Reproducing the published study
+is exactly the five `--class registered` arms; the rest are clearly-labeled extensions.
 
 ## 4.5 Composo as a per-flag judge (the one code spike, optional)
 
