@@ -19,7 +19,10 @@ Modes (author first, then grade, then score):
   --score     SCORE ($0 replay) the already-authored/graded arm workspace(s):
               POST /v1/cases/grade live:False -> scorecard_<ws>.json.
   --arm ID    restrict to a single arm id
-  --ontology armT|armR   restrict to a single ontology arm
+  --ontology armT|armR         restrict to a single ontology arm
+  --class registered|exploratory   restrict to a class (the 5 published study streams vs the
+              unregistered post-study cells). REGISTERED reproduces the roster-structure study;
+              EXPLORATORY (CoT, OpenBio, per-flag Composo) must not be quoted as study results.
   --dry-run   print the plan; makes zero HTTP calls
 
 Env (shared with setup_streams / cohort_runner, read at import):
@@ -63,10 +66,24 @@ def ontology_for(cfg, onto_key):
     return json.loads((REPO_ROOT / cfg["ontology_files"][onto_key]).read_text())
 
 
+def _resolve_lens(tok):
+    # Reuse the study's exact lens sets from setup_streams; "FULL" and explicit lists pass through.
+    if tok == "FULL" or isinstance(tok, list):
+        return tok
+    table = {"RISK": S.RISK_LENS, "POLICY": S.POLICY_LENS, "FAITH": S.FAITH_LENS}
+    if tok not in table:
+        print(f"unknown lens token {tok!r}; use FULL/RISK/POLICY/FAITH or an explicit code list")
+        sys.exit(1)
+    return table[tok]
+
+
 def build_stream(arm, cfg, onto_key):
     ws = f"{arm['id']}-{onto_key}{WS_SUFFIX}"
-    prompt = cfg["prompts"][arm["prompt"]] + (cfg["cot_suffix"] if arm.get("cot") else "")
-    judges = [{"role": j["role"], "lens": j["lens"], "k": j["k"], "temperature": j["temperature"]}
+    if arm["prompt"] == "specialist":
+        prompt = None  # setup_workspace applies per-role SPECIALIST_PROMPTS keyed off the role suffix
+    else:
+        prompt = cfg["prompts"][arm["prompt"]] + (cfg["cot_suffix"] if arm.get("cot") else "")
+    judges = [{"role": j["role"], "lens": _resolve_lens(j["lens"]), "k": j["k"], "temperature": j["temperature"]}
               for j in arm["judges"]]
     return {"ws": ws, "judges": judges, "prompt": prompt}
 
@@ -96,8 +113,8 @@ def print_plan(cfg, arms):
           f"suffix={WS_SUFFIX!r}")
     for a in arms:
         tag = "" if a.get("status", "ready") == "ready" else f"  [{a['status'].upper()}]"
-        print(f"arm {a['id']}{tag}: prompt={a['prompt']} cot={bool(a.get('cot'))} "
-              f"ontology_arms={a['ontology_arms']}")
+        print(f"arm {a['id']} [{a.get('class', '?')}]{tag}: prompt={a['prompt']} "
+              f"cot={bool(a.get('cot'))} ontology_arms={a['ontology_arms']}")
         for j in a["judges"]:
             print(f"    judge {j['role']}: k={j['k']} t={j['temperature']} lens={j['lens']}")
         for b in a["binds"]:
@@ -123,6 +140,7 @@ def main():
     score = "--score" in argv
     only = _opt_value(argv, "--arm")
     onto_filter = _opt_value(argv, "--ontology")
+    klass = _opt_value(argv, "--class")
     author = not (grade or score)  # default mode authors; --grade/--score act on an existing ws
 
     # Guardrail: a paid cohort must be scoped and individually authorized. Refuse an unscoped
@@ -135,9 +153,11 @@ def main():
         sys.exit(1)
 
     cfg = load_arms()
-    arms = [a for a in cfg["arms"] if only is None or a["id"] == only]
+    arms = [a for a in cfg["arms"]
+            if (only is None or a["id"] == only) and (klass is None or a.get("class") == klass)]
     if not arms:
-        print(f"no arm matches {only!r}; ids: {[a['id'] for a in cfg['arms']]}")
+        print(f"no arm matches arm={only!r} class={klass!r}; "
+              f"ids: {[a['id'] for a in cfg['arms']]}")
         sys.exit(1)
 
     if dry:
