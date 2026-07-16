@@ -1,0 +1,112 @@
+{
+  "_about": "Declarative arm matrix for the clean public-cut rerun. Consumed by repro/run_arms.py, which REUSES repro/setup_streams.setup_workspace (identical floor + corpus, $0) and applies per-role binds via POST /v1/roles/bind. This file and run_arms.py are ADDITIVE: the deposited 5-stream study scripts (setup_streams main, cohort_runner, consolidate) are untouched and stay byte-reproducible. Plan: docs/reproduction/RUN_PLAN_PUBLIC_CUT.md. Each arm gets a UNIQUE role name so per-role bind env never collides across arms; the two ontology-arm workspaces of one arm share the role + bind (same model, different floor ontology).",
+  "ontology_files": {
+    "armT": "repro/ontology_armT.json",
+    "armR": "repro/ontology_armR.json"
+  },
+  "cot_suffix": " Think step by step before deciding, and commit to nothing until the analysis is complete. First, list each clinical claim the note makes. For each claim, quote the exact transcript or record text that supports it, or state that no support exists. For each candidate flag, restate the flag definition and check it against that evidence, including an explicit comparison of how specific the note's wording is versus how specific the source's wording is. Only after finishing this analysis choose your decision, findings, and reason.",
+  "prompts": {
+    "generalist": "You are a single generalist clinical-documentation reviewer. Review the note against the transcript across ALL defect lenses you are given: fabrication, unsupported or contradicted assertions, value mismatches, omissions and erasures (history, dissent, intent), misattribution, escalation misses, upcoding, inconsistency, and style. Raise every code the evidence supports.",
+    "ensemble_member": "You are one reviewer in a multi-model ensemble; each ensemble member receives this SAME instruction. Review the note against the transcript across ALL defect lenses you are given: fabrication, unsupported or contradicted assertions, value mismatches, omissions and erasures (history, dissent, intent), misattribution, escalation misses, upcoding, inconsistency, and style. Raise every code the evidence supports.",
+    "reward_holistic": "You are a holistic quality reviewer scoring the note against the transcript. Assess overall faithfulness, completeness, and safety of the documentation."
+  },
+  "arms": [
+    {
+      "id": "arm-single-frontier-plain",
+      "prompt": "generalist",
+      "cot": false,
+      "ontology_arms": ["armT", "armR"],
+      "status": "ready",
+      "judges": [
+        {"role": "sgl_frontier", "lens": "FULL", "k": 8, "temperature": 1.0}
+      ],
+      "binds": [
+        {"role": "sgl_frontier", "provider": "azure", "model": "gpt-5.5",
+         "note": "Azure deployment name; point it at a DATED frontier snapshot. endpoint + api_version come from the stored azure provider config."}
+      ]
+    },
+    {
+      "id": "arm-single-frontier-cot",
+      "prompt": "generalist",
+      "cot": true,
+      "ontology_arms": ["armT", "armR"],
+      "status": "ready",
+      "judges": [
+        {"role": "sgl_frontier_cot", "lens": "FULL", "k": 8, "temperature": 1.0}
+      ],
+      "binds": [
+        {"role": "sgl_frontier_cot", "provider": "azure", "model": "gpt-5.5",
+         "note": "Same model as arm-single-frontier-plain; the ONLY delta is the appended cot_suffix, so the pair is a clean CoT control."}
+      ]
+    },
+    {
+      "id": "arm-single-openbio-plain",
+      "prompt": "generalist",
+      "cot": false,
+      "ontology_arms": ["armT", "armR"],
+      "status": "ready",
+      "judges": [
+        {"role": "sgl_openbio", "lens": "FULL", "k": 1, "temperature": 1.0}
+      ],
+      "binds": [
+        {"role": "sgl_openbio", "provider": "openai_compatible", "model": "aaditya/Llama3-OpenBioLLM-70B",
+         "endpoint": "https://api.featherless.ai/v1",
+         "note": "K=1 is forced: Featherless Premium caps concurrency at 4 units and n=8 is rejected. Record this K=1-vs-frontier-K=8 asymmetry as a confound in the writeup."}
+      ]
+    },
+    {
+      "id": "arm-single-openbio-cot",
+      "prompt": "generalist",
+      "cot": true,
+      "ontology_arms": ["armT", "armR"],
+      "status": "ready",
+      "judges": [
+        {"role": "sgl_openbio_cot", "lens": "FULL", "k": 1, "temperature": 1.0}
+      ],
+      "binds": [
+        {"role": "sgl_openbio_cot", "provider": "openai_compatible", "model": "aaditya/Llama3-OpenBioLLM-70B",
+         "endpoint": "https://api.featherless.ai/v1",
+         "note": "Same model as arm-single-openbio-plain; only the cot_suffix differs."}
+      ]
+    },
+    {
+      "id": "arm-ensemble-mixed",
+      "prompt": "ensemble_member",
+      "cot": false,
+      "ontology_arms": ["armT", "armR"],
+      "status": "ready",
+      "_role_note": "Roles are prefixed ensmix_ (NOT the deposited stream-b-ensemble's ens_*), because /v1/roles/bind persists per-role binds process-globally by role name; sharing ens_* would let this arm's binds silently re-point the deposited study's ensemble judges on a long-lived BFF.",
+      "judges": [
+        {"role": "ensmix_gpt41", "lens": "FULL", "k": 1, "temperature": 0.0},
+        {"role": "ensmix_gpt5", "lens": "FULL", "k": 1, "temperature": 0.0},
+        {"role": "ensmix_opus", "lens": "FULL", "k": 1, "temperature": 0.0},
+        {"role": "ensmix_sonnet", "lens": "FULL", "k": 1, "temperature": 0.0},
+        {"role": "ensmix_llama", "lens": "FULL", "k": 1, "temperature": 0.0},
+        {"role": "ensmix_mistral", "lens": "FULL", "k": 1, "temperature": 0.0}
+      ],
+      "binds": [
+        {"role": "ensmix_gpt41", "provider": "azure", "model": "gpt-4.1"},
+        {"role": "ensmix_gpt5", "provider": "azure", "model": "gpt-5.5"},
+        {"role": "ensmix_opus", "provider": "anthropic", "model": "claude-opus-4-8"},
+        {"role": "ensmix_sonnet", "provider": "anthropic", "model": "claude-sonnet-5"},
+        {"role": "ensmix_llama", "provider": "openai_compatible", "model": "Llama-4-Maverick-17B-128E-Instruct-FP8", "endpoint": "https://api.featherless.ai/v1"},
+        {"role": "ensmix_mistral", "provider": "openai_compatible", "model": "Mistral-Large-3", "endpoint": "https://api.featherless.ai/v1"}
+      ]
+    },
+    {
+      "id": "arm-composo-judge",
+      "prompt": "generalist",
+      "cot": false,
+      "ontology_arms": ["armT", "armR"],
+      "status": "blocked",
+      "blocked_reason": "Composo as a per-flag JUDGE surface needs the Stage 4.5 adapter (docs/reproduction/RUN_PLAN_PUBLIC_CUT.md). The shipped provider:composo (reward_lm.py) is a single-criterion reward wire with empty findings, i.e. the reward baseline, not a per-flag voter. run_arms.py SKIPS blocked arms. Flip status to ready once the adapter's acceptance test is green.",
+      "judges": [
+        {"role": "composo_reviewer", "lens": "FULL", "k": 1, "temperature": 0.0}
+      ],
+      "binds": [
+        {"role": "composo_reviewer", "provider": "composo", "model": "composo-reward",
+         "note": "Per-flag adapter TBD; until then this arm is blocked."}
+      ]
+    }
+  ]
+}
