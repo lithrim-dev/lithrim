@@ -7,8 +7,8 @@ description: Reproduce the Lithrim judge-vs-floor research matrix from the publi
 
 This reproduces the paper's experiment (Zenodo 10.5281/zenodo.21270268; OSF 10.17605/OSF.IO/2ZU4H)
 from the prebuilt images, structured so new arms and new defect families are one-line additions.
-The full grounded plan is `docs/_internal/RUN_PLAN_PUBLIC_CUT.md`; read it if a step is unclear.
-The synthetic-research framing for any Fable-5 reasoning is `docs/_internal/FABLE5_RESEARCH_CONTEXT_PREAMBLE.md`.
+The full grounded plan is `docs/reproduction/RUN_PLAN_PUBLIC_CUT.md`; read it if a step is unclear.
+The synthetic-research framing for any Fable-5 reasoning is `docs/reproduction/FABLE5_RESEARCH_CONTEXT_PREAMBLE.md`.
 
 Everything here is skills + config over the already-shipping REST API and the proven `repro/`
 scripts. The only part that needs engine code is the Composo per-flag judge (Stage 4.5 of the plan);
@@ -85,7 +85,7 @@ is the reward baseline, not a per-flag voter. To run it as a judge, build the ad
 UNFROZEN wiring layer only (never `_apply_consensus`), tests-first: verify Composo's live API, then
 either iterate the lens codes over the reward endpoint or bind Composo's native criteria API, and
 map the result to per-flag findings. Flip `arm-composo-judge` `status` to `ready` in `arms.json`
-once its acceptance test is green. Full scoping: `docs/_internal/RUN_PLAN_PUBLIC_CUT.md` Stage 4.5.
+once its acceptance test is green. Full scoping: `docs/reproduction/RUN_PLAN_PUBLIC_CUT.md` Stage 4.5.
 
 ## 5. Grade one arm (paid, user-authorized, sentinel-gated)
 
@@ -131,7 +131,7 @@ endpoints directly (`GET /v1/runs`, `GET /v1/reliability/{agent}`).
 
 - **New arm:** add an entry to `repro/arms.json` (unique role names, binds, ontology_arms). Re-run
   Stage 4. That is the whole change.
-- **New defect family** (the ranked siblings in `docs/_internal/UPCODE_SIBLING_DEFECT_FAMILIES.md`;
+- **New defect family** (the ranked siblings in `docs/reproduction/UPCODE_SIBLING_DEFECT_FAMILIES.md`;
   miscoding first, its floor oracle already ships): author by-construction cases (each positive with
   a full `injection_recipe`; clean negatives with `injection_recipe: null` and empty flags), lint
   labels-true-by-construction, drop the `.jsonl` into a corpus dir, point `LITHRIM_REPRO_CORPUS_DIR`
@@ -140,7 +140,7 @@ endpoints directly (`GET /v1/runs`, `GET /v1/reliability/{agent}`).
 
 ## References
 
-- `docs/_internal/RUN_PLAN_PUBLIC_CUT.md` — the full grounded plan and locked config.
-- `docs/_internal/UPCODE_SIBLING_DEFECT_FAMILIES.md` — ranked next defect families.
-- `docs/_internal/THESIS_PREAMBLE_FOR_REVIEW.md` — what the research is and why.
+- `docs/reproduction/RUN_PLAN_PUBLIC_CUT.md` — the full grounded plan and locked config.
+- `docs/reproduction/UPCODE_SIBLING_DEFECT_FAMILIES.md` — ranked next defect families.
+- The thesis preamble (maintainer-internal, not in the public clone) — what the research is and why.
 - `REPRODUCING.md` — the deposited 5-stream reproduction (the study of record).
