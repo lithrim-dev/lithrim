@@ -6109,6 +6109,26 @@ def _probe_provider(
             "azure": "gpt-4.1", "gemini": "gemini-1.5-pro",
             "bedrock": "anthropic.claude-3-sonnet-v1", "anthropic": "claude-haiku-4-5-20251001",
         }.get(provider, "gpt-4o")
+        # DRYRUN-2026-07-16: NO default model can be assumed on an arbitrary OpenAI-compatible
+        # host (Featherless serves no gpt-4o, so the model-less UI connect always 404'd) —
+        # discover one from the host's own /models listing, then run the SAME bounded completion
+        # on it (the key gate stays non-vacuous even where /models is unauthenticated). A
+        # model-carrying probe (the roles-bind re-probe) never discovers; a failed listing
+        # degrades to the old default.
+        if provider == "openai_compatible" and not model and endpoint:
+            import httpx  # type: ignore
+
+            try:
+                listing = httpx.get(
+                    endpoint.rstrip("/") + "/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=15,
+                )
+                listing.raise_for_status()
+                hosted = (listing.json() or {}).get("data") or []
+                model = (hosted[0] or {}).get("id") if hosted else None
+            except Exception:  # noqa: BLE001 — discovery is best-effort, the completion still gates
+                model = None
         # DRYRUN-2026-07-03: parameter-MINIMAL — reasoning-family models (gpt-5.5) reject a
         # temperature override AND a <16-token completion budget; the 1-token/temp-0 ping made
         # binding a valid frontier model fail with an opaque BadRequestError.
