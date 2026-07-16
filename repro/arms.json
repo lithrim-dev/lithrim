@@ -1,5 +1,5 @@
 {
-  "_about": "Declarative arm matrix for the clean public-cut rerun. Consumed by repro/run_arms.py, which REUSES repro/setup_streams.setup_workspace (identical floor + corpus, $0) and applies per-role binds via POST /v1/roles/bind. This file and run_arms.py are ADDITIVE: the deposited 5-stream study scripts (setup_streams main, cohort_runner, consolidate) are untouched and stay byte-reproducible. Plan: docs/_internal/RUN_PLAN_PUBLIC_CUT.md. Each arm gets a UNIQUE role name so per-role bind env never collides across arms; the two ontology-arm workspaces of one arm share the role + bind (same model, different floor ontology).",
+  "_about": "Declarative arm matrix for the clean public-cut rerun. Consumed by repro/run_arms.py, which REUSES repro/setup_streams.setup_workspace (identical floor + corpus, $0) and applies per-role binds via POST /v1/roles/bind. This file and run_arms.py are ADDITIVE: the deposited 5-stream study scripts (setup_streams main, cohort_runner, consolidate) are untouched and stay byte-reproducible. Plan: docs/reproduction/RUN_PLAN_PUBLIC_CUT.md. Each arm gets a UNIQUE role name so per-role bind env never collides across arms; the two ontology-arm workspaces of one arm share the role + bind (same model, different floor ontology).",
   "ontology_files": {
     "armT": "repro/ontology_armT.json",
     "armR": "repro/ontology_armR.json"
@@ -99,7 +99,7 @@
       "cot": false,
       "ontology_arms": ["armT", "armR"],
       "status": "blocked",
-      "blocked_reason": "Composo as a per-flag JUDGE surface needs the Stage 4.5 adapter (docs/_internal/RUN_PLAN_PUBLIC_CUT.md). The shipped provider:composo (reward_lm.py) is a single-criterion reward wire with empty findings, i.e. the reward baseline, not a per-flag voter. run_arms.py SKIPS blocked arms. Flip status to ready once the adapter's acceptance test is green.",
+      "blocked_reason": "Composo as a per-flag JUDGE surface needs the Stage 4.5 adapter (docs/reproduction/RUN_PLAN_PUBLIC_CUT.md). The shipped provider:composo (reward_lm.py) is a single-criterion reward wire with empty findings, i.e. the reward baseline, not a per-flag voter. run_arms.py SKIPS blocked arms. Flip status to ready once the adapter's acceptance test is green.",
       "judges": [
         {"role": "composo_reviewer", "lens": "FULL", "k": 1, "temperature": 0.0}
       ],

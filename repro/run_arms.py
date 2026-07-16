@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Arm-matrix driver for the clean public-cut rerun (docs/_internal/RUN_PLAN_PUBLIC_CUT.md).
+"""Arm-matrix driver for the clean public-cut rerun (docs/reproduction/RUN_PLAN_PUBLIC_CUT.md).
 
 Reads repro/arms.json and, per arm x ontology-arm, authors ONE workspace by REUSING
 repro/setup_streams.setup_workspace (identical floor + corpus, $0), then applies the arm's
