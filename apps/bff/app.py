@@ -6111,40 +6111,80 @@ def _probe_provider(
         }.get(provider, "gpt-4o")
         # DRYRUN-2026-07-16: NO default model can be assumed on an arbitrary OpenAI-compatible
         # host (Featherless serves no gpt-4o, so the model-less UI connect always 404'd) —
-        # discover one from the host's own /models listing, then run the SAME bounded completion
-        # on it (the key gate stays non-vacuous even where /models is unauthenticated). A
+        # discover candidates from the host's own /models listing and probe them in order. A
         # model-carrying probe (the roles-bind re-probe) never discovers; a failed listing
-        # degrades to the old default.
+        # degrades to the single default-model attempt.
+        candidates: list[str] = []
         if provider == "openai_compatible" and not model and endpoint:
-            import httpx  # type: ignore
-
-            try:
-                listing = httpx.get(
-                    endpoint.rstrip("/") + "/models",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=15,
-                )
-                listing.raise_for_status()
-                hosted = (listing.json() or {}).get("data") or []
-                model = (hosted[0] or {}).get("id") if hosted else None
-            except Exception:  # noqa: BLE001 — discovery is best-effort, the completion still gates
-                model = None
+            candidates = _discover_openai_compatible_models(endpoint, api_key)
+        if model:
+            candidates = [model]
+        if not candidates:
+            candidates = [default_model]
         # DRYRUN-2026-07-03: parameter-MINIMAL — reasoning-family models (gpt-5.5) reject a
         # temperature override AND a <16-token completion budget; the 1-token/temp-0 ping made
         # binding a valid frontier model fail with an opaque BadRequestError.
-        completion_kwargs = {
-            "model": f"{prefix}/{model or default_model}",
-            "messages": [{"role": "user", "content": "ping"}],
-            "max_tokens": 16, "api_key": api_key,
-        }
-        if endpoint:  # azure / openai_compatible api_base
-            completion_kwargs["api_base"] = endpoint
-        if provider == "azure":  # CONNECT-AI-AZURE-1: the azure probe needs an api_version
-            completion_kwargs["api_version"] = api_version or _settings_azure_api_version()
-        litellm.completion(**completion_kwargs)
-        return {"ok": True}
+        last_exc: Exception | None = None
+        for candidate in candidates:
+            completion_kwargs = {
+                "model": f"{prefix}/{candidate}",
+                "messages": [{"role": "user", "content": "ping"}],
+                "max_tokens": 16, "api_key": api_key,
+            }
+            if endpoint:  # azure / openai_compatible api_base
+                completion_kwargs["api_base"] = endpoint
+            if provider == "azure":  # CONNECT-AI-AZURE-1: the azure probe needs an api_version
+                completion_kwargs["api_version"] = api_version or _settings_azure_api_version()
+            try:
+                litellm.completion(**completion_kwargs)
+                return {"ok": True}
+            except Exception as exc:  # noqa: BLE001
+                # DRYRUN-2026-07-16 (Option A): an AUTH-shaped failure is a bad key — fail FAST,
+                # never fall through to another public model (a bad key must never "pass" and get
+                # stored). A model-shaped failure (gated/offline/not-found) just means THIS
+                # candidate is unservable; try the next discovered one.
+                if _is_auth_error(exc):
+                    return {"ok": False, "error": type(exc).__name__}
+                last_exc = exc
+        return {"ok": False, "error": type(last_exc).__name__ if last_exc else "unknown error"}
     except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
         return {"ok": False, "error": type(exc).__name__}
+
+
+# how many discovered models to try before giving up — bounds the worst-case probe cost (each
+# attempt is a tiny 16-token completion; a valid key usually serves the first candidate).
+_OPENAI_COMPATIBLE_PROBE_CANDIDATES = 5
+_AUTH_ERROR_NAMES = frozenset({"AuthenticationError", "PermissionDeniedError"})
+
+
+def _is_auth_error(exc: Exception) -> bool:
+    """True iff ``exc`` looks like an authentication/authorization failure (a bad or unentitled
+    key) rather than a model-shaped one. Matched by litellm/openai error class name OR an HTTP
+    401/403 ``status_code`` — so the check holds without importing litellm's exception classes."""
+    if type(exc).__name__ in _AUTH_ERROR_NAMES:
+        return True
+    return getattr(exc, "status_code", None) in (401, 403)
+
+
+def _discover_openai_compatible_models(endpoint: str, api_key: str) -> list[str]:
+    """Best-effort model ids from an OpenAI-compatible host's ``GET {api_base}/models`` (bounded to
+    the first ``_OPENAI_COMPATIBLE_PROBE_CANDIDATES``). Never raises: a listing failure returns []
+    so the probe degrades to the single default-model attempt. The listing alone does NOT validate
+    the key (some hosts, e.g. Featherless, serve /models unauthenticated); the completion does."""
+    try:
+        import httpx  # type: ignore
+
+        listing = httpx.get(
+            endpoint.rstrip("/") + "/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15,
+        )
+        listing.raise_for_status()
+        hosted = (listing.json() or {}).get("data") or []
+        ids = [(row or {}).get("id") for row in hosted]
+        return [mid for mid in ids if mid][:_OPENAI_COMPATIBLE_PROBE_CANDIDATES]
+    except Exception:  # noqa: BLE001 — discovery is best-effort; the completion still gates the key
+        return []
 
 
 # ── ROLE-BINDINGS-DB: the non-secret per-role binding lives in the config DB, not .provider_env ──
