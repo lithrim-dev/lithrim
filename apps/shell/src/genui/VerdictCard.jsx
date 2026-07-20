@@ -7,6 +7,7 @@ import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import ClinicianVerdict from "./ClinicianVerdict.jsx";
 import { verdictLabel, roleLabel, flagLabel } from "./copy.js";
+import { caseRead } from "./reportRead.js";
 
 // verdict -> tone (badge class + header icon + icon color). Accepts PASS/REJECT or
 // approve/reject (and a few synonyms); unknown -> neutral warn.
@@ -90,6 +91,9 @@ export default function VerdictCard({
   const oc = !flipStory && caseOutcome ? OUTCOME[String(caseOutcome).toUpperCase()] : null;
   const t = oc || tone(verdict);
   const headline = oc ? oc.label : verdictLabel(verdict);
+  // NARRATIVE-LAYER-1: the plain-language read of THIS result (who wobbled, who held),
+  // computed from the real votes + floor events — null (no band) when there is nothing to read.
+  const read = caseRead({ votes, floorBlocks, floorClears, verdict });
   return (
     <div className="icard">
       <div className="icard-hd">
@@ -99,6 +103,12 @@ export default function VerdictCard({
         <span className="right"><span className={"tag " + t.cls}>{headline}</span></span>
       </div>
       <div className="icard-bd">
+        {read && (
+          <div data-testid="verdict-read" style={{ margin: "0 0 10px", padding: "8px 10px", borderRadius: 8, background: "var(--surface-muted, rgba(120,120,120,0.06))", borderLeft: "3px solid var(--border)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", marginBottom: 5 }}>The read</div>
+            <div style={{ fontSize: 12, color: "var(--fg)", lineHeight: 1.5 }}>{read}</div>
+          </div>
+        )}
         <div className="verdict">
           <div className="vmain">
             {question && <div className="qline"><b>Q.</b> {question}</div>}
