@@ -647,12 +647,26 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
         </div>
       </div>
     );
+  // COHORT-SELECT-ALL-1 (2026-07-19, live pain at 187 cases): bulk-select rides the SAME lifted
+  // Set (one onToggleSelect per id — App's functional setState composes; no pane-owned state).
+  const allSelected = cases.length > 0 && cases.every((c) => sel.has(c.case_id));
+  const toggleAll = () => cases.forEach((c) => { if (allSelected === sel.has(c.case_id)) onToggleSelect(c.case_id); });
   return (
     <div className="art-sec">
-      <div className="art-h2" style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+      {/* sticky inside the .art-bd scroller (negative margin swallows its 18px padding; own
+          padding restores it) so Select all + Run selected stay reachable on a long list */}
+      <div className="art-h2" data-testid="cases-header"
+        style={{ display: "flex", alignItems: "baseline", gap: 8, position: "sticky", top: 0, zIndex: 3, background: "var(--bg)", margin: "-18px -18px 11px", padding: "18px 18px 9px", borderBottom: "1px solid var(--border)" }}>
         <span style={{ flex: 1, minWidth: 0 }}>
           Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons{multi ? "; check to grade several" : ""}</span>
         </span>
+        {multi && (
+          <button className="btn" data-testid="select-all"
+            title={allSelected ? "Uncheck every case" : "Check every listed case for the cohort"}
+            style={{ flexShrink: 0, fontSize: 12, padding: "3px 10px" }} onClick={toggleAll}>
+            {allSelected ? "Clear" : `Select all (${cases.length})`}
+          </button>
+        )}
         {multi && sel.size > 0 && (
           <button className="btn btn-primary" data-testid="run-selected" title="Grade the checked cases (opens the paid cost-confirm)"
             style={{ flexShrink: 0, fontSize: 12, padding: "3px 10px" }} onClick={runSelected}>

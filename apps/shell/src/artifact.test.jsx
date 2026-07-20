@@ -302,6 +302,46 @@ describe("CaseBrowserSection — multi-select cohort (COHORT-SUBSET-1)", () => {
     expect(screen.getByTestId("case-check-case_b").checked).toBe(true);
     expect(screen.getByTestId("case-check-case_a").checked).toBe(false);
   });
+
+  // COHORT-SELECT-ALL-1 (2026-07-19, live pain at 187 cases): selecting a large cohort meant
+  // clicking every checkbox, then scrolling back up to a header that had scrolled away. The
+  // header (with Run selected) is STICKY inside the .art-bd scroller, and a Select all / Clear
+  // toggle bulk-drives the SAME lifted-Set path (one onToggleSelect per id — the App's functional
+  // setState composes them; no new selection API, no pane-owned state).
+  it("Select all toggles every UNCHECKED listed case through onToggleSelect (never the checked ones)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onToggleSelect = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={vi.fn()} selectedIds={new Set(["case_b"])} onToggleSelect={onToggleSelect} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    const btn = screen.getByTestId("select-all");
+    expect(btn.textContent).toMatch(/Select all \(3\)/);
+    fireEvent.click(btn);
+    expect(new Set(onToggleSelect.mock.calls.map((c) => c[0]))).toEqual(new Set(["case_a", "case_c"]));
+  });
+
+  it("with every case selected the button reads Clear and unselects them all", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onToggleSelect = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={vi.fn()} selectedIds={new Set(["case_a", "case_b", "case_c"])} onToggleSelect={onToggleSelect} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    const btn = screen.getByTestId("select-all");
+    expect(btn.textContent).toMatch(/Clear/);
+    fireEvent.click(btn);
+    expect(new Set(onToggleSelect.mock.calls.map((c) => c[0]))).toEqual(new Set(["case_a", "case_b", "case_c"]));
+  });
+
+  it("the Cases header (carrying Run selected) is sticky so the button never scrolls away", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={vi.fn()} selectedIds={new Set(["case_a"])} onToggleSelect={vi.fn()} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    const header = screen.getByTestId("cases-header");
+    expect(header.style.position).toBe("sticky");
+    expect(header).toContainElement(screen.getByTestId("run-selected"));
+    expect(header).toContainElement(screen.getByTestId("select-all"));
+  });
 });
 
 // FINDING #2 (UI-pass 2026-07-04): the pane used to render the agent's DEFAULT case while the
