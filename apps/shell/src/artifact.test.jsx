@@ -345,6 +345,10 @@ describe("CaseBrowserSection — multi-select cohort (COHORT-SUBSET-1)", () => {
     expect(header.style.top).toBe("-18px");
     expect(header).toContainElement(screen.getByTestId("run-selected"));
     expect(header).toContainElement(screen.getByTestId("select-all"));
+    // the instruction rides its OWN wrapped line under the title row (it ran beneath the
+    // buttons when it shared their nowrap row), still inside the sticky band
+    expect(header).toContainElement(screen.getByTestId("cases-hint"));
+    expect(screen.getByTestId("cases-hint").textContent).toMatch(/check to grade several/);
   });
 });
 

@@ -658,9 +658,10 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
           18px padding while scrolled rows stay visible through that strip — a 0 pin floats the
           header 18px down with rows bleeding above it (v0.1.7 regression, verified live). */}
       <div className="art-h2" data-testid="cases-header"
-        style={{ display: "flex", alignItems: "baseline", gap: 8, position: "sticky", top: -18, zIndex: 3, background: "var(--bg)", margin: "0 -6px 11px", padding: "6px 6px 9px", borderBottom: "1px solid var(--border)" }}>
+        style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 3, position: "sticky", top: -18, zIndex: 3, background: "var(--bg)", margin: "0 -6px 11px", padding: "6px 6px 8px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-          Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons{multi ? "; check to grade several" : ""}</span>
+          Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""}</span>
         </span>
         {multi && (
           <button className="btn" data-testid="select-all"
@@ -675,6 +676,10 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
             Run selected ({sel.size})
           </button>
         )}
+        </div>
+        <span className="cnt" data-testid="cases-hint" style={{ marginLeft: 0, whiteSpace: "normal" }}>
+          click one to select it for the Run buttons{multi ? "; check to grade several" : ""}
+        </span>
       </div>
       {cases.map((c) => {
         const active = c.case_id === activeCase;
