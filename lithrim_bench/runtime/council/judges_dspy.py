@@ -171,7 +171,14 @@ def _provider_supports_logprobs(provider: str) -> bool:
 # the reasoning families on an otherwise-logprobs provider REJECT the param outright
 # ("'logprobs' is not supported with this model"), which errored the judge into a silent
 # needs_review. Confidence-dark is the safe direction (we lose a number, never a verdict).
-_NO_LOGPROBS_MODEL_PREFIXES = ("o1", "o3", "o4", "gpt-5")
+# LOGPROBS-MODEL-GRANULAR-1 (2026-07-19, live-proven on Azure AI Foundry): "gpt-5" was too broad —
+# gpt-5.x CHAT models DO return logprobs (azure/gpt-5.4 verified; the model registry catalog already
+# marks gpt-5-x logprobs=True), so excluding them cost gpt-5.4 its calibrated confidence
+# (faithfulness_judge ran confidence-dark). The genuine rejecters are the o-series reasoning models
+# AND the non-OpenAI Azure-MaaS families (Mistral/Llama), which 400 "Logprobs are not enabled for
+# this model" on EVERY route. A specific gpt-5 reasoning id that rejects the param should be added
+# by its exact id, never the whole family.
+_NO_LOGPROBS_MODEL_PREFIXES = ("o1", "o3", "o4", "mistral", "llama", "mixtral")
 
 
 def _model_supports_logprobs(provider: str, model: str) -> bool:

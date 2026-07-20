@@ -120,8 +120,8 @@ def test_per_role_logprobs_off_for_non_openai_providers(fake_dspy_lm, monkeypatc
     """A/C wired: a confidence-dark provider (gemini/anthropic/bedrock) gets NO logprobs param
     AT ALL (DRYRUN-2026-07-03: litellm/anthropic reject the param's presence, even as False —
     which errored the judge into a silent needs_review); a per-role openai LM on a
-    logprobs-capable MODEL keeps logprobs=True; a reasoning-family model (gpt-5*) is
-    model-granular confidence-dark even on openai."""
+    logprobs-capable MODEL keeps logprobs=True; a reasoning o-series model is model-granular
+    confidence-dark even on openai (gpt-5.x CHAT models keep logprobs — LOGPROBS-MODEL-GRANULAR-1)."""
     _clear_per_role(monkeypatch)
     monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "openai")
 
@@ -136,8 +136,11 @@ def test_per_role_logprobs_off_for_non_openai_providers(fake_dspy_lm, monkeypatc
     monkeypatch.setattr(settings, "LITHRIM_LLM_API_KEY_POLICY", "gk")
     assert "logprobs" not in J.build_judge_lm("policy_judge").kwargs
 
-    # model-granular: gpt-5* on openai rejects logprobs → omitted (confidence-dark, never an error)
-    monkeypatch.setattr(settings, "LITHRIM_LLM_MODEL_RISK", "gpt-5.5")
+    # model-granular: gpt-5.x CHAT keeps logprobs (live-proven, LOGPROBS-MODEL-GRANULAR-1)
+    monkeypatch.setattr(settings, "LITHRIM_LLM_MODEL_RISK", "gpt-5.4")
+    assert J.build_judge_lm("risk_judge").kwargs["logprobs"] is True
+    # a genuine rejecter (o-series reasoning) stays confidence-dark, param omitted (never an error)
+    monkeypatch.setattr(settings, "LITHRIM_LLM_MODEL_RISK", "o3-mini")
     assert "logprobs" not in J.build_judge_lm("risk_judge").kwargs
 
 
