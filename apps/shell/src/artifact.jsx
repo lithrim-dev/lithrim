@@ -653,11 +653,13 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
   const toggleAll = () => cases.forEach((c) => { if (allSelected === sel.has(c.case_id)) onToggleSelect(c.case_id); });
   return (
     <div className="art-sec">
-      {/* sticky inside the .art-bd scroller (negative margin swallows its 18px padding; own
-          padding restores it) so Select all + Run selected stay reachable on a long list */}
+      {/* sticky inside the .art-bd scroller so Select all + Run selected stay reachable on a
+          long list. top:-18px, NOT 0: Chrome insets the sticky constraint by the scroller's
+          18px padding while scrolled rows stay visible through that strip — a 0 pin floats the
+          header 18px down with rows bleeding above it (v0.1.7 regression, verified live). */}
       <div className="art-h2" data-testid="cases-header"
-        style={{ display: "flex", alignItems: "baseline", gap: 8, position: "sticky", top: 0, zIndex: 3, background: "var(--bg)", margin: "-18px -18px 11px", padding: "18px 18px 9px", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ flex: 1, minWidth: 0 }}>
+        style={{ display: "flex", alignItems: "baseline", gap: 8, position: "sticky", top: -18, zIndex: 3, background: "var(--bg)", margin: "0 -6px 11px", padding: "6px 6px 9px", borderBottom: "1px solid var(--border)" }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
           Cases <span className="cnt">{cases.length}{browse.truncated ? "+ (truncated)" : ""} · click one to select it for the Run buttons{multi ? "; check to grade several" : ""}</span>
         </span>
         {multi && (
