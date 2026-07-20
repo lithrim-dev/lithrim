@@ -6144,17 +6144,29 @@ def _probe_provider(
                 # stored). A model-shaped failure (gated/offline/not-found) just means THIS
                 # candidate is unservable; try the next discovered one.
                 if _is_auth_error(exc):
-                    return {"ok": False, "error": type(exc).__name__}
+                    return {"ok": False, "error": _probe_error(exc, api_key)}
                 last_exc = exc
-        return {"ok": False, "error": type(last_exc).__name__ if last_exc else "unknown error"}
+        return {"ok": False, "error": _probe_error(last_exc, api_key) if last_exc else "unknown error"}
     except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
-        return {"ok": False, "error": type(exc).__name__}
+        return {"ok": False, "error": _probe_error(exc, api_key)}
 
 
 # how many discovered models to try before giving up — bounds the worst-case probe cost (each
 # attempt is a tiny 16-token completion; a valid key usually serves the first candidate).
 _OPENAI_COMPATIBLE_PROBE_CANDIDATES = 5
 _AUTH_ERROR_NAMES = frozenset({"AuthenticationError", "PermissionDeniedError"})
+
+
+def _probe_error(exc: Exception, api_key: str) -> str:
+    """CONNECT-AI-COMPAT-1: the probe's user-facing failure string. The class name leads (the
+    pre-existing contract), then the provider's message so the user can tell WHY — one-line
+    (fits the 400 detail), BOUNDED (never a traceback-sized blob), and with the secret redacted
+    (a raw provider message can echo the api key back)."""
+    msg = " ".join(str(exc).split())
+    if api_key:
+        msg = msg.replace(api_key, "***")
+    out = f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+    return out[:250]
 
 
 def _is_auth_error(exc: Exception) -> bool:

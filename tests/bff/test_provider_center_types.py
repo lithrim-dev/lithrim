@@ -569,6 +569,8 @@ def test_probe_composo_routes_via_the_reward_endpoint(monkeypatch):
 
     monkeypatch.setattr(rlm, "_http_transport", _boom)
     out = bff._probe_provider(plane="grading", provider="composo", api_key="ck-probe")
-    # the probe's error contract is the exception TYPE name only (never a message that could
-    # carry secrets) — the same shape every other provider branch returns
-    assert out["ok"] is False and out["error"] == "RuntimeError"
+    # CONNECT-AI-COMPAT-1: the probe's error contract is the exception type name LEADING, then
+    # the provider's message one-line/bounded with the api key REDACTED (_probe_error) — the WHY
+    # reaches the user without the secret; the same shape every other provider branch returns
+    assert out["ok"] is False and out["error"] == "RuntimeError: network down"
+    assert "ck-probe" not in out["error"]
