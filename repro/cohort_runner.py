@@ -11,7 +11,9 @@ sentinel -> COHORT_DONE.
 
 Parameterized (see REPRODUCING.md): LITHRIM_REPRO_BASE (default http://localhost:8787),
 LITHRIM_REPRO_OUT (default ./out/repro), LITHRIM_REPRO_ACTOR,
-LITHRIM_REPRO_HOME_WORKSPACE (optional switch-back at the end).
+LITHRIM_REPRO_HOME_WORKSPACE (optional switch-back at the end),
+LITHRIM_REPRO_WS_SUFFIX (workspace-name suffix; matches the suffix given to
+setup_streams.py so the preregistered v2 rerun grades the fresh workspaces).
 """
 import json
 import os
@@ -25,8 +27,10 @@ BASE = os.environ.get("LITHRIM_REPRO_BASE", "http://localhost:8787")
 OUT_DIR = Path(os.environ.get("LITHRIM_REPRO_OUT", "./out/repro"))
 ACTOR = os.environ.get("LITHRIM_REPRO_ACTOR", "repro@lithrim-bench")
 HOME_WS = os.environ.get("LITHRIM_REPRO_HOME_WORKSPACE", "")
-STREAMS = ["stream-a-single", "stream-b-ensemble", "stream-c-same",
-           "stream-c-mixed", "baseline-scalar-reward"]
+WS_SUFFIX = os.environ.get("LITHRIM_REPRO_WS_SUFFIX", "")
+STREAMS = [ws + WS_SUFFIX for ws in
+           ("stream-a-single", "stream-b-ensemble", "stream-c-same",
+            "stream-c-mixed", "baseline-scalar-reward")]
 
 
 def log(msg):

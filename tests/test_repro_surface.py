@@ -148,6 +148,45 @@ def test_setup_streams_dry_run_is_offline_and_prints_the_plan():
     assert "lens" in out.lower(), "dry-run plan does not describe lenses"
 
 
+# --- A3 (SCRUB-1 rerun seams): corpus dir + workspace-name suffix are parameterizable,
+# so the preregistered v2 rerun runs on FRESH workspaces over the SCRUBBED corpus
+# without touching the v1 study workspaces (REPRODUCING.md: "a fresh set of workspaces").
+
+
+def test_setup_streams_dry_run_supports_scrubbed_corpus_and_ws_suffix():
+    env = dict(os.environ)
+    env["LITHRIM_REPRO_BASE"] = "http://127.0.0.1:9"
+    env["LITHRIM_REPRO_CORPUS_DIR"] = str(REPRO / "corpus_v2")
+    env["LITHRIM_REPRO_WS_SUFFIX"] = "-v2t"
+    proc = subprocess.run(
+        [sys.executable, str(REPRO / "setup_streams.py"), "--dry-run"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+        cwd=str(REPO),
+    )
+    assert proc.returncode == 0, f"dry-run exited {proc.returncode}: {proc.stderr[:800]}"
+    out = proc.stdout
+    for ws in (
+        "stream-a-single-v2t",
+        "stream-b-ensemble-v2t",
+        "stream-c-same-v2t",
+        "stream-c-mixed-v2t",
+        "baseline-scalar-reward-v2t",
+    ):
+        assert ws in out, f"dry-run plan missing suffixed workspace {ws}"
+    assert "corpus_v2" in out, "dry-run plan not reading the scrubbed corpus dir"
+
+
+@pytest.mark.parametrize("script", ["cohort_runner.py", "consolidate.py"])
+def test_run_scripts_honor_ws_suffix(script):
+    text = (REPRO / script).read_text()
+    assert "LITHRIM_REPRO_WS_SUFFIX" in text, (
+        f"{script} missing the workspace-suffix seam the v2 rerun needs"
+    )
+
+
 # --- A4: the tracked tree references the paper (README + REPRODUCING + CITATION) ---
 
 

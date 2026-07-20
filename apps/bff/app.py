@@ -1065,6 +1065,11 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    if live:
+        # CACHE-TRAP-1: a LIVE grade must actually re-sample — the DSPy LM disk cache otherwise
+        # replays an identical re-run byte-for-byte at tokens=0. Scoped to THIS grade process;
+        # replay/$0 paths inherit the ambient default unchanged.
+        env["LITHRIM_JUDGE_CACHE"] = "0"
     cmd = [sys.executable, str(_RUN_EVAL_SCRIPT), "--agent", agent_name,
            "--config-db", str(config_db), "--emit-json"]
     if case_id:  # NARR-LOOP: grade a specific corpus case (the subprocess reloads the agent
@@ -1301,6 +1306,12 @@ def _grade_case(
         except SystemExit as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     else:
+        # CACHE-TRAP-1 (in-process twin of the subprocess env): a LIVE grade disables the DSPy
+        # LM cache for the duration of this call, restored after — the BFF process env stays
+        # clean and replay/$0 grades are untouched.
+        _prior_cache = os.environ.get("LITHRIM_JUDGE_CACHE")
+        if live:
+            os.environ["LITHRIM_JUDGE_CACHE"] = "0"
         try:
             record = run_eval.run(
                 agent,
@@ -1334,6 +1345,12 @@ def _grade_case(
                     "(bottom left) and connect a provider, then run the evaluation again."
                 ),
             ) from exc
+        finally:
+            if live:
+                if _prior_cache is None:
+                    os.environ.pop("LITHRIM_JUDGE_CACHE", None)
+                else:
+                    os.environ["LITHRIM_JUDGE_CACHE"] = _prior_cache
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])
@@ -6144,17 +6161,29 @@ def _probe_provider(
                 # stored). A model-shaped failure (gated/offline/not-found) just means THIS
                 # candidate is unservable; try the next discovered one.
                 if _is_auth_error(exc):
-                    return {"ok": False, "error": type(exc).__name__}
+                    return {"ok": False, "error": _probe_error(exc, api_key)}
                 last_exc = exc
-        return {"ok": False, "error": type(last_exc).__name__ if last_exc else "unknown error"}
+        return {"ok": False, "error": _probe_error(last_exc, api_key) if last_exc else "unknown error"}
     except Exception as exc:  # noqa: BLE001 — any probe failure is a clean ok=False, not a 500
-        return {"ok": False, "error": type(exc).__name__}
+        return {"ok": False, "error": _probe_error(exc, api_key)}
 
 
 # how many discovered models to try before giving up — bounds the worst-case probe cost (each
 # attempt is a tiny 16-token completion; a valid key usually serves the first candidate).
 _OPENAI_COMPATIBLE_PROBE_CANDIDATES = 5
 _AUTH_ERROR_NAMES = frozenset({"AuthenticationError", "PermissionDeniedError"})
+
+
+def _probe_error(exc: Exception, api_key: str) -> str:
+    """CONNECT-AI-COMPAT-1: the probe's user-facing failure string. The class name leads (the
+    pre-existing contract), then the provider's message so the user can tell WHY — one-line
+    (fits the 400 detail), BOUNDED (never a traceback-sized blob), and with the secret redacted
+    (a raw provider message can echo the api key back)."""
+    msg = " ".join(str(exc).split())
+    if api_key:
+        msg = msg.replace(api_key, "***")
+    out = f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+    return out[:250]
 
 
 def _is_auth_error(exc: Exception) -> bool:

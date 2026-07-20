@@ -20,10 +20,9 @@
 
 services:
   bff:
-    build:
-      context: .
-      dockerfile: Dockerfile.bff
-    image: lithrim-bff
+    # Published image (GHCR). Override the tag/ref with LITHRIM_BFF_IMAGE; to build locally instead,
+    # restore a `build: {context: ., dockerfile: Dockerfile.bff}` block.
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.6}
     ports:
       - "8787:8787"
     environment:
@@ -110,14 +109,11 @@ services:
       - lithrim
 
   ui:
-    build:
-      context: .
-      dockerfile: Dockerfile.ui
-      args:
-        # The browser hits this origin directly (CORS-allowed, host-published). NOT http://bff:8787
-        # — that is container-internal and unreachable from the host browser.
-        VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
-    image: lithrim-ui
+    # Published image (GHCR). Override the tag/ref with LITHRIM_UI_IMAGE.
+    # NOTE: VITE_BFF_URL is baked into the JS bundle at BUILD time — this image serves whatever
+    # origin it was built with (expected http://localhost:8787). Pointing the UI at a different BFF
+    # origin requires a rebuild, not a runtime env var.
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.6}
     ports:
       - "5180:5180"
     environment:

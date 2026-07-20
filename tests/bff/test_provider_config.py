@@ -152,6 +152,28 @@ def test_provider_config_failed_probe_writes_nothing(provider_env, monkeypatch):
         assert secret not in env_file.read_text(), "the key was written despite a failed probe"
 
 
+def test_openai_compatible_connect_threads_probe_model(provider_env, monkeypatch):
+    """CONNECT-AI-COMPAT-1: a Section-1 openai_compatible connect may carry an OPTIONAL probe
+    model (the UI's "model for the test call") — the endpoint threads it to the probe verbatim
+    (an endpoint that doesn't serve the gpt-4o fallback can only pass with it), while the
+    role-less write path stays model-inert (only the secret + endpoint persist)."""
+    tmp_path, ws = provider_env
+    calls = _install_probe(monkeypatch, ok=True)
+    client = TestClient(bff.app)
+
+    resp = client.post(
+        "/v1/provider/config",
+        json={"plane": "grading", "provider": "openai_compatible", "api_key": "sk-compat",
+              "endpoint": "https://my-foundry.example/v1", "model": "mistral-large-2411"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert calls[-1]["provider"] == "openai_compatible"
+    assert calls[-1]["model"] == "mistral-large-2411"  # the supplied model reaches the probe
+    assert calls[-1]["endpoint"] == "https://my-foundry.example/v1"
+    env_text = bff._PROVIDER_ENV_PATH.read_text()
+    assert "mistral-large-2411" not in env_text  # probe-only: no model lands in .provider_env
+
+
 def test_provider_config_key_never_in_audit_or_sqlite(provider_env, monkeypatch):
     """C: the key NEVER appears in the audit record, any SQLite DB, or the response."""
     tmp_path, ws = provider_env

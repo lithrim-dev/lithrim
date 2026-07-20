@@ -171,7 +171,14 @@ def _provider_supports_logprobs(provider: str) -> bool:
 # the reasoning families on an otherwise-logprobs provider REJECT the param outright
 # ("'logprobs' is not supported with this model"), which errored the judge into a silent
 # needs_review. Confidence-dark is the safe direction (we lose a number, never a verdict).
-_NO_LOGPROBS_MODEL_PREFIXES = ("o1", "o3", "o4", "gpt-5")
+# LOGPROBS-MODEL-GRANULAR-1 (2026-07-19, live-proven on Azure AI Foundry): "gpt-5" was too broad —
+# gpt-5.x CHAT models DO return logprobs (azure/gpt-5.4 verified; the model registry catalog already
+# marks gpt-5-x logprobs=True), so excluding them cost gpt-5.4 its calibrated confidence
+# (faithfulness_judge ran confidence-dark). The genuine rejecters are the o-series reasoning models
+# AND the non-OpenAI Azure-MaaS families (Mistral/Llama), which 400 "Logprobs are not enabled for
+# this model" on EVERY route. A specific gpt-5 reasoning id that rejects the param should be added
+# by its exact id, never the whole family.
+_NO_LOGPROBS_MODEL_PREFIXES = ("o1", "o3", "o4", "mistral", "llama", "mixtral")
 
 
 def _model_supports_logprobs(provider: str, model: str) -> bool:
@@ -350,6 +357,14 @@ def build_judge_lm(role: str, **overrides: Any):
     overrides.pop("model", None)
     overrides.pop("provider", None)
 
+    # CACHE-TRAP-1 (2026-07-19, live-caught): a "Run live" re-grade replayed the DSPy LM disk
+    # cache byte-for-byte (same model/prompt/seed/temp → same key; tokens=0), so re-running a
+    # case never actually re-sampled. The BFF grade paths set LITHRIM_JUDGE_CACHE=0 for LIVE
+    # grades; unset/default stays cache-on (offline tests + every non-live path byte-identical).
+    import os
+
+    lm_cache = os.environ.get("LITHRIM_JUDGE_CACHE", "1") != "0"
+
     import dspy
 
     # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): a PER-ROLE provider override LAYERED ON TOP of the
@@ -381,7 +396,7 @@ def build_judge_lm(role: str, **overrides: Any):
         per_role_kwargs: dict[str, Any] = {
             "temperature": 0,
             "max_tokens": 4096,
-            "cache": True,
+            "cache": lm_cache,
             # DRYRUN-2026-07-03 (stranger journey, live-caught): modern models REJECT params
             # they don't support — gpt-5.5 refuses any non-default temperature; anthropic
             # refuses the logprobs PARAM even as False — which errored the judge into a
@@ -425,7 +440,7 @@ def build_judge_lm(role: str, **overrides: Any):
             "api_key": settings.OPENAI_API_KEY,
             "temperature": 0,
             "max_tokens": 4096,
-            "cache": True,
+            "cache": lm_cache,
             # DRYRUN-2026-07-03: same model-granular guards as the per-role branch — the
             # reasoning families reject logprobs (and a forced temperature); drop_params keeps
             # a param mismatch from erroring the judge into a silent needs_review.
@@ -454,7 +469,7 @@ def build_judge_lm(role: str, **overrides: Any):
         # it needs headroom. Caps, never forces, so cost only rises on genuinely long output (S-BS-111).
         "max_tokens": 4096,
         "logprobs": True,
-        "cache": True,
+        "cache": lm_cache,
     }
     kwargs.update(overrides)
     return dspy.LM(f"azure/{deployment}", **kwargs)

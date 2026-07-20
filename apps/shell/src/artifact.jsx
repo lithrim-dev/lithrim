@@ -9,6 +9,7 @@ import { Icon as ICN } from "./icons.jsx";
 import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
 import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./genui/copy.js";
+import { caseRead, votesRead } from "./genui/reportRead.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
 const VERDICT_UI = {
@@ -148,9 +149,25 @@ function ReportSummary({ comp, votes }) {
     else parts.push("Recommend a person review this before it is relied on.");
   }
 
+  // NARRATIVE-LAYER-1: the computed read of this case (who wobbled, who held) — the ONLY
+  // narrative that covers a floor ENFORCEMENT; only floor_block rows count (inconclusive rows
+  // are surfaced-never-flipped). Null -> no band; the summary below is unchanged either way.
+  const read = caseRead({
+    votes,
+    floorBlocks: (comp.floor_adjustments || []).filter((a) => a.action === "floor_block"),
+    floorClears: comp.grounded_adjustments || [],
+    verdict: comp.stage_verdict,
+  });
+
   return (
     <div className="art-sec" data-testid="report-summary">
       <div className="art-h2">What this means</div>
+      {read && (
+        <div data-testid="report-read" style={{ margin: "0 0 8px", padding: "8px 10px", borderRadius: 8, background: "var(--surface-muted, rgba(120,120,120,0.06))", borderLeft: "3px solid var(--border)" }}>
+          <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", marginBottom: 5 }}>The read</div>
+          <div style={{ fontSize: 12.5, color: "var(--text)", lineHeight: 1.5 }}>{read}</div>
+        </div>
+      )}
       <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text)" }}>{parts.join(" ")}</div>
     </div>
   );
@@ -382,6 +399,9 @@ function JudgeTab({ runStatus, runResult, runError }) {
     return <ReportMessage>This run carried no per-reviewer votes.</ReportMessage>;
 
   const blocking = votes.filter((v) => v.vote === "FAIL" || v.vote === "BLOCK").length;
+  // NARRATIVE-LAYER-1: the reviewer-spread read in words, computed from the realized votes;
+  // the footnote fires only when a vote genuinely carries no (logprob) confidence.
+  const read = votesRead(votes);
   // TRANSPARENCY-1: cohort lens coverage — how many distinct flags the whole council COULD raise
   // on this case, and how many it actually did. A big "could-flag" count next to "raised 0" is the
   // blind spot, quantified (Risk-Severity Blindness: it had lenses, none covered the defect).
@@ -390,6 +410,15 @@ function JudgeTab({ runStatus, runResult, runError }) {
   votes.forEach((v) => (lensByRole[v.judge_role] || []).forEach((c) => { lensCodes.add(c.code); if (c.raised) raisedCount += 1; }));
   return (
     <div>
+      {read && (
+        <div data-testid="judges-read" style={{ margin: "0 0 14px", padding: "8px 10px", borderRadius: 8, background: "var(--surface-muted, rgba(120,120,120,0.06))", borderLeft: "3px solid var(--border)" }}>
+          <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", marginBottom: 5 }}>The read</div>
+          <div style={{ fontSize: 12.5, color: "var(--text)", lineHeight: 1.5 }}>{read.text}</div>
+          {read.confidenceNote && (
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>confidence reads n/a where the model doesn't expose token logprobs</div>
+          )}
+        </div>
+      )}
       <div className="consensus" style={{ marginBottom: 18 }}>
         <div className="big">{votes.length}</div>
         <div>

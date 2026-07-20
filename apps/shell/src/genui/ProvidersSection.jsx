@@ -6,7 +6,11 @@
    that test-probes the key read-only then writes it write-only, NO model). The secret rides a password
    input and is CLEARED on success (never echoed). Below: the CONNECTED-providers list (the
    getRoleBindings connected_providers) with a status dot + the ⚠ no-logprobs hint per provider
-   (anthropic/gemini/bedrock). NO model field here — model assignment is Section 2 (Assign models).
+   (anthropic/gemini/bedrock). NO model assignment here — that is Section 2 (Assign models); the
+   ONE exception is CONNECT-AI-COMPAT-1: openai_compatible may carry an OPTIONAL "probe model"
+   (the model for the test call only) because an arbitrary compatible host may serve neither the
+   gpt-4o fallback nor a /models listing — threaded through configProvider's existing `model`
+   param, which the role-less openai_compatible write path keeps write-inert.
    PASSIVE rail chrome — never operates panes / the top-bar. Inline styles on the shell CSS vars. */
 import { useState } from "react";
 import { configProvider } from "../bff.js";
@@ -40,11 +44,13 @@ export default function ProvidersSection({ connected = [], onSaved }) {
   const [key, setKey] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [apiVersion, setApiVersion] = useState(""); // CONNECT-AI-AZURE-1: OPTIONAL azure api-version
+  const [probeModel, setProbeModel] = useState(""); // CONNECT-AI-COMPAT-1: OPTIONAL, openai_compatible ONLY
   const [save, setSave] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
 
   const needsEndpoint = NEEDS_ENDPOINT.has(provider);
   const isAzure = provider === "azure";
-  const onProvider = (p) => { setProvider(p); setEndpoint(""); setApiVersion(""); setSave({ state: "idle", msg: "" }); };
+  const isCompat = provider === "openai_compatible";
+  const onProvider = (p) => { setProvider(p); setEndpoint(""); setApiVersion(""); setProbeModel(""); setSave({ state: "idle", msg: "" }); };
 
   const testSave = async () => {
     setSave({ state: "saving", msg: "testing…" });
@@ -57,6 +63,7 @@ export default function ProvidersSection({ connected = [], onSaved }) {
         provider, api_key: key.trim(),
         endpoint: endpoint.trim() || undefined,
         ...(isAzure && apiVersion.trim() ? { api_version: apiVersion.trim() } : {}),
+        ...(isCompat && probeModel.trim() ? { model: probeModel.trim() } : {}),
       });
       setSave({ state: "saved", msg: `Connected · tested ${r.last_tested || ""}` });
       setKey(""); // secret hygiene — clear the typed key on success (never re-render it)
@@ -100,6 +107,12 @@ export default function ProvidersSection({ connected = [], onSaved }) {
         {isAzure && (
           <input value={apiVersion} onChange={(e) => setApiVersion(e.target.value)} aria-label="api version"
             data-testid="providers-api-version" placeholder="API version (optional · default 2024-10-21)"
+            style={inputStyle} />
+        )}
+        {isCompat && (
+          <input value={probeModel} onChange={(e) => setProbeModel(e.target.value)} aria-label="probe model"
+            data-testid="providers-probe-model"
+            placeholder="Model for the test call (optional — used when the host lists no models)"
             style={inputStyle} />
         )}
         <input data-testid="providers-key" type="password" autoComplete="off" value={key}

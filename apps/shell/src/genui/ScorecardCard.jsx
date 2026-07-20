@@ -9,6 +9,7 @@
    [[no-static-components-in-live-eval-ui]] */
 import { registerTool } from "./registry.js";
 import { flagLabel, verdictLabel } from "./copy.js";
+import { scorecardRead } from "./reportRead.js";
 
 const VOTE_COLOR = { PASS: "var(--teal)", WARN: "var(--amber)", FAIL: "var(--accent)", BLOCK: "var(--accent)", REJECT: "var(--accent)", APPROVE: "var(--teal)" };
 const vColor = (v) => VOTE_COLOR[String(v || "").toUpperCase()] || "var(--muted)";
@@ -90,6 +91,9 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
   const nFlagged = cases.filter((c) => ["BLOCK", "REJECT", "FAIL"].includes(norm(c.verdict))).length;
   const nLook = cases.filter((c) => ["WARN", "NEEDS_REVIEW", "REVIEW"].includes(norm(c.verdict))).length;
   const nPassed = cases.length - nFlagged - nLook;
+  // NARRATIVE-LAYER-1: the plain-language read + reframed hero, computed from THIS payload —
+  // null (no band) when the floor carries nothing to read. All the numbers below stay as-is.
+  const read = scorecardRead({ cases, flag, verdict_accuracy, by_flag, n_cases, n_labeled, by_judge, majority, judge_matrix, floor });
 
   return (
     <div data-testid="scorecard-card" className="rounded-[var(--radius)] border border-border bg-background p-3.5 text-xs">
@@ -100,6 +104,23 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
         </div>
         {grade_path && <span className="text-[10px] text-muted-foreground">{grade_path === "live" || grade_path === "in_process" ? "fresh grade" : "replay"}</span>}
       </div>
+      {read && (
+        <div data-testid="scorecard-read" className="mt-2 rounded-[var(--radius-sm)] border border-border px-2.5 py-2" style={{ background: "var(--surface-muted)" }}>
+          <div className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">The read</div>
+          {read.hero && (
+            <div data-testid="scorecard-read-hero" className="mt-1 font-[family-name:var(--font-mono)]">
+              <span className="text-[18px] font-semibold text-foreground">{read.hero.pre}% → {read.hero.post}%</span>
+              <span className="ml-2 text-[10.5px] text-muted-foreground">reviewers alone → with the floor</span>
+            </div>
+          )}
+          <div className="mt-1 text-[11.5px] leading-relaxed text-foreground">{read.text}</div>
+          {read.trust && (
+            <div data-testid="scorecard-read-trust" className="mt-1 font-[family-name:var(--font-mono)] text-[10.5px]" style={{ color: "var(--teal)" }}>
+              0 genuine defects ever cleared · deterministic on every run
+            </div>
+          )}
+        </div>
+      )}
       {/* plain-English outcome tally — the non-tech headline */}
       <div className="mt-1 text-[11px] text-muted-foreground">
         <span style={{ color: "var(--accent)" }}>{nFlagged} flagged</span> · {nLook} need a look · <span style={{ color: "var(--teal)" }}>{nPassed} passed</span>

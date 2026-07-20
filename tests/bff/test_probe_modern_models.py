@@ -62,3 +62,35 @@ def test_anthropic_probe_default_model_is_current(monkeypatch):
     assert res == {"ok": True}
     assert "3-5-haiku" not in captured.get("model", "")  # the retired default
     assert captured.get("max_tokens", 0) >= 16
+
+
+def test_probe_failure_error_is_bounded_sanitized_and_says_why(monkeypatch):
+    """CONNECT-AI-COMPAT-1: a failing probe surfaced ONLY the exception class name
+    ("BadRequestError") — an openai_compatible endpoint that doesn't serve the gpt-4o fallback
+    failed with no way to tell why. The error must carry the provider's message, one-line,
+    BOUNDED, and NEVER echoing the api key."""
+    key = "sk-secret-DO-NOT-ECHO"
+
+    class BadRequestError(Exception):
+        pass
+
+    class _FakeLitellm:
+        @staticmethod
+        def completion(**kwargs):
+            raise BadRequestError(
+                "The model `gpt-4o` does not exist\nor you do not have access to it. "
+                f"api_key={key} " + "x" * 500
+            )
+
+    monkeypatch.setitem(sys.modules, "litellm", _FakeLitellm)
+    res = bff._probe_provider(
+        plane="grading", provider="openai_compatible", api_key=key,
+        endpoint="https://my-foundry.example/v1",
+    )
+    assert res["ok"] is False
+    err = res["error"]
+    assert "BadRequestError" in err  # the class name still leads
+    assert "does not exist" in err  # the WHY reaches the user
+    assert key not in err  # never the secret
+    assert "\n" not in err  # one-line (fits the 400 detail)
+    assert len(err) <= 250  # bounded — never a full traceback-sized blob
