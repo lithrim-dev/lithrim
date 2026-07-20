@@ -339,8 +339,30 @@ describe("CaseBrowserSection — multi-select cohort (COHORT-SUBSET-1)", () => {
     await screen.findByText("case_a");
     const header = screen.getByTestId("cases-header");
     expect(header.style.position).toBe("sticky");
+    // -18px, NOT 0: Chrome insets the sticky constraint by .art-bd's 18px padding while rows
+    // stay visible through that strip — a 0 pin floats the header with rows bleeding above it
+    // (the v0.1.7 regression, verified live before this pin).
+    expect(header.style.top).toBe("-18px");
     expect(header).toContainElement(screen.getByTestId("run-selected"));
     expect(header).toContainElement(screen.getByTestId("select-all"));
+    // the instruction rides its OWN wrapped line under the title row (it ran beneath the
+    // buttons when it shared their nowrap row), still inside the sticky band
+    expect(header).toContainElement(screen.getByTestId("cases-hint"));
+    expect(screen.getByTestId("cases-hint").textContent).toMatch(/check to grade several/);
+  });
+
+  it("the padded checkbox zone toggles WITHOUT arming (a near-miss must not open the case)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onSelectCase = vi.fn();
+    const onToggleSelect = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={onSelectCase} selectedIds={new Set()} onToggleSelect={onToggleSelect} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    fireEvent.click(screen.getByTestId("case-check-zone-case_b")); // the label, not the input
+    expect(onSelectCase).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("case-check-case_b")); // the input itself still toggles
+    expect(onToggleSelect).toHaveBeenCalledWith("case_b");
+    expect(onSelectCase).not.toHaveBeenCalled();
   });
 });
 
