@@ -1065,6 +1065,11 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    if live:
+        # CACHE-TRAP-1: a LIVE grade must actually re-sample — the DSPy LM disk cache otherwise
+        # replays an identical re-run byte-for-byte at tokens=0. Scoped to THIS grade process;
+        # replay/$0 paths inherit the ambient default unchanged.
+        env["LITHRIM_JUDGE_CACHE"] = "0"
     cmd = [sys.executable, str(_RUN_EVAL_SCRIPT), "--agent", agent_name,
            "--config-db", str(config_db), "--emit-json"]
     if case_id:  # NARR-LOOP: grade a specific corpus case (the subprocess reloads the agent
@@ -1301,6 +1306,12 @@ def _grade_case(
         except SystemExit as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     else:
+        # CACHE-TRAP-1 (in-process twin of the subprocess env): a LIVE grade disables the DSPy
+        # LM cache for the duration of this call, restored after — the BFF process env stays
+        # clean and replay/$0 grades are untouched.
+        _prior_cache = os.environ.get("LITHRIM_JUDGE_CACHE")
+        if live:
+            os.environ["LITHRIM_JUDGE_CACHE"] = "0"
         try:
             record = run_eval.run(
                 agent,
@@ -1334,6 +1345,12 @@ def _grade_case(
                     "(bottom left) and connect a provider, then run the evaluation again."
                 ),
             ) from exc
+        finally:
+            if live:
+                if _prior_cache is None:
+                    os.environ.pop("LITHRIM_JUDGE_CACHE", None)
+                else:
+                    os.environ["LITHRIM_JUDGE_CACHE"] = _prior_cache
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])
