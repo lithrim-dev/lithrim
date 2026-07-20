@@ -689,9 +689,14 @@ function CaseBrowserSection({ agent = "ws0_default", activeCase = null, onSelect
           <div key={c.case_id} onClick={() => onSelectCase?.(c.case_id)}
             style={{ padding: "8px 6px", margin: "0 -6px", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", gap: 8, alignItems: "baseline", cursor: onSelectCase ? "pointer" : "default", borderRadius: 6, background: active ? "var(--surface-2, rgba(127,127,127,0.10))" : "transparent" }}>
             {multi && (
-              <input type="checkbox" data-testid={`case-check-${c.case_id}`} checked={checked}
-                onClick={(e) => e.stopPropagation()} onChange={() => onToggleSelect(c.case_id)}
-                title="Add this case to the cohort to grade" style={{ flexShrink: 0, cursor: "pointer", alignSelf: "center" }} />
+              // a full-row-height padded label as the hit zone: the bare 13px checkbox was easy
+              // to miss, and a miss hit the row body — arming the case + switching the view
+              <label data-testid={`case-check-zone-${c.case_id}`} onClick={(e) => e.stopPropagation()}
+                title="Add this case to the cohort to grade"
+                style={{ flexShrink: 0, alignSelf: "stretch", display: "flex", alignItems: "center", cursor: "pointer", padding: "0 9px 0 6px", margin: "-8px 0 -8px -6px" }}>
+                <input type="checkbox" data-testid={`case-check-${c.case_id}`} checked={checked}
+                  onChange={() => onToggleSelect(c.case_id)} style={{ cursor: "pointer" }} />
+              </label>
             )}
             <span title={dot.title} style={{ color: dot.color, flexShrink: 0 }}>●</span>
             <span style={{ fontFamily: "var(--mono)", fontWeight: active ? 600 : 400, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{c.case_id}</span>

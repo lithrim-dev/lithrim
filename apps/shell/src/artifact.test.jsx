@@ -350,6 +350,20 @@ describe("CaseBrowserSection — multi-select cohort (COHORT-SUBSET-1)", () => {
     expect(header).toContainElement(screen.getByTestId("cases-hint"));
     expect(screen.getByTestId("cases-hint").textContent).toMatch(/check to grade several/);
   });
+
+  it("the padded checkbox zone toggles WITHOUT arming (a near-miss must not open the case)", async () => {
+    getCorpus.mockResolvedValue({ rows: [] });
+    listCaseBrowser.mockResolvedValue(THREE);
+    const onSelectCase = vi.fn();
+    const onToggleSelect = vi.fn();
+    render(<ArtifactPane {...paneProps} tab="corpus" onSelectCase={onSelectCase} selectedIds={new Set()} onToggleSelect={onToggleSelect} runStatus="idle" runResult={null} runError={null} />);
+    await screen.findByText("case_a");
+    fireEvent.click(screen.getByTestId("case-check-zone-case_b")); // the label, not the input
+    expect(onSelectCase).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("case-check-case_b")); // the input itself still toggles
+    expect(onToggleSelect).toHaveBeenCalledWith("case_b");
+    expect(onSelectCase).not.toHaveBeenCalled();
+  });
 });
 
 // FINDING #2 (UI-pass 2026-07-04): the pane used to render the agent's DEFAULT case while the
