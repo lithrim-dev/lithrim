@@ -240,7 +240,12 @@ Repeat Stage 5 for every arm, and re-run the whole set with `LITHRIM_REPRO_ONTOL
 - **Scorecard** (`$0` replay of persisted provenance): exact-flag `precision`/`recall`, per-code
   `by_flag`, per-reviewer `by_judge`, `majority` tally, `judge_matrix`, and the floor block:
   `cleared/enforced/inconclusive`, `gold_defect_clears` (must be 0 — the floor never clears a gold
-  defect), and `verdict_accuracy_pre_floor` vs `verdict_accuracy_post_floor`.
+  defect), and three verdict accuracies: `verdict_accuracy_pre_floor` (the council's tier verdict),
+  `verdict_accuracy_no_floor` and `verdict_accuracy_post_floor` (the same severity rescore, with the
+  floor's contribution removed and present). **The floor's effect is `post_floor` minus `no_floor`.**
+  `pre_floor` vs `post_floor` spans two different verdict rules and is not a floor delta; reporting
+  it as one overstated the floor on runs it never touched. `no_floor` is absent (not zero) on runs
+  graded before it existed, in which case no floor delta is derivable from that arm.
 - **Floor-flip ledger** (latest LIVE run per case): `council_block_floor_cleared_flips` (clean-gen
   cases where council BLOCK -> floor PASS, the headline flip) and `upcode_grounded_block`.
 - **Reliability**: Fleiss/Cohen kappa, 10-bin ECE + Brier, effective independent votes, floor

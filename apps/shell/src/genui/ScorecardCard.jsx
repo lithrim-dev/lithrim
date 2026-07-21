@@ -110,7 +110,9 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
           {read.hero && (
             <div data-testid="scorecard-read-hero" className="mt-1 font-[family-name:var(--font-mono)]">
               <span className="text-[18px] font-semibold text-foreground">{read.hero.pre}% → {read.hero.post}%</span>
-              <span className="ml-2 text-[10.5px] text-muted-foreground">reviewers alone → with the floor</span>
+              {/* READ-ATTRIB-1: only the counterfactual pair is a floor claim; the legacy pair
+                  compares two different scoring rules and must not be labeled as the floor. */}
+              <span className="ml-2 text-[10.5px] text-muted-foreground">{read.hero.basis === "floor" ? "without the floor → with the floor" : "reviewers alone → after grounding"}</span>
             </div>
           )}
           <div className="mt-1 text-[11.5px] leading-relaxed text-foreground">{read.text}</div>
@@ -205,8 +207,10 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
               )}
           </div>
           {floor.verdict_accuracy_pre_floor != null && (
-            <div className="mt-1 font-[family-name:var(--font-mono)] text-muted-foreground" title="Verdict accuracy vs the answer key, before and after the deterministic floor corrected the reviewers.">
-              verdict accuracy: reviewers alone <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_pre_floor)}</strong> → with the floor <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_post_floor)}</strong>
+            <div className="mt-1 font-[family-name:var(--font-mono)] text-muted-foreground" title="Verdict accuracy vs the answer key. The reviewers' own tier rule, the severity rescore with the floor switched off, and the final verdict. Only the last two differ by the floor.">
+              verdict accuracy: reviewers alone <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_pre_floor)}</strong>
+              {floor.verdict_accuracy_no_floor != null && <> · without the floor <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_no_floor)}</strong></>}
+              {" "}→ with the floor <strong style={{ color: "var(--ink)" }}>{pct(floor.verdict_accuracy_post_floor)}</strong>
             </div>
           )}
         </div>

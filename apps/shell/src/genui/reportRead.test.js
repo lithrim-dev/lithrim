@@ -22,22 +22,71 @@ const SCORECARD = {
   floor: {
     cleared: 2, enforced: 8, inconclusive: 1, gold_defect_clears: [],
     verdict_accuracy_pre_floor: 0.39, verdict_accuracy_post_floor: 0.54,
+    verdict_accuracy_no_floor: 0.39,
   },
 };
 
 describe("scorecardRead — the cohort read", () => {
-  it("composes the full read from a real run payload (14 cases, pre 39% -> post 54%)", () => {
+  it("composes the full read from a real run payload (floor lifts 39% -> 54%)", () => {
     const r = scorecardRead(SCORECARD);
     expect(r.text).toBe(
       "3 of 14 notes passed clean, 7 were flagged, 4 need a human look. "
       + "On their own, the three reviewers matched the answer key just 39% of the time: they disagree and they over-flag. "
       + "That noise is expected, it is why the floor exists. "
       + "The deterministic floor enforced 8 real defects the reviewers missed, cleared 2 false alarms, and cleared zero genuine defects. "
-      + "Verdict accuracy climbs to 54%. "
-      + "The gap is the floor doing the work the judges can't.",
+      + "The floor lifted verdict accuracy from 39% to 54%. "
+      + "Both sides of that number use the same scoring rule, so the lift is the floor's alone.",
     );
-    expect(r.hero).toEqual({ pre: 39, post: 54 });
+    expect(r.hero).toEqual({ pre: 39, post: 54, basis: "floor" });
     expect(r.trust).toBe(true);
+  });
+
+  it("READ-ATTRIB-1: an idle floor is credited with nothing, however far pre sits from post", () => {
+    // the observed 2026-07-21 batch: council 85%, rescore 69% either side of an idle floor.
+    const r = scorecardRead({
+      ...SCORECARD,
+      floor: {
+        ...SCORECARD.floor,
+        verdict_accuracy_pre_floor: 0.85, verdict_accuracy_post_floor: 0.69,
+        verdict_accuracy_no_floor: 0.69,
+      },
+    });
+    expect(r.text).toMatch(/The floor changed no verdict here: accuracy is 69% with it and without it\./);
+    expect(r.text).toMatch(/moves accuracy from 85% to 69%\. That shift is the scoring rule, not the floor\./);
+    expect(r.text).not.toMatch(/The gap is the floor/);
+    expect(r.text).not.toMatch(/climbs/);
+    expect(r.hero).toEqual({ pre: 69, post: 69, basis: "floor" });
+  });
+
+  it("READ-ATTRIB-1: a floor that HURT accuracy says so and kills the trust line", () => {
+    const r = scorecardRead({
+      ...SCORECARD,
+      floor: {
+        ...SCORECARD.floor,
+        verdict_accuracy_pre_floor: 0.5, verdict_accuracy_post_floor: 0.42,
+        verdict_accuracy_no_floor: 0.61,
+      },
+    });
+    expect(r.text).toMatch(/The floor moved verdict accuracy from 61% down to 42%, investigate before trusting this run\./);
+    expect(r.trust).toBe(false);
+  });
+
+  it("READ-ATTRIB-1: with no counterfactual the gap is stated but never attributed", () => {
+    const { verdict_accuracy_no_floor: _drop, ...legacy } = SCORECARD.floor;
+    const r = scorecardRead({ ...SCORECARD, floor: legacy });
+    expect(r.text).toMatch(/Verdict accuracy moves from 39% to 54%\. This run cannot attribute that gap to the floor\./);
+    expect(r.text).not.toMatch(/The gap is the floor/);
+    expect(r.hero).toEqual({ pre: 39, post: 54, basis: "mixed" });
+  });
+
+  it("READ-ATTRIB-1: zero verdict over-flags never claims over-flagging; unmatched codes read as mistyping", () => {
+    const r = scorecardRead({
+      ...SCORECARD,
+      flag: { ...SCORECARD.flag, fp: 21 },
+      by_judge: SCORECARD.by_judge.map((j) => ({ ...j, over_flags: 0 })),
+    });
+    expect(r.text).not.toMatch(/they over-flag/);
+    expect(r.text).toMatch(/they raise codes the answer key does not have/);
   });
 
   it("HONESTY: a genuine defect cleared is said loudly and kills the trust line", () => {
@@ -51,9 +100,10 @@ describe("scorecardRead — the cohort read", () => {
   });
 
   it("HONESTY: post <= pre never says climbs and drops the gap claim", () => {
+    const { verdict_accuracy_no_floor: _drop, ...legacy } = SCORECARD.floor;
     const r = scorecardRead({
       ...SCORECARD,
-      floor: { ...SCORECARD.floor, verdict_accuracy_pre_floor: 0.5, verdict_accuracy_post_floor: 0.42 },
+      floor: { ...legacy, verdict_accuracy_pre_floor: 0.5, verdict_accuracy_post_floor: 0.42 },
     });
     expect(r.text).toMatch(/Verdict accuracy moves from 50% to 42%\./);
     expect(r.text).not.toMatch(/climbs/);
@@ -74,7 +124,7 @@ describe("scorecardRead — the cohort read", () => {
     expect(many.text).toMatch(/the 12 reviewers matched/);
     const none = scorecardRead({ ...SCORECARD, by_judge: [] });
     expect(none.text).toMatch(/the reviewers matched the answer key just 39%/);
-    expect(none.hero).toEqual({ pre: 39, post: 54 });
+    expect(none.hero).toEqual({ pre: 39, post: 54, basis: "floor" });
   });
 
   it("degrades with no pre/post accuracy: no hero, no accuracy sentences, floor sentence stays", () => {

@@ -145,10 +145,17 @@ thread. Read it top to bottom:
   shows **`clean ✓`**; a missed flag is prefixed **`miss`**, a false positive **`FP`**. Sample cases
   are unlabeled, so you see verdicts without accuracy chips (the honest display with no answer key).
 - The **Deterministic floor** section: **`N cleared · N enforced · N cannot-ground`**, a safety line
-  (**`0 genuine defects cleared ✓`**, or a warning if any were), and the before/after that is the
-  whole thesis: **`verdict accuracy: reviewers alone X% → with the floor Y%`**. "Cleared" means the
-  floor disproved a reviewer's false alarm; "enforced" means it blocked a defect; "cannot-ground"
-  means it abstained rather than guess.
+  (**`0 genuine defects cleared ✓`**, or a warning if any were), and three accuracy numbers:
+  **`verdict accuracy: reviewers alone X% · without the floor Y% → with the floor Z%`**. "Cleared"
+  means the floor disproved a reviewer's false alarm; "enforced" means it blocked a defect;
+  "cannot-ground" means it abstained rather than guess.
+- **Read those three numbers carefully, because only one pair is a floor claim.** *Reviewers alone*
+  is the council's own tier verdict. *Without the floor* and *with the floor* are the same severity
+  rescore, run over the findings with and without the floor's contribution, so **Z minus Y is the
+  floor's effect and nothing else**. X to Y is a different thing: it is the gap between the
+  reviewers' voting rule and the severity rescore, and it can be negative while the floor is doing
+  real work. A run graded before this three-number band existed shows only X and Z, and the card
+  says so rather than claiming the gap for the floor.
 
 **Open one case.** The scorecard hints **"Click any case to open its full result →"**. Click a row
 and the right-hand pane opens on the **Report** tab for that case:

@@ -101,6 +101,9 @@ class GroundedResult:
     skipped_malformed: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, Any] = field(default_factory=dict)
+    # READ-ATTRIB-1: the same rescore over the finding set this grade would have had if the
+    # floor had never run — so ``verdict`` vs ``verdict_no_floor`` isolates the floor's effect.
+    verdict_no_floor: str | None = None
     result: dict[str, Any] = field(repr=False, default_factory=dict)
     case: dict[str, Any] = field(repr=False, default_factory=dict)
 
@@ -1616,6 +1619,25 @@ def _classify_coverage(
     return {**counts, "floor_backstopped": backstopped, "per_finding": per_finding}
 
 
+def rescore_without_floor(
+    active: list[dict[str, Any]],
+    suppressed: list[dict[str, Any]],
+    severity_map: Any,
+) -> str:
+    """READ-ATTRIB-1: the verdict this grade would carry had the floor plane never run.
+
+    Drop what a floor contract INJECTED (``_floor``) and restore what a suppress contract
+    CLEARED, then apply the SAME ``rescore`` the live verdict uses. Comparing the live verdict
+    against a verdict produced by a different rule (the council's tier verdict) attributes rule
+    disagreement to the floor; comparing it against this attributes only the floor to the floor.
+
+    Pure and read-only: the caller's ``active``/``suppressed`` are never mutated.
+    """
+    counterfactual = [f for f in active if not f.get("_floor")]
+    counterfactual += [s.get("finding") or {} for s in suppressed]
+    return severity_map.rescore(counterfactual)
+
+
 def ground(
     result: dict[str, Any],
     case: dict[str, Any],
@@ -1766,6 +1788,11 @@ def ground(
             )
 
     verdict = ontology.severity_map.rescore(active)
+    # READ-ATTRIB-1: the honest floor counterfactual, computed with the SAME rule as ``verdict``
+    # so ``verdict`` vs ``verdict_no_floor`` is a PURE floor delta. Without it the scorecard's
+    # pre/post band compared two different rules (the council's tier verdict vs this rescore) and
+    # billed the whole gap to the floor. Read-only over the finalized buckets, like ``coverage``.
+    verdict_no_floor = rescore_without_floor(active, suppressed, ontology.severity_map)
     # FLOOR-COVERAGE-1: derive the coverage provenance READ-ONLY from the finalized buckets —
     # ``active``/``suppressed``/``verdict`` above are untouched (the invariance guard).
     coverage = _classify_coverage(
@@ -1779,6 +1806,7 @@ def ground(
         floor_blocks=floor_blocks,
         skipped_malformed=skipped_malformed,
         verdict=verdict,
+        verdict_no_floor=verdict_no_floor,
         original_verdict=result.get("verdict"),
         weights=dict(ontology.severity_map.weights),
         coverage=coverage,
