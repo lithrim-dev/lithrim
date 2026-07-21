@@ -10,6 +10,7 @@ import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: 
 import { STEPS } from "./data.jsx";
 import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
+import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -678,12 +679,20 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
         // COHORT-SUBSET-1: paid.caseIds (from "Run selected") scopes the grade to the checked subset;
         // null (from "Grade all" / propose_run_all) grades EVERY ingested case. The scorecard the
         // ScorecardCard renders is scoped to whatever gradeCases returns for that request.
-        const resp = await gradeCases({ agent, in_process: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
-        const output = { ...(resp.scorecard || {}), grade_path: resp.summary?.grade_path };
-        setChat((c) => [
-          ...c,
-          { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },
-        ]);
+        // GRADE-PROGRESS-1: the batch POST is ONE opaque server-side span (minutes at cohort
+        // size) — mark it on the module store so the StatusBar chip signals it beyond this
+        // component's chrome; endBatch in finally so an error never leaves a stuck chip.
+        beginBatch({ total: paid.caseIds ? paid.caseIds.length : null });
+        try {
+          const resp = await gradeCases({ agent, in_process: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
+          const output = { ...(resp.scorecard || {}), grade_path: resp.summary?.grade_path };
+          setChat((c) => [
+            ...c,
+            { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },
+          ]);
+        } finally {
+          endBatch();
+        }
         setPaid({ open: false, busy: false });
         return;
       }
