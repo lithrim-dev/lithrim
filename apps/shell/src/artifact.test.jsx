@@ -105,6 +105,49 @@ describe("JudgeTab — realized council votes (A1)", () => {
   });
 });
 
+// Full judge reasoning in the Reviewers cards: reward-model judges emit `explanation` where LLM
+// judges emit `reason` — one normalized read; the clipped line carries the FULL text as a tooltip
+// and click-expands; a vote carrying a non-empty `errors` array is an ERRORED judge, rendered as a
+// distinct state (red tag + first error line), never as a considered vote.
+describe("JudgeTab — full reasoning (tooltip + expand) + judge-error state", () => {
+  const LONG_WHY =
+    "The note asserts a penicillin allergy that never appears in the transcript, and the dosage on line 4 contradicts the stated plan of care entirely.";
+  const withVotes = (votes) => ({ case_id: "case-1", grade_path: "replay", council: { votes, configured: [] } });
+
+  it("normalizes reward-model `explanation` like LLM `reason` (both render)", () => {
+    render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runError={null}
+      runResult={withVotes([
+        { judge_role: "risk_judge", vote: "PASS", confidence: 0.9, model: "gpt-4.1", reason: "short llm reason" },
+        { judge_role: "reward_judge", vote: "WARN", confidence: 0.5, model: "rm-1", explanation: "short rm explanation" },
+      ])} />);
+    expect(screen.getByText("short llm reason")).toBeInTheDocument();
+    expect(screen.getByText("short rm explanation")).toBeInTheDocument();
+  });
+
+  it("clips a long reason with the full text as tooltip; click expands, second click collapses", () => {
+    render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runError={null}
+      runResult={withVotes([{ judge_role: "risk_judge", vote: "PASS", confidence: 0.9, model: "gpt-4.1", reason: LONG_WHY }])} />);
+    const line = screen.getByTitle(LONG_WHY);
+    expect(line.textContent).toBe(LONG_WHY.slice(0, 80) + "…"); // clipped, tooltip = full text
+    fireEvent.click(line);
+    expect(screen.getByTitle(LONG_WHY).textContent).toBe(LONG_WHY); // expanded: the full text
+    fireEvent.click(screen.getByTitle(LONG_WHY));
+    expect(screen.getByTitle(LONG_WHY).textContent).toBe(LONG_WHY.slice(0, 80) + "…"); // collapsed again
+  });
+
+  it("a vote with `errors` renders the errored tag + first error line, NOT a considered vote", () => {
+    const { container } = render(<ArtifactPane {...paneProps} tab="judges" runStatus="ready" runError={null}
+      runResult={withVotes([{ judge_role: "risk_judge", vote: "WARN", confidence: 0.5, model: "rm-1",
+        errors: ["ProviderTimeout: judge call failed", "retry exhausted"] }])} />);
+    const chip = screen.getByText("errored");
+    expect(chip.className).toMatch(/\btag\b/);
+    expect(chip.className).toMatch(/\bfail\b/);
+    expect(screen.getByText(/ProviderTimeout: judge call failed/)).toBeInTheDocument(); // the first error line
+    expect(screen.queryByText("Needs a look")).toBeNull(); // the WARN is not presented as considered
+    expect(container.textContent).not.toContain("retry exhausted"); // only the FIRST line
+  });
+});
+
 describe("ConfigTab — ontology config from GET /v1/ontology (A1)", () => {
   it("renders the real ontology config (domain, flags, severity, contracts)", async () => {
     getOntology.mockResolvedValue({

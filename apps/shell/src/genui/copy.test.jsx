@@ -2,7 +2,7 @@
    engine codes (no "BLOCK", no "faithfulness_judge", no "MEDICATION_NOT_IN_TRANSCRIPT"). */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./copy.js";
+import { verdictLabel, roleLabel, roleLabelsFor, flagLabel, friendlyError, voteReason } from "./copy.js";
 import VerdictCard from "./VerdictCard.jsx";
 
 describe("UX-COPY-1 — label helpers", () => {
@@ -23,6 +23,20 @@ describe("UX-COPY-1 — label helpers", () => {
   it("flagLabel makes a CODE readable", () => {
     expect(flagLabel("MEDICATION_NOT_IN_TRANSCRIPT")).toBe("Medication not in transcript");
     expect(flagLabel("HISTORY_OMISSION")).toBe("History omission");
+  });
+  it("voteReason reads reason || explanation (one helper for LLM + reward-model judges)", () => {
+    expect(voteReason({ reason: "llm why" })).toBe("llm why");
+    expect(voteReason({ explanation: "rm why" })).toBe("rm why");
+    expect(voteReason({ reason: "", explanation: "rm why" })).toBe("rm why");
+    expect(voteReason({})).toBe("");
+    expect(voteReason(null)).toBe("");
+  });
+
+  it("roleLabelsFor disambiguates colliding labels with the role id (DUP-ROLE-LABEL-1)", () => {
+    const m = roleLabelsFor(["generalist_judge", "generalist_reviewer", "risk_judge"]);
+    expect(m.generalist_judge).toBe("Generalist reviewer (generalist_judge)");
+    expect(m.generalist_reviewer).toBe("Generalist reviewer (generalist_reviewer)");
+    expect(m.risk_judge).toBe("Risk reviewer");
   });
 
   it("friendlyError never leaks HTTP/paths/JSON; maps known causes; keeps validation reasons", () => {

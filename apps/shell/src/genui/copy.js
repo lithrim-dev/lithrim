@@ -29,10 +29,28 @@ export function roleLabel(role) {
   return /_judge$/.test(r) ? `${base} reviewer` : base;
 }
 
+// Two DIFFERENT role ids can prettify to the SAME label (generalist_judge and
+// generalist_reviewer both read "Generalist reviewer") — a picker rendering both must stay
+// distinguishable, so colliding labels carry their role id. Non-colliding labels unchanged.
+export function roleLabelsFor(roles) {
+  const byLabel = {};
+  (roles || []).forEach((r) => { const l = roleLabel(r); (byLabel[l] = byLabel[l] || []).push(r); });
+  const out = {};
+  (roles || []).forEach((r) => { const l = roleLabel(r); out[r] = byLabel[l].length > 1 ? `${l} (${r})` : l; });
+  return out;
+}
+
 // a FLAG_CODE -> a readable phrase (MEDICATION_NOT_IN_TRANSCRIPT -> "Medication not in transcript").
 export function flagLabel(code) {
   const s = String(code || "").trim();
   return s ? sentenceCase(s.replace(/_/g, " ").toLowerCase()) : "";
+}
+
+// a vote's why: LLM judges emit `reason`, reward-model judges `explanation` — one read so
+// cards surface both identically.
+export function voteReason(v) {
+  const s = v?.reason || v?.explanation || "";
+  return typeof s === "string" ? s : String(s);
 }
 
 // UX-COPY-ERR-1: turn a raw error (Error | string | server detail) into a CALM, user-facing line —

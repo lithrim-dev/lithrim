@@ -152,3 +152,21 @@ describe("AssignModelsSection — per-role endpoint / api_version (NEW-G1)", () 
     );
   });
 });
+
+describe("DUP-ROLE-LABEL-1 — colliding pretty labels stay distinguishable", () => {
+  it("generalist_judge and generalist_reviewer rows both carry their role id", async () => {
+    getCouncilRoster.mockResolvedValue({
+      panel: ["risk_judge", "generalist_judge"],
+      selectable: ["risk_judge", "generalist_judge", "generalist_reviewer"],
+      reviewer_roster: null, recommendation: null,
+    });
+    render(<AssignModelsSection connected={["openai"]} bindings={{}} agent="a" />);
+    const judgeRow = await screen.findByTestId("role-bind-row-generalist_judge");
+    const reviewerRow = screen.getByTestId("role-bind-row-generalist_reviewer");
+    expect(judgeRow).toHaveTextContent("Generalist reviewer (generalist_judge)");
+    expect(reviewerRow).toHaveTextContent("Generalist reviewer (generalist_reviewer)");
+    expect(judgeRow.textContent).not.toBe(reviewerRow.textContent);
+    // a NON-colliding label renders unchanged — no noisy id suffix
+    expect(screen.getByTestId("role-bind-row-risk_judge")).not.toHaveTextContent("(risk_judge)");
+  });
+});

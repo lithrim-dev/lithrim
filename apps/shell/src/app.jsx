@@ -1,5 +1,5 @@
 /* app.jsx — shell composition, resizable panes, theme, status bar (ported verbatim). */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { Icon as I } from "./icons.jsx";
 import { LeftRail, CenterPane } from "./panes.jsx";
 import { ArtifactPane } from "./artifact.jsx";
@@ -7,6 +7,7 @@ import { ModeSwitch } from "./components/ModeSwitch.jsx";
 import { CostModal } from "./components/CostModal.jsx";
 import { CommandPalette } from "./palette.jsx";
 import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
+import { subscribeProgress, getProgress } from "./progress.js"; // GRADE-PROGRESS-1: the batch-grade in-flight chip
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -291,6 +292,9 @@ function StatusBar({ activeWs }) {
     const t = setInterval(load, 4000); // reflect workspace switches / new agents / new runs
     return () => { alive = false; clearInterval(t); };
   }, [activeWs]);
+  // GRADE-PROGRESS-1: the module-store chip — the cohort grade is one multi-minute POST; this is
+  // the persistent chrome signal it is still running (lives here, outside the modal/pane chrome).
+  const prog = useSyncExternalStore(subscribeProgress, getProgress);
   const plural = (n, s) => `${n} ${s}${n === 1 ? "" : "s"}`;
   return (
     <div className="statusbar">
@@ -298,6 +302,14 @@ function StatusBar({ activeWs }) {
         <span className="d" style={{ background: connected ? "var(--teal)" : "var(--amber)" }} />
         {connected ? "Connected" : "Connecting…"}
       </span>
+      {prog.active && (
+        <span className="si" data-testid="grade-progress">
+          <span className="d" style={{ background: "var(--accent)" }} />
+          {prog.total
+            ? (prog.done ? `${prog.label} ${prog.done}/${prog.total}…` : `${prog.label} ${plural(prog.total, "case")}…`)
+            : `${prog.label}…`}
+        </span>
+      )}
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
       {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
       {meta && <span className="si">judges: {meta.judges}</span>}
