@@ -983,6 +983,9 @@ def _load_provider_env() -> None:
     try:
         _migrate_provider_env_bindings_to_db()
         _hydrate_role_bindings_into_env()
+        # WS-JUDGE-BIND: the ACTIVE workspace's per-judge bindings overlay the global row (must run
+        # AFTER it — the global hydration is the fallback, this is the winner).
+        _hydrate_workspace_judge_bindings_into_env(workspace.get_active_workspace())
     except Exception:  # noqa: BLE001
         pass
 
@@ -1149,6 +1152,7 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_i
     # a binding-store hiccup must never block the run (startup already set keys)
     with contextlib.suppress(Exception):
         _hydrate_role_bindings_into_env()
+        _hydrate_workspace_judge_bindings_into_env(ws)  # WS-JUDGE-BIND: overlay, after the global
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
@@ -1258,6 +1262,14 @@ def _grade_case(
     }
     criteria = {role: jc.criterion for role, jc in judges_cfg.items() if jc.criterion}
     ws = workspace.get_active_workspace()
+    # WS-JUDGE-BIND: re-assert the binding planes for THIS workspace before the council is built.
+    # The in-process grade resolves the per-role provider/endpoint through settings+os.environ, both
+    # of which are PROCESS-global — so a grade in workspace B would otherwise inherit whatever
+    # workspace A's last grade (or a global bind) left behind. Runs the global row first, then the
+    # workspace overlay; a workspace binding nothing is a no-op.
+    with contextlib.suppress(Exception):
+        _hydrate_role_bindings_into_env()
+        _hydrate_workspace_judge_bindings_into_env(ws)
     # PHASE2-B: derive the grade roster — the active pack's production_judges FIRST, then any
     # AUTHORED extra role (a judge created via POST /v1/judges, now in the pack snapshot + carrying
     # an assignment/model) appended — so the authored judge reaches build_trio and votes. ``None``
@@ -3080,7 +3092,10 @@ def _effective_model(jc, role: str, bindings: dict) -> tuple[str, str, str]:
     ``override`` | ``binding`` | ``default`` so the UI can label which it is."""
     override = getattr(jc, "model", "") if jc else ""
     if override:
-        return override, "", "override"
+        # WS-JUDGE-BIND: an override authored WITH a workspace provider reports that provider, so
+        # the surface names the deployment the grade will actually reach (a bare model override
+        # still reports "" — it selects a model on whatever provider the global row bound).
+        return override, (getattr(jc, "provider", "") or "") if jc else "", "override"
     b = (bindings or {}).get(role) or {}
     if b.get("model"):
         return b["model"], b.get("provider") or "", "binding"
@@ -3121,6 +3136,11 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
         "role": role,
         # the editable per-judge BYOC override (unchanged — the JudgeEditor still edits THIS).
         "model": (jc.model if jc else ""),
+        # WS-JUDGE-BIND: the workspace-scoped binding beside it. Empty = unbound in this workspace
+        # (the global role_bindings row still applies) — which is what every pre-existing judge is.
+        "provider": (getattr(jc, "provider", "") if jc else ""),
+        "endpoint": (getattr(jc, "endpoint", "") if jc else ""),
+        "api_version": (getattr(jc, "api_version", "") if jc else ""),
         # VOTE-MODEL-2: the model the reviewer actually grades on (override → Provider-Center
         # binding → Azure default), so the config surface reflects what the user assigned.
         "effective_model": eff_model,
@@ -3339,6 +3359,20 @@ def put_judge_endpoint(
         raise HTTPException(status_code=422, detail="k must be >= 1")
     if j_temp is not None and not (0.0 <= j_temp <= 2.0):
         raise HTTPException(status_code=422, detail="temperature must be in [0, 2]")
+    # WS-JUDGE-BIND: the WORKSPACE-scoped provider binding that overlays the global role_bindings
+    # row. Absent/empty ``provider`` = bind nothing here (the global row keeps winning), so every
+    # existing PUT body stays byte-identical.
+    j_provider = str(judge.get("provider") or "").strip()
+    j_endpoint = str(judge.get("endpoint") or "").strip()
+    j_api_version = str(judge.get("api_version") or "").strip()
+    if j_provider in ("azure", "openai_compatible") and not j_endpoint:
+        # mirrors the /v1/roles/bind guard. These two providers are meaningless without a base URL,
+        # and the overlay deliberately does NOT inherit the global one — so accepting this would
+        # bind the judge to an empty endpoint and 404 it into a silent empty-WARN abstain.
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider {j_provider!r} needs an explicit endpoint for this workspace",
+        )
     _validate_judge_assignment(role, assigned, validator_refs)
     actor = _resolve_actor(x_actor, default_actor)
     # PROMPT-EDIT-1: an SME may also rewrite the reviewer's base prompt here (UI parity with the
@@ -3374,6 +3408,9 @@ def put_judge_endpoint(
         temperature=j_temp,
         k=j_k,
         criterion=j_criterion,
+        provider=j_provider,
+        endpoint=j_endpoint,
+        api_version=j_api_version,
     )
     save_judge(
         jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
@@ -6349,6 +6386,60 @@ def _hydrate_role_bindings_into_env() -> None:
         for field, var in env_map.items():
             if binding.get(field) is not None:
                 os.environ[var] = binding[field]
+
+
+def _set_role_binding_value(var: str, val: str) -> None:
+    """Write ONE per-role binding value to BOTH resolution planes.
+
+    ``judges_dspy._role_setting`` (the reader ``build_judge_lm`` actually calls) checks the council
+    ``settings`` holder FIRST and only falls back to ``os.environ``. The trio's four binding keys are
+    DECLARED ``Settings`` fields, and ``_persist_and_reload_provider`` mutates that holder in place on
+    every global bind — so an overlay that wrote only ``os.environ`` would be silently INERT for
+    risk/policy/faithfulness the moment any global bind had run. Authored (non-trio) roles have no
+    declared field and ride os.environ alone; ``hasattr`` keeps this a no-op for them.
+
+    An EMPTY ``val`` is written, not skipped: that is what clears a previously-hydrated global
+    endpoint (the stale-endpoint trap) instead of letting it survive under a new model's label.
+    """
+    os.environ[var] = val
+    try:
+        from lithrim_bench.runtime.council import settings as council_settings
+
+        if hasattr(council_settings.settings, var):
+            setattr(council_settings.settings, var, val)
+    except Exception:  # noqa: BLE001 — council-light boot must never break on the settings mirror
+        pass
+
+
+def _hydrate_workspace_judge_bindings_into_env(ws) -> None:
+    """WS-JUDGE-BIND: overlay the ACTIVE workspace's per-judge bindings ON TOP of the global
+    ``role_bindings`` hydration, so two workspaces sharing role names can grade on different
+    deployments (the per-model comparison arm, previously impossible — the global table is keyed on
+    role alone).
+
+    Call order is load-bearing: ``_hydrate_role_bindings_into_env`` FIRST (the fallback), this
+    SECOND (the winner). A role the workspace does not bind is left entirely untouched, so a setup
+    with no per-workspace bindings resolves byte-identically to before.
+
+    A workspace binding is only honoured when it names a ``provider``: the provider is what switches
+    the frozen resolver onto its per-role branch (``judges_dspy`` reads ``role_provider`` first and
+    falls through to the global path when it is empty), so a model-only row would otherwise change
+    which model string is read without changing which credentials reach it. Every field of an
+    honoured binding is written EXPLICITLY — an omitted endpoint/api_version clears the global one
+    rather than inheriting it.
+    """
+    from lithrim_bench.harness.judges import list_judges
+
+    for role, jc in list_judges(db_path=ws.config_db).items():
+        provider = (getattr(jc, "provider", "") or "").strip()
+        if not provider:
+            continue  # unbound in this workspace → the global row keeps whatever it hydrated
+        names = _role_binding_env_names(role)
+        for field, var in (
+            ("provider", names["provider"]), ("model", names["model"]),
+            ("endpoint", names["api_base"]), ("api_version", names["api_version"]),
+        ):
+            _set_role_binding_value(var, (getattr(jc, field, "") or "").strip())
 
 
 def _migrate_provider_env_bindings_to_db() -> None:
