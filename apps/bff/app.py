@@ -6478,6 +6478,17 @@ def _hydrate_workspace_judge_bindings_into_env(ws) -> None:
             ("endpoint", names["api_base"]), ("api_version", names["api_version"]),
         ):
             _set_role_binding_value(var, (getattr(jc, field, "") or "").strip())
+        # WS-CRED-1b: the CREDENTIAL for this binding. The frozen resolver reads one global
+        # LITHRIM_LLM_API_KEY_<ROLE>, so without this two workspaces binding the same role to
+        # different providers would share one key — the arm campaign is exactly that shape.
+        # WS-CRED-1a made provider credentials addressable by (provider, endpoint), and a
+        # workspace binding names both, so the right key is already on disk under its own slot.
+        # No new secret store and no new API field: nothing here can leak a key into a response.
+        # A binding whose endpoint has no stored credential leaves the global per-role key ALONE
+        # (the pre-existing fallback) rather than clearing it and 401-ing a working setup.
+        scoped_key = _stored_provider_key(provider, endpoint=(jc.endpoint or "").strip() or None)
+        if scoped_key:
+            _set_role_binding_value(names["api_key"], scoped_key)
 
 
 def _migrate_provider_env_bindings_to_db() -> None:
