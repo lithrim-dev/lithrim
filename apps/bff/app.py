@@ -1351,6 +1351,13 @@ def _grade_case(
                     os.environ.pop("LITHRIM_JUDGE_CACHE", None)
                 else:
                     os.environ["LITHRIM_JUDGE_CACHE"] = _prior_cache
+                # CACHE-TRAP-2: build_judge_lm turned dspy's process-global caches OFF for this
+                # live grade. Restore them, or every later $0/replay grade in this process pays
+                # full price for a cache it is entitled to use.
+                with contextlib.suppress(Exception):  # a restore failure must not fail the grade
+                    from lithrim_bench.harness.judge_cache import set_global_judge_cache
+
+                    set_global_judge_cache(True)
 
     record.pop("_persisted", None)  # local fs/sqlite paths — internal, not API
     record["calibration_check"] = calibration_check([record])
@@ -1360,6 +1367,9 @@ def _grade_case(
         # honesty: every grade labels its config, so a silently-inert floor is visible in the record
         record["readiness"] = readiness_report.to_dict()
     record["council"] = _council_view(record)
+    # CACHE-TRAP-2: a live grade that spent nothing is a replay, not a measurement — it must say
+    # so on the record instead of returning as an ordinary success.
+    record["cache_replay"] = _cache_replay_flag(record, live=live)
     # S-BS-56: surface the run's pipeline_run_id so the caller can address the run
     # (run-history + the run→audit leg). It lives on the graded PipelineResult's
     # provenance (replay carries the baseline's id; in_process/live carry a fresh id).
@@ -1370,6 +1380,25 @@ def _grade_case(
 def _pipeline_run_id(record: dict) -> str | None:
     """The graded run's pipeline_run_id (None if the result carries none)."""
     return ((record.get("result") or {}).get("provenance") or {}).get("pipeline_run_id")
+
+
+def _cache_replay_flag(record: dict, *, live: bool) -> bool:
+    """CACHE-TRAP-2: did a grade asked to run LIVE actually spend nothing?
+
+    A live grade that made zero model calls is a cache replay, not a measurement, and it used to
+    return as an ordinary success — a full 14-case arm was captured that way. Surfacing it is the
+    load-bearing half of the fix: if the cache bypass ever regresses, a replayed number still
+    cannot be quoted unknowingly.
+
+    Only LIVE is accused. A $0/replay grade costing nothing is the normal path, and an ABSENT
+    spend record is unknown rather than proof, so neither is flagged (never fabricate the charge).
+    """
+    if not live:
+        return False
+    cost = ((record.get("result") or {}).get("provenance") or {}).get("cost_tokens")
+    if not isinstance(cost, dict) or cost.get("total") is None:
+        return False
+    return int(cost.get("total") or 0) == 0
 
 
 # vote (PASS/WARN/BLOCK as shown to the UI) -> the judge's underlying decision, so the case
@@ -2428,6 +2457,9 @@ def grade_cases_endpoint(
                                          for b in g.get("floor_blocks") or []
                                          if not b.get("injected")],
                     },
+                    # CACHE-TRAP-2: per-case replay tell, so one silently-cached case in a batch
+                    # is visible instead of averaging invisibly into the cohort numbers.
+                    "cache_replay": bool(rec.get("cache_replay")),
                     "run_id": rec.get("pipeline_run_id"),
                 }
             )
@@ -2445,6 +2477,9 @@ def grade_cases_endpoint(
         "errors": len(rows) - len(graded),
         "verdicts": verdicts,
         "grade_path": "live" if live else ("in_process" if in_process else "replay"),
+        # CACHE-TRAP-2: how many of these cases spent nothing despite being asked to run live.
+        # Non-zero means the batch is NOT an independent measurement and must not be quoted.
+        "cache_replays": sum(1 for r in rows if r.get("cache_replay")),
     }
     # RUN-ALL-1: the consolidated report — score the matrix against each case's gold (in-process,
     # no span-matching; case_id rides every row). Labeled cases only feed accuracy (honest-unlabeled).

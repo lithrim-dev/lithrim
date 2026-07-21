@@ -367,6 +367,17 @@ def build_judge_lm(role: str, **overrides: Any):
 
     import dspy
 
+    # CACHE-TRAP-2 (2026-07-21, live-caught): the per-LM flag above is NOT sufficient. dspy keeps
+    # its own PROCESS-GLOBAL disk + memory caches which serve hits whatever the LM says, so a
+    # full 14-case live arm came back in ~2s per case at tokens=0 and only a container restart
+    # cleared it. Disable every layer when the gate is off. Only when OFF: the default path must
+    # never touch the global config, so $0/replay/offline stay byte-identical. The lever lives in
+    # harness/judge_cache.py because this module is frozen at its top-level symbol set.
+    if not lm_cache:
+        from lithrim_bench.harness.judge_cache import set_global_judge_cache
+
+        set_global_judge_cache(False)
+
     # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): a PER-ROLE provider override LAYERED ON TOP of the
     # global path. When ``settings.LITHRIM_LLM_PROVIDER_<ROLE>`` is set, THIS role runs on its own
     # provider (risk→OpenAI, policy→Gemini, faithfulness→Anthropic — a true cross-provider council),
