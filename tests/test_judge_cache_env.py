@@ -87,7 +87,12 @@ def test_env_zero_disables_cache_global_azure_path(fake_dspy_lm, monkeypatch):
     assert lm.kwargs["cache"] is False
 
 
-# ── the BFF wire: a LIVE grade subprocess carries LITHRIM_JUDGE_CACHE=0; a $0 one does not ──
+# ── the BFF wire: a PAID grade subprocess carries LITHRIM_JUDGE_CACHE=0; a $0 one does not ──
+#
+# CACHE-TRAP-2: this helper used to hardcode ``in_process=True`` and vary only ``live``, so its
+# "replay" case was really a PAYING in-process grade — the same conflation that left the OSS
+# default ungated through v0.1.11. A replay is ``(live=False, in_process=False)``; both paying
+# shapes are pinned below. See tests/test_cache_trap_2.py for the accusation half.
 
 pytest.importorskip("fastapi", reason="needs the [bff] extra (fastapi)")
 
@@ -99,7 +104,7 @@ if str(_BFF) not in sys.path:
 import app as bff  # noqa: E402
 
 
-def _run_grade_subprocess(monkeypatch, *, live: bool) -> dict:
+def _run_grade_subprocess(monkeypatch, *, live: bool, in_process: bool = True) -> dict:
     captured = {}
 
     def _fake_run(cmd, env=None, **kw):
@@ -110,7 +115,7 @@ def _run_grade_subprocess(monkeypatch, *, live: bool) -> dict:
     ws = SimpleNamespace(pack="clinverdict", packs_dir=None)
     bff._grade_via_subprocess(
         agent_name="ws0_default", config_db=Path("cfg.db"), ontology_path=None,
-        collections_db=None, out_dir=None, live=live, in_process=True, ws=ws,
+        collections_db=None, out_dir=None, live=live, in_process=in_process, ws=ws,
     )
     return captured["env"]
 
@@ -120,7 +125,13 @@ def test_live_grade_subprocess_disables_judge_cache(monkeypatch):
     assert env["LITHRIM_JUDGE_CACHE"] == "0"
 
 
+def test_in_process_grade_subprocess_disables_judge_cache(monkeypatch):
+    """The OSS default: Run live resolves to (live=False, in_process=True) and DOES pay."""
+    env = _run_grade_subprocess(monkeypatch, live=False, in_process=True)
+    assert env["LITHRIM_JUDGE_CACHE"] == "0"
+
+
 def test_replay_grade_subprocess_keeps_cache_default(monkeypatch):
     monkeypatch.delenv("LITHRIM_JUDGE_CACHE", raising=False)
-    env = _run_grade_subprocess(monkeypatch, live=False)
+    env = _run_grade_subprocess(monkeypatch, live=False, in_process=False)
     assert env.get("LITHRIM_JUDGE_CACHE") != "0"
