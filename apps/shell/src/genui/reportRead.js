@@ -56,7 +56,12 @@ export function scorecardRead(p = {}) {
   if (!enforced && !cleared && !genuine) return null;
   const pre = typeof floor.verdict_accuracy_pre_floor === "number" ? floor.verdict_accuracy_pre_floor : null;
   const post = typeof floor.verdict_accuracy_post_floor === "number" ? floor.verdict_accuracy_post_floor : null;
-  const climb = pre != null && post != null && post > pre;
+  // READ-ATTRIB-1: `pre` is the COUNCIL's tier verdict, `post` is the severity rescore — two
+  // different rules, so pre->post is not a floor delta. `noFloor` is the same rescore over the
+  // counterfactual finding set, so post - noFloor IS one. Absent on pre-READ-ATTRIB-1 runs.
+  const noFloor = typeof floor.verdict_accuracy_no_floor === "number" ? floor.verdict_accuracy_no_floor : null;
+  const floorLift = noFloor != null && post != null ? post - noFloor : null;
+  const climb = floorLift != null ? floorLift > 0 : pre != null && post != null && post > pre;
   const sentences = [];
   const cases = Array.isArray(p.cases) ? p.cases : [];
   const total = p.n_cases ?? (cases.length || null);
@@ -70,15 +75,22 @@ export function scorecardRead(p = {}) {
   const judges = Array.isArray(p.by_judge) ? p.by_judge : [];
   if (pre != null) {
     const who = judges.length === 1 ? "the reviewer" : judges.length >= 2 ? `the ${word(judges.length)} reviewers` : "the reviewers";
-    // both noise claims are evidence-gated: over-flag from the fp tallies, disagreement from
-    // differing per-judge outcomes (matrix cells / matches_gold spread / majority ties).
-    const overFlag = judges.some((j) => (j.over_flags || 0) > 0) || ((p.flag || {}).fp || 0) > 0;
+    // every noise claim is evidence-gated at ITS OWN unit. READ-ATTRIB-1: a VERDICT over-flag
+    // (the reviewer blocked a note gold approves) only comes from the verdict tallies — reading
+    // it off the flag-level fp claimed over-blocking on runs whose every reviewer over-flagged
+    // zero notes. An fp with no verdict over-flag is mistyping: right call, wrong code.
+    const overFlag = judges.some((j) => (j.over_flags || 0) > 0) || ((p.majority || {}).over_flags || 0) > 0;
+    const misTyped = !overFlag && ((p.flag || {}).fp || 0) > 0;
     const disagree = judges.length >= 2 && (
       (Array.isArray(p.judge_matrix) && p.judge_matrix.some((r) => uniq((r.cells || []).map((c) => String(c.vote || "").toUpperCase()).filter(Boolean)).length > 1))
       || uniq(judges.map((j) => j.matches_gold)).length > 1
       || ((p.majority || {}).ties || 0) > 0
     );
-    const clause = disagree && overFlag ? ": they disagree and they over-flag" : overFlag ? ": they over-flag" : disagree ? ": they disagree" : "";
+    const noise = [];
+    if (disagree) noise.push("they disagree");
+    if (overFlag) noise.push("they over-flag");
+    else if (misTyped) noise.push("they raise codes the answer key does not have");
+    const clause = noise.length ? `: ${joinAnd(noise)}` : "";
     sentences.push(`On their own, ${who} matched the answer key ${climb ? "just " : ""}${pctStr(pre)} of the time${clause}.`);
     if (clause) sentences.push("That noise is expected, it is why the floor exists.");
   }
@@ -90,13 +102,32 @@ export function scorecardRead(p = {}) {
     : "cleared zero genuine defects");
   sentences.push(`The deterministic floor ${joinAnd(parts)}.`);
   if (pre != null && post != null) {
-    sentences.push(climb ? `Verdict accuracy climbs to ${pctStr(post)}.` : `Verdict accuracy moves from ${pctStr(pre)} to ${pctStr(post)}.`);
-    if (climb) sentences.push("The gap is the floor doing the work the judges can't.");
+    if (floorLift != null) {
+      // the floor's own delta: same rule on both sides, so this claim is attributable.
+      if (floorLift > 0) {
+        sentences.push(`The floor lifted verdict accuracy from ${pctStr(noFloor)} to ${pctStr(post)}.`);
+        sentences.push("Both sides of that number use the same scoring rule, so the lift is the floor's alone.");
+      } else if (floorLift === 0) {
+        sentences.push(`The floor changed no verdict here: accuracy is ${pctStr(post)} with it and without it.`);
+      } else {
+        sentences.push(`The floor moved verdict accuracy from ${pctStr(noFloor)} down to ${pctStr(post)}, investigate before trusting this run.`);
+      }
+      // whatever is left between the reviewers' own rule and the rescore is the RULE, said so.
+      if (noFloor !== pre) {
+        sentences.push(`Scoring findings by severity rather than by the reviewers' own tier rule moves accuracy from ${pctStr(pre)} to ${pctStr(noFloor)}. That shift is the scoring rule, not the floor.`);
+      }
+    } else {
+      sentences.push(`Verdict accuracy moves from ${pctStr(pre)} to ${pctStr(post)}. This run cannot attribute that gap to the floor.`);
+    }
   }
   return {
     text: sentences.join(" "),
-    hero: pre != null && post != null ? { pre: Math.round(pre * 100), post: Math.round(post * 100) } : null,
-    trust: genuine === 0,
+    // hero pairs the counterfactual against the final verdict whenever we can, so the big
+    // number IS the floor's effect; `basis: "mixed"` marks the un-attributable legacy pair.
+    hero: pre != null && post != null
+      ? { pre: Math.round((noFloor ?? pre) * 100), post: Math.round(post * 100), basis: noFloor != null ? "floor" : "mixed" }
+      : null,
+    trust: genuine === 0 && !(floorLift != null && floorLift < 0),
   };
 }
 

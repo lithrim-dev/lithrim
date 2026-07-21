@@ -88,6 +88,9 @@ def _grounded_block(grounded) -> dict:
     persisted PipelineProvenance blob (``_enrich_run_blob``) — one shape, no read-side drift."""
     return {
         "verdict": grounded.verdict,
+        # READ-ATTRIB-1: the floor counterfactual rides the SAME serialization, so the pre/post
+        # band can attribute its delta without re-deriving anything read-side.
+        "verdict_no_floor": grounded.verdict_no_floor,
         "original_verdict": grounded.original_verdict,
         "active": grounded.active,
         "suppressed": [_suppressed_entry(s) for s in grounded.suppressed],

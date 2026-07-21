@@ -2259,6 +2259,9 @@ def _cohort_scorecard(
     floor_counts = {"cleared": 0, "enforced": 0, "inconclusive": 0}
     gold_defect_clears: list[dict] = []
     pre_match = post_match = pre_n = 0
+    # READ-ATTRIB-1: the counterfactual tally rides its own denominator — a cohort with any
+    # pre-READ-ATTRIB-1 row reports no counterfactual at all rather than a partial one.
+    nofloor_match = nofloor_n = 0
     for r in rows:
         cid = r.get("case_id")
         if not cid or r.get("error"):
@@ -2322,6 +2325,9 @@ def _cohort_scorecard(
                 pre_v = r.get("verdict_pre_floor") or r.get("verdict")
                 pre_match += _is_blocked_verdict(pre_v) == gold_blocked
                 post_match += _is_blocked_verdict(r.get("verdict")) == gold_blocked
+                if r.get("verdict_no_floor"):
+                    nofloor_n += 1
+                    nofloor_match += _is_blocked_verdict(r["verdict_no_floor"]) == gold_blocked
 
     return {
         "cases": cases,
@@ -2341,6 +2347,11 @@ def _cohort_scorecard(
             "gold_defect_clears": gold_defect_clears,
             "verdict_accuracy_pre_floor": round(pre_match / pre_n, 3) if pre_n else None,
             "verdict_accuracy_post_floor": round(post_match / pre_n, 3) if pre_n else None,
+            # READ-ATTRIB-1: post MINUS this is the floor's honest contribution; post minus
+            # PRE mixes in the council-rule-vs-rescore gap and must not be called a floor delta.
+            "verdict_accuracy_no_floor": (
+                round(nofloor_match / nofloor_n, 3) if nofloor_n == pre_n and pre_n else None
+            ),
         },
     }
 
@@ -2406,6 +2417,9 @@ def grade_cases_endpoint(
                     ],
                     # R3b: the pre-floor verdict + the floor events, from the same record.
                     "verdict_pre_floor": g.get("original_verdict") or comp.get("verdict"),
+                    # READ-ATTRIB-1: the floor counterfactual (same rescore rule as ``verdict``).
+                    # Absent on records graded before READ-ATTRIB-1 — stays None, never faked.
+                    "verdict_no_floor": g.get("verdict_no_floor"),
                     "floor": {
                         "cleared": [s.get("code") for s in g.get("suppressed") or []],
                         "enforced": [b.get("flag") for b in g.get("floor_blocks") or []

@@ -44,6 +44,7 @@ const SCORECARD = {
   floor: {
     cleared: 2, enforced: 8, inconclusive: 1, gold_defect_clears: [],
     verdict_accuracy_pre_floor: 0.39, verdict_accuracy_post_floor: 0.54,
+    verdict_accuracy_no_floor: 0.39,
   },
 };
 
@@ -52,14 +53,27 @@ describe("ScorecardCard — the read band", () => {
     render(<ScorecardCard {...SCORECARD} />);
     const band = screen.getByTestId("scorecard-read");
     expect(band.textContent).toMatch(/The read/i);
-    expect(band.textContent).toMatch(/The gap is the floor doing the work the judges can't\./);
+    expect(band.textContent).toMatch(/The floor lifted verdict accuracy from 39% to 54%\./);
     const hero = screen.getByTestId("scorecard-read-hero");
     expect(hero.textContent).toMatch(/39% → 54%/);
-    expect(hero.textContent).toMatch(/reviewers alone → with the floor/);
+    expect(hero.textContent).toMatch(/without the floor → with the floor/);
     expect(screen.getByTestId("scorecard-read-trust").textContent)
       .toBe("0 genuine defects ever cleared · deterministic on every run");
     // everything below stays: the existing floor tallies still render
     expect(screen.getByTestId("scorecard-floor")).toBeInTheDocument();
+    // READ-ATTRIB-1: the tally line carries all three numbers, so the floor's own delta is legible
+    expect(screen.getByTestId("scorecard-floor").textContent)
+      .toMatch(/reviewers alone 39% · without the floor 39% → with the floor 54%/);
+  });
+
+  it("READ-ATTRIB-1: a run with no counterfactual never labels its hero as the floor", () => {
+    const { verdict_accuracy_no_floor: _drop, ...legacy } = SCORECARD.floor;
+    render(<ScorecardCard {...SCORECARD} floor={legacy} />);
+    const hero = screen.getByTestId("scorecard-read-hero");
+    expect(hero.textContent).toMatch(/reviewers alone → after grounding/);
+    expect(hero.textContent).not.toMatch(/without the floor/);
+    expect(screen.getByTestId("scorecard-read").textContent)
+      .toMatch(/This run cannot attribute that gap to the floor\./);
   });
 
   it("HONESTY: a genuine-defect clear kills the trust line and says investigate", () => {
