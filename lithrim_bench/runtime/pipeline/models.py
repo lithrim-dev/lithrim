@@ -47,6 +47,11 @@ class JudgeVote(BaseModel):
     reason: str = ""
     model: str = ""  # LLM model id, e.g. "gpt-4.1" (NOT the role name)
     findings: list[str] = Field(default_factory=list)  # taxonomy codes
+    # VOTE-ERRORS: the judge seam's per-call failures (``Judge.forward`` ``errors``).
+    # Non-empty = this vote is a FAILED call (excluded from consensus by the frozen
+    # seam), not a considered verdict — it must never render as one. Empty on a
+    # normal vote and on pre-existing persisted docs.
+    errors: list[str] = Field(default_factory=list)
     # Sampling layer (judge_call): THIS reviewer's own score variance + completion count k
     # over its native-n samples. Surfaced so each axis's stability shows independently (the
     # reviewers are never aggregated). None when sampling wasn't recorded (k=1 / legacy).

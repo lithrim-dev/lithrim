@@ -59,12 +59,17 @@ def test_votes_fall_back_to_role_name_when_no_llm_model():
     assert _judge_votes_from_models(seam, model_lookup={})[0].model == "policy_judge"
 
 
-def test_explicit_model_lookup_still_wins():
-    """The prompt-council path passes a real ``{role: deployment}`` lookup — it still takes
-    precedence over the seam's own fields (byte-identical to before)."""
-    seam = [{"model": "faithfulness_judge", "llm_model": "azure/IGNORED",
-             "decision": "approve", "confidence": 1.0, "findings": []}]
-    votes = _judge_votes_from_models(seam, model_lookup={"faithfulness_judge": "azure/Llama-4-Maverick"})
+def test_model_lookup_is_the_fallback_when_the_seam_carries_no_binding():
+    """VOTE-ERRORS (b): the seam's ``llm_model`` is the LM actually bound at build_trio time,
+    so it wins over the prompt-council's roster/config lookup when present; the lookup applies
+    only to seams that carry no binding (the frozen prompt-council rows never do, so that path
+    is byte-identical)."""
+    bound = [{"model": "faithfulness_judge", "llm_model": "azure/ACTUALLY-RAN",
+              "decision": "approve", "confidence": 1.0, "findings": []}]
+    votes = _judge_votes_from_models(bound, model_lookup={"faithfulness_judge": "azure/Llama-4-Maverick"})
+    assert votes[0].model == "azure/ACTUALLY-RAN"
+    unbound = [{"model": "faithfulness_judge", "decision": "approve", "confidence": 1.0, "findings": []}]
+    votes = _judge_votes_from_models(unbound, model_lookup={"faithfulness_judge": "azure/Llama-4-Maverick"})
     assert votes[0].model == "azure/Llama-4-Maverick"
 
 

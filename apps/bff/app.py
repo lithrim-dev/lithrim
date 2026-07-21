@@ -1463,6 +1463,9 @@ def _council_view(record: dict) -> dict:
             "k": v.get("k"),
             # R2c: the raw per-sample decision scores (the "3B/2P" split derives from this).
             "scores_raw": v.get("scores_raw"),
+            # VOTE-ERRORS: non-empty = this judge's call FAILED (excluded from consensus),
+            # not a considered vote. [] on clean votes and pre-existing blobs.
+            "errors": v.get("errors") or [],
         }
         for v in (semantic.get("judge_votes") or [])
     ]
@@ -4420,6 +4423,7 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
             "reasoning": v.get("reason"),
             "findings": v.get("findings") or [],
             "evidence": semantic.get("evidence") or [],
+            "errors": v.get("errors") or [],
         }
         for v in (semantic.get("judge_votes") or [])
     ]

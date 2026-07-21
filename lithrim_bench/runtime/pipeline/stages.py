@@ -639,11 +639,15 @@ def _judge_votes_from_models(
             # R2c: the self-report channel — None when unsampled (no score_mean), never coerced.
             confidence_self=float(raw_self) if isinstance(raw_self, (int, float)) else None,
             reason=m.get("summary") or m.get("rationale") or _synth_reason(decision, finding_codes),
-            # The real deployment, in priority: the prompt-council's role→model lookup;
-            # then the authored seam's own ``llm_model`` (VOTE-MODEL-1 — the LM the judge
-            # graded on); then the role name (S-BS-66 back-compat — never blank).
-            model=model_lookup.get(role) or m.get("llm_model") or m.get("model") or "",
+            # The real deployment, in priority: the authored seam's own ``llm_model``
+            # (VOTE-MODEL-1 / VOTE-ERRORS — the LM actually bound at build_trio time);
+            # then the prompt-council's role→model lookup (config metadata, for seams
+            # that carry no binding); then the role name (S-BS-66 back-compat — never blank).
+            model=m.get("llm_model") or model_lookup.get(role) or m.get("model") or "",
             findings=finding_codes,
+            # VOTE-ERRORS: the seam's per-call failures ride the persisted vote so an
+            # errored judge is never rendered as a considered vote. [] when clean/legacy.
+            errors=[str(e) for e in (m.get("errors") or [])],
             variance=float(raw_var) if isinstance(raw_var, (int, float)) else None,
             k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
             # R2c: the per-sample decision scores — the readable K-split. List-or-None,
