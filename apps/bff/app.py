@@ -255,6 +255,17 @@ def _resolve_run_backend(req: RunEvalRequest) -> tuple[bool, bool]:
     return (False, False)
 
 
+def _grade_spends(*, live: bool, in_process: bool) -> bool:
+    """Does this grade actually call models (and therefore cost money)?
+
+    CACHE-TRAP-2: NOT the same question as ``live``. In the pair above, ``live`` means "route
+    to a :8002 HTTP deployment" — on the OSS default it is False even for a paid run, because
+    the bundled council runs ``in_process``. Keying the cache defeat and the replay accusation
+    off ``live`` therefore left the product's own Run-live button ungated and unaccusable.
+    Only the replay path ``(False, False)`` is free, and it stays byte-identical."""
+    return live or in_process
+
+
 def get_collections_db() -> Path:
     """The doc-shim DB run-provenance blobs persist to / read from (PIPELINE_RUNS) —
     the active workspace's. Override in tests so the run-audit read is hermetic."""
@@ -1065,10 +1076,13 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
-    if live:
-        # CACHE-TRAP-1: a LIVE grade must actually re-sample — the DSPy LM disk cache otherwise
+    if _grade_spends(live=live, in_process=in_process):
+        # CACHE-TRAP-1: a PAID grade must actually re-sample — the DSPy LM disk cache otherwise
         # replays an identical re-run byte-for-byte at tokens=0. Scoped to THIS grade process;
         # replay/$0 paths inherit the ambient default unchanged.
+        # CACHE-TRAP-2: this is THE lever for a pack-bound workspace. Each grade gets a fresh
+        # subprocess (cold memory cache) but /root/.dspy_cache is shared with every prior grade,
+        # so without this the second run of a corpus replays the first at zero tokens.
         env["LITHRIM_JUDGE_CACHE"] = "0"
     cmd = [sys.executable, str(_RUN_EVAL_SCRIPT), "--agent", agent_name,
            "--config-db", str(config_db), "--emit-json"]
@@ -1290,6 +1304,9 @@ def _grade_case(
                 "readiness": readiness_report.to_dict(),
             },
         )
+    # CACHE-TRAP-2: does this grade call models? Resolved ONCE so the cache gate, its restore,
+    # and the replay accusation can never disagree about whether this run paid.
+    _spends = _grade_spends(live=live, in_process=in_process)
     # PACK-WS: a workspace pinning a NON-default pack (or an external packs_dir) grades in a
     # SUBPROCESS bound to that pack — the frozen council binds its pack at import, so a live BFF
     # can't rebind it per-workspace. REPLAY is included: its ground() needs the pack's grounding
@@ -1306,11 +1323,12 @@ def _grade_case(
         except SystemExit as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     else:
-        # CACHE-TRAP-1 (in-process twin of the subprocess env): a LIVE grade disables the DSPy
+        # CACHE-TRAP-1 (in-process twin of the subprocess env): a PAID grade disables the DSPy
         # LM cache for the duration of this call, restored after — the BFF process env stays
-        # clean and replay/$0 grades are untouched.
+        # clean and replay/$0 grades are untouched. The gate and its restore below read the
+        # SAME predicate; a mismatch would leak the disabled cache into later $0 grades.
         _prior_cache = os.environ.get("LITHRIM_JUDGE_CACHE")
-        if live:
+        if _spends:
             os.environ["LITHRIM_JUDGE_CACHE"] = "0"
         try:
             record = run_eval.run(
@@ -1346,13 +1364,13 @@ def _grade_case(
                 ),
             ) from exc
         finally:
-            if live:
+            if _spends:
                 if _prior_cache is None:
                     os.environ.pop("LITHRIM_JUDGE_CACHE", None)
                 else:
                     os.environ["LITHRIM_JUDGE_CACHE"] = _prior_cache
                 # CACHE-TRAP-2: build_judge_lm turned dspy's process-global caches OFF for this
-                # live grade. Restore them, or every later $0/replay grade in this process pays
+                # paid grade. Restore them, or every later $0/replay grade in this process pays
                 # full price for a cache it is entitled to use.
                 with contextlib.suppress(Exception):  # a restore failure must not fail the grade
                     from lithrim_bench.harness.judge_cache import set_global_judge_cache
@@ -1367,9 +1385,9 @@ def _grade_case(
         # honesty: every grade labels its config, so a silently-inert floor is visible in the record
         record["readiness"] = readiness_report.to_dict()
     record["council"] = _council_view(record)
-    # CACHE-TRAP-2: a live grade that spent nothing is a replay, not a measurement — it must say
+    # CACHE-TRAP-2: a paid grade that spent nothing is a replay, not a measurement — it must say
     # so on the record instead of returning as an ordinary success.
-    record["cache_replay"] = _cache_replay_flag(record, live=live)
+    record["cache_replay"] = _cache_replay_flag(record, spends=_spends)
     # S-BS-56: surface the run's pipeline_run_id so the caller can address the run
     # (run-history + the run→audit leg). It lives on the graded PipelineResult's
     # provenance (replay carries the baseline's id; in_process/live carry a fresh id).
@@ -1382,18 +1400,20 @@ def _pipeline_run_id(record: dict) -> str | None:
     return ((record.get("result") or {}).get("provenance") or {}).get("pipeline_run_id")
 
 
-def _cache_replay_flag(record: dict, *, live: bool) -> bool:
-    """CACHE-TRAP-2: did a grade asked to run LIVE actually spend nothing?
+def _cache_replay_flag(record: dict, *, spends: bool) -> bool:
+    """CACHE-TRAP-2: did a grade that should have called models actually spend nothing?
 
-    A live grade that made zero model calls is a cache replay, not a measurement, and it used to
+    A paid grade that made zero model calls is a cache replay, not a measurement, and it used to
     return as an ordinary success — a full 14-case arm was captured that way. Surfacing it is the
     load-bearing half of the fix: if the cache bypass ever regresses, a replayed number still
     cannot be quoted unknowingly.
 
-    Only LIVE is accused. A $0/replay grade costing nothing is the normal path, and an ABSENT
-    spend record is unknown rather than proof, so neither is flagged (never fabricate the charge).
+    ``spends`` is :func:`_grade_spends`, NOT ``live`` — keying this off ``live`` is what left the
+    OSS default (``in_process``) unaccusable through v0.1.11. Only a paying path is accused: a
+    $0/replay grade costing nothing is the normal path, and an ABSENT spend record is unknown
+    rather than proof, so neither is flagged (never fabricate the charge).
     """
-    if not live:
+    if not spends:
         return False
     cost = ((record.get("result") or {}).get("provenance") or {}).get("cost_tokens")
     if not isinstance(cost, dict) or cost.get("total") is None:
