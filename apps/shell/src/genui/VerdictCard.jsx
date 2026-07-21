@@ -6,7 +6,7 @@
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import ClinicianVerdict from "./ClinicianVerdict.jsx";
-import { verdictLabel, roleLabel, flagLabel } from "./copy.js";
+import { verdictLabel, roleLabel, flagLabel, voteReason } from "./copy.js";
 import { caseRead } from "./reportRead.js";
 
 // verdict -> tone (badge class + header icon + icon color). Accepts PASS/REJECT or
@@ -197,16 +197,22 @@ export default function VerdictCard({
               // R2c dual-confidence: the reviewer's own self-reported decision aggregate,
               // shown alongside the logprob confidence (never overwriting it). Null → no chip.
               const selfConf = typeof v.confidence_self === "number" ? v.confidence_self : null;
+              const why = voteReason(v);
+              const errs = Array.isArray(v.errors) ? v.errors.filter(Boolean) : [];
               return (
-                <div key={v.role || i} style={{ marginBottom: v.reason ? 7 : 0 }}>
+                <div key={v.role || i} style={{ marginBottom: why || errs.length ? 7 : 0 }}>
                   <div className="ivote">
                     <span className="ivote-av" style={{ background: c }}>{roleLabel(v.role).charAt(0).toUpperCase()}</span>
                     <span className="ivote-role">{roleLabel(v.role)}</span>
-                    <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>
-                    {conf != null && <span className="ivote-conf" title="calibrated confidence (from the model's logprobs)">{conf.toFixed(2)}</span>}
+                    {/* a judge that ERRORED did not consider the case — never present its vote
+                        (or its confidence numbers) as cast. */}
+                    {errs.length > 0
+                      ? <span className="tag fail">errored</span>
+                      : <span className="ivote-vote" style={{ color: c }}>{verdictLabel(v.vote)}</span>}
+                    {errs.length === 0 && conf != null && <span className="ivote-conf" title="calibrated confidence (from the model's logprobs)">{conf.toFixed(2)}</span>}
                     {/* R2c: the reviewer's own self-reported confidence, side-by-side with the
                         logprob number above — the two channels no longer collapse into one. */}
-                    {selfConf != null && (
+                    {errs.length === 0 && selfConf != null && (
                       <span className="ivote-conf" data-testid={`vote-selfconf-${v.role || i}`}
                         title="self-reported confidence (the reviewer's sampled decision aggregate)"
                         style={{ color: "var(--muted)" }}>
@@ -239,8 +245,11 @@ export default function VerdictCard({
                       </span>
                     )}
                   </div>
-                  {v.reason && (
-                    <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.45, margin: "1px 0 0 26px" }}>{v.reason}</div>
+                  {errs.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: "var(--accent)", lineHeight: 1.45, margin: "1px 0 0 26px" }}>{errs[0]}</div>
+                  )}
+                  {why && (
+                    <div title={why} style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.45, margin: "1px 0 0 26px" }}>{why}</div>
                   )}
                 </div>
               );

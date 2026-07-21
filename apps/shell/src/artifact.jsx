@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
 import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
-import { verdictLabel, roleLabel, flagLabel, friendlyError } from "./genui/copy.js";
+import { verdictLabel, roleLabel, flagLabel, friendlyError, voteReason } from "./genui/copy.js";
 import { caseRead, votesRead } from "./genui/reportRead.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
@@ -363,6 +363,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
   // Blindness) is VISIBLE, not inferred.
   const runId = runResult?.pipeline_run_id;
   const [lensByRole, setLensByRole] = useState({});
+  const [whyOpen, setWhyOpen] = useState({});
   useEffect(() => {
     if (!runId) { setLensByRole({}); return; }
     let live = true;
@@ -440,8 +441,12 @@ function JudgeTab({ runStatus, runResult, runError }) {
         const conf = typeof v.confidence === "number" ? v.confidence : null;
         const lens = lensByRole[v.judge_role] || [];
         const raised = lens.filter((c) => c.raised);
+        const key = v.judge_role || String(i);
+        const why = voteReason(v);
+        const errs = Array.isArray(v.errors) ? v.errors.filter(Boolean) : [];
+        const open = !!whyOpen[key];
         return (
-          <div className="judge" key={v.judge_role || i}>
+          <div className="judge" key={key}>
             <div className="judge-top">
               <div className="judge-av" style={{ background: color }}>
                 {(v.judge_role || "?").charAt(0).toUpperCase()}
@@ -452,7 +457,10 @@ function JudgeTab({ runStatus, runResult, runError }) {
               </div>
               <div className="judge-w">
                 <div className="k">vote</div>
-                <div className="v" style={{ color }}>{verdictLabel(v.vote)}</div>
+                {/* a judge that ERRORED did not consider the case — never present its vote as cast. */}
+                {errs.length > 0
+                  ? <div className="v"><span className="tag fail">errored</span></div>
+                  : <div className="v" style={{ color }}>{verdictLabel(v.vote)}</div>}
               </div>
             </div>
             <div className="vbar">
@@ -479,8 +487,15 @@ function JudgeTab({ runStatus, runResult, runError }) {
                   score {v.scores_raw[0].toFixed(2)}
                 </span>
               )}
-              {v.reason && <span style={{ color: "var(--muted)" }}>{v.reason.slice(0, 80)}{v.reason.length > 80 ? "…" : ""}</span>}
+              {why && (
+                <span title={why} onClick={() => setWhyOpen((m) => ({ ...m, [key]: !m[key] }))} style={{ color: "var(--muted)", cursor: "pointer" }}>
+                  {open ? why : why.slice(0, 80) + (why.length > 80 ? "…" : "")}
+                </span>
+              )}
             </div>
+            {errs.length > 0 && (
+              <div style={{ fontSize: 11.5, color: "var(--accent)", marginTop: 4 }}>{errs[0]}</div>
+            )}
             {lens.length > 0 && (
               <div className="judge-lens">
                 <span className="jl-k">Checks for</span>

@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { getModelCatalog, bindRole, getCouncilRoster, setCouncilRoster } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { NO_LOGPROBS } from "./ProvidersSection.jsx";
-import { roleLabel, friendlyError } from "./copy.js";
+import { roleLabel, roleLabelsFor, friendlyError } from "./copy.js";
 
 // R2a fallback ONLY: the rows derive from the ACTIVE workspace roster (getCouncilRoster's
 // selectable — JudgeBuilder-authored roles included); the v2 trio renders only until/unless
@@ -122,6 +122,9 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
     return merged.length ? merged : FALLBACK_JUDGE_ROLES;
   })();
   const allRoles = [...judgeRoles, "chat_assistant"];
+  // DUP-ROLE-LABEL-1: colliding pretty labels (generalist_judge vs generalist_reviewer) render
+  // with their role id appended so every picker row stays distinguishable.
+  const rowLabel = roleLabelsFor(allRoles);
 
   // R2b: toggle one reviewer in the custom subset (kept in selectable order, deterministic).
   const toggleRosterRole = (role) => {
@@ -250,7 +253,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
             {reviewerMode === "single" && (
               <select data-testid="reviewer-single-role" value={singleRole}
                 onChange={(e) => applySingleRole(e.target.value)} aria-label="single reviewer" style={inputStyle}>
-                {(selectable.length ? selectable : panel).map((r) => (<option key={r} value={r}>{roleLabel(r)}</option>))}
+                {(selectable.length ? selectable : panel).map((r) => (<option key={r} value={r}>{rowLabel[r] || roleLabel(r)}</option>))}
               </select>
             )}
           </div>
@@ -262,7 +265,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
                 <label key={r} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink)" }}>
                   <input type="checkbox" data-testid={`roster-check-${r}`}
                     checked={customRoster.includes(r)} onChange={() => toggleRosterRole(r)} />
-                  {roleLabel(r)}
+                  {rowLabel[r] || roleLabel(r)}
                 </label>
               ))}
             </div>
@@ -312,7 +315,7 @@ export default function AssignModelsSection({ connected = [], bindings = {}, onB
             style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={ROW_GRID}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)", fontFamily: "var(--mono)" }}>
-                {roleLabel(role)}
+                {rowLabel[role] || roleLabel(role)}
                 {isChat && <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>required</span>}
               </span>
               {pickerControls(role, "role-bind")}

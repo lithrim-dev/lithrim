@@ -145,6 +145,27 @@ describe("VerdictCard — fully-interactive inline result", () => {
   });
 });
 
+// The inline votes normalize reason || explanation the same way the pane does, and an errored
+// judge (non-empty vote.errors) reads as ERRORED (red tag + first error line), never as a
+// considered vote.
+describe("VerdictCard — reason/explanation normalization + errored votes", () => {
+  it("renders a reward-model `explanation` where `reason` is absent", () => {
+    const votes = [{ role: "reward_judge", vote: "WARN", confidence: 0.5, explanation: "reward model scored the note weakly grounded" }];
+    const { getByText } = render(<VerdictCard verdict="approve" votes={votes} runId="r" />);
+    getByText(/reward model scored the note weakly grounded/);
+  });
+
+  it("a vote with `errors` renders the errored tag + first error line instead of a considered vote", () => {
+    const votes = [{ role: "risk_judge", vote: "WARN", errors: ["JudgeTimeout: no response", "second line"] }];
+    const { container, getByText, queryByText } = render(<VerdictCard verdict="approve" votes={votes} runId="r" />);
+    const chip = getByText("errored");
+    expect(chip.className).toMatch(/\bfail\b/);
+    getByText(/JudgeTimeout: no response/); // the first error line
+    expect(queryByText("Needs a look")).toBeNull(); // the WARN is not presented as considered
+    expect(container.textContent).not.toContain("second line"); // only the FIRST line
+  });
+});
+
 // INLINE-IMPACT-1: the card must carry its own WHY — the approve reads as a REASONED verdict
 // (each judge's reason inline), and the BLOCK shows WHO caught it (a deterministic floor rule the
 // human authored), so the demo's thesis is on screen, not only in the voiceover.
