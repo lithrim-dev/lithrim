@@ -65,6 +65,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
+from urllib.parse import urlsplit
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -5944,6 +5945,30 @@ _PROVIDER_ENDPOINT_VAR = {
     "openai_compatible": "OPENAI_COMPATIBLE_API_BASE",
 }
 
+
+def _provider_slot_var(base_var: str, endpoint: str | None) -> str:
+    """WS-CRED-1 Defect A: the ``(provider, endpoint)``-scoped twin of a provider-level slot.
+
+    ``openai_compatible`` is a generic OpenAI-shaped shim fronting arbitrarily many distinct
+    services, but ``_PROVIDER_SECRET_VAR`` keys its stored secret on the provider id ALONE. Two
+    services behind that one slot means the second connect OVERWRITES the first's credential in
+    place — and ``.provider_env`` is write-only with no history, so the value is gone. Caught
+    2026-07-22: connecting Azure AI Foundry destroyed a Featherless key, presenting downstream as
+    HTTP 401 "You must be signed in", i.e. indistinguishable from a provider outage.
+
+    The scoped name carries a readable host slug (so a human can read ``.provider_env``) plus a
+    hash of the FULL normalised endpoint (so two paths on one host cannot collide). Must be
+    stable across processes — a name derived from anything per-run would lose the credential on
+    restart. Endpoint-less providers (one canonical service) return the base var unchanged.
+    """
+    norm = (endpoint or "").strip().rstrip("/").lower()
+    if not norm:
+        return base_var
+    host = urlsplit(norm).netloc or norm
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", host).strip("_").upper()[:32]
+    digest = hashlib.sha256(norm.encode()).hexdigest()[:8].upper()
+    return f"{base_var}__{slug}_{digest}"
+
 # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the GENERIC per-role binding (mirrors
 # judges_dspy._ROLE_PROVIDER_KEYS — kept local so app.py stays council-import-free). When a grading
 # config carries a `role`, ``_provider_env_vars`` writes these four vars so ``build_judge_lm``'s
@@ -6116,6 +6141,10 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["LITHRIM_LLM_PROVIDER"] = "azure"
             env["AZURE_OPENAI_API_KEY"] = req.api_key
             env["AZURE_OPENAI_ENDPOINT"] = req.endpoint
+            # WS-CRED-1 Defect A: azure carries an endpoint too, so two Azure resources behind one
+            # slot have the same credential-destruction exposure as the openai_compatible shim.
+            env[_provider_slot_var("AZURE_OPENAI_API_KEY", req.endpoint)] = req.api_key
+            env[_provider_slot_var("AZURE_OPENAI_ENDPOINT", req.endpoint)] = req.endpoint
             if req.api_version:  # CONNECT-AI-AZURE-1: additive — else the settings default stands
                 env["AZURE_OPENAI_API_VERSION"] = req.api_version.strip()
             if req.model:  # the Azure DEPLOYMENT name (e.g. policy_judge → your Mistral deployment)
@@ -6138,10 +6167,19 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                 raise ValueError(
                     "provider='openai_compatible' requires `endpoint` (the OpenAI-compatible api_base)"
                 )
-            env[_PROVIDER_SECRET_VAR[req.provider]] = req.api_key  # the GLOBAL stored key (reused at bind)
+            secret_var = _PROVIDER_SECRET_VAR[req.provider]
             endpoint_var = _PROVIDER_ENDPOINT_VAR.get(req.provider)
+            # The bare vars stay the "most recently connected" default, so endpoint-less lookups
+            # and _connected_providers() are byte-identical to before.
+            env[secret_var] = req.api_key  # the GLOBAL stored key (reused at bind)
             if endpoint_var and req.endpoint:
                 env[endpoint_var] = req.endpoint
+            # WS-CRED-1 Defect A: ALSO write the (provider, endpoint)-scoped slots. A connect for a
+            # DIFFERENT endpoint writes different names, so it can no longer destroy this one's
+            # credential — only a re-connect of the SAME endpoint overwrites it (rotation).
+            if endpoint_var and req.endpoint:
+                env[_provider_slot_var(secret_var, req.endpoint)] = req.api_key
+                env[_provider_slot_var(endpoint_var, req.endpoint)] = req.endpoint
         else:
             raise ValueError(
                 f"provider={req.provider!r} is not a grading provider "
@@ -7079,21 +7117,38 @@ class RoleBindRequest(BaseModel):
     api_version: str | None = None
 
 
-def _stored_provider_key(provider: str) -> str | None:
-    """Read a provider's already-stored GLOBAL key back from .provider_env (the bind reuses it).
-    None ⇒ the provider is not connected. The key stays on-disk — never returned to a caller."""
+def _stored_provider_key(provider: str, endpoint: str | None = None) -> str | None:
+    """Read a provider's already-stored key back from .provider_env (the bind reuses it).
+    None ⇒ the provider is not connected. The key stays on-disk — never returned to a caller.
+
+    WS-CRED-1: with an ``endpoint``, prefer that endpoint's OWN slot, so two services behind
+    ``openai_compatible`` resolve to their own credentials. Falls back to the bare var, which
+    both keeps endpoint-less callers byte-identical and lets an install predating scoping (only
+    the bare var on disk) still resolve rather than reporting the provider unconnected.
+    """
     var = _PROVIDER_SECRET_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_provider_env_path()).get(var) or None
+    env = _parse_env_file(_provider_env_path())
+    if endpoint:
+        scoped = env.get(_provider_slot_var(var, endpoint))
+        if scoped:
+            return scoped
+    return env.get(var) or None
 
 
-def _stored_provider_endpoint(provider: str) -> str | None:
-    """Read a provider's already-stored endpoint (azure / openai_compatible api_base) for reuse."""
+def _stored_provider_endpoint(provider: str, endpoint: str | None = None) -> str | None:
+    """Read a provider's already-stored endpoint (azure / openai_compatible api_base) for reuse.
+    WS-CRED-1: same scoped-then-bare resolution as :func:`_stored_provider_key`."""
     var = _PROVIDER_ENDPOINT_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_provider_env_path()).get(var) or None
+    env = _parse_env_file(_provider_env_path())
+    if endpoint:
+        scoped = env.get(_provider_slot_var(var, endpoint))
+        if scoped:
+            return scoped
+    return env.get(var) or None
 
 
 def _connected_providers() -> list[str]:
@@ -7140,15 +7195,18 @@ def roles_bind_endpoint(
     LITHRIM_CHAT_* contract (anthropic ALSO writes ANTHROPIC_API_KEY for the SDK path). 422 if the
     provider has no stored key / unknown role / azure|openai_compatible without a stored endpoint / a
     failing probe. The response is non-secret ({ok, role, provider, model}) — NO key."""
-    api_key = _stored_provider_key(req.provider)
+    # NEW-G1: a PER-ROLE endpoint on the request wins over the provider's stored global (so two
+    # judges on the same provider can hit different deployments); absent → the stored global.
+    # WS-CRED-1: resolved BEFORE the key, because the key is now scoped per endpoint — reading it
+    # first would reuse whatever endpoint was connected LAST, which is how a role bound to a
+    # non-default endpoint silently got another service's credential and 401'd under its own label.
+    endpoint = (req.endpoint or "").strip() or _stored_provider_endpoint(req.provider)
+    api_key = _stored_provider_key(req.provider, endpoint=endpoint)
     if not api_key:
         raise HTTPException(
             status_code=422,
             detail=f"provider {req.provider!r} is not connected (connect it in Providers first)",
         )
-    # NEW-G1: a PER-ROLE endpoint on the request wins over the provider's stored global (so two
-    # judges on the same provider can hit different deployments); absent → the stored global.
-    endpoint = (req.endpoint or "").strip() or _stored_provider_endpoint(req.provider)
     if req.provider in ("azure", "openai_compatible") and not endpoint:
         raise HTTPException(
             status_code=422,
