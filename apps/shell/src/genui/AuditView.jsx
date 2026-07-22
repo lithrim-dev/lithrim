@@ -16,7 +16,7 @@ import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import RunLineage from "./RunLineage.jsx";
 import { Spinner } from "../components/Spinner.jsx";
-import { roleLabel, verdictLabel, flagLabel, friendlyError, gradeTag } from "./copy.js";
+import { reviewerLabel, roleLabel, verdictLabel, flagLabel, friendlyError, gradeTag } from "./copy.js";
 
 // "{action} {type}:{id}" -> a plain sentence, e.g. "Edited the Faithfulness reviewer".
 function auditSentence(rec) {
@@ -233,7 +233,7 @@ export default function AuditView({ runId: runIdProp = "", caseId = "" }) {
               )}
               {(run.judges || []).map((j, i) => (
                 <div key={i} className="mt-1 text-[10.5px] text-muted-foreground">
-                  <span className="text-foreground">{roleLabel(j.judge_role)}</span> {verdictLabel(j.vote)}
+                  <span className="text-foreground">{reviewerLabel(j)}</span> {verdictLabel(j.vote)}
                   {j.reasoning ? <> — {j.reasoning}</> : null}
                 </div>
               ))}

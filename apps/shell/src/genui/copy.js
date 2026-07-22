@@ -29,6 +29,16 @@ export function roleLabel(role) {
   return /_judge$/.test(r) ? `${base} reviewer` : base;
 }
 
+// JUDGE-LABEL-1: the label for a SERVED VOTE. An SME-authored `display_name` wins; absent, the
+// id is prettified exactly as before. The derived label names a MODEL for historical ids like
+// `openbio_reviewer`, which is wrong once a workspace can bind any model to any seat — but the
+// id stays load-bearing (tier ownership + lens authority key on it), so only the label moves.
+export function reviewerLabel(vote) {
+  const v = vote || {};
+  const authored = String(v.display_name || "").trim();
+  return authored || roleLabel(v.judge_role || v.role);
+}
+
 // Two DIFFERENT role ids can prettify to the SAME label (generalist_judge and
 // generalist_reviewer both read "Generalist reviewer") — a picker rendering both must stay
 // distinguishable, so colliding labels carry their role id. Non-colliding labels unchanged.

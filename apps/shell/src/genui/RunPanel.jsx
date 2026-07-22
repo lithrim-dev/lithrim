@@ -20,7 +20,7 @@ import { CostModal } from "../components/CostModal.jsx";
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import RunLineage from "./RunLineage.jsx";
-import { verdictLabel, roleLabel, gradeTag, friendlyError } from "./copy.js";
+import { reviewerLabel, verdictLabel, roleLabel, gradeTag, friendlyError } from "./copy.js";
 
 const MODES = [
   { key: "replay", label: "Replay", cost: "$0", paid: false },
@@ -187,7 +187,7 @@ export default function RunPanel({ agent = "ws0_default", onRan }) {
               {votes.map((v, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs" data-testid="council-vote">
                   <span style={{ color: voteTone(v.vote), fontWeight: 600 }}>{verdictLabel(v.vote)}</span>
-                  <span className="text-foreground">{roleLabel(v.judge_role)}</span>
+                  <span className="text-foreground">{reviewerLabel(v)}</span>
                   <span className="text-muted-foreground">
                     {v.confidence == null ? "how sure —" : `how sure ${v.confidence}`}
                     {v.findings?.length ? ` · ${v.findings.join(", ")}` : ""}

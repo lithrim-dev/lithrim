@@ -6,7 +6,7 @@
 import { Icon } from "../icons.jsx";
 import { registerTool } from "./registry.js";
 import ClinicianVerdict from "./ClinicianVerdict.jsx";
-import { verdictLabel, roleLabel, flagLabel, voteReason } from "./copy.js";
+import { reviewerLabel, verdictLabel, roleLabel, flagLabel, voteReason } from "./copy.js";
 import { caseRead } from "./reportRead.js";
 
 // verdict -> tone (badge class + header icon + icon color). Accepts PASS/REJECT or
@@ -202,7 +202,7 @@ export default function VerdictCard({
               return (
                 <div key={v.role || i} style={{ marginBottom: why || errs.length ? 7 : 0 }}>
                   <div className="ivote">
-                    <span className="ivote-av" style={{ background: c }}>{roleLabel(v.role).charAt(0).toUpperCase()}</span>
+                    <span className="ivote-av" style={{ background: c }}>{reviewerLabel(v).charAt(0).toUpperCase()}</span>
                     <span className="ivote-role">{roleLabel(v.role)}</span>
                     {/* a judge that ERRORED did not consider the case — never present its vote
                         (or its confidence numbers) as cast. */}

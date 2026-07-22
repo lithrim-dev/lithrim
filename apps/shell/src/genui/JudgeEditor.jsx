@@ -94,6 +94,8 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [judge, setJudge] = useState(null); // the loaded summary (available_flags, questions, …)
   const [assigned, setAssigned] = useState([]); // assigned flag codes
   const [model, setModel] = useState("");
+  // JUDGE-LABEL-1: the seat's display label. Blank = the UI derives it from the role id, as before.
+  const [displayName, setDisplayName] = useState("");
   // WS-JUDGE-BIND: the WORKSPACE-scoped provider binding beside the model override. Blank provider
   // = this workspace binds nothing → the global Providers assignment still applies (unchanged).
   const [provider, setProvider] = useState("");
@@ -128,6 +130,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         setJudge(j);
         setAssigned(j.assigned_flags || []);
         setModel(j.model || "");
+        setDisplayName(j.display_name || "");
         setProvider(j.provider || ""); setEndpoint(j.endpoint || ""); setApiVersion(j.api_version || "");
         setKSamples(j.k != null ? String(j.k) : "");
         setTemperature(j.temperature != null ? String(j.temperature) : "");
@@ -206,6 +209,8 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         ...(kSamples !== "" ? { k: Number(kSamples) } : {}),
         ...(temperature !== "" ? { temperature: Number(temperature) } : {}),
         criterion,
+        // JUDGE-LABEL-1: always sent, so clearing it restores the derived label.
+        display_name: displayName,
         // WS-JUDGE-BIND: always sent, so CLEARING the provider field actually unbinds this
         // workspace (a conditional spread could only ever add a binding, never remove one).
         provider, endpoint, api_version: apiVersion,
@@ -252,6 +257,14 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="je-display-name">Display name (optional)</Label>
+          <Input id="je-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={`leave blank to use "${judge.role}"`} />
+          <p className="text-[11px] text-muted-foreground">
+            What this reviewer is called on cards and reports. The underlying role id never changes.
+          </p>
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="je-model">Model override (optional)</Label>
           <Input id="je-model" value={model} onChange={(e) => setModel(e.target.value)}

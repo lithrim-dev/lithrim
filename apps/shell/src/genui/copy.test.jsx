@@ -2,7 +2,7 @@
    engine codes (no "BLOCK", no "faithfulness_judge", no "MEDICATION_NOT_IN_TRANSCRIPT"). */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { verdictLabel, roleLabel, roleLabelsFor, flagLabel, friendlyError, voteReason } from "./copy.js";
+import { verdictLabel, roleLabel, roleLabelsFor, reviewerLabel, flagLabel, friendlyError, voteReason } from "./copy.js";
 import VerdictCard from "./VerdictCard.jsx";
 
 describe("UX-COPY-1 — label helpers", () => {
@@ -84,5 +84,27 @@ describe("UX-COPY-1 — VerdictCard renders plain language", () => {
     expect(screen.queryByText("BLOCK")).toBeNull();
     expect(screen.queryByText("faithfulness_judge")).toBeNull();
     expect(screen.queryByText("MEDICATION_NOT_IN_TRANSCRIPT")).toBeNull();
+  });
+});
+
+describe("reviewerLabel (JUDGE-LABEL-1)", () => {
+  it("prefers an SME-authored display name over the derived one", () => {
+    expect(reviewerLabel({ judge_role: "openbio_reviewer", display_name: "Coverage reviewer" }))
+      .toBe("Coverage reviewer");
+  });
+
+  it("falls back to the derived label when none is authored", () => {
+    expect(reviewerLabel({ judge_role: "faithfulness_judge" })).toBe("Faithfulness reviewer");
+    expect(reviewerLabel({ judge_role: "risk_judge", display_name: "" })).toBe("Risk reviewer");
+    expect(reviewerLabel({ judge_role: "risk_judge", display_name: "   " })).toBe("Risk reviewer");
+  });
+
+  it("reads the role off either key shape the vote surfaces use", () => {
+    expect(reviewerLabel({ role: "policy_judge" })).toBe("Policy reviewer");
+  });
+
+  it("never returns a raw id and survives a malformed vote", () => {
+    expect(reviewerLabel({})).toBe("Reviewer");
+    expect(reviewerLabel(null)).toBe("Reviewer");
   });
 });

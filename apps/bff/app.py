@@ -1397,7 +1397,7 @@ def _grade_case(
     if readiness_report is not None:
         # honesty: every grade labels its config, so a silently-inert floor is visible in the record
         record["readiness"] = readiness_report.to_dict()
-    record["council"] = _council_view(record)
+    record["council"] = _council_view(record, _judge_display_names(db_path))
     # CACHE-TRAP-2: a paid grade that spent nothing is a replay, not a measurement — it must say
     # so on the record instead of returning as an ordinary success.
     record["cache_replay"] = _cache_replay_flag(record, spends=_spends)
@@ -1497,7 +1497,26 @@ def _floor_exception(vote_outcome: str | None, grounded: dict) -> tuple[str | No
     return _VERDICT_TO_OUTCOME[gv], len(suppressed)
 
 
-def _council_view(record: dict) -> dict:
+def _judge_display_names(db_path: Path | None = None) -> dict[str, str]:
+    """JUDGE-LABEL-1: ``role -> authored seat label`` for the active (or given) workspace.
+
+    Resolved at SERVE time, not stored on the record, so renaming a seat relabels every past
+    grade too. Never raises: a label lookup must not be able to fail a grade or a report read.
+    """
+    try:
+        from lithrim_bench.harness.judges import list_judges
+
+        path = db_path or workspace.get_active_workspace().config_db
+        return {
+            role: jc.display_name
+            for role, jc in list_judges(db_path=path).items()
+            if getattr(jc, "display_name", "")
+        }
+    except Exception:  # noqa: BLE001 — a cosmetic label is never worth failing a read over
+        return {}
+
+
+def _council_view(record: dict, display_names: dict[str, str] | None = None) -> dict:
     """Project the REALIZED per-judge council votes for the JudgeTab (D0).
 
     The votes the council actually cast on this case live in
@@ -1528,6 +1547,11 @@ def _council_view(record: dict) -> dict:
             # VOTE-ERRORS: non-empty = this judge's call FAILED (excluded from consensus),
             # not a considered vote. [] on clean votes and pre-existing blobs.
             "errors": v.get("errors") or [],
+            # JUDGE-LABEL-1: the SME-authored seat label, resolved at SERVE time against the
+            # current judge config — so one authored name reaches every reviewer surface (they
+            # all render votes), including records graded before the name existed. "" = the
+            # shell derives it from the id, exactly as before. The id still rides the vote.
+            "display_name": (display_names or {}).get(v.get("judge_role"), ""),
         }
         for v in (semantic.get("judge_votes") or [])
     ]
@@ -3135,6 +3159,8 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
     )
     return {
         "role": role,
+        # JUDGE-LABEL-1: the authored seat label ("" = the shell derives it from the id).
+        "display_name": (getattr(jc, "display_name", "") if jc else ""),
         # the editable per-judge BYOC override (unchanged — the JudgeEditor still edits THIS).
         "model": (jc.model if jc else ""),
         # WS-JUDGE-BIND: the workspace-scoped binding beside it. Empty = unbound in this workspace
@@ -3363,6 +3389,8 @@ def put_judge_endpoint(
     # WS-JUDGE-BIND: the WORKSPACE-scoped provider binding that overlays the global role_bindings
     # row. Absent/empty ``provider`` = bind nothing here (the global row keeps winning), so every
     # existing PUT body stays byte-identical.
+    # JUDGE-LABEL-1: the authored seat label. Empty clears it back to the derived label.
+    j_display_name = str(judge.get("display_name") or "").strip()
     j_provider = str(judge.get("provider") or "").strip()
     j_endpoint = str(judge.get("endpoint") or "").strip()
     j_api_version = str(judge.get("api_version") or "").strip()
@@ -3412,6 +3440,7 @@ def put_judge_endpoint(
         provider=j_provider,
         endpoint=j_endpoint,
         api_version=j_api_version,
+        display_name=j_display_name,
     )
     save_judge(
         jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
@@ -4752,7 +4781,7 @@ def get_case_report_endpoint(
     record.pop("_persisted", None)
     record["calibration_check"] = calibration_check([record])
     record["grade_path"] = (record.get("provenance") or {}).get("grade_path")
-    record["council"] = _council_view(record)
+    record["council"] = _council_view(record, _judge_display_names())
     record["pipeline_run_id"] = _pipeline_run_id(record)
     return record
 
