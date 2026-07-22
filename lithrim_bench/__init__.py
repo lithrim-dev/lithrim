@@ -1,3 +1,3 @@
 """Lithrim: deterministically-labeled clinical-AI benchmark generator."""
 
-__version__ = "0.1.14"
+__version__ = "0.1.15"
