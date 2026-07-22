@@ -6139,8 +6139,17 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             if req.model:
                 env[binding["model"]] = req.model
             env[binding["api_key"]] = req.api_key  # the per-role SECRET (write-only on .provider_env)
-            if req.endpoint:  # azure / openai_compatible api_base
+            # BIND-CLEAR-1: ABSENT (None) leaves the stored value alone — the merge every caller
+            # relies on for endpoint reuse. An EXPLICIT "" CLEARS it. Without that distinction a
+            # rebind to a provider with no endpoint (composo) inherited the previous provider's
+            # URL through the merge and called it under the new provider's name: caught live as
+            # a reward-model judge 404-ing against an Azure Foundry endpoint on every vote.
+            if req.endpoint is not None:  # azure / openai_compatible api_base; "" clears
                 env[binding["api_base"]] = req.endpoint
+            if req.api_version is not None and req.provider != "azure":
+                # azure computes its own below (it must never end up empty); every other provider
+                # takes the request at face value, so an explicit "" clears a stale version too.
+                env[binding["api_version"]] = req.api_version
             if req.provider == "azure":
                 # CONNECT-AI-AZURE-1: a per-role azure judge needs an api_version or litellm hits the
                 # api-version / DeploymentNotFound wall. Reuse the request's version (the roles-bind
