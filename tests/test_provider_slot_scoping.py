@@ -22,6 +22,7 @@ Offline: no network, no model calls.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -38,6 +39,28 @@ import app as bff  # noqa: E402
 
 FEATHERLESS = "https://api.featherless.ai/v1"
 AZURE_FOUNDRY = "https://zyng-work-resource.services.ai.azure.com/models"
+
+@pytest.fixture(autouse=True)
+def _no_settings_leak(monkeypatch):
+    """``_persist_and_reload_provider`` rebuilds EVERY declared field on the council settings
+    singleton in place, from a fresh env read. Tests elsewhere in the suite depend on values a
+    previous test left on that singleton, so a provider-config test that does not restore it
+    silently breaks whatever sorts after it — caught live: this module wiped the Azure deployment
+    settings and failed tests/test_grading_context_fields.py two files later, green in isolation
+    and red in CI. Snapshot and restore, so ordering can never matter again.
+    """
+    from lithrim_bench.runtime.council import settings as council_settings
+
+    live = council_settings.settings
+    saved = {f: getattr(live, f, None) for f in type(live).model_fields}
+    saved_env = dict(os.environ)
+    yield
+    for f, v in saved.items():
+        setattr(live, f, v)
+    for k in set(os.environ) - set(saved_env):
+        del os.environ[k]
+    os.environ.update(saved_env)
+
 
 
 @pytest.fixture
