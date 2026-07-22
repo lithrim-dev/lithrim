@@ -75,6 +75,21 @@ class JudgeConfig:
     temperature: float | None = None
     k: int | None = None
     criterion: str = ""
+    # WS-JUDGE-BIND: the WORKSPACE-scoped half of a provider binding, sitting next to the ``model``
+    # this record already carried. ``role_bindings`` is keyed on role ALONE (one global row), so two
+    # workspaces using the same roles could not resolve to different deployments; a bare ``model``
+    # selector cannot express a per-workspace base URL. Empty = "this workspace binds nothing for
+    # this role" → the global row still wins, byte-identically. The api_key is DELIBERATELY absent,
+    # exactly as in ``role_bindings``: secrets stay write-only on ``.provider_env``.
+    provider: str = ""
+    endpoint: str = ""
+    api_version: str = ""
+    # JUDGE-LABEL-1: the SME-authored label for this seat. The UI otherwise derives a label from
+    # the role id (``copy.js:roleLabel``), which names a MODEL for historical ids like
+    # ``openbio_reviewer`` — actively wrong once a workspace can bind any model to any seat. The
+    # ID stays load-bearing (``tier1_owners`` + lens authority key on it, and every graded record
+    # carries it); only the LABEL is authorable. Empty = derive it, as before.
+    display_name: str = ""
 
 
 def judge_from_dict(data: dict[str, Any]) -> JudgeConfig:
@@ -88,6 +103,11 @@ def judge_from_dict(data: dict[str, Any]) -> JudgeConfig:
         temperature=float(raw_temp) if isinstance(raw_temp, (int, float)) else None,
         k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
         criterion=data.get("criterion", "") or "",
+        # absent on every row written before WS-JUDGE-BIND → "" (unbound), never a KeyError
+        provider=data.get("provider", "") or "",
+        endpoint=data.get("endpoint", "") or "",
+        api_version=data.get("api_version", "") or "",
+        display_name=data.get("display_name", "") or "",
     )
 
 
@@ -100,6 +120,10 @@ def judge_to_dict(jc: JudgeConfig) -> dict[str, Any]:
         "temperature": jc.temperature,
         "k": jc.k,
         "criterion": jc.criterion,
+        "provider": jc.provider,
+        "endpoint": jc.endpoint,
+        "api_version": jc.api_version,
+        "display_name": jc.display_name,
     }
 
 

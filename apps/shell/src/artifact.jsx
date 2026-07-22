@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
 import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
-import { verdictLabel, roleLabel, flagLabel, friendlyError, voteReason } from "./genui/copy.js";
+import { reviewerLabel, verdictLabel, roleLabel, flagLabel, friendlyError, voteReason } from "./genui/copy.js";
 import { caseRead, votesRead } from "./genui/reportRead.js";
 
 // composite.verdict (reject|needs_review|approve) → banner chrome.
@@ -114,7 +114,7 @@ function ReportSummary({ comp, votes }) {
   const isFlag = (v) => v.vote === "BLOCK" || v.vote === "FAIL" || /reject/i.test(String(v.vote || ""));
   const isUnsure = (v) => v.vote === "WARN" || /needs|review/i.test(String(v.vote || ""));
   const conf = (v) => (typeof v.confidence === "number" ? v.confidence : null);
-  const name = (v) => roleLabel(v.judge_role || v.role);
+  const name = (v) => reviewerLabel(v);
 
   const flagged = votes.filter(isFlag);
   const unsure = votes.filter(isUnsure);
@@ -452,7 +452,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
                 {(v.judge_role || "?").charAt(0).toUpperCase()}
               </div>
               <div style={{ minWidth: 0 }}>
-                <div className="judge-name">{roleLabel(v.judge_role)}</div>
+                <div className="judge-name">{reviewerLabel(v)}</div>
                 <div className="judge-model">{v.model || "—"}</div>
               </div>
               <div className="judge-w">

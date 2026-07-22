@@ -65,6 +65,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
+from urllib.parse import urlsplit
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -983,6 +984,9 @@ def _load_provider_env() -> None:
     try:
         _migrate_provider_env_bindings_to_db()
         _hydrate_role_bindings_into_env()
+        # WS-JUDGE-BIND: the ACTIVE workspace's per-judge bindings overlay the global row (must run
+        # AFTER it — the global hydration is the fallback, this is the winner).
+        _hydrate_workspace_judge_bindings_into_env(workspace.get_active_workspace())
     except Exception:  # noqa: BLE001
         pass
 
@@ -1149,6 +1153,7 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_i
     # a binding-store hiccup must never block the run (startup already set keys)
     with contextlib.suppress(Exception):
         _hydrate_role_bindings_into_env()
+        _hydrate_workspace_judge_bindings_into_env(ws)  # WS-JUDGE-BIND: overlay, after the global
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
@@ -1258,6 +1263,14 @@ def _grade_case(
     }
     criteria = {role: jc.criterion for role, jc in judges_cfg.items() if jc.criterion}
     ws = workspace.get_active_workspace()
+    # WS-JUDGE-BIND: re-assert the binding planes for THIS workspace before the council is built.
+    # The in-process grade resolves the per-role provider/endpoint through settings+os.environ, both
+    # of which are PROCESS-global — so a grade in workspace B would otherwise inherit whatever
+    # workspace A's last grade (or a global bind) left behind. Runs the global row first, then the
+    # workspace overlay; a workspace binding nothing is a no-op.
+    with contextlib.suppress(Exception):
+        _hydrate_role_bindings_into_env()
+        _hydrate_workspace_judge_bindings_into_env(ws)
     # PHASE2-B: derive the grade roster — the active pack's production_judges FIRST, then any
     # AUTHORED extra role (a judge created via POST /v1/judges, now in the pack snapshot + carrying
     # an assignment/model) appended — so the authored judge reaches build_trio and votes. ``None``
@@ -1384,7 +1397,7 @@ def _grade_case(
     if readiness_report is not None:
         # honesty: every grade labels its config, so a silently-inert floor is visible in the record
         record["readiness"] = readiness_report.to_dict()
-    record["council"] = _council_view(record)
+    record["council"] = _council_view(record, _judge_display_names(db_path))
     # CACHE-TRAP-2: a paid grade that spent nothing is a replay, not a measurement — it must say
     # so on the record instead of returning as an ordinary success.
     record["cache_replay"] = _cache_replay_flag(record, spends=_spends)
@@ -1484,7 +1497,26 @@ def _floor_exception(vote_outcome: str | None, grounded: dict) -> tuple[str | No
     return _VERDICT_TO_OUTCOME[gv], len(suppressed)
 
 
-def _council_view(record: dict) -> dict:
+def _judge_display_names(db_path: Path | None = None) -> dict[str, str]:
+    """JUDGE-LABEL-1: ``role -> authored seat label`` for the active (or given) workspace.
+
+    Resolved at SERVE time, not stored on the record, so renaming a seat relabels every past
+    grade too. Never raises: a label lookup must not be able to fail a grade or a report read.
+    """
+    try:
+        from lithrim_bench.harness.judges import list_judges
+
+        path = db_path or workspace.get_active_workspace().config_db
+        return {
+            role: jc.display_name
+            for role, jc in list_judges(db_path=path).items()
+            if getattr(jc, "display_name", "")
+        }
+    except Exception:  # noqa: BLE001 — a cosmetic label is never worth failing a read over
+        return {}
+
+
+def _council_view(record: dict, display_names: dict[str, str] | None = None) -> dict:
     """Project the REALIZED per-judge council votes for the JudgeTab (D0).
 
     The votes the council actually cast on this case live in
@@ -1515,6 +1547,11 @@ def _council_view(record: dict) -> dict:
             # VOTE-ERRORS: non-empty = this judge's call FAILED (excluded from consensus),
             # not a considered vote. [] on clean votes and pre-existing blobs.
             "errors": v.get("errors") or [],
+            # JUDGE-LABEL-1: the SME-authored seat label, resolved at SERVE time against the
+            # current judge config — so one authored name reaches every reviewer surface (they
+            # all render votes), including records graded before the name existed. "" = the
+            # shell derives it from the id, exactly as before. The id still rides the vote.
+            "display_name": (display_names or {}).get(v.get("judge_role"), ""),
         }
         for v in (semantic.get("judge_votes") or [])
     ]
@@ -3080,7 +3117,10 @@ def _effective_model(jc, role: str, bindings: dict) -> tuple[str, str, str]:
     ``override`` | ``binding`` | ``default`` so the UI can label which it is."""
     override = getattr(jc, "model", "") if jc else ""
     if override:
-        return override, "", "override"
+        # WS-JUDGE-BIND: an override authored WITH a workspace provider reports that provider, so
+        # the surface names the deployment the grade will actually reach (a bare model override
+        # still reports "" — it selects a model on whatever provider the global row bound).
+        return override, (getattr(jc, "provider", "") or "") if jc else "", "override"
     b = (bindings or {}).get(role) or {}
     if b.get("model"):
         return b["model"], b.get("provider") or "", "binding"
@@ -3119,8 +3159,15 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
     )
     return {
         "role": role,
+        # JUDGE-LABEL-1: the authored seat label ("" = the shell derives it from the id).
+        "display_name": (getattr(jc, "display_name", "") if jc else ""),
         # the editable per-judge BYOC override (unchanged — the JudgeEditor still edits THIS).
         "model": (jc.model if jc else ""),
+        # WS-JUDGE-BIND: the workspace-scoped binding beside it. Empty = unbound in this workspace
+        # (the global role_bindings row still applies) — which is what every pre-existing judge is.
+        "provider": (getattr(jc, "provider", "") if jc else ""),
+        "endpoint": (getattr(jc, "endpoint", "") if jc else ""),
+        "api_version": (getattr(jc, "api_version", "") if jc else ""),
         # VOTE-MODEL-2: the model the reviewer actually grades on (override → Provider-Center
         # binding → Azure default), so the config surface reflects what the user assigned.
         "effective_model": eff_model,
@@ -3339,6 +3386,22 @@ def put_judge_endpoint(
         raise HTTPException(status_code=422, detail="k must be >= 1")
     if j_temp is not None and not (0.0 <= j_temp <= 2.0):
         raise HTTPException(status_code=422, detail="temperature must be in [0, 2]")
+    # WS-JUDGE-BIND: the WORKSPACE-scoped provider binding that overlays the global role_bindings
+    # row. Absent/empty ``provider`` = bind nothing here (the global row keeps winning), so every
+    # existing PUT body stays byte-identical.
+    # JUDGE-LABEL-1: the authored seat label. Empty clears it back to the derived label.
+    j_display_name = str(judge.get("display_name") or "").strip()
+    j_provider = str(judge.get("provider") or "").strip()
+    j_endpoint = str(judge.get("endpoint") or "").strip()
+    j_api_version = str(judge.get("api_version") or "").strip()
+    if j_provider in ("azure", "openai_compatible") and not j_endpoint:
+        # mirrors the /v1/roles/bind guard. These two providers are meaningless without a base URL,
+        # and the overlay deliberately does NOT inherit the global one — so accepting this would
+        # bind the judge to an empty endpoint and 404 it into a silent empty-WARN abstain.
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider {j_provider!r} needs an explicit endpoint for this workspace",
+        )
     _validate_judge_assignment(role, assigned, validator_refs)
     actor = _resolve_actor(x_actor, default_actor)
     # PROMPT-EDIT-1: an SME may also rewrite the reviewer's base prompt here (UI parity with the
@@ -3374,6 +3437,10 @@ def put_judge_endpoint(
         temperature=j_temp,
         k=j_k,
         criterion=j_criterion,
+        provider=j_provider,
+        endpoint=j_endpoint,
+        api_version=j_api_version,
+        display_name=j_display_name,
     )
     save_judge(
         jc, db_path=db_path, actor=actor, audit_log=AuditLog(db_path=db_path), rationale=rationale
@@ -4714,7 +4781,7 @@ def get_case_report_endpoint(
     record.pop("_persisted", None)
     record["calibration_check"] = calibration_check([record])
     record["grade_path"] = (record.get("provenance") or {}).get("grade_path")
-    record["council"] = _council_view(record)
+    record["council"] = _council_view(record, _judge_display_names())
     record["pipeline_run_id"] = _pipeline_run_id(record)
     return record
 
@@ -5907,6 +5974,30 @@ _PROVIDER_ENDPOINT_VAR = {
     "openai_compatible": "OPENAI_COMPATIBLE_API_BASE",
 }
 
+
+def _provider_slot_var(base_var: str, endpoint: str | None) -> str:
+    """WS-CRED-1 Defect A: the ``(provider, endpoint)``-scoped twin of a provider-level slot.
+
+    ``openai_compatible`` is a generic OpenAI-shaped shim fronting arbitrarily many distinct
+    services, but ``_PROVIDER_SECRET_VAR`` keys its stored secret on the provider id ALONE. Two
+    services behind that one slot means the second connect OVERWRITES the first's credential in
+    place — and ``.provider_env`` is write-only with no history, so the value is gone. Caught
+    2026-07-22: connecting Azure AI Foundry destroyed a Featherless key, presenting downstream as
+    HTTP 401 "You must be signed in", i.e. indistinguishable from a provider outage.
+
+    The scoped name carries a readable host slug (so a human can read ``.provider_env``) plus a
+    hash of the FULL normalised endpoint (so two paths on one host cannot collide). Must be
+    stable across processes — a name derived from anything per-run would lose the credential on
+    restart. Endpoint-less providers (one canonical service) return the base var unchanged.
+    """
+    norm = (endpoint or "").strip().rstrip("/").lower()
+    if not norm:
+        return base_var
+    host = urlsplit(norm).netloc or norm
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", host).strip("_").upper()[:32]
+    digest = hashlib.sha256(norm.encode()).hexdigest()[:8].upper()
+    return f"{base_var}__{slug}_{digest}"
+
 # PROVIDER-CENTER-A (S-BS-MR1a-CROSSPROVIDER): the GENERIC per-role binding (mirrors
 # judges_dspy._ROLE_PROVIDER_KEYS — kept local so app.py stays council-import-free). When a grading
 # config carries a `role`, ``_provider_env_vars`` writes these four vars so ``build_judge_lm``'s
@@ -6079,6 +6170,10 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
             env["LITHRIM_LLM_PROVIDER"] = "azure"
             env["AZURE_OPENAI_API_KEY"] = req.api_key
             env["AZURE_OPENAI_ENDPOINT"] = req.endpoint
+            # WS-CRED-1 Defect A: azure carries an endpoint too, so two Azure resources behind one
+            # slot have the same credential-destruction exposure as the openai_compatible shim.
+            env[_provider_slot_var("AZURE_OPENAI_API_KEY", req.endpoint)] = req.api_key
+            env[_provider_slot_var("AZURE_OPENAI_ENDPOINT", req.endpoint)] = req.endpoint
             if req.api_version:  # CONNECT-AI-AZURE-1: additive — else the settings default stands
                 env["AZURE_OPENAI_API_VERSION"] = req.api_version.strip()
             if req.model:  # the Azure DEPLOYMENT name (e.g. policy_judge → your Mistral deployment)
@@ -6101,10 +6196,19 @@ def _provider_env_vars(req: ProviderConfigRequest) -> dict[str, str]:
                 raise ValueError(
                     "provider='openai_compatible' requires `endpoint` (the OpenAI-compatible api_base)"
                 )
-            env[_PROVIDER_SECRET_VAR[req.provider]] = req.api_key  # the GLOBAL stored key (reused at bind)
+            secret_var = _PROVIDER_SECRET_VAR[req.provider]
             endpoint_var = _PROVIDER_ENDPOINT_VAR.get(req.provider)
+            # The bare vars stay the "most recently connected" default, so endpoint-less lookups
+            # and _connected_providers() are byte-identical to before.
+            env[secret_var] = req.api_key  # the GLOBAL stored key (reused at bind)
             if endpoint_var and req.endpoint:
                 env[endpoint_var] = req.endpoint
+            # WS-CRED-1 Defect A: ALSO write the (provider, endpoint)-scoped slots. A connect for a
+            # DIFFERENT endpoint writes different names, so it can no longer destroy this one's
+            # credential — only a re-connect of the SAME endpoint overwrites it (rotation).
+            if endpoint_var and req.endpoint:
+                env[_provider_slot_var(secret_var, req.endpoint)] = req.api_key
+                env[_provider_slot_var(endpoint_var, req.endpoint)] = req.endpoint
         else:
             raise ValueError(
                 f"provider={req.provider!r} is not a grading provider "
@@ -6349,6 +6453,71 @@ def _hydrate_role_bindings_into_env() -> None:
         for field, var in env_map.items():
             if binding.get(field) is not None:
                 os.environ[var] = binding[field]
+
+
+def _set_role_binding_value(var: str, val: str) -> None:
+    """Write ONE per-role binding value to BOTH resolution planes.
+
+    ``judges_dspy._role_setting`` (the reader ``build_judge_lm`` actually calls) checks the council
+    ``settings`` holder FIRST and only falls back to ``os.environ``. The trio's four binding keys are
+    DECLARED ``Settings`` fields, and ``_persist_and_reload_provider`` mutates that holder in place on
+    every global bind — so an overlay that wrote only ``os.environ`` would be silently INERT for
+    risk/policy/faithfulness the moment any global bind had run. Authored (non-trio) roles have no
+    declared field and ride os.environ alone; ``hasattr`` keeps this a no-op for them.
+
+    An EMPTY ``val`` is written, not skipped: that is what clears a previously-hydrated global
+    endpoint (the stale-endpoint trap) instead of letting it survive under a new model's label.
+    """
+    os.environ[var] = val
+    try:
+        from lithrim_bench.runtime.council import settings as council_settings
+
+        if hasattr(council_settings.settings, var):
+            setattr(council_settings.settings, var, val)
+    except Exception:  # noqa: BLE001 — council-light boot must never break on the settings mirror
+        pass
+
+
+def _hydrate_workspace_judge_bindings_into_env(ws) -> None:
+    """WS-JUDGE-BIND: overlay the ACTIVE workspace's per-judge bindings ON TOP of the global
+    ``role_bindings`` hydration, so two workspaces sharing role names can grade on different
+    deployments (the per-model comparison arm, previously impossible — the global table is keyed on
+    role alone).
+
+    Call order is load-bearing: ``_hydrate_role_bindings_into_env`` FIRST (the fallback), this
+    SECOND (the winner). A role the workspace does not bind is left entirely untouched, so a setup
+    with no per-workspace bindings resolves byte-identically to before.
+
+    A workspace binding is only honoured when it names a ``provider``: the provider is what switches
+    the frozen resolver onto its per-role branch (``judges_dspy`` reads ``role_provider`` first and
+    falls through to the global path when it is empty), so a model-only row would otherwise change
+    which model string is read without changing which credentials reach it. Every field of an
+    honoured binding is written EXPLICITLY — an omitted endpoint/api_version clears the global one
+    rather than inheriting it.
+    """
+    from lithrim_bench.harness.judges import list_judges
+
+    for role, jc in list_judges(db_path=ws.config_db).items():
+        provider = (getattr(jc, "provider", "") or "").strip()
+        if not provider:
+            continue  # unbound in this workspace → the global row keeps whatever it hydrated
+        names = _role_binding_env_names(role)
+        for field, var in (
+            ("provider", names["provider"]), ("model", names["model"]),
+            ("endpoint", names["api_base"]), ("api_version", names["api_version"]),
+        ):
+            _set_role_binding_value(var, (getattr(jc, field, "") or "").strip())
+        # WS-CRED-1b: the CREDENTIAL for this binding. The frozen resolver reads one global
+        # LITHRIM_LLM_API_KEY_<ROLE>, so without this two workspaces binding the same role to
+        # different providers would share one key — the arm campaign is exactly that shape.
+        # WS-CRED-1a made provider credentials addressable by (provider, endpoint), and a
+        # workspace binding names both, so the right key is already on disk under its own slot.
+        # No new secret store and no new API field: nothing here can leak a key into a response.
+        # A binding whose endpoint has no stored credential leaves the global per-role key ALONE
+        # (the pre-existing fallback) rather than clearing it and 401-ing a working setup.
+        scoped_key = _stored_provider_key(provider, endpoint=(jc.endpoint or "").strip() or None)
+        if scoped_key:
+            _set_role_binding_value(names["api_key"], scoped_key)
 
 
 def _migrate_provider_env_bindings_to_db() -> None:
@@ -6988,21 +7157,38 @@ class RoleBindRequest(BaseModel):
     api_version: str | None = None
 
 
-def _stored_provider_key(provider: str) -> str | None:
-    """Read a provider's already-stored GLOBAL key back from .provider_env (the bind reuses it).
-    None ⇒ the provider is not connected. The key stays on-disk — never returned to a caller."""
+def _stored_provider_key(provider: str, endpoint: str | None = None) -> str | None:
+    """Read a provider's already-stored key back from .provider_env (the bind reuses it).
+    None ⇒ the provider is not connected. The key stays on-disk — never returned to a caller.
+
+    WS-CRED-1: with an ``endpoint``, prefer that endpoint's OWN slot, so two services behind
+    ``openai_compatible`` resolve to their own credentials. Falls back to the bare var, which
+    both keeps endpoint-less callers byte-identical and lets an install predating scoping (only
+    the bare var on disk) still resolve rather than reporting the provider unconnected.
+    """
     var = _PROVIDER_SECRET_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_provider_env_path()).get(var) or None
+    env = _parse_env_file(_provider_env_path())
+    if endpoint:
+        scoped = env.get(_provider_slot_var(var, endpoint))
+        if scoped:
+            return scoped
+    return env.get(var) or None
 
 
-def _stored_provider_endpoint(provider: str) -> str | None:
-    """Read a provider's already-stored endpoint (azure / openai_compatible api_base) for reuse."""
+def _stored_provider_endpoint(provider: str, endpoint: str | None = None) -> str | None:
+    """Read a provider's already-stored endpoint (azure / openai_compatible api_base) for reuse.
+    WS-CRED-1: same scoped-then-bare resolution as :func:`_stored_provider_key`."""
     var = _PROVIDER_ENDPOINT_VAR.get(provider)
     if not var:
         return None
-    return _parse_env_file(_provider_env_path()).get(var) or None
+    env = _parse_env_file(_provider_env_path())
+    if endpoint:
+        scoped = env.get(_provider_slot_var(var, endpoint))
+        if scoped:
+            return scoped
+    return env.get(var) or None
 
 
 def _connected_providers() -> list[str]:
@@ -7049,15 +7235,18 @@ def roles_bind_endpoint(
     LITHRIM_CHAT_* contract (anthropic ALSO writes ANTHROPIC_API_KEY for the SDK path). 422 if the
     provider has no stored key / unknown role / azure|openai_compatible without a stored endpoint / a
     failing probe. The response is non-secret ({ok, role, provider, model}) — NO key."""
-    api_key = _stored_provider_key(req.provider)
+    # NEW-G1: a PER-ROLE endpoint on the request wins over the provider's stored global (so two
+    # judges on the same provider can hit different deployments); absent → the stored global.
+    # WS-CRED-1: resolved BEFORE the key, because the key is now scoped per endpoint — reading it
+    # first would reuse whatever endpoint was connected LAST, which is how a role bound to a
+    # non-default endpoint silently got another service's credential and 401'd under its own label.
+    endpoint = (req.endpoint or "").strip() or _stored_provider_endpoint(req.provider)
+    api_key = _stored_provider_key(req.provider, endpoint=endpoint)
     if not api_key:
         raise HTTPException(
             status_code=422,
             detail=f"provider {req.provider!r} is not connected (connect it in Providers first)",
         )
-    # NEW-G1: a PER-ROLE endpoint on the request wins over the provider's stored global (so two
-    # judges on the same provider can hit different deployments); absent → the stored global.
-    endpoint = (req.endpoint or "").strip() or _stored_provider_endpoint(req.provider)
     if req.provider in ("azure", "openai_compatible") and not endpoint:
         raise HTTPException(
             status_code=422,
