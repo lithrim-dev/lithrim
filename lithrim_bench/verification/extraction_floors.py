@@ -37,6 +37,15 @@ from .tools import VerificationTool, _dig
 
 _DEFAULT_K = 3
 _DEFAULT_EXTRACTOR_ROLE = "risk_judge"
+# REWARD-EXTRACTOR-1: the decline band around the reward research's 0.5 cut. Scores INSIDE it
+# (inclusive) decline — a reward model's middle is exactly where it is least separable, and the
+# floor's whole value is that an uncertain answer never moves a verdict. Contract-overridable.
+_DEFAULT_REWARD_BAND = (0.4, 0.6)
+# The reward API REJECTS (422) any criterion not opening with one of these, so the prefix is part
+# of the wire contract, not phrasing. "Passes if" is the binary form and separated cleanest when
+# measured on the splinter pair (1.0 preserved / 0.0 erased, vs 0.98 / 0.20 for "Reward responses
+# that") — the floor wants the widest gap either side of its decline band.
+_REWARD_CRITERION_PREFIX = "Passes if the response"
 
 _FACT_SYS = (
     "You verify ONE specific fact against a SOURCE and an ARTIFACT. Given FACT, SOURCE, "
@@ -56,14 +65,23 @@ _ATTR_SYS = (
 )
 
 
-def _build_extractor_lm(role: str) -> Callable[[str], str]:
+def _build_extractor_lm(role: str) -> Any:
     """The default extraction LM: the product's provider seam (``build_judge_lm`` on the
     SME-named role — whatever the user bound in Connect AI), wrapped to a plain
     ``prompt -> text`` callable. Lazy heavy import; raises when no provider is bound —
-    the caller maps that to a conservative decline."""
+    the caller maps that to a conservative decline.
+
+    REWARD-EXTRACTOR-1: a reward LM (``provider: composo``) answers ``(messages, criterion) ->
+    score`` and is deliberately NOT callable, so it is returned INTACT for ``verify`` to branch on
+    rather than wrapped here. Wrapping it was the 2026-07-22 live bug: ``lm(prompt)`` raised
+    ``TypeError`` on every sample, the per-sample guard swallowed each as "extraction failed", and
+    the contract declined — a wiring fault wearing the costume of a genuine cannot-ground result.
+    """
     from lithrim_bench.runtime.council.judges_dspy import build_judge_lm
 
     lm = build_judge_lm(role)
+    if getattr(lm, "is_reward_lm", False):
+        return lm
 
     def _call(prompt: str) -> str:
         out = lm(prompt)
@@ -111,6 +129,69 @@ class _BoundedExtractionFloor(VerificationTool):
         """One sample's deterministic disposition: 'violated' | 'satisfied' | 'unconfirmed'."""
         raise NotImplementedError
 
+    def _criterion(self, ref: dict[str, Any]) -> str:
+        """The reward path's single ASSERTION, derived from the same authored params the chat
+        path composes its prompt from — a reward model scores criterion satisfaction, so the
+        contract's interrogative ``question`` is restated declaratively. No new authoring."""
+        raise NotImplementedError
+
+    def _verify_reward(
+        self, lm: Any, ref: dict[str, Any], source: str, artifact: str, manifest: dict[str, Any]
+    ) -> VerificationResult:
+        """The reward-model extraction path: ONE authored criterion scored 0-1, mapped to the
+        SAME tri-state by a dead band. No JSON to parse and no majority to take — the model is
+        deterministic per (messages, criterion), so ``k`` defaults to 1 instead of the chat path's
+        3, and the RAW score rides the evidence as the honest artifact.
+
+        Every failure mode still declines: transport error, non-numeric score, or a score inside
+        the band. Only a confident answer either way moves a verdict."""
+        band = ref.get("reward_band") or _DEFAULT_REWARD_BAND
+        low, high = float(band[0]), float(band[1])
+        k = max(1, int(ref["k"])) if ref.get("k") else 1
+        criterion = self._criterion(ref)
+        manifest.update(
+            {"extraction": "reward-model", "model": getattr(lm, "model", None),
+             "band": [low, high], "k": k}
+        )
+        # the task line frames the request a reward model scores the response against; SME-set on
+        # the binding (REWARD-SEMANTICS-1), absent → the source stands alone as the user turn.
+        task = (getattr(lm, "task_instruction", "") or "").strip()
+        user = f"{task}\n\n{source}" if task else source
+
+        scores: list[float] = []
+        explanation = ""
+        for _ in range(k):
+            try:
+                out = lm.evaluate(user=user, assistant=artifact, criterion=criterion) or {}
+            except Exception as exc:  # noqa: BLE001 — a reward outage declines, never guesses
+                return VerificationResult(
+                    conforms=None,
+                    evidence={"reason": f"reward extraction failed: {exc}", "criterion": criterion},
+                    manifest=manifest,
+                )
+            score = out.get("score")
+            if isinstance(score, bool) or not isinstance(score, (int, float)):
+                return VerificationResult(
+                    conforms=None,
+                    evidence={"reason": f"reward API returned no numeric score ({score!r})",
+                              "criterion": criterion},
+                    manifest=manifest,
+                )
+            scores.append(float(score))
+            explanation = explanation or str(out.get("explanation") or "")
+
+        score = sum(scores) / len(scores)
+        evidence: dict[str, Any] = {
+            "score": score, "scores": scores, "explanation": explanation,
+            "criterion": criterion, "band": [low, high],
+        }
+        if score < low:
+            return VerificationResult(conforms=False, evidence=evidence, manifest=manifest)
+        if score > high:
+            return VerificationResult(conforms=True, evidence=evidence, manifest=manifest)
+        evidence["reason"] = "score inside the decline band; the floor declines rather than guess"
+        return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
+
     def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
         ref = spec.reference
         k = max(1, int(ref.get("k") or _DEFAULT_K))
@@ -152,6 +233,9 @@ class _BoundedExtractionFloor(VerificationTool):
                     evidence={"reason": f"extraction LM unavailable ({exc}); declining"},
                     manifest=manifest,
                 )
+
+        if getattr(lm, "is_reward_lm", False):
+            return self._verify_reward(lm, ref, source_text, artifact, manifest)
 
         prompt = f"{self.system_prompt}\n\n{self._compose(ref, source_text, artifact)}"
         samples: list[dict[str, Any]] = []
@@ -200,6 +284,12 @@ class FactPreservationTool(_BoundedExtractionFloor):
     def _compose(self, ref: dict[str, Any], source: str, artifact: str) -> str:
         return f"FACT:\n{ref['fact']}\n\nSOURCE:\n{source}\n\nARTIFACT:\n{artifact}"
 
+    def _criterion(self, ref: dict[str, Any]) -> str:
+        return (
+            f"{_REWARD_CRITERION_PREFIX} preserves this fact from the source conversation: "
+            f"{str(ref['fact']).rstrip('.')}."
+        )
+
     def _classify(self, extraction: dict[str, Any]) -> str:
         stated = bool(extraction.get("stated_in_source"))
         preserved = bool(extraction.get("preserved_in_artifact"))
@@ -221,6 +311,12 @@ class SpeakerAttributionTool(_BoundedExtractionFloor):
 
     def _compose(self, ref: dict[str, Any], source: str, artifact: str) -> str:
         return f"STATEMENT:\n{ref['statement']}\n\nSOURCE:\n{source}\n\nARTIFACT:\n{artifact}"
+
+    def _criterion(self, ref: dict[str, Any]) -> str:
+        return (
+            f"{_REWARD_CRITERION_PREFIX} attributes this statement to the same speaker who "
+            f"actually utters it in the source conversation: {str(ref['statement']).rstrip('.')}."
+        )
 
     @staticmethod
     def _norm_speaker(value: Any) -> str:
