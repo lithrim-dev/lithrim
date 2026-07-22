@@ -1,6 +1,6 @@
 [project]
 name = "lithrim"
-version = "0.1.13"
+version = "0.1.14"
 description = "Self-hostable evaluation harness for AI agents — a tool-grounded verification floor under the LLM judge. Backs the Lithrim research paper and developer product."
 authors = [{name = "Lithrim"}]
 readme = "README.md"
