@@ -58,6 +58,7 @@ from .mutation import (
     valid_variations,
 )
 from .router import CLEARED, CONFIRMED, UNRESOLVED, Router, compose_verdict
+from .snomed_floor import SnomedSubsumptionFloorTool
 from .spec import (
     RECORD_PRESENCE,
     REFERENCE_CONFORMANCE,
@@ -106,6 +107,7 @@ __all__ = [
     "ValuePresenceTool",
     "FactPreservationTool",
     "SpeakerAttributionTool",
+    "SnomedSubsumptionFloorTool",
     "KbRagTool",
     "WebSearchTool",
     "RecordRagTool",

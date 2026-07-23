@@ -66,6 +66,12 @@ TOOL_WEB_SEARCH = "web_search"
 # masquerades as a lookup. Core + domain-agnostic: the fact/statement text is UI-authored data.
 TOOL_FACT_PRESERVATION = "fact_preservation"
 TOOL_SPEAKER_ATTRIBUTION = "speaker_attribution"
+# SNOMED-SUBSUMPTION-FLOOR-1: the PROACTIVE terminology detector floor. Reads the note-vs-record
+# diagnosis codes off the case, asks the terminology tool the is-a direction, and INJECTS an upcode
+# when the note code is a STRICT DESCENDANT of the record code — no judge flag required (the recall
+# mirror of the suppress-plane ``snomed_battery`` validator). The is-a lookup is EXACT, so the
+# manifest is honestly ``deterministic: True``.
+TOOL_SNOMED_SUBSUMPTION_FLOOR = "snomed_subsumption_floor"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -81,6 +87,7 @@ _KNOWN_TOOLS = {
     TOOL_WEB_SEARCH,
     TOOL_FACT_PRESERVATION,
     TOOL_SPEAKER_ATTRIBUTION,
+    TOOL_SNOMED_SUBSUMPTION_FLOOR,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -124,6 +131,9 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # speaker_attribution: the SME pins the STATEMENT whose attribution is checked. Optional:
     # source_path, k, extractor_role.
     TOOL_SPEAKER_ATTRIBUTION: {"statement"},
+    # snomed_subsumption_floor: the SME pins WHICH terminology tool answers the is-a lookup; the
+    # note-vs-record diagnosis codes are read off the case's pinned.subsumption at grade time.
+    TOOL_SNOMED_SUBSUMPTION_FLOOR: {"tool"},
 }
 
 
