@@ -86,7 +86,9 @@ _EXPECTED_SUPPRESS = {
 # CORE-FLOOR-1: value_presence is a CORE floor (domain-agnostic completeness floor).
 # REPRO-1 R4a/R4b: fact_preservation + speaker_attribution are the core bounded-extraction floors.
 _EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence",
-                   "fact_preservation", "speaker_attribution"}
+                   "fact_preservation", "speaker_attribution",
+                   # SNOMED-SUBSUMPTION-FLOOR-1: the proactive terminology detector floor.
+                   "snomed_subsumption_floor"}
 _EXPECTED_CONTRACT_PLUGINS = {
     "presence_check": ("contract", "core", "in_process", "grounding.suppress"),
     "kb_grounding": ("contract", "core", "service", "grounding.suppress"),
@@ -108,6 +110,9 @@ _EXPECTED_CONTRACT_PLUGINS = {
     # REPRO-1 R4a/R4b: the core bounded-extraction floors (LM via the provider seam, in_process).
     "fact_preservation": ("contract", "core", "in_process", "grounding.floor"),
     "speaker_attribution": ("contract", "core", "in_process", "grounding.floor"),
+    # SNOMED-SUBSUMPTION-FLOOR-1: the proactive terminology DETECTOR floor (builds its own
+    # McpStdioClient over the SNOMED tool, like snomed_battery, but injects instead of validates).
+    "snomed_subsumption_floor": ("contract", "core", "in_process", "grounding.floor"),
 }
 
 

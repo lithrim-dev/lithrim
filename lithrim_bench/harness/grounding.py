@@ -1232,6 +1232,7 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
     from lithrim_bench.verification import (
         FactPreservationTool,
         JuteGenValidatorTool,
+        SnomedSubsumptionFloorTool,
         SpeakerAttributionTool,
         StructuralJuteTool,
         ValuePresenceTool,
@@ -1297,6 +1298,14 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         "speaker_attribution": FloorExecutor(
             tool_factory=lambda http_client: SpeakerAttributionTool(),
             reference_builder=_extraction_ref("statement"),
+        ),
+        # SNOMED-SUBSUMPTION-FLOOR-1: the PROACTIVE terminology detector — injects an upcode when
+        # the note diagnosis code is a strict descendant of the record code, no judge flag needed
+        # (the recall mirror of the ``snomed_battery`` suppress validator). Deterministic is-a lookup
+        # over the pack-declared terminology MCP tool.
+        "snomed_subsumption_floor": FloorExecutor(
+            tool_factory=lambda http_client: SnomedSubsumptionFloorTool(),
+            reference_builder=lambda params: {"tool": params.get("tool") or "hermes_snomed"},
         ),
     }
 

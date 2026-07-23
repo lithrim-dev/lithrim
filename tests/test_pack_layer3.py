@@ -63,6 +63,13 @@ _CLINICAL_CODE_NEEDLES = (
 #         params docstring), and the "SNOMED MCP tool" / "SNOMED semantic tag" docstring
 #         phrases describing that interface. All identifier-anchored CODE vocabulary/prose —
 #         zero clinical data (no codes, meds, doses, or patient content).
+#   (v)   SNOMED-SUBSUMPTION-FLOOR-1 — the proactive terminology DETECTOR floor (the recall
+#         mirror of snomed_subsumption): SnomedSubsumptionFloorTool (its executor class,
+#         engine-resident by design like SnomedBatteryGrounding), TOOL_SNOMED_SUBSUMPTION_FLOOR
+#         (the contract-type NAME constant), the SNOMED-SUBSUMPTION-FLOOR-1 feature tag in the
+#         floor docstrings, and the `*_snomed` suffix on the SME-pinned note/record diagnosis-code
+#         field names read off the case (field-NAME plumbing, zero clinical value). Identifier-
+#         anchored; no data.
 _CARVEOUT_MARKERS = (
     "dosage_regex",
     "_dosage_re",
@@ -77,6 +84,10 @@ _CARVEOUT_MARKERS = (
     "hermes_snomed",
     "SNOMED MCP tool",
     "SNOMED semantic tag",
+    "SnomedSubsumptionFloorTool",
+    "TOOL_SNOMED_SUBSUMPTION_FLOOR",
+    "SNOMED-SUBSUMPTION-FLOOR-1",
+    "_snomed",
 )
 _BROAD_SWEEP = (
     "snomed",
