@@ -164,6 +164,59 @@ def test_a_workspace_binding_nothing_is_a_no_op(cred_env):
     assert _role_setting(KEY_API_KEY) == "global-key"
 
 
+# ── WS-CRED-2: the GLOBAL binding's credential must survive an overlay ────────
+
+AZURE_COGSVC = "https://zyng-work-resource.cognitiveservices.azure.com/"
+
+
+def _seed_azure_slot(env_path: Path, endpoint: str, key: str) -> None:
+    with env_path.open("a") as f:
+        f.write(f"{bff._provider_slot_var('AZURE_OPENAI_API_KEY', endpoint)}={key}\n")
+
+
+def _global_bind(**binding) -> None:
+    from lithrim_bench.harness import role_bindings as _rb
+
+    _rb.save_binding(ROLE, binding, db_path=bff._role_bindings_db_path())
+
+
+def test_global_rehydration_restores_the_global_bindings_credential(cred_env):
+    """The 2026-08-05 leak: visit a workspace that binds ``risk_judge`` to another provider,
+    then hydrate for a workspace that does NOT bind it. The GLOBAL azure binding must resolve
+    with the azure credential — before this fix the previous workspace's key survived in both
+    planes and azure was called with it (AuthenticationError, silent WARN abstain)."""
+    _seed_provider_slots(cred_env, {FEATHERLESS: "featherless-key"})
+    _seed_azure_slot(cred_env, AZURE_COGSVC, "azure-cogsvc-key")
+    _global_bind(
+        provider="azure", model="gpt-4.1", endpoint=AZURE_COGSVC, api_version="2024-10-21"
+    )
+    ws_poison = W.create_workspace("ws-other-provider", pack="_core")
+    _bind(ws_poison, model="m", provider="openai_compatible", endpoint=FEATHERLESS)
+    ws_clean = W.create_workspace("ws-global-azure", pack="_core")  # binds nothing
+
+    _hydrate(ws_poison)
+    assert _role_setting(KEY_API_KEY) == "featherless-key"  # the overlay did its job
+
+    _hydrate(ws_clean)
+    assert _role_setting(KEY_API_BASE) == AZURE_COGSVC
+    assert _role_setting(KEY_API_KEY) == "azure-cogsvc-key"
+
+
+def test_global_rehydration_without_stored_credential_leaves_the_key_alone(cred_env):
+    """A global binding whose endpoint has no stored credential must NOT clear the per-role
+    key — the mirror of the overlay's fallback; clearing would 401 a working setup."""
+    cred_env.write_text("")  # no provider slots at all
+    _global_bind(
+        provider="azure", model="gpt-4.1", endpoint=AZURE_COGSVC, api_version="2024-10-21"
+    )
+    ws = W.create_workspace("ws-global-nocred", pack="_core")
+    bff._set_role_binding_value(KEY_API_KEY, "pre-existing-global-key")
+
+    _hydrate(ws)
+
+    assert _role_setting(KEY_API_KEY) == "pre-existing-global-key"
+
+
 # ── the credential must never surface ─────────────────────────────────────────
 
 

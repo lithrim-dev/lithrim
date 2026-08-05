@@ -6448,8 +6448,19 @@ def _split_provider_env_vars(
 
 
 def _hydrate_role_bindings_into_env() -> None:
-    """Set ``os.environ`` for every persisted role binding (the per-role binding vars the grade
-    reads). Called at startup AFTER the ``.provider_env`` load so a grade sees the chosen model."""
+    """Restore every persisted GLOBAL role binding into BOTH resolution planes (os.environ + the
+    council settings holder). Called at startup AFTER the ``.provider_env`` load, and again before
+    each grade as the fallback under the workspace overlay.
+
+    WS-CRED-2: this restore must be SYMMETRIC with ``_hydrate_workspace_judge_bindings_into_env``,
+    which writes the overlay through ``_set_role_binding_value`` (settings holder included) and
+    resolves the binding's CREDENTIAL into ``LITHRIM_LLM_API_KEY_<ROLE>``. Writing only os.environ
+    here left the holder — which ``judges_dspy._role_setting`` reads FIRST for the trio — carrying
+    the previous workspace's overlay, and never restoring the key left ANY workspace's credential
+    stuck in the slot: visiting a composo/featherless-bound workspace then grading an azure-bound
+    one called azure with the other provider's key (AuthenticationError, silent WARN abstain,
+    2026-08-05). Same fallback as the overlay: a binding whose endpoint has no stored credential
+    leaves the per-role key alone rather than clearing a working setup."""
     from lithrim_bench.harness import role_bindings as _rb
 
     for role, binding in _rb.load_bindings(db_path=_role_bindings_db_path()).items():
@@ -6461,7 +6472,14 @@ def _hydrate_role_bindings_into_env() -> None:
         }
         for field, var in env_map.items():
             if binding.get(field) is not None:
-                os.environ[var] = binding[field]
+                _set_role_binding_value(var, binding[field])
+        provider = (binding.get("provider") or "").strip()
+        if provider:
+            scoped_key = _stored_provider_key(
+                provider, endpoint=(binding.get("endpoint") or "").strip() or None
+            )
+            if scoped_key:
+                _set_role_binding_value(names["api_key"], scoped_key)
 
 
 def _set_role_binding_value(var: str, val: str) -> None:
