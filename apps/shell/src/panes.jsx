@@ -297,6 +297,8 @@ function verdictShape(rec) {
     votes: votes.map((v) => ({
       role: String(v.judge_role || v.role || "judge"),
       vote: String(v.vote || ""),
+      // JUDGE-LABEL-2: carry the authored seat label so the card's read + chips name the SEAT.
+      ...(v.display_name ? { display_name: String(v.display_name) } : {}),
       ...(typeof v.confidence === "number" ? { confidence: v.confidence } : {}),
       ...(v.reason ? { reason: String(v.reason) } : {}),
       // independent-axes model: carry THIS reviewer's own variance + k (never aggregated).
