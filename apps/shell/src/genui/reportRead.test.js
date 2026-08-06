@@ -191,6 +191,32 @@ describe("caseRead — the single-case read", () => {
     expect(text).toBe("Both reviewers flagged it. The floor disproved 2 false alarms: Fabricated claim.");
   });
 
+  it("JUDGE-LABEL-2: an authored seat name wins over the role id, per vote", () => {
+    const text = caseRead({
+      votes: [
+        { judge_role: "risk_judge", vote: "BLOCK", confidence: 0.9, display_name: "Claims reviewer" },
+        { judge_role: "openbio_judge", vote: "WARN", confidence: 0.5, display_name: "Completeness reviewer" },
+      ],
+      floorBlocks: [{ flag: "UPCODED_DIAGNOSIS" }],
+      verdict: "BLOCK",
+    });
+    expect(text).toBe(
+      "The reviewers split: Completeness reviewer was only uncertain, Claims reviewer flagged it. "
+      + "The floor independently confirmed it: Upcoded diagnosis, pinned to the transcript.",
+    );
+  });
+
+  it("JUDGE-LABEL-2: an unnamed seat still reads as the prettified role", () => {
+    const text = caseRead({
+      votes: [
+        { judge_role: "openbio_judge", vote: "PASS", confidence: 0.9, display_name: "  " },
+        { judge_role: "risk_judge", vote: "BLOCK", confidence: 0.9, display_name: "Claims reviewer" },
+      ],
+      verdict: "BLOCK",
+    });
+    expect(text).toBe("The reviewers split: Openbio passed it outright, Claims reviewer flagged it. Result: Flagged.");
+  });
+
   it("no floor events: a one-sentence judge summary plus the result", () => {
     const text = caseRead({
       votes: [

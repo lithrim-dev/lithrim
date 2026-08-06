@@ -30,7 +30,9 @@ const allPhrase = (m) => (m === 1 ? "The only reviewer" : m === 2 ? "Both review
 function judgeSummary(votes) {
   const groups = { pass: [], unsure: [], block: [] };
   votes.forEach((v) => groups[voteBucket(v.vote)].push(v));
-  const nm = (v) => shortRole(v.role || v.judge_role);
+  // JUDGE-LABEL-2: an SME-authored seat name wins (the seat is named by function; the role id
+  // names a model). Absent one, the id prettifies exactly as before.
+  const nm = (v) => String(v.display_name || "").trim() || shortRole(v.role || v.judge_role);
   const phrases = [];
   if (groups.pass.length) phrases.push(`${joinAnd(groups.pass.map(nm))} passed it outright${fullConf(groups.pass) ? " at full confidence" : ""}`);
   if (groups.unsure.length) phrases.push(`${joinAnd(groups.unsure.map(nm))} ${groups.unsure.length > 1 ? "were" : "was"} only uncertain`);
