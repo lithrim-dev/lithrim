@@ -6,7 +6,7 @@
      - CorpusTab  — GET /v1/corpus (self-fetched; the correction flywheel) */
 import { useEffect, useState } from "react";
 import { Icon as ICN } from "./icons.jsx";
-import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport } from "./bff.js";
+import { getOntology, getCorpus, getCase, listCaseBrowser, getRunAudit, getCaseReport, getRuns, getRunReport } from "./bff.js";
 import ClinicianVerdict from "./genui/ClinicianVerdict.jsx";
 import { reviewerLabel, verdictLabel, roleLabel, flagLabel, friendlyError, voteReason } from "./genui/copy.js";
 import { caseRead, votesRead } from "./genui/reportRead.js";
@@ -173,6 +173,21 @@ function ReportSummary({ comp, votes }) {
   );
 }
 
+// RUN-SCOPED-REPORT-1: one run's chip in the history strip. The post-floor verdict is the
+// headline (grounded_verdict when the record carries it), so the strip reads as the outcome
+// a reviewer would act on, not the pre-floor council vote.
+const runStamp = (r) => {
+  const t = String(r.ts || "").slice(11, 16);
+  return `${t || "run"} · ${verdictLabel(r.grounded_verdict || r.verdict)}`;
+};
+const pickBtn = (on) => ({
+  fontSize: 11, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+  border: `1px solid ${on ? "var(--accent)" : "var(--border)"}`,
+  background: on ? "var(--accent)" : "transparent",
+  color: on ? "#fff" : "var(--muted)",
+  fontFamily: "var(--font-mono)",
+});
+
 function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = "ws0_default" }) {
   // REPORT-HYDRATE-1: an ARMED case with no in-session run hydrates the LATEST persisted
   // report for it (GET /v1/reports/{case_id}, a pure $0 read) and feeds the SAME renderer
@@ -188,10 +203,35 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
     return () => { live = false; };
   }, [agent, activeCase, runResult, runStatus]);
 
+  // RUN-SCOPED-REPORT-1: this case's run history, so a PAST run can be opened. The report
+  // store keeps one record per case (every grade upserts it), so without this the pane can
+  // only ever show the newest grade — and two runs of one case under a frozen config
+  // disagreeing is exactly the evidence a judge is not deterministic.
+  const [runs, setRuns] = useState([]);
+  const [pickedRun, setPickedRun] = useState(null); // null = latest (the default view)
+  const [picked, setPicked] = useState(null);
+  useEffect(() => {  // a new case (or a fresh run) resets the picker to latest
+    setPickedRun(null); setPicked(null);
+    if (!activeCase) { setRuns([]); return; }
+    let live = true;
+    getRuns(50, { agent, caseId: activeCase })
+      .then((r) => { if (live) setRuns(r.runs || []); })
+      .catch(() => { if (live) setRuns([]); });
+    return () => { live = false; };
+  }, [agent, activeCase, runResult]);
+  useEffect(() => {
+    if (!pickedRun) { setPicked(null); return; }
+    let live = true;
+    getRunReport(pickedRun)
+      .then((r) => { if (live) setPicked(r); })
+      .catch(() => { if (live) setPicked(null); });
+    return () => { live = false; };
+  }, [pickedRun]);
+
   if (runStatus === "loading")
     return <ReportMessage>Running the evaluation…</ReportMessage>;
   if (runStatus === "error") return <RunFailed runError={runError} activeCase={activeCase} />;
-  const shown = runResult || hydrated;
+  const shown = picked || runResult || hydrated;
   if (!shown)
     return (
       <ReportMessage>
@@ -222,6 +262,27 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
 
   return (
     <div>
+      {runs.length > 1 && (
+        <div className="art-sec" data-testid="run-picker">
+          <div className="art-h2">This case across runs</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            <button type="button" aria-label="latest run" aria-pressed={!pickedRun}
+              onClick={() => setPickedRun(null)} style={pickBtn(!pickedRun)}>Latest</button>
+            {runs.map((r) => (
+              <button key={r.run_id} type="button" aria-label={`run ${r.run_id}`}
+                aria-pressed={pickedRun === r.run_id} title={`${r.run_id} · ${r.grade_path || ""}`}
+                onClick={() => setPickedRun(r.run_id)} style={pickBtn(pickedRun === r.run_id)}>
+                {runStamp(r)}
+              </button>
+            ))}
+          </div>
+          <div className="rb-s" style={{ marginTop: 6 }}>
+            {runs.length} runs of this case. Opening an earlier one is a $0 read of its stored
+            record; where two runs of the same config disagree, that is the judge moving, not
+            the setup.
+          </div>
+        </div>
+      )}
       <div className="report-banner">
         <div className="rb-ic" style={{ color: ui.color }}><ICN name={ui.icon} size={20} sw={2.2} /></div>
         <div style={{ minWidth: 0 }}>

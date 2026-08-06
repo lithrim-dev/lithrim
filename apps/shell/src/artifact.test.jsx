@@ -12,6 +12,10 @@ vi.mock("./bff.js", () => ({
   listCaseBrowser: vi.fn(),
   recordMetaVerdict: vi.fn(),
   getRunAudit: vi.fn(),
+  // RUN-SCOPED-REPORT-1: ReportTab also reads the case's run history + a picked run.
+  getCaseReport: vi.fn(() => Promise.reject(new Error("no persisted report"))),
+  getRuns: vi.fn(() => Promise.resolve({ runs: [] })),
+  getRunReport: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";

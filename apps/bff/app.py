@@ -4730,6 +4730,104 @@ def get_run_rehydrate_endpoint(
         ) from exc
 
 
+def _composite_from_grounded(grounded: dict | None, *, verdict: str | None) -> dict:
+    """RUN-SCOPED-REPORT-1: the report-shaped ``composite`` for a STORED run, derived from its
+    blob's serialized ``grounded`` block.
+
+    ``report.composite`` builds this at grade time from a live ``GroundedResult`` (objects);
+    a persisted blob carries the same content already flattened, so this is the flat twin —
+    the same rows, the same ``action`` vocabulary the shell renders (``suppressed`` /
+    ``floor_block`` / ``floor_inconclusive``). ``coverage`` and ``reasoning`` are grade-time
+    computations the blob does not carry: they are OMITTED, never invented (an absent number
+    is honest; a fabricated one is not)."""
+    g = grounded or {}
+    grounded_adjustments = []
+    for s in g.get("suppressed") or []:
+        row = {
+            "flag": s.get("code"), "action": "suppressed", "contract": s.get("contract"),
+            "matched_token": s.get("matched_token"), "reason": s.get("reason"),
+        }
+        if s.get("terminology_edition") is not None:
+            row["terminology_edition"] = s["terminology_edition"]
+        grounded_adjustments.append(row)
+    floor_adjustments = [
+        {
+            "flag": b.get("flag"),
+            # the blob's `injected` is the same discriminator report.composite uses
+            # (an injected finding = the floor BLOCKED; otherwise it ran inconclusively).
+            "action": "floor_block" if b.get("injected") else "floor_inconclusive",
+            "contract_type": b.get("contract_type"), "contract": b.get("contract"),
+            "conforms": b.get("conforms"), "disposition": b.get("disposition"),
+        }
+        for b in g.get("floor_blocks") or []
+    ]
+    return {
+        "verdict": verdict,
+        "stage_verdict": g.get("verdict"),
+        "active_findings": [f.get("code") for f in (g.get("active") or []) if f.get("code")],
+        "grounded_adjustments": grounded_adjustments,
+        "floor_adjustments": floor_adjustments,
+        "floor_block_count": sum(1 for a in floor_adjustments if a["action"] == "floor_block"),
+        "ungrounded_count": len(g.get("ungrounded") or []),
+        "skipped_non_gradeable_count": len(g.get("skipped_non_gradeable") or []),
+    }
+
+
+@app.get("/v1/runs/{run_id}/report")
+def get_run_report_endpoint(
+    run_id: str,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """RUN-SCOPED-REPORT-1: ONE SPECIFIC past run, in the record shape ``GET
+    /v1/reports/{case_id}`` serves — so the Report pane can open the run a scorecard row
+    actually came from instead of only ever the latest.
+
+    ``/v1/reports/{case_id}`` reads a store keyed ``(workspace, case)`` whose every write is
+    an UPSERT, so earlier runs are unreachable there; ``/rehydrate`` is run-addressable but
+    returns the inner ``result`` alone (no composite / grounded / council). This composes the
+    two halves: ``provenance_to_result`` for the result, the blob's own ``grounded`` block,
+    and the flat ``_composite_from_grounded`` twin — then applies the SAME read-side folds
+    the report + run-eval responses carry (``calibration_check`` / ``grade_path`` /
+    ``council`` / ``pipeline_run_id``), so one renderer serves both.
+
+    Why it exists: comparing one case across runs under a frozen config is the evidence that
+    an LLM judge is not deterministic — and therefore the argument for a deterministic floor
+    and for escalating to a human review exactly where runs disagree. That comparison is
+    unreadable without per-run reads. $0 by construction: a pure blob read, no re-grade, no
+    replay, no run-row append. Unknown id → clean 404."""
+    from lithrim_bench.harness.replay import provenance_to_result
+
+    doc = run_coro(provenance_store_for(collections_db).find_by_id(run_id))
+    if doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"run {run_id!r} not found (no persisted provenance blob for this run id)",
+        )
+    record = {
+        "case_id": doc.get("case_id"),
+        "agent": doc.get("agent_id"),
+        "result": provenance_to_result(doc),
+        "grounded": doc.get("grounded"),
+        "composite": _composite_from_grounded(doc.get("grounded"), verdict=doc.get("verdict")),
+        "provenance": {
+            "council_config": doc.get("council_config"),
+            "grade_path": doc.get("grade_path"),
+        },
+    }
+    # NOT folded in: `calibration_check`. It needs the case's expected-verdict label and the
+    # per-run calibration block, neither of which a provenance blob carries — the shell already
+    # defaults it to "unlabeled", so an absent number stays absent instead of being invented.
+    record["grade_path"] = doc.get("grade_path")
+    record["council"] = _council_view(record, _judge_display_names())
+    record["pipeline_run_id"] = doc.get("pipeline_run_id") or run_id
+    # run-scoped provenance the comparison needs: same-config proof + when + lineage + spend.
+    record["grade_signature"] = doc.get("grade_signature")
+    record["ts"] = doc.get("timestamp")
+    record["replay_of"] = doc.get("replay_of")
+    record["cost_tokens"] = doc.get("cost_tokens")
+    return record
+
+
 @app.get("/v1/reports/{case_id}")
 def get_case_report_endpoint(
     case_id: str,

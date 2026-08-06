@@ -16,6 +16,10 @@ vi.mock("./bff.js", () => ({
   recordMetaVerdict: vi.fn(),
   getRunAudit: vi.fn(),
   getCaseReport: vi.fn(),
+  // RUN-SCOPED-REPORT-1: ReportTab also reads the case's run history; a bare mock would
+  // leave these undefined and crash the pane. Resolved empty = "one run", picker absent.
+  getRuns: vi.fn(() => Promise.resolve({ runs: [] })),
+  getRunReport: vi.fn(),
 }));
 
 import { ArtifactPane } from "./artifact.jsx";

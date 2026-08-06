@@ -71,6 +71,12 @@ export const getRuns = (limit = 50, { agent, caseId } = {}) => {
   return call(`/v1/runs?${qs.toString()}`);
 };
 
+/* GET /v1/runs/{run_id}/report — RUN-SCOPED-REPORT-1: ONE SPECIFIC past run in the SAME record
+   shape getCaseReport returns, so the Report pane can open the run a scorecard row came from
+   instead of only ever the latest. A pure $0 blob read (no re-grade, no replay row). */
+export const getRunReport = (runId) =>
+  call(`/v1/runs/${encodeURIComponent(runId)}/report`);
+
 /* GET /v1/reports/{case_id} — REPORT-HYDRATE-1: the LATEST persisted report record for a case
    (the run-eval record shape, honestly labeled by its stored grade_path; a pure $0 read).
    404 when the case has no saved run for this agent — the caller keeps its empty state. */
