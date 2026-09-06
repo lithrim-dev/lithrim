@@ -62,6 +62,8 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
             "contract": b["decl"].version,
             "conforms": b["result"].conforms,
             "disposition": b["result"].disposition,
+            # REVIEW-STATE-1: what the check found rides the row (parity with floor_passes).
+            "evidence": dict(b["result"].evidence or {}),
         }
         for b in floor_blocks
     ]
@@ -116,6 +118,9 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         "floor_pass_count": len(floor_passes),
         "coverage": coverage,
         "floor_backstopped": coverage.get("floor_backstopped"),
+        # REVIEW-STATE-1: the reviewer's three-state decision, computed here ONCE so the CLI
+        # queue, the persisted record and the shell read the same call.
+        "review": review_state(grounded),
     }
 
 
@@ -281,3 +286,79 @@ def calibration_check(records: list[dict[str, Any]]) -> dict[str, Any]:
         "n_with_confidence": n_pooled,
         "caveat": caveat,
     }
+
+
+def review_state(grounded: Any) -> dict[str, Any]:
+    """REVIEW-STATE-1: the three-state reviewer decision over a grounded result.
+
+    CLEARED and FLAGGED require the deterministic layer to have materially supported the
+    verdict (``coverage.floor_backstopped``): FLAGGED only when a check injected the block,
+    CLEARED only when a check recorded a pass or disproved the judges' signal with evidence.
+    Everything else is ESCALATED with the reason a person needs. A judge's confidence never
+    clears a case. Moved verbatim from ``scripts/queue_demo.py`` so the queue, the record and
+    the shell share one source (the queue output is pinned byte-stable).
+    """
+    cov = getattr(grounded, "coverage", None) or {}
+    verdict = str(grounded.verdict)
+    backstopped = bool(cov.get("floor_backstopped"))
+    active = getattr(grounded, "active", None) or []
+    floor_blocks = getattr(grounded, "floor_blocks", None) or []
+    floor_passes = getattr(grounded, "floor_passes", None) or []
+    suppressed = getattr(grounded, "suppressed", None) or []
+    judge_codes = sorted({f.get("code") for f in active if f.get("code") and not f.get("_floor")})
+    out: dict[str, Any] = {
+        "verdict": verdict,
+        "verdict_no_floor": getattr(grounded, "verdict_no_floor", None),
+        "floor_backstopped": backstopped,
+        "judge_codes": judge_codes,
+    }
+    if verdict == "BLOCK" and cov.get("grounded", 0) > 0:
+        blocks = [b for b in floor_blocks if b["injected_finding"] is not None]
+        ev = blocks[0]["result"].evidence or {}
+        out.update(
+            state="FLAGGED",
+            check=blocks[0]["decl"].contract_type,
+            evidence=f"{blocks[0]['decl'].contract_type}: {ev.get('reason', 'violation')}"
+            + (f"; missing {ev['missing']}" if ev.get("missing") else ""),
+            reason="a deterministic check contradicted the artifact",
+        )
+        return out
+    if verdict == "PASS" and backstopped:
+        if floor_passes:
+            p = floor_passes[0]
+            ev = p["result"].evidence or {}
+            out.update(
+                state="CLEARED",
+                check=p["decl"].contract_type,
+                evidence=f"{p['decl'].contract_type}: {ev.get('checked', 0)} value(s) checked, all present in the source",
+                reason="a deterministic check confirmed the artifact",
+            )
+        else:
+            s = suppressed[0]
+            out.update(
+                state="CLEARED",
+                check=s["contract"].contract_type,
+                evidence=f"{s['contract'].contract_type}: judge signal {s['finding'].get('code')} disproved ({s['verdict'].reason})",
+                reason="the judges' signal was disproved with evidence",
+            )
+        return out
+    leads = [
+        b["result"].evidence.get("missing")
+        for b in floor_blocks
+        if b["injected_finding"] is None and (b["result"].evidence or {}).get("missing")
+    ]
+    if verdict == "BLOCK":
+        reason = f"judges raised {judge_codes}; no check could confirm or refute it"
+    elif verdict == "WARN":
+        reason = f"judges were uncertain ({judge_codes or 'no code'}); no check settled it"
+    elif leads:
+        reason = f"value(s) {leads[0]} not found in the source; a lead for a person, not a proof"
+    else:
+        reason = "no deterministic check applied to this case; the PASS rests on judges alone"
+    # what the checks DID establish rides along, so a person sees the confirmed part too
+    confirmed = [
+        f"{p['decl'].contract_type} confirmed {(p['result'].evidence or {}).get('checked', 0)} value(s) present"
+        for p in floor_passes
+    ]
+    out.update(state="ESCALATED", check=None, evidence="; ".join(confirmed), reason=reason)
+    return out

@@ -11,8 +11,18 @@ date-based pre-1.0 versions.
   signals trigger grounding checks, each case is cleared / flagged / escalated with evidence).
   `make demo` now reports what backed its verdict (`floor_backstopped`) instead of
   attributing a judge-only rescore to the floor.
+- The report pane and the inline verdict card title a graded case by the reviewer's decision
+  when the record carries one: Flagged (a check contradicted the artifact), Cleared (a check
+  confirmed it or disproved the judges' signal), or Needs a person (nothing proven either way),
+  with the reason and evidence under the title. Records from an earlier server render as before.
+- Fact-check rows print what the check found (reason, missing and present values), and the
+  passes a check recorded render as "Confirmed by a fact-check" so an escalated case shows what
+  was verified. The section heading says "confirmed the result" when the reviewers had already
+  blocked, and "changed the result" only when the pre-floor verdict differs from the final one.
 
 ### Fixed
+- The Reviewers tab read only the in-session run and said "No run yet" for a case with a
+  stored run while the Report tab showed it. Both tabs now hydrate the same persisted record.
 - Dependencies: `litellm` is capped `<1.97` on every extra that imports it. litellm 1.97+
   imports `typing.NotRequired` (Python 3.11+) on its import path while declaring
   `>=3.10`, which broke the assistant probe and the BYO-Claude judge path on Python 3.10
@@ -22,6 +32,10 @@ date-based pre-1.0 versions.
   the same deployment-granular gate as the per-role branch (confidence-dark, never a dead judge).
 
 ### Added
+- `review_state()` in the engine and `composite()["review"]`: the cleared / flagged / escalated
+  decision is computed once and rides every graded record (the queue script imports it; its
+  output is pinned byte-stable). Floor rows carry their evidence, and the persisted `grounded`
+  block carries `floor_passes` and `coverage` for parity with the composite.
 - `value_grounding` core floor: a value the artifact states must be present in the source;
   a violation on a structured record source, a named lead on prose (measured on RAGTruth).
 - `GroundedResult.floor_passes` + `composite()["floor_passes"]`: a satisfied floor is recorded

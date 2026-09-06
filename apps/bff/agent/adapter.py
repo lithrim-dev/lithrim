@@ -282,6 +282,11 @@ def verdict_part(record: dict[str, Any]) -> dict[str, Any]:
     case_outcome = council.get("case_outcome") or composite.get("case_outcome")
     if case_outcome:
         out["caseOutcome"] = str(case_outcome)
+    # REVIEW-STATE-1: the engine's three-state reviewer decision rides to the inline card
+    # verbatim (state, reason, evidence) — the same block the report pane and the CLI queue read.
+    review = composite.get("review")
+    if isinstance(review, dict) and review.get("state"):
+        out["review"] = review
     # INLINE-IMPACT-1 (the demo's thesis, inline): the structural-floor INJECTIONS — a deterministic
     # contract that BLOCKED what the council missed. Projected from composite.floor_adjustments
     # (action == floor_block only; inconclusive floors did not flip the verdict). The card renders a

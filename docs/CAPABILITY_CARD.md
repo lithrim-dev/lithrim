@@ -44,6 +44,9 @@ registered contract type. The shipped contract types:
   against human spans (2026-09-06): record sources precision 0.78 strict / 0.94 any-label,
   recall 0.82; prose sources precision 0.10. A satisfied floor is recorded as a `floor_pass`
   (`GroundedResult.floor_passes`), so a PASS can prove which check examined the artifact.
+  The three-state decision itself (`composite.review`: cleared / flagged / escalated, with the
+  check, the evidence and the reason) is computed once by `review_state()` and rides every
+  graded record; the shell titles the case with it.
 - `kb_grounding`: presence check generalized to a configured knowledge base.
 - `terminology_subsumption`: span-driven terminology check over a configured
   terminology tool; a term that is equal to or subsumed by (is-a) a recorded concept

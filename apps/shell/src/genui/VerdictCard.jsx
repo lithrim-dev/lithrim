@@ -35,6 +35,16 @@ const OUTCOME = {
   CLEAR: { cls: "pass", icon: "check", color: "var(--teal)", label: "Clear" },
 };
 
+// REVIEW-STATE-UI-1: the engine's three-state reviewer decision (composite.review). When the
+// run carries one it IS the headline: FLAGGED = a deterministic check contradicted the artifact,
+// CLEARED = a check confirmed it or disproved the judges' signal, ESCALATED = nothing proven
+// either way, a person decides. A harsher outcome label never sits over an unproven signal.
+const REVIEW = {
+  FLAGGED: { cls: "fail", icon: "flag", color: "var(--accent)", label: "Flagged" },
+  CLEARED: { cls: "pass", icon: "check", color: "var(--teal)", label: "Cleared" },
+  ESCALATED: { cls: "warn", icon: "flag", color: "var(--amber)", label: "Needs a person" },
+};
+
 // FLOOR-STORY-1: the shared flip-story line (verbatim the Report banner's copy) — the ONE
 // reading of a floor-cleared run: reviewers flagged it, a fact-check cleared the findings.
 const floorClearStory = (n, finalLabel) =>
@@ -66,7 +76,7 @@ function agreeDots(agreement) {
 
 export default function VerdictCard({
   id, question, answer, confidence, agreement, pillar, pillarStatus, verdict,
-  votes, floorBlocks, floorClears, runId, onOpenArtifact, caseOutcome,
+  votes, floorBlocks, floorClears, runId, onOpenArtifact, caseOutcome, review,
 } = {}) {
   // Real-data only: with no outcome/verdict (and no question), this was an output-less mount —
   // show an honest placeholder instead of a fabricated sample verdict.
@@ -89,8 +99,9 @@ export default function VerdictCard({
   // it into a contradicting headline; the flip renders as the story strip below instead.
   const flipStory = Array.isArray(floorClears) && floorClears.length > 0 && /^(approve|pass)$/i.test(String(verdict || ""));
   const oc = !flipStory && caseOutcome ? OUTCOME[String(caseOutcome).toUpperCase()] : null;
-  const t = oc || tone(verdict);
-  const headline = oc ? oc.label : verdictLabel(verdict);
+  const rv = review && REVIEW[String(review.state || "").toUpperCase()] ? REVIEW[String(review.state).toUpperCase()] : null;
+  const t = rv || oc || tone(verdict);
+  const headline = rv ? rv.label : oc ? oc.label : verdictLabel(verdict);
   // NARRATIVE-LAYER-1: the plain-language read of THIS result (who wobbled, who held),
   // computed from the real votes + floor events — null (no band) when there is nothing to read.
   const read = caseRead({ votes, floorBlocks, floorClears, verdict });
@@ -103,6 +114,11 @@ export default function VerdictCard({
         <span className="right"><span className={"tag " + t.cls}>{headline}</span></span>
       </div>
       <div className="icard-bd">
+        {rv && (
+          <div data-testid="review-reason" style={{ margin: "0 0 10px", fontSize: 12, color: "var(--fg)", lineHeight: 1.45 }}>
+            <span style={{ color: t.color, fontWeight: 600 }}>{rv.label}</span> · {review.reason}{review.evidence ? ` · ${review.evidence}` : ""}
+          </div>
+        )}
         {read && (
           <div data-testid="verdict-read" style={{ margin: "0 0 10px", padding: "8px 10px", borderRadius: 8, background: "var(--surface-muted, rgba(120,120,120,0.06))", borderLeft: "3px solid var(--border)" }}>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", marginBottom: 5 }}>The read</div>
