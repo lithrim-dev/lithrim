@@ -35,6 +35,7 @@ from typing import Any
 
 from .spec import (
     TOOL_KB_RAG,
+    TOOL_VALUE_GROUNDING,
     TOOL_VALUE_PRESENCE,
     TOOL_WEB_SEARCH,
     Claim,
@@ -183,6 +184,175 @@ class ValuePresenceTool(VerificationTool):
             evidence={"required": required, "present": present, "missing": missing, "match": "all"},
             manifest=manifest,
         )
+
+
+# --------------------------------------------------------------------------- #
+# ValueGroundingTool (VALUE-GROUNDING-FLOOR-1) — a value the ARTIFACT states is ABSENT from the
+# source (the inverse of ValuePresenceTool; the record-grounded contradiction mechanism)
+# --------------------------------------------------------------------------- #
+_VG_NUMBER = re.compile(r"(?<![\w.\-])\d[\d,]*(?:\.\d+)?(?![\w\-])")
+_VG_TIME = re.compile(r"(?<![\w])(\d{1,2}):(\d{2})(?![\w])")
+_VG_LIST_MARKER = re.compile(r"(?m)^\s*\d+[.)]\s")
+_VG_NUMBER_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+    "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+    "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100, "thousand": 1000,
+    "million": 1_000_000, "billion": 1_000_000_000,
+}
+
+
+def _vg_canon(tok: str) -> str:
+    """Numeric equality as the comparison key: ``4.0`` == ``4``, ``1,200`` == ``1200``."""
+    tok = tok.replace(",", "")
+    try:
+        f = float(tok)
+    except ValueError:
+        return tok
+    return str(int(f)) if f == int(f) else str(f)
+
+
+def _vg_pad_times(text: str) -> str:
+    """``9:0`` -> ``9:00`` so a record's terse clock times compare with prose ``9:00``."""
+    return re.sub(r"(\d{1,2}):(\d)(?!\d)", lambda m: f"{m.group(1)}:{int(m.group(2)):02d}", text)
+
+
+def _vg_artifact_values(text: str, min_digits: int) -> list[str]:
+    """The values the artifact STATES, first-seen order: clock times (``h:mm``) then numbers.
+    List markers (``1.`` / ``2)``) are not claims; hyphen-bound tokens (``COVID-19``, ``5-star``)
+    are names, not values; anything under ``min_digits`` significant digits is ignored."""
+    t = _VG_LIST_MARKER.sub(" ", _vg_pad_times(text))
+    out: list[str] = []
+    for h, m in _VG_TIME.findall(t):
+        v = f"{int(h)}:{int(m):02d}"
+        if v not in out:
+            out.append(v)
+    for n in _VG_NUMBER.findall(_VG_TIME.sub(" ", t)):
+        v = _vg_canon(n)
+        if v not in out:
+            out.append(v)
+    return [v for v in out if len(v.replace(".", "").replace(":", "")) >= min_digits]
+
+
+def _vg_source_values(text: str) -> set[str]:
+    """Every value the source can ground: clock times in 24h AND 12h form (``17:30`` grounds
+    ``5:30``; a whole hour also grounds its bare hour), numbers under numeric equality, and
+    spelled-out numbers (``nineteen`` grounds ``19``). Ranges (``9:0-14:0``) are split."""
+    t = _vg_pad_times(text).replace("-", " ")
+    vals: set[str] = set()
+    for h, m in _VG_TIME.findall(t):
+        hh, mm = int(h), int(m)
+        h12 = hh % 12 or 12
+        vals |= {f"{hh}:{mm:02d}", f"{h12}:{mm:02d}"}
+        if mm == 0:
+            vals |= {str(hh), str(h12)}
+    vals |= {_vg_canon(n) for n in _VG_NUMBER.findall(_VG_TIME.sub(" ", t))}
+    words = re.findall(r"[a-z]+", t.lower())
+    for i, w in enumerate(words):
+        v = _VG_NUMBER_WORDS.get(w)
+        if v is None:
+            continue
+        vals.add(str(v))
+        nxt = _VG_NUMBER_WORDS.get(words[i + 1]) if i + 1 < len(words) else None
+        if v >= 20 and nxt is not None and nxt < 10:
+            vals.add(str(v + nxt))
+    return vals
+
+
+class ValueGroundingTool(VerificationTool):
+    """Floor: every VALUE the artifact states (a number, a clock time) must be PRESENT in the
+    source (``source_path``, default ``transcript``). The inverse of :class:`ValuePresenceTool`.
+    The oracle is deterministic value normalization + set membership — never LLM inference.
+
+    What a MISSING value proves depends on the source, and the tool says so instead of
+    pretending. Measured on the RAGTruth test split against human span labels (2026-09-06):
+    on a structured RECORD source (data-to-text) a missing value is a real contradiction
+    (precision 0.78 strict / 0.94 any-label, recall 0.82); on PROSE (news summaries) it is
+    mostly derived or framing text ("a summary in 84 words", "100 years ago"), precision 0.10.
+
+    Tri-state, conservative:
+      * ``conforms=True``  -- >=1 value checked and every one is present (a recorded floor pass).
+      * ``conforms=False`` -- a value is missing AND the case's ``source_kind`` is ``record``
+        (or the reference pins ``on_missing: violation``): inject the contradiction.
+      * ``conforms=None``  -- nothing to check (no values / empty artifact / no source), OR a
+        value is missing on prose (``on_missing: by_source_kind``, the default) or the reference
+        pins ``on_missing: lead``: surfaced WITH the missing values as evidence so a reviewer can
+        escalate a named lead. Never flips by silence, never over-flags prose.
+
+    reference (all optional) = {
+        "on_missing": "by_source_kind" | "violation" | "lead",   # default by_source_kind
+        "source_path": <dotted path into the case>,               # default "transcript"
+        "min_digits": <int>,   # default 1 on a record source, 2 on prose (single-digit counts
+                               # in prose are list-shaped noise, not claims)
+    }
+    The case declares its source shape as ``source_kind`` (``record`` | ``prose``; default prose).
+    """
+
+    name = TOOL_VALUE_GROUNDING
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        case = claim.source or {}
+        source_kind = str(case.get("source_kind") or "prose")
+        on_missing = ref.get("on_missing", "by_source_kind")
+        source_path = ref.get("source_path", "transcript")
+        min_digits = int(ref.get("min_digits") or (1 if source_kind == "record" else 2))
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "on_missing": on_missing,
+            "source_path": source_path,
+            "min_digits": min_digits,
+            "source_kind": source_kind,
+        }
+
+        artifact = claim.subject
+        if not isinstance(artifact, str) or not artifact.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "empty or non-text artifact; no values to check"},
+                manifest=manifest,
+            )
+        source_text = " ".join(str(x) for x in _dig(case, source_path))
+        if not source_text.strip():
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": f"no source text at '{source_path}'; nothing to ground against"},
+                manifest=manifest,
+            )
+        stated = _vg_artifact_values(artifact, min_digits)
+        if not stated:
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "no values in the artifact (numbers or clock times); nothing to ground"},
+                manifest=manifest,
+            )
+        grounded = _vg_source_values(source_text)
+        present = [v for v in stated if v in grounded]
+        missing = [v for v in stated if v not in grounded]
+        evidence: dict[str, Any] = {
+            "checked": len(stated),
+            "present": present,
+            "missing": missing,
+            "source_kind": source_kind,
+        }
+        if not missing:
+            evidence["reason"] = "every value the artifact states is present in the source"
+            return VerificationResult(conforms=True, evidence=evidence, manifest=manifest)
+        violation = on_missing == "violation" or (
+            on_missing == "by_source_kind" and source_kind == "record"
+        )
+        if violation:
+            evidence["reason"] = "values stated in the artifact are absent from the record"
+            return VerificationResult(conforms=False, evidence=evidence, manifest=manifest)
+        evidence["reason"] = (
+            "values absent from the source; on prose this is a lead for review, "
+            "not a proof of contradiction"
+        )
+        return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
 
 
 # --------------------------------------------------------------------------- #

@@ -72,6 +72,12 @@ TOOL_SPEAKER_ATTRIBUTION = "speaker_attribution"
 # mirror of the suppress-plane ``snomed_battery`` validator). The is-a lookup is EXACT, so the
 # manifest is honestly ``deterministic: True``.
 TOOL_SNOMED_SUBSUMPTION_FLOOR = "snomed_subsumption_floor"
+# VALUE-GROUNDING-FLOOR-1: the inverse of value_presence — every VALUE (number / clock time) the
+# ARTIFACT states must be present in the SOURCE, under deterministic value normalization. Its
+# claim is bounded by measurement (RAGTruth test split, 2026-09-06): a missing value is a
+# VIOLATION only when the source is a structured record (precision 0.78 strict / 0.94 any-label);
+# on prose it is a LEAD (precision 0.10) surfaced as inconclusive WITH the values named.
+TOOL_VALUE_GROUNDING = "value_grounding"
 _KNOWN_TOOLS = {
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
@@ -88,6 +94,7 @@ _KNOWN_TOOLS = {
     TOOL_FACT_PRESERVATION,
     TOOL_SPEAKER_ATTRIBUTION,
     TOOL_SNOMED_SUBSUMPTION_FLOOR,
+    TOOL_VALUE_GROUNDING,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -116,6 +123,10 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # value_presence: the SME pins ``value_regex`` (the required token extractor); ``source_path``
     # is optional (default ``transcript``). The artifact under test is ``artifacts[0].content``.
     TOOL_VALUE_PRESENCE: {"value_regex"},
+    # value_grounding: no required reference — the values are extracted from the artifact itself.
+    # Optional knobs: ``on_missing`` (by_source_kind | violation | lead), ``source_path``
+    # (default ``transcript``), ``min_digits``.
+    TOOL_VALUE_GROUNDING: set(),
     # concept_preservation: the SME pins the two concept-list paths (``stated_path`` / ``noted_path``);
     # the terminology ``tool`` is optional (the pack defaults it). The inject coordinates
     # (``inject_flag_code`` / ``inject_severity``) are contract PARAMS read by the floor injector,

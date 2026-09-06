@@ -67,6 +67,20 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
     ]
     n_floor_block = sum(1 for b in floor_blocks if b["injected_finding"] is not None)
     n_floor_inconclusive = len(floor_blocks) - n_floor_block
+    # FLOOR-PASSES-1: the satisfied floors — WHICH check examined the artifact and found it
+    # clean, with its evidence. Empty on pre-addition results (defaults to []).
+    floor_passes = [
+        {
+            "flag": p["decl"].flag_code,
+            "action": "floor_pass",
+            "contract_type": p["decl"].contract_type,
+            "contract": p["decl"].version,
+            "conforms": p["result"].conforms,
+            "disposition": p["result"].disposition,
+            "evidence": dict(p["result"].evidence or {}),
+        }
+        for p in (getattr(grounded, "floor_passes", []) or [])
+    ]
 
     reasoning = (
         f"{len(grounded.active)} active finding(s) after grounding; "
@@ -98,6 +112,8 @@ def composite(grounded: GroundedResult) -> dict[str, Any]:
         "ungrounded_count": len(grounded.ungrounded),
         "skipped_non_gradeable_count": n_reference,
         "floor_block_count": n_floor_block,
+        "floor_passes": floor_passes,
+        "floor_pass_count": len(floor_passes),
         "coverage": coverage,
         "floor_backstopped": coverage.get("floor_backstopped"),
     }

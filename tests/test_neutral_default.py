@@ -57,6 +57,7 @@ from lithrim_bench.harness.ontology import load_ontology
 from lithrim_bench.harness.grade import grade_inprocess
 from lithrim_bench.harness.grounding import ground
 from lithrim_bench.harness.report import composite
+from lithrim_bench.harness.grounding import _contract_transport
 from lithrim_bench.picklist import load_case
 from lithrim_bench.runtime.council.authored_stage import build_authored_semantic_stage
 from lithrim_bench.runtime.council.judges_dspy import V2_ROLES, build_judge_lm
@@ -116,6 +117,7 @@ print("__JSON__" + json.dumps({
     "prompts_dir": _norm(str(pack_prompts_path())),
     "ontology_path": _norm(str(pack_ontology_path())),
     "n_verification_contracts": len(ont.contracts),
+    "contract_transports": sorted({_contract_transport(c.contract_type) for c in ont.contracts}),
     "verdict": comp["verdict"],
     "votes": votes,
     "healthcare_reads": healthcare_reads,
@@ -179,8 +181,10 @@ def test_generic_grade_reaches_a_verdict(neutral_out):
     assert "FABRICATED_CLAIM" in policy["findings"]
     assert neutral_out["votes"]["risk_judge"]["vote"] != "BLOCK"
     assert neutral_out["votes"]["faithfulness_judge"]["vote"] != "BLOCK"
-    # the generic ontology declares no verification_contracts → no external grounding call.
-    assert neutral_out["n_verification_contracts"] == 0
+    # the generic ontology's verification_contracts are ALL in_process (VALUE-GROUNDING-FLOOR-1:
+    # value_grounding + source_grounding, pure stdlib) → no external grounding call.
+    assert neutral_out["n_verification_contracts"] >= 1
+    assert neutral_out["contract_transports"] == ["in_process"]
 
 
 def test_zero_healthcare_reads_under_the_shipped_default(neutral_out):

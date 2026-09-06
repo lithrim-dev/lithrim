@@ -479,9 +479,13 @@ def build_judge_lm(role: str, **overrides: Any):
         # evidence-heavy cases — the judge quotes clinical spans (e.g. a 20-item PMH), so
         # it needs headroom. Caps, never forces, so cost only rises on genuinely long output (S-BS-111).
         "max_tokens": 4096,
-        "logprobs": True,
         "cache": lm_cache,
     }
+    # LOGPROBS-GLOBAL-AZURE-1 (live-caught 2026-09-06): the same deployment-granular gate the
+    # per-role branch applies. A MaaS deployment (Mistral) 400s on the logprobs param and the
+    # judge died into an empty WARN; omit it there (honest confidence-dark), keep it for gpt.
+    if _model_supports_logprobs("azure", deployment):
+        kwargs["logprobs"] = True
     kwargs.update(overrides)
     return dspy.LM(f"azure/{deployment}", **kwargs)
 

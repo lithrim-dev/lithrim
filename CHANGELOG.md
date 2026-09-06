@@ -4,6 +4,30 @@ All notable changes to Lithrim are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 date-based pre-1.0 versions.
 
+## [Unreleased]
+
+### Changed
+- Positioning: Lithrim is described as an expert reviewer agent (judges raise signals,
+  signals trigger grounding checks, each case is cleared / flagged / escalated with evidence).
+  `make demo` now reports what backed its verdict (`floor_backstopped`) instead of
+  attributing a judge-only rescore to the floor.
+
+### Fixed
+- The global Azure council branch sent `logprobs` to every deployment; a MaaS deployment
+  (Mistral) rejects the parameter and the judge died into a silent empty WARN. It now applies
+  the same deployment-granular gate as the per-role branch (confidence-dark, never a dead judge).
+
+### Added
+- `value_grounding` core floor: a value the artifact states must be present in the source;
+  a violation on a structured record source, a named lead on prose (measured on RAGTruth).
+- `GroundedResult.floor_passes` + `composite()["floor_passes"]`: a satisfied floor is recorded
+  as evidence, and a PASS it examined counts as floor-backstopped.
+- The neutral `_core` pack binds `value_grounding` (floor) and `source_grounding` (suppress)
+  contracts, all in-process.
+- `make queue` (`scripts/queue_demo.py`): five public RAGTruth cases (MIT, human-labeled)
+  worked into cleared / flagged / escalated at $0, with committed judge baselines
+  (`samples/ragtruth/`, `scripts/ragtruth_cases.py`).
+
 ## [0.1.0-ce] — Unreleased
 
 First public Community Edition release.

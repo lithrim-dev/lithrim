@@ -1,0 +1,678 @@
+{
+ "artifact": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "case_outcome": "NEEDS_REVIEW",
+ "duration_ms": 7400,
+ "findings": [
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "SOURCE_CONTRADICTION",
+   "detail": "SOURCE_CONTRADICTION (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  },
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "MISSING_CONTEXT",
+   "detail": "MISSING_CONTEXT (judges=2)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  }
+ ],
+ "gate_decision": "regenerate",
+ "provenance": {
+  "active_pack": "_core",
+  "artifact_type": "generated_response",
+  "case_outcome": "NEEDS_REVIEW",
+  "cost_tokens": {
+   "completion": 1063,
+   "prompt": 5239,
+   "total": 6302
+  },
+  "council_config": {
+   "context_kind": "transcript",
+   "judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+   ],
+   "mode": "full"
+  },
+  "council_error": false,
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "gate_decision": "regenerate",
+  "grade_path": null,
+  "judge_rationale": {
+   "confidence": 1.0,
+   "consensus": false,
+   "decision": "reject",
+   "uncertainty": true
+  },
+  "kb_retrievals": [],
+  "loaded_plugins": [
+   {
+    "contract_types": [],
+    "id": "_core",
+    "implements": "pack",
+    "kind": "pack",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "presence_check"
+    ],
+    "id": "presence_check",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "kb_grounding"
+    ],
+    "id": "kb_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "web_search"
+    ],
+    "id": "web_search",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "source_grounding"
+    ],
+    "id": "source_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "evidence_presence"
+    ],
+    "id": "evidence_presence",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "mcp_call"
+    ],
+    "id": "mcp_call",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "terminology_subsumption"
+    ],
+    "id": "terminology_subsumption",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_battery"
+    ],
+    "id": "snomed_battery",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "structural_jute"
+    ],
+    "id": "structural_jute",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "jute_gen"
+    ],
+    "id": "jute_gen",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_presence"
+    ],
+    "id": "value_presence",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_grounding"
+    ],
+    "id": "value_grounding",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "fact_preservation"
+    ],
+    "id": "fact_preservation",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "speaker_attribution"
+    ],
+    "id": "speaker_attribution",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_subsumption_floor"
+    ],
+    "id": "snomed_subsumption_floor",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "azure_openai",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "byo_claude",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "composo",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "etlp_jute",
+    "implements": "tool.api_connector",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:3031"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "web_search",
+    "implements": "tool.mcp_server",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:8585"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   }
+  ],
+  "model_bindings": [
+   {
+    "dated": false,
+    "model": "azure/gpt-4.1",
+    "role": "risk_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Mistral-Large-3",
+    "role": "policy_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "role": "faithfulness_judge"
+   }
+  ],
+  "org_id": "local",
+  "pack_tier": "core",
+  "pipeline_run_id": "2c686e8a-ec55-4ce9-9d1f-fb95c3bab27e",
+  "replay_of": null,
+  "request_hash": "382715cfbdd5b0dc6c349813ce6dfd68d78e0b6731d0f9aec1f5313c80d3b7d4",
+  "retrieval_stats": {
+   "disabled": true,
+   "namespaces": []
+  },
+  "sampling": {
+   "faithfulness_judge": {
+    "k": 3,
+    "score_mean": 0.3333333333333333,
+    "score_variance": 0.22222222222222224,
+    "scores_raw": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   "policy_judge": {
+    "k": 1,
+    "score_mean": 0.5,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.5
+    ]
+   },
+   "risk_judge": {
+    "k": 5,
+    "score_mean": 1.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  "stage_results": {
+   "semantic": {
+    "evidence": [
+     {
+      "judge": "faithfulness_judge",
+      "spans": [
+       {
+        "quote": "first preheat the oven to 350 degrees F (175 degrees C)",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "SOURCE_CONTRADICTION"
+     },
+     {
+      "judge": "policy_judge",
+      "spans": [
+       {
+        "quote": "Spray a baking sheet with butter flavored cooking spray.",
+        "turn_ids": []
+       },
+       {
+        "quote": "Layer the fillets with onion, green pepper, and tomato slices.",
+        "turn_ids": []
+       },
+       {
+        "quote": "If desired, turn the oven off, place two slices of cheese on each fillet and return fish to the oven to allow cheese to melt for about 3 minutes.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "MISSING_CONTEXT"
+     }
+    ],
+    "findings": [
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "SOURCE_CONTRADICTION",
+      "detail": "SOURCE_CONTRADICTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     },
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "MISSING_CONTEXT",
+      "detail": "MISSING_CONTEXT (judges=2)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     }
+    ],
+    "judge_votes": [
+     {
+      "confidence": 0.999999,
+      "confidence_self": 1.0,
+      "errors": [],
+      "findings": [],
+      "judge_role": "risk_judge",
+      "k": 5,
+      "model": "azure/gpt-4.1",
+      "reason": "The response accurately synthesizes steps from the source passages without introducing unsupported claims or internal inconsistencies. All details (temperatures, steps, optional cheese addition) are derived directly from the source material.",
+      "scores_raw": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "variance": 0.0,
+      "vote": "PASS"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.5,
+      "errors": [],
+      "findings": [
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "policy_judge",
+      "k": 1,
+      "model": "azure/Mistral-Large-3",
+      "reason": "needs_review \u2014 MISSING_CONTEXT",
+      "scores_raw": [
+       0.5
+      ],
+      "variance": 0.0,
+      "vote": "WARN"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.3333333333333333,
+      "errors": [],
+      "findings": [
+       "SOURCE_CONTRADICTION",
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "faithfulness_judge",
+      "k": 3,
+      "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "reason": "reject \u2014 SOURCE_CONTRADICTION, MISSING_CONTEXT",
+      "scores_raw": [
+       0.0,
+       0.0,
+       1.0
+      ],
+      "variance": 0.22222222222222224,
+      "vote": "BLOCK"
+     }
+    ],
+    "metadata": {},
+    "status": "WARN"
+   }
+  },
+  "stages_executed": [
+   "semantic",
+   "verdict"
+  ],
+  "structural_template_pin": null,
+  "timestamp": "2026-09-06T10:39:36.197600Z",
+  "tool_calls": null,
+  "verdict": "WARN",
+  "verdict_flipped_by_stage": "semantic"
+ },
+ "regenerate_hints": [
+  "[SOURCE_CONTRADICTION] SOURCE_CONTRADICTION (judges=1)",
+  "[MISSING_CONTEXT] MISSING_CONTEXT (judges=2)"
+ ],
+ "semantic": {
+  "evidence": [
+   {
+    "judge": "faithfulness_judge",
+    "spans": [
+     {
+      "quote": "first preheat the oven to 350 degrees F (175 degrees C)",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "SOURCE_CONTRADICTION"
+   },
+   {
+    "judge": "policy_judge",
+    "spans": [
+     {
+      "quote": "Spray a baking sheet with butter flavored cooking spray.",
+      "turn_ids": []
+     },
+     {
+      "quote": "Layer the fillets with onion, green pepper, and tomato slices.",
+      "turn_ids": []
+     },
+     {
+      "quote": "If desired, turn the oven off, place two slices of cheese on each fillet and return fish to the oven to allow cheese to melt for about 3 minutes.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "MISSING_CONTEXT"
+   }
+  ],
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "judge_votes": [
+   {
+    "confidence": 0.999999,
+    "confidence_self": 1.0,
+    "errors": [],
+    "findings": [],
+    "judge_role": "risk_judge",
+    "k": 5,
+    "model": "azure/gpt-4.1",
+    "reason": "The response accurately synthesizes steps from the source passages without introducing unsupported claims or internal inconsistencies. All details (temperatures, steps, optional cheese addition) are derived directly from the source material.",
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "variance": 0.0,
+    "vote": "PASS"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.5,
+    "errors": [],
+    "findings": [
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "policy_judge",
+    "k": 1,
+    "model": "azure/Mistral-Large-3",
+    "reason": "needs_review \u2014 MISSING_CONTEXT",
+    "scores_raw": [
+     0.5
+    ],
+    "variance": 0.0,
+    "vote": "WARN"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.3333333333333333,
+    "errors": [],
+    "findings": [
+     "SOURCE_CONTRADICTION",
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "faithfulness_judge",
+    "k": 3,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "reason": "reject \u2014 SOURCE_CONTRADICTION, MISSING_CONTEXT",
+    "scores_raw": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "variance": 0.22222222222222224,
+    "vote": "BLOCK"
+   }
+  ],
+  "metadata": {},
+  "status": "WARN"
+ },
+ "structural": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "transform": null,
+ "verdict": "WARN"
+}

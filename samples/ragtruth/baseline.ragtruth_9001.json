@@ -1,0 +1,806 @@
+{
+ "artifact": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "case_outcome": "FLAGGED",
+ "duration_ms": 9305,
+ "findings": [
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "UNSUPPORTED_ASSERTION",
+   "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  },
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "FABRICATED_CLAIM",
+   "detail": "FABRICATED_CLAIM (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  },
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "SOURCE_CONTRADICTION",
+   "detail": "SOURCE_CONTRADICTION (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  },
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "MISSING_CONTEXT",
+   "detail": "MISSING_CONTEXT (judges=2)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  }
+ ],
+ "gate_decision": "escalate",
+ "provenance": {
+  "active_pack": "_core",
+  "artifact_type": "generated_response",
+  "case_outcome": "FLAGGED",
+  "cost_tokens": {
+   "completion": 1685,
+   "prompt": 6332,
+   "total": 8017
+  },
+  "council_config": {
+   "context_kind": "transcript",
+   "judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+   ],
+   "mode": "full"
+  },
+  "council_error": false,
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "UNSUPPORTED_ASSERTION",
+    "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "FABRICATED_CLAIM",
+    "detail": "FABRICATED_CLAIM (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "gate_decision": "escalate",
+  "grade_path": null,
+  "judge_rationale": {
+   "confidence": 0.777,
+   "consensus": true,
+   "decision": "reject",
+   "uncertainty": false
+  },
+  "kb_retrievals": [],
+  "loaded_plugins": [
+   {
+    "contract_types": [],
+    "id": "_core",
+    "implements": "pack",
+    "kind": "pack",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "presence_check"
+    ],
+    "id": "presence_check",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "kb_grounding"
+    ],
+    "id": "kb_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "web_search"
+    ],
+    "id": "web_search",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "source_grounding"
+    ],
+    "id": "source_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "evidence_presence"
+    ],
+    "id": "evidence_presence",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "mcp_call"
+    ],
+    "id": "mcp_call",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "terminology_subsumption"
+    ],
+    "id": "terminology_subsumption",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_battery"
+    ],
+    "id": "snomed_battery",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "structural_jute"
+    ],
+    "id": "structural_jute",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "jute_gen"
+    ],
+    "id": "jute_gen",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_presence"
+    ],
+    "id": "value_presence",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_grounding"
+    ],
+    "id": "value_grounding",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "fact_preservation"
+    ],
+    "id": "fact_preservation",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "speaker_attribution"
+    ],
+    "id": "speaker_attribution",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_subsumption_floor"
+    ],
+    "id": "snomed_subsumption_floor",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "azure_openai",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "byo_claude",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "composo",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "etlp_jute",
+    "implements": "tool.api_connector",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:3031"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "web_search",
+    "implements": "tool.mcp_server",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:8585"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   }
+  ],
+  "model_bindings": [
+   {
+    "dated": false,
+    "model": "azure/gpt-4.1",
+    "role": "risk_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Mistral-Large-3",
+    "role": "policy_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "role": "faithfulness_judge"
+   }
+  ],
+  "org_id": "local",
+  "pack_tier": "core",
+  "pipeline_run_id": "b58cba60-653d-4a7f-8bea-090fd17015d4",
+  "replay_of": null,
+  "request_hash": "1e382b25a115a1734a13410106fc452b63372d8135bfa2ec1c9884d803caa2c5",
+  "retrieval_stats": {
+   "disabled": true,
+   "namespaces": []
+  },
+  "sampling": {
+   "faithfulness_judge": {
+    "k": 3,
+    "score_mean": 0.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "policy_judge": {
+    "k": 1,
+    "score_mean": 0.5,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.5
+    ]
+   },
+   "risk_judge": {
+    "k": 5,
+    "score_mean": 0.5,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.5,
+     0.5,
+     0.5,
+     0.5,
+     0.5
+    ]
+   }
+  },
+  "stage_results": {
+   "semantic": {
+    "evidence": [
+     {
+      "judge": "risk_judge",
+      "spans": [
+       {
+        "quote": "The business is open from 7:30 am to 5:00 pm every day of the week.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "UNSUPPORTED_ASSERTION"
+     },
+     {
+      "judge": "policy_judge",
+      "spans": [
+       {
+        "quote": "Best Hamburger in town",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "FABRICATED_CLAIM"
+     },
+     {
+      "judge": "faithfulness_judge",
+      "spans": [
+       {
+        "quote": "The business is open from 7:30 am to 5:00 pm every day of the week.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "SOURCE_CONTRADICTION"
+     },
+     {
+      "judge": "policy_judge",
+      "spans": [
+       {
+        "quote": "However, reservations are not available, and the business may not be suitable for large groups.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "MISSING_CONTEXT"
+     }
+    ],
+    "findings": [
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "UNSUPPORTED_ASSERTION",
+      "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     },
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "FABRICATED_CLAIM",
+      "detail": "FABRICATED_CLAIM (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     },
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "SOURCE_CONTRADICTION",
+      "detail": "SOURCE_CONTRADICTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     },
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "MISSING_CONTEXT",
+      "detail": "MISSING_CONTEXT (judges=2)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     }
+    ],
+    "judge_votes": [
+     {
+      "confidence": 0.777037,
+      "confidence_self": 0.5,
+      "errors": [],
+      "findings": [
+       "UNSUPPORTED_ASSERTION"
+      ],
+      "judge_role": "risk_judge",
+      "k": 5,
+      "model": "azure/gpt-4.1",
+      "reason": "needs_review \u2014 UNSUPPORTED_ASSERTION",
+      "scores_raw": [
+       0.5,
+       0.5,
+       0.5,
+       0.5,
+       0.5
+      ],
+      "variance": 0.0,
+      "vote": "WARN"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.5,
+      "errors": [],
+      "findings": [
+       "FABRICATED_CLAIM",
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "policy_judge",
+      "k": 1,
+      "model": "azure/Mistral-Large-3",
+      "reason": "needs_review \u2014 FABRICATED_CLAIM, MISSING_CONTEXT",
+      "scores_raw": [
+       0.5
+      ],
+      "variance": 0.0,
+      "vote": "WARN"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.0,
+      "errors": [],
+      "findings": [
+       "SOURCE_CONTRADICTION",
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "faithfulness_judge",
+      "k": 3,
+      "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "reason": "reject \u2014 SOURCE_CONTRADICTION, MISSING_CONTEXT",
+      "scores_raw": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "variance": 0.0,
+      "vote": "BLOCK"
+     }
+    ],
+    "metadata": {},
+    "status": "BLOCK"
+   }
+  },
+  "stages_executed": [
+   "semantic",
+   "verdict"
+  ],
+  "structural_template_pin": null,
+  "timestamp": "2026-09-06T10:45:08.562365Z",
+  "tool_calls": null,
+  "verdict": "BLOCK",
+  "verdict_flipped_by_stage": "semantic"
+ },
+ "regenerate_hints": [
+  "[UNSUPPORTED_ASSERTION] UNSUPPORTED_ASSERTION (judges=1)",
+  "[FABRICATED_CLAIM] FABRICATED_CLAIM (judges=1)",
+  "[SOURCE_CONTRADICTION] SOURCE_CONTRADICTION (judges=1)",
+  "[MISSING_CONTEXT] MISSING_CONTEXT (judges=2)"
+ ],
+ "semantic": {
+  "evidence": [
+   {
+    "judge": "risk_judge",
+    "spans": [
+     {
+      "quote": "The business is open from 7:30 am to 5:00 pm every day of the week.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "UNSUPPORTED_ASSERTION"
+   },
+   {
+    "judge": "policy_judge",
+    "spans": [
+     {
+      "quote": "Best Hamburger in town",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "FABRICATED_CLAIM"
+   },
+   {
+    "judge": "faithfulness_judge",
+    "spans": [
+     {
+      "quote": "The business is open from 7:30 am to 5:00 pm every day of the week.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "SOURCE_CONTRADICTION"
+   },
+   {
+    "judge": "policy_judge",
+    "spans": [
+     {
+      "quote": "However, reservations are not available, and the business may not be suitable for large groups.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "MISSING_CONTEXT"
+   }
+  ],
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "UNSUPPORTED_ASSERTION",
+    "detail": "UNSUPPORTED_ASSERTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "FABRICATED_CLAIM",
+    "detail": "FABRICATED_CLAIM (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "judge_votes": [
+   {
+    "confidence": 0.777037,
+    "confidence_self": 0.5,
+    "errors": [],
+    "findings": [
+     "UNSUPPORTED_ASSERTION"
+    ],
+    "judge_role": "risk_judge",
+    "k": 5,
+    "model": "azure/gpt-4.1",
+    "reason": "needs_review \u2014 UNSUPPORTED_ASSERTION",
+    "scores_raw": [
+     0.5,
+     0.5,
+     0.5,
+     0.5,
+     0.5
+    ],
+    "variance": 0.0,
+    "vote": "WARN"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.5,
+    "errors": [],
+    "findings": [
+     "FABRICATED_CLAIM",
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "policy_judge",
+    "k": 1,
+    "model": "azure/Mistral-Large-3",
+    "reason": "needs_review \u2014 FABRICATED_CLAIM, MISSING_CONTEXT",
+    "scores_raw": [
+     0.5
+    ],
+    "variance": 0.0,
+    "vote": "WARN"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.0,
+    "errors": [],
+    "findings": [
+     "SOURCE_CONTRADICTION",
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "faithfulness_judge",
+    "k": 3,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "reason": "reject \u2014 SOURCE_CONTRADICTION, MISSING_CONTEXT",
+    "scores_raw": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "variance": 0.0,
+    "vote": "BLOCK"
+   }
+  ],
+  "metadata": {},
+  "status": "BLOCK"
+ },
+ "structural": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "transform": null,
+ "verdict": "BLOCK"
+}

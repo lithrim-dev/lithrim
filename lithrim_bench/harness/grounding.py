@@ -98,6 +98,11 @@ class GroundedResult:
     original_verdict: str | None
     skipped_non_gradeable: list[dict[str, Any]] = field(default_factory=list)
     floor_blocks: list[dict[str, Any]] = field(default_factory=list)
+    # FLOOR-PASSES-1: the SATISFIED floors (``conforms is True``), each ``{decl, result}``, so a
+    # PASS can prove which deterministic check examined the artifact and found it clean. Purely
+    # additive and read-only: it never feeds ``active``/``verdict`` (a satisfied floor is still a
+    # no-op for the grade) and stays OUT of the signed grade digest, like ``coverage``.
+    floor_passes: list[dict[str, Any]] = field(default_factory=list)
     skipped_malformed: list[dict[str, Any]] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, Any] = field(default_factory=dict)
@@ -1235,6 +1240,7 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         SnomedSubsumptionFloorTool,
         SpeakerAttributionTool,
         StructuralJuteTool,
+        ValueGroundingTool,
         ValuePresenceTool,
     )
 
@@ -1244,6 +1250,13 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
             ref["source_path"] = params["source_path"]
         if params.get("match"):
             ref["match"] = params["match"]
+        return ref
+
+    def _value_grounding_ref(params: dict[str, Any]) -> dict[str, Any]:
+        ref: dict[str, Any] = {}
+        for opt in ("on_missing", "source_path", "min_digits"):
+            if params.get(opt) is not None:
+                ref[opt] = params[opt]
         return ref
 
     def _structural_jute_ref(params: dict[str, Any]) -> dict[str, Any]:
@@ -1290,6 +1303,12 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         "value_presence": FloorExecutor(
             tool_factory=lambda http_client: ValuePresenceTool(),
             reference_builder=_value_presence_ref,
+        ),
+        # VALUE-GROUNDING-FLOOR-1: the inverse of value_presence — a value the artifact states
+        # must be in the source; a violation on a record source, a named lead on prose.
+        "value_grounding": FloorExecutor(
+            tool_factory=lambda http_client: ValueGroundingTool(),
+            reference_builder=_value_grounding_ref,
         ),
         "fact_preservation": FloorExecutor(
             tool_factory=lambda http_client: FactPreservationTool(),
@@ -1569,6 +1588,7 @@ def _classify_coverage(
     skipped_non_gradeable: list[dict[str, Any]],
     suppress_codes: set[str],
     verdict: str,
+    n_floor_passes: int = 0,
 ) -> dict[str, Any]:
     """FLOOR-COVERAGE-1 — label every surviving finding by what backed it, read-only.
 
@@ -1618,14 +1638,21 @@ def _classify_coverage(
         counts["reference"] += 1
         per_finding.append({"code": r.get("code"), "coverage": "reference"})
 
+    # FLOOR-PASSES-1: a PASS is also backstopped when a floor examined the artifact and found it
+    # conforming (``floor_passes``); a judge-only PASS with no check at all stays un-backstopped.
     if verdict == "BLOCK":
         backstopped = counts["grounded"] > 0
     elif verdict == "PASS":
-        backstopped = counts["cleared"] > 0
+        backstopped = counts["cleared"] > 0 or n_floor_passes > 0
     else:
-        backstopped = counts["grounded"] > 0 or counts["cleared"] > 0
+        backstopped = counts["grounded"] > 0 or counts["cleared"] > 0 or n_floor_passes > 0
 
-    return {**counts, "floor_backstopped": backstopped, "per_finding": per_finding}
+    return {
+        **counts,
+        "floor_passes": n_floor_passes,
+        "floor_backstopped": backstopped,
+        "per_finding": per_finding,
+    }
 
 
 def rescore_without_floor(
@@ -1766,6 +1793,7 @@ def ground(
 
     # WS-3 structural floor (the inverse direction): inject a BLOCK the council missed.
     floor_blocks: list[dict[str, Any]] = []
+    floor_passes: list[dict[str, Any]] = []
     for decl in floor_decls:
         # GRADE-GUARD-1: a malformed floor contract (missing inject_flag_code/severity, a bad
         # reference, or an unreachable service) must SKIP-LOG, not crash the grade. A floor that
@@ -1791,6 +1819,9 @@ def ground(
             elif vr.conforms is None:
                 # inconclusive (drift / no-compile / not-configured) — surfaced, never flips.
                 floor_blocks.append({"decl": decl, "result": vr, "injected_finding": None})
+            else:
+                # FLOOR-PASSES-1: satisfied — recorded as evidence, never as a grade input.
+                floor_passes.append({"decl": decl, "result": vr})
         except Exception as exc:  # noqa: BLE001 - a malformed/unreachable floor must degrade, not crash
             skipped_malformed.append(
                 {"decl": decl, "stage": "floor", "error": f"{type(exc).__name__}: {exc}"}
@@ -1805,7 +1836,8 @@ def ground(
     # FLOOR-COVERAGE-1: derive the coverage provenance READ-ONLY from the finalized buckets —
     # ``active``/``suppressed``/``verdict`` above are untouched (the invariance guard).
     coverage = _classify_coverage(
-        active, suppressed, skipped_non_gradeable, set(contracts.keys()), verdict
+        active, suppressed, skipped_non_gradeable, set(contracts.keys()), verdict,
+        n_floor_passes=len(floor_passes),
     )
     return GroundedResult(
         active=active,
@@ -1813,6 +1845,7 @@ def ground(
         ungrounded=ungrounded,
         skipped_non_gradeable=skipped_non_gradeable,
         floor_blocks=floor_blocks,
+        floor_passes=floor_passes,
         skipped_malformed=skipped_malformed,
         verdict=verdict,
         verdict_no_floor=verdict_no_floor,
