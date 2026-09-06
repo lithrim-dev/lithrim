@@ -111,8 +111,17 @@ _SYNTHETIC_CLINICAL_SAMPLE = (
 )
 
 
+# QUEUE-DEMO-1 (2026-09-06): the RAGTruth queue sample is a NON-clinical public corpus (news, QA,
+# Yelp data-to-text; MIT). Its committed council BASELINES are engine output and carry engine
+# vocabulary that collides with the needles ("gate_decision": "escalate"; plugin-registry ids such
+# as snomed_subsumption_floor in the provenance), never data. The baselines alone are carved out by
+# prefix; the DATA (cases.jsonl) and the README stay under the sweep and must be needle-free, which
+# ``test_a2_ragtruth_sample_data_is_needle_free`` enforces so this carve-out can hide nothing.
+_NON_CLINICAL_BASELINES = ("samples/ragtruth/baseline.",)
+
+
 def _is_sample(path: str) -> bool:
-    return path.startswith(_SYNTHETIC_CLINICAL_SAMPLE)
+    return path.startswith(_SYNTHETIC_CLINICAL_SAMPLE) or path.startswith(_NON_CLINICAL_BASELINES)
 
 
 def _tracked(*dirs: str) -> list[str]:
@@ -197,6 +206,14 @@ def test_a2_clinical_sample_is_the_only_sanctioned_clinical_surface():
         if p not in _PASSIVE_CARVE_OUT and not _is_sample(p)
     ]
     assert not _needle_hits(swept), "clinical content outside the sanctioned sample"
+
+
+def test_a2_ragtruth_sample_data_is_needle_free():
+    """The RAGTruth sample's DATA and prose are swept like any other file (only its engine-output
+    baselines are carved out), and they carry zero needles, so the baseline carve-out hides nothing."""
+    data = [p for p in _tracked("samples/ragtruth") if not p.startswith(_NON_CLINICAL_BASELINES)]
+    assert "samples/ragtruth/cases.jsonl" in data
+    assert not _needle_hits(data), "the RAGTruth sample data/prose carries a clinical needle"
 
 
 def test_a2_sweep_is_non_vacuous(tmp_path):

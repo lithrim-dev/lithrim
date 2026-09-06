@@ -5,9 +5,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21270268.svg)](https://doi.org/10.5281/zenodo.21270268)
 
-**A self-hostable evaluation harness for AI agents — with a tool-grounded verification *floor* that can override a confident LLM judge, and an immutable audit trail on every run.**
+**An expert reviewer agent for AI-generated artifacts. It works through a queue of cases, reviews each one through an ensemble of judges you configure, and, on the signals those judges raise, runs deterministic grounding checks against the source of truth. It clears only on evidence, flags on contradiction, and escalates what it cannot prove to a person, with an immutable audit record on every case.**
 
-> **Verifiable truth, not a promised win.** This README tells you exactly what Lithrim does — *and where it doesn't work.* That boundary is the point.
+> **Verifiable truth, not a promised win.** This README says exactly what the reviewer can prove, and where it cannot. That boundary is the point.
 
 Bring your own model key. Run it on your laptop or in your VPC. **Your data never leaves your machine.**
 
@@ -15,13 +15,15 @@ Bring your own model key. Run it on your laptop or in your VPC. **Your data neve
 
 ## What it is
 
-Most AI-eval tools end at an LLM-as-judge — a second model scoring the first. But a judge is as fallible as the thing it grades: it can confidently approve a fabricated fact, or confidently flag a correct one. Lithrim adds the layer underneath:
+Most AI review ends at an LLM-as-judge: a second model scoring the first. A judge is as fallible as the thing it grades. It can approve a fabricated fact with confidence, or flag a correct one with the same confidence. Lithrim treats a judge's opinion as a lead, not a finding.
 
-1. **A multi-model council** grades an artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags, with **per-judge confidence read from token logprobs where the provider exposes them** (Azure/OpenAI), and an honest `None` (never a self-reported number) where it doesn't (e.g. Anthropic, Mistral).
-2. **A deterministic, tool-grounded floor** then re-checks the council's findings against ground truth — a record, a schema, a terminology service — and can **override the verdict**: suppress a finding the council got confidently wrong, or block an output the council missed.
-3. **An immutable audit record** captures every run — the votes, the floor's decision, and the evidence — so you can see *why*, not just *what*.
+The reviewer works each case in three moves:
 
-The floor is **three-state by design**: a finding is grounded-true, grounded-false, or **inconclusive** — and an inconclusive check is *surfaced, never silently flipped*. The system never manufactures certainty it doesn't have.
+1. **Judges raise signals.** An ensemble of judges you configure (roles, criteria, models, any mix of providers) reads the artifact (a generated note, an HL7/FHIR output, a transcript-derived document) against a set of named flags. **Per-judge confidence is read from token logprobs where the provider exposes them** (Azure/OpenAI) and is an honest `None` where it does not (Anthropic, Mistral). Never a self-reported number.
+2. **Signals trigger grounding checks.** Each flag is bound to a deterministic check that runs against a source of truth: the record, a schema, a terminology service, a knowledge base. A check can **disprove a signal the judges raised**, with the evidence recorded, or **block a violation the judges missed**.
+3. **The case gets one of three states, with its evidence attached.** Cleared, flagged, or escalated to a person (engine verdicts `PASS`, `BLOCK`, `WARN`). A check that cannot decide is surfaced as **inconclusive**, never silently resolved. A judge's confidence never clears a signal; only a check does.
+
+Every case is written to an **immutable audit record**: the votes, the checks that ran, the evidence, the decision, and a `floor_backstopped` stamp that says whether the deterministic layer materially supported it. A cleared case that rests on judges alone says so. The reviewer never manufactures certainty it does not have.
 
 ---
 
@@ -37,7 +39,13 @@ pip install -e .   # core deps only (pydantic, pandas) — no LLM SDK needed for
 make demo          # replays a built-in case: council votes → floor flip PASS→BLOCK → audit
 ```
 
-`make demo` replays a captured council baseline (so no LLM call, $0) and runs the **live deterministic floor** on the neutral built-in `_core` case — so the verdict flip is real and reproducible, not a recording. No key, no network, no domain pack required.
+`make demo` replays a captured judge baseline (no LLM call, $0) and runs the **live grounding checks** on the neutral built-in `_core` case. On that toy case the checks cannot reach the claim ("unlimited storage for life" states no value to ground), so the BLOCK is a rescore of the judges' own signals and the audit stamps it `floor_backstopped: false`. No key, no network, no domain pack required.
+
+**Then work a queue.** Five public, human-labeled cases (RAGTruth, MIT: news summaries, a QA answer, two data-to-text descriptions, each paired with its source) go through the reviewer and land as cleared, flagged, or escalated. Every cleared or flagged case names its check, every escalated case says why and what the checks did confirm, and the human label is printed beside the reviewer's state so you can score it:
+
+```bash
+make queue         # replays the judges ($0), runs the checks live, prints the tally
+```
 
 **Run it live on your own case (BYOK):**
 
@@ -81,20 +89,20 @@ Then open **http://localhost:5180**, connect your own LLM key from the UI (or pa
 ## The flagship loop
 
 ```
-artifact ─▶ multi-model council ─▶ findings + calibrated confidence
+case ─▶ judge ensemble (configured roles / models) ─▶ signals + calibrated confidence
                                         │
                                         ▼
-                          tool-grounded floor (record / schema / terminology)
+                 grounding checks on the source (record / schema / terminology)
                                         │
               ┌─────────────────────────┼─────────────────────────┐
               ▼                         ▼                          ▼
-     suppress a wrong finding    block a missed defect    inconclusive → surfaced
+     disprove a wrong signal     block a missed defect     inconclusive → escalate
                                         │
                                         ▼
-                          verdict  +  immutable audit record
+               cleared / flagged / escalated  +  immutable audit record
 ```
 
-`make demo` walks exactly this loop on the `_core_fabricated_claim` case: the council returns `PASS`, the deterministic floor catches the fabricated guarantee and flips the verdict to `BLOCK`, and the audit surfaces the `UNSUPPORTED_ASSERTION` / `SOURCE_CONTRADICTION` findings as the *why*.
+`make demo` walks this loop on the `_core_fabricated_claim` case: three judges raise signals, the consensus verdict is `PASS`, the harness rescores the signals to `BLOCK`, and the audit says exactly what backed it: no deterministic check could reach the claim, `floor_backstopped: false`. `make queue` walks it on five public RAGTruth cases with the committed Azure judge baselines: a data-to-text description that states a value its record never had is **flagged** with the value named (`50`, absent from the record; the human label agrees); the other four are **escalated**, each with the reason a person needs. Two of those are human-clean cases where the value check confirmed every number the response states, yet two judges still raised omission claims no deterministic check can test. The reviewer shows both facts on the line and hands the case over rather than clearing it on a judge's word or passing it in silence. See [`samples/ragtruth/README.md`](samples/ragtruth/README.md) for the selection rule, the baseline provenance, and the measured precision behind each claim.
 
 ---
 
@@ -136,7 +144,7 @@ The floor and judges can call external services — a terminology server, a sche
 
 This is the part most tools omit. The floor's power is **bounded**, and we tested the boundary with a blind held-out experiment rather than asserting it:
 
-- **✅ Where the floor generalizes — closed-vocabulary / structured facts.** Dosage arithmetic, code/terminology membership (SNOMED/ICD), schema/FHIR conformance, record presence. The check is set-membership or arithmetic, so it generalizes to unseen cases and can reliably override a judge.
+- **✅ Where the floor generalizes — closed-vocabulary / structured facts.** Dosage arithmetic, code/terminology membership (SNOMED/ICD), schema/FHIR conformance, record presence. The check is set-membership or arithmetic, so it generalizes to unseen cases and can reliably override a judge. Measured on RAGTruth (human spans as gold): a value the response states but its **structured record** never had is a real contradiction at precision 0.78 strict / 0.94 any-label, recall 0.82. The same check on **prose** sources is precision 0.10, so there the reviewer only names the value as a lead and escalates.
 - **❌ Where it does NOT generalize — open-ended discourse.** Detecting an open-ended concept in free text (e.g. "was a refusal documented?") is open NLU. A deterministic/lexical floor here either misses novel phrasings or false-flags paraphrases. **In a blind held-out test, a serious 30-pattern rule scored recall 0.375 / precision 0.75 — it does not generalize.** For that class, an LLM judge (or a human-in-the-loop) is the right tool, not a deterministic floor.
 
 So: **use the floor for grounded, structured claims; use the judge (and a human) for open-ended discourse.** Lithrim is honest about which is which — and surfaces an inconclusive when it can't ground something, instead of guessing.

@@ -7,8 +7,9 @@ abstains, and what it depends on. Uncovered failure modes are stated with the sa
 prominence as covered ones. No number appears here unless the mechanism that
 protects it exists in the committed code cited next to it.**
 
-Lithrim grades AI-generated artifacts (for example, clinical scribe notes) with two
-layers: an LLM judge council, and a deterministic grounding layer beneath it (the
+Lithrim is an expert reviewer agent for AI-generated artifacts (for example, clinical
+scribe notes). It reviews each case through an ensemble of configured LLM judges, and
+on the signals they raise runs a deterministic grounding layer beneath them (the
 "floor") that can overrule the judges in both directions. This card is about what
 each layer can honestly claim.
 
@@ -35,6 +36,14 @@ registered contract type. The shipped contract types:
   only on FULL grounding, never partial.
 - `evidence_presence`: evidence-integrity gate; a finding whose own quoted evidence
   spans are verbatim source text refutes itself (span-level).
+- `value_grounding` (floor direction; `lithrim_bench/verification/tools.py`,
+  `ValueGroundingTool`): every value the artifact states (a number, a clock time) must be
+  present in the source under deterministic value normalization. A missing value injects a
+  block only when the case declares a structured `source_kind: record`; on prose it is
+  surfaced as an inconclusive lead with the values named. Measured on the RAGTruth test split
+  against human spans (2026-09-06): record sources precision 0.78 strict / 0.94 any-label,
+  recall 0.82; prose sources precision 0.10. A satisfied floor is recorded as a `floor_pass`
+  (`GroundedResult.floor_passes`), so a PASS can prove which check examined the artifact.
 - `kb_grounding`: presence check generalized to a configured knowledge base.
 - `terminology_subsumption`: span-driven terminology check over a configured
   terminology tool; a term that is equal to or subsumed by (is-a) a recorded concept

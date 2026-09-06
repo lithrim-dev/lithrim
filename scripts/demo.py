@@ -4,12 +4,15 @@
 A stranger does ``git clone`` → ``make demo`` and sees the whole loop on the built-in
 domain-neutral ``_core`` case ``_core_fabricated_claim``:
 
-    council votes  →  deterministic floor flips PASS → BLOCK  →  immutable audit findings
+    judges raise signals  →  live grounding checks  →  verdict + immutable audit (with coverage)
 
-This replays a COMMITTED council baseline (no LLM call) and runs the LIVE deterministic
-``ground()`` + ``composite()`` stages, so the floor flip is real and reproducible — not a
-recording. It needs no ``.env``, no API key, and no domain pack: the neutral ``_core`` pack
-ships in-repo and is the default.
+This replays a COMMITTED judge baseline (no LLM call) and runs the LIVE deterministic
+``ground()`` + ``composite()`` stages. On this toy case the checks cannot reach the claim
+("unlimited storage for life" states no value to ground and nothing is fully grounded), so the
+BLOCK is a RESCORE of the judges' own signals and the audit says so: ``floor_backstopped:
+False``. That honesty is the point; ``make queue`` shows the checks deciding cases on real,
+human-labeled data. It needs no ``.env``, no API key, and no domain pack: the neutral
+``_core`` pack ships in-repo and is the default.
 
 To grade YOUR OWN artifact live, bring a model key (BYOK):
     export LITHRIM_LLM_PROVIDER=openai
@@ -72,12 +75,25 @@ def main() -> int:
         findings = ", ".join(v.get("findings") or []) or "(none)"
         print(f"       {v['judge_role']:<20} {v['vote']:<6} conf={conf_s:<7} [{findings}]")
     print()
-    print("  2. DETERMINISTIC FLOOR")
-    print(f"       original verdict (council):  {grounded.original_verdict}")
-    print(f"       after grounding floor:       {grounded.verdict}")
+    print("  2. GROUNDING CHECKS (deterministic, run live)")
+    cov = grounded.coverage or {}
+    for b in grounded.floor_blocks:
+        ev = b["result"].evidence or {}
+        print(f"       floor    {b['decl'].contract_type:<18} {b['result'].disposition:<13} {ev.get('reason', '')}")
+    for p in grounded.floor_passes:
+        ev = p["result"].evidence or {}
+        print(f"       floor    {p['decl'].contract_type:<18} {'CONFORMS':<13} {ev.get('reason', '')}")
+    examined = cov.get("unrefuted", 0) + cov.get("cleared", 0)
+    print(f"       suppress {examined} judge signal(s) examined against the source, "
+          f"{cov.get('cleared', 0)} disproved")
+    print(f"       council verdict (consensus): {grounded.original_verdict}")
+    print(f"       after grounding:             {grounded.verdict}")
     flip = grounded.original_verdict != str(grounded.verdict)
+    how = ("backed by a deterministic check" if cov.get("floor_backstopped")
+           else "a rescore of judge signals no check could confirm")
     print(f"       => {'FLIPPED' if flip else 'unchanged'}: "
-          f"{grounded.original_verdict} -> {grounded.verdict}")
+          f"{grounded.original_verdict} -> {grounded.verdict}  ({how})")
+    print(f"       floor_backstopped: {cov.get('floor_backstopped')}")
     print()
     print("  3. AUDIT — active findings (the 'why')")
     for code in comp["active_findings"]:
@@ -89,6 +105,8 @@ def main() -> int:
     print(f"  COMPOSITE VERDICT: {comp['verdict'].upper()}   "
           f"(stage {comp['stage_verdict']}, council said {grounded.original_verdict})")
     print("-" * 72)
+    print("  next: `make queue` works five public, human-labeled cases into")
+    print("        cleared / flagged / escalated, with the check named on each.")
     return 0
 
 

@@ -1,0 +1,666 @@
+{
+ "artifact": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "case_outcome": "FLAGGED",
+ "duration_ms": 5205,
+ "findings": [
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "SOURCE_CONTRADICTION",
+   "detail": "SOURCE_CONTRADICTION (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  },
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "MISSING_CONTEXT",
+   "detail": "MISSING_CONTEXT (judges=1)",
+   "end_ms": null,
+   "field": null,
+   "severity": "MEDIUM",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  }
+ ],
+ "gate_decision": "escalate",
+ "provenance": {
+  "active_pack": "_core",
+  "artifact_type": "generated_response",
+  "case_outcome": "FLAGGED",
+  "cost_tokens": {
+   "completion": 1093,
+   "prompt": 5092,
+   "total": 6185
+  },
+  "council_config": {
+   "context_kind": "transcript",
+   "judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+   ],
+   "mode": "full"
+  },
+  "council_error": false,
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "MEDIUM",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "gate_decision": "escalate",
+  "grade_path": null,
+  "judge_rationale": {
+   "confidence": 1.0,
+   "consensus": true,
+   "decision": "reject",
+   "uncertainty": false
+  },
+  "kb_retrievals": [],
+  "loaded_plugins": [
+   {
+    "contract_types": [],
+    "id": "_core",
+    "implements": "pack",
+    "kind": "pack",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "presence_check"
+    ],
+    "id": "presence_check",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "kb_grounding"
+    ],
+    "id": "kb_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "web_search"
+    ],
+    "id": "web_search",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "source_grounding"
+    ],
+    "id": "source_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "evidence_presence"
+    ],
+    "id": "evidence_presence",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "mcp_call"
+    ],
+    "id": "mcp_call",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "terminology_subsumption"
+    ],
+    "id": "terminology_subsumption",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_battery"
+    ],
+    "id": "snomed_battery",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "structural_jute"
+    ],
+    "id": "structural_jute",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "jute_gen"
+    ],
+    "id": "jute_gen",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_presence"
+    ],
+    "id": "value_presence",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_grounding"
+    ],
+    "id": "value_grounding",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "fact_preservation"
+    ],
+    "id": "fact_preservation",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "speaker_attribution"
+    ],
+    "id": "speaker_attribution",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_subsumption_floor"
+    ],
+    "id": "snomed_subsumption_floor",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "azure_openai",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "byo_claude",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "composo",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "etlp_jute",
+    "implements": "tool.api_connector",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:3031"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "web_search",
+    "implements": "tool.mcp_server",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:8585"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   }
+  ],
+  "model_bindings": [
+   {
+    "dated": false,
+    "model": "azure/gpt-4.1",
+    "role": "risk_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Mistral-Large-3",
+    "role": "policy_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "role": "faithfulness_judge"
+   }
+  ],
+  "org_id": "local",
+  "pack_tier": "core",
+  "pipeline_run_id": "f6771a03-b936-497a-9941-3cb1969e8421",
+  "replay_of": null,
+  "request_hash": "462c5735eb972b030337b9b4f3afef5473a8bda5589a2414ad0f7bd348dbb2f7",
+  "retrieval_stats": {
+   "disabled": true,
+   "namespaces": []
+  },
+  "sampling": {
+   "faithfulness_judge": {
+    "k": 3,
+    "score_mean": 0.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "policy_judge": {
+    "k": 1,
+    "score_mean": 1.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     1.0
+    ]
+   },
+   "risk_judge": {
+    "k": 5,
+    "score_mean": 1.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  "stage_results": {
+   "semantic": {
+    "evidence": [
+     {
+      "judge": "faithfulness_judge",
+      "spans": [
+       {
+        "quote": "National Parks in the US are free for visitors on April 18 and 19 as part of National Park Week.",
+        "turn_ids": []
+       },
+       {
+        "quote": "It's all part of National Park Week, happening April 18 through April 26",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "SOURCE_CONTRADICTION"
+     },
+     {
+      "judge": "faithfulness_judge",
+      "spans": [
+       {
+        "quote": "National Parks in the US are free for visitors on April 18 and 19 as part of National Park Week.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "MISSING_CONTEXT"
+     }
+    ],
+    "findings": [
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "SOURCE_CONTRADICTION",
+      "detail": "SOURCE_CONTRADICTION (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     },
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "MISSING_CONTEXT",
+      "detail": "MISSING_CONTEXT (judges=1)",
+      "end_ms": null,
+      "field": null,
+      "severity": "MEDIUM",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     }
+    ],
+    "judge_votes": [
+     {
+      "confidence": 0.999942,
+      "confidence_self": 1.0,
+      "errors": [],
+      "findings": [],
+      "judge_role": "risk_judge",
+      "k": 5,
+      "model": "azure/gpt-4.1",
+      "reason": "The artifact closely follows the transcript and does not introduce unsupported assertions or internal inconsistencies; all statements are directly supported by the source material. No overclaiming or contradictions are present.",
+      "scores_raw": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "variance": 0.0,
+      "vote": "PASS"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 1.0,
+      "errors": [],
+      "findings": [],
+      "judge_role": "policy_judge",
+      "k": 1,
+      "model": "azure/Mistral-Large-3",
+      "reason": "The artifact accurately paraphrases the source material without introducing fabricated claims or omitting required context. All facts, figures, and activities mentioned align with the transcript, and no critical context is missing.",
+      "scores_raw": [
+       1.0
+      ],
+      "variance": 0.0,
+      "vote": "PASS"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.0,
+      "errors": [],
+      "findings": [
+       "MISSING_CONTEXT",
+       "SOURCE_CONTRADICTION"
+      ],
+      "judge_role": "faithfulness_judge",
+      "k": 3,
+      "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "reason": "reject \u2014 MISSING_CONTEXT, SOURCE_CONTRADICTION",
+      "scores_raw": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "variance": 0.0,
+      "vote": "BLOCK"
+     }
+    ],
+    "metadata": {},
+    "status": "BLOCK"
+   }
+  },
+  "stages_executed": [
+   "semantic",
+   "verdict"
+  ],
+  "structural_template_pin": null,
+  "timestamp": "2026-09-06T10:39:26.918863Z",
+  "tool_calls": null,
+  "verdict": "BLOCK",
+  "verdict_flipped_by_stage": "semantic"
+ },
+ "regenerate_hints": [
+  "[SOURCE_CONTRADICTION] SOURCE_CONTRADICTION (judges=1)",
+  "[MISSING_CONTEXT] MISSING_CONTEXT (judges=1)"
+ ],
+ "semantic": {
+  "evidence": [
+   {
+    "judge": "faithfulness_judge",
+    "spans": [
+     {
+      "quote": "National Parks in the US are free for visitors on April 18 and 19 as part of National Park Week.",
+      "turn_ids": []
+     },
+     {
+      "quote": "It's all part of National Park Week, happening April 18 through April 26",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "SOURCE_CONTRADICTION"
+   },
+   {
+    "judge": "faithfulness_judge",
+    "spans": [
+     {
+      "quote": "National Parks in the US are free for visitors on April 18 and 19 as part of National Park Week.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "MISSING_CONTEXT"
+   }
+  ],
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "SOURCE_CONTRADICTION",
+    "detail": "SOURCE_CONTRADICTION (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   },
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=1)",
+    "end_ms": null,
+    "field": null,
+    "severity": "MEDIUM",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "judge_votes": [
+   {
+    "confidence": 0.999942,
+    "confidence_self": 1.0,
+    "errors": [],
+    "findings": [],
+    "judge_role": "risk_judge",
+    "k": 5,
+    "model": "azure/gpt-4.1",
+    "reason": "The artifact closely follows the transcript and does not introduce unsupported assertions or internal inconsistencies; all statements are directly supported by the source material. No overclaiming or contradictions are present.",
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "variance": 0.0,
+    "vote": "PASS"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 1.0,
+    "errors": [],
+    "findings": [],
+    "judge_role": "policy_judge",
+    "k": 1,
+    "model": "azure/Mistral-Large-3",
+    "reason": "The artifact accurately paraphrases the source material without introducing fabricated claims or omitting required context. All facts, figures, and activities mentioned align with the transcript, and no critical context is missing.",
+    "scores_raw": [
+     1.0
+    ],
+    "variance": 0.0,
+    "vote": "PASS"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.0,
+    "errors": [],
+    "findings": [
+     "MISSING_CONTEXT",
+     "SOURCE_CONTRADICTION"
+    ],
+    "judge_role": "faithfulness_judge",
+    "k": 3,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "reason": "reject \u2014 MISSING_CONTEXT, SOURCE_CONTRADICTION",
+    "scores_raw": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "variance": 0.0,
+    "vote": "BLOCK"
+   }
+  ],
+  "metadata": {},
+  "status": "BLOCK"
+ },
+ "structural": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "transform": null,
+ "verdict": "BLOCK"
+}

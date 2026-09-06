@@ -238,3 +238,38 @@ def test_litellm_loop_openai_omits_api_version(monkeypatch, tmp_path):
     first = completion.state["calls"][0]
     assert first["model"] == "openai/gpt-4o"
     assert "api_version" not in first
+
+
+# ── LOGPROBS-GLOBAL-AZURE-1: the GLOBAL azure branch gates logprobs per deployment ──────
+# Live-caught 2026-09-06 (RAGTruth baseline capture): ``azure/Mistral-Large-3`` 400s
+# "Logprobs are not enabled for this model" on the global azure trio, which errored the policy
+# judge into a silent, empty WARN. The per-role azure branch already gates ``logprobs`` on
+# ``_model_supports_logprobs`` (the MaaS families are in ``_NO_LOGPROBS_MODEL_PREFIXES``); the
+# global branch sent ``logprobs=True`` unconditionally. Same gate, same honest confidence-dark.
+
+
+def _global_azure(monkeypatch):
+    _clear_per_role(monkeypatch)
+    monkeypatch.setattr(settings, "LITHRIM_LLM_PROVIDER", "azure")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_API_KEY", "az-key")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_ENDPOINT", "https://az.example/")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_API_VERSION", "2024-10-21")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_COUNCIL", "gpt-4.1")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_DEPLOYMENT_MISTRAL_LARGE_3", "Mistral-Large-3")
+
+
+def test_global_azure_branch_omits_logprobs_for_a_maas_deployment(fake_dspy_lm, monkeypatch):
+    """A MaaS deployment (Mistral) on the global azure trio must NOT be sent ``logprobs`` — the
+    provider rejects the param outright and the judge would die into an empty WARN."""
+    _global_azure(monkeypatch)
+    lm = J.build_judge_lm("policy_judge")
+    assert lm.model == "azure/Mistral-Large-3"
+    assert "logprobs" not in lm.kwargs
+
+
+def test_global_azure_branch_keeps_logprobs_for_a_gpt_deployment(fake_dspy_lm, monkeypatch):
+    """The gate is deployment-granular: the gpt-4.1 risk judge keeps its calibrated confidence."""
+    _global_azure(monkeypatch)
+    lm = J.build_judge_lm("risk_judge")
+    assert lm.model == "azure/gpt-4.1"
+    assert lm.kwargs["logprobs"] is True

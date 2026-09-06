@@ -1,0 +1,593 @@
+{
+ "artifact": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "case_outcome": "FLAGGED",
+ "duration_ms": 6777,
+ "findings": [
+  {
+   "check_name": null,
+   "chunk_id": null,
+   "code": "MISSING_CONTEXT",
+   "detail": "MISSING_CONTEXT (judges=2)",
+   "end_ms": null,
+   "field": null,
+   "severity": "HIGH",
+   "speaker": null,
+   "start_ms": null,
+   "type": "semantic"
+  }
+ ],
+ "gate_decision": "escalate",
+ "provenance": {
+  "active_pack": "_core",
+  "artifact_type": "generated_response",
+  "case_outcome": "FLAGGED",
+  "cost_tokens": {
+   "completion": 1033,
+   "prompt": 4946,
+   "total": 5979
+  },
+  "council_config": {
+   "context_kind": "transcript",
+   "judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+   ],
+   "mode": "full"
+  },
+  "council_error": false,
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "gate_decision": "escalate",
+  "grade_path": null,
+  "judge_rationale": {
+   "confidence": 0.621,
+   "consensus": false,
+   "decision": "reject",
+   "uncertainty": true
+  },
+  "kb_retrievals": [],
+  "loaded_plugins": [
+   {
+    "contract_types": [],
+    "id": "_core",
+    "implements": "pack",
+    "kind": "pack",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "presence_check"
+    ],
+    "id": "presence_check",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "kb_grounding"
+    ],
+    "id": "kb_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "web_search"
+    ],
+    "id": "web_search",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "source_grounding"
+    ],
+    "id": "source_grounding",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "evidence_presence"
+    ],
+    "id": "evidence_presence",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "mcp_call"
+    ],
+    "id": "mcp_call",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "terminology_subsumption"
+    ],
+    "id": "terminology_subsumption",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_battery"
+    ],
+    "id": "snomed_battery",
+    "implements": "grounding.suppress",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "structural_jute"
+    ],
+    "id": "structural_jute",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "jute_gen"
+    ],
+    "id": "jute_gen",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_presence"
+    ],
+    "id": "value_presence",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "value_grounding"
+    ],
+    "id": "value_grounding",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "fact_preservation"
+    ],
+    "id": "fact_preservation",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "speaker_attribution"
+    ],
+    "id": "speaker_attribution",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [
+     "snomed_subsumption_floor"
+    ],
+    "id": "snomed_subsumption_floor",
+    "implements": "grounding.floor",
+    "kind": "contract",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "azure_openai",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "byo_claude",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "in_process",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "composo",
+    "implements": "council.judge_lm",
+    "kind": "provider",
+    "requires_license": false,
+    "service": null,
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "etlp_jute",
+    "implements": "tool.api_connector",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:3031"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   },
+   {
+    "contract_types": [],
+    "id": "web_search",
+    "implements": "tool.mcp_server",
+    "kind": "tool",
+    "requires_license": false,
+    "service": {
+     "default_base_url": "http://localhost:8585"
+    },
+    "tier": "core",
+    "transport": "service",
+    "version": "0.0.0"
+   }
+  ],
+  "model_bindings": [
+   {
+    "dated": false,
+    "model": "azure/gpt-4.1",
+    "role": "risk_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Mistral-Large-3",
+    "role": "policy_judge"
+   },
+   {
+    "dated": false,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "role": "faithfulness_judge"
+   }
+  ],
+  "org_id": "local",
+  "pack_tier": "core",
+  "pipeline_run_id": "f54f24da-629b-4049-b17c-3cfcc4f93087",
+  "replay_of": null,
+  "request_hash": "f8a61bb2c2c249767e8318fb631e253dbd252484e5d0685b6348f4b0d486dcbd",
+  "retrieval_stats": {
+   "disabled": true,
+   "namespaces": []
+  },
+  "sampling": {
+   "faithfulness_judge": {
+    "k": 3,
+    "score_mean": 0.16666666666666666,
+    "score_variance": 0.05555555555555556,
+    "scores_raw": [
+     0.0,
+     0.5,
+     0.0
+    ]
+   },
+   "policy_judge": {
+    "k": 1,
+    "score_mean": 0.5,
+    "score_variance": 0.0,
+    "scores_raw": [
+     0.5
+    ]
+   },
+   "risk_judge": {
+    "k": 5,
+    "score_mean": 1.0,
+    "score_variance": 0.0,
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  "stage_results": {
+   "semantic": {
+    "evidence": [
+     {
+      "judge": "policy_judge",
+      "spans": [
+       {
+        "quote": "The Golan is considered occupied territory despite Israeli control.",
+        "turn_ids": []
+       }
+      ],
+      "violation_code": "MISSING_CONTEXT"
+     }
+    ],
+    "findings": [
+     {
+      "check_name": null,
+      "chunk_id": null,
+      "code": "MISSING_CONTEXT",
+      "detail": "MISSING_CONTEXT (judges=2)",
+      "end_ms": null,
+      "field": null,
+      "severity": "HIGH",
+      "speaker": null,
+      "start_ms": null,
+      "type": "semantic"
+     }
+    ],
+    "judge_votes": [
+     {
+      "confidence": 0.62085,
+      "confidence_self": 1.0,
+      "errors": [],
+      "findings": [],
+      "judge_role": "risk_judge",
+      "k": 5,
+      "model": "azure/gpt-4.1",
+      "reason": "The summary does not present any unsupported assertions or internal inconsistencies; all claims are supported by the source material and statements are consistent with each other.",
+      "scores_raw": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "variance": 0.0,
+      "vote": "PASS"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.5,
+      "errors": [],
+      "findings": [
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "policy_judge",
+      "k": 1,
+      "model": "azure/Mistral-Large-3",
+      "reason": "needs_review \u2014 MISSING_CONTEXT",
+      "scores_raw": [
+       0.5
+      ],
+      "variance": 0.0,
+      "vote": "WARN"
+     },
+     {
+      "confidence": null,
+      "confidence_self": 0.16666666666666666,
+      "errors": [],
+      "findings": [
+       "MISSING_CONTEXT",
+       "MISSING_CONTEXT"
+      ],
+      "judge_role": "faithfulness_judge",
+      "k": 3,
+      "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "reason": "reject \u2014 MISSING_CONTEXT, MISSING_CONTEXT",
+      "scores_raw": [
+       0.0,
+       0.5,
+       0.0
+      ],
+      "variance": 0.05555555555555556,
+      "vote": "BLOCK"
+     }
+    ],
+    "metadata": {},
+    "status": "BLOCK"
+   }
+  },
+  "stages_executed": [
+   "semantic",
+   "verdict"
+  ],
+  "structural_template_pin": null,
+  "timestamp": "2026-09-06T10:39:19.828635Z",
+  "tool_calls": null,
+  "verdict": "BLOCK",
+  "verdict_flipped_by_stage": "semantic"
+ },
+ "regenerate_hints": [
+  "[MISSING_CONTEXT] MISSING_CONTEXT (judges=2)"
+ ],
+ "semantic": {
+  "evidence": [
+   {
+    "judge": "policy_judge",
+    "spans": [
+     {
+      "quote": "The Golan is considered occupied territory despite Israeli control.",
+      "turn_ids": []
+     }
+    ],
+    "violation_code": "MISSING_CONTEXT"
+   }
+  ],
+  "findings": [
+   {
+    "check_name": null,
+    "chunk_id": null,
+    "code": "MISSING_CONTEXT",
+    "detail": "MISSING_CONTEXT (judges=2)",
+    "end_ms": null,
+    "field": null,
+    "severity": "HIGH",
+    "speaker": null,
+    "start_ms": null,
+    "type": "semantic"
+   }
+  ],
+  "judge_votes": [
+   {
+    "confidence": 0.62085,
+    "confidence_self": 1.0,
+    "errors": [],
+    "findings": [],
+    "judge_role": "risk_judge",
+    "k": 5,
+    "model": "azure/gpt-4.1",
+    "reason": "The summary does not present any unsupported assertions or internal inconsistencies; all claims are supported by the source material and statements are consistent with each other.",
+    "scores_raw": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "variance": 0.0,
+    "vote": "PASS"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.5,
+    "errors": [],
+    "findings": [
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "policy_judge",
+    "k": 1,
+    "model": "azure/Mistral-Large-3",
+    "reason": "needs_review \u2014 MISSING_CONTEXT",
+    "scores_raw": [
+     0.5
+    ],
+    "variance": 0.0,
+    "vote": "WARN"
+   },
+   {
+    "confidence": null,
+    "confidence_self": 0.16666666666666666,
+    "errors": [],
+    "findings": [
+     "MISSING_CONTEXT",
+     "MISSING_CONTEXT"
+    ],
+    "judge_role": "faithfulness_judge",
+    "k": 3,
+    "model": "azure/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "reason": "reject \u2014 MISSING_CONTEXT, MISSING_CONTEXT",
+    "scores_raw": [
+     0.0,
+     0.5,
+     0.0
+    ],
+    "variance": 0.05555555555555556,
+    "vote": "BLOCK"
+   }
+  ],
+  "metadata": {},
+  "status": "BLOCK"
+ },
+ "structural": {
+  "evidence": [],
+  "findings": [],
+  "judge_votes": null,
+  "metadata": {},
+  "status": "not_applicable"
+ },
+ "transform": null,
+ "verdict": "BLOCK"
+}

@@ -199,9 +199,12 @@ def test_floor_inconclusive_never_flips():
 
 
 def test_backward_compat_default_ontology_has_no_floor():
-    # refinement #1: the committed clinical ontology declares NO floor contract, so ground()
-    # is the pre-WS-3 behaviour with floor_blocks == [] and the floor path makes no HTTP call.
+    # refinement #1: the committed default ontology declares NO service-transport (JUTE) floor, so
+    # the floor path makes no HTTP call. VALUE-GROUNDING-FLOOR-1: the neutral ``_core`` default now
+    # declares an in-process value floor; with no source on this case it is INCONCLUSIVE
+    # (surfaced, never a block), so the verdict is still the pre-WS-3 PASS and nothing is injected.
     ont = load_ontology()
     assert [d for d in ont.contracts if d.contract_type in FLOOR_TYPES] == []
     g = ground(COUNCIL_PASS, DEFECT_CASE, ontology=ont, http_client=_BoomHttp())
-    assert g.floor_blocks == [] and g.verdict == "PASS"
+    assert all(b["injected_finding"] is None for b in g.floor_blocks)
+    assert g.verdict == "PASS"
