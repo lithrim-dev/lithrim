@@ -23,6 +23,10 @@ dev = [
 # WS-3b with that code. Versions track the spike venv (dspy 3.2.1, httpx 0.28.1).
 verification = [
     "dspy>=3.2",
+    # LITELLM-PY310-CAP (2026-09-06): litellm >= 1.97 imports typing.NotRequired (3.11+) on its
+    # import path while declaring >=3.10; on 3.10 `import litellm` types fail (CI, v0.1.21). Last
+    # good is 1.96.2; dspy itself only requires >=1.65.8. Lift when upstream fixes 3.10.
+    "litellm>=1.65.8,<1.97",
     "httpx>=0.27",
 ]
 # WS-5-BFF: the optional shell BFF (the judge-capability API v1 — apps/bff/).
@@ -36,6 +40,10 @@ bff = [
     # Connect AI's anthropic probe does `import anthropic`; without it the provider is
     # unconnectable in Docker with a cryptic ModuleNotFoundError (FIRST-CONTACT-1).
     "anthropic>=0.30",
+    # LITELLM-PY310-CAP (2026-09-06): litellm >= 1.97 imports typing.NotRequired (3.11+) on its
+    # import path while declaring >=3.10; on 3.10 `import litellm` types fail (CI, v0.1.21). Last
+    # good is 1.96.2; dspy itself only requires >=1.65.8. Lift when upstream fixes 3.10.
+    "litellm>=1.65.8,<1.97",
 ]
 # WS-6c: the vendored compliance council (lithrim_bench/runtime/council/, ported
 # from lithrim-backend@493b533). openai + tenacity are the council module's
@@ -46,6 +54,10 @@ council = [
     "openai>=1.0",
     "tenacity>=8.0",
     "pydantic-settings>=2.0",
+    # LITELLM-PY310-CAP (2026-09-06): litellm >= 1.97 imports typing.NotRequired (3.11+) on its
+    # import path while declaring >=3.10; on 3.10 `import litellm` types fail (CI, v0.1.21). Last
+    # good is 1.96.2; dspy itself only requires >=1.65.8. Lift when upstream fixes 3.10.
+    "litellm>=1.65.8,<1.97",
 ]
 # WS-6c-OBS: the optional observation / KPI agents (lithrim_bench/runtime/observation/,
 # recomposed from lithrim-backend observation_workflow + app/agents). The 3 LLM KPI
@@ -73,6 +85,10 @@ observation = [
 # non-regressing against the [council]/[bff] suites at UAP-5b D0.
 agent = [
     "claude-agent-sdk>=0.2.90,<0.3",
+    # LITELLM-PY310-CAP (2026-09-06): litellm >= 1.97 imports typing.NotRequired (3.11+) on its
+    # import path while declaring >=3.10; on 3.10 `import litellm` types fail (CI, v0.1.21). Last
+    # good is 1.96.2; dspy itself only requires >=1.65.8. Lift when upstream fixes 3.10.
+    "litellm>=1.65.8,<1.97",
 ]
 # PERSIST-2c: the managed/VPC Postgres tier (plugin `tier: pro`). `psycopg` is the driver
 # the PostgresProvenanceStore lazy-imports; `yoyo-migrations` is the managed-tier migration

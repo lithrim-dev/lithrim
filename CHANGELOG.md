@@ -13,6 +13,10 @@ date-based pre-1.0 versions.
   attributing a judge-only rescore to the floor.
 
 ### Fixed
+- Dependencies: `litellm` is capped `<1.97` on every extra that imports it. litellm 1.97+
+  imports `typing.NotRequired` (Python 3.11+) on its import path while declaring
+  `>=3.10`, which broke the assistant probe and the BYO-Claude judge path on Python 3.10
+  (CI and the `python:3.10-slim` BFF image at v0.1.21). Last good is 1.96.2.
 - The global Azure council branch sent `logprobs` to every deployment; a MaaS deployment
   (Mistral) rejects the parameter and the judge died into a silent empty WARN. It now applies
   the same deployment-granular gate as the per-role branch (confidence-dark, never a dead judge).
