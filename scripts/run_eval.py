@@ -110,6 +110,20 @@ def _grounded_block(grounded) -> dict:
             }
             for b in grounded.floor_blocks
         ],
+        # REVIEW-STATE-1: parity with composite() — what the checks CONFIRMED and how far the
+        # floor covered the verdict, so a stored run shows both sides of the floor.
+        "floor_passes": [
+            {
+                "flag": p["decl"].flag_code,
+                "contract_type": p["decl"].contract_type,
+                "contract": p["decl"].version,
+                "conforms": p["result"].conforms,
+                "disposition": p["result"].disposition,
+                "evidence": p["result"].evidence,
+            }
+            for p in (getattr(grounded, "floor_passes", []) or [])
+        ],
+        "coverage": getattr(grounded, "coverage", {}) or {},
     }
 
 

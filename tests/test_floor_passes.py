@@ -170,3 +170,24 @@ def test_invariance_of_the_grade_fields():
     assert g.verdict == "PASS"
     assert g.verdict_no_floor == "PASS"
     assert g.floor_blocks == []
+
+
+# ── REVIEW-STATE-1: the grounded block persists the passes and the coverage too ─────────
+
+
+def test_grounded_block_carries_floor_passes_and_coverage():
+    """The `grounded` block is the run-blob/audit shape (LAYER0-READ-1). It carried only the
+    blocks, so a stored run could show what a check contradicted but never what it confirmed.
+    Parity with composite(): floor_passes (with evidence) and coverage ride the same block."""
+    _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+    if str(_SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(_SCRIPTS))
+    import run_eval  # noqa: E402
+
+    g = ground(_council_pass(), _KEPT, ontology=from_dict(_FLOOR_ONT))
+    block = run_eval._grounded_block(g)
+    assert block["coverage"]["floor_backstopped"] is True
+    assert block["coverage"]["floor_passes"] == 1
+    (p,) = block["floor_passes"]
+    assert p["contract_type"] == "value_presence" and p["conforms"] is True
+    assert p["evidence"], "a recorded pass carries the evidence the check produced"

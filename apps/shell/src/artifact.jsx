@@ -18,6 +18,37 @@ const VERDICT_UI = {
   reject: { icon: "flag", label: "Flagged", color: "var(--accent)" },
 };
 
+// REVIEW-STATE-UI-1: the engine's three-state reviewer decision (composite.review) → banner
+// chrome. FLAGGED = a deterministic check contradicted the artifact; CLEARED = a check confirmed
+// it or disproved the judges' signal; ESCALATED = nothing proven either way, a person decides.
+const REVIEW_UI = {
+  FLAGGED: { icon: "flag", label: "Flagged", color: "var(--accent)" },
+  CLEARED: { icon: "check", label: "Cleared", color: "var(--teal)" },
+  ESCALATED: { icon: "flag", label: "Needs a person", color: "var(--amber)" },
+};
+const reviewOf = (comp) => {
+  const r = comp && comp.review;
+  return r && REVIEW_UI[String(r.state || "").toUpperCase()] ? r : null;
+};
+
+// REVIEW-HYDRATE: the ONE case record every tab reads. In-session state wins (loading /
+// error / a fresh result); an ARMED case with no in-session run hydrates the LATEST persisted
+// report for it (GET /v1/reports/{case_id}, a $0 read); a 404 keeps the honest empty state.
+// Shared by ReportTab and JudgeTab so a stored run never shows its verdict on one tab and
+// "No run yet" on the next.
+function useCaseRecord({ agent, activeCase, runResult, runStatus }) {
+  const [hydrated, setHydrated] = useState(null);
+  useEffect(() => {
+    if (runResult || runStatus !== "idle" || !activeCase) { setHydrated(null); return; }
+    let live = true;
+    getCaseReport(agent, activeCase)
+      .then((r) => { if (live) setHydrated(r); })
+      .catch(() => { if (live) setHydrated(null); }); // no saved run / offline → empty state
+    return () => { live = false; };
+  }, [agent, activeCase, runResult, runStatus]);
+  return hydrated;
+}
+
 // a reviewer vote (PASS|WARN|FAIL|BLOCK) → chip color.
 const VOTE_COLOR = {
   PASS: "var(--teal)",
@@ -193,15 +224,7 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
   // report for it (GET /v1/reports/{case_id}, a pure $0 read) and feeds the SAME renderer
   // below — never a parallel view. In-session state always wins (loading/error/fresh result);
   // a 404 (no saved run) keeps the honest empty state.
-  const [hydrated, setHydrated] = useState(null);
-  useEffect(() => {
-    if (runResult || runStatus !== "idle" || !activeCase) { setHydrated(null); return; }
-    let live = true;
-    getCaseReport(agent, activeCase)
-      .then((r) => { if (live) setHydrated(r); })
-      .catch(() => { if (live) setHydrated(null); }); // no saved run / offline → empty state
-    return () => { live = false; };
-  }, [agent, activeCase, runResult, runStatus]);
+  const hydrated = useCaseRecord({ agent, activeCase, runResult, runStatus });
 
   // RUN-SCOPED-REPORT-1: this case's run history, so a PAST run can be opened. The report
   // store keeps one record per case (every grade upserts it), so without this the pane can
@@ -259,6 +282,19 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
   const votedFlag = ((shown.council || {}).votes || []).some((v) => ["BLOCK", "FAIL"].includes(String(v.vote || "").toUpperCase()));
   const floorCleared = clears.length > 0 && votedFlag && String(comp.stage_verdict || "").toUpperCase() === "PASS";
   const bannerTitle = floorCleared && String(caseOutcome || "").toUpperCase() !== "CLEAR" ? ui.label : (outcomeLabel || ui.label);
+  // REVIEW-STATE-UI-1: when the record carries the engine's review decision, THAT is the title
+  // (Flagged / Cleared / Needs a person) with its reason; a pre-cycle record keeps today's title.
+  const review = reviewOf(comp);
+  const rui = review ? REVIEW_UI[String(review.state).toUpperCase()] : ui;
+  const title = review ? rui.label : bannerTitle;
+  const floorRows = comp.floor_adjustments || [];
+  const hasFloorBlock = floorRows.some((a) => a.action === "floor_block");
+  // honesty: "changed the result" only when the pre-floor verdict differs from the final one; a
+  // block that lands on a council BLOCK CONFIRMED the reviewers. A record with no grounded
+  // verdicts (a pre-floor server) keeps today's wording.
+  const preFloor = String((shown.grounded || {}).original_verdict || "").toUpperCase();
+  const floorFlipped = !preFloor || preFloor !== String(comp.stage_verdict || "").toUpperCase();
+  const floorPasses = comp.floor_passes || [];
 
   return (
     <div>
@@ -284,12 +320,17 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
         </div>
       )}
       <div className="report-banner">
-        <div className="rb-ic" style={{ color: ui.color }}><ICN name={ui.icon} size={20} sw={2.2} /></div>
+        <div className="rb-ic" style={{ color: rui.color }}><ICN name={rui.icon} size={20} sw={2.2} /></div>
         <div style={{ minWidth: 0 }}>
-          <div className="rb-t">{bannerTitle}</div>
+          <div className="rb-t">{title}</div>
           <div className="rb-s">
             {findings.length} issues found · {clears.length} false alarms cleared by a fact-check · {shown.case_id}
           </div>
+          {review && (
+            <div className="rb-s" data-testid="review-reason" style={{ marginTop: 2, color: "var(--fg)" }}>
+              {review.reason}{review.evidence ? ` · ${review.evidence}` : ""}
+            </div>
+          )}
           {floorCleared && (
             <div className="rb-s" style={{ marginTop: 2, color: "var(--teal)" }}>
               {floorClearStory(clears.length, verdictLabel(comp.stage_verdict))}
@@ -342,8 +383,8 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
               floor_inconclusive rows are surfaced-never-flipped (grounding.py) and must not
               claim a flip. The per-row labels below were already honest. */}
           <div className="art-h2">
-            {(comp.floor_adjustments || []).some((a) => a.action === "floor_block")
-              ? (<>Automated fact-check failures <span className="cnt">a fact-check changed the result</span></>)
+            {hasFloorBlock
+              ? (<>Automated fact-check failures <span className="cnt">{floorFlipped ? "a fact-check changed the result" : "a fact-check confirmed the result"}</span></>)
               : (<>Automated fact-checks <span className="cnt">fact-checks ran (inconclusive)</span></>)}
           </div>
           {(comp.floor_adjustments || []).map((a, i) => {
@@ -358,6 +399,37 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
                 </div>
                 <div style={{ color: "var(--muted)", marginTop: 3 }}>
                   conforms: {String(a.conforms)} · {a.disposition}
+                </div>
+                {a.evidence && (a.evidence.reason || (a.evidence.missing || []).length > 0 || (a.evidence.present || []).length > 0) && (
+                  <div data-testid="floor-row-evidence" style={{ color: "var(--fg)", marginTop: 3 }}>
+                    {a.evidence.reason}
+                    {(a.evidence.missing || []).length > 0 ? ` · missing: ${a.evidence.missing.join(", ")}` : ""}
+                    {(a.evidence.present || []).length > 0 ? ` · present: ${a.evidence.present.join(", ")}` : ""}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* REVIEW-STATE-UI-1: the passes a check RECORDED — what was verified against the source,
+          so an escalated case shows the confirmed part too. Rendered only when a pass exists. */}
+      {floorPasses.length > 0 && (
+        <div className="art-sec">
+          <div className="art-h2">Confirmed by a fact-check <span className="cnt">verified against the source</span></div>
+          {floorPasses.map((p, i) => {
+            const ev = p.evidence || {};
+            const present = ev.present || [];
+            const n = typeof ev.checked === "number" ? ev.checked : present.length;
+            return (
+              <div key={i} data-testid="floor-pass-row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 12.5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ fontWeight: 600, color: "var(--teal)" }}>{flagLabel(p.flag)}</span>
+                  <span style={{ color: "var(--teal)", whiteSpace: "nowrap" }}>Confirmed by a fact-check · {p.contract_type}</span>
+                </div>
+                <div style={{ color: "var(--muted)", marginTop: 3 }}>
+                  {n} {n === 1 ? "value" : "values"} checked{present.length ? `: ${present.join(", ")}` : ""}{ev.reason ? ` · ${ev.reason}` : ""}
                 </div>
               </div>
             );
@@ -416,13 +488,16 @@ function ReportTab({ runStatus, runResult, runError, activeCase = null, agent = 
 
 // The realized per-judge votes the council cast on THIS case (run-eval `council`).
 // Per-case truth (what each judge voted + its confidence), not a configured roster.
-function JudgeTab({ runStatus, runResult, runError }) {
+function JudgeTab({ runStatus, runResult, runError, activeCase = null, agent = "ws0_default" }) {
+  // REVIEWERS-HYDRATE-1: the same case record the Report tab reads — a stored run shows its votes.
+  const hydrated = useCaseRecord({ agent, activeCase, runResult, runStatus });
+  const shown = runResult || hydrated;
   // TRANSPARENCY-1 (the Clinical Scribe Review contrast): each judge's LENS — the flags it COULD raise +
   // whether it did — lives in the run's provenance audit (GET /v1/runs/{id}/audit `withstands`),
   // NOT the grade-time council view. Self-fetch it (the ConfigTab/CorpusTab pattern) and key by
   // role, so a PASS that happened because NOTHING in the lens covers the defect (Risk-Severity
   // Blindness) is VISIBLE, not inferred.
-  const runId = runResult?.pipeline_run_id;
+  const runId = shown?.pipeline_run_id;
   const [lensByRole, setLensByRole] = useState({});
   const [whyOpen, setWhyOpen] = useState({});
   useEffect(() => {
@@ -448,14 +523,14 @@ function JudgeTab({ runStatus, runResult, runError }) {
   if (runStatus === "loading")
     return <ReportMessage>Gathering the reviewers' results…</ReportMessage>;
   if (runStatus === "error") return <RunFailed runError={runError} />;
-  if (!runResult)
+  if (!shown)
     return (
       <ReportMessage>
         No run yet. Press <strong>Run eval</strong> to see how each reviewer voted on this case.
       </ReportMessage>
     );
 
-  const council = runResult.council || { votes: [], configured: [] };
+  const council = shown.council || { votes: [], configured: [] };
   const votes = council.votes || [];
   if (votes.length === 0)
     return <ReportMessage>This run carried no per-reviewer votes.</ReportMessage>;
@@ -486,7 +561,7 @@ function JudgeTab({ runStatus, runResult, runError }) {
         <div>
           <div className="ct">{blocking ? `${blocking} blocking vote(s)` : "No blocking votes"}</div>
           <div className="cs">
-            How each reviewer voted on {runResult.case_id} · {gradeTag(runResult.grade_path)}
+            How each reviewer voted on {shown.case_id} · {gradeTag(shown.grade_path)}
           </div>
           {lensCodes.size > 0 && (
             <div className="cs" style={{ marginTop: 2 }}>
@@ -1022,7 +1097,7 @@ export function ArtifactPane({ width, full, tab, setTab, agent = "ws0_default", 
         <div style={full ? { maxWidth: 760, margin: "0 auto" } : {}}>
           {tab === "case" && <CaseTab agent={agent} caseId={activeCase} onBrowseCases={() => setTab("corpus")} />}
           {tab === "report" && <ReportTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} agent={agent} />}
-          {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} />}
+          {tab === "judges" && <JudgeTab runStatus={runStatus} runResult={runResult} runError={runError} activeCase={activeCase} agent={agent} />}
           {tab === "config" && <ConfigTab agent={agent} wsPack={wsPack} />}
           {tab === "corpus" && <CorpusTab agent={agent} activeCase={activeCase} onSelectCase={onSelectCase} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />}
         </div>

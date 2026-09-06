@@ -1,6 +1,7 @@
 """QUEUE-DEMO-1 — ``make queue``: the reviewer works a five-case queue at $0.
 
-The product invariant, as a test: a case is CLEARED only when the deterministic layer
+The product invariant, as a test (the state mapping itself is pinned in
+``tests/test_review_state.py`` since REVIEW-STATE-1 moved it into the engine): a case is CLEARED only when the deterministic layer
 materially supported the PASS (a recorded floor pass or a judge signal disproved with
 evidence), FLAGGED only when a check injected the block, and everything else is ESCALATED
 with the reason a person needs. A judge's confidence never clears a case.
@@ -16,82 +17,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts/queue_demo.py"
-if str(REPO_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "scripts"))
-
-import queue_demo  # noqa: E402
-
 _STATES = {"CLEARED", "FLAGGED", "ESCALATED"}
-
-
-# ── the state mapping, unit-level over grounded-result shapes ────────────────────────────
-
-def _decl(ct):
-    return SimpleNamespace(contract_type=ct, version="v1", flag_code="X")
-
-
-def _res(conforms, **ev):
-    return SimpleNamespace(conforms=conforms, evidence=ev, reason=ev.get("reason"))
-
-
-def _grounded(verdict, no_floor, cov, active=(), blocks=(), passes=(), suppressed=()):
-    return SimpleNamespace(
-        verdict=verdict, verdict_no_floor=no_floor, coverage=cov, active=list(active),
-        floor_blocks=list(blocks), floor_passes=list(passes), suppressed=list(suppressed),
-    )
-
-
-def test_flagged_requires_a_floor_injected_block():
-    g = _grounded(
-        "BLOCK", "PASS", {"grounded": 1, "cleared": 0, "floor_backstopped": True},
-        active=[{"code": "SOURCE_CONTRADICTION", "_floor": True}],
-        blocks=[{"decl": _decl("value_grounding"), "result": _res(False, missing=["4.5"], reason="absent from the record"),
-                 "injected_finding": {"code": "SOURCE_CONTRADICTION"}}],
-    )
-    r = queue_demo.classify(g, {})
-    assert r["state"] == "FLAGGED" and r["check"] == "value_grounding" and "4.5" in r["evidence"]
-
-
-def test_a_judge_only_block_is_escalated_not_flagged():
-    g = _grounded(
-        "BLOCK", "BLOCK", {"grounded": 0, "cleared": 0, "judge_only": 1, "floor_backstopped": False},
-        active=[{"code": "UNSUPPORTED_ASSERTION"}],
-    )
-    r = queue_demo.classify(g, {})
-    assert r["state"] == "ESCALATED" and "UNSUPPORTED_ASSERTION" in r["reason"]
-
-
-def test_cleared_requires_a_floor_pass_or_a_disproved_signal():
-    g = _grounded(
-        "PASS", "PASS", {"grounded": 0, "cleared": 0, "floor_passes": 1, "floor_backstopped": True},
-        passes=[{"decl": _decl("value_grounding"), "result": _res(True, checked=3, present=["4", "312", "9:00"], missing=[])}],
-    )
-    assert queue_demo.classify(g, {})["state"] == "CLEARED"
-    g2 = _grounded(
-        "PASS", "BLOCK", {"grounded": 0, "cleared": 1, "floor_backstopped": True},
-        suppressed=[{"finding": {"code": "UNSUPPORTED_ASSERTION"}, "contract": _decl("source_grounding"),
-                     "verdict": SimpleNamespace(reason="fully grounded")}],
-    )
-    assert queue_demo.classify(g2, {})["state"] == "CLEARED"
-
-
-def test_a_judge_only_pass_is_escalated_never_cleared():
-    g = _grounded("PASS", "PASS", {"grounded": 0, "cleared": 0, "floor_backstopped": False})
-    r = queue_demo.classify(g, {})
-    assert r["state"] == "ESCALATED" and "judges alone" in r["reason"]
-
-
-def test_a_prose_lead_is_escalated_with_the_value_named():
-    g = _grounded(
-        "PASS", "PASS", {"grounded": 0, "cleared": 0, "floor_backstopped": False},
-        blocks=[{"decl": _decl("value_grounding"), "result": _res(None, missing=["84"], reason="lead"), "injected_finding": None}],
-    )
-    r = queue_demo.classify(g, {})
-    assert r["state"] == "ESCALATED" and "84" in r["reason"]
 
 
 # ── end to end: the committed queue replays at $0 ────────────────────────────────────────

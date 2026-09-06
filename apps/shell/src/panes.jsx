@@ -309,6 +309,9 @@ function verdictShape(rec) {
   // the named case outcome (independent-axes rule table) — the PRIMARY headline.
   const caseOutcome = council.case_outcome || composite.case_outcome;
   if (caseOutcome) out.caseOutcome = String(caseOutcome);
+  // REVIEW-STATE-UI-1: the engine's three-state decision rides to the card verbatim (mirrors
+  // adapter.py verdict_part) — Flagged / Cleared / Needs a person, with its reason + evidence.
+  if (composite.review && composite.review.state) out.review = composite.review;
   const floorBlocks = (composite.floor_adjustments || [])
     .filter((fa) => fa.action === "floor_block")
     .map((fa) => ({ flag: fa.flag, contract_type: fa.contract_type, contract: fa.contract, disposition: fa.disposition }));
