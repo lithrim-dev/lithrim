@@ -24,6 +24,21 @@ const VERDICT_EXPLAIN = {
 };
 const verdictExplain = (v) => VERDICT_EXPLAIN[norm(v)] || "The overall result for this case.";
 
+// REVIEW-STATE-UI-2: the engine's three-state decision (row.review.state). When every row
+// carries it, the tally counts by state and each row prints the state word the report pane
+// uses; a row without one keeps the verdict wording (a pre-cycle server).
+const REVIEW_UI = {
+  FLAGGED: { label: "Flagged", color: "var(--accent)" },
+  CLEARED: { label: "Cleared", color: "var(--teal)" },
+  ESCALATED: { label: "Needs a person", color: "var(--amber)" },
+};
+const reviewState = (c) => { const s = norm(c && c.review && c.review.state); return REVIEW_UI[s] ? s : null; };
+const rowUi = (c) => {
+  const s = reviewState(c);
+  if (!s) return { label: verdictLabel(c.verdict), color: vColor(c.verdict), title: verdictExplain(c.verdict) };
+  return { label: REVIEW_UI[s].label, color: REVIEW_UI[s].color, title: (c.review && c.review.reason) || verdictExplain(c.verdict) };
+};
+
 const TIP = {
   precision: "Precision — of the issues the reviewers flagged, the share that were real (in the answer key). Higher means fewer false alarms.",
   recall: "Recall — of the real issues (in the answer key), the share the reviewers caught. Higher means fewer misses.",
@@ -88,8 +103,13 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
   const missed = Object.entries(by_flag).filter(([, v]) => v.fn > 0).sort((a, b) => b[1].fn - a[1].fn);
   const clickable = typeof onOpenCaseRun === "function";
   // plain-language outcome tally for non-tech readers (always visible, no hover needed)
-  const nFlagged = cases.filter((c) => ["BLOCK", "REJECT", "FAIL"].includes(norm(c.verdict))).length;
-  const nLook = cases.filter((c) => ["WARN", "NEEDS_REVIEW", "REVIEW"].includes(norm(c.verdict))).length;
+  const allReviewed = cases.length > 0 && cases.every((c) => reviewState(c));
+  const nFlagged = allReviewed
+    ? cases.filter((c) => reviewState(c) === "FLAGGED").length
+    : cases.filter((c) => ["BLOCK", "REJECT", "FAIL"].includes(norm(c.verdict))).length;
+  const nLook = allReviewed
+    ? cases.filter((c) => reviewState(c) === "ESCALATED").length
+    : cases.filter((c) => ["WARN", "NEEDS_REVIEW", "REVIEW"].includes(norm(c.verdict))).length;
   const nPassed = cases.length - nFlagged - nLook;
   // NARRATIVE-LAYER-1: the plain-language read + reframed hero, computed from THIS payload —
   // null (no band) when the floor carries nothing to read. All the numbers below stay as-is.
@@ -124,8 +144,8 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
         </div>
       )}
       {/* plain-English outcome tally — the non-tech headline */}
-      <div className="mt-1 text-[11px] text-muted-foreground">
-        <span style={{ color: "var(--accent)" }}>{nFlagged} flagged</span> · {nLook} need a look · <span style={{ color: "var(--teal)" }}>{nPassed} passed</span>
+      <div className="mt-1 text-[11px] text-muted-foreground" data-testid="scorecard-tally">
+        <span style={{ color: "var(--accent)" }}>{nFlagged} flagged</span> · {nLook} {allReviewed ? "need a person" : "need a look"} · <span style={{ color: "var(--teal)" }}>{nPassed} {allReviewed ? "cleared" : "passed"}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-3 font-[family-name:var(--font-mono)] text-[11px]">
         <span><Term tip={TIP.precision}>precision</Term> <strong style={{ color: "var(--ink)" }}>{pct(flag.precision)}</strong> <span className="text-muted-foreground">({flag.tp}/{flag.tp + flag.fp})</span></span>
@@ -228,7 +248,7 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
             className={"group flex items-start gap-2 rounded-[var(--radius-sm)] border border-border bg-secondary px-2.5 py-1.5 outline-none "
               + (clickable ? "cursor-pointer transition-colors hover:border-primary hover:bg-background focus-visible:border-primary" : "")}>
             <span className="min-w-0 flex-1 truncate font-[family-name:var(--font-mono)] text-[11px] text-foreground" title={c.case_id}>{c.case_id}</span>
-            <span className="text-[10.5px] font-semibold" style={{ color: vColor(c.verdict) }} title={verdictExplain(c.verdict)}>{verdictLabel(c.verdict)}</span>
+            <span className="text-[10.5px] font-semibold" style={{ color: rowUi(c).color }} title={rowUi(c).title}>{rowUi(c).label}</span>
             <div className="flex max-w-[52%] flex-wrap justify-end gap-1">
               {!c.labeled && <span className="text-[10px] text-muted-foreground" title="No answer key for this case — the result is shown, but accuracy isn't scored.">unlabeled</span>}
               {(c.caught || []).map((f) => <Chip key={"c" + f} label={flagLabel(f)} color="var(--teal)" title={CHIP_TIP.caught} />)}

@@ -23,6 +23,11 @@ date-based pre-1.0 versions.
 ### Fixed
 - The Reviewers tab read only the in-session run and said "No run yet" for a case with a
   stored run while the Report tab showed it. Both tabs now hydrate the same persisted record.
+- The batch scorecard (Run eval / Grade all) tallied engine verdicts, so five BLOCKs read
+  "5 flagged" while the report pane called four of them "Needs a person". The grade matrix and
+  scorecard rows now carry the review block, and the card's tally, row words and narrative
+  count by it ("1 flagged · 4 need a person · 0 cleared"); rows without one keep the verdict
+  wording.
 - Dependencies: `litellm` is capped `<1.97` on every extra that imports it. litellm 1.97+
   imports `typing.NotRequired` (Python 3.11+) on its import path while declaring
   `>=3.10`, which broke the assistant probe and the BYO-Claude judge path on Python 3.10
