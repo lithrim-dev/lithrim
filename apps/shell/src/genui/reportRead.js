@@ -69,10 +69,20 @@ export function scorecardRead(p = {}) {
   const total = p.n_cases ?? (cases.length || null);
   if (cases.length && total) {
     const up = (v) => String(v || "").toUpperCase();
-    const nFlagged = cases.filter((c) => ["BLOCK", "REJECT", "FAIL"].includes(up(c.verdict))).length;
-    const nLook = cases.filter((c) => ["WARN", "NEEDS_REVIEW", "REVIEW"].includes(up(c.verdict))).length;
-    const nPassed = cases.length - nFlagged - nLook;
-    sentences.push(`${nPassed} of ${total} note${total === 1 ? "" : "s"} passed clean, ${nFlagged} ${nFlagged === 1 ? "was" : "were"} flagged, ${nLook} need${nLook === 1 ? "s" : ""} a human look.`);
+    // REVIEW-STATE-UI-2: when every row carries the engine's review state, count by it — the
+    // words the report pane uses. Rows without one keep the verdict sentence.
+    const states = cases.map((c) => up(c.review && c.review.state));
+    if (states.every((s) => ["FLAGGED", "CLEARED", "ESCALATED"].includes(s))) {
+      const nFlagged = states.filter((s) => s === "FLAGGED").length;
+      const nPerson = states.filter((s) => s === "ESCALATED").length;
+      const nCleared = states.length - nFlagged - nPerson;
+      sentences.push(`${nCleared} of ${total} note${total === 1 ? "" : "s"} cleared by a check, ${nFlagged} flagged, ${nPerson} need${nPerson === 1 ? "s" : ""} a person.`);
+    } else {
+      const nFlagged = cases.filter((c) => ["BLOCK", "REJECT", "FAIL"].includes(up(c.verdict))).length;
+      const nLook = cases.filter((c) => ["WARN", "NEEDS_REVIEW", "REVIEW"].includes(up(c.verdict))).length;
+      const nPassed = cases.length - nFlagged - nLook;
+      sentences.push(`${nPassed} of ${total} note${total === 1 ? "" : "s"} passed clean, ${nFlagged} ${nFlagged === 1 ? "was" : "were"} flagged, ${nLook} need${nLook === 1 ? "s" : ""} a human look.`);
+    }
   }
   const judges = Array.isArray(p.by_judge) ? p.by_judge : [];
   if (pre != null) {

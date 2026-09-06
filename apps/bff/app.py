@@ -2303,7 +2303,7 @@ def _cohort_scorecard(
     for r in rows:
         cid = r.get("case_id")
         raised = set(r.get("findings") or [])
-        row = {"case_id": cid, "verdict": r.get("verdict"),
+        row = {"case_id": cid, "verdict": r.get("verdict"), "review": r.get("review"),
                "labeled": cid in labeled, "raised": sorted(raised)}
         if cid in labeled:
             gold = golds.get(cid, set())
@@ -2491,6 +2491,9 @@ def grade_cases_endpoint(
                     "case_id": cid,
                     "verdict": comp.get("verdict"),
                     "stage_verdict": comp.get("stage_verdict"),
+                    # REVIEW-STATE-1: the engine's three-state decision rides the batch row too, so
+                    # the inline scorecard speaks the same words as the report pane.
+                    "review": comp.get("review"),
                     "findings": comp.get("active_findings") or [],
                     "units": [list(u.codes) for u in units],
                     # R3: model + raw K-split ride each vote (the per-reviewer scorecard +

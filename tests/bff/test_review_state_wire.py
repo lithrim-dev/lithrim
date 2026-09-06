@@ -68,3 +68,21 @@ def test_a_replay_grade_carries_the_review_state_and_the_report_read_serves_it(c
     read = client.get(f"/v1/reports/{HOUSE_CASE_ID}", params={"agent": AGENT})
     assert read.status_code == 200, read.text
     assert read.json()["composite"]["review"] == review
+
+
+def test_the_batch_grade_carries_the_review_state_on_matrix_and_scorecard_rows(client):
+    """REVIEW-STATE-UI-2: the cohort path. Seen live (v0.1.23): "Run eval" on five cases rendered
+    "5 flagged" because the scorecard rows carried only the engine verdict. Both the matrix row
+    and the scorecard row must carry the same ``review`` block the record has."""
+    res = client.post("/v1/cases/grade", json={"agent": AGENT, "case_ids": [HOUSE_CASE_ID]})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    (row,) = [r for r in body["matrix"] if r.get("case_id") == HOUSE_CASE_ID]
+    assert "error" not in row, row
+    review = row.get("review")
+    assert review and review["state"] in _STATES and review["reason"], row
+    (sc_row,) = [r for r in body["scorecard"]["cases"] if r.get("case_id") == HOUSE_CASE_ID]
+    assert sc_row.get("review") == review
+    # and it is the SAME decision the persisted record carries (one source, no drift)
+    read = client.get(f"/v1/reports/{HOUSE_CASE_ID}", params={"agent": AGENT})
+    assert read.json()["composite"]["review"]["state"] == review["state"]
