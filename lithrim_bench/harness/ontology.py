@@ -83,15 +83,25 @@ class SeverityMap:
     weights: dict[str, float]
     block_at_or_above: float
     warn_above: float
+    # LEAD-AUTHORITY-1: codes the check ledger has NOT promoted. A lead may WARN (escalate) but
+    # never BLOCK on its own; absent (the default) the rescore is byte-identical to before.
+    lead_codes: frozenset[str] = frozenset()
 
     def weight_of(self, severity: str | None) -> float:
         return self.weights.get(severity or "", 0.0)
 
     def rescore(self, active: list[dict[str, Any]]) -> str:
-        weight = max((self.weight_of(f.get("severity")) for f in active), default=0.0)
-        if weight >= self.block_at_or_above:
+        blocking = max(
+            (
+                self.weight_of(f.get("severity"))
+                for f in active
+                if f.get("code") not in self.lead_codes
+            ),
+            default=0.0,
+        )
+        if blocking >= self.block_at_or_above:
             return "BLOCK"
-        if weight > self.warn_above:
+        if blocking > self.warn_above or any(f.get("code") in self.lead_codes for f in active):
             return "WARN"
         return "PASS"
 
@@ -180,6 +190,7 @@ def from_dict(data: dict[str, Any]) -> Ontology:
         weights={k: float(v) for k, v in sm["weights"].items()},
         block_at_or_above=float(sm["block_at_or_above"]),
         warn_above=float(sm["warn_above"]),
+        lead_codes=frozenset(sm.get("lead_codes") or ()),
     )
     return Ontology(
         ontology_version=data["ontology_version"],
