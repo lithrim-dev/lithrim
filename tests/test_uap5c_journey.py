@@ -344,3 +344,20 @@ def test_assemble_agent_unknown_judge_is_surfaced_not_bypassed(env):
     assert ctx.parts == []  # no card on a rejected write
     recs = client.get("/v1/audit", params={"target_type": "agent"}).json()["records"]
     assert recs == []  # nothing persisted -> nothing audited
+
+
+def test_assemble_agent_accepts_a_role_the_active_pack_knows_at_runtime(env, monkeypatch):
+    """S-BS-154 for the roster tool (observed live 2026-09-09): a judge authored at runtime
+    (``POST /v1/judges`` splices it into the active pack's lenses) could never be rostered by
+    chat, because ``_assemble_agent`` gated on the boot-time ``LENS_BY_ROLE`` snapshot. The
+    authority is the active workspace pack's lens map, read per request."""
+    ctx, client = env
+    runtime = dict(bff._active_lens_by_role())
+    runtime["consistency_judge"] = runtime["risk_judge"]
+    monkeypatch.setattr(bff, "_active_lens_by_role", lambda: runtime)
+    res = asyncio.run(
+        assemble_agent_handler(ctx, {"name": AGENT, "add_judge": "consistency_judge"})
+    )
+    assert not res.get("is_error"), res
+    ag = client.get("/v1/agent", params={"name": AGENT}).json()
+    assert "consistency_judge" in ag["eval_profile"]["judges"]

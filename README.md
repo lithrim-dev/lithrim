@@ -53,8 +53,20 @@ make queue         # replays the judges ($0), runs the checks live, prints the t
 pip install -e ".[bff,council,verification]"   # the extras the local BFF stack needs
 export LITHRIM_LLM_PROVIDER=openai
 export OPENAI_API_KEY=sk-...
-make up          # local BFF + UI; grade your own artifact, nothing leaves the box
+make up          # local BFF + UI + the bundled mapper; grade your own artifact, nothing leaves the box
 ```
+
+**Or run it on your Claude subscription, no API key (host only).** With a logged-in `claude` CLI on
+the machine, the conversational assistant AND the judges can run through it:
+
+```bash
+pip install -e ".[bff,council,verification,agent]"   # + the Agent SDK that drives your local `claude`
+echo 'LITHRIM_LLM_PROVIDER=claude-cli' > .env         # every judge grades via `claude -p` (no key)
+make up          # chat works immediately; load cases, author judges, and grade from the composer
+```
+
+Per-judge confidence is an honest `None` on this route (the CLI exposes no logprobs). The full
+walkthrough is [`SETUP.md`](SETUP.md), section "Host path: your local Claude".
 
 You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. OpenAI and Azure work from env (`LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example)); in the UI, **Connect AI** configures any of openai / anthropic / azure / gemini / openai-compatible per judge role — including a cross-provider council.
 

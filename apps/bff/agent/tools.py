@@ -574,7 +574,42 @@ async def review_runs_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[st
         f"{len(runs)} run(s) on record{scope}. Latest {latest[:8] or '—'}: {verdict_line} "
         f"The config-change audit trail (your flag + judge edits) and this run's "
         f"provenance are shown.{ask}"
+        + _judge_evidence_lines(latest_audit)
     )
+
+
+def _judge_evidence_lines(audit: dict[str, Any]) -> str:
+    """The latest run's per-judge record, as text the model can quote: vote, confidence,
+    findings, and each judge's OWN evidence spans (the audit projection broadcasts the
+    stage-level evidence list to every judge; filter it back by the span's ``judge``)."""
+    judges = audit.get("judges") or []
+    if not judges:
+        return ""
+    lines = ["", "Per-judge record of the latest run:"]
+    for j in judges:
+        role = j.get("judge_role") or "?"
+        conf = j.get("confidence")
+        conf_s = f"{conf:.2f}" if isinstance(conf, (int, float)) else "n/a (no logprobs)"
+        findings = ", ".join(j.get("findings") or []) or "none"
+        lines.append(f"- {role}: {j.get('vote') or '?'} (confidence {conf_s}); findings: {findings}")
+        own = [e for e in (j.get("evidence") or []) if e.get("judge") in (role, None)]
+        for ev in own[:3]:
+            quote = " / ".join(
+                (s.get("quote") or "").strip()[:160] for s in (ev.get("spans") or []) if s.get("quote")
+            )
+            if quote:
+                lines.append(f"    evidence [{ev.get('violation_code') or '?'}]: \"{quote}\"")
+    grounded = audit.get("grounded") or {}
+    if grounded:
+        blocks = grounded.get("floor_blocks") or []
+        inconclusive = sum(1 for b in blocks if (b.get("disposition") or "") == "INCONCLUSIVE")
+        lines.append(
+            f"- grounding floor: {len(grounded.get('suppressed') or [])} judge signal(s) disproved, "
+            f"{len(blocks) - inconclusive} enforced, {inconclusive} could not be grounded "
+            f"(inconclusive, never silently resolved); verdict "
+            f"{grounded.get('original_verdict') or '?'} -> {grounded.get('verdict') or '?'}"
+        )
+    return "\n".join(lines)
 
 
 async def run_eval_pack_handler(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

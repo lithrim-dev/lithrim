@@ -13,6 +13,7 @@ trio — a Claude judge in one seat flips the verdict vs an all-Azure baseline o
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -295,3 +296,13 @@ def test_bff_threads_a_byo_claude_judge_model_into_the_run(bff_client, monkeypat
     resp = client.post("/v1/run-eval", json={"agent": "byoc_bff_test", "in_process": True})
     assert resp.status_code == 400  # the SystemExit sentinel → 400 (after capture)
     assert captured["models"] == {"risk_judge": "byo-claude"}
+
+
+def test_judge_cli_env_gates_the_operators_auto_memory_and_claude_md():
+    """CONTEXT-ISOLATION-1: the judge ``claude -p`` inherits auth + PATH but never the
+    operator's per-cwd auto-memory or CLAUDE.md (auto-memory defaults ON even under
+    ``--setting-sources ""``)."""
+    env = B.cli_env()
+    assert env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+    assert env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] == "1"
+    assert env.get("PATH") == os.environ.get("PATH")

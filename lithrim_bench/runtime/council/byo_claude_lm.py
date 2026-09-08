@@ -51,6 +51,7 @@ Claude subscription (consistent with ``apps/bff/agent/loop.py``'s ``COST_LABEL``
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Callable
 from typing import Any
@@ -110,6 +111,22 @@ def build_toolless_argv(
     return argv
 
 
+# CONTEXT-ISOLATION-1: the operator's Claude Code context is NOT product context. The CLI
+# loads its per-cwd auto-memory (``~/.claude/projects/<cwd>/memory``) and CLAUDE.md files
+# even with ``--setting-sources ""`` (auto-memory defaults ON); these env gates close both
+# surfaces for every CLI the engine spawns (the judge LM here, the chat loop in apps/bff).
+CLI_CONTEXT_ISOLATION_ENV: dict[str, str] = {
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1",
+}
+
+
+def cli_env() -> dict[str, str]:
+    """The environment for a spawned ``claude`` CLI: the inherited env (auth, PATH) plus the
+    context-isolation gates; the gates always win."""
+    return {**os.environ, **CLI_CONTEXT_ISOLATION_ENV}
+
+
 def _default_runner(argv: list[str], *, prompt: str, timeout: float) -> str:
     """Shell out to the local ``claude`` CLI (prompt on stdin) and return raw stdout (the
     ``--output-format json`` blob). Injectable so tests never spawn a real process."""
@@ -119,6 +136,7 @@ def _default_runner(argv: list[str], *, prompt: str, timeout: float) -> str:
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=cli_env(),
     )
     if proc.returncode != 0:
         raise RuntimeError(

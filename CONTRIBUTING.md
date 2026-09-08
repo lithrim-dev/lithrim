@@ -33,7 +33,7 @@ Optional extras unlock more of the stack — install only what you need:
 | `dev` | pytest, ruff | run the suite + lint |
 | `council` | openai, tenacity, pydantic-settings | the in-process council (real LLM grading) |
 | `bff` | fastapi, uvicorn, httpx | the shell BFF API (`apps/bff`) |
-| `agent` | claude-agent-sdk | the conversational chat loop |
+| `agent` | claude-agent-sdk | the conversational chat loop on your local `claude` CLI (`make up` needs it for chat) |
 | `verification` | dspy, httpx | the JUTE validator generator + live connectors |
 | `observation` | openai, tenacity | KPI observation agents |
 | `pg` | psycopg, yoyo-migrations | Postgres-backed provenance |

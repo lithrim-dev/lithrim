@@ -5119,10 +5119,13 @@ def _build_tool_context(
         # default Azure LM, "byo-claude" binds the tool-less BYO-Claude judge. Persisted
         # via the unchanged ``put_judge_endpoint`` (audited; not a paid run).
         body = {"assigned_flags": assigned_flags, "validator_refs": [], "model": model or ""}
+        # S-BS-82: a direct call bypasses the router, so every Query param is passed explicitly
+        # (an omitted ``agent`` arrives as a truthy FieldInfo sentinel and reaches SQLite).
         return put_judge_endpoint(
             role,
             judge=body,
             rationale=rationale,
+            agent=None,
             db_path=db_path,
             default_actor=actor,
             x_actor=x_actor,
@@ -5363,10 +5366,13 @@ def _build_tool_context(
         if not add_judge and not remove_judge:
             raise HTTPException(status_code=400, detail="specify add_judge or remove_judge")
         if add_judge:
-            if add_judge not in LENS_BY_ROLE:
+            # S-BS-154: the role authority is the ACTIVE workspace pack's lens map (which a
+            # judge authored at runtime joins), not the boot-time LENS_BY_ROLE snapshot.
+            known = _active_lens_by_role()
+            if add_judge not in known:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"unknown judge role {add_judge!r} (known: {sorted(LENS_BY_ROLE)})",
+                    detail=f"unknown judge role {add_judge!r} (known: {sorted(known)})",
                 )
             if add_judge not in judges:
                 judges.append(add_judge)
@@ -5940,8 +5946,9 @@ async def chat_endpoint(
 
     The SDK is loaded LAZILY by the loop (A5 — not at app import). Event frames are
     ``data: <json>\\n\\n`` (assistant_delta / tool_call / tool_result-as-gen-UI-part /
-    error / done). A-SAFE: no tool can fire a paid run; the loop's ``run_eval`` is
-    replay-only ($0), and the loop's own Claude calls are the human's BYO subscription.
+    error / done). A-SAFE: no tool can fire a paid run; the loop's ``run_eval`` only
+    surfaces the cost-confirm directive (the human's click is the sole spend), and the
+    loop's own Claude calls are the human's BYO subscription.
     """
     from agent import run_chat, sse_format  # lazy: SDK loads here, on a real chat only
 
