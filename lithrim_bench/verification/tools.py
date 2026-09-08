@@ -190,8 +190,8 @@ class ValuePresenceTool(VerificationTool):
 # ValueGroundingTool (VALUE-GROUNDING-FLOOR-1) — a value the ARTIFACT states is ABSENT from the
 # source (the inverse of ValuePresenceTool; the record-grounded contradiction mechanism)
 # --------------------------------------------------------------------------- #
-_VG_NUMBER = re.compile(r"(?<![\w.\-])\d[\d,]*(?:\.\d+)?(?![\w\-])")
-_VG_TIME = re.compile(r"(?<![\w])(\d{1,2}):(\d{2})(?![\w])")
+_VG_NUMBER = re.compile(r"(?<![\w.\-])\d[\d,]*(?:\.\d+)?(?![\w\-]|[.:]\d)")
+_VG_TIME = re.compile(r"(?<![\w])(\d{1,2}):(\d{2})(?:[aApP][mM])?(?![\w])")
 _VG_LIST_MARKER = re.compile(r"(?m)^\s*\d+[.)]\s")
 _VG_NUMBER_WORDS = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
