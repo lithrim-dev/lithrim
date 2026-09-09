@@ -108,7 +108,10 @@ def arm_attestation(model: str, model_version: str | None, upgrade_policy: str |
         )
     pinned_by = "dated model id" if dated else "operator attestation"
     no_drift = ("noautoupgrade", "no-auto-upgrade", "none")
-    if attested and upgrade_policy and upgrade_policy.lower() not in no_drift:
+    unverified = ("unverified", "unknown", "tbd")
+    if attested and upgrade_policy and upgrade_policy.lower() in unverified:
+        pinned_by = "attestation PENDING (version/policy unverified; fill in from the deployment)"
+    elif attested and upgrade_policy and upgrade_policy.lower() not in no_drift:
         pinned_by = "operator attestation (WARNING: upgrade policy allows silent version drift)"
     return {
         "model": model,

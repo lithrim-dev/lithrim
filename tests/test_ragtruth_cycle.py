@@ -76,6 +76,8 @@ def test_arm_attestation_accepts_a_dated_id_or_an_attested_deployment_only():
     assert att["pinned_by"] == "operator attestation" and att["dated_model_id"] is False
     drift = rc.arm_attestation("gpt-4.1", "2025-04-14", "OnceNewDefaultVersionAvailable")
     assert "silent version drift" in drift["pinned_by"]
+    pending = rc.arm_attestation("gpt-4.1", "unverified", "unverified")
+    assert "PENDING" in pending["pinned_by"]
     with pytest.raises(SystemExit, match="floating alias"):
         rc.arm_attestation("gpt-4.1", None, None)
     with pytest.raises(SystemExit, match="floating alias"):
