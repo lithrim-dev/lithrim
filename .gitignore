@@ -111,3 +111,6 @@ docs/runbooks/
 docs/*_2026-*.md
 docs/KICKOFF_*.md
 docs/label_owner_matrix.md
+
+# VS Code talk-profile user-data dir (cookies, caches): never commit
+scripts/vscode-talk/

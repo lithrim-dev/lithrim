@@ -1,0 +1,19 @@
+{
+  "schema_version": "archehr-alignment-input/1",
+  "dataset": {"name": "synthetic-neutral-plumbing", "split": "smoke", "release": "1"},
+  "cases": [{
+    "case_id": "1",
+    "patient_question": "When will my delivery arrive?",
+    "clinician_question": "What delivery time does the record establish?",
+    "note_sentences": [
+      {"id": "1", "text": "Delivery takes 12 days."},
+      {"id": "2", "text": "The box contains 12 items."},
+      {"id": "3", "text": "The delivery is not guaranteed."}
+    ],
+    "answer_sentences": [
+      {"id": "1", "text": "Delivery takes 12 days."},
+      {"id": "2", "text": "Delivery is guaranteed."},
+      {"id": "3", "text": "No extra information is available."}
+    ]
+  }]
+}

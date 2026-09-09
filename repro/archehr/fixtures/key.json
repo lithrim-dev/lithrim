@@ -1,0 +1,11 @@
+[
+  {
+    "case_id": "1",
+    "clinician_answer_sentences": [
+      {"id": "1", "citations": ["1"]},
+      {"id": "2", "citations": []},
+      {"id": "3", "citations": []}
+    ],
+    "answers": [{"sentence_id": "1"}, {"sentence_id": "2"}, {"sentence_id": "3"}]
+  }
+]

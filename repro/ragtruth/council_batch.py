@@ -174,6 +174,44 @@ def set_judge_lens(call, role: str, *, drop: set, snapshot_lens: dict) -> list:
     return target
 
 
+def set_judge_binding(
+    call, role: str, *, provider: str, model: str, endpoint: str, api_version: str = ""
+) -> dict:
+    """Round-trip edit of ONE judge's deployment binding in the active workspace: GET the judge,
+    set provider / model / endpoint / api_version, PUT it back with every other field preserved,
+    then GET again and REFUSE if the binding did not stick. A key never rides the request."""
+    _, cur = call("GET", f"/v1/judges/{role}?agent={AGENT}")
+    body = {
+        k: cur.get(k)
+        for k in (
+            "k",
+            "temperature",
+            "criterion",
+            "display_name",
+            "validator_refs",
+            "assigned_flags",
+        )
+    }
+    body = {k: v for k, v in body.items() if v is not None}
+    body.update(provider=provider, model=model, endpoint=endpoint, api_version=api_version)
+    call(
+        "PUT",
+        f"/v1/judges/{role}?agent={AGENT}&rationale=arm+v3+rebind+{role}+to+{provider}+{model}",
+        body,
+    )
+    _, after = call("GET", f"/v1/judges/{role}?agent={AGENT}")
+    got = {k: after.get(k) for k in ("provider", "model", "endpoint")}
+    if got != {"provider": provider, "model": model, "endpoint": endpoint}:
+        raise RuntimeError(f"{role} binding did not stick: {got}")
+    return {
+        "role": role,
+        **got,
+        "api_version": after.get("api_version"),
+        "k": after.get("k"),
+        "temperature": after.get("temperature"),
+    }
+
+
 def _ingest(call, path: Path) -> int:
     raw = path.read_text()
     rows = [json.loads(ln) for ln in raw.splitlines() if ln.strip()]
@@ -208,6 +246,8 @@ def run(
     raise_on_abort: bool = False,
     drop_codes: set | None = None,
     snapshot_lens: dict | None = None,
+    pack: str = "_core",
+    rebind: list | None = None,
 ) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=False)
@@ -216,7 +256,7 @@ def run(
         call(
             "POST",
             "/v1/workspaces",
-            {"name": ws, "pack": "_core", "actor": actor},
+            {"name": ws, "pack": pack, "actor": actor},
             tolerate=(400, 409),
         )
         call("POST", "/v1/workspace", {"name": ws})
@@ -242,6 +282,8 @@ def run(
                 "dataset": seed["dataset"],
             },
         )
+        if rebind:
+            report["rebind"] = [set_judge_binding(call, **b) for b in rebind]
         _, rd = call("GET", f"/v1/agents/{AGENT}/readiness")
         if not rd.get("ok"):
             raise RuntimeError(f"readiness not ok: {rd.get('findings')}")
@@ -293,11 +335,20 @@ def main() -> int:
     )
     ap.add_argument("--out", required=True, help="new directory; never overwritten")
     ap.add_argument("--home-ws", required=True)
+    ap.add_argument("--pack", default="_core", help="pack id the workspace is created on")
     ap.add_argument(
         "--drop-code",
         action="append",
         default=[],
         help="remove this flag code from every judge lens that carries it (workspace-scoped)",
+    )
+    ap.add_argument(
+        "--rebind",
+        nargs=5,
+        action="append",
+        default=[],
+        metavar=("ROLE", "PROVIDER", "MODEL", "ENDPOINT", "API_VERSION"),
+        help="workspace-scoped deployment binding for one judge role",
     )
     a = ap.parse_args()
     ids = [json.loads(ln)["case_id"] for ln in Path(a.grade).read_text().splitlines() if ln.strip()]
@@ -310,6 +361,12 @@ def main() -> int:
         out_dir=Path(a.out),
         home_ws=a.home_ws,
         drop_codes=set(a.drop_code) or None,
+        pack=a.pack,
+        rebind=[
+            dict(zip(("role", "provider", "model", "endpoint", "api_version"), r, strict=True))
+            for r in a.rebind
+        ]
+        or None,
     )
     g = rep["grade"]
     print(

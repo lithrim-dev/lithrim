@@ -1,0 +1,265 @@
+{
+  "_provenance": {
+    "pack": "data_to_text",
+    "created": "2026-09-08",
+    "basis": "RAGTruth annotation semantics (Conflict -> SOURCE_CONTRADICTION, Baseless -> UNSUPPORTED_ASSERTION, due_to_null -> NULL_AS_NEGATION); grounding contracts copied from packs/_core/ontology.json",
+    "snapshot_metadata": {
+      "source": "packs/data_to_text: derived deterministically from ontology.json by tests/test_pack_data_to_text.py::derive_snapshot (never hand-edited)",
+      "note": "A neutral, domain-neutral pack for text written from a structured record. Three gradeable codes, one per judge; four codes declared for reference only so a stray emission is skip-logged, never scored."
+    }
+  },
+  "domain": "data_to_text",
+  "ontology_version": "data_to_text/1",
+  "taxonomy_version": "data_to_text/1",
+  "flags": [
+    {
+      "category": "accuracy",
+      "definition": "The response states a value or attribute that conflicts with what the structured record says: a different number, rating, price range, clock time, address element, or attribute value.",
+      "flag": "SOURCE_CONTRADICTION",
+      "gradeable": true,
+      "owner_roles": [
+        "faithfulness_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The record holds null for that attribute (that is NULL_AS_NEGATION, another judge's code). The response adds something the record simply does not mention (that is UNSUPPORTED_ASSERTION). The response omits a record field; omissions are never a defect.",
+      "when_to_use": "1) A number, time, rating or price in the response differs from the record. 2) An attribute is stated as one value while the record holds another."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The response asserts information the structured record does not contain, including inferred or subjective details (atmosphere, quality, suitability, recommendations) that no field and no review text in the record states. Real-world truth is irrelevant; only support by the record counts.",
+      "flag": "UNSUPPORTED_ASSERTION",
+      "gradeable": true,
+      "owner_roles": [
+        "risk_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The claim restates or fairly paraphrases a record field or review text. The claim contradicts a record value (that is SOURCE_CONTRADICTION). The record holds null for the attribute (that is NULL_AS_NEGATION). Omissions are never a defect.",
+      "when_to_use": "1) A claim about the business appears nowhere in the record fields or its review text. 2) A subjective judgement is presented as fact without a supporting field or review."
+    },
+    {
+      "category": "accuracy",
+      "definition": "The response says an attribute is absent, unavailable, not offered, or 'no' when the structured record holds null (unknown) for that attribute. Null means unknown, never false.",
+      "flag": "NULL_AS_NEGATION",
+      "gradeable": true,
+      "owner_roles": [
+        "policy_judge"
+      ],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "The record explicitly holds a false or negative value for the attribute (then the negation is supported). The response is silent about the attribute (silence is never a defect). The response states a wrong positive value (that is SOURCE_CONTRADICTION).",
+      "when_to_use": "1) The record has null for WiFi, parking, reservations, outdoor seating, takeout or a similar attribute and the response asserts the business lacks it. 2) The response turns a missing field into a negative statement."
+    },
+    {
+      "category": "completeness",
+      "definition": "Declared for reference only: omission is not a defect in text written from a record. Never gradeable in this pack.",
+      "flag": "MISSING_CONTEXT",
+      "gradeable": false,
+      "owner_roles": [],
+      "reliability_pillar": "completeness",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "Always; a judge raising it is off-lens and the code is skip-logged as reference.",
+      "when_to_use": "Never."
+    },
+    {
+      "category": "accuracy",
+      "definition": "Declared for reference only: this pack expresses fabrication as UNSUPPORTED_ASSERTION. Never gradeable here.",
+      "flag": "FABRICATED_CLAIM",
+      "gradeable": false,
+      "owner_roles": [],
+      "reliability_pillar": "faithfulness",
+      "tier": "TIER_1",
+      "when_NOT_to_use": "Always; raise UNSUPPORTED_ASSERTION instead.",
+      "when_to_use": "Never."
+    },
+    {
+      "category": "style",
+      "definition": "Declared for reference only. Never gradeable in this pack.",
+      "flag": "STYLE_VIOLATION",
+      "gradeable": false,
+      "owner_roles": [],
+      "reliability_pillar": "style",
+      "tier": "TIER_3",
+      "when_NOT_to_use": "Always.",
+      "when_to_use": "Never."
+    },
+    {
+      "category": "consistency",
+      "definition": "Declared for reference only. Never gradeable in this pack.",
+      "flag": "INTERNAL_INCONSISTENCY",
+      "gradeable": false,
+      "owner_roles": [],
+      "reliability_pillar": "consistency",
+      "tier": "TIER_2",
+      "when_NOT_to_use": "Always.",
+      "when_to_use": "Never."
+    }
+  ],
+  "questions": [
+    {
+      "ordinal": 1,
+      "role": "risk_judge",
+      "text": "Does every claim in the response, including every subjective or inferred detail, appear in a record field or in the record's review text?"
+    },
+    {
+      "ordinal": 2,
+      "role": "policy_judge",
+      "text": "Does the response ever state that an attribute is absent, unavailable or 'no' where the record holds null (unknown)?"
+    },
+    {
+      "ordinal": 3,
+      "role": "faithfulness_judge",
+      "text": "Does every value the response states (number, rating, price range, clock time, address element, attribute value) match the record?"
+    }
+  ],
+  "verification_contracts": [
+    {
+      "flag_code": "SOURCE_CONTRADICTION",
+      "question": "Is every value the response states (a number, a clock time) present in the source it claims to summarize?",
+      "contract_type": "value_grounding",
+      "version": "value-grounding/1",
+      "params": {
+        "inject_flag_code": "SOURCE_CONTRADICTION",
+        "inject_severity": "HIGH",
+        "artifact_kind": "generated_response",
+        "on_missing": "by_source_kind"
+      }
+    },
+    {
+      "flag_code": "UNSUPPORTED_ASSERTION",
+      "question": "Is every salient claim the response makes present in the source? Full grounding disproves the finding; partial grounding leaves it standing.",
+      "contract_type": "source_grounding",
+      "version": "source-grounding/1",
+      "params": {
+        "source_path": "transcript"
+      }
+    },
+    {
+      "flag_code": "SOURCE_CONTRADICTION",
+      "question": "Is every salient claim the response makes present in the source? Full grounding disproves the finding; partial grounding leaves it standing.",
+      "contract_type": "source_grounding",
+      "version": "source-grounding/1",
+      "params": {
+        "source_path": "transcript"
+      }
+    },
+    {
+      "flag_code": "NULL_AS_NEGATION",
+      "question": "Does the response actually negate an attribute the record holds as null? If no null-valued attribute is negated, the finding is not grounded and is disproved.",
+      "contract_type": "null_negation",
+      "version": "null-negation/1",
+      "params": {
+        "record_path": "transcript",
+        "attributes_path": "attributes",
+        "negation_window": 60,
+        "attribute_terms": {
+          "WiFi": [
+            "wifi",
+            "wi-fi",
+            "wireless internet",
+            "internet access"
+          ],
+          "OutdoorSeating": [
+            "outdoor seating",
+            "patio",
+            "terrace",
+            "outside seating"
+          ],
+          "RestaurantsReservations": [
+            "reservation",
+            "reservations",
+            "reserve",
+            "booking"
+          ],
+          "BusinessParking": [
+            "parking",
+            "park"
+          ],
+          "RestaurantsTakeOut": [
+            "takeout",
+            "take-out",
+            "take out",
+            "to-go",
+            "to go"
+          ],
+          "RestaurantsGoodForGroups": [
+            "groups",
+            "group-friendly",
+            "large parties"
+          ],
+          "Music": [
+            "music",
+            "live music",
+            "dj",
+            "jukebox",
+            "karaoke",
+            "background music"
+          ],
+          "Ambience": [
+            "ambience",
+            "ambiance",
+            "atmosphere"
+          ],
+          "Ambience.romantic": [
+            "romantic"
+          ],
+          "Ambience.intimate": [
+            "intimate"
+          ],
+          "Ambience.trendy": [
+            "trendy"
+          ],
+          "Ambience.casual": [
+            "casual"
+          ],
+          "Ambience.divey": [
+            "divey",
+            "dive bar",
+            "dive"
+          ],
+          "Ambience.hipster": [
+            "hipster"
+          ],
+          "Ambience.classy": [
+            "classy",
+            "elegant"
+          ],
+          "Ambience.touristy": [
+            "touristy",
+            "tourist"
+          ],
+          "Ambience.upscale": [
+            "upscale",
+            "fancy"
+          ],
+          "BusinessParking.street": [
+            "street parking"
+          ],
+          "BusinessParking.garage": [
+            "garage",
+            "parking garage"
+          ],
+          "BusinessParking.lot": [
+            "parking lot"
+          ],
+          "BusinessParking.valet": [
+            "valet"
+          ],
+          "BusinessParking.validated": [
+            "validated parking"
+          ]
+        }
+      }
+    }
+  ],
+  "severity_map": {
+    "block_at_or_above": 0.5,
+    "warn_above": 0.0,
+    "weights": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.5,
+      "LOW": 0.2
+    }
+  }
+}

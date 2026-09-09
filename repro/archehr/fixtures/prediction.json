@@ -1,0 +1,7 @@
+[
+  {"case_id": "1", "prediction": [
+    {"answer_id": "1", "evidence_id": ["2"]},
+    {"answer_id": "2", "evidence_id": ["3"]},
+    {"answer_id": "3", "evidence_id": []}
+  ]}
+]

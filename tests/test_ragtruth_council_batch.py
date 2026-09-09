@@ -250,3 +250,97 @@ def test_run_applies_the_lens_drop_to_exactly_the_roles_that_carry_the_code(tmp_
         i for i, c in enumerate(bff.calls) if c[0] == "GET" and "/v1/judges/" in c[1]
     )
     assert last_lens_get < first_grade  # lens verified BEFORE any paid call
+
+
+def test_run_creates_the_workspace_on_the_requested_pack(tmp_path):
+    bff = FakeBFF()
+    bff.n_cases = 1
+    cb.run(
+        bff,
+        ws="ragtruth-x",
+        ingest_files=[],
+        grade_ids=["c0"],
+        ceiling=1,
+        out_dir=tmp_path / "o",
+        home_ws="home",
+        pack="data_to_text",
+    )
+    create = next(b for m, p, b in bff.calls if m == "POST" and p == "/v1/workspaces")
+    assert create["pack"] == "data_to_text"
+
+
+class BindBFF(FakeBFF):
+    """A workspace judge whose deployment binding can be edited (or refuses to, when stuck)."""
+
+    def __init__(self, stuck=False):
+        super().__init__()
+        self.stuck = stuck
+        self.judge = {
+            "k": 1,
+            "temperature": 0.0,
+            "criterion": "c",
+            "display_name": "Policy",
+            "validator_refs": [],
+            "assigned_flags": [],
+            "provider": "",
+            "model": "",
+            "endpoint": "",
+            "api_version": "",
+        }
+
+    def __call__(self, method, path, body=None, tolerate=()):
+        if path.startswith("/v1/judges/policy_judge"):
+            self.calls.append((method, path, body))
+            if method == "PUT" and not self.stuck:
+                self.judge.update(
+                    {k: body[k] for k in ("provider", "model", "endpoint", "api_version")}
+                )
+            return 200, dict(self.judge)
+        return super().__call__(method, path, body, tolerate)
+
+
+REBIND = {
+    "role": "policy_judge",
+    "provider": "azure",
+    "model": "gpt-4.1",
+    "endpoint": "https://r.cognitiveservices.azure.com/",
+    "api_version": "2024-10-21",
+}
+
+
+def test_rebind_sets_the_deployment_and_preserves_every_other_field():
+    bff = BindBFF()
+    out = cb.set_judge_binding(bff, **REBIND)
+    put = next(b for m, p, b in bff.calls if m == "PUT")
+    for k in ("provider", "model", "endpoint", "api_version"):
+        assert put[k] == REBIND[k]
+    for k in ("k", "temperature", "criterion", "display_name", "validator_refs", "assigned_flags"):
+        assert put[k] == bff.judge[k]
+    assert out["model"] == "gpt-4.1" and out["k"] == 1 and out["temperature"] == 0.0
+
+
+def test_rebind_refuses_if_the_binding_did_not_stick():
+    with pytest.raises(RuntimeError, match="did not stick"):
+        cb.set_judge_binding(BindBFF(stuck=True), **REBIND)
+
+
+def test_run_rebinds_before_readiness_and_before_any_paid_call(tmp_path):
+    bff = BindBFF()
+    bff.n_cases = 1
+    rep = cb.run(
+        bff,
+        ws="ragtruth-x",
+        ingest_files=[],
+        grade_ids=["c0"],
+        ceiling=1,
+        out_dir=tmp_path / "o",
+        home_ws="home",
+        pack="data_to_text",
+        rebind=[REBIND],
+    )
+    seq = [(m, p) for m, p, b in bff.calls]
+    i_put = next(i for i, (m, p) in enumerate(seq) if m == "PUT" and "/v1/judges/policy" in p)
+    i_ready = next(i for i, (m, p) in enumerate(seq) if p.endswith("/readiness"))
+    i_grade = next(i for i, (m, p) in enumerate(seq) if p == "/v1/run-eval")
+    assert i_put < i_ready < i_grade
+    assert rep["rebind"][0]["model"] == "gpt-4.1"

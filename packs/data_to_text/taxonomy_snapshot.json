@@ -1,0 +1,43 @@
+{
+  "snapshot_metadata": {
+    "source": "packs/data_to_text: derived deterministically from ontology.json by tests/test_pack_data_to_text.py::derive_snapshot (never hand-edited)",
+    "note": "A neutral, domain-neutral pack for text written from a structured record. Three gradeable codes, one per judge; four codes declared for reference only so a stray emission is skip-logged, never scored."
+  },
+  "tiers": {
+    "TIER_1_NEVER_EVENTS": [
+      "SOURCE_CONTRADICTION",
+      "UNSUPPORTED_ASSERTION",
+      "NULL_AS_NEGATION"
+    ],
+    "TIER_2_HIGH_RISK": [],
+    "TIER_3_MEDIUM": []
+  },
+  "tier1_owners": {
+    "SOURCE_CONTRADICTION": [
+      "faithfulness_judge"
+    ],
+    "UNSUPPORTED_ASSERTION": [
+      "risk_judge"
+    ],
+    "NULL_AS_NEGATION": [
+      "policy_judge"
+    ]
+  },
+  "production_judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "lenses": {
+    "risk_judge": [
+      "UNSUPPORTED_ASSERTION"
+    ],
+    "policy_judge": [
+      "NULL_AS_NEGATION"
+    ],
+    "faithfulness_judge": [
+      "SOURCE_CONTRADICTION"
+    ]
+  },
+  "declared_but_not_running": []
+}
