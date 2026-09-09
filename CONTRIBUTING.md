@@ -57,6 +57,7 @@ without it, so install the extras above before relying on a full local run.
 ```bash
 ruff check .     # lint (make lint)
 pytest -q        # the suite (make test) — must be green credential-free
+make loop-demo   # one $0 loop round on the tracked sample (also a CI step); tests/examples/ hold the dataset-example tests
 make demo        # the offline demo still runs
 ```
 

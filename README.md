@@ -45,7 +45,15 @@ make demo          # replays a built-in case: council votes â†’ floor flip PASSâ
 
 ```bash
 make queue         # replays the judges ($0), runs the checks live, prints the tally
+make loop-demo     # the same five cases as one loop round: replay, ground, score in both vocabularies ($0)
 ```
+
+**Then run the whole loop on a labeled dataset.** The `lithrim` CLI (installed with the package,
+present in the BFF image) drives load, configure, grade, calibrate, re-grade, export, and score
+against a running stack; a dataset enters through an adapter and an importer manifest, never
+through the engine. [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md)
+runs it on a 90-case RAGTruth cut from the published images; [`docs/IMPORTERS.md`](docs/IMPORTERS.md)
+is the how-to for a second dataset.
 
 **Run it live on your own case (BYOK):**
 
@@ -213,6 +221,8 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The components (engine, packs, council, floor, BFF, UI, mapper) and how they connect. |
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
 | [`docs/SNOMED_SETUP.md`](docs/SNOMED_SETUP.md) | Optional SNOMED terminology floor: licensing reality first, building the Hermes index, in-container MCP wiring. |
+| [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md) | The load / configure / grade / calibrate / re-grade / export loop on a RAGTruth cut, from the published images. |
+| [`docs/IMPORTERS.md`](docs/IMPORTERS.md) | Importer manifests and dataset adapters: bringing a labeled dataset into a pack with zero engine edits. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
 
