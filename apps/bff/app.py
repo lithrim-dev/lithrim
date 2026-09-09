@@ -1554,6 +1554,7 @@ def _council_view(record: dict, display_names: dict[str, str] | None = None) -> 
             "served_model": v.get("served_model"),
             "system_fingerprint": v.get("system_fingerprint"),
             "latency_ms": v.get("latency_ms"),
+            "usage": v.get("usage"),  # VOTE-USAGE-1: this vote's own tokens (per-judge cost)
             "reason": v.get("reason"),
             # Per-reviewer sampling distribution (independent-axes model): THIS axis's own
             # variance + completion count. float|null — never aggregated across reviewers.
@@ -2528,6 +2529,7 @@ def grade_cases_endpoint(
                          # SERVED-MODEL-1: the observed served version + latency ride the row
                          "served_model": v.get("served_model"),
                          "latency_ms": v.get("latency_ms"),
+                         "usage": v.get("usage"),
                          "scores_raw": v.get("scores_raw")}
                         for v in (rec.get("council") or {}).get("votes", [])
                     ],
@@ -4596,6 +4598,7 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
             "served_model": v.get("served_model"),
             "system_fingerprint": v.get("system_fingerprint"),
             "latency_ms": v.get("latency_ms"),
+            "usage": v.get("usage"),
             "reasoning": v.get("reason"),
             "findings": v.get("findings") or [],
             "evidence": semantic.get("evidence") or [],

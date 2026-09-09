@@ -120,12 +120,29 @@ def parse_output(text: str) -> tuple[list[str] | None, str | None]:
     return [str(s).strip() for s in spans if str(s).strip()], None
 
 
-def build_lm():
+def build_lm(deployment: str | None = None):
     """The same deployment the judge uses (the workspace's provider config), cache OFF,
-    reached as a plain chat model: the paper's prompt is the whole message."""
+    reached as a plain chat model: the paper's prompt is the whole message. ``deployment``
+    names another Azure deployment on the same resource (FINETUNE-1: the trained grader is
+    evaluated through the very prompt it was trained on, not through the council)."""
     os.environ["LITHRIM_JUDGE_CACHE"] = "0"
     from lithrim_bench.runtime.council.judges_dspy import build_judge_lm
 
+    if deployment:
+        # the builder drops a `model` kwarg (a BYOC selector), so the override rides the
+        # per-role binding contract (LITHRIM_LLM_*_<ROLE>) on a role of its own
+        role = "ragtruth_paper_prompt_override"
+        suffix = role.upper()
+        os.environ[f"LITHRIM_LLM_PROVIDER_{suffix}"] = "azure"
+        os.environ[f"LITHRIM_LLM_MODEL_{suffix}"] = deployment
+        for src, dst in (
+            ("AZURE_OPENAI_API_KEY", "API_KEY"),
+            ("AZURE_OPENAI_ENDPOINT", "API_BASE"),
+            ("AZURE_OPENAI_API_VERSION", "API_VERSION"),
+        ):
+            if os.environ.get(src):
+                os.environ[f"LITHRIM_LLM_{dst}_{suffix}"] = os.environ[src]
+        return build_judge_lm(role)
     return build_judge_lm("ragtruth_detector")
 
 
@@ -212,6 +229,11 @@ def main() -> int:
     ap.add_argument("--data-dir", type=Path, default=REPO_ROOT / "out/ragtruth")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--limit", type=int, default=0, help="stop after N rows (smoke)")
+    ap.add_argument(
+        "--deployment",
+        default=None,
+        help="an Azure deployment name on the workspace's resource (e.g. a fine-tuned grader)",
+    )
     a = ap.parse_args()
     if bool(a.slice) == bool(a.population):
         sys.exit("pass exactly one of --slice or --population")
@@ -225,7 +247,7 @@ def main() -> int:
     print(f"population {len(rows)} | already done {len(done)} | to run {len(todo)}", flush=True)
     if not todo:
         return 0
-    lm = build_lm()
+    lm = build_lm(a.deployment)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     n_err = 0
     with a.out.open("a") as fh:
@@ -240,6 +262,7 @@ def main() -> int:
                         "case_id": r["case_id"],
                         "task_type": r["task_type"],
                         "method": "paper_prompt_verbatim",
+                        "deployment": a.deployment,
                         "hallucinated": (bool(spans) if spans is not None else None),
                         "spans": spans or [],
                         "labels": r["labels"],

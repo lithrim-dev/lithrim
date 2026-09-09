@@ -49,3 +49,21 @@ def test_stored_vote_carries_the_served_fields_and_legacy_blobs_still_parse():
     assert v.served_model == "gpt-4.1-2025-04-14" and v.system_fingerprint is None
     legacy = JudgeVote(judge_role="r", vote="PASS")
     assert legacy.served_model is None and legacy.latency_ms is None
+
+
+def test_stored_vote_carries_its_own_token_usage_for_per_judge_cost():
+    """VOTE-USAGE-1: a multi-model council is costed per judge from the vote, not per run."""
+    from lithrim_bench.runtime.pipeline.stages import _judge_votes_from_models
+
+    v = JudgeVote(judge_role="r", vote="PASS", usage={"input_tokens": 7595, "output_tokens": 60})
+    assert v.usage == {"input_tokens": 7595, "output_tokens": 60}
+    assert JudgeVote(judge_role="r", vote="PASS").usage is None
+    seam = {
+        "judge_role": "r",
+        "decision": "approve",
+        "usage": {"input_tokens": 7595, "output_tokens": 60},
+    }
+    (projected,) = _judge_votes_from_models([seam])
+    assert projected.usage == {"input_tokens": 7595, "output_tokens": 60}
+    (bare,) = _judge_votes_from_models([{"judge_role": "r", "decision": "approve"}])
+    assert bare.usage is None

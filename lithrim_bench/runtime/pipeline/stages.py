@@ -653,6 +653,12 @@ def _judge_votes_from_models(
             served_model=(m.get("served") or {}).get("served_model"),
             system_fingerprint=(m.get("served") or {}).get("system_fingerprint"),
             latency_ms=(m.get("served") or {}).get("latency_ms"),
+            # VOTE-USAGE-1: the seam's own token usage rides the persisted vote (per-judge cost)
+            usage=(
+                {k: int(v) for k, v in m["usage"].items() if isinstance(v, (int, float))}
+                if isinstance(m.get("usage"), dict) and m.get("usage")
+                else None
+            ),
             variance=float(raw_var) if isinstance(raw_var, (int, float)) else None,
             k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
             # R2c: the per-sample decision scores — the readable K-split. List-or-None,
