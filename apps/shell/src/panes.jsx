@@ -8,9 +8,9 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, getJob, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
-import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
+import { beginBatch, endBatch, updateBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip; GRADE-JOB-1: server-side done/total
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -689,8 +689,26 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
         // component's chrome; endBatch in finally so an error never leaves a stuck chip.
         beginBatch({ total: paid.caseIds ? paid.caseIds.length : null });
         try {
-          const resp = await gradeCases({ agent, in_process: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
-          const output = { ...(resp.scorecard || {}), grade_path: resp.summary?.grade_path };
+          // GRADE-JOB-1: ask for a background job; a server that answers with a job id is polled
+          // (done/total feed the chip) until it finishes; an older server answers with the
+          // envelope itself and the same code path renders it.
+          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
+          if (resp && resp.job_id) {
+            let job = resp;
+            while (job.status === "running") {
+              await new Promise((r) => setTimeout(r, 2000));
+              job = await getJob(resp.job_id);
+              updateBatch({ done: job.done, total: job.total });
+            }
+            if (job.status !== "done") throw new Error(job.error || `grade job ${resp.job_id} ${job.status}`);
+            resp = job.result;
+          }
+          const output = {
+            ...(resp.scorecard || {}),
+            grade_path: resp.summary?.grade_path,
+            judge_errors: resp.summary?.judge_errors,
+            cache_replays: resp.summary?.cache_replays,
+          };
           setChat((c) => [
             ...c,
             { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },

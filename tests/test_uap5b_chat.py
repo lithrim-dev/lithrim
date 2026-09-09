@@ -453,3 +453,20 @@ def test_pacing_hook_fails_open_for_itself():
     # None / a missing tool_name must not raise; they are not a counted write -> allow
     assert asyncio.run(pace(None, "t", None)) == {}
     assert asyncio.run(pace({}, "t", None)) == {}
+
+
+def test_author_judge_tool_passes_every_query_param_explicitly(env):
+    """S-BS-82 regression (observed live 2026-09-09): the bound ``_author_judge`` closure
+    omitted ``put_judge_endpoint``'s later-added ``agent`` Query param, so the FastAPI
+    sentinel reached SQLite ("Error binding parameter 2: type 'Query' is not supported")
+    AFTER the lens/model save had landed — a partial write the tool then reported as
+    "nothing saved". Binding a judge to byo-claude through the tool must round-trip."""
+    ctx, client = env
+    lens = sorted(bff._active_lens_by_role().get("risk_judge", []))[:1]
+    res = ctx.author_judge(
+        role="risk_judge", assigned_flags=lens, rationale="byo-claude via chat", model="byo-claude"
+    )
+    assert res["status"] == "ok" and res["agent"] is None and res["rostered"] is False
+    judges = {j["role"]: j for j in client.get("/v1/judges").json()["judges"]}
+    assert judges["risk_judge"]["model"] == "byo-claude"
+    assert judges["risk_judge"]["assigned_flags"] == lens

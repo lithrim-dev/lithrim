@@ -715,6 +715,26 @@ def _load_pack_generators(pack: str) -> ModuleType | None:
 # declaration degrades cleanly to ``None``.
 
 
+def load_pack_importers(pack: str | None = None) -> tuple[dict, ...]:
+    """IMPORTER-1: the active (or named) pack's dataset-vocabulary declarations — each manifest
+    ``importers`` ref is one JSON file holding one ``kind: importer`` manifest dict. DATA only;
+    validated by ``harness/plugins.py`` ``importer_plugins()``. Empty tuple when the pack declares
+    none. Cached per resolved pack id, immutable."""
+    return _load_pack_importers(pack or active_pack())
+
+
+@lru_cache(maxsize=8)
+def _load_pack_importers(pack: str) -> tuple[dict, ...]:
+    refs = _manifest(pack).get("importers") or []
+    out: list[dict] = []
+    for ref in refs:
+        raw = json.loads(_resolve_ref(pack, ref).read_text())
+        if not isinstance(raw, dict):
+            raise ValueError(f"pack {pack!r} importer {ref!r} must be a JSON object")
+        out.append(raw)
+    return tuple(out)
+
+
 def load_pack_tools(pack: str | None = None) -> tuple[dict, ...] | None:
     """Read the active (or named) pack's ``tools.json`` (a list of tool-manifest dicts), or
     ``None`` if the pack declares no ``tools`` (cached per pack per process). DATA only — the

@@ -2,9 +2,9 @@
 # ============================================================================
 # Lithrim dev stack — one script to start / stop / inspect the local services.
 #
-#   scripts/dev/devstack.sh start   [bff|ui|all]    (default target: all)
-#   scripts/dev/devstack.sh stop    [bff|ui|all]
-#   scripts/dev/devstack.sh restart [bff|ui|all]
+#   scripts/dev/devstack.sh start   [bff|ui|jute|all]    (default target: all)
+#   scripts/dev/devstack.sh stop    [bff|ui|jute|all]
+#   scripts/dev/devstack.sh restart [bff|ui|jute|all]
 #   scripts/dev/devstack.sh status
 #   scripts/dev/devstack.sh health                  # BFF up? + a $0 replay grade
 #   scripts/dev/devstack.sh logs    [bff|ui]        # tail -f a service log
@@ -17,6 +17,10 @@
 #            the repo-root `.env` (env_file=".env"; the council settings tolerate
 #            the backend's extra vars via extra="ignore").
 #   • UI   — vite dev server (apps/shell) on :5180 — HMR/watch by default.
+#   • JUTE — the bundled mapper, run as ONLY the `jute` service of docker-compose.yml
+#            (published on host :3031 = the BFF's default LITHRIM_JUTE_URL). Ingest needs
+#            it; grading, replay and the demo do not. Skipped with a note when Docker is
+#            absent or LITHRIM_JUTE_URL points elsewhere.
 #
 # Processes are nohup-detached (survive this shell closing). Logs + pidfiles live
 # in .devstack/ (gitignored). Idempotent: start no-ops if already healthy.
@@ -29,6 +33,7 @@ mkdir -p "$RUN_DIR"
 
 BFF_PORT="${LITHRIM_BFF_PORT:-8787}"
 UI_PORT="${LITHRIM_UI_PORT:-5180}"
+MAPPER_PORT="${LITHRIM_MAPPER_PORT:-3031}"
 PYENV_VER="${PYENV_VERSION:-debuglithrim}"
 PYENV_PREFIX="${PYENV_ROOT:-$HOME/.pyenv}/versions/$PYENV_VER"
 # uvicorn resolution, machine-agnostic: explicit LITHRIM_UVICORN override → the named pyenv
@@ -62,6 +67,8 @@ err()  { echo "${R}✗${X} $*" >&2; }
 port_pid()    { lsof -ti tcp:"$1" -sTCP:LISTEN 2>/dev/null | head -1; }
 bff_healthy() { curl -sf "http://localhost:$BFF_PORT/health" >/dev/null 2>&1; }
 ui_up()       { curl -sf -o /dev/null "http://localhost:$UI_PORT" 2>/dev/null; }
+mapper_up()   { curl -sf -o /dev/null "http://localhost:$MAPPER_PORT/jute-dsl-spec.json" 2>/dev/null; }
+docker_ok()   { command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; }
 
 wait_for() {  # $1 predicate fn, $2 max seconds
   local fn="$1" secs="${2:-30}" i=0
@@ -80,7 +87,11 @@ start_bff() {
   else info "pack discovery: no LITHRIM_BENCH_PACKS_DIR — BFF on the neutral _core default (tier:pro packs absent)"; fi
   info "starting BFF (uvicorn · $PYENV_VER · watch/--reload) on :$BFF_PORT …"
   # only prefix the var when discovered, so a bare CE checkout leaves it genuinely UNSET (not "")
-  local pd_env=(); [ -n "$PACKS_DIR" ] && pd_env=(env "LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR")
+  local pd_env=(env); [ -n "$PACKS_DIR" ] && pd_env+=("LITHRIM_BENCH_PACKS_DIR=$PACKS_DIR")
+  # PACK-OVERLAY-1 parity with docker-compose: UI/chat authoring (criteria, judges, role
+  # prompts) is STATE and lands under out/, never in the tracked pack. Caller-set wins;
+  # an explicit empty value disables the overlay exactly as under compose.
+  pd_env+=("LITHRIM_BENCH_PACK_OVERLAY_DIR=${LITHRIM_BENCH_PACK_OVERLAY_DIR-$REPO_ROOT/out/pack_overlay}")
   # watch mode: --reload + --reload-dir scoped to the BFF and the Python it imports
   # (run_eval/harness/runtime) so the reloader ignores node_modules/out/.git/.devstack —
   # watching the repo root storms the reloader. The UI side (vite) is HMR by default.
@@ -98,7 +109,7 @@ start_bff() {
 start_ui() {
   if ui_up; then ok "UI already up on :$UI_PORT"; return 0; fi
   if [ ! -d "$SHELL_DIR/node_modules" ]; then
-    info "installing UI deps (npm install) …"; ( cd "$SHELL_DIR" && npm install ) || { err "npm install failed"; return 1; }
+    info "installing UI deps (npm ci) …"; ( cd "$SHELL_DIR" && npm ci ) || { err "npm ci failed"; return 1; }
   fi
   info "starting shell UI (vite) on :$UI_PORT …"
   ( cd "$SHELL_DIR" && exec nohup npm run dev -- --port "$UI_PORT" --strictPort \
@@ -109,6 +120,30 @@ start_ui() {
   else
     err "UI did not come up in 40s — last log lines:"; tail -n 20 "$RUN_DIR/ui.log" 2>/dev/null; return 1
   fi
+}
+
+start_jute() {
+  if mapper_up; then ok "mapper already up on :$MAPPER_PORT"; return 0; fi
+  if [ -n "${LITHRIM_JUTE_URL:-}" ] && [[ "$LITHRIM_JUTE_URL" != *"localhost:$MAPPER_PORT"* ]]; then
+    info "LITHRIM_JUTE_URL=$LITHRIM_JUTE_URL — not starting the bundled mapper"; return 0
+  fi
+  if ! docker_ok; then
+    info "docker compose not available — ingest needs the mapper on :$MAPPER_PORT (or set LITHRIM_JUTE_URL); grading/replay work without it"
+    return 0
+  fi
+  info "starting the bundled mapper (docker compose up -d jute) on :$MAPPER_PORT …"
+  ( cd "$REPO_ROOT" && docker compose up -d jute >"$RUN_DIR/jute.log" 2>&1 ) || { err "docker compose up -d jute failed — see .devstack/jute.log"; return 1; }
+  if wait_for mapper_up 90; then
+    ok "mapper up · http://localhost:$MAPPER_PORT (docker compose service: jute)"
+  else
+    err "mapper did not come up in 90s — run: docker compose logs jute"; return 1
+  fi
+}
+
+stop_jute() {
+  if ! docker_ok; then info "mapper not managed here (no docker compose)"; return 0; fi
+  if ! mapper_up && [ -z "$(cd "$REPO_ROOT" && docker compose ps -q jute 2>/dev/null)" ]; then info "mapper not running"; return 0; fi
+  ( cd "$REPO_ROOT" && docker compose stop jute >/dev/null 2>&1 ) && ok "stopped mapper (docker compose stop jute)" || err "docker compose stop jute failed"
 }
 
 stop_one() {  # $1 name, $2 pidfile, $3 port — kills BOTH the recorded pid and the actual port holder
@@ -134,6 +169,8 @@ cmd_status() {
   local upid; upid="$(port_pid "$UI_PORT")"
   if ui_up; then ok "UI   :$UI_PORT  up       (pid ${upid:-?})  http://localhost:$UI_PORT"
   else info "UI   :$UI_PORT  down"; fi
+  if mapper_up; then ok "JUTE :$MAPPER_PORT  up       (docker compose: jute)"
+  else info "JUTE :$MAPPER_PORT  down     (ingest needs it; grading does not)"; fi
 }
 
 cmd_health() {
@@ -165,13 +202,13 @@ cmd_probe() {
 
 CMD="${1:-status}"; TARGET="${2:-all}"
 case "$CMD" in
-  start)   case "$TARGET" in bff) start_bff;; ui) start_ui;; all) start_bff; start_ui;; *) err "unknown target '$TARGET'"; exit 1;; esac; echo; cmd_status;;
-  stop)    case "$TARGET" in bff) stop_one BFF "$RUN_DIR/bff.pid" "$BFF_PORT";; ui) stop_one UI "$RUN_DIR/ui.pid" "$UI_PORT";; all) stop_one BFF "$RUN_DIR/bff.pid" "$BFF_PORT"; stop_one UI "$RUN_DIR/ui.pid" "$UI_PORT";; *) err "unknown target '$TARGET'"; exit 1;; esac;;
+  start)   case "$TARGET" in bff) start_bff;; ui) start_ui;; jute) start_jute;; all) start_bff; start_ui; start_jute;; *) err "unknown target '$TARGET'"; exit 1;; esac; echo; cmd_status;;
+  stop)    case "$TARGET" in bff) stop_one BFF "$RUN_DIR/bff.pid" "$BFF_PORT";; ui) stop_one UI "$RUN_DIR/ui.pid" "$UI_PORT";; jute) stop_jute;; all) stop_one BFF "$RUN_DIR/bff.pid" "$BFF_PORT"; stop_one UI "$RUN_DIR/ui.pid" "$UI_PORT"; stop_jute;; *) err "unknown target '$TARGET'"; exit 1;; esac;;
   restart) "$0" stop "$TARGET"; "$0" start "$TARGET";;
   status)  cmd_status;;
   health)  cmd_health;;
   logs)    cmd_logs "${2:-}";;
   probe)   cmd_probe;;
   -h|--help|help) sed -n '2,40p' "$0";;
-  *) err "unknown command '$CMD'"; echo "usage: $(basename "$0") {start|stop|restart|status|health|logs|probe} [bff|ui|all]"; exit 1;;
+  *) err "unknown command '$CMD'"; echo "usage: $(basename "$0") {start|stop|restart|status|health|logs|probe} [bff|ui|jute|all]"; exit 1;;
 esac

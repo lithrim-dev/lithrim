@@ -90,7 +90,7 @@ function cellSplit(scoresRaw) {
   return [b ? `${b}B` : "", w ? `${w}R` : "", p ? `${p}P` : ""].filter(Boolean).join("/");
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, onOpenCaseRun }) {
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun }) {
   if (!cases.length) {
     return (
       <div className="rounded-[var(--radius)] border border-border bg-secondary px-3.5 py-3 text-xs font-[family-name:var(--font-mono)] text-muted-foreground">
@@ -147,6 +147,23 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
       <div className="mt-1 text-[11px] text-muted-foreground" data-testid="scorecard-tally">
         <span style={{ color: "var(--accent)" }}>{nFlagged} flagged</span> · {nLook} {allReviewed ? "need a person" : "need a look"} · <span style={{ color: "var(--teal)" }}>{nPassed} {allReviewed ? "cleared" : "passed"}</span>
       </div>
+      {/* JUDGE-ERROR-2: a failed judge call is a case decided WITHOUT that vote, never a judgement.
+          Counted from the rows (summary.judge_errors when the caller passes it), shown whenever > 0. */}
+      {(() => {
+        const nErr = judge_errors != null ? judge_errors : cases.filter((c) => c.judge_errors).length;
+        return nErr > 0 ? (
+          <div data-testid="scorecard-judge-errors" className="mt-1 text-[11px]" style={{ color: "var(--amber)" }}
+            title="The provider refused or failed the call (a content filter, a timeout, malformed output). The case was decided without that vote; a refused positive counts as a miss.">
+            ⚠ {nErr} case{nErr === 1 ? "" : "s"} had a failed reviewer call — decided without that vote
+          </div>
+        ) : null;
+      })()}
+      {cache_replays > 0 && (
+        <div data-testid="scorecard-cache-replays" className="mt-1 text-[11px]" style={{ color: "var(--amber)" }}
+          title="These cases were answered from the judge cache, not a fresh model call; the batch is not an independent measurement.">
+          ⚠ {cache_replays} case{cache_replays === 1 ? "" : "s"} replayed from cache — not a fresh measurement
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap gap-3 font-[family-name:var(--font-mono)] text-[11px]">
         <span><Term tip={TIP.precision}>precision</Term> <strong style={{ color: "var(--ink)" }}>{pct(flag.precision)}</strong> <span className="text-muted-foreground">({flag.tp}/{flag.tp + flag.fp})</span></span>
         <span><Term tip={TIP.recall}>recall</Term> <strong style={{ color: "var(--ink)" }}>{pct(flag.recall)}</strong> <span className="text-muted-foreground">({flag.tp}/{flag.tp + flag.fn})</span></span>
@@ -183,6 +200,28 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
                 <span>{majority.misses} missed · {majority.over_flags} over-flagged{majority.ties ? ` · ${majority.ties} tie${majority.ties === 1 ? "" : "s"}` : ""}</span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── SERVED-MODEL-2: what each reviewer was actually served, with latency and tokens ── */}
+      {served && Object.keys(served).length > 0 && (
+        <div data-testid="scorecard-served" className="mt-3 border-t border-border pt-2">
+          <div className="mb-1 text-[10.5px] font-semibold text-foreground">Served (observed on the calls)</div>
+          <div className="flex flex-col gap-0.5 font-[family-name:var(--font-mono)] text-[10.5px]">
+            {Object.entries(served).map(([role, sv]) => {
+              const models = Object.entries(sv.models || {});
+              return (
+                <div key={role} data-testid={`served-row-${role}`} className="flex flex-wrap gap-x-3">
+                  <span className="min-w-[160px] text-foreground">{role}</span>
+                  <span className="text-muted-foreground" title="The model version the provider reported serving. More than one inside a run means the deployment moved mid-run.">
+                    {models.length ? models.map(([m, n]) => `${m} ×${n}`).join(" · ") : "version not reported"}
+                  </span>
+                  {sv.latency_ms_mean != null && <span className="text-muted-foreground" title="Mean per-call latency.">{(sv.latency_ms_mean / 1000).toFixed(1)} s avg</span>}
+                  {sv.tokens > 0 && <span className="text-muted-foreground" title="Tokens billed to this reviewer across the cohort.">{sv.tokens.toLocaleString()} tok</span>}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -251,6 +290,7 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
             <span className="text-[10.5px] font-semibold" style={{ color: rowUi(c).color }} title={rowUi(c).title}>{rowUi(c).label}</span>
             <div className="flex max-w-[52%] flex-wrap justify-end gap-1">
               {!c.labeled && <span className="text-[10px] text-muted-foreground" title="No answer key for this case — the result is shown, but accuracy isn't scored.">unlabeled</span>}
+              {c.judge_errors > 0 && <Chip label="reviewer call failed" color="var(--amber)" title="A reviewer's call failed on this case; it was decided without that vote." />}
               {(c.caught || []).map((f) => <Chip key={"c" + f} label={flagLabel(f)} color="var(--teal)" title={CHIP_TIP.caught} />)}
               {(c.missed || []).map((f) => <Chip key={"m" + f} label={"miss " + flagLabel(f)} color="var(--amber)" title={CHIP_TIP.miss} />)}
               {(c.spurious || []).map((f) => <Chip key={"s" + f} label={"FP " + flagLabel(f)} color="var(--accent)" title={CHIP_TIP.fp} />)}

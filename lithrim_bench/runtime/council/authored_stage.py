@@ -93,6 +93,14 @@ def _fold_usage(r: dict, jr: Any) -> None:
         r["usage"] = usage
 
 
+def _fold_served(r: dict, jr: Any) -> None:
+    """SERVED-MODEL-1: copy the observed served model / fingerprint / latency onto the seam
+    dict (the persisted vote reads ``served``). Never clobbers, never fabricates."""
+    served = getattr(jr, "served", None) if jr is not None else None
+    if served and not r.get("served"):
+        r["served"] = served
+
+
 def _fold_rationale(r: dict, jr: Any) -> None:
     """F8-RATIONALE: copy a findings-less JudgeResult's prose rationale onto its seam dict
     (where ``stages._judge_votes_from_models`` reads ``rationale`` ahead of the synthesized
@@ -291,6 +299,7 @@ def build_authored_evaluator(
             # here, which nothing populated (every persisted blob said cost 0). Absent usage
             # (offline predictors, no-usage LMs) leaves the dict byte-identical.
             _fold_usage(r, jr)
+            _fold_served(r, jr)
             # F8-RATIONALE: a verdict-only reviewer's prose explanation is its only "why" —
             # fold it so the vote's reason renders instead of an empty synth. Coded judges
             # are untouched (the guard is inside the helper).

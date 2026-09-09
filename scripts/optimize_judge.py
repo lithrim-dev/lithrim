@@ -104,6 +104,12 @@ def main() -> None:
     parser.add_argument("--test-stride", type=int, default=3, help="in-corpus split: every Nth case → test (≈70/30)")
     parser.add_argument("--confirm-cost", action="store_true")
     parser.add_argument(
+        "--no-coverage-aware",
+        action="store_true",
+        help="keep the trainset in FILE order (default reorders in-lens positives first); a "
+        "contrastive trainset interleaves positives and clean cases on purpose",
+    )
+    parser.add_argument(
         "--smoke",
         action="store_true",
         help="cap each split to 2 cases (per-call cost check; not a real result)",
@@ -191,7 +197,7 @@ def main() -> None:
             confirm_cost=True,
             out_dir=out_dir,
             limit=2 if args.smoke else args.limit,
-            coverage_aware=True,
+            coverage_aware=not args.no_coverage_aware,
         )
     except Exception as exc:  # surface the live Azure/dspy failure as data in --emit-json mode
         if args.emit_json:

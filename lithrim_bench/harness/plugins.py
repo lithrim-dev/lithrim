@@ -84,6 +84,9 @@ class PackManifest(BaseModel):
     floors: str | None = None
     generators: str | None = None
     tools: str | None = None  # TOOL-1: ref to a ``tools.json`` (the pack's kind:tool declarations)
+    # IMPORTER-1: refs to ``kind: importer`` manifests (one JSON object each) — the declared
+    # bridge between a foreign dataset's vocabulary and this pack's taxonomy.
+    importers: list[str] = Field(default_factory=list)
     judges: list[str] = Field(default_factory=list)
     # The pack-relative agent JSONs the CE seeds into the rail (packs-dropin/README.md). Optional;
     # a pack with none declares an empty list. Without this field PackManifest (extra='forbid')
@@ -144,6 +147,157 @@ class License:
 def default_license() -> License:
     """The process license — permit-all unless ``LITHRIM_BENCH_LICENSE`` overrides."""
     return License.from_env()
+
+
+# ── the importer registry (IMPORTER-1) — a foreign dataset's vocabulary as a kind:importer plugin ──
+# A ``kind: importer`` plugin DECLARES how a dataset's labels, verdict rule, and untyped
+# predictions map onto the pack's taxonomy. Consumed at the EDGES only (ingest, scoring,
+# export); the council's DSPy signature never sees a dataset term. A dataset term with no code
+# fails admissibility at ingest (never silently dropped). A second dataset is a second manifest.
+class ImporterManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: Literal["importer"] = "importer"
+    tier: Tier = "core"
+    version: str = "0.0.0"
+    implements: str = "importer.dataset_vocabulary"
+    dataset: str
+    citation: str | None = None
+    license: str | None = None
+    # dataset label term -> taxonomy code (the inbound map; ingest applies it)
+    label_types: dict[str, str]
+    # dataset facets carried as case metadata, not codes (e.g. RAGTruth's Evident/Subtle)
+    metadata_fields: dict[str, Any] = Field(default_factory=dict)
+    # the verdict equivalence, stated in both vocabularies (the write-up footnote)
+    verdict_rule: dict[str, str] = Field(default_factory=dict)
+    # how an untyped dataset-side prediction (e.g. the paper's typeless span list) is named
+    untyped_prediction_class: str = "prediction (untyped)"
+    admissibility: str = "a dataset label term with no taxonomy code fails ingest"
+    # ENGINE-CLEAN-1: where an imported case keeps its dataset source id (the unit the optimizer
+    # keeps train/held-out disjoint on) and its gold evidence spans, as dotted paths into the
+    # case. Optional; a case with no manifest behind it uses the neutral top-level
+    # ``source_id`` / ``gold_spans`` (see ``case_source_id`` / ``case_gold_spans``).
+    source_id_path: str | None = None
+    gold_spans_path: str | None = None
+    # the dataset facet a scorecard groups by (a task type) and the model that generated the
+    # graded response, as dotted paths; top-level ``task`` / ``model`` are the fallbacks.
+    task_path: str | None = None
+    generator_model_path: str | None = None
+    # taxonomy code -> the class name a training export in the dataset's own format uses;
+    # a code with no entry falls back to its first dataset term, lower-cased.
+    training_classes: dict[str, str] = Field(default_factory=dict)
+
+    def training_class_for(self, code: str) -> str:
+        """The dataset-side class a training row labels a span with for ``code``."""
+        if code in self.training_classes:
+            return self.training_classes[code]
+        terms = self.terms_for(code)
+        return terms[0].lower() if terms else code.lower()
+
+    def code_for(self, label_type: str) -> str:
+        """The taxonomy code for a dataset label term; a term with no code is an admissibility
+        failure (``LookupError``), never a silent drop."""
+        try:
+            return self.label_types[label_type]
+        except KeyError:
+            raise LookupError(
+                f"importer {self.id!r}: dataset label {label_type!r} has no taxonomy code "
+                f"(declared: {sorted(self.label_types)})"
+            ) from None
+
+    def terms_for(self, code: str) -> list[str]:
+        """The dataset terms a taxonomy code stands for (the outbound map; scoring/export)."""
+        return sorted(t for t, c in self.label_types.items() if c == code)
+
+
+def importer_plugins(pack: str | None = None) -> list[ImporterManifest]:
+    """The dataset importers a pack declares (``pack.json`` ``importers`` refs), validated and
+    defaulting to the pack's tier. ``pack`` defaults to the active pack. Lazy pack import."""
+    from lithrim_bench.harness import pack as _pack
+
+    active = pack or _pack.active_pack()
+    pack_tier = _pack._manifest(active).get("tier", "core")
+    return [
+        ImporterManifest.model_validate({**raw, "kind": "importer", "tier": raw.get("tier", pack_tier)})
+        for raw in _pack.load_pack_importers(active)
+    ]
+
+
+def importer_vocabulary(dataset: str, *, pack: str | None = None) -> ImporterManifest:
+    """The declared vocabulary for ``dataset`` in the active (or named) pack; fails closed
+    (``LookupError``) when no manifest declares it — never an implicit mapping."""
+    for m in importer_plugins(pack):
+        if m.dataset == dataset:
+            return m
+    raise LookupError(
+        f"no kind:importer manifest declares dataset {dataset!r} in pack "
+        f"{pack or 'active'!r}; add one under the pack's `importers` refs"
+    )
+
+
+def _dig(obj: Any, path: str | None) -> Any:
+    if not path:
+        return None
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _case_field(case: Any, top_level: str, path_attr: str, pack: str | None) -> Any:
+    """ENGINE-CLEAN-1: read a case field the engine needs but a dataset may keep anywhere.
+    Every importer manifest of the pack is tried at its declared path first (a case shaped by
+    that importer resolves there); the neutral top-level key is the fallback, so a corpus with
+    no manifest behind it still works. Empty values count as absent; ``None`` when nowhere."""
+    if not isinstance(case, dict):
+        return None
+    try:
+        manifests = importer_plugins(pack)
+    except (FileNotFoundError, LookupError, ValueError):
+        manifests = []
+    for m in manifests:
+        value = _dig(case, getattr(m, path_attr))
+        if value not in (None, "", [], {}):
+            return value
+    value = case.get(top_level)
+    return None if value in (None, "", [], {}) else value
+
+
+def case_source_id(case: Any, *, pack: str | None = None) -> str | None:
+    """The dataset source id a case was generated from (``source_id_path`` of the pack's importer
+    manifests, else top-level ``source_id``); ``None`` when the case carries none."""
+    value = _case_field(case, "source_id", "source_id_path", pack)
+    return None if value is None else str(value)
+
+
+def case_gold_spans(case: Any, *, pack: str | None = None) -> list | None:
+    """The human gold evidence spans on a labeled case (``gold_spans_path`` of the pack's importer
+    manifests, else top-level ``gold_spans``); ``None`` when the case carries none."""
+    value = _case_field(case, "gold_spans", "gold_spans_path", pack)
+    return list(value) if isinstance(value, list) else None
+
+
+def case_task(case: Any, *, pack: str | None = None) -> str | None:
+    """The dataset task a case belongs to (``task_path``, else top-level ``task``)."""
+    value = _case_field(case, "task", "task_path", pack)
+    return None if value is None else str(value)
+
+
+def case_generator_model(case: Any, *, pack: str | None = None) -> str | None:
+    """The model that generated the graded response (``generator_model_path``, else top-level
+    ``model``)."""
+    value = _case_field(case, "model", "generator_model_path", pack)
+    return None if value is None else str(value)
+
+
+def default_importer(pack: str | None = None) -> ImporterManifest | None:
+    """The one importer manifest a pack declares, when it declares exactly one; ``None`` when
+    there are none or several (then a caller must name the dataset)."""
+    manifests = importer_plugins(pack)
+    return manifests[0] if len(manifests) == 1 else None
 
 
 # ── the provider registry (D4) — Azure + BYO-Claude as kind:provider plugins ──────────────

@@ -210,3 +210,29 @@ def test_readme_and_docs_index_gain_the_phase6_surfaces():
     assert "docs/SNOMED_SETUP.md" in m.group(1), "README Docs section must link the guide"
     docs_index = (REPO / "docs/README.md").read_text(encoding="utf-8")
     assert "SNOMED_SETUP.md" in docs_index, "docs/README.md must index SNOMED_SETUP.md"
+
+
+# ── (c) the release smoke + the pinned compose defaults (v0.1.25 cut) ────────────────
+def test_release_workflow_smokes_the_built_image_with_the_loop_round():
+    """The release workflow carries a smoke job that builds the BFF image for the runner (no
+    push), runs `lithrim replay` on the tracked sample inside it, and checks /health."""
+    text = _WORKFLOW.read_text()
+    assert "smoke:" in text, "release-images.yml has no smoke job"
+    assert "lithrim replay --cases samples/ragtruth/cases.jsonl" in text
+    assert "/health" in text and "load: true" in text and "push: false" in text
+
+
+def test_deploy_compose_pins_the_bff_and_ui_to_the_package_version():
+    """deploy/docker-compose.yml defaults the bff/ui images to the release this checkout is
+    (pyproject version), so `docker compose up` on the fetched file is reproducible by default;
+    the env overrides stay for anyone who wants another tag."""
+    import re
+
+    version = re.search(r'^version = "([^"]+)"', (REPO / "pyproject.toml").read_text(), re.M).group(1)
+    text = _DEPLOY_COMPOSE.read_text()
+    assert f"ghcr.io/lithrim-dev/lithrim-bff:v{version}" in text
+    assert f"ghcr.io/lithrim-dev/lithrim-ui:v{version}" in text
+    assert "${LITHRIM_BFF_IMAGE:-" in text and "${LITHRIM_UI_IMAGE:-" in text
+    root = (REPO / "docker-compose.yml").read_text()
+    assert f"lithrim-bff:v{version}" in root and f"lithrim-ui:v{version}" in root
+

@@ -105,3 +105,44 @@ def test_makefile_demo_uses_python3():
     assert "python3 scripts/demo.py" in demo_lines[0], (
         "make demo must invoke python3, not bare python"
     )
+
+
+def test_devstack_starts_the_bundled_mapper_on_the_compose_host_port():
+    """(c) `make up` on the host starts ONLY the compose `jute` service (ingest needs the
+    mapper; grading does not) and polls it on the SAME host port docker-compose.yml
+    publishes, so the BFF's default LITHRIM_JUTE_URL (localhost:3031) resolves."""
+    devstack = (REPO / "scripts/dev/devstack.sh").read_text(encoding="utf-8")
+    compose = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert re.search(r"docker compose up -d jute\b", devstack), (
+        "devstack.sh must start the mapper via `docker compose up -d jute`"
+    )
+    port = re.search(r'MAPPER_PORT="\$\{LITHRIM_MAPPER_PORT:-(\d+)\}"', devstack)
+    assert port, "devstack.sh must declare MAPPER_PORT with a LITHRIM_MAPPER_PORT override"
+    published = re.search(r'^\s+- "(\d+):3000"', compose, re.M)
+    assert published, "docker-compose.yml must publish the jute service on a host port"
+    assert port.group(1) == published.group(1), (
+        f"devstack polls the mapper on :{port.group(1)} but compose publishes :{published.group(1)}"
+    )
+
+
+def test_host_docs_and_devstack_agree_on_the_local_claude_path():
+    """(d) The host path on a Claude subscription: README + SETUP name the [agent] extra
+    (without it `make up` has no chat) and the claude-cli provider switch; devstack keeps
+    UI/chat authoring OUT of the tracked pack by defaulting the overlay under out/."""
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    setup = (REPO / "SETUP.md").read_text(encoding="utf-8")
+    devstack = (REPO / "scripts/dev/devstack.sh").read_text(encoding="utf-8")
+
+    host_set = {"bff", "council", "verification", "agent"}
+    assert host_set in _extras(readme), "README local-Claude path must install the [agent] extra"
+    assert host_set in _extras(setup), "SETUP local-Claude path must install the [agent] extra"
+    for doc, name in ((readme, "README"), (setup, "SETUP")):
+        assert "LITHRIM_LLM_PROVIDER=claude-cli" in doc, f"{name} must show the claude-cli switch"
+    assert re.search(
+        r"LITHRIM_BENCH_PACK_OVERLAY_DIR=\$\{LITHRIM_BENCH_PACK_OVERLAY_DIR-\$REPO_ROOT/out/pack_overlay\}",
+        devstack,
+    ), "devstack.sh must default the pack overlay under out/ (caller-set wins, empty disables)"
+    assert "npm ci" in devstack and "npm install" not in devstack, (
+        "devstack.sh must install UI deps with `npm ci` (the lockfile is the contract)"
+    )

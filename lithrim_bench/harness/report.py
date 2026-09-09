@@ -323,6 +323,30 @@ def review_state(grounded: Any) -> dict[str, Any]:
             reason="a deterministic check contradicted the artifact",
         )
         return out
+    # HESITANT-JUDGE-1: a WARN vote with no code is a stated hesitation. The severity rescore
+    # flattens it to PASS (no finding to score), and a floor pass on the NUMBERS would then
+    # clear the case. Nothing refuted the hesitation, so the case goes to a person with the
+    # confirmed part attached. A hesitation the floor DID refute (a suppression) still clears.
+    hesitant = [
+        v.get("judge_role")
+        for v in (getattr(grounded, "judge_votes", None) or [])
+        if str(v.get("vote") or "").upper() == "WARN" and not (v.get("findings") or [])
+    ]
+    if verdict == "PASS" and backstopped and hesitant and not suppressed:
+        confirmed = [
+            f"{p['decl'].contract_type} confirmed {(p['result'].evidence or {}).get('checked', 0)} value(s) present"
+            for p in floor_passes
+        ]
+        out.update(
+            state="ESCALATED",
+            check=None,
+            evidence="; ".join(confirmed),
+            reason=(
+                f"reviewer(s) {hesitant} hesitated (WARN, no code); a pass on the numbers does not "
+                "settle a stated hesitation"
+            ),
+        )
+        return out
     if verdict == "PASS" and backstopped:
         if floor_passes:
             p = floor_passes[0]

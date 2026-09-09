@@ -6,7 +6,41 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.25] — 2026-09-10
+
+The public cut of the RAGTruth pilot: the loop as a generic CLI, the dataset as an example.
+
+### Added
+- The `lithrim` CLI (`lithrim load | configure | grade | calibrate | regrade | export | score |
+  spend | replay | run`): the product loop from a terminal against a running stack. A dataset
+  enters through an adapter (`--adapter path/to/adapter.py`) and a `kind: importer` manifest;
+  the reviewer through a judge definition file; the engine names no dataset. Every paid verb
+  refuses without `--confirm-cost`.
+- Importer manifests declare where an imported case keeps its source id, gold spans, task, and
+  generating model (`source_id_path`, `gold_spans_path`, `task_path`, `generator_model_path`) and
+  the dataset's training class names (`training_classes`); the engine falls back to the neutral
+  top-level fields, so a corpus with no manifest still works (`docs/IMPORTERS.md`).
+- `lithrim replay` / `make loop-demo`: one loop round at $0 from committed judge baselines,
+  scored against human labels in both vocabularies; CI runs it on the RAGTruth sample.
+- The cohort grade as a resumable background job: `POST /v1/cases/grade {background: true}`
+  answers with a job id, `GET /v1/jobs/{id}` reports progress and the rows so far, the record
+  persists under the workspace out dir, and `{resume: id}` grades only the cases without a
+  verdict. The shell and the CLI poll it.
+- The scorecard shows failed reviewer calls ("decided without that vote"), cache replays, and a
+  per-reviewer Served block (model versions observed, mean latency, tokens); the Reviewers tab
+  shows the served version, latency, and tokens per vote.
+- `examples/ragtruth/`: the RAGTruth adapter, the detector judge definition, and the pilot's
+  experiment arms (paper prompt, ensembles, an experimental Azure fine-tune client) as measured
+  records; `docs/reproduction/RAGTRUTH_LOOP.md` runs the loop from the published images.
+
 ### Changed
+- Judge optimize (UI and API) pins compiled demos into the workspace only through a held-out
+  gate: the optimizer's files are staged, a set whose held-out score is below the pinned set's is
+  not pinned (`force_pin` overrides, recorded), and the response carries `pin`. The editor says
+  pinned / not pinned instead of promising a later binding step.
+- The capability card records the boundaries measured on RAGTruth: ensembles negative on a
+  two-code task, a fine-tuned small model as a cost trade (not a training platform), offsets as
+  importer metadata rather than an engine span type.
 - Positioning: Lithrim is described as an expert reviewer agent (judges raise signals,
   signals trigger grounding checks, each case is cleared / flagged / escalated with evidence).
   `make demo` now reports what backed its verdict (`floor_backstopped`) instead of

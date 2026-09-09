@@ -91,4 +91,26 @@ describe("ScorecardCard — FLOOR-VIS-1: the units dual-report", () => {
     render(<ScorecardCard {...CARD} />);
     expect(screen.queryByTestId("scorecard-units")).toBeNull();
   });
+
+  it("JUDGE-ERROR-2 / SERVED-MODEL-2: failed reviewer calls and served versions are visible", () => {
+    const card = {
+      ...CARD,
+      cases: [...CARD.cases, { case_id: "case09", verdict: "PASS", labeled: true, gold: ["VALUE_MISMATCH"], caught: [], missed: ["VALUE_MISMATCH"], spurious: [], judge_errors: 1 }],
+      judge_errors: 1,
+      served: { risk_judge: { votes: 5, models: { "gpt-4.1-2025-04-14": 5 }, latency_ms_mean: 1234, tokens: 9876 } },
+    };
+    render(<ScorecardCard {...card} />);
+    expect(screen.getByTestId("scorecard-judge-errors").textContent).toMatch(/1 case had a failed reviewer call/);
+    expect(screen.getByTestId("scorecard-row-case09").textContent).toMatch(/reviewer call failed/);
+    const served = screen.getByTestId("served-row-risk_judge").textContent;
+    expect(served).toMatch(/gpt-4.1-2025-04-14 ×5/);
+    expect(served).toMatch(/1.2 s avg/);
+    expect(served).toMatch(/9,876 tok/);
+  });
+
+  it("no failed calls and no served data → neither line renders", () => {
+    render(<ScorecardCard {...CARD} />);
+    expect(screen.queryByTestId("scorecard-judge-errors")).toBeNull();
+    expect(screen.queryByTestId("scorecard-served")).toBeNull();
+  });
 });

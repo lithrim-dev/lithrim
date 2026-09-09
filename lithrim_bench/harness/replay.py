@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,8 @@ def provenance_to_result(
     if pipeline_run_id is not None:
         blob["pipeline_run_id"] = pipeline_run_id
         blob["replay_of"] = replay_of
+        # A replay is a new run: its timestamp is when it ran, not when its baseline did.
+        blob["timestamp"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     stage_results = blob.get("stage_results") or {}
     return {
         "verdict": blob.get("verdict"),

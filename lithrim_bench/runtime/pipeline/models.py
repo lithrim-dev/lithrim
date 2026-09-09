@@ -52,6 +52,20 @@ class JudgeVote(BaseModel):
     # seam), not a considered verdict — it must never render as one. Empty on a
     # normal vote and on pre-existing persisted docs.
     errors: list[str] = Field(default_factory=list)
+    # SERVED-MODEL-1: what the provider actually answered with (observed, not the binding):
+    # the served model version (e.g. "gpt-4.1-2025-04-14" behind a deployment named
+    # "gpt-4.1"), the response fingerprint, and the service latency. None on legacy blobs
+    # and on providers that report none; never fabricated.
+    served_model: str | None = None
+    system_fingerprint: str | None = None
+    latency_ms: int | None = None
+    # VOTE-LATENCY-2: "service" (the provider's own checkpoint) or "wall_clock" (measured
+    # around the call); None on legacy blobs. Keeps the two measurements distinguishable.
+    latency_source: str | None = None
+    # VOTE-USAGE-1: THIS vote's own token usage ({input_tokens, output_tokens}, the seam's
+    # ``usage``), so a multi-model council can be costed per judge rather than only per run.
+    # None on legacy blobs and on LMs that report none; never fabricated.
+    usage: dict[str, int] | None = None
     # Sampling layer (judge_call): THIS reviewer's own score variance + completion count k
     # over its native-n samples. Surfaced so each axis's stability shows independently (the
     # reviewers are never aggregated). None when sampling wasn't recorded (k=1 / legacy).

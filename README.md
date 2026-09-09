@@ -45,7 +45,15 @@ make demo          # replays a built-in case: council votes → floor flip PASS�
 
 ```bash
 make queue         # replays the judges ($0), runs the checks live, prints the tally
+make loop-demo     # the same five cases as one loop round: replay, ground, score in both vocabularies ($0)
 ```
+
+**Then run the whole loop on a labeled dataset.** The `lithrim` CLI (installed with the package,
+present in the BFF image) drives load, configure, grade, calibrate, re-grade, export, and score
+against a running stack; a dataset enters through an adapter and an importer manifest, never
+through the engine. [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md)
+runs it on a 90-case RAGTruth cut from the published images; [`docs/IMPORTERS.md`](docs/IMPORTERS.md)
+is the how-to for a second dataset.
 
 **Run it live on your own case (BYOK):**
 
@@ -53,8 +61,20 @@ make queue         # replays the judges ($0), runs the checks live, prints the t
 pip install -e ".[bff,council,verification]"   # the extras the local BFF stack needs
 export LITHRIM_LLM_PROVIDER=openai
 export OPENAI_API_KEY=sk-...
-make up          # local BFF + UI; grade your own artifact, nothing leaves the box
+make up          # local BFF + UI + the bundled mapper; grade your own artifact, nothing leaves the box
 ```
+
+**Or run it on your Claude subscription, no API key (host only).** With a logged-in `claude` CLI on
+the machine, the conversational assistant AND the judges can run through it:
+
+```bash
+pip install -e ".[bff,council,verification,agent]"   # + the Agent SDK that drives your local `claude`
+echo 'LITHRIM_LLM_PROVIDER=claude-cli' > .env         # every judge grades via `claude -p` (no key)
+make up          # chat works immediately; load cases, author judges, and grade from the composer
+```
+
+Per-judge confidence is an honest `None` on this route (the CLI exposes no logprobs). The full
+walkthrough is [`SETUP.md`](SETUP.md), section "Host path: your local Claude".
 
 You provide the key; Lithrim provides the harness. No accounts, no hosted inference, no telemetry. OpenAI and Azure work from env (`LITHRIM_LLM_PROVIDER=azure` + the `AZURE_OPENAI_*` vars; see [`.env.example`](.env.example)); in the UI, **Connect AI** configures any of openai / anthropic / azure / gemini / openai-compatible per judge role — including a cross-provider council.
 
@@ -201,6 +221,8 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The components (engine, packs, council, floor, BFF, UI, mapper) and how they connect. |
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
 | [`docs/SNOMED_SETUP.md`](docs/SNOMED_SETUP.md) | Optional SNOMED terminology floor: licensing reality first, building the Hermes index, in-container MCP wiring. |
+| [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md) | The load / configure / grade / calibrate / re-grade / export loop on a RAGTruth cut, from the published images. |
+| [`docs/IMPORTERS.md`](docs/IMPORTERS.md) | Importer manifests and dataset adapters: bringing a labeled dataset into a pack with zero engine edits. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
 

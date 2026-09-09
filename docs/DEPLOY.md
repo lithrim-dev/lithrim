@@ -92,8 +92,9 @@ to 6; every step there applies identically to this prebuilt stack.
 
 ## 4. Pin a release, upgrade, reset
 
-**Pin a version** instead of `latest` (recommended for anything you want reproducible). Set the image
-tags in your `.env` or shell before `up`:
+**The compose file pins the release it shipped with** (the `v0.1.25` cut), so `docker compose up` on
+the fetched file is reproducible by default. To run another release, set the image tags in your
+`.env` or shell before `up`:
 
 ```bash
 LITHRIM_BFF_IMAGE=ghcr.io/lithrim-dev/lithrim-bff:v0.1.2
@@ -109,7 +110,7 @@ multi-arch (linux/amd64 + linux/arm64).
 |---|---|
 | Stop, keep state | `docker compose down` |
 | Full reset to the clean seed | `docker compose down -v` (wipes evaluations, config, connected keys) |
-| Upgrade to the newest images | `docker compose pull && docker compose up` |
+| Upgrade to a newer release | fetch the newer `deploy/docker-compose.yml` (the `curl` above), then `docker compose pull && docker compose up` |
 
 State lives in Docker-managed named volumes (`lithrim_out`, `jute_data`): a plain `down`/`up`
 persists your evaluations, config, and UI-connected keys; only `down -v` resets to the clean `_core`

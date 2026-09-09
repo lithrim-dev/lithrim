@@ -98,6 +98,10 @@ class GroundedResult:
     original_verdict: str | None
     skipped_non_gradeable: list[dict[str, Any]] = field(default_factory=list)
     floor_blocks: list[dict[str, Any]] = field(default_factory=list)
+    # HESITANT-JUDGE-1: the per-judge votes the grounding ran over (a projection of
+    # ``result.semantic.judge_votes``), so the review state can see a stated hesitation
+    # (a WARN with no code) that the severity rescore would otherwise flatten to PASS.
+    judge_votes: list[dict[str, Any]] = field(default_factory=list)
     # FLOOR-PASSES-1: the SATISFIED floors (``conforms is True``), each ``{decl, result}``, so a
     # PASS can prove which deterministic check examined the artifact and found it clean. Purely
     # additive and read-only: it never feeds ``active``/``verdict`` (a satisfied floor is still a
@@ -1235,6 +1239,7 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
     is a domain-agnostic completeness floor, so it lives in core (available to EVERY pack incl.
     healthcare), not pack-local to narrative."""
     from lithrim_bench.verification import (
+        AttributeConsistencyTool,
         FactPreservationTool,
         JuteGenValidatorTool,
         SnomedSubsumptionFloorTool,
@@ -1252,9 +1257,20 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
             ref["match"] = params["match"]
         return ref
 
+    def _attribute_consistency_ref(params: dict[str, Any]) -> dict[str, Any]:
+        # ATTR-CONSISTENCY-1: the lexicon, negations, everyday phrases and hours field are
+        # contract DATA; absent, the tool's Yelp-shaped defaults apply.
+        ref: dict[str, Any] = {}
+        for opt in ("attributes", "negations", "everyday_phrases", "hours_field", "source_path"):
+            if params.get(opt) is not None:
+                ref[opt] = params[opt]
+        return ref
+
     def _value_grounding_ref(params: dict[str, Any]) -> dict[str, Any]:
         ref: dict[str, Any] = {}
-        for opt in ("on_missing", "source_path", "min_digits"):
+        # value-grounding/3: ``rating_units`` (e.g. ["star"]) declares that "<number>-<unit>(s)"
+        # states a rating VALUE on record sources; absent, hyphenated numbers stay names.
+        for opt in ("on_missing", "source_path", "min_digits", "rating_units"):
             if params.get(opt) is not None:
                 ref[opt] = params[opt]
         return ref
@@ -1309,6 +1325,10 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
         "value_grounding": FloorExecutor(
             tool_factory=lambda http_client: ValueGroundingTool(),
             reference_builder=_value_grounding_ref,
+        ),
+        "attribute_consistency": FloorExecutor(
+            tool_factory=lambda http_client: AttributeConsistencyTool(),
+            reference_builder=_attribute_consistency_ref,
         ),
         "fact_preservation": FloorExecutor(
             tool_factory=lambda http_client: FactPreservationTool(),
@@ -1840,6 +1860,10 @@ def ground(
         n_floor_passes=len(floor_passes),
     )
     return GroundedResult(
+        judge_votes=[
+            dict(v) for v in ((result.get("semantic") or {}).get("judge_votes") or [])
+            if isinstance(v, dict)
+        ],
         active=active,
         suppressed=suppressed,
         ungrounded=ungrounded,

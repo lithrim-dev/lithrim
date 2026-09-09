@@ -80,6 +80,9 @@ _PASSIVE_CARVE_OUT = frozenset(
         "packs/support_ticket_qa/taxonomy_snapshot.json",  # ditto
         "packs/_plugin_fixture/floors.py",  # docstring: "the clinical record_presence uses"
         "samples/README.md",  # needle "scribe" only as a substring of "describe" — no clinical data
+        # the RAGTruth adapter's eligibility FILTER (a medical-vocabulary regex + a mirror of this
+        # needle list) — code that keeps clinical text OUT of the sample, never clinical data
+        "examples/ragtruth/adapter.py",
     }
 )
 # PACK-DIST-1 AMENDMENT (2026-06-28) + REL-2 (2026-07-09): the CE ships an ENUMERATED set of

@@ -235,21 +235,34 @@ def evaluate_program(
             taxonomy_context if taxonomy_context is not None else default_taxonomy_context()
         )
 
+    errors: list[dict[str, str]] = []
+
     def run_judge(case: dict[str, Any]) -> Any:
         # call the program (not .forward) so a dspy.Module resolves its LM via the
         # ambient dspy.context the live caller sets — a compiled program is a
         # deepcopy whose per-predictor LM binding is dropped, so it relies on the
         # context, not set_lm. Offline fakes are plain callables (__call__).
-        return program(
-            transcript=case.get("transcript", ""),
-            artifact=_artifact_text(case),
-            role_key_questions=role_prompt,
-            taxonomy_context=taxonomy_context,
-        )
+        try:
+            return program(
+                transcript=case.get("transcript", ""),
+                artifact=_artifact_text(case),
+                role_key_questions=role_prompt,
+                taxonomy_context=taxonomy_context,
+            )
+        except Exception as exc:  # noqa: BLE001 — a refused/failed call is a judge ERROR vote
+            # A provider refusal (e.g. Azure's content filter on a news source) must not abort
+            # a whole held-out evaluation. It is scored as a vote that raised NOTHING (a miss on
+            # a positive, never a pass credited to the judge) and counted under ``errors`` so
+            # the report says how many cases the judge could not read.
+            errors.append({"case_id": str(_get(case, "case_id", "")), "error": str(exc)[:300]})
+            return {"decision": "needs_review", "findings": [], "reason": f"judge error: {exc}"}
 
-    return score_judge(
+    result = score_judge(
         run_judge, cases, lens_codes=LENS_BY_ROLE[role], co_raise_aware=co_raise_aware
     )
+    result["errors"] = len(errors)
+    result["error_cases"] = errors
+    return result
 
 
 def compile_judge(
@@ -287,6 +300,9 @@ def compile_judge(
         metric=metric,
         max_bootstrapped_demos=max_bootstrapped_demos,
         max_labeled_demos=max_labeled_demos,
+        # a refused/failed teacher call skips that trainset row instead of aborting the compile
+        # (dspy's default budget is a handful); a row the teacher cannot read never becomes a demo
+        max_errors=max(len(trainset), 1),
     )
     if lm is not None:
         with dspy.context(lm=lm):
@@ -346,6 +362,144 @@ def load_compiled_demos(out_dir: Any, role: str) -> list[Any] | None:
         return None
     rows = json.loads(hits[-1].read_text(encoding="utf-8"))
     return deserialize_demos(rows) or None
+
+
+def pin_gate(
+    candidate_graded: float | None, pinned_graded: float | None, *, force: bool = False
+) -> tuple[bool, str]:
+    """PIN-GATE-2: may a compiled demo set become the production judge's demos? Yes when nothing
+    is pinned yet or its held-out graded score is not below the pinned set's; otherwise no,
+    unless ``force`` (recorded in the reason, never silent). The optimizer's own delta is the
+    evidence; a round that regresses cannot ship by accident."""
+    if pinned_graded is None or candidate_graded is None:
+        return True, "pinned (no pinned score to compare against)"
+    if candidate_graded >= pinned_graded:
+        return True, f"pinned (held-out graded {candidate_graded:.2f} >= pinned {pinned_graded:.2f})"
+    if force:
+        return True, (
+            f"pinned by force OVER a lower held-out graded ({candidate_graded:.2f} < {pinned_graded:.2f})"
+        )
+    return False, (
+        f"REFUSING to pin: held-out graded {candidate_graded:.2f} is below the pinned set's "
+        f"{pinned_graded:.2f}; the optimizer's own delta says this round regresses"
+    )
+
+
+def pin_demos(
+    staging_dir: str | Path, workspace_out: str | Path, role: str, *, force: bool = False
+) -> dict[str, Any]:
+    """Move an optimize round's compiled demos from its staging dir into the workspace out dir
+    the next grade reads (``load_compiled_demos``), through ``pin_gate``. The pinned set's
+    held-out score rides a ``.score.json`` sidecar so the next round has something to beat.
+    Returns ``{pinned, reason, candidate_graded, pinned_graded, demos_path}``; a staging dir
+    with no compiled demos (or none at all) is an honest no-pin, never a pin."""
+    import shutil
+
+    staging_dir = Path(staging_dir)
+    workspace_out = Path(workspace_out)
+    tag = f"dspy3b_{role}"
+    src = staging_dir / f"compiled_demos_{tag}.json"
+    score_path = staging_dir / f"score_optimized_{tag}.json"
+    sidecar = workspace_out / f"compiled_demos_{tag}.score.json"
+    pinned = json.loads(sidecar.read_text()).get("graded") if sidecar.exists() else None
+    if not src.exists():
+        return {
+            "pinned": False,
+            "reason": f"no compiled demos in {staging_dir} (the optimizer wrote nothing to pin)",
+            "candidate_graded": None,
+            "pinned_graded": pinned,
+            "demos_path": None,
+        }
+    candidate = json.loads(score_path.read_text()).get("graded") if score_path.exists() else None
+    ok, reason = pin_gate(candidate, pinned, force=force)
+    if not ok:
+        return {
+            "pinned": False,
+            "reason": reason,
+            "candidate_graded": candidate,
+            "pinned_graded": pinned,
+            "demos_path": None,
+        }
+    workspace_out.mkdir(parents=True, exist_ok=True)
+    dst = workspace_out / src.name
+    shutil.copy(src, dst)
+    sidecar.write_text(json.dumps({"graded": candidate, "source": str(src)}, indent=2))
+    return {
+        "pinned": True,
+        "reason": reason,
+        "candidate_graded": candidate,
+        "pinned_graded": pinned,
+        "demos_path": str(dst),
+    }
+
+
+def _sha256_file(path: str | Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _sha256_text(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def demo_sources(demos: list[dict[str, Any]], rows: Iterable[dict[str, Any]]) -> list[str | None]:
+    """The corpus ``case_id`` each compiled demo was bootstrapped from, matched by the demo's
+    ``artifact`` text against the trainset rows (a demo is a traced signature call, so its
+    inputs are the row's projected inputs verbatim). ``None`` when a demo matches no row —
+    reported, never guessed — so a reader can prove every demo came from the calibration split."""
+    by_artifact: dict[str, str] = {}
+    for r in rows:
+        by_artifact.setdefault(_artifact_text(r).strip(), str(_get(r, "case_id", "")))
+    return [by_artifact.get(str(d.get("artifact") or "").strip()) for d in demos]
+
+
+def build_manifest(
+    *,
+    role: str,
+    corpus_path: str | Path,
+    train_rows: list[dict[str, Any]],
+    heldout_rows: list[dict[str, Any]],
+    role_prompt: str,
+    model: str | None,
+    demos: list[dict[str, Any]],
+    pack: str | None = None,
+) -> dict[str, Any]:
+    """PROVENANCE-1: everything a reader needs to reproduce or audit an optimize run from the
+    result file alone: which rows trained, which were held out, the corpus bytes, the prompt
+    the judge ran with, the model string, and where each demo came from. ``demo_source_ids``
+    must be a subset of ``train_case_ids`` for the run to be a clean (out-of-sample) optimize.
+    Source ids resolve through the pack's importer manifests (``source_id_path``), else the
+    neutral top-level ``source_id`` (ENGINE-CLEAN-1)."""
+    from lithrim_bench.harness.plugins import case_source_id
+
+    train_ids = [str(_get(r, "case_id", "")) for r in train_rows]
+    heldout_ids = [str(_get(r, "case_id", "")) for r in heldout_rows]
+    sources = demo_sources(demos, train_rows)
+
+    def _source_ids(rows: list[dict[str, Any]]) -> list[str]:
+        return sorted({s for s in (case_source_id(r, pack=pack) for r in rows) if s})
+
+    return {
+        "corpus_path": str(corpus_path),
+        "corpus_sha256": _sha256_file(corpus_path),
+        "train_case_ids": train_ids,
+        "heldout_case_ids": heldout_ids,
+        "train_source_ids": _source_ids(train_rows),
+        "heldout_source_ids": _source_ids(heldout_rows),
+        "role": role,
+        "role_prompt_sha256": _sha256_text(role_prompt),
+        "model": model,
+        "demo_source_ids": sources,
+        "demos_sha256": _sha256_text(json.dumps(demos, sort_keys=True, default=str)),
+        "demos_out_of_sample": all(s is not None and s in set(train_ids) for s in sources),
+    }
 
 
 def _delta(baseline: dict[str, Any], optimized: dict[str, Any]) -> dict[str, Any]:
@@ -458,6 +612,15 @@ def run_optimize(
         "baseline": baseline,
         "optimized": optimized,
         "delta": _delta(baseline, optimized),
+        "manifest": build_manifest(
+            role=role,
+            corpus_path=corpus_path,
+            train_rows=train_rows,
+            heldout_rows=heldout_rows,
+            role_prompt=role_prompt,
+            model=getattr(lm, "model", None),
+            demos=demos,
+        ),
     }
 
     out_dir = Path(out_dir)

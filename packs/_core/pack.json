@@ -6,5 +6,12 @@
   "ontology": "ontology.json",
   "flags_ref": "taxonomy_snapshot.json",
   "council_roles": "council_roles",
-  "judges": ["risk_judge", "policy_judge", "faithfulness_judge"]
+  "judges": [
+    "risk_judge",
+    "policy_judge",
+    "faithfulness_judge"
+  ],
+  "importers": [
+    "importers/ragtruth.json"
+  ]
 }

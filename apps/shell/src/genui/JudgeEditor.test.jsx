@@ -170,6 +170,38 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     expect(delta).toHaveAttribute("data-outcome", "win");
     expect(screen.getByText(/optimize improved this judge/i)).toBeInTheDocument();
     expect(screen.queryByTestId("optimize-loss-note")).toBeNull();
+    // a pre-gate server (no `pin`) says nothing about binding — never the old false promise
+    expect(screen.queryByTestId("optimize-pin-note")).toBeNull();
+    expect(screen.queryByText(/next step/i)).toBeNull();
+  });
+
+  it("optimize: PIN-GATE-2 — the server's pin decision is shown as pinned / not pinned", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: -0.1, precision: -0.27, recall: -0.14 }),
+      pin: { pinned: false, reason: "REFUSING to pin: held-out graded 0.70 is below the pinned set's 0.80", candidate_graded: 0.7, pinned_graded: 0.8 },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    const note = await screen.findByTestId("optimize-pin-note");
+    expect(note).toHaveAttribute("data-pinned", "no");
+    expect(note).toHaveTextContent(/Not pinned/i);
+    expect(screen.getByTestId("optimize-loss-note")).toBeInTheDocument();
+  });
+
+  it("optimize: a pinned set says so", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: 0.1 }),
+      pin: { pinned: true, reason: "pinned (held-out graded 0.90 >= pinned 0.80)", candidate_graded: 0.9, pinned_graded: 0.8 },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByText(/Judge · risk_judge/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    const note = await screen.findByTestId("optimize-pin-note");
+    expect(note).toHaveAttribute("data-pinned", "yes");
+    expect(note).toHaveTextContent(/now grades with these demos/i);
   });
 
   it("optimize: a ≤0 Δ renders EXPLICITLY as a loss, never hidden (R1)", async () => {

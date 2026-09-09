@@ -46,6 +46,9 @@ TOOL_SILENT_DEGRADATION = "silent_degradation"
 # class + executor ship pack-local (``packs/narrative/floors.py``). After this, authoring is
 # params-only and a second inverse floor needs no new code.
 TOOL_VALUE_PRESENCE = "value_presence"
+# ATTR-CONSISTENCY-1: a record-source floor — does every attribute the artifact asserts agree
+# with the record field? null = unknown (a lead), a contradicting boolean = a violation.
+TOOL_ATTRIBUTE_CONSISTENCY = "attribute_consistency"
 # CONCEPT-PRESERVATION: the generalizing successor to value_presence's lexical pin — it consumes
 # two ingest-pinned concept lists (a "stated" list vs a "noted" list) and grounds them by code
 # (equality or subsumption) via the pack's terminology tool, so a paraphrase still grounds. The
@@ -95,6 +98,7 @@ _KNOWN_TOOLS = {
     TOOL_SPEAKER_ATTRIBUTION,
     TOOL_SNOMED_SUBSUMPTION_FLOOR,
     TOOL_VALUE_GROUNDING,
+    TOOL_ATTRIBUTE_CONSISTENCY,
 }
 
 # per-tool REQUIRED reference keys — the SME-pinnable reference's minimum shape
@@ -127,6 +131,7 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # Optional knobs: ``on_missing`` (by_source_kind | violation | lead), ``source_path``
     # (default ``transcript``), ``min_digits``.
     TOOL_VALUE_GROUNDING: set(),
+    TOOL_ATTRIBUTE_CONSISTENCY: set(),
     # concept_preservation: the SME pins the two concept-list paths (``stated_path`` / ``noted_path``);
     # the terminology ``tool`` is optional (the pack defaults it). The inject coordinates
     # (``inject_flag_code`` / ``inject_severity``) are contract PARAMS read by the floor injector,

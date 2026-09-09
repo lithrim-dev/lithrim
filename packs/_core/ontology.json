@@ -1,6 +1,6 @@
 {
   "_provenance": {
-    "note": "Hand-authored for CE-PACK-NEUTRAL-DEFAULT — the neutral DEFAULT pack's ontology. A domain-neutral content-review domain: auditing a generated response against the source material it claims to be grounded in. Internally consistent with taxonomy_snapshot.json — every gradeable flag's code is in a tier; each Tier-1 code has the same owning role as the snapshot's tier1_owners; the snapshot lenses are a subset of the tier union. Declares four in_process verification_contracts (VALUE-GROUNDING-FLOOR-1, 2026-09-06): a value_grounding floor on SOURCE_CONTRADICTION (a value the response states must be in the source; a violation on a record source, a named lead on prose) and source_grounding suppress contracts on UNSUPPORTED_ASSERTION / SOURCE_CONTRADICTION / FABRICATED_CLAIM. Pure stdlib, no service transport, so the neutral default still grades with no external call. The prose is needle-free (no HIPAA/patient/medication/dosage/allergy/clinical/SOAP/escalation/consent/transcript wording) so render_role_questions emits a clean non-clinical judge prompt.",
+    "note": "Hand-authored for CE-PACK-NEUTRAL-DEFAULT \u2014 the neutral DEFAULT pack's ontology. A domain-neutral content-review domain: auditing a generated response against the source material it claims to be grounded in. Internally consistent with taxonomy_snapshot.json \u2014 every gradeable flag's code is in a tier; each Tier-1 code has the same owning role as the snapshot's tier1_owners; the snapshot lenses are a subset of the tier union. Declares four in_process verification_contracts (VALUE-GROUNDING-FLOOR-1, 2026-09-06): a value_grounding floor on SOURCE_CONTRADICTION (a value the response states must be in the source; a violation on a record source, a named lead on prose) and source_grounding suppress contracts on UNSUPPORTED_ASSERTION / SOURCE_CONTRADICTION / FABRICATED_CLAIM. Pure stdlib, no service transport, so the neutral default still grades with no external call. The prose is needle-free (no HIPAA/patient/medication/dosage/allergy/clinical/SOAP/escalation/consent/transcript wording) so render_role_questions emits a clean non-clinical judge prompt.",
     "seeded_by": "hand-authored (the core default pack has no external seed source)"
   },
   "domain": "generic",
@@ -59,7 +59,7 @@
     },
     {
       "category": "accuracy",
-      "definition": "The response contradicts itself — two statements within the same response cannot both be true.",
+      "definition": "The response contradicts itself \u2014 two statements within the same response cannot both be true.",
       "flag": "INTERNAL_INCONSISTENCY",
       "gradeable": true,
       "owner_roles": [],
@@ -99,7 +99,7 @@
     {
       "ordinal": 2,
       "role": "risk_judge",
-      "text": "Is the response internally consistent — do its statements all hold together?"
+      "text": "Is the response internally consistent \u2014 do its statements all hold together?"
     },
     {
       "ordinal": 1,
@@ -117,12 +117,15 @@
       "flag_code": "SOURCE_CONTRADICTION",
       "question": "Is every value the response states (a number, a clock time) present in the source it claims to summarize?",
       "contract_type": "value_grounding",
-      "version": "value-grounding/1",
+      "version": "value-grounding/3",
       "params": {
         "inject_flag_code": "SOURCE_CONTRADICTION",
         "inject_severity": "HIGH",
         "artifact_kind": "generated_response",
-        "on_missing": "by_source_kind"
+        "on_missing": "by_source_kind",
+        "rating_units": [
+          "star"
+        ]
       }
     },
     {
@@ -150,6 +153,18 @@
       "version": "source-grounding/1",
       "params": {
         "source_path": "transcript"
+      }
+    },
+    {
+      "flag_code": "SOURCE_CONTRADICTION",
+      "question": "Does every attribute the response asserts about the record's subject (seating, Wi-Fi, takeout, reservations, group-friendliness, parking, music, ambience, opening days) agree with the record's field? A null field is unknown, not a negation.",
+      "contract_type": "attribute_consistency",
+      "version": "attribute-consistency/1",
+      "params": {
+        "inject_flag_code": "SOURCE_CONTRADICTION",
+        "inject_severity": "HIGH",
+        "artifact_kind": "generated_response",
+        "on_missing": "by_source_kind"
       }
     }
   ],

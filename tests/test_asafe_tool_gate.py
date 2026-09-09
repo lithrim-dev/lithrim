@@ -162,3 +162,16 @@ def test_build_options_is_isolated_and_carries_only_the_lithrim_server(ctx):
     # server rides a separate path, so the 18 lithrim tools survive (asserted above).
     assert opts.tools == []
     assert "ToolSearch" in opts.disallowed_tools
+
+
+def test_build_options_keeps_the_operators_claude_code_context_out(ctx):
+    """CONTEXT-ISOLATION-1 (observed live 2026-09-09): with only ``setting_sources=[]`` the
+    spawned CLI still injected the operator's auto-memory (``~/.claude/projects/<cwd>/memory``)
+    and the instructions of their claude.ai MCP connectors into the product assistant, which
+    quoted them back verbatim. The connector surface is closed by ``strict_mcp_config`` and
+    the memory / CLAUDE.md surfaces by the CLI's env gates (auto-memory defaults ON otherwise)."""
+    opts = _build_options(ctx)
+    assert opts.strict_mcp_config is True
+    assert opts.env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+    assert opts.env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] == "1"
+    assert "ANTHROPIC_API_KEY" not in opts.env  # the $0 BYO default: no key handed down

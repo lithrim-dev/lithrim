@@ -9,8 +9,9 @@
 #   docker compose up
 #
 # Then open http://localhost:5180 (UI). BFF is :8787, JUTE mapper is :3031.
-# Pin a release instead of latest: LITHRIM_BFF_IMAGE / LITHRIM_UI_IMAGE (e.g.
-# ghcr.io/lithrim-dev/lithrim-bff:v0.1.0).
+# The bff/ui defaults are PINNED to the release this file shipped with (reproducible
+# by default). Another release: LITHRIM_BFF_IMAGE / LITHRIM_UI_IMAGE (e.g.
+# ghcr.io/lithrim-dev/lithrim-bff:latest), or fetch the newer compose file.
 #
 # BYOK: bring a model key to grade live (set it in your shell or a local `.env`;
 # compose auto-loads `.env`). The offline demo path and first boot need none.
@@ -32,7 +33,7 @@
 
 services:
   bff:
-    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:latest}
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.25}
     ports:
       - "8787:8787"
     environment:
@@ -88,7 +89,7 @@ services:
       - lithrim
 
   ui:
-    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:latest}
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.25}
     ports:
       - "5180:5180"
     environment:

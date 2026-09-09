@@ -31,6 +31,8 @@ import re
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from lithrim_bench.runtime.council.byo_claude_lm import CLI_CONTEXT_ISOLATION_ENV
+
 from .adapter import propose_live_run_part, propose_run_all_part
 from .tools import _TOOL_SPECS, ToolContext, build_sdk_tools
 
@@ -752,8 +754,14 @@ def _build_options(ctx: ToolContext):
     api_key, chat_model = _chat_provider_env()
     return ClaudeAgentOptions(
         model=chat_model,  # CONV-PROVIDER-1: a pinned Claude via the Anthropic API when set; None → CLI default
-        env=({"ANTHROPIC_API_KEY": api_key} if api_key else {}),  # SCOPED to this subprocess (judges unaffected)
+        # SCOPED to this subprocess (judges unaffected). CONTEXT-ISOLATION-1: the operator's
+        # Claude Code auto-memory for this cwd and any CLAUDE.md are NOT product context;
+        # `setting_sources=[]` does not cover them (auto-memory defaults ON), these env gates do.
+        env={**CLI_CONTEXT_ISOLATION_ENV, **({"ANTHROPIC_API_KEY": api_key} if api_key else {})},
         mcp_servers={"lithrim": server},
+        # CONTEXT-ISOLATION-1: only the in-options lithrim server; never the operator's
+        # claude.ai connectors / user-level MCP servers (their instructions were leaking in).
+        strict_mcp_config=True,
         # A-SAFE ROOT CONTROL (S-BS-90 follow-up): `tools=[]` disables ALL built-ins (Bash/Read/
         # ToolSearch/...) so they are NEVER OFFERED to the model — unlike `allowed_tools`, which under
         # bypassPermissions only governs prompting (claude-agent-sdk types.py: `tools=[]` → `--tools ""`,

@@ -196,6 +196,23 @@ or guarded by shipped code, except the one marked in flight.
   - On a physician-curated external suite, the judge panel silently missed a
     substantial fraction of real defects that the deterministic checks caught.
 
+- **Boundaries measured on a public labeled corpus** (RAGTruth, human span labels as
+  gold, 450-case test cut, 2026-09; reproducible from the published images via
+  [`reproduction/RAGTRUTH_LOOP.md`](reproduction/RAGTRUTH_LOOP.md)):
+  - A single prompt-defined judge with demos pinned through the held-out gate reached
+    78.8 response-level F1 / 59.7 span-level F1 on gpt-4.1. Recall on news summaries was
+    the weak face (about 30%); precision was the strong one.
+  - Two ensemble arms measured **below** that single judge on this two-code task: three
+    models on one lens (58.4 / 40.9) and the pack's three-lens trio on one model
+    (62.1 / 45.4). Ensembles are not a lever here; they are reported as negatives.
+  - A small fine-tuned model (gpt-4.1-mini on 322 supervised calibration rows) matched
+    the prompt on overall F1 (76.0 / 61.8) at roughly a thirtieth of the cost per case,
+    with higher precision and lower recall. Lithrim is **not a training platform**: the
+    fine-tune client is an experiment record under `examples/ragtruth/arms/`, not a
+    product verb.
+  - Human span offsets ride the case as importer metadata (`gold_spans_path`); the
+    engine's evidence spans are quotes located in the response, not an offset type.
+
   No further quantitative claims are made in this card. No service-level objective is
   published, because the longitudinal mechanism that would measure one is not yet
   shipped.

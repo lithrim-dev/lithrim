@@ -48,6 +48,30 @@ resets to the clean seed.
 
 Sanity check (optional): `curl -sf http://localhost:8787/health` should return OK.
 
+### Host path: your local Claude (no API key)
+
+If you have Claude Code installed and logged in (`claude auth status` says `loggedIn: true`), you
+can run the whole journey on your subscription instead of an API key. This path runs on the host,
+not in Docker (the container has no `claude` binary):
+
+```bash
+git clone https://github.com/lithrim-dev/lithrim && cd lithrim
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[bff,council,verification,agent]"   # [agent] = the SDK that drives your `claude`
+echo 'LITHRIM_LLM_PROVIDER=claude-cli' > .env         # judges grade through `claude -p`, $0 API spend
+make up                                               # BFF :8787, UI :5180, mapper :3031 (Docker, mapper only)
+```
+
+`make up` starts only the mapper container from Docker (ingest needs it; grading does not). Open
+http://localhost:5180: the chat assistant already answers, with no Connect AI step. Skip section 2;
+sections 3 to 7 apply unchanged, except that the "Connect AI" model rows may stay empty. To put a
+single judge on the CLI instead of all of them, leave `.env` out and set that judge's model to
+`byo-claude` (in chat: "run the risk reviewer on byo-claude", or in the judge editor).
+
+What to expect on this route: judge confidence shows as unavailable (the CLI exposes no token
+logprobs, and Lithrim never fabricates a number), a four-judge grade takes about a minute, and
+authored judges and prompts land under `out/pack_overlay/`, never in the tracked pack.
+
 ---
 
 ## 2. Connect your model key

@@ -16,4 +16,6 @@ export const subscribeProgress = (l) => { listeners.add(l); return () => listene
 export const getProgress = () => snap;
 export const beginBatch = ({ total = null, label = "grading" } = {}) => set({ active: true, done: 0, total, label });
 export const tickBatch = () => { if (snap.active) set({ ...snap, done: snap.done + 1 }); };
+// GRADE-JOB-1: the server's own done/total from GET /v1/jobs/{id} while a background grade runs.
+export const updateBatch = ({ done, total }) => { if (snap.active) set({ ...snap, done: done ?? snap.done, total: total ?? snap.total }); };
 export const endBatch = () => set(IDLE);

@@ -1,20 +1,24 @@
 # Dev stack — start / stop the local Lithrim services
 
-One script + a Makefile to run the two local services the shell journey needs, without
+One script + a Makefile to run the local services the shell journey needs, without
 re-discovering the env/pyenv/port dance each time.
 
 | service | what | port | runtime |
 |---|---|---|---|
 | **BFF** | `uvicorn app:app` (`apps/bff`) — the judge-capability API the journey calls | **8787** | `debuglithrim` pyenv |
 | **UI** | vite dev server (`apps/shell`) — the shell + activation journey | **5180** | node / npm |
+| **JUTE** | the bundled mapper, started as only the `jute` service of `docker-compose.yml` (ingest needs it; grading, replay and the demo do not) | **3031** | docker compose |
+
+The mapper is skipped with a note when Docker is absent or `LITHRIM_JUTE_URL` points at another
+mapper. `make down` stops the container (`docker compose stop jute`); its SQLite volume persists.
 
 ## Usage
 
 ```bash
-make up            # start both (BFF + UI), wait for health
+make up            # start BFF + UI + the mapper container, wait for health
 make status        # ports + health at a glance
 make health        # BFF up? + run a $0 replay grade and print the votes
-make down          # stop both
+make down          # stop all three
 make restart       # stop + start
 make logs-bff      # tail -f .devstack/bff.log
 make logs-ui       # tail -f .devstack/ui.log

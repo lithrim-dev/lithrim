@@ -94,8 +94,42 @@ def _current_provider() -> str:
     return provider
 
 
+class _UnconfiguredClient:
+    """A client stand-in for a council with no OpenAI-compatible provider configured.
+
+    ``ComplianceCouncil.__init__`` builds a client unconditionally, but the authored / per-role
+    grade path (every judge on its own LM, e.g. ``byo-claude``) never calls it. Constructing
+    eagerly made a keyless install fail before any judge ran; this defers the failure to the
+    first real use, with the ``is unset; required to bind`` marker the BFF maps to a 422.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def __getattr__(self, name: str) -> Any:
+        raise ValueError(self._reason)
+
+
+def _unconfigured_reason(provider: str) -> str | None:
+    if provider == _PROVIDER_OPENAI and not settings.OPENAI_API_KEY:
+        return (
+            "OPENAI_API_KEY is unset; required to bind the openai council client "
+            "(connect a provider, or bind every judge to byo-claude)"
+        )
+    if provider not in (_PROVIDER_OPENAI, _PROVIDER_AZURE):
+        return (
+            f"LITHRIM_LLM_PROVIDER={provider!r} has no OpenAI-compatible council client; "
+            "an OpenAI/Azure key is unset; required to bind one (judges bound per role, e.g. "
+            "byo-claude, do not need it)"
+        )
+    return None
+
+
 def get_sync_openai_client(purpose: Purpose) -> tuple[SyncClient, str]:
     """Return a sync OpenAI/AzureOpenAI client + model string for the purpose."""
+    reason = _unconfigured_reason(settings.LITHRIM_LLM_PROVIDER)
+    if reason is not None:
+        return _UnconfiguredClient(reason), ""
     provider = _current_provider()
     cache_key = ("sync", provider, purpose)
     model = _resolve_model(provider, purpose)

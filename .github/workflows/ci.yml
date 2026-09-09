@@ -29,5 +29,7 @@ jobs:
         run: ruff check .
       - name: Offline demo ($0, no key, no network)
         run: python scripts/demo.py
+      - name: Offline loop round ($0, no key, no network)
+        run: python -m lithrim_bench.cli replay --cases samples/ragtruth/cases.jsonl
       - name: Test suite (credential-free — no API keys; key-needing tests skip)
         run: pytest -q
