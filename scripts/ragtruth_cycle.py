@@ -526,7 +526,9 @@ def main() -> int:
         "--workspace-out", type=Path, default=REPO_ROOT / "out" / "workspaces" / "default" / "out"
     )
     ap.add_argument("--from", dest="start", choices=STEPS, default=STEPS[0])
-    ap.add_argument("--to", dest="stop", choices=STEPS, default=STEPS[-1])
+    # The product loop ends at `after`; `calib` and `enrich` are opt-in calibrate rounds that
+    # spend money, so they never run by falling off the end of the step list.
+    ap.add_argument("--to", dest="stop", choices=STEPS, default="after")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument(
         "--force-pin",
