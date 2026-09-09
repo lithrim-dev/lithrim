@@ -31,6 +31,7 @@ def test_served_reads_the_entries_this_call_appended():
         "served_model": "gpt-4.1-2025-04-14",
         "system_fingerprint": "fp_861cf8a3da",
         "latency_ms": 525,
+        "latency_source": "service",
     }
 
 
@@ -42,6 +43,17 @@ def test_served_is_none_when_nothing_was_served():
     )
     no_latency = sampling._served(_LM([_entry(latency=None)]), 0)
     assert no_latency["latency_ms"] is None and no_latency["served_model"] == "gpt-4.1-2025-04-14"
+    assert no_latency["latency_source"] is None
+
+
+def test_wall_clock_fills_in_only_when_the_provider_reports_no_service_latency():
+    """VOTE-LATENCY-2: the OpenAI-compatible route reports no checkpoint; the caller's
+    wall-clock is used and labelled, and never overrides a real service figure."""
+    wall = sampling._served(_LM([_entry(latency=None)]), 0, wall_ms=1483.7)
+    assert wall["latency_ms"] == 1483 and wall["latency_source"] == "wall_clock"
+    service = sampling._served(_LM([_entry(latency=525)]), 0, wall_ms=9999)
+    assert service["latency_ms"] == 525 and service["latency_source"] == "service"
+    assert JudgeVote(judge_role="r", vote="PASS").latency_source is None
 
 
 def test_stored_vote_carries_the_served_fields_and_legacy_blobs_still_parse():

@@ -59,6 +59,9 @@ class JudgeVote(BaseModel):
     served_model: str | None = None
     system_fingerprint: str | None = None
     latency_ms: int | None = None
+    # VOTE-LATENCY-2: "service" (the provider's own checkpoint) or "wall_clock" (measured
+    # around the call); None on legacy blobs. Keeps the two measurements distinguishable.
+    latency_source: str | None = None
     # VOTE-USAGE-1: THIS vote's own token usage ({input_tokens, output_tokens}, the seam's
     # ``usage``), so a multi-model council can be costed per judge rather than only per run.
     # None on legacy blobs and on LMs that report none; never fabricated.

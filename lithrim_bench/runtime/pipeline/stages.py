@@ -653,6 +653,7 @@ def _judge_votes_from_models(
             served_model=(m.get("served") or {}).get("served_model"),
             system_fingerprint=(m.get("served") or {}).get("system_fingerprint"),
             latency_ms=(m.get("served") or {}).get("latency_ms"),
+            latency_source=(m.get("served") or {}).get("latency_source"),
             # VOTE-USAGE-1: the seam's own token usage rides the persisted vote (per-judge cost)
             usage=(
                 {k: int(v) for k, v in m["usage"].items() if isinstance(v, (int, float))}
