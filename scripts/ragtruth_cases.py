@@ -28,6 +28,7 @@ spans ride along under ``ragtruth.labels`` as the evidence for that mapping.
 Usage:
     python scripts/ragtruth_cases.py --data-dir /path/with/response.jsonl+source_info.jsonl
     python scripts/ragtruth_cases.py --download   # fetch the two files into out/ragtruth/ first
+    python scripts/ragtruth_cases.py --slice 15 --out out/ragtruth/slice.jsonl   # a grading slice
 """
 
 from __future__ import annotations
@@ -184,11 +185,69 @@ def select(responses: list[dict], sources: dict[str, dict]) -> list[tuple[str, d
     ]
 
 
+def select_slice(
+    responses: list[dict], sources: dict[str, dict], per_task: int, *, natural: bool = False
+) -> list[tuple[str, dict]]:
+    """A deterministic per-task slice for grading experiments (not the tracked sample): the
+    test split, quality good, source under MAX_SOURCE_CHARS, one response per source. Per
+    task: the human-labeled half first (rounded up), then the clean half, each pool filled
+    lowest response id first while keeping the generating models balanced (the earliest id
+    among the least-picked models wins), so a small slice still yields a precision AND a
+    recall over more than one generator.
+
+    ``natural=True`` is the paper-comparable cut: no label stratification and no source
+    length cap, one model-balanced response per source at the corpus's own hallucination
+    rate (the full test split is 450 sources, 150 per task)."""
+    pools: dict[str, dict[bool, list[dict]]] = {}
+    for r in sorted(responses, key=lambda r: int(r["id"])):
+        if r.get("split") != "test" or r.get("quality") != "good":
+            continue
+        s = sources[r["source_id"]]
+        if not natural and len(_source_text(s)) >= MAX_SOURCE_CHARS:
+            continue
+        key = True if natural else bool(r.get("labels"))
+        pools.setdefault(s["task_type"], {True: [], False: []})[key].append(r)
+
+    def fill(rows: list[dict], n: int, used_sources: set[str]) -> list[dict]:
+        picked: list[dict] = []
+        per_model: dict[str, int] = {}
+        candidates = [r for r in rows if r["source_id"] not in used_sources]
+        while len(picked) < n and candidates:
+            floor_count = min(per_model.get(r["model"], 0) for r in candidates)
+            r = next(c for c in candidates if per_model.get(c["model"], 0) == floor_count)
+            picked.append(r)
+            per_model[r["model"]] = per_model.get(r["model"], 0) + 1
+            used_sources.add(r["source_id"])
+            candidates = [c for c in candidates if c["source_id"] not in used_sources]
+        return picked
+
+    picked: list[tuple[str, dict]] = []
+    for task in sorted(pools):
+        used: set[str] = set()
+        n_lab = per_task if natural else (per_task + 1) // 2
+        rows = fill(pools[task][True], n_lab, used) + fill(
+            pools[task][False], per_task - n_lab, used
+        )
+        for r in rows:
+            picked.append((f"slice:{task}", _case(r, sources[r["source_id"]])))
+    return picked
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", type=Path, default=REPO_ROOT / "out/ragtruth")
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument(
+        "--slice", type=int, default=0, metavar="N",
+        help="write a per-task grading slice of N cases per task (stratified labeled/clean) "
+             "instead of the five-rule tracked sample; pair with --out under out/",
+    )
+    ap.add_argument(
+        "--natural", action="store_true",
+        help="with --slice: no label stratification, no source length cap (the paper-comparable "
+             "cut; --slice 150 --natural is the whole test split, one response per source)",
+    )
     args = ap.parse_args()
     args.data_dir.mkdir(parents=True, exist_ok=True)
     for name in ("response.jsonl", "source_info.jsonl"):
@@ -202,7 +261,11 @@ def main() -> int:
         d["source_id"]: d
         for d in (json.loads(line) for line in (args.data_dir / "source_info.jsonl").open())
     }
-    picked = select(responses, sources)
+    picked = (
+        select_slice(responses, sources, args.slice, natural=args.natural)
+        if args.slice
+        else select(responses, sources)
+    )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w") as fh:
         for rule, case in picked:

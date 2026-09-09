@@ -235,21 +235,34 @@ def evaluate_program(
             taxonomy_context if taxonomy_context is not None else default_taxonomy_context()
         )
 
+    errors: list[dict[str, str]] = []
+
     def run_judge(case: dict[str, Any]) -> Any:
         # call the program (not .forward) so a dspy.Module resolves its LM via the
         # ambient dspy.context the live caller sets — a compiled program is a
         # deepcopy whose per-predictor LM binding is dropped, so it relies on the
         # context, not set_lm. Offline fakes are plain callables (__call__).
-        return program(
-            transcript=case.get("transcript", ""),
-            artifact=_artifact_text(case),
-            role_key_questions=role_prompt,
-            taxonomy_context=taxonomy_context,
-        )
+        try:
+            return program(
+                transcript=case.get("transcript", ""),
+                artifact=_artifact_text(case),
+                role_key_questions=role_prompt,
+                taxonomy_context=taxonomy_context,
+            )
+        except Exception as exc:  # noqa: BLE001 — a refused/failed call is a judge ERROR vote
+            # A provider refusal (e.g. Azure's content filter on a news source) must not abort
+            # a whole held-out evaluation. It is scored as a vote that raised NOTHING (a miss on
+            # a positive, never a pass credited to the judge) and counted under ``errors`` so
+            # the report says how many cases the judge could not read.
+            errors.append({"case_id": str(_get(case, "case_id", "")), "error": str(exc)[:300]})
+            return {"decision": "needs_review", "findings": [], "reason": f"judge error: {exc}"}
 
-    return score_judge(
+    result = score_judge(
         run_judge, cases, lens_codes=LENS_BY_ROLE[role], co_raise_aware=co_raise_aware
     )
+    result["errors"] = len(errors)
+    result["error_cases"] = errors
+    return result
 
 
 def compile_judge(
@@ -287,6 +300,9 @@ def compile_judge(
         metric=metric,
         max_bootstrapped_demos=max_bootstrapped_demos,
         max_labeled_demos=max_labeled_demos,
+        # a refused/failed teacher call skips that trainset row instead of aborting the compile
+        # (dspy's default budget is a handful); a row the teacher cannot read never becomes a demo
+        max_errors=max(len(trainset), 1),
     )
     if lm is not None:
         with dspy.context(lm=lm):
