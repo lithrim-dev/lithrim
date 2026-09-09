@@ -65,6 +65,26 @@ describe("Reviewers tab — REVIEWERS-HYDRATE-1: a stored run shows its votes", 
     expect(screen.getByText(/2 blocking vote\(s\)/)).toBeTruthy();
   });
 
+  it("SERVED-MODEL-2: a vote shows the served version, latency, and tokens when observed", async () => {
+    getCaseReport.mockResolvedValue({
+      ...PERSISTED,
+      council: {
+        ...PERSISTED.council,
+        votes: [
+          { judge_role: "risk_judge", vote: "BLOCK", confidence: 0.9, model: "azure/gpt-4.1", served_model: "gpt-4.1-2025-04-14", latency_ms: 2345, latency_source: "service", usage: { input_tokens: 1000, output_tokens: 200, total_tokens: 1200 } },
+          { judge_role: "policy_judge", vote: "WARN", confidence: null, model: "azure/Mistral-Large-3" },
+        ],
+      },
+    });
+    renderJudges();
+    await screen.findByText(/How each reviewer voted on ragtruth_10545/);
+    const line = screen.getByTestId("judge-served-risk_judge").textContent;
+    expect(line).toMatch(/served gpt-4.1-2025-04-14/);
+    expect(line).toMatch(/2.3 s/);
+    expect(line).toMatch(/1,200 tok/);
+    expect(screen.queryByTestId("judge-served-policy_judge")).toBeNull(); // nothing observed, nothing claimed
+  });
+
   it("no persisted run (404) keeps the honest empty state", async () => {
     getCaseReport.mockRejectedValue(new Error("404"));
     renderJudges();

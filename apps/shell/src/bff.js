@@ -91,11 +91,15 @@ export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false })
    scorecard}. case_ids null → ALL cases. live/in_process are the SAME paid knobs as run-eval; a
    paid cohort grade is the human's cost-confirmed call (never an agent tool). The `scorecard` field
    is the case_id-attributed consolidated report the inline ScorecardCard renders. */
-export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null } = {}) =>
+export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null, background = false, resume = null } = {}) =>
   call("/v1/cases/grade", {
     method: "POST",
-    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}) },
+    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}) },
   });
+
+/* GET /v1/jobs/{id} — GRADE-JOB-1: a background cohort grade's record {status, done, total, rows,
+   result}. `result` is the same {matrix, summary, scorecard} envelope the synchronous call returns. */
+export const getJob = (jobId) => call(`/v1/jobs/${encodeURIComponent(jobId)}`);
 
 /* POST /v1/cases/ingest/preview — CE-INGEST-FRONTDOOR-1: decode an uploaded JSON/JSONL/CSV blob,
    generate/select a JUTE template, apply it, and return {fmt, columns, count, sample_cases,

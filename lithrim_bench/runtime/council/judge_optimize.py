@@ -364,6 +364,75 @@ def load_compiled_demos(out_dir: Any, role: str) -> list[Any] | None:
     return deserialize_demos(rows) or None
 
 
+def pin_gate(
+    candidate_graded: float | None, pinned_graded: float | None, *, force: bool = False
+) -> tuple[bool, str]:
+    """PIN-GATE-2: may a compiled demo set become the production judge's demos? Yes when nothing
+    is pinned yet or its held-out graded score is not below the pinned set's; otherwise no,
+    unless ``force`` (recorded in the reason, never silent). The optimizer's own delta is the
+    evidence; a round that regresses cannot ship by accident."""
+    if pinned_graded is None or candidate_graded is None:
+        return True, "pinned (no pinned score to compare against)"
+    if candidate_graded >= pinned_graded:
+        return True, f"pinned (held-out graded {candidate_graded:.2f} >= pinned {pinned_graded:.2f})"
+    if force:
+        return True, (
+            f"pinned by force OVER a lower held-out graded ({candidate_graded:.2f} < {pinned_graded:.2f})"
+        )
+    return False, (
+        f"REFUSING to pin: held-out graded {candidate_graded:.2f} is below the pinned set's "
+        f"{pinned_graded:.2f}; the optimizer's own delta says this round regresses"
+    )
+
+
+def pin_demos(
+    staging_dir: str | Path, workspace_out: str | Path, role: str, *, force: bool = False
+) -> dict[str, Any]:
+    """Move an optimize round's compiled demos from its staging dir into the workspace out dir
+    the next grade reads (``load_compiled_demos``), through ``pin_gate``. The pinned set's
+    held-out score rides a ``.score.json`` sidecar so the next round has something to beat.
+    Returns ``{pinned, reason, candidate_graded, pinned_graded, demos_path}``; a staging dir
+    with no compiled demos (or none at all) is an honest no-pin, never a pin."""
+    import shutil
+
+    staging_dir = Path(staging_dir)
+    workspace_out = Path(workspace_out)
+    tag = f"dspy3b_{role}"
+    src = staging_dir / f"compiled_demos_{tag}.json"
+    score_path = staging_dir / f"score_optimized_{tag}.json"
+    sidecar = workspace_out / f"compiled_demos_{tag}.score.json"
+    pinned = json.loads(sidecar.read_text()).get("graded") if sidecar.exists() else None
+    if not src.exists():
+        return {
+            "pinned": False,
+            "reason": f"no compiled demos in {staging_dir} (the optimizer wrote nothing to pin)",
+            "candidate_graded": None,
+            "pinned_graded": pinned,
+            "demos_path": None,
+        }
+    candidate = json.loads(score_path.read_text()).get("graded") if score_path.exists() else None
+    ok, reason = pin_gate(candidate, pinned, force=force)
+    if not ok:
+        return {
+            "pinned": False,
+            "reason": reason,
+            "candidate_graded": candidate,
+            "pinned_graded": pinned,
+            "demos_path": None,
+        }
+    workspace_out.mkdir(parents=True, exist_ok=True)
+    dst = workspace_out / src.name
+    shutil.copy(src, dst)
+    sidecar.write_text(json.dumps({"graded": candidate, "source": str(src)}, indent=2))
+    return {
+        "pinned": True,
+        "reason": reason,
+        "candidate_graded": candidate,
+        "pinned_graded": pinned,
+        "demos_path": str(dst),
+    }
+
+
 def _sha256_file(path: str | Path) -> str:
     import hashlib
 

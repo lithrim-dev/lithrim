@@ -62,6 +62,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -612,6 +614,9 @@ class OptimizeRequest(BaseModel):
     # cmd). A subset is a SELECTOR, never a paid knob — confirm=true is still required. Unknown ids
     # are dropped with a note in the subprocess; an all-unknown subset → the same clean 422 refusal.
     case_ids: list[str] | None = None
+    # PIN-GATE-2: pin a demo set even when its held-out score is below the pinned set's. The
+    # override is recorded in the response's ``pin.reason``; never silent.
+    force_pin: bool = False
 
 
 class ChatTurn(BaseModel):
@@ -1135,7 +1140,9 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
 
 
-def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_ids=None) -> dict:
+def _optimize_via_subprocess(
+    *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False
+) -> dict:
     """Run the PAID in-corpus optimize in a subprocess bound to the workspace's PACK (Phase 2).
 
     The calib is built from THIS workspace's OWN graded cases (in-domain, in the active pack's
@@ -1158,10 +1165,13 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_i
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     out_dir = Path(out_dir)
+    # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
+    # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
+    staging = out_dir / "optimize" / role
     cmd = [
         sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
-        "--collections-db", str(collections_db), "--out", str(out_dir),
-        "--calib-out", str(out_dir / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
+        "--collections-db", str(collections_db), "--out", str(staging),
+        "--calib-out", str(staging / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
     ]
     if limit is not None:
         cmd += ["--limit", str(limit)]
@@ -1180,6 +1190,9 @@ def _optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_i
             res = json.loads(line[len("__OPTIMIZE_JSON__"):])
             if res.get("error"):  # degenerate corpus / unknown role → a calm, actionable 422
                 raise HTTPException(status_code=422, detail=res["error"])
+            from lithrim_bench.runtime.council.judge_optimize import pin_demos
+
+            res["pin"] = pin_demos(staging, out_dir, role, force=force_pin)
             return res
     raise HTTPException(status_code=502, detail="optimize subprocess emitted no __OPTIMIZE_JSON__ record")
 
@@ -2253,6 +2266,11 @@ class GradeCasesRequest(BaseModel):
     live: bool = False
     in_process: bool = False
     strict: bool = False  # READINESS: opt-in strict preflight (see RunEvalRequest.strict)
+    # GRADE-JOB-1: run the batch as a background job (202 + job_id; poll GET /v1/jobs/{id}) —
+    # a cohort of any size no longer has to fit in one HTTP request. ``resume`` names an
+    # earlier job whose cases without a verdict are graded again (the graded rows are kept).
+    background: bool = False
+    resume: str | None = None
 
 
 class IngestPreviewRequest(BaseModel):
@@ -2329,7 +2347,11 @@ def _cohort_scorecard(
         cid = r.get("case_id")
         raised = set(r.get("findings") or [])
         row = {"case_id": cid, "verdict": r.get("verdict"), "review": r.get("review"),
-               "labeled": cid in labeled, "raised": sorted(raised)}
+               "labeled": cid in labeled, "raised": sorted(raised),
+               # JUDGE-ERROR-2: a failed judge call rides the case row so the card can say
+               # "decided without that vote" instead of reading the miss as a judgement.
+               "judge_errors": int(r.get("judge_errors") or 0),
+               "cache_replay": bool(r.get("cache_replay"))}
         if cid in labeled:
             gold = golds.get(cid, set())
             caught, missed, spurious = gold & raised, gold - raised, raised - gold
@@ -2373,6 +2395,9 @@ def _cohort_scorecard(
     # READ-ATTRIB-1: the counterfactual tally rides its own denominator — a cohort with any
     # pre-READ-ATTRIB-1 row reports no counterfactual at all rather than a partial one.
     nofloor_match = nofloor_n = 0
+    # SERVED-MODEL-2: what each reviewer was actually served, with latency and tokens, over
+    # EVERY graded row (labeled or not) — the cost/latency read next to the accuracy read.
+    served: dict[str, dict] = {}
     for r in rows:
         cid = r.get("case_id")
         if not cid or r.get("error"):
@@ -2385,6 +2410,19 @@ def _cohort_scorecard(
         for v in votes:
             role = str(v.get("judge_role") or "judge")
             vote = str(v.get("vote") or "")
+            sv = served.setdefault(role, {"votes": 0, "models": {}, "latency_ms_sum": 0,
+                                          "latency_n": 0, "tokens": 0})
+            sv["votes"] += 1
+            if v.get("served_model"):
+                sv["models"][v["served_model"]] = sv["models"].get(v["served_model"], 0) + 1
+            if isinstance(v.get("latency_ms"), (int, float)):
+                sv["latency_ms_sum"] += v["latency_ms"]
+                sv["latency_n"] += 1
+            usage = v.get("usage") or {}
+            if isinstance(usage, dict):
+                sv["tokens"] += int(usage.get("total_tokens") or 0) or (
+                    int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
+                )
             cells.append({"judge_role": role, "model": v.get("model"),
                           "vote": vote, "scores_raw": v.get("scores_raw")})
             v_blocked = _is_blocked_verdict(vote)
@@ -2451,6 +2489,13 @@ def _cohort_scorecard(
         "verdict_accuracy": f"{vmatch}/{n_lab}" if n_lab else None,
         "by_flag": dict(sorted(by_flag.items())),
         "by_judge": list(by_judge.values()),
+        "served": {
+            role: {
+                "votes": sv["votes"], "models": sv["models"], "tokens": sv["tokens"],
+                "latency_ms_mean": round(sv["latency_ms_sum"] / sv["latency_n"]) if sv["latency_n"] else None,
+            }
+            for role, sv in served.items()
+        },
         "majority": majority_tally,
         "judge_matrix": judge_matrix,
         "floor": {
@@ -2467,97 +2512,84 @@ def _cohort_scorecard(
     }
 
 
-@app.post("/v1/cases/grade")
-def grade_cases_endpoint(
-    req: GradeCasesRequest,
-    db_path: Path = Depends(get_config_db),
-    out_dir: Path | None = Depends(get_out_dir),
-    workdir: Path = Depends(get_ontology_workdir),
-    collections_db: Path = Depends(get_collections_db),
+def _grade_row(
+    cid: str, *, agent: str, live: bool, in_process: bool, strict: bool, db_path, out_dir,
+    workdir, collections_db, code_families,
 ) -> dict:
-    """NARR-LOOP — grade the ingested corpus (or a ``case_ids`` subset) and return the cohort
-    MATRIX: the "evaluate all of them → report" half of the ingest→grade loop. Each case grades
-    through the SAME ``_grade_case`` path as POST /v1/run-eval (so the case_id override, the
-    pack-subprocess routing, calibration, and council votes are identical). A per-case grade
-    failure is trapped into the row (``error``) so one bad case never aborts the batch."""
-    targets = req.case_ids or [
-        r["case_id"] for r in _read_ingested_corpus() if r.get("case_id")
-    ]
-    if not targets:
-        raise HTTPException(
-            status_code=400,
-            detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
+    """One cohort matrix row for ``cid`` (the shared body of the synchronous batch and the
+    background job). A per-case grade failure is trapped into the row (``error``) so one bad
+    case never aborts the batch."""
+    try:
+        rec = _grade_case(
+            agent_name=agent, case_id=cid, live=live, in_process=in_process,
+            db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+            strict=strict,
         )
-    live, in_process = _resolve_run_backend(req)
-    # FINDING-UNITS-1: the agent's ontology-declared consolidation families, resolved ONCE for
-    # the batch (the clerk clusters by the same ontology the council voted with; {} → inert).
-    code_families = _agent_code_families(_load_agent(req.agent, db_path), workdir)
-    rows: list[dict] = []
-    for cid in targets:
-        try:
-            rec = _grade_case(
-                agent_name=req.agent, case_id=cid, live=live, in_process=in_process,
-                db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
-                strict=req.strict,
-            )
-            comp = rec.get("composite") or {}
-            # FINDING-UNITS-1: consolidate the post-floor findings into span-cluster units
-            # (one defect span = one unit carrying its full code-set). Gold-blind clerk, not a
-            # critic — see harness/finding_units.py; scored dual-report in _cohort_scorecard.
-            active = [
-                (x.get("code") or x.get("flag_code"))
-                for x in (rec.get("grounded") or {}).get("active", [])
-            ] or (comp.get("active_findings") or [])
-            evidence = ((rec.get("result") or {}).get("semantic") or {}).get("evidence") or []
-            units = consolidate(active, evidence, code_families)
-            g = rec.get("grounded") or {}
-            rows.append(
-                {
-                    "case_id": cid,
-                    "verdict": comp.get("verdict"),
-                    "stage_verdict": comp.get("stage_verdict"),
-                    # REVIEW-STATE-1: the engine's three-state decision rides the batch row too, so
-                    # the inline scorecard speaks the same words as the report pane.
-                    "review": comp.get("review"),
-                    "findings": comp.get("active_findings") or [],
-                    "units": [list(u.codes) for u in units],
-                    # R3: model + raw K-split ride each vote (the per-reviewer scorecard +
-                    # the case×reviewer matrix aggregate these in _cohort_scorecard).
-                    "votes": [
-                        {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
-                         "confidence": v.get("confidence"), "model": v.get("model"),
-                         # SERVED-MODEL-1: the observed served version + latency ride the row
-                         "served_model": v.get("served_model"),
-                         "latency_ms": v.get("latency_ms"),
-                         "usage": v.get("usage"),
-                         "scores_raw": v.get("scores_raw")}
-                        for v in (rec.get("council") or {}).get("votes", [])
-                    ],
-                    # R3b: the pre-floor verdict + the floor events, from the same record.
-                    "verdict_pre_floor": g.get("original_verdict") or comp.get("verdict"),
-                    # READ-ATTRIB-1: the floor counterfactual (same rescore rule as ``verdict``).
-                    # Absent on records graded before READ-ATTRIB-1 — stays None, never faked.
-                    "verdict_no_floor": g.get("verdict_no_floor"),
-                    "floor": {
-                        "cleared": [s.get("code") for s in g.get("suppressed") or []],
-                        "enforced": [b.get("flag") for b in g.get("floor_blocks") or []
-                                     if b.get("injected")],
-                        "inconclusive": [b.get("flag") or b.get("contract_type")
-                                         for b in g.get("floor_blocks") or []
-                                         if not b.get("injected")],
-                    },
-                    # CACHE-TRAP-2: per-case replay tell, so one silently-cached case in a batch
-                    # is visible instead of averaging invisibly into the cohort numbers.
-                    "cache_replay": bool(rec.get("cache_replay")),
-                    "judge_errors": int(rec.get("judge_errors") or 0),
-                    "agrees_with_gold": (rec.get("gold") or {}).get("agrees_with_gold"),
-                    "run_id": rec.get("pipeline_run_id"),
-                }
-            )
-        except HTTPException as exc:
-            rows.append({"case_id": cid, "error": str(exc.detail)})
-        except Exception as exc:  # noqa: BLE001 — a batch must never abort on one bad case;
-            rows.append({"case_id": cid, "error": str(exc)})  # the failure rides the row, visibly
+        comp = rec.get("composite") or {}
+        # FINDING-UNITS-1: consolidate the post-floor findings into span-cluster units
+        # (one defect span = one unit carrying its full code-set). Gold-blind clerk, not a
+        # critic — see harness/finding_units.py; scored dual-report in _cohort_scorecard.
+        active = [
+            (x.get("code") or x.get("flag_code"))
+            for x in (rec.get("grounded") or {}).get("active", [])
+        ] or (comp.get("active_findings") or [])
+        evidence = ((rec.get("result") or {}).get("semantic") or {}).get("evidence") or []
+        units = consolidate(active, evidence, code_families)
+        g = rec.get("grounded") or {}
+        return (
+            {
+                "case_id": cid,
+                "verdict": comp.get("verdict"),
+                "stage_verdict": comp.get("stage_verdict"),
+                # REVIEW-STATE-1: the engine's three-state decision rides the batch row too, so
+                # the inline scorecard speaks the same words as the report pane.
+                "review": comp.get("review"),
+                "findings": comp.get("active_findings") or [],
+                "units": [list(u.codes) for u in units],
+                # R3: model + raw K-split ride each vote (the per-reviewer scorecard +
+                # the case×reviewer matrix aggregate these in _cohort_scorecard).
+                "votes": [
+                    {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
+                     "confidence": v.get("confidence"), "model": v.get("model"),
+                     # SERVED-MODEL-1: the observed served version + latency ride the row
+                     "served_model": v.get("served_model"),
+                     "latency_ms": v.get("latency_ms"),
+                     "usage": v.get("usage"),
+                     "scores_raw": v.get("scores_raw")}
+                    for v in (rec.get("council") or {}).get("votes", [])
+                ],
+                # R3b: the pre-floor verdict + the floor events, from the same record.
+                "verdict_pre_floor": g.get("original_verdict") or comp.get("verdict"),
+                # READ-ATTRIB-1: the floor counterfactual (same rescore rule as ``verdict``).
+                # Absent on records graded before READ-ATTRIB-1 — stays None, never faked.
+                "verdict_no_floor": g.get("verdict_no_floor"),
+                "floor": {
+                    "cleared": [s.get("code") for s in g.get("suppressed") or []],
+                    "enforced": [b.get("flag") for b in g.get("floor_blocks") or []
+                                 if b.get("injected")],
+                    "inconclusive": [b.get("flag") or b.get("contract_type")
+                                     for b in g.get("floor_blocks") or []
+                                     if not b.get("injected")],
+                },
+                # CACHE-TRAP-2: per-case replay tell, so one silently-cached case in a batch
+                # is visible instead of averaging invisibly into the cohort numbers.
+                "cache_replay": bool(rec.get("cache_replay")),
+                "judge_errors": int(rec.get("judge_errors") or 0),
+                "agrees_with_gold": (rec.get("gold") or {}).get("agrees_with_gold"),
+                "run_id": rec.get("pipeline_run_id"),
+            }
+        )
+    except HTTPException as exc:
+        return {"case_id": cid, "error": str(exc.detail)}
+    except Exception as exc:  # noqa: BLE001 — a batch must never abort on one bad case;
+        return {"case_id": cid, "error": str(exc)}  # the failure rides the row, visibly
+
+
+def _cohort_report(
+    rows: list[dict], targets: list[str], *, agent: str, live: bool, in_process: bool,
+    db_path, workdir, code_families,
+) -> dict:
+    """The {matrix, summary, scorecard} envelope over graded rows (synchronous batch and job alike)."""
     graded = [r for r in rows if r.get("verdict")]
     verdicts: dict[str, int] = {}
     for r in graded:
@@ -2582,7 +2614,7 @@ def grade_cases_endpoint(
     # The raw envelope carries no `labeled` key — derive it (gold) the SAME way /v1/cases does.
     # LAYER3-DESCOPE-1: filter gold to the agent's gradeable codes (descoped axes leave the
     # denominator) + credit family-siblings at unit level — both from the same resolved ontology.
-    _agent = _load_agent(req.agent, db_path)
+    _agent = _load_agent(agent, db_path)
     gradeable = _agent_gradeable_codes(_agent, workdir)
     _corpus = _read_ingested_corpus()
     golds, labeled = _corpus_golds_labeled(_corpus, gradeable=gradeable)
@@ -2593,6 +2625,181 @@ def grade_cases_endpoint(
         gold_verdicts=_corpus_gold_verdicts(_corpus),
     )
     return {"matrix": rows, "summary": summary, "scorecard": scorecard}
+
+
+# ── GRADE-JOB-1: the resumable background cohort grade ──────────────────────────────────
+_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _job_path(out_dir: Path, job_id: str) -> Path:
+    return Path(out_dir) / "jobs" / f"{job_id}.json"
+
+
+def _save_job(out_dir: Path, job: dict) -> None:
+    path = _job_path(out_dir, job["job_id"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(job, default=str))
+    tmp.replace(path)
+
+
+def _load_job(out_dir: Path, job_id: str) -> dict | None:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+    if job is not None:
+        return job
+    path = _job_path(out_dir, job_id)
+    if not path.exists():
+        return None
+    job = json.loads(path.read_text())
+    with _JOBS_LOCK:
+        _JOBS.setdefault(job_id, job)
+    return job
+
+
+def _running_job_for(agent: str, *, exclude: str | None = None) -> dict | None:
+    with _JOBS_LOCK:
+        for job in _JOBS.values():
+            if job["job_id"] == exclude:
+                continue
+            if job.get("agent") == agent and job.get("status") == "running":
+                return job
+    return None
+
+
+def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code_families) -> None:
+    """The job body: grade every target without a verdict, saving the record after each case
+    so a restart can resume; then the cohort report. Any failure lands on the record."""
+    r = job["request"]
+    try:
+        done_rows = {row["case_id"]: row for row in job["rows"] if row.get("verdict")}
+        for cid in job["targets"]:
+            if cid in done_rows:
+                continue
+            row = _grade_row(
+                cid, agent=job["agent"], live=r["live"], in_process=r["in_process"],
+                strict=r["strict"], db_path=db_path, out_dir=out_dir, workdir=workdir,
+                collections_db=collections_db, code_families=code_families,
+            )
+            done_rows[cid] = row
+            job["rows"] = [done_rows[c] for c in job["targets"] if c in done_rows]
+            job["done"] = sum(1 for x in job["rows"] if x.get("verdict") or x.get("error"))
+            _save_job(out_dir, job)
+        job["result"] = _cohort_report(
+            [done_rows[c] for c in job["targets"] if c in done_rows], job["targets"],
+            agent=job["agent"], live=r["live"], in_process=r["in_process"], db_path=db_path,
+            workdir=workdir, code_families=code_families,
+        )
+        job["status"] = "done"
+    except Exception as exc:  # noqa: BLE001 — the failure is the record, never a lost thread
+        job["status"] = "failed"
+        job["error"] = str(exc)
+    job["finished"] = datetime.now(timezone.utc).isoformat()
+    _save_job(out_dir, job)
+
+
+@app.get("/v1/jobs/{job_id}")
+def job_status_endpoint(job_id: str, out_dir: Path | None = Depends(get_out_dir)) -> dict:
+    """GRADE-JOB-1: a job's record — status (running|done|failed), done/total, the rows so far,
+    and ``result`` (the cohort envelope) once done. Read from memory, else the on-disk record."""
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    job = _load_job(resolved_out, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
+    return job
+
+
+@app.post("/v1/cases/grade")
+def grade_cases_endpoint(
+    req: GradeCasesRequest,
+    db_path: Path = Depends(get_config_db),
+    out_dir: Path | None = Depends(get_out_dir),
+    workdir: Path = Depends(get_ontology_workdir),
+    collections_db: Path = Depends(get_collections_db),
+):
+    """NARR-LOOP — grade the ingested corpus (or a ``case_ids`` subset) and return the cohort
+    MATRIX: the "evaluate all of them → report" half of the ingest→grade loop. Each case grades
+    through the SAME ``_grade_case`` path as POST /v1/run-eval (so the case_id override, the
+    pack-subprocess routing, calibration, and council votes are identical). A per-case grade
+    failure is trapped into the row (``error``) so one bad case never aborts the batch.
+
+    GRADE-JOB-1: ``background: true`` (or ``resume``) runs the same batch in a worker thread
+    and answers 202 with a job id; the job record lives under the workspace out dir."""
+    live, in_process = _resolve_run_backend(req)
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    # FINDING-UNITS-1: the agent's ontology-declared consolidation families, resolved ONCE for
+    # the batch (the clerk clusters by the same ontology the council voted with; {} → inert).
+    code_families = _agent_code_families(_load_agent(req.agent, db_path), workdir)
+    if req.resume:
+        job = _load_job(resolved_out, req.resume)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"unknown job {req.resume!r}")
+        if job.get("status") == "running":
+            raise HTTPException(status_code=409, detail=f"job {req.resume} is still running")
+        targets = list(job["targets"])
+        job["rows"] = [row for row in job.get("rows") or [] if row.get("verdict")]
+        job["status"], job["error"], job["result"] = "running", None, None
+        job["done"] = len(job["rows"])
+    else:
+        targets = req.case_ids or [
+            r["case_id"] for r in _read_ingested_corpus() if r.get("case_id")
+        ]
+        if not targets:
+            raise HTTPException(
+                status_code=400,
+                detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
+            )
+        job = None
+    if not (req.background or req.resume):
+        rows = [
+            _grade_row(
+                cid, agent=req.agent, live=live, in_process=in_process, strict=req.strict,
+                db_path=db_path, out_dir=out_dir, workdir=workdir, collections_db=collections_db,
+                code_families=code_families,
+            )
+            for cid in targets
+        ]
+        return _cohort_report(
+            rows, targets, agent=req.agent, live=live, in_process=in_process, db_path=db_path,
+            workdir=workdir, code_families=code_families,
+        )
+    running = _running_job_for(req.agent, exclude=req.resume)
+    if running is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a grade job is already running for {req.agent}: {running['job_id']}",
+        )
+    if job is None:
+        job = {
+            "job_id": f"job-{uuid.uuid4().hex[:12]}",
+            "agent": req.agent,
+            "status": "running",
+            "error": None,
+            "targets": targets,
+            "total": len(targets),
+            "done": 0,
+            "rows": [],
+            "result": None,
+            "started": datetime.now(timezone.utc).isoformat(),
+            "finished": None,
+            "request": {"live": live, "in_process": in_process, "strict": req.strict},
+        }
+    with _JOBS_LOCK:
+        _JOBS[job["job_id"]] = job
+    _save_job(resolved_out, job)
+    threading.Thread(
+        target=_run_grade_job,
+        kwargs={
+            "job": job, "db_path": db_path, "out_dir": out_dir, "workdir": workdir,
+            "collections_db": collections_db, "code_families": code_families,
+        },
+        daemon=True,
+    ).start()
+    return JSONResponse(
+        status_code=202,
+        content={"job_id": job["job_id"], "status": "running", "done": job["done"], "total": job["total"]},
+    )
 
 
 class EvalPackRunRequest(BaseModel):
@@ -3579,7 +3786,7 @@ def optimize_judge_endpoint(
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     return _optimize_via_subprocess(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
-        case_ids=req.case_ids,
+        case_ids=req.case_ids, force_pin=req.force_pin,
     )
 
 

@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import urllib.error
@@ -258,20 +257,14 @@ def summarize_optimize(opt_dir: Path, role: str) -> str:
 def pin_gate(
     candidate_graded: float | None, pinned_graded: float | None, *, force: bool = False
 ) -> str:
-    """PIN-GATE-1: a demo set is pinned only if its held-out graded score is not below the
-    currently pinned set's (or nothing is pinned yet). The optimizer's delta is the evidence;
-    refusing here means an enriched round that loses cannot ship, even by hand. ``force``
-    records an explicit override in the message, never a silent one."""
-    if pinned_graded is None or candidate_graded is None:
-        return "pinned (no pinned score to compare against)"
-    if candidate_graded >= pinned_graded:
-        return f"pinned (held-out graded {candidate_graded:.2f} >= pinned {pinned_graded:.2f})"
-    if force:
-        return f"pinned by --force-pin OVER a lower held-out graded ({candidate_graded:.2f} < {pinned_graded:.2f})"
-    raise SystemExit(
-        f"REFUSING to pin: held-out graded {candidate_graded:.2f} is below the pinned set's "
-        f"{pinned_graded:.2f}; the optimizer's own delta says this round regresses (--force-pin to override)"
-    )
+    """PIN-GATE-1: the engine's gate (``judge_optimize.pin_gate``) with the CLI's semantics: a
+    refusal is a SystemExit, a forced pin names --force-pin in its message."""
+    from lithrim_bench.runtime.council.judge_optimize import pin_gate as _gate
+
+    ok, reason = _gate(candidate_graded, pinned_graded, force=force)
+    if not ok:
+        raise SystemExit(reason + " (--force-pin to override)")
+    return reason.replace("by force", "by --force-pin")
 
 
 def plan(start: str, stop: str) -> tuple[str, ...]:
@@ -383,10 +376,38 @@ def step_judge(a) -> None:
     print(f"pinned {j['role']} to {a.model}; roster = [{j['role']}]")
 
 
+def _grade_cohort(a, ids: list[str]) -> dict:
+    """GRADE-JOB-1: grade through the BFF's background job and poll it, printing progress; a
+    server without the job route (no job_id in the answer) is graded synchronously. ``a.resume_job``
+    continues an interrupted job instead of starting one."""
+    import time
+
+    body = {"agent": a.agent, "in_process": True, "case_ids": ids, "background": True}
+    if getattr(a, "resume_job", None):
+        body = {"agent": a.agent, "resume": a.resume_job, "background": True}
+        a.resume_job = None
+    res = _post(a.bff, "/v1/cases/grade", body)
+    if not res.get("job_id"):
+        return res
+    job_id = res["job_id"]
+    print(f"grade job {job_id}: {res.get('done', 0)}/{res.get('total')} (resume with --resume-job {job_id})")
+    last = -1
+    while True:
+        time.sleep(getattr(a, "poll_seconds", 5))
+        job = http.get(a.bff, f"/v1/jobs/{job_id}", timeout=120)
+        if job.get("done") != last:
+            last = job.get("done")
+            print(f"  graded {last}/{job.get('total')}", flush=True)
+        if job.get("status") == "done":
+            return job["result"]
+        if job.get("status") != "running":
+            raise SystemExit(f"grade job {job_id} {job.get('status')}: {job.get('error')}")
+
+
 def _grade_and_score(a, tag: str) -> None:
     slice_rows = _read_jsonl(a.slice)
     ids = [r["case_id"] for r in slice_rows]
-    res = _post(a.bff, "/v1/cases/grade", {"agent": a.agent, "in_process": True, "case_ids": ids})
+    res = _grade_cohort(a, ids)
     out = a.out / f"grade_{tag}.json"
     out.write_text(json.dumps(res, indent=1))
     print(check_measurement(res["summary"]))
@@ -450,18 +471,14 @@ def step_optimize(a) -> None:
 
 
 def step_pin(a) -> None:
+    from lithrim_bench.runtime.council.judge_optimize import pin_demos
+
     role = a.judge_def["role"]
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
-    src = opt_dir / f"compiled_demos_dspy3b_{role}.json"
-    score = json.load((opt_dir / f"score_optimized_dspy3b_{role}.json").open())
-    candidate = score.get("graded")
-    sidecar = a.workspace_out / f"compiled_demos_dspy3b_{role}.score.json"
-    pinned = json.load(sidecar.open()).get("graded") if sidecar.exists() else None
-    verdict = pin_gate(candidate, pinned, force=getattr(a, "force_pin", False))
-    a.workspace_out.mkdir(parents=True, exist_ok=True)
-    shutil.copy(src, a.workspace_out / src.name)
-    sidecar.write_text(json.dumps({"graded": candidate, "source": str(src)}, indent=2))
-    print(f"{verdict}: {src.name} -> {a.workspace_out}")
+    pin = pin_demos(opt_dir, a.workspace_out, role, force=getattr(a, "force_pin", False))
+    if not pin["pinned"]:
+        raise SystemExit(pin["reason"] + " (--force-pin to override)")
+    print(f"{pin['reason'].replace('by force', 'by --force-pin')}: {pin['demos_path']}")
 
 
 def step_after(a) -> None:

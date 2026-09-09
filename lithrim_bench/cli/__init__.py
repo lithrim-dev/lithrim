@@ -74,6 +74,7 @@ def _loop_arguments(ap: argparse.ArgumentParser, *, needs_model: bool) -> None:
     ap.add_argument("--contrastive", action="store_true", help="enrich: trainset from both sides")
     ap.add_argument("--force-pin", dest="force_pin", action="store_true")
     ap.add_argument("--confirm-cost", action="store_true", help="acknowledge a paid step")
+    ap.add_argument("--resume-job", default=None, help="continue an interrupted grade job by id")
 
 
 def _prepare(a: argparse.Namespace, todo: tuple[str, ...]) -> None:

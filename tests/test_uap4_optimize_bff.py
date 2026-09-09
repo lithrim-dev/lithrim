@@ -57,10 +57,12 @@ _FAKE_RESULT = {
 def client(tmp_path, monkeypatch):
     calls: list[dict] = []
 
-    def _fake_optimize_via_subprocess(*, role, ws, collections_db, out_dir, limit, case_ids=None):
+    def _fake_optimize_via_subprocess(
+        *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False
+    ):
         calls.append({
             "role": role, "limit": limit, "collections_db": str(collections_db),
-            "case_ids": case_ids,
+            "case_ids": case_ids, "force_pin": force_pin,
         })
         return {**_FAKE_RESULT, "role": role}
 
@@ -146,3 +148,88 @@ def test_optimize_wires_role_and_limit_to_the_subprocess(client):
     call = client._optimize_calls[0]
     assert call["role"] == _ROLE
     assert call["limit"] == 2
+
+
+# ── PIN-GATE-2: the optimizer's files are STAGED; only a non-regressing set is pinned ──
+def _fake_spawn_writing(result: dict, graded: float):
+    """A subprocess.run stand-in that writes the optimizer's files into the ``--out`` dir the
+    BFF passes (the staging dir) and emits the JSON envelope, like scripts/optimize_judge.py."""
+
+    def _run(cmd, env=None, **kw):
+        out = Path(cmd[cmd.index("--out") + 1])
+        role = cmd[cmd.index("--role") + 1]
+        out.mkdir(parents=True, exist_ok=True)
+        tag = f"dspy3b_{role}"
+        (out / f"compiled_demos_{tag}.json").write_text(json.dumps([{"artifact": "x"}]))
+        (out / f"score_optimized_{tag}.json").write_text(json.dumps({"graded": graded}))
+        return SimpleNamespace(
+            returncode=0, stdout="__OPTIMIZE_JSON__" + json.dumps({**result, "role": role}), stderr=""
+        )
+
+    return _run
+
+
+def _real_optimize(monkeypatch, tmp_path, graded: float, *, force_pin=False):
+    monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: None)
+    monkeypatch.setattr(bff.subprocess, "run", _fake_spawn_writing(_FAKE_RESULT, graded))
+    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    return bff._optimize_via_subprocess(
+        role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
+        limit=None, force_pin=force_pin,
+    )
+
+
+def test_a_losing_optimize_never_lands_demos_in_the_workspace(monkeypatch, tmp_path):
+    from lithrim_bench.runtime.council.judge_optimize import load_compiled_demos
+
+    (tmp_path / "out").mkdir()
+    # a pinned set from an earlier round scored 0.8 on held-out
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.json").write_text(json.dumps([{"artifact": "old"}]))
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(json.dumps({"graded": 0.8}))
+    res = _real_optimize(monkeypatch, tmp_path, graded=0.7)
+    assert res["delta"]["graded"] == -0.1  # the honest loss is still reported
+    assert res["pin"]["pinned"] is False and res["pin"]["pinned_graded"] == 0.8
+    demos = load_compiled_demos(tmp_path / "out", _ROLE)
+    assert demos and getattr(demos[0], "artifact", None) == "old"  # the next grade keeps the old set
+    assert (tmp_path / "out" / "optimize" / _ROLE / f"compiled_demos_dspy3b_{_ROLE}.json").exists()
+
+
+def test_a_first_or_winning_optimize_pins_and_records_the_score(monkeypatch, tmp_path):
+    res = _real_optimize(monkeypatch, tmp_path, graded=0.7)
+    assert res["pin"]["pinned"] is True and res["pin"]["candidate_graded"] == 0.7
+    sidecar = tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json"
+    assert json.loads(sidecar.read_text())["graded"] == 0.7
+    assert (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.json").exists()
+
+
+def test_force_pin_overrides_the_gate_with_an_explicit_reason(monkeypatch, tmp_path):
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(json.dumps({"graded": 0.8}))
+    res = _real_optimize(monkeypatch, tmp_path, graded=0.7, force_pin=True)
+    assert res["pin"]["pinned"] is True and "force" in res["pin"]["reason"].lower()
+
+
+def test_endpoint_threads_force_pin_to_the_seam(monkeypatch, tmp_path):
+    """Self-contained on the neutral _core pack (no healthcare pack needed)."""
+    calls: list[dict] = []
+
+    def _fake(*, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False):
+        calls.append({"role": role, "force_pin": force_pin})
+        return {**_FAKE_RESULT, "role": role, "pin": {"pinned": not force_pin}}
+
+    monkeypatch.setattr(bff, "_optimize_via_subprocess", _fake)
+    monkeypatch.setattr(
+        bff.workspace, "get_active_workspace",
+        lambda: SimpleNamespace(name="ws", pack="_core", packs_dir=None),
+    )
+    bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
+    bff.app.dependency_overrides[bff.get_collections_db] = lambda: tmp_path / "cases.db"
+    try:
+        c = TestClient(bff.app)
+        res = c.post(f"/v1/judges/{_ROLE}/optimize", json={"confirm": True, "force_pin": True})
+        assert res.status_code == 200 and calls[-1]["force_pin"] is True
+        assert "pin" in res.json()
+        c.post(f"/v1/judges/{_ROLE}/optimize", json={"confirm": True})
+        assert calls[-1]["force_pin"] is False
+    finally:
+        bff.app.dependency_overrides.clear()

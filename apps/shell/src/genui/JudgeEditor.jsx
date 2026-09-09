@@ -38,8 +38,16 @@ const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
    A win renders the lift; a ≤0 Δ renders EXPLICITLY as a loss (R1 — never hidden,
    never spun; the accept-gate is never loosened to manufacture a win). */
 function OptimizeDelta({ result }) {
-  const { baseline = {}, optimized = {}, delta = {}, n_train, n_heldout, compile_config = {} } = result;
+  const { baseline = {}, optimized = {}, delta = {}, n_train, n_heldout, compile_config = {}, pin = null } = result;
   const improved = (delta.graded ?? 0) > 0;
+  // PIN-GATE-2: the server decides whether the compiled demos reach the production judge (only a
+  // set that does not regress the pinned one). `pin` is absent on a pre-gate server: say nothing
+  // about binding rather than the old (false) "binding is the next step" line.
+  const pinLine = pin
+    ? pin.pinned
+      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : ""}.`
+      : "Not pinned: the previously pinned demos (or none) stay in force."
+    : null;
   const rows = [
     { k: "graded", label: "Graded (hard-accept)" },
     { k: "precision", label: "Precision" },
@@ -75,13 +83,18 @@ function OptimizeDelta({ result }) {
       </div>
       {improved ? (
         <span className="text-[11px]" style={{ color: "var(--teal)" }}>
-          ✓ optimize improved this judge (+{fmt(delta.graded)} held-out graded). Binding the compiled demos
-          back into the production judge is the next step (UAP-4-opt).
+          ✓ optimize improved this judge (+{fmt(delta.graded)} held-out graded).
         </span>
       ) : (
         <span data-testid="optimize-loss-note" className="text-[11px]" style={{ color: "var(--accent-ink)" }}>
           optimize did not improve this judge — the held-out score did not rise (Δ graded {sign(delta.graded ?? 0)}).
           A trainer, not a demo: the accept-gate is never loosened to manufacture a win.
+        </span>
+      )}
+      {pinLine && (
+        <span data-testid="optimize-pin-note" data-pinned={pin.pinned ? "yes" : "no"} className="text-[11px]"
+          style={{ color: pin.pinned ? "var(--teal)" : "var(--muted)" }}>
+          {pinLine}
         </span>
       )}
     </div>

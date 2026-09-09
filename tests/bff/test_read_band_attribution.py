@@ -132,7 +132,7 @@ def test_bff_never_reads_a_grounded_key_the_harness_does_not_write():
     fn = next(
         n
         for n in ast.walk(tree)
-        if isinstance(n, ast.FunctionDef) and n.name == "grade_cases_endpoint"
+        if isinstance(n, ast.FunctionDef) and n.name == "_grade_row"  # the cohort row builder
     )
     read = {
         node.args[0].value

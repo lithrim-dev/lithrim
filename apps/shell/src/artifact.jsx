@@ -590,6 +590,15 @@ function JudgeTab({ runStatus, runResult, runError, activeCase = null, agent = "
               <div style={{ minWidth: 0 }}>
                 <div className="judge-name">{reviewerLabel(v)}</div>
                 <div className="judge-model">{v.model || "—"}</div>
+                {/* SERVED-MODEL-2: what the provider actually served on THIS call, with latency
+                    and tokens — absent on legacy blobs / silent providers, shown when observed. */}
+                {(v.served_model || typeof v.latency_ms === "number" || (v.usage && v.usage.total_tokens)) && (
+                  <div className="judge-model" data-testid={`judge-served-${v.judge_role || i}`} style={{ color: "var(--muted)" }}>
+                    served {v.served_model || "version not reported"}
+                    {typeof v.latency_ms === "number" ? ` · ${(v.latency_ms / 1000).toFixed(1)} s${v.latency_source === "wall_clock" ? " (wall clock)" : ""}` : ""}
+                    {v.usage && v.usage.total_tokens ? ` · ${v.usage.total_tokens.toLocaleString()} tok` : ""}
+                  </div>
+                )}
               </div>
               <div className="judge-w">
                 <div className="k">vote</div>
