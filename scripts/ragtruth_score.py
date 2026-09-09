@@ -235,14 +235,19 @@ def main() -> int:
             f"{task:10s} {t['graded']:3d} {_fmt(rp)} {_fmt(rr)} {_fmt(rf)}   |       {_fmt(sp)} {_fmt(sr)} {_fmt(sf)}{note}"
         )
     vocab = None
-    if args.vocabulary:
+    if args.predictions:
+        print(
+            "\nper code: not applicable (the predictions are untyped spans; scored at response and "
+            "span level only)"
+        )
+    elif args.vocabulary:
         from lithrim_bench.harness.plugins import importer_vocabulary
 
         vocab = importer_vocabulary(args.vocabulary, pack="_core")
     print(
         f"\nper code (case level; judge raised vs human label{', ' + vocab.dataset + ' terms in brackets' if vocab else ''}):"
     )
-    for code in sorted(res["per_code"]):
+    for code in sorted(res["per_code"]) if not args.predictions else []:
         c = res["per_code"][code]
         p, r, f = _prf(c["tp"], c["fp"], c["fn"])
         term = (
@@ -253,7 +258,7 @@ def main() -> int:
         print(
             f"  {code}{term}: tp {c['tp']} fp {c['fp']} fn {c['fn']}  P {_fmt(p)} R {_fmt(r)} F1 {_fmt(f)}"
         )
-    if vocab:
+    if vocab and not args.predictions:
         print(
             f"  verdict rule: {vocab.verdict_rule.get(vocab.dataset)} == {vocab.verdict_rule.get('lithrim')}"
         )
