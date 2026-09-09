@@ -174,6 +174,13 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--slice", type=Path, required=True)
     ap.add_argument(
+        "--grade",
+        type=Path,
+        default=None,
+        help="score the runs named in a cohort grade file (grade_<tag>.json, its matrix rows' "
+        "run_id) instead of each case's latest run: re-scores a historical round",
+    )
+    ap.add_argument(
         "--predictions",
         type=Path,
         default=None,
@@ -194,6 +201,16 @@ def main() -> int:
     if args.predictions:
         audits = audits_from_predictions(args.predictions, rows)
         print(f"scoring predictions file {args.predictions} (untyped spans: no per-code rows)")
+    elif args.grade:
+        grade = json.loads(args.grade.read_text())
+        run_ids = {
+            r["case_id"]: r.get("run_id") for r in grade.get("matrix") or [] if r.get("run_id")
+        }
+        print(f"scoring the {len(run_ids)} runs named in {args.grade}")
+        for case in rows:
+            rid = run_ids.get(case["case_id"])
+            if rid:
+                audits[case["case_id"]] = _get(args.bff, f"/v1/runs/{rid}/audit")
     else:
         for case in rows:
             cid = case["case_id"]
