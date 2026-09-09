@@ -56,6 +56,28 @@ def test_manifest_is_a_real_contract():
     ).importers == ["importers/ragtruth.json"]
 
 
+def test_manifest_declares_the_case_paths_and_the_engine_reads_through_them():
+    """ENGINE-CLEAN-1: the engine never names a dataset. Where a case keeps its source id and
+    its gold spans is declared by the importer manifest (dotted paths); a case with no manifest
+    behind it still works through the neutral top-level ``source_id`` / ``gold_spans``."""
+    from lithrim_bench.harness.plugins import case_gold_spans, case_source_id
+
+    v = importer_vocabulary("ragtruth", pack="_core")
+    assert v.source_id_path == "ragtruth.source_id" and v.gold_spans_path == "ragtruth.labels"
+    shaped = {"case_id": "c", "ragtruth": {"source_id": "s7", "labels": [{"start": 0, "end": 1}]}}
+    assert case_source_id(shaped, pack="_core") == "s7"
+    assert case_gold_spans(shaped, pack="_core") == [{"start": 0, "end": 1}]
+    bare = {"case_id": "c", "source_id": "n1", "gold_spans": [{"text": "x"}]}
+    assert case_source_id(bare, pack="_core") == "n1"
+    assert case_gold_spans(bare, pack="_core") == [{"text": "x"}]
+    assert case_source_id({"case_id": "c"}, pack="_core") is None
+    assert case_gold_spans({"case_id": "c"}, pack="_core") is None
+    assert case_gold_spans({"case_id": "c", "ragtruth": {"labels": []}}, pack="_core") is None
+    # a manifest without the paths is valid (they are optional) and contributes nothing
+    m = ImporterManifest.model_validate({"id": "x", "dataset": "d", "label_types": {}})
+    assert m.source_id_path is None and m.gold_spans_path is None
+
+
 def test_open_closed_a_second_dataset_is_a_second_manifest(tmp_path, monkeypatch):
     """Zero engine edits: copy the core pack, add a manifest for another dataset, point
     LITHRIM_BENCH_PACKS_DIR at it, and the registry discovers both."""

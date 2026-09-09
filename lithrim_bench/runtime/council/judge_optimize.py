@@ -400,21 +400,30 @@ def build_manifest(
     role_prompt: str,
     model: str | None,
     demos: list[dict[str, Any]],
+    pack: str | None = None,
 ) -> dict[str, Any]:
     """PROVENANCE-1: everything a reader needs to reproduce or audit an optimize run from the
     result file alone: which rows trained, which were held out, the corpus bytes, the prompt
     the judge ran with, the model string, and where each demo came from. ``demo_source_ids``
-    must be a subset of ``train_case_ids`` for the run to be a clean (out-of-sample) optimize."""
+    must be a subset of ``train_case_ids`` for the run to be a clean (out-of-sample) optimize.
+    Source ids resolve through the pack's importer manifests (``source_id_path``), else the
+    neutral top-level ``source_id`` (ENGINE-CLEAN-1)."""
+    from lithrim_bench.harness.plugins import case_source_id
+
     train_ids = [str(_get(r, "case_id", "")) for r in train_rows]
     heldout_ids = [str(_get(r, "case_id", "")) for r in heldout_rows]
     sources = demo_sources(demos, train_rows)
+
+    def _source_ids(rows: list[dict[str, Any]]) -> list[str]:
+        return sorted({s for s in (case_source_id(r, pack=pack) for r in rows) if s})
+
     return {
         "corpus_path": str(corpus_path),
         "corpus_sha256": _sha256_file(corpus_path),
         "train_case_ids": train_ids,
         "heldout_case_ids": heldout_ids,
-        "train_source_ids": sorted({str(_get(_get(r, "ragtruth", {}) or {}, "source_id", "")) for r in train_rows} - {""}),
-        "heldout_source_ids": sorted({str(_get(_get(r, "ragtruth", {}) or {}, "source_id", "")) for r in heldout_rows} - {""}),
+        "train_source_ids": _source_ids(train_rows),
+        "heldout_source_ids": _source_ids(heldout_rows),
         "role": role,
         "role_prompt_sha256": _sha256_text(role_prompt),
         "model": model,

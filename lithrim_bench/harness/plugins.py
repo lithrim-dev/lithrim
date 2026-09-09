@@ -174,6 +174,12 @@ class ImporterManifest(BaseModel):
     # how an untyped dataset-side prediction (e.g. the paper's typeless span list) is named
     untyped_prediction_class: str = "prediction (untyped)"
     admissibility: str = "a dataset label term with no taxonomy code fails ingest"
+    # ENGINE-CLEAN-1: where an imported case keeps its dataset source id (the unit the optimizer
+    # keeps train/held-out disjoint on) and its gold evidence spans, as dotted paths into the
+    # case. Optional; a case with no manifest behind it uses the neutral top-level
+    # ``source_id`` / ``gold_spans`` (see ``case_source_id`` / ``case_gold_spans``).
+    source_id_path: str | None = None
+    gold_spans_path: str | None = None
 
     def code_for(self, label_type: str) -> str:
         """The taxonomy code for a dataset label term; a term with no code is an admissibility
@@ -214,6 +220,50 @@ def importer_vocabulary(dataset: str, *, pack: str | None = None) -> ImporterMan
         f"no kind:importer manifest declares dataset {dataset!r} in pack "
         f"{pack or 'active'!r}; add one under the pack's `importers` refs"
     )
+
+
+def _dig(obj: Any, path: str | None) -> Any:
+    if not path:
+        return None
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _case_field(case: Any, top_level: str, path_attr: str, pack: str | None) -> Any:
+    """ENGINE-CLEAN-1: read a case field the engine needs but a dataset may keep anywhere.
+    Every importer manifest of the pack is tried at its declared path first (a case shaped by
+    that importer resolves there); the neutral top-level key is the fallback, so a corpus with
+    no manifest behind it still works. Empty values count as absent; ``None`` when nowhere."""
+    if not isinstance(case, dict):
+        return None
+    try:
+        manifests = importer_plugins(pack)
+    except (FileNotFoundError, LookupError, ValueError):
+        manifests = []
+    for m in manifests:
+        value = _dig(case, getattr(m, path_attr))
+        if value not in (None, "", [], {}):
+            return value
+    value = case.get(top_level)
+    return None if value in (None, "", [], {}) else value
+
+
+def case_source_id(case: Any, *, pack: str | None = None) -> str | None:
+    """The dataset source id a case was generated from (``source_id_path`` of the pack's importer
+    manifests, else top-level ``source_id``); ``None`` when the case carries none."""
+    value = _case_field(case, "source_id", "source_id_path", pack)
+    return None if value is None else str(value)
+
+
+def case_gold_spans(case: Any, *, pack: str | None = None) -> list | None:
+    """The human gold evidence spans on a labeled case (``gold_spans_path`` of the pack's importer
+    manifests, else top-level ``gold_spans``); ``None`` when the case carries none."""
+    value = _case_field(case, "gold_spans", "gold_spans_path", pack)
+    return list(value) if isinstance(value, list) else None
 
 
 # ── the provider registry (D4) — Azure + BYO-Claude as kind:provider plugins ──────────────

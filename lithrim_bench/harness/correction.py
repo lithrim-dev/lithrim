@@ -264,6 +264,7 @@ def build_gold_mismatch(
     case_id: str | None = None,
     agent_id: str | None = None,
     pipeline_run_id: str | None = None,
+    pack: str | None = None,
 ) -> dict[str, Any] | None:
     """One ``gold-mismatch/1`` record per graded LABELED case: what the label says, what the
     system raised (the judges' own codes and the codes standing after the floor), the miss
@@ -275,7 +276,10 @@ def build_gold_mismatch(
     ``agrees_with_gold`` is the strict read: no missed code, no spurious code, verdict match.
     The label basis rides the row (``by_construction`` | ``human_annotated``) so a training
     export can tier on it; ``split`` rides too when the case carries one, so a test-side row
-    is never mistaken for a calibration row."""
+    is never mistaken for a calibration row. Gold spans resolve through the pack's importer
+    manifests (``gold_spans_path``), else the neutral top-level ``gold_spans`` (ENGINE-CLEAN-1)."""
+    from .plugins import case_gold_spans
+
     expected_raw = case.get("expected_safety_flags")
     if not isinstance(expected_raw, list):
         return None
@@ -290,9 +294,7 @@ def build_gold_mismatch(
     final_v = str(final_verdict or "").upper()
     blocked = final_v in ("BLOCK", "REJECT", "WARN", "NEEDS_REVIEW")
     verdict_match = (gold_verdict in ("BLOCK", "REJECT")) == blocked
-    gold_spans = case.get("gold_spans")
-    if gold_spans is None:
-        gold_spans = ((case.get("ragtruth") or {}).get("labels")) or None
+    gold_spans = case_gold_spans(case, pack=pack)
     return {
         "schema_version": GOLD_SCHEMA_VERSION,
         **_identity(case_id, agent_id, pipeline_run_id),

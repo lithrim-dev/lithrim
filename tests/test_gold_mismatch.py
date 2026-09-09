@@ -9,6 +9,7 @@ query. And the log was one repo-level file for every workspace."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from lithrim_bench.harness.correction import (
     DEFAULT_CORRECTIONS_PATH,
@@ -95,6 +96,31 @@ def test_builder_strict_agreement_miss_and_spurious():
         )
         is None
     )
+
+
+def test_gold_spans_resolve_through_the_importer_manifest(tmp_path):
+    """ENGINE-CLEAN-1: a dataset-shaped case (spans where its importer manifest says) yields the
+    same gold row as a case carrying the neutral top-level ``gold_spans``; correction.py names
+    no dataset."""
+    import lithrim_bench.harness.correction as corr
+
+    ont = load_ontology(HOUSE_ONTOLOGY_PATH)
+    case = {
+        "case_id": "c2",
+        "expected_safety_flags": ["A"],
+        "ragtruth": {"source_id": "s1", "labels": [{"start": 4, "end": 9, "text": "quote"}]},
+    }
+    row = build_gold_mismatch(
+        case=case,
+        result=_result(["A"]),
+        final_verdict="BLOCK",
+        active_codes=["A"],
+        ontology=ont,
+        pack="_core",
+    )
+    assert row["gold_spans"] == [{"start": 4, "end": 9, "text": "quote"}]
+    src = Path(corr.__file__).read_text().lower().replace("ragtruth_5827", "")
+    assert "ragtruth" not in src, "the engine must not name a dataset"
 
 
 def test_corrections_path_is_workspace_scoped_with_a_legacy_default(tmp_path):

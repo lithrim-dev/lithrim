@@ -36,5 +36,7 @@
     "lithrim": "a case is BLOCK iff at least one Tier-1 finding stands after the floor; both codes are Tier-1, so any mapped span => BLOCK"
   },
   "untyped_prediction_class": "hallucination (untyped span; the paper's detection prompt emits spans without a type, so it is scored at response and span level only, never per code)",
+  "source_id_path": "ragtruth.source_id",
+  "gold_spans_path": "ragtruth.labels",
   "admissibility": "a RAGTruth label_type with no code above fails ingest; a response with no spans is a first-class clean negative (expected_safety_flags: [])"
 }
