@@ -1,14 +1,9 @@
-#!/usr/bin/env python
 """The running spend line: sum ``cost_tokens`` over an agent's runs in the trail and price
-them at LIST price for the served model (Azure OpenAI list, USD per 1M tokens). Reads the run
-trail (``GET /v1/runs``); a run with no cost record contributes nothing (never fabricated).
-
-Usage: python scripts/ragtruth_spend.py [--bff URL] [--agent ws0_default] [--since ISO]
-"""
+them at LIST price for the served model (USD per 1M tokens). A run with no cost record
+contributes nothing (never fabricated)."""
 
 from __future__ import annotations
 
-import argparse
 import json
 import urllib.request
 
@@ -60,8 +55,7 @@ def spend(runs: list[dict]) -> dict:
 
 def runs_from_db(db_path: str, agent: str) -> list[dict]:
     """Every run blob for ``agent`` straight from the workspace's collections SQLite (the
-    runs endpoint caps at 500 rows). Projects the fields ``spend`` reads: cost_tokens, the
-    served model (first vote), ts."""
+    runs endpoint caps at 500 rows). Projects the fields ``spend`` reads."""
     import sqlite3
 
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -83,8 +77,7 @@ def runs_from_db(db_path: str, agent: str) -> list[dict]:
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
+def add_arguments(ap) -> None:
     ap.add_argument("--bff", default="http://localhost:8787")
     ap.add_argument("--agent", default="ws0_default")
     ap.add_argument("--since", default=None, help="ISO timestamp; count runs at or after it")
@@ -95,7 +88,9 @@ def main() -> int:
         help="read the workspace collections SQLite directly (no 500-row cap), e.g. "
         "out/workspaces/default/collections.sqlite",
     )
-    a = ap.parse_args()
+
+
+def cmd_spend(a) -> int:
     if a.db:
         runs = runs_from_db(a.db, a.agent)
     else:
@@ -109,7 +104,3 @@ def main() -> int:
     out["runs"] = len(runs)
     print(json.dumps(out))
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

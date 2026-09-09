@@ -1,14 +1,24 @@
 #!/usr/bin/env python
-"""Build the RAGTruth queue sample (``samples/ragtruth/cases.jsonl``) from the public corpus.
+"""The RAGTruth dataset adapter: the two upstream JSONL files -> ``_core``-shaped eval cases.
 
 RAGTruth (Wu et al., arXiv:2401.00396; github.com/ParticleMedia/RAGTruth; MIT): 17,790 LLM
 responses over 2,965 sources (news summarization, MS MARCO QA, Yelp data-to-text), with
 HUMAN span-level hallucination labels. Every response links to its source, so the reviewer's
 grounding checks have something to check against.
 
-This script is SAMPLE-CORPUS PREPARATION, not an ingest path: it reads the two upstream JSONL
-files and writes five ``_core``-shaped cases. The five are chosen by a STATED, deterministic
-rule (below), not by hand, so the pick is disclosed rather than curated:
+This file is the dataset-specific half of the loop, kept OUT of the engine. ``lithrim load``
+calls its adapter contract (``download``, ``slice_cases``, ``calibration_corpus``); the label
+map is the ``kind: importer`` manifest ``packs/_core/importers/ragtruth.json``, so an unmapped
+label type fails admissibility (LookupError), never a silent drop.
+
+Labels are HUMAN-ANNOTATED (``ground_truth_basis: human_annotated``), not by construction:
+``expected_safety_flags`` maps RAGTruth label types onto the ``_core`` taxonomy
+(Conflict -> SOURCE_CONTRADICTION, Baseless Info -> UNSUPPORTED_ASSERTION) and the original
+spans ride along under ``ragtruth.labels`` as the evidence for that mapping (the manifest's
+``gold_spans_path``).
+
+Run directly, it also builds the tracked queue sample (``samples/ragtruth/cases.jsonl``): five
+cases chosen by a STATED, deterministic rule, not by hand:
 
   eligible = test split, quality == good, source text < 3500 chars, no medical vocabulary and
              none of the CE data-surface sweep needles (the tree keeps that data on its
@@ -20,15 +30,10 @@ rule (below), not by hand, so the pick is disclosed rather than curated:
   R5  QA, the floor PASSES with >= 2 values checked, no human labels
   within each rule: shortest source first, then lowest response id
 
-Labels are HUMAN-ANNOTATED (``ground_truth_basis: human_annotated``), not by construction:
-``expected_safety_flags`` maps RAGTruth label types onto the ``_core`` taxonomy
-(Conflict -> SOURCE_CONTRADICTION, Baseless Info -> UNSUPPORTED_ASSERTION) and the original
-spans ride along under ``ragtruth.labels`` as the evidence for that mapping.
-
 Usage:
-    python scripts/ragtruth_cases.py --data-dir /path/with/response.jsonl+source_info.jsonl
-    python scripts/ragtruth_cases.py --download   # fetch the two files into out/ragtruth/ first
-    python scripts/ragtruth_cases.py --slice 15 --out out/ragtruth/slice.jsonl   # a grading slice
+    python examples/ragtruth/adapter.py --data-dir /path/with/response.jsonl+source_info.jsonl
+    python examples/ragtruth/adapter.py --download   # fetch the two files into out/ragtruth/ first
+    python examples/ragtruth/adapter.py --slice 15 --out out/ragtruth/slice.jsonl   # a grading slice
 """
 
 from __future__ import annotations
@@ -40,10 +45,11 @@ import sys
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from lithrim_bench.harness.plugins import importer_vocabulary  # noqa: E402
 from lithrim_bench.verification import (  # noqa: E402
     STRUCTURAL_CONFORMANCE,
     TOOL_VALUE_GROUNDING,
@@ -53,6 +59,7 @@ from lithrim_bench.verification import (  # noqa: E402
 )
 
 RAW_BASE = "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/main/dataset/"
+FILES = ("response.jsonl", "source_info.jsonl")
 OUT = REPO_ROOT / "samples/ragtruth/cases.jsonl"
 MAX_SOURCE_CHARS = 3500
 _MEDICAL = re.compile(
@@ -71,13 +78,9 @@ _SWEEP_NEEDLES = (
 def _needle_free(*texts: str) -> bool:
     low = " ".join(texts).lower()
     return not any(n in low for n in _SWEEP_NEEDLES)
-# IMPORTER-1: the label map is a DECLARED artifact (packs/_core/importers/ragtruth.json, a
-# kind:importer plugin), consumed here at ingest and by the scorer/exporter outbound. An
-# unmapped label type fails admissibility (LookupError), never a silent drop.
-from lithrim_bench.harness.plugins import importer_vocabulary  # noqa: E402
+
 
 _VOCAB = importer_vocabulary("ragtruth", pack="_core")
-_LABEL_TO_FLAG = dict(_VOCAB.label_types)
 _SPEC = VerificationSpec(
     tool=TOOL_VALUE_GROUNDING,
     applies_to_flags=("SOURCE_CONTRADICTION",),
@@ -296,6 +299,49 @@ def build_calib_corpus(
     return [calib_row(c, "calibration") for c in calib] + [calib_row(c, "test") for c in test]
 
 
+# --------------------------------------------------------------------------- #
+# the adapter contract ``lithrim load`` calls (lithrim_bench/cli/adapters.py)
+# --------------------------------------------------------------------------- #
+def download(data_dir: Path) -> None:
+    """Fetch the two upstream files into ``data_dir`` when absent (no-op when present)."""
+    data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for name in FILES:
+        p = data_dir / name
+        if not p.exists():
+            print(f"downloading {RAW_BASE + name} -> {p}", flush=True)
+            urllib.request.urlretrieve(RAW_BASE + name, p)
+
+
+def load_corpus(data_dir: Path) -> tuple[list[dict], dict[str, dict]]:
+    data_dir = Path(data_dir)
+    for name in FILES:
+        if not (data_dir / name).exists():
+            raise SystemExit(f"{data_dir / name} missing; download the RAGTruth dataset files first")
+    responses = [json.loads(line) for line in (data_dir / "response.jsonl").open()]
+    sources = {
+        d["source_id"]: d
+        for d in (json.loads(line) for line in (data_dir / "source_info.jsonl").open())
+    }
+    return responses, sources
+
+
+def slice_cases(
+    data_dir: Path, *, per_task: int, split: str = "test", natural: bool = True
+) -> list[dict]:
+    responses, sources = load_corpus(data_dir)
+    out = []
+    for rule, case in select_slice(responses, sources, per_task, natural=natural, split=split):
+        case["ragtruth"]["selection_rule"] = rule
+        out.append(case)
+    return out
+
+
+def calibration_corpus(data_dir: Path, *, per_task: int, test_cases: list[dict]) -> list[dict]:
+    responses, sources = load_corpus(data_dir)
+    return build_calib_corpus(responses, sources, per_task, test_cases)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", type=Path, default=REPO_ROOT / "out/ragtruth")
@@ -324,18 +370,9 @@ def main() -> int:
              "(same per-task count and rule as --slice --natural) + this slice as `test`",
     )
     args = ap.parse_args()
-    args.data_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("response.jsonl", "source_info.jsonl"):
-        p = args.data_dir / name
-        if not p.exists():
-            if not args.download:
-                sys.exit(f"{p} missing; pass --download or --data-dir")
-            urllib.request.urlretrieve(RAW_BASE + name, p)
-    responses = [json.loads(line) for line in (args.data_dir / "response.jsonl").open()]
-    sources = {
-        d["source_id"]: d
-        for d in (json.loads(line) for line in (args.data_dir / "source_info.jsonl").open())
-    }
+    if args.download:
+        download(args.data_dir)
+    responses, sources = load_corpus(args.data_dir)
     picked = (
         select_slice(responses, sources, args.slice, natural=args.natural, split=args.split)
         if args.slice

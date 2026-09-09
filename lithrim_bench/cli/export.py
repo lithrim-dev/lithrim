@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Export the graded corpus as labeled rows, with a split gate and label-basis tiers (EXPORT-1).
 
 One row per graded labeled case, assembled from three sources the harness already writes:
@@ -19,33 +18,31 @@ Split gate: ``--split calibration`` (the training export) refuses to include any
 in a training format. A row with no split is excluded from a training export.
 
 Training filter (``--filter``): ``supervised`` keeps rows whose codes agree with the human
-label (the RAGTruth setting; absent in an unlabeled workflow) plus floor-proved rows;
-``silver`` keeps floor-proved and judge-only rows without a human check (the customer setting).
+label plus floor-proved rows; ``silver`` keeps floor-proved and judge-only rows without a
+human check (the unlabeled-workflow setting).
 
-Formats: ``generic`` (everything, JSONL) | ``paper`` (the RAGTruth train.py shape: reference,
-response, labels[{start,end,text,label_type}] in the paper's two classes) | ``azure-chat``
-(Azure OpenAI fine-tuning JSONL: the Appendix D prompt as the user turn, the paper's
-{"hallucination list": [...]} as the assistant turn).
-
-Usage:
-    python scripts/ragtruth_export.py --slice out/ragtruth/slice_train.jsonl --split calibration \\
-        --filter supervised --format azure-chat --out out/ragtruth/export/train_azure.jsonl
+Formats: ``generic`` (everything, JSONL) | ``paper`` (reference, response, labels
+[{start,end,text,label_type}] in the dataset's training classes) | ``chat`` (chat-completion
+fine-tuning JSONL: a prompt module's ``fill_prompt(task, source, response)`` as the user turn,
+``{"hallucination list": [...]}`` as the assistant turn).
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
+import importlib.util
 import json
 import sqlite3
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from lithrim_bench.harness.plugins import (
+    case_generator_model,
+    case_gold_spans,
+    case_source_id,
+    case_task,
+)
 
-PAPER_CLASS = {"SOURCE_CONTRADICTION": "conflict", "UNSUPPORTED_ASSERTION": "baseless info"}
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def locate(quote: str, text: str) -> tuple[int, int] | None:
@@ -66,7 +63,7 @@ def label_tier(floor_enforced: bool, expert_confirmed: bool) -> str:
     return "judge-only"
 
 
-def build_row(case: dict, gold: dict, blob: dict | None, vocab) -> dict:
+def build_row(case: dict, gold: dict, blob: dict | None, vocab, *, pack: str | None = None) -> dict:
     """One export row (the generic shape). ``blob`` may be None for a run no longer on file."""
     artifact = case["artifacts"][0]["content"]
     grounded = (blob or {}).get("grounded") or {}
@@ -115,9 +112,9 @@ def build_row(case: dict, gold: dict, blob: dict | None, vocab) -> dict:
     tier = label_tier(floor_enforced, expert_confirmed=False)
     return {
         "case_id": case["case_id"],
-        "source_id": case["ragtruth"].get("source_id"),
-        "task_type": case["ragtruth"].get("task_type"),
-        "generator_model": case["ragtruth"].get("model"),
+        "source_id": case_source_id(case, pack=pack),
+        "task_type": case_task(case, pack=pack),
+        "generator_model": case_generator_model(case, pack=pack),
         # the slice declares the split (a case ingested before the field existed has none)
         "split": case.get("split") or gold.get("split"),
         "ground_truth_basis": gold.get("ground_truth_basis") or case.get("ground_truth_basis"),
@@ -145,7 +142,7 @@ def build_row(case: dict, gold: dict, blob: dict | None, vocab) -> dict:
         "floor": floor,
         "human": {
             "codes": gold.get("expected_codes") or [],
-            "spans": gold.get("gold_spans") or case["ragtruth"].get("labels") or [],
+            "spans": gold.get("gold_spans") or case_gold_spans(case, pack=pack) or [],
         },
         "agrees_with_gold": gold.get("agrees_with_gold"),
         "missed": gold.get("missed") or [],
@@ -166,9 +163,10 @@ def passes_filter(row: dict, mode: str) -> bool:
     raise ValueError(mode)
 
 
-def training_labels(row: dict, mode: str) -> list[dict]:
+def training_labels(row: dict, mode: str, vocab) -> list[dict]:
     """The spans a training row carries: the human spans under ``supervised`` (they are the
-    label), the judge's located spans under ``silver`` (there is no human label to use)."""
+    label), the judge's located spans under ``silver`` (there is no human label to use). The
+    class name is the dataset's own (``training_classes`` on the importer manifest)."""
     if mode == "supervised":
         out = []
         for lab in row["human"]["spans"]:
@@ -178,7 +176,9 @@ def training_labels(row: dict, mode: str) -> list[dict]:
                     "start": lab.get("start"),
                     "end": lab.get("end"),
                     "text": lab.get("text"),
-                    "label_type": PAPER_CLASS.get(code, (lab.get("label_type") or "").lower()),
+                    "label_type": vocab.training_class_for(code)
+                    if code
+                    else (lab.get("label_type") or "").lower(),
                 }
             )
         return out
@@ -187,29 +187,27 @@ def training_labels(row: dict, mode: str) -> list[dict]:
             "start": s["start"],
             "end": s["end"],
             "text": s["quote"],
-            "label_type": PAPER_CLASS.get(s.get("code") or "", "conflict"),
+            "label_type": vocab.training_class_for(s["code"]) if s.get("code") else "",
         }
         for s in row["judge"]["spans"]
         if s["located"]
     ]
 
 
-def to_paper(row: dict, mode: str) -> dict:
+def to_paper(row: dict, mode: str, vocab) -> dict:
     return {
         "reference": row["source"],
         "response": row["response"],
         "task_type": row["task_type"],
-        "labels": training_labels(row, mode),
+        "labels": training_labels(row, mode, vocab),
         "label_basis": row["label_basis"],
         "case_id": row["case_id"],
     }
 
 
-def to_azure_chat(row: dict, mode: str, fill_prompt) -> dict:
-    labels = training_labels(row, mode)
+def to_chat(row: dict, mode: str, fill_prompt, vocab) -> dict:
+    labels = training_labels(row, mode, vocab)
     src = json.loads(row["source"]) if row["source_kind"] == "record" else row["source"]
-    if row["task_type"] == "QA" and not isinstance(src, dict):
-        src = {"question": "", "passages": row["source"]}
     prompt = fill_prompt(row["task_type"], src, row["response"])
     target = json.dumps(
         {"hallucination list": [lab["text"] for lab in labels if lab.get("text")]},
@@ -240,10 +238,18 @@ def load_inputs(a):
     return cases, gold, blobs
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+def _load_fill_prompt(spec: str):
+    path = Path(spec) if Path(spec).exists() else REPO_ROOT / spec
+    module_spec = importlib.util.spec_from_file_location("lithrim_prompt_module", path)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    fn = getattr(module, "fill_prompt", None)
+    if not callable(fn):
+        raise SystemExit(f"{spec} defines no fill_prompt(task, source, response)")
+    return fn
+
+
+def add_arguments(ap) -> None:
     ap.add_argument("--slice", type=Path, required=True)
     ap.add_argument(
         "--corrections",
@@ -257,47 +263,58 @@ def main() -> int:
     )
     ap.add_argument("--split", choices=["calibration", "test"], required=True)
     ap.add_argument("--filter", choices=["all", "supervised", "silver"], default="supervised")
-    ap.add_argument("--format", choices=["generic", "paper", "azure-chat"], default="generic")
-    ap.add_argument("--vocabulary", default="ragtruth")
+    ap.add_argument("--format", choices=["generic", "paper", "chat"], default="generic")
+    ap.add_argument(
+        "--prompt-module",
+        default=None,
+        help="with --format chat: a .py file defining fill_prompt(task, source, response)",
+    )
+    ap.add_argument(
+        "--vocabulary",
+        default=None,
+        help="the kind:importer dataset (default: the pack's only importer)",
+    )
+    ap.add_argument("--pack", default=None)
     ap.add_argument("--out", type=Path, required=True)
-    a = ap.parse_args()
-    from lithrim_bench.harness.plugins import importer_vocabulary
 
-    vocab = importer_vocabulary(a.vocabulary, pack="_core")
+
+def cmd_export(a) -> int:
+    from .scoring import resolve_vocabulary
+
+    vocab = resolve_vocabulary(a.vocabulary, a.pack)
+    if vocab is None:
+        raise SystemExit("no importer manifest to export against; pass --vocabulary")
     cases, gold, blobs = load_inputs(a)
     if a.format != "generic" and a.split != "calibration":
         raise SystemExit(
             "REFUSING: a training format may only be written from the calibration split"
         )
+    fill_prompt = None
+    if a.format == "chat":
+        if not a.prompt_module:
+            raise SystemExit("--format chat needs --prompt-module")
+        fill_prompt = _load_fill_prompt(a.prompt_module)
     rows = []
     for cid, case in cases.items():
         g = gold.get(cid)
         if g is None:
             continue  # ungraded: no row, never fabricated
-        row = build_row(case, g, blobs.get(g.get("pipeline_run_id")), vocab)
+        row = build_row(case, g, blobs.get(g.get("pipeline_run_id")), vocab, pack=a.pack)
         if row["split"] != a.split:
             continue  # the split gate
         if passes_filter(row, a.filter):
             rows.append(row)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    if a.format == "azure-chat":
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location(
-            "pp", REPO_ROOT / "scripts/ragtruth_paper_prompt.py"
-        )
-        pp = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(pp)
     with a.out.open("w") as fh:
         for row in rows:
             if a.format == "generic":
                 out = row
             elif a.format == "paper":
-                out = to_paper(row, a.filter)
+                out = to_paper(row, a.filter, vocab)
             else:
-                out = to_azure_chat(row, a.filter, pp.fill_prompt)
+                out = to_chat(row, a.filter, fill_prompt, vocab)
             fh.write(json.dumps(out, ensure_ascii=False) + "\n")
-    tiers = {}
+    tiers: dict[str, int] = {}
     for r in rows:
         tiers[r["label_basis"]] = tiers.get(r["label_basis"], 0) + 1
     manifest = {
@@ -327,7 +344,3 @@ def main() -> int:
         )
     )
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

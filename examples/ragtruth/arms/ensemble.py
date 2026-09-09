@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""ARM E1, model diversity: the ragtruth_detector prompt on three models, one council (ENSEMBLE-1).
+"""EXPERIMENT ARM (kept as a measured record of the RAGTruth pilot, not a product verb).
+
+ARM E1, model diversity: the ragtruth_detector prompt on three models, one council (ENSEMBLE-1).
 
 Three judge roles carry the SAME lens and role prompt; each is bound to its own deployment on
 the workspace's Foundry resource: ``ragtruth_detector`` stays on gpt-4.1 with the round-1 demos
@@ -7,7 +9,8 @@ pinned, the two new roles run BARE (the pinned demos file is keyed by role, so t
 none). Consensus is the frozen mechanism, untouched. Nothing here edits the engine: roles are
 authored through POST /v1/judges, bound through POST /v1/provider/config (the per-role
 LITHRIM_LLM_*_<ROLE> binding, openai_compatible on the resource's ``/openai/v1`` route), and
-rostered through POST /v1/council/roster; the grade and the scorer are the cycle's own.
+rostered through POST /v1/council/roster; the grade and the scorer are the product loop's own
+(``lithrim_bench.cli.loop`` / ``lithrim score``).
 
 Sub-commands:
   roster    author the two extra roles, bind them (one ~16-token probe each), set the roster
@@ -18,16 +21,15 @@ Sub-commands:
 
 Usage:
     set -a; . ./.provider_env; set +a
-    python scripts/ragtruth_ensemble.py roster
-    python scripts/ragtruth_ensemble.py grade --tag e1 --confirm-cost
-    python scripts/ragtruth_ensemble.py report --tag e1 --baseline v4
-    python scripts/ragtruth_ensemble.py restore
+    python examples/ragtruth/arms/ensemble.py roster
+    python examples/ragtruth/arms/ensemble.py grade --tag e1 --confirm-cost
+    python examples/ragtruth/arms/ensemble.py report --tag e1 --baseline v4
+    python examples/ragtruth/arms/ensemble.py restore
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import sqlite3
@@ -35,31 +37,31 @@ import sys
 import urllib.error
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from lithrim_bench.cli import loop as cycle  # noqa: E402
+from lithrim_bench.cli.spend import LIST_PRICE as _CORE_LIST_PRICE  # noqa: E402
 
-def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, REPO_ROOT / "scripts" / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-cycle = _load("ragtruth_cycle")
+# The judge definition the arm replicates across models (role, lens, role prompt).
+_JUDGE = json.loads(
+    (Path(__file__).resolve().parents[1] / "judge.ragtruth_detector.json").read_text()
+)
+ROLE = _JUDGE["role"]
+LENS = _JUDGE["lens_codes"]
+ROLE_PROMPT = _JUDGE["role_prompt"]
 
 # USD per 1M tokens (input, output), list price as published for the deployment family; the
 # report labels every cost line as list-price and names the table it used.
 LIST_PRICE = {
-    **{k: v for k, v in getattr(_load("ragtruth_spend"), "LIST_PRICE", {}).items()},
+    **_CORE_LIST_PRICE,
     "mistral-large-3": (2.00, 6.00),
     "llama-4-maverick-17b-128e-instruct-fp8": (0.25, 1.00),
 }
 
 MEMBERS = [
-    {"role": cycle.ROLE, "provider": "azure", "model": "gpt-4.1", "demos": "round-1 pinned"},
+    {"role": ROLE, "provider": "azure", "model": "gpt-4.1", "demos": "round-1 pinned"},
     {
         "role": "ragtruth_detector_mistral",
         "provider": "openai_compatible",
@@ -241,9 +243,9 @@ def cmd_roster(a) -> None:
     for m in members[1:]:
         body = {
             "role": m["role"],
-            "lens_codes": cycle.LENS,
+            "lens_codes": LENS,
             "owned_codes": [],
-            "role_prompt": cycle.ROLE_PROMPT,
+            "role_prompt": ROLE_PROMPT,
         }
         try:
             cycle._post(a.bff, "/v1/judges?rationale=RAGTruth%20ensemble%20E1", body, timeout=120)
@@ -269,7 +271,7 @@ def cmd_roster(a) -> None:
         cycle._put(
             a.bff,
             f"/v1/judges/{m['role']}?rationale=pin%20the%20ensemble%20member%27s%20model",
-            {"model": m["model"], "assigned_flags": cycle.LENS, "validator_refs": []},
+            {"model": m["model"], "assigned_flags": LENS, "validator_refs": []},
         )
     roster = [m["role"] for m in members]
     cycle._post(a.bff, "/v1/council/roster", {"agent": a.agent, "roster": roster}, timeout=120)
@@ -311,10 +313,8 @@ def cmd_report(a) -> None:
 
 
 def cmd_restore(a) -> None:
-    cycle._post(
-        a.bff, "/v1/council/roster", {"agent": a.agent, "roster": [cycle.ROLE]}, timeout=120
-    )
-    print(f"roster = [{cycle.ROLE}]")
+    cycle._post(a.bff, "/v1/council/roster", {"agent": a.agent, "roster": [ROLE]}, timeout=120)
+    print(f"roster = [{ROLE}]")
 
 
 def main() -> int:
@@ -343,7 +343,8 @@ def main() -> int:
     )
     ap.add_argument("--confirm-cost", action="store_true")
     a = ap.parse_args()
-    a.workspace_out = REPO_ROOT / "out/workspaces/default/out"
+    a.pack = None
+    a.vocabulary = "ragtruth"
     a.tag = a.tag or a.arm
     {"roster": cmd_roster, "grade": cmd_grade, "report": cmd_report, "restore": cmd_restore}[a.cmd](
         a

@@ -7,9 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
-    "ragtruth_ensemble", REPO / "scripts/ragtruth_ensemble.py"
+    "ragtruth_ensemble", REPO / "examples/ragtruth/arms/ensemble.py"
 )
 en = importlib.util.module_from_spec(_spec)
 sys.modules["ragtruth_ensemble"] = en
@@ -102,7 +102,7 @@ def test_v1_route_and_members_are_the_same_lens_on_three_models():
         == "https://res.services.ai.azure.com/openai/v1"
     )
     roles = [m["role"] for m in en.MEMBERS]
-    assert roles[0] == en.cycle.ROLE and len(set(roles)) == 3
+    assert roles[0] == en.ROLE == "ragtruth_detector" and len(set(roles)) == 3
     assert {m["provider"] for m in en.MEMBERS[1:]} == {"openai_compatible"}
 
 
@@ -110,7 +110,13 @@ def test_grade_refuses_without_confirm(tmp_path):
     s = tmp_path / "slice.jsonl"
     s.write_text('{"case_id": "c1"}\n')
     out = subprocess.run(
-        [sys.executable, str(REPO / "scripts/ragtruth_ensemble.py"), "grade", "--slice", str(s)],
+        [
+            sys.executable,
+            str(REPO / "examples/ragtruth/arms/ensemble.py"),
+            "grade",
+            "--slice",
+            str(s),
+        ],
         capture_output=True,
         text=True,
         cwd=REPO,

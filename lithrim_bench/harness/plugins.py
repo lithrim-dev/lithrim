@@ -180,6 +180,20 @@ class ImporterManifest(BaseModel):
     # ``source_id`` / ``gold_spans`` (see ``case_source_id`` / ``case_gold_spans``).
     source_id_path: str | None = None
     gold_spans_path: str | None = None
+    # the dataset facet a scorecard groups by (a task type) and the model that generated the
+    # graded response, as dotted paths; top-level ``task`` / ``model`` are the fallbacks.
+    task_path: str | None = None
+    generator_model_path: str | None = None
+    # taxonomy code -> the class name a training export in the dataset's own format uses;
+    # a code with no entry falls back to its first dataset term, lower-cased.
+    training_classes: dict[str, str] = Field(default_factory=dict)
+
+    def training_class_for(self, code: str) -> str:
+        """The dataset-side class a training row labels a span with for ``code``."""
+        if code in self.training_classes:
+            return self.training_classes[code]
+        terms = self.terms_for(code)
+        return terms[0].lower() if terms else code.lower()
 
     def code_for(self, label_type: str) -> str:
         """The taxonomy code for a dataset label term; a term with no code is an admissibility
@@ -264,6 +278,26 @@ def case_gold_spans(case: Any, *, pack: str | None = None) -> list | None:
     manifests, else top-level ``gold_spans``); ``None`` when the case carries none."""
     value = _case_field(case, "gold_spans", "gold_spans_path", pack)
     return list(value) if isinstance(value, list) else None
+
+
+def case_task(case: Any, *, pack: str | None = None) -> str | None:
+    """The dataset task a case belongs to (``task_path``, else top-level ``task``)."""
+    value = _case_field(case, "task", "task_path", pack)
+    return None if value is None else str(value)
+
+
+def case_generator_model(case: Any, *, pack: str | None = None) -> str | None:
+    """The model that generated the graded response (``generator_model_path``, else top-level
+    ``model``)."""
+    value = _case_field(case, "model", "generator_model_path", pack)
+    return None if value is None else str(value)
+
+
+def default_importer(pack: str | None = None) -> ImporterManifest | None:
+    """The one importer manifest a pack declares, when it declares exactly one; ``None`` when
+    there are none or several (then a caller must name the dataset)."""
+    manifests = importer_plugins(pack)
+    return manifests[0] if len(manifests) == 1 else None
 
 
 # ── the provider registry (D4) — Azure + BYO-Claude as kind:provider plugins ──────────────

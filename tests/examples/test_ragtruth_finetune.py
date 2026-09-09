@@ -8,9 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
-    "ragtruth_finetune", REPO / "scripts/ragtruth_finetune.py"
+    "ragtruth_finetune", REPO / "examples/ragtruth/arms/finetune_azure.py"
 )
 ft = importlib.util.module_from_spec(_spec)
 sys.modules["ragtruth_finetune"] = ft
@@ -67,7 +67,7 @@ def test_submit_and_bind_refuse_without_confirm():
     out = subprocess.run(
         [
             sys.executable,
-            str(REPO / "scripts/ragtruth_finetune.py"),
+            str(REPO / "examples/ragtruth/arms/finetune_azure.py"),
             "submit",
             "--training-file-id",
             "file-x",
@@ -89,7 +89,7 @@ def test_submit_and_bind_refuse_without_confirm():
         and "training_usd_list" in out.stderr
     )
     out = subprocess.run(
-        [sys.executable, str(REPO / "scripts/ragtruth_finetune.py"), "bind", "--deployment", "d"],
+        [sys.executable, str(REPO / "examples/ragtruth/arms/finetune_azure.py"), "bind", "--deployment", "d"],
         capture_output=True,
         text=True,
         cwd=REPO,
@@ -114,7 +114,7 @@ def test_estimate_is_the_only_networkless_paid_free_path(tmp_path):
     out = subprocess.run(
         [
             sys.executable,
-            str(REPO / "scripts/ragtruth_finetune.py"),
+            str(REPO / "examples/ragtruth/arms/finetune_azure.py"),
             "estimate",
             "--training",
             str(f),

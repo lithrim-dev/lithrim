@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-"""The paper's own prompted baseline on our model: RAGTruth Appendix D, verbatim, per task.
+"""EXPERIMENT ARM (kept as a measured record of the RAGTruth pilot, not a product verb).
+
+The paper's own prompted baseline on our model: RAGTruth Appendix D, verbatim, per task.
 
 This is the paper's METHOD reproduced outside the council: one direct model call per response
 with the Appendix D detection prompt for its task (typos included), temperature 0, the output
 parsed from the paper's ``{"hallucination list": [...]}`` format. No role framing, no demos,
 no DSPy signature, no floor, no audit: the row it produces is "the paper's prompt on our
 deployment", scored response-level (any span => hallucinated) and span-level by
-``scripts/ragtruth_score.py --predictions``. The spans are UNTYPED (the paper's format carries
+``lithrim score --slice ... --predictions ...``. The spans are UNTYPED (the paper's format carries
 no type), so there is no per-code row; the importer manifest names that class.
 
 Population: ``--slice`` (a Lithrim slice file, e.g. the 450 natural cut) or ``--population
@@ -15,8 +17,8 @@ Resumable: ids already in ``--out`` are skipped. Refusals and parse failures are
 row (``error``) and reported as their own count, never dropped.
 
 Usage:
-    python scripts/ragtruth_paper_prompt.py --slice out/ragtruth/slice_full.jsonl --out out/ragtruth/paper_prompt_450.jsonl
-    python scripts/ragtruth_paper_prompt.py --population test --out out/ragtruth/paper_prompt_2700.jsonl
+    python examples/ragtruth/arms/paper_prompt.py --slice out/ragtruth/slice_full.jsonl --out out/ragtruth/paper_prompt_450.jsonl
+    python examples/ragtruth/arms/paper_prompt.py --population test --out out/ragtruth/paper_prompt_2700.jsonl
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 

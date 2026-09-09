@@ -22,7 +22,7 @@ reviewer with.
   cases are a sample corpus, not benchmark gold: the by-construction discipline that governs the
   shipped benchmark packs does not apply to imported human labels, and the file says so.
 
-## Selection rule (`scripts/ragtruth_cases.py`)
+## Selection rule (`examples/ragtruth/adapter.py`)
 
 Eligible: RAGTruth test split, `quality == good`, source under 3,500 characters, no medical
 vocabulary and none of the CE data-surface sweep words (that data lives only on the tree's sanctioned surfaces). Then, shortest source
@@ -37,7 +37,7 @@ first and lowest id on ties:
 | R5 | question answering | the floor checks at least two values, all present; no human label |
 
 The rule, not a person, picked the five. Re-run the script against the upstream files to
-reproduce the pick (`python scripts/ragtruth_cases.py --download`).
+reproduce the pick (`python examples/ragtruth/adapter.py --download`).
 
 ## What the reviewer can honestly claim on this corpus
 

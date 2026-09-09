@@ -1,22 +1,32 @@
-"""``scripts/ragtruth_cycle.py``: the offline parts of the clean optimize path.
+"""``lithrim`` (lithrim_bench.cli): the offline parts of the product loop.
 
-The measurement gate and the floor reading are what make a scorecard quotable; both must be
-right without a stack up."""
+The measurement gate, the pin gate, and the floor reading are what make a scorecard quotable;
+all must be right without a stack up. Nothing in the CLI names a dataset: the adapter slices
+it and the judge file defines the reviewer."""
 
 from __future__ import annotations
 
-import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from lithrim_bench.cli import adapters
+from lithrim_bench.cli import loop as rc
+
 REPO = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("ragtruth_cycle", REPO / "scripts/ragtruth_cycle.py")
-rc = importlib.util.module_from_spec(_spec)
-sys.modules["ragtruth_cycle"] = rc
-_spec.loader.exec_module(rc)
+JUDGE = REPO / "examples/ragtruth/judge.ragtruth_detector.json"
+
+
+def _cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "lithrim_bench.cli", *args],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
 
 
 def test_measurement_gate_refuses_replays_and_reports_refusals():
@@ -48,24 +58,67 @@ def test_floor_reading_attributes_post_minus_no_floor_not_pre_minus_post():
 
 
 def test_dry_run_prints_the_step_plan_without_a_stack():
-    out = subprocess.run(
-        [
-            sys.executable,
-            str(REPO / "scripts/ragtruth_cycle.py"),
-            "--model",
-            "azure/x-2025-01-01",
-            "--from",
-            "optimize",
-            "--to",
-            "after",
-            "--dry-run",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=REPO,
-    ).stdout
-    assert "plan: optimize -> pin -> after" in out and "azure/x-2025-01-01" in out
+    out = _cli(
+        "run",
+        "--model",
+        "azure/x-2025-01-01",
+        "--judge",
+        str(JUDGE),
+        "--from",
+        "optimize",
+        "--to",
+        "after",
+        "--dry-run",
+    )
+    assert out.returncode == 0, out.stderr
+    assert "plan: optimize -> pin -> after" in out.stdout and "azure/x-2025-01-01" in out.stdout
+
+
+def test_product_verbs_alias_the_steps_and_load_needs_no_model():
+    out = _cli(
+        "run",
+        "--model",
+        "azure/x-2025-01-01",
+        "--judge",
+        str(JUDGE),
+        "--from",
+        "grade",
+        "--to",
+        "calibrate",
+        "--dry-run",
+    )
+    assert out.returncode == 0 and "plan: before -> optimize -> pin" in out.stdout
+    assert rc.plan("load", "load") == ("download",)
+    assert rc.plan("load", "regrade") == rc.STEPS[: rc.STEPS.index("after") + 1]
+    load = _cli("load", "--adapter", "examples/ragtruth/adapter.py", "--dry-run")
+    assert load.returncode == 0 and "plan: download -> slice -> ingest" in load.stdout
+
+
+def test_a_paid_verb_refuses_without_confirm_cost_and_a_judge():
+    paid = _cli("grade", "--model", "azure/x-2025-01-01", "--judge", str(JUDGE))
+    assert paid.returncode != 0 and "REFUSING a paid step (before)" in paid.stderr
+    nojudge = _cli("configure", "--model", "azure/x-2025-01-01")
+    assert nojudge.returncode != 0 and "needs --judge" in nojudge.stderr
+
+
+def test_judge_file_is_a_contract(tmp_path):
+    j = rc.load_judge(JUDGE)
+    assert j["role"] == "ragtruth_detector" and len(j["lens_codes"]) == 2 and j["owned_codes"] == []
+    bad = tmp_path / "j.json"
+    bad.write_text(json.dumps({"role": "x"}))
+    with pytest.raises(SystemExit, match="lacks"):
+        rc.load_judge(bad)
+
+
+def test_adapter_loader_fails_closed_on_a_module_without_the_contract(tmp_path):
+    good = adapters.load_adapter("examples/ragtruth/adapter.py")
+    assert callable(good.slice_cases) and callable(good.calibration_corpus)
+    bad = tmp_path / "bad.py"
+    bad.write_text("def slice_cases(*a, **k):\n    return []\n")
+    with pytest.raises(TypeError, match="calibration_corpus"):
+        adapters.load_adapter(str(bad))
+    with pytest.raises(FileNotFoundError):
+        adapters.load_adapter("no/such/adapter.py")
 
 
 def test_arm_attestation_accepts_a_dated_id_or_an_attested_deployment_only():
@@ -85,16 +138,14 @@ def test_arm_attestation_accepts_a_dated_id_or_an_attested_deployment_only():
 
 
 def test_summarize_optimize_reads_the_three_files(tmp_path):
-    import json
-
-    role = rc.ROLE
+    role = "some_judge"
     (tmp_path / f"result_dspy3b_{role}.json").write_text(
         json.dumps(
             {
                 "n_heldout": 150,
                 "compile_config": {"n_demos_bootstrapped": 4, "n_positive_demos": 4},
                 "manifest": {
-                    "demo_source_ids": ["ragtruth_1"],
+                    "demo_source_ids": ["case_1"],
                     "demos_out_of_sample": True,
                     "model": "azure/x",
                 },
@@ -105,7 +156,7 @@ def test_summarize_optimize_reads_the_three_files(tmp_path):
         (tmp_path / f"score_{k}_dspy3b_{role}.json").write_text(
             json.dumps({"graded": g, "precision": p, "recall": r, "errors": e})
         )
-    line = rc.summarize_optimize(tmp_path)
+    line = rc.summarize_optimize(tmp_path, role)
     assert "4 demos (4 positive)" in line and "out_of_sample=True" in line
     assert "graded 0.52 -> 0.76" in line and "refused 5 -> 4" in line and "azure/x" in line
 
@@ -161,7 +212,7 @@ def test_enriched_ids_are_calibration_mismatches_with_a_missed_code_newest_row_w
             "case_id": "c2",
             "agrees_with_gold": False,
             "missed": [],
-        },  # spurious only
+        },
         {
             "schema_version": "gold-mismatch/1",
             "case_id": "c3",
@@ -173,14 +224,14 @@ def test_enriched_ids_are_calibration_mismatches_with_a_missed_code_newest_row_w
             "case_id": "t1",
             "agrees_with_gold": False,
             "missed": ["A"],
-        },  # test side
+        },
         {"schema_version": "ws3-floor-correction/1", "case_id": "c4"},
         {
             "schema_version": "gold-mismatch/1",
             "case_id": "c1",
             "agrees_with_gold": True,
             "missed": [],
-        },  # newer: fixed
+        },
         {
             "schema_version": "gold-mismatch/1",
             "case_id": "c5",
@@ -205,27 +256,6 @@ def test_pin_gate_refuses_a_regressing_demo_set_unless_forced():
     with pytest.raises(SystemExit, match="REFUSING to pin"):
         rc.pin_gate(0.69, 0.76)
     assert "force-pin OVER" in rc.pin_gate(0.69, 0.76, force=True)
-
-
-def test_product_verbs_alias_the_cycle_steps():
-    out = subprocess.run(
-        [
-            sys.executable,
-            str(REPO / "scripts/ragtruth_cycle.py"),
-            "--model",
-            "azure/x-2025-01-01",
-            "--from",
-            "grade",
-            "--to",
-            "calibrate",
-            "--dry-run",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=REPO,
-    ).stdout
-    assert "plan: before -> optimize -> pin" in out
 
 
 def test_contrastive_ids_interleave_missed_and_spurious_cases_in_equal_number():
@@ -268,3 +298,11 @@ def test_contrastive_ids_interleave_missed_and_spurious_cases_in_equal_number():
     ]
     out = rc.contrastive_calibration_ids(gold, {"m1", "m2", "s1", "ok"})
     assert out == ["m1", "s1"]  # one pair: the first miss with the first spurious-only case
+
+
+def test_the_cli_package_names_no_dataset():
+    import re
+
+    src = "".join(p.read_text().lower() for p in (REPO / "lithrim_bench/cli").glob("*.py"))
+    src = re.sub(r"examples/ragtruth/\S*", "", src)  # usage lines may point at the example
+    assert "ragtruth" not in src, "the CLI must not name a dataset outside an example path"

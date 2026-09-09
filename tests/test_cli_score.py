@@ -1,37 +1,29 @@
-"""``scripts/ragtruth_score.py``: response-level and span-level scoring against human spans.
+"""``lithrim score``: response-level and span-level scoring against human spans.
 
 The span metric is the paper's: a predicted span is a hit when it overlaps a human span by
 character range; a human span is recalled when any predicted span overlaps it. Judge
 evidence arrives as quotes, so locating a quote in the response is part of the contract, and
-a quote that cannot be located is a counted miss, never a silent drop."""
+a quote that cannot be located is a counted miss, never a silent drop. Where a case keeps its
+task and spans is the importer manifest's business; a bare case uses the top-level fields."""
 
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
-
-REPO = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("ragtruth_score", REPO / "scripts/ragtruth_score.py")
-rs = importlib.util.module_from_spec(_spec)
-sys.modules["ragtruth_score"] = rs
-_spec.loader.exec_module(rs)
+from lithrim_bench.cli import scoring as rs
 
 RESPONSE = "The venue opens at 6 pm and offers valet parking. Reservations are accepted."
 
 
-def _case(cid: str, task: str, labels: list[tuple[int, int]]) -> dict:
-    return {
-        "case_id": cid,
-        "artifacts": [{"type": "generated_response", "content": RESPONSE}],
-        "ragtruth": {
-            "task_type": task,
-            "labels": [
-                {"start": s, "end": e, "text": RESPONSE[s:e], "label_type": "Evident Conflict"}
-                for s, e in labels
-            ],
-        },
-    }
+def _case(cid: str, task: str, labels: list[tuple[int, int]], *, bare: bool = False) -> dict:
+    spans = [
+        {"start": s, "end": e, "text": RESPONSE[s:e], "label_type": "Evident Conflict"}
+        for s, e in labels
+    ]
+    case = {"case_id": cid, "artifacts": [{"type": "generated_response", "content": RESPONSE}]}
+    if bare:
+        case.update({"task": task, "gold_spans": spans})
+    else:
+        case["ragtruth"] = {"task_type": task, "labels": spans}
+    return case
 
 
 def _audit(verdict: str, quotes: list[str], role: str = "ragtruth_detector") -> dict:
@@ -40,6 +32,7 @@ def _audit(verdict: str, quotes: list[str], role: str = "ragtruth_detector") -> 
         "judges": [
             {
                 "judge_role": role,
+                "findings": ["SOURCE_CONTRADICTION"] if quotes else [],
                 "evidence": [
                     {
                         "judge": role,
@@ -79,7 +72,7 @@ def test_scores_response_level_and_span_overlap_per_task():
         "c": _audit("BLOCK", ["definitely not in the text"]),
         "d": _audit("PASS", []),
     }
-    res = rs.score(rows, audits)
+    res = rs.score(rows, audits, pack="_core")
     d2t, qa, summ, overall = (res["per_task"][k] for k in ("Data2txt", "QA", "Summary", "OVERALL"))
     assert (d2t["r_tp"], d2t["r_fp"], d2t["r_fn"]) == (1, 1, 0)
     assert (d2t["s_tp"], d2t["s_fp"], d2t["s_fn"]) == (1, 1, 0)
@@ -91,13 +84,35 @@ def test_scores_response_level_and_span_overlap_per_task():
     assert overall.get("refused", 0) == 0
 
 
+def test_a_bare_case_scores_through_the_top_level_fields_and_renders_both_vocabularies():
+    valet = (RESPONSE.index("valet"), RESPONSE.index("valet") + len("valet parking"))
+    rows = [_case("a", "Data2txt", [valet], bare=True), _case("b", "Other", [], bare=True)]
+    audits = {"a": _audit("BLOCK", ["valet parking"]), "b": _audit("PASS", [])}
+    res = rs.score(rows, audits, pack="_core")
+    assert res["per_task"]["Data2txt"]["s_tp"] == 1 and res["per_task"]["Other"]["r_tn"] == 1
+    text = rs.render(res, rs.resolve_vocabulary("ragtruth", "_core"))
+    assert (
+        "Data2txt" in text and "SOURCE_CONTRADICTION [Evident Conflict / Subtle Conflict]" in text
+    )
+    assert "verdict rule:" in text
+    assert "per code: not applicable" in rs.render(res, None, predictions=True)
+
+
 def test_a_failed_judge_call_is_counted_as_refused_per_task():
     rows = [_case("a", "QA", [(0, 3)])]
     audit = _audit("PASS", [])
     audit["judges"][0]["errors"] = ["ContentPolicyViolationError"]
-    res = rs.score(rows, {"a": audit})
+    res = rs.score(rows, {"a": audit}, pack="_core")
     qa = res["per_task"]["QA"]
     assert (
         qa["refused"] == 1 and qa["r_fn"] == 1
     )  # refused positive: a miss, and visible as refused
     assert rs._prf(2, 1, 0) == (2 / 3, 1.0, 0.8)
+
+
+def test_audits_for_a_grade_file_name_exactly_its_runs(monkeypatch):
+    calls = []
+    monkeypatch.setattr(rs.http, "get", lambda bff, path: calls.append(path) or {"path": path})
+    grade = {"matrix": [{"case_id": "a", "run_id": "r1"}, {"case_id": "b"}]}
+    audits = rs.audits_for_grade("http://x", grade, [{"case_id": "a"}, {"case_id": "b"}])
+    assert calls == ["/v1/runs/r1/audit"] and list(audits) == ["a"]

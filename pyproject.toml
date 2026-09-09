@@ -110,6 +110,8 @@ Research = "https://doi.org/10.5281/zenodo.21270268"
 [project.scripts]
 # DOGFOOD-1 D4: the CI/CD eval-pack gate (reliability >= threshold AND never_events == 0).
 lithrim-pack = "lithrim_bench.harness.pack_gate:main"
+# The product loop from a terminal (load, configure, grade, calibrate, regrade, export, score).
+lithrim = "lithrim_bench.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -23,7 +23,10 @@ A pack lists its importers in `pack.json`:
 | `metadata_fields` | no | Dataset facets carried as case metadata, never as codes (RAGTruth's Evident/Subtle). |
 | `untyped_prediction_class` | no | How an untyped dataset-side prediction is named when scoring. |
 | `source_id_path` | no | Dotted path into a case to the dataset source id the response was generated from. The optimizer keeps its train and held-out splits disjoint on this id. |
-| `gold_spans_path` | no | Dotted path into a case to the human evidence spans behind its labels. The gold-mismatch correction row carries them. |
+| `gold_spans_path` | no | Dotted path into a case to the human evidence spans behind its labels. The gold-mismatch correction row carries them; the scorer reads them as gold. |
+| `task_path` | no | Dotted path to the dataset task a case belongs to; the scorecard groups by it. Fallback: top-level `task`. |
+| `generator_model_path` | no | Dotted path to the model that generated the graded response. Fallback: top-level `model`. |
+| `training_classes` | no | Taxonomy code to the class name a training export in the dataset's own format uses (`lithrim export --format paper|chat`). A code with no entry falls back to its first dataset term, lower-cased. |
 | `citation`, `license`, `version`, `tier` | no | Provenance. `tier` defaults to the pack's tier. |
 
 ## Where the engine reads a case's source id and gold spans
@@ -44,10 +47,27 @@ level of each case. Empty values count as absent.
 
 1. Write `packs/<pack>/importers/<dataset>.json` with at least `id`, `dataset`, `label_types`.
 2. Add the ref to the pack's `pack.json` `importers` list.
-3. If the cases keep their source id or spans under a nested key, declare `source_id_path` and
-   `gold_spans_path`; otherwise emit them top-level.
+3. If the cases keep their source id, task, or spans under a nested key, declare the `*_path`
+   fields; otherwise emit them top-level (`source_id`, `task`, `model`, `gold_spans`).
 4. Cases the importer produces carry `ground_truth_basis: human_annotated` and the mapped codes in
    `expected_safety_flags`; a response with no labels is a first-class clean negative
    (`expected_safety_flags: []`).
+5. Write an adapter (below) so `lithrim load` can cut the dataset into cases.
 
 The open/closed test for this is `tests/test_importer_manifest.py`.
+
+## The adapter: how `lithrim load` reads a dataset
+
+The manifest is data. Turning a dataset's own files into cases is code, and that code lives
+outside the engine: a Python file (or importable module) the CLI loads with
+`--adapter path/to/adapter.py` (`lithrim_bench/cli/adapters.py`). It must define:
+
+| Function | Contract |
+|---|---|
+| `download(data_dir)` | Optional. Fetch the dataset's files into `data_dir` when absent. |
+| `slice_cases(data_dir, *, per_task, split, natural)` | Return eval cases (the pack's case shape) for `split` (`test` or `train`); `train` rows carry `split: calibration`. |
+| `calibration_corpus(data_dir, *, per_task, test_cases)` | Return the optimizer corpus: calibration rows from the train side plus the given test cases, source-disjoint. |
+
+The reference adapter is `examples/ragtruth/adapter.py`; the reviewer it pairs with is
+`examples/ragtruth/judge.ragtruth_detector.json` (`lithrim configure --judge`). The loop is
+described in `examples/ragtruth/README.md`.

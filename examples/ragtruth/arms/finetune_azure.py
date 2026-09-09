@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-"""Fine-tune a grader on the exported corpus (Azure OpenAI), then bind it back (FINETUNE-1).
+"""EXPERIMENTAL: an Azure OpenAI fine-tuning client used once for the pilot; not part of the
+product (Lithrim is not a training platform). Kept as a measured record, not a product verb.
+
+Fine-tune a grader on the exported corpus (Azure OpenAI), then bind it back (FINETUNE-1).
 
 Sub-commands, in the order a run goes:
   estimate   token count + list-price cost of a training file; no network, no spend
@@ -12,18 +15,18 @@ Sub-commands, in the order a run goes:
 
 What the trained model learns: the paper's Appendix D prompt -> {"hallucination list": [...]}
 (the export's azure-chat format). Its faithful evaluation is therefore
-``scripts/ragtruth_paper_prompt.py --deployment <name>``, scored by ragtruth_score.py
---predictions. Binding it as a council judge is a SECOND row and a mismatch by construction
+``python examples/ragtruth/arms/paper_prompt.py --deployment <name>``, scored by
+``lithrim score --slice ... --predictions ...``. Binding it as a council judge is a SECOND row and a mismatch by construction
 (the council asks the DSPy signature, not the prompt it was trained on); the report says so.
 
 Credentials come from the workspace's provider file (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY),
 never from the manifest. Usage:
     set -a; . ./.provider_env; set +a
-    python scripts/ragtruth_finetune.py estimate --training out/ragtruth/export/train_supervised_azure-chat.jsonl
-    python scripts/ragtruth_finetune.py upload   --training ... [--validation ...]
-    python scripts/ragtruth_finetune.py submit   --training-file-id file-... --base gpt-4.1-mini-2025-04-14 --epochs 3 --confirm-cost
-    python scripts/ragtruth_finetune.py status   --job ftjob-...
-    python scripts/ragtruth_finetune.py bind     --deployment my-ft-deployment --role trained_grader
+    python examples/ragtruth/arms/finetune_azure.py estimate --training out/ragtruth/export/train_supervised_azure-chat.jsonl
+    python examples/ragtruth/arms/finetune_azure.py upload   --training ... [--validation ...]
+    python examples/ragtruth/arms/finetune_azure.py submit   --training-file-id file-... --base gpt-4.1-mini-2025-04-14 --epochs 3 --confirm-cost
+    python examples/ragtruth/arms/finetune_azure.py status   --job ftjob-...
+    python examples/ragtruth/arms/finetune_azure.py bind     --deployment my-ft-deployment --role trained_grader
 """
 
 from __future__ import annotations
@@ -37,7 +40,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 API_VERSION = os.environ.get("LITHRIM_FT_API_VERSION", "2025-04-01-preview")
 # USD per 1M training tokens, list price (Azure OpenAI fine-tuning); hosting is per hour on top.
 TRAINING_PRICE = {"gpt-4.1-mini": 5.00, "gpt-4.1": 25.00, "gpt-4o-mini": 3.00, "gpt-4o": 25.00}

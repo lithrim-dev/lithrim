@@ -1,20 +1,19 @@
-"""``scripts/ragtruth_cases.py --slice N``: a deterministic, stratified per-task grading slice.
+"""``examples/ragtruth/adapter.py``: a deterministic, stratified per-task grading slice.
 
 Unlike the five-rule tracked sample, the slice is experiment data under ``out/`` (a labeled
 cohort to grade and score against RAGTruth's human spans). It must be reproducible from the
-upstream files alone: lowest ids first, one response per source, half labeled / half clean."""
+upstream files alone: lowest ids first, one response per source, half labeled / half clean.
+The adapter also satisfies the ``lithrim load`` contract."""
 
 from __future__ import annotations
 
-import importlib.util
-import sys
+import json
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("ragtruth_cases", REPO / "scripts/ragtruth_cases.py")
-rc = importlib.util.module_from_spec(_spec)
-sys.modules["ragtruth_cases"] = rc
-_spec.loader.exec_module(rc)
+from lithrim_bench.cli.adapters import load_adapter
+
+REPO = Path(__file__).resolve().parents[2]
+rc = load_adapter(str(REPO / "examples/ragtruth/adapter.py"))
 
 
 def _corpus():
@@ -49,6 +48,29 @@ def _corpus():
     return responses, sources
 
 
+def _train_rows(sources, per_task, start=1000):
+    extra = []
+    rid = start
+    for task in ("QA", "Summary", "Data2txt"):
+        for i in range(per_task):
+            sid = f"train-{task}-{i}"
+            info = {"k": "v"} if task == "Data2txt" else f"train text {task} {i}"
+            sources[sid] = {"source_id": sid, "task_type": task, "source_info": info, "prompt": ""}
+            rid += 1
+            extra.append(
+                {
+                    "id": str(rid),
+                    "source_id": sid,
+                    "model": "model-a",
+                    "split": "train",
+                    "quality": "good",
+                    "response": f"train resp {rid}",
+                    "labels": [],
+                }
+            )
+    return extra
+
+
 def test_slice_is_stratified_one_per_source_and_lowest_ids():
     responses, sources = _corpus()
     picked = rc.select_slice(responses, sources, per_task=4)
@@ -68,9 +90,7 @@ def test_slice_balances_generating_models_within_a_pool():
     for r in responses:  # make every response labeled and alternate three models by id
         r["labels"] = [{"start": 0, "end": 4, "text": "resp", "label_type": "Evident Conflict"}]
         r["model"] = ("m1", "m2", "m3")[int(r["id"]) % 3]
-    picked = rc.select_slice(
-        responses, sources, per_task=6
-    )  # 3 labeled picks; the clean pool is empty
+    picked = rc.select_slice(responses, sources, per_task=6)  # 3 labeled picks; clean pool empty
     qa = [c["ragtruth"]["model"] for rule, c in picked if rule == "slice:QA"]
     assert len(qa) == 3 and sorted(qa.count(m) for m in ("m1", "m2", "m3")) == [1, 1, 1]
 
@@ -88,36 +108,8 @@ def test_natural_slice_keeps_the_corpus_rate_and_one_per_source():
 
 def test_calib_corpus_is_source_disjoint_and_task_interleaved():
     responses, sources = _corpus()
-    # give the corpus a train split: mirror every test source as a distinct train source
-    train_sources = {}
-    extra = []
-    rid = 1000
-    for task in ("QA", "Summary", "Data2txt"):
-        for i in range(4):
-            sid = f"train-{task}-{i}"
-            info = {"k": "v"} if task == "Data2txt" else f"train text {task} {i}"
-            train_sources[sid] = {
-                "source_id": sid,
-                "task_type": task,
-                "source_info": info,
-                "prompt": "",
-            }
-            rid += 1
-            extra.append(
-                {
-                    "id": str(rid),
-                    "source_id": sid,
-                    "model": "model-a",
-                    "split": "train",
-                    "quality": "good",
-                    "response": f"train resp {rid}",
-                    "labels": [],
-                }
-            )
-    sources.update(train_sources)
-    test_only = [
-        r for r in responses if r["split"] == "test"
-    ]  # drop the planted train copy of QA-0
+    extra = _train_rows(sources, 4)
+    test_only = [r for r in responses if r["split"] == "test"]  # drop the planted train copy
     test_cases = [c for _, c in rc.select_slice(test_only, sources, per_task=4, natural=True)]
     rows = rc.build_calib_corpus(test_only + extra, sources, 4, test_cases)
     calib = [r for r in rows if r["split"] == "calibration"]
@@ -146,28 +138,8 @@ def test_calib_corpus_refuses_a_source_on_both_sides():
 
 def test_train_split_slice_carries_the_calibration_marker_and_matches_the_calib_corpus():
     responses, sources = _corpus()
-    extra = []
-    rid = 2000
-    for task in ("QA", "Summary", "Data2txt"):
-        for i in range(3):
-            sid = f"train-{task}-{i}"
-            info = {"k": "v"} if task == "Data2txt" else f"train text {task} {i}"
-            sources[sid] = {"source_id": sid, "task_type": task, "source_info": info, "prompt": ""}
-            rid += 1
-            extra.append(
-                {
-                    "id": str(rid),
-                    "source_id": sid,
-                    "model": "model-a",
-                    "split": "train",
-                    "quality": "good",
-                    "response": f"train resp {rid}",
-                    "labels": [],
-                }
-            )
-    test_only = [
-        r for r in responses if r["split"] == "test"
-    ]  # drop the planted train copy of QA-0
+    extra = _train_rows(sources, 3, start=2000)
+    test_only = [r for r in responses if r["split"] == "test"]
     train_cases = [
         c for _, c in rc.select_slice(test_only + extra, sources, 3, natural=True, split="train")
     ]
@@ -179,3 +151,23 @@ def test_train_split_slice_carries_the_calibration_marker_and_matches_the_calib_
     assert {r["case_id"] for r in calib_rows if r["split"] == "calibration"} == {
         c["case_id"] for c in train_cases
     }
+
+
+def test_the_adapter_contract_reads_the_two_upstream_files(tmp_path):
+    """What ``lithrim load`` calls: slice_cases and calibration_corpus over a data dir."""
+    responses, sources = _corpus()
+    extra = _train_rows(sources, 2, start=3000)
+    test_only = [r for r in responses if r["split"] == "test"]
+    (tmp_path / "response.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in test_only + extra) + "\n"
+    )
+    (tmp_path / "source_info.jsonl").write_text(
+        "\n".join(json.dumps(s) for s in sources.values()) + "\n"
+    )
+    cases = rc.slice_cases(tmp_path, per_task=2, split="test", natural=True)
+    assert len(cases) == 6 and all(c["split"] == "test" for c in cases)
+    assert all(c["ragtruth"]["selection_rule"].startswith("slice:") for c in cases)
+    rows = rc.calibration_corpus(tmp_path, per_task=2, test_cases=cases)
+    assert sum(1 for r in rows if r["split"] == "calibration") == 6
+    train = rc.slice_cases(tmp_path, per_task=2, split="train", natural=True)
+    assert len(train) == 6 and all(c["split"] == "calibration" for c in train)

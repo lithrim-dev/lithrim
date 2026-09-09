@@ -8,20 +8,16 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from lithrim_bench.cli import scoring as rs
+from lithrim_bench.cli import spend as sp
 
-
-def _load(name):
-    spec = importlib.util.spec_from_file_location(name, REPO / f"scripts/{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-pp = _load("ragtruth_paper_prompt")
-rs = _load("ragtruth_score")
-sp = _load("ragtruth_spend")
+REPO = Path(__file__).resolve().parents[2]
+_spec = importlib.util.spec_from_file_location(
+    "ragtruth_paper_prompt", REPO / "examples/ragtruth/arms/paper_prompt.py"
+)
+pp = importlib.util.module_from_spec(_spec)
+sys.modules["ragtruth_paper_prompt"] = pp
+_spec.loader.exec_module(pp)
 
 
 def test_prompts_are_the_paper_s_verbatim_including_its_typos():
@@ -120,7 +116,7 @@ def test_predictions_score_through_the_same_scorer(tmp_path):
     )
     audits = rs.audits_from_predictions(preds, rows)
     assert set(audits) == {"a", "b", "c"}
-    res = rs.score(rows, audits)
+    res = rs.score(rows, audits, pack="_core")
     d2t, qa = res["per_task"]["Data2txt"], res["per_task"]["QA"]
     assert (d2t["r_tp"], d2t["s_tp"]) == (1, 1)
     assert qa["r_fn"] == 1 and qa["refused"] == 1  # the refused positive is a miss, and visible
