@@ -137,9 +137,49 @@ def score(slice_rows: list[dict], audits: dict[str, dict]) -> dict:
     return {"per_task": per_task, "per_code": per_code, "unlocated": unlocated}
 
 
+def audits_from_predictions(path: Path, slice_rows: list[dict]) -> dict[str, dict]:
+    """PAPER-PROMPT-1: shape a predictions file (scripts/ragtruth_paper_prompt.py) like the run
+    audits ``score`` reads, so one scorer scores every row of the table. An untyped prediction
+    carries no code (per-code rows stay empty by construction); a row with an error is a judge
+    that answered nothing (verdict PASS, ``errors`` set), a miss on a positive."""
+    known = {r["case_id"] for r in slice_rows}
+    audits: dict[str, dict] = {}
+    for line in path.open():
+        if not line.strip():
+            continue
+        p = json.loads(line)
+        if p["case_id"] not in known:
+            continue
+        err = p.get("error")
+        hall = bool(p.get("hallucinated")) and not err
+        audits[p["case_id"]] = {
+            "grounded_verdict": "BLOCK" if hall else "PASS",
+            "judges": [
+                {
+                    "judge_role": "paper_prompt",
+                    "vote": "BLOCK" if hall else "PASS",
+                    "findings": [],
+                    "errors": [err] if err else [],
+                    "evidence": [
+                        {"judge": "paper_prompt", "violation_code": None, "spans": [{"quote": q}]}
+                        for q in (p.get("spans") or [])
+                    ],
+                }
+            ],
+        }
+    return audits
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--slice", type=Path, required=True)
+    ap.add_argument(
+        "--predictions",
+        type=Path,
+        default=None,
+        help="score a paper-prompt predictions file instead of the run trail (untyped spans: "
+        "response- and span-level only)",
+    )
     ap.add_argument("--bff", default="http://localhost:8787")
     ap.add_argument("--agent", default="ws0_default")
     ap.add_argument(
@@ -151,13 +191,18 @@ def main() -> int:
     args = ap.parse_args()
     rows = [json.loads(line) for line in args.slice.open()]
     audits: dict[str, dict] = {}
-    for case in rows:
-        cid = case["case_id"]
-        runs = (
-            _get(args.bff, f"/v1/runs?agent={args.agent}&case_id={cid}&limit=1").get("runs") or []
-        )
-        if runs:
-            audits[cid] = _get(args.bff, f"/v1/runs/{runs[0]['run_id']}/audit")
+    if args.predictions:
+        audits = audits_from_predictions(args.predictions, rows)
+        print(f"scoring predictions file {args.predictions} (untyped spans: no per-code rows)")
+    else:
+        for case in rows:
+            cid = case["case_id"]
+            runs = (
+                _get(args.bff, f"/v1/runs?agent={args.agent}&case_id={cid}&limit=1").get("runs")
+                or []
+            )
+            if runs:
+                audits[cid] = _get(args.bff, f"/v1/runs/{runs[0]['run_id']}/audit")
     res = score(rows, audits)
     print(
         f"{'task':10s} {'n':>3s} {'P':>6s} {'R':>6s} {'F1':>6s}   |  span {'P':>6s} {'R':>6s} {'F1':>6s}"
