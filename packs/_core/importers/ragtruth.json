@@ -1,0 +1,40 @@
+{
+  "id": "ragtruth_vocabulary",
+  "kind": "importer",
+  "tier": "core",
+  "version": "1.0.0",
+  "implements": "importer.dataset_vocabulary",
+  "dataset": "ragtruth",
+  "citation": "Niu et al., RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models, arXiv:2401.00396",
+  "license": "MIT (ParticleMedia/RAGTruth)",
+  "label_types": {
+    "Evident Conflict": "SOURCE_CONTRADICTION",
+    "Subtle Conflict": "SOURCE_CONTRADICTION",
+    "Evident Baseless Info": "UNSUPPORTED_ASSERTION",
+    "Subtle Baseless Info": "UNSUPPORTED_ASSERTION"
+  },
+  "metadata_fields": {
+    "subtlety": {
+      "from": "label_type",
+      "prefix_values": [
+        "Evident",
+        "Subtle"
+      ],
+      "note": "carried on the case's gold spans, never a code"
+    },
+    "implicit_true": {
+      "from": "label.implicit_true",
+      "note": "the annotators' 'true but not in the source' facet; metadata only"
+    },
+    "due_to_null": {
+      "from": "label.due_to_null",
+      "note": "data-to-text spans caused by a null field; metadata only"
+    }
+  },
+  "verdict_rule": {
+    "ragtruth": "a response is hallucinated iff it carries at least one annotated span (any type)",
+    "lithrim": "a case is BLOCK iff at least one Tier-1 finding stands after the floor; both codes are Tier-1, so any mapped span => BLOCK"
+  },
+  "untyped_prediction_class": "hallucination (untyped span; the paper's detection prompt emits spans without a type, so it is scored at response and span level only, never per code)",
+  "admissibility": "a RAGTruth label_type with no code above fails ingest; a response with no spans is a first-class clean negative (expected_safety_flags: [])"
+}

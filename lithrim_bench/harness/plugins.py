@@ -84,6 +84,9 @@ class PackManifest(BaseModel):
     floors: str | None = None
     generators: str | None = None
     tools: str | None = None  # TOOL-1: ref to a ``tools.json`` (the pack's kind:tool declarations)
+    # IMPORTER-1: refs to ``kind: importer`` manifests (one JSON object each) — the declared
+    # bridge between a foreign dataset's vocabulary and this pack's taxonomy.
+    importers: list[str] = Field(default_factory=list)
     judges: list[str] = Field(default_factory=list)
     # The pack-relative agent JSONs the CE seeds into the rail (packs-dropin/README.md). Optional;
     # a pack with none declares an empty list. Without this field PackManifest (extra='forbid')
@@ -144,6 +147,73 @@ class License:
 def default_license() -> License:
     """The process license — permit-all unless ``LITHRIM_BENCH_LICENSE`` overrides."""
     return License.from_env()
+
+
+# ── the importer registry (IMPORTER-1) — a foreign dataset's vocabulary as a kind:importer plugin ──
+# A ``kind: importer`` plugin DECLARES how a dataset's labels, verdict rule, and untyped
+# predictions map onto the pack's taxonomy. Consumed at the EDGES only (ingest, scoring,
+# export); the council's DSPy signature never sees a dataset term. A dataset term with no code
+# fails admissibility at ingest (never silently dropped). A second dataset is a second manifest.
+class ImporterManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: Literal["importer"] = "importer"
+    tier: Tier = "core"
+    version: str = "0.0.0"
+    implements: str = "importer.dataset_vocabulary"
+    dataset: str
+    citation: str | None = None
+    license: str | None = None
+    # dataset label term -> taxonomy code (the inbound map; ingest applies it)
+    label_types: dict[str, str]
+    # dataset facets carried as case metadata, not codes (e.g. RAGTruth's Evident/Subtle)
+    metadata_fields: dict[str, Any] = Field(default_factory=dict)
+    # the verdict equivalence, stated in both vocabularies (the write-up footnote)
+    verdict_rule: dict[str, str] = Field(default_factory=dict)
+    # how an untyped dataset-side prediction (e.g. the paper's typeless span list) is named
+    untyped_prediction_class: str = "prediction (untyped)"
+    admissibility: str = "a dataset label term with no taxonomy code fails ingest"
+
+    def code_for(self, label_type: str) -> str:
+        """The taxonomy code for a dataset label term; a term with no code is an admissibility
+        failure (``LookupError``), never a silent drop."""
+        try:
+            return self.label_types[label_type]
+        except KeyError:
+            raise LookupError(
+                f"importer {self.id!r}: dataset label {label_type!r} has no taxonomy code "
+                f"(declared: {sorted(self.label_types)})"
+            ) from None
+
+    def terms_for(self, code: str) -> list[str]:
+        """The dataset terms a taxonomy code stands for (the outbound map; scoring/export)."""
+        return sorted(t for t, c in self.label_types.items() if c == code)
+
+
+def importer_plugins(pack: str | None = None) -> list[ImporterManifest]:
+    """The dataset importers a pack declares (``pack.json`` ``importers`` refs), validated and
+    defaulting to the pack's tier. ``pack`` defaults to the active pack. Lazy pack import."""
+    from lithrim_bench.harness import pack as _pack
+
+    active = pack or _pack.active_pack()
+    pack_tier = _pack._manifest(active).get("tier", "core")
+    return [
+        ImporterManifest.model_validate({**raw, "kind": "importer", "tier": raw.get("tier", pack_tier)})
+        for raw in _pack.load_pack_importers(active)
+    ]
+
+
+def importer_vocabulary(dataset: str, *, pack: str | None = None) -> ImporterManifest:
+    """The declared vocabulary for ``dataset`` in the active (or named) pack; fails closed
+    (``LookupError``) when no manifest declares it — never an implicit mapping."""
+    for m in importer_plugins(pack):
+        if m.dataset == dataset:
+            return m
+    raise LookupError(
+        f"no kind:importer manifest declares dataset {dataset!r} in pack "
+        f"{pack or 'active'!r}; add one under the pack's `importers` refs"
+    )
 
 
 # ── the provider registry (D4) — Azure + BYO-Claude as kind:provider plugins ──────────────

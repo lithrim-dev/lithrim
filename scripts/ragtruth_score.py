@@ -71,6 +71,7 @@ def _overlaps(a: tuple[int, int], b: tuple[int, int]) -> bool:
 
 def score(slice_rows: list[dict], audits: dict[str, dict]) -> dict:
     per_task: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    per_code: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     unlocated: list[tuple[str, str]] = []
     for case in slice_rows:
         cid = case["case_id"]
@@ -93,6 +94,15 @@ def score(slice_rows: list[dict], audits: dict[str, dict]) -> dict:
         t["r_fp"] += pred_hall and not gold_hall
         t["r_fn"] += (not pred_hall) and gold_hall
         t["r_tn"] += (not pred_hall) and (not gold_hall)
+        # per-code (case level): the codes the judges raised vs the codes the human labels map to
+        gold_codes = {
+            lab.get("code") for lab in case["ragtruth"]["labels"] if lab.get("code")
+        } or set(case.get("expected_safety_flags") or [])
+        raised_codes = {c for j in audit.get("judges") or [] for c in (j.get("findings") or [])}
+        for code in gold_codes | raised_codes:
+            per_code[code]["tp"] += code in gold_codes and code in raised_codes
+            per_code[code]["fp"] += code in raised_codes and code not in gold_codes
+            per_code[code]["fn"] += code in gold_codes and code not in raised_codes
         response = case["artifacts"][0]["content"]
         pred_spans: list[tuple[int, int]] = []
         seen: set[str] = set()
@@ -124,7 +134,7 @@ def score(slice_rows: list[dict], audits: dict[str, dict]) -> dict:
         for k, v in t.items():
             overall[k] += v
     per_task["OVERALL"] = overall
-    return {"per_task": per_task, "unlocated": unlocated}
+    return {"per_task": per_task, "per_code": per_code, "unlocated": unlocated}
 
 
 def main() -> int:
@@ -132,6 +142,12 @@ def main() -> int:
     ap.add_argument("--slice", type=Path, required=True)
     ap.add_argument("--bff", default="http://localhost:8787")
     ap.add_argument("--agent", default="ws0_default")
+    ap.add_argument(
+        "--vocabulary",
+        default="ragtruth",
+        help="the kind:importer dataset whose terms label the per-code rows (IMPORTER-1); "
+        "'' to print taxonomy codes only",
+    )
     args = ap.parse_args()
     rows = [json.loads(line) for line in args.slice.open()]
     audits: dict[str, dict] = {}
@@ -155,6 +171,29 @@ def main() -> int:
             note += f"  [{t['refused']} judge call(s) refused/failed, decided without the vote]"
         print(
             f"{task:10s} {t['graded']:3d} {_fmt(rp)} {_fmt(rr)} {_fmt(rf)}   |       {_fmt(sp)} {_fmt(sr)} {_fmt(sf)}{note}"
+        )
+    vocab = None
+    if args.vocabulary:
+        from lithrim_bench.harness.plugins import importer_vocabulary
+
+        vocab = importer_vocabulary(args.vocabulary, pack="_core")
+    print(
+        f"\nper code (case level; judge raised vs human label{', ' + vocab.dataset + ' terms in brackets' if vocab else ''}):"
+    )
+    for code in sorted(res["per_code"]):
+        c = res["per_code"][code]
+        p, r, f = _prf(c["tp"], c["fp"], c["fn"])
+        term = (
+            f" [{' / '.join(vocab.terms_for(code)) or vocab.untyped_prediction_class.split(';')[0]}]"
+            if vocab
+            else ""
+        )
+        print(
+            f"  {code}{term}: tp {c['tp']} fp {c['fp']} fn {c['fn']}  P {_fmt(p)} R {_fmt(r)} F1 {_fmt(f)}"
+        )
+    if vocab:
+        print(
+            f"  verdict rule: {vocab.verdict_rule.get(vocab.dataset)} == {vocab.verdict_rule.get('lithrim')}"
         )
     if res["unlocated"]:
         print(

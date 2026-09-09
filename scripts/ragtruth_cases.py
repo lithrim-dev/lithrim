@@ -71,12 +71,13 @@ _SWEEP_NEEDLES = (
 def _needle_free(*texts: str) -> bool:
     low = " ".join(texts).lower()
     return not any(n in low for n in _SWEEP_NEEDLES)
-_LABEL_TO_FLAG = {
-    "Evident Conflict": "SOURCE_CONTRADICTION",
-    "Subtle Conflict": "SOURCE_CONTRADICTION",
-    "Evident Baseless Info": "UNSUPPORTED_ASSERTION",
-    "Subtle Baseless Info": "UNSUPPORTED_ASSERTION",
-}
+# IMPORTER-1: the label map is a DECLARED artifact (packs/_core/importers/ragtruth.json, a
+# kind:importer plugin), consumed here at ingest and by the scorer/exporter outbound. An
+# unmapped label type fails admissibility (LookupError), never a silent drop.
+from lithrim_bench.harness.plugins import importer_vocabulary  # noqa: E402
+
+_VOCAB = importer_vocabulary("ragtruth", pack="_core")
+_LABEL_TO_FLAG = dict(_VOCAB.label_types)
 _SPEC = VerificationSpec(
     tool=TOOL_VALUE_GROUNDING,
     applies_to_flags=("SOURCE_CONTRADICTION",),
@@ -97,7 +98,7 @@ def _source_kind(src: dict) -> str:
 
 def _case(resp: dict, src: dict) -> dict:
     labels = resp.get("labels") or []
-    flags = sorted({_LABEL_TO_FLAG[lab["label_type"]] for lab in labels})
+    flags = sorted({_VOCAB.code_for(lab["label_type"]) for lab in labels})
     return {
         "case_id": f"ragtruth_{resp['id']}",
         "pack": "_core",
@@ -124,9 +125,15 @@ def _case(resp: dict, src: dict) -> dict:
             "model": resp["model"],
             "task_type": src["task_type"],
             "labels": [
-                {k: lab[k] for k in ("start", "end", "text", "label_type") if k in lab}
+                {
+                    **{k: lab[k] for k in ("start", "end", "text", "label_type") if k in lab},
+                    "code": _VOCAB.code_for(lab["label_type"]),
+                    "subtlety": str(lab.get("label_type", "")).split(" ", 1)[0] or None,
+                    **{k: lab[k] for k in ("implicit_true", "due_to_null") if k in lab},
+                }
                 for lab in labels
             ],
+            "vocabulary": _VOCAB.id,
         },
         "pinned": {"pack": "_core", "taxonomy_snapshot": "packs/_core/taxonomy_snapshot.json"},
     }
