@@ -122,6 +122,18 @@ def arm_attestation(model: str, model_version: str | None, upgrade_policy: str |
     }
 
 
+def observed_served(matrix: list[dict]) -> dict[str, int]:
+    """SERVED-MODEL-1: the served model versions the provider actually answered with across a
+    graded cohort (``votes[].served_model``), counted. More than one distinct version inside a
+    single arm means the deployment moved mid-run; None entries are votes with no observation."""
+    counts: dict[str, int] = {}
+    for row in matrix:
+        for v in row.get("votes") or []:
+            key = str(v.get("served_model") or "None")
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def check_measurement(summary: dict) -> str:
     """Refuse a batch that is not an independent measurement; report refusals, never hide them."""
     if summary.get("cache_replays"):
@@ -238,6 +250,19 @@ def _grade_and_score(a, tag: str) -> None:
     out = a.out / f"grade_{tag}.json"
     out.write_text(json.dumps(res, indent=1))
     print(check_measurement(res["summary"]))
+    served = observed_served(res.get("matrix") or [])
+    print(f"served model versions observed: {served}")
+    manifest_path = a.out / "arm_manifest.json"
+    arm = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    arm.setdefault("served_models_observed", {})[tag] = served
+    versions = [k for k in served if k != "None"]
+    if len(versions) == 1 and not arm.get("dated_model_id"):
+        arm["pinned_by"] = (
+            f"served version observed on every vote: {versions[0]} (upgrade policy: {arm.get('upgrade_policy')})"
+        )
+    elif len(versions) > 1:
+        arm["pinned_by"] = f"WARNING: {len(versions)} served versions inside one arm {versions}"
+    manifest_path.write_text(json.dumps(arm, indent=2))
     print(floor_reading(res["scorecard"]))
     _run(
         [

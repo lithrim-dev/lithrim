@@ -101,6 +101,8 @@ class JudgeResult:
     # no usage. Captured here (the unfrozen sampling layer), NOT in the byte-frozen
     # Judge.forward — the authored stage folds it onto the per-judge seam dict.
     usage: dict[str, int] | None = None
+    # SERVED-MODEL-1: {served_model, system_fingerprint, latency_ms} observed on this call.
+    served: dict[str, Any] | None = None
 
     @property
     def reason(self) -> str:
@@ -126,6 +128,36 @@ def _usage_delta(lm: Any, history_before: int | None) -> dict[str, int] | None:
     if not (prompt or completion):
         return None
     return {"input_tokens": prompt, "output_tokens": completion}
+
+
+def _served(lm: Any, history_before: int | None) -> dict[str, Any] | None:
+    """SERVED-MODEL-1: what the provider actually answered with, from the LM-history entries
+    THIS call appended: the served model version (Azure answers e.g. ``gpt-4.1-2025-04-14``
+    for a deployment merely named ``gpt-4.1``), the response ``system_fingerprint``, and the
+    service latency when the provider reports one. The binding string a judge carries is what
+    was ASKED for; this is what was served — the observed half of a model attestation. None
+    when there is no lm/history or the entry carries no model (never fabricated)."""
+    if lm is None or history_before is None:
+        return None
+    entries = list(getattr(lm, "history", []) or [])[history_before:]
+    for entry in reversed(entries):
+        if not isinstance(entry, dict):
+            continue
+        resp = entry.get("response")
+        model = entry.get("response_model") or getattr(resp, "model", None)
+        if not model:
+            continue
+        usage = entry.get("usage") or {}
+        latency = None
+        checkpoint = usage.get("latency_checkpoint") if isinstance(usage, dict) else None
+        if isinstance(checkpoint, dict):
+            latency = checkpoint.get("service_ttlt_ms") or checkpoint.get("engine_ttlt_ms")
+        return {
+            "served_model": str(model),
+            "system_fingerprint": getattr(resp, "system_fingerprint", None),
+            "latency_ms": int(latency) if isinstance(latency, (int, float)) else None,
+        }
+    return None
 
 
 def _is_single_completion_lm(lm: Any) -> bool:
@@ -338,6 +370,7 @@ def judge_call(
             findings=findings,
             _raw_response=raw,
             usage=_usage_delta(_usage_lm, _hist_before),
+            served=_served(_usage_lm, _hist_before),
         )
 
     # ---- k > 1: ONE call, native n, cache off (avoid the n>k cache replay) ----
@@ -371,7 +404,8 @@ def judge_call(
             decision="needs_review",
             findings=[],
             _raw_response=None,
-            usage=_usage_delta(_usage_lm, _hist_before),  # the failed call still spent
+            usage=_usage_delta(_usage_lm, _hist_before),
+            served=_served(_usage_lm, _hist_before),  # the failed call still spent
         )
 
     scores = [s for _, _, s in scored]
@@ -394,6 +428,7 @@ def judge_call(
         findings=_validate_findings(_get(rep_comp, "findings", [])),
         _raw_response=rep_raw,
         usage=_usage_delta(_usage_lm, _hist_before),
+            served=_served(_usage_lm, _hist_before),
     )
 
 

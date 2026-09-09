@@ -1550,6 +1550,10 @@ def _council_view(record: dict, display_names: dict[str, str] | None = None) -> 
             # carried side-by-side with the logprob confidence (float | null).
             "confidence_self": v.get("confidence_self"),
             "model": v.get("model"),
+            # SERVED-MODEL-1: observed on the call (None on legacy blobs / silent providers)
+            "served_model": v.get("served_model"),
+            "system_fingerprint": v.get("system_fingerprint"),
+            "latency_ms": v.get("latency_ms"),
             "reason": v.get("reason"),
             # Per-reviewer sampling distribution (independent-axes model): THIS axis's own
             # variance + completion count. float|null — never aggregated across reviewers.
@@ -2514,6 +2518,9 @@ def grade_cases_endpoint(
                     "votes": [
                         {"judge_role": v.get("judge_role"), "vote": v.get("vote"),
                          "confidence": v.get("confidence"), "model": v.get("model"),
+                         # SERVED-MODEL-1: the observed served version + latency ride the row
+                         "served_model": v.get("served_model"),
+                         "latency_ms": v.get("latency_ms"),
                          "scores_raw": v.get("scores_raw")}
                         for v in (rec.get("council") or {}).get("votes", [])
                     ],
@@ -4578,6 +4585,9 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
             "vote": v.get("vote"),
             "confidence": v.get("confidence"),  # float | null
             "model": v.get("model"),
+            "served_model": v.get("served_model"),
+            "system_fingerprint": v.get("system_fingerprint"),
+            "latency_ms": v.get("latency_ms"),
             "reasoning": v.get("reason"),
             "findings": v.get("findings") or [],
             "evidence": semantic.get("evidence") or [],

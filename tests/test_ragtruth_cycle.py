@@ -108,3 +108,12 @@ def test_summarize_optimize_reads_the_three_files(tmp_path):
     line = rc.summarize_optimize(tmp_path)
     assert "4 demos (4 positive)" in line and "out_of_sample=True" in line
     assert "graded 0.52 -> 0.76" in line and "refused 5 -> 4" in line and "azure/x" in line
+
+
+def test_observed_served_counts_versions_across_the_cohort():
+    matrix = [
+        {"votes": [{"served_model": "gpt-4.1-2025-04-14"}]},
+        {"votes": [{"served_model": "gpt-4.1-2025-04-14"}, {"served_model": None}]},
+        {"votes": []},
+    ]
+    assert rc.observed_served(matrix) == {"gpt-4.1-2025-04-14": 2, "None": 1}

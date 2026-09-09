@@ -648,6 +648,11 @@ def _judge_votes_from_models(
             # VOTE-ERRORS: the seam's per-call failures ride the persisted vote so an
             # errored judge is never rendered as a considered vote. [] when clean/legacy.
             errors=[str(e) for e in (m.get("errors") or [])],
+            # SERVED-MODEL-1: the observed served model/fingerprint/latency (authored seam
+            # ``served``); None-safe for seams and legacy dicts that carry none.
+            served_model=(m.get("served") or {}).get("served_model"),
+            system_fingerprint=(m.get("served") or {}).get("system_fingerprint"),
+            latency_ms=(m.get("served") or {}).get("latency_ms"),
             variance=float(raw_var) if isinstance(raw_var, (int, float)) else None,
             k=int(raw_k) if isinstance(raw_k, (int, float)) else None,
             # R2c: the per-sample decision scores — the readable K-split. List-or-None,
