@@ -82,3 +82,29 @@ def test_arm_attestation_accepts_a_dated_id_or_an_attested_deployment_only():
         rc.arm_attestation("gpt-4.1", None, None)
     with pytest.raises(SystemExit, match="floating alias"):
         rc.arm_attestation("gpt-4.1-latest", None, None)
+
+
+def test_summarize_optimize_reads_the_three_files(tmp_path):
+    import json
+
+    role = rc.ROLE
+    (tmp_path / f"result_dspy3b_{role}.json").write_text(
+        json.dumps(
+            {
+                "n_heldout": 150,
+                "compile_config": {"n_demos_bootstrapped": 4, "n_positive_demos": 4},
+                "manifest": {
+                    "demo_source_ids": ["ragtruth_1"],
+                    "demos_out_of_sample": True,
+                    "model": "azure/x",
+                },
+            }
+        )
+    )
+    for k, g, p, r, e in (("baseline", 0.52, 0.30, 0.56, 5), ("optimized", 0.76, 0.53, 0.65, 4)):
+        (tmp_path / f"score_{k}_dspy3b_{role}.json").write_text(
+            json.dumps({"graded": g, "precision": p, "recall": r, "errors": e})
+        )
+    line = rc.summarize_optimize(tmp_path)
+    assert "4 demos (4 positive)" in line and "out_of_sample=True" in line
+    assert "graded 0.52 -> 0.76" in line and "refused 5 -> 4" in line and "azure/x" in line

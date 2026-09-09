@@ -279,15 +279,31 @@ def step_optimize(a) -> None:
     if a.heldout_cap:
         cmd += ["--limit", str(a.heldout_cap)]
     _run(cmd, env=env)
+    print(summarize_optimize(a.out / "optimize"))
     result = json.load((a.out / "optimize" / f"result_dspy3b_{ROLE}.json").open())
-    m = result.get("manifest") or {}
-    print(
-        f"optimize: demos {result['compile_config'].get('n_demos_bootstrapped')}, "
-        f"out_of_sample={m.get('demos_out_of_sample')}, baseline errors {result['baseline'].get('errors')}, "
-        f"optimized errors {result['optimized'].get('errors')}, delta {result.get('delta', {}).get('graded')}"
-    )
-    if not m.get("demos_out_of_sample"):
+    if not (result.get("manifest") or {}).get("demos_out_of_sample"):
         raise SystemExit("REFUSING to pin: a compiled demo does not trace to a calibration row")
+
+
+def summarize_optimize(opt_dir: Path) -> str:
+    """One line from the optimizer's three files: the result (config, delta, manifest) plus the
+    two score files (``run_optimize`` keeps baseline/optimized OUT of result_*.json)."""
+    result = json.load((opt_dir / f"result_dspy3b_{ROLE}.json").open())
+    scores = {
+        k: json.load((opt_dir / f"score_{k}_dspy3b_{ROLE}.json").open())
+        for k in ("baseline", "optimized")
+    }
+    m = result.get("manifest") or {}
+    cc = result.get("compile_config") or {}
+    return (
+        f"optimize: {cc.get('n_demos_bootstrapped')} demos ({cc.get('n_positive_demos')} positive) "
+        f"from {m.get('demo_source_ids')}, out_of_sample={m.get('demos_out_of_sample')}; held-out "
+        f"{result.get('n_heldout')}: graded {scores['baseline'].get('graded', 0):.2f} -> "
+        f"{scores['optimized'].get('graded', 0):.2f}, precision {scores['baseline'].get('precision', 0):.2f} -> "
+        f"{scores['optimized'].get('precision', 0):.2f}, recall {scores['baseline'].get('recall', 0):.2f} -> "
+        f"{scores['optimized'].get('recall', 0):.2f}; refused {scores['baseline'].get('errors')} -> "
+        f"{scores['optimized'].get('errors')}; model {m.get('model')}"
+    )
 
 
 def step_pin(a) -> None:
