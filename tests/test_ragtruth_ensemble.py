@@ -117,3 +117,20 @@ def test_grade_refuses_without_confirm(tmp_path):
         env={"PATH": "/usr/bin"},
     )
     assert out.returncode != 0 and "REFUSING a paid grade of 1 cases x 3 judges" in out.stderr
+
+
+def test_e2_is_the_pack_trio_on_one_model_with_k_pinned_and_lens_from_snapshot(tmp_path):
+    trio = en.ARMS["e2"]
+    assert [m["role"] for m in trio] == ["faithfulness_judge", "risk_judge", "policy_judge"]
+    assert {(m["provider"], m["model"], m["k"]) for m in trio} == {("azure", "gpt-4.1", 1)}
+    snap = tmp_path / "taxonomy_snapshot.json"
+    snap.write_text(
+        '{"lenses": {"risk_judge": ["UNSUPPORTED_ASSERTION", "INTERNAL_INCONSISTENCY"]}}'
+    )
+    assert en.lens_for("risk_judge", snap) == ["UNSUPPORTED_ASSERTION", "INTERNAL_INCONSISTENCY"]
+    try:
+        en.lens_for("policy_judge", snap)
+    except SystemExit as exc:
+        assert "no lens" in str(exc)
+    else:
+        raise AssertionError("a role without a lens must fail closed")

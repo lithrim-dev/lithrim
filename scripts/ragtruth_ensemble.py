@@ -75,6 +75,34 @@ MEMBERS = [
 ]
 
 
+# ARM E2, lens diversity: the _core trio, each role on its OWN lens and code ownership from the
+# pack snapshot (faithfulness owns SOURCE_CONTRADICTION, risk owns UNSUPPORTED_ASSERTION, policy
+# carries FABRICATED_CLAIM / MISSING_CONTEXT), all on gpt-4.1, bare (the demos are keyed to
+# ragtruth_detector). k is pinned to 1 (deterministic, temp 0) for comparability with v4/E1;
+# the pack's native per-reviewer sampling (5/1/3 at temp 0.7) is a different arm.
+TRIO = [
+    {
+        "role": "faithfulness_judge",
+        "provider": "azure",
+        "model": "gpt-4.1",
+        "demos": "bare",
+        "k": 1,
+    },
+    {"role": "risk_judge", "provider": "azure", "model": "gpt-4.1", "demos": "bare", "k": 1},
+    {"role": "policy_judge", "provider": "azure", "model": "gpt-4.1", "demos": "bare", "k": 1},
+]
+ARMS = {"e1": MEMBERS, "e2": TRIO}
+
+
+def lens_for(role: str, snapshot: Path) -> list[str]:
+    """The role's lens from the active (overlay) pack snapshot: its assigned flags."""
+    snap = json.loads(snapshot.read_text())
+    lens = (snap.get("lenses") or {}).get(role)
+    if not lens:
+        raise SystemExit(f"role {role!r} has no lens in {snapshot}")
+    return list(lens)
+
+
 def v1_route(endpoint: str) -> str:
     """The resource's OpenAI-compatible route from its Azure OpenAI endpoint."""
     host = endpoint.rstrip("/").split("/openai")[0]
@@ -177,6 +205,32 @@ def blobs_for(grade: dict, db_path: Path) -> dict[str, dict]:
 
 
 def cmd_roster(a) -> None:
+    members = ARMS[a.arm]
+    if a.arm == "e2":
+        for m in members:
+            # the trio already exists in the pack; bind each role to gpt-4.1 on the stored azure
+            # key (no key in the body), then pin model + its own lens + k=1
+            res = cycle._post(
+                a.bff,
+                "/v1/roles/bind",
+                {"role": m["role"], "provider": m["provider"], "model": m["model"]},
+                timeout=300,
+            )
+            print(f"bound {m['role']} -> {m['provider']}/{m['model']}: {res}")
+            lens = lens_for(m["role"], a.snapshot)
+            cycle._put(
+                a.bff,
+                f"/v1/judges/{m['role']}?rationale=E2%20lens%20trio%20on%20gpt-4.1",
+                {"model": m["model"], "assigned_flags": lens, "validator_refs": [], "k": m["k"]},
+            )
+            print(f"pinned {m['role']}: lens {lens}, k={m['k']}")
+        roster = [m["role"] for m in members]
+        cycle._post(a.bff, "/v1/council/roster", {"agent": a.agent, "roster": roster}, timeout=120)
+        print(f"roster = {roster}")
+        (a.out / f"ensemble_manifest_{a.arm}.json").write_text(
+            json.dumps({"members": members, "roster": roster}, indent=2)
+        )
+        return
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     api_key = os.environ.get("AZURE_OPENAI_API_KEY", "")
     if not endpoint or not api_key:
@@ -184,7 +238,7 @@ def cmd_roster(a) -> None:
             "AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY are not set (source the provider file)"
         )
     route = v1_route(endpoint)
-    for m in MEMBERS[1:]:
+    for m in members[1:]:
         body = {
             "role": m["role"],
             "lens_codes": cycle.LENS,
@@ -217,18 +271,18 @@ def cmd_roster(a) -> None:
             f"/v1/judges/{m['role']}?rationale=pin%20the%20ensemble%20member%27s%20model",
             {"model": m["model"], "assigned_flags": cycle.LENS, "validator_refs": []},
         )
-    roster = [m["role"] for m in MEMBERS]
+    roster = [m["role"] for m in members]
     cycle._post(a.bff, "/v1/council/roster", {"agent": a.agent, "roster": roster}, timeout=120)
     print(f"roster = {roster}")
-    (a.out / "ensemble_manifest.json").write_text(
-        json.dumps({"members": MEMBERS, "route": route, "roster": roster}, indent=2)
+    (a.out / f"ensemble_manifest_{a.arm}.json").write_text(
+        json.dumps({"members": members, "route": route, "roster": roster}, indent=2)
     )
 
 
 def cmd_grade(a) -> None:
     if not a.confirm_cost:
         sys.exit(
-            f"REFUSING a paid grade of {sum(1 for _ in a.slice.open())} cases x {len(MEMBERS)} judges; "
+            f"REFUSING a paid grade of {sum(1 for _ in a.slice.open())} cases x {len(ARMS[a.arm])} judges; "
             "re-run with --confirm-cost"
         )
     cycle._grade_and_score(a, a.tag)
@@ -274,7 +328,13 @@ def main() -> int:
     ap.add_argument(
         "--slice", type=Path, default=REPO_ROOT / "out" / "ragtruth" / "slice_full.jsonl"
     )
-    ap.add_argument("--tag", default="e1")
+    ap.add_argument("--arm", choices=sorted(ARMS), default="e1")
+    ap.add_argument("--tag", default=None, help="grade/report tag (defaults to the arm name)")
+    ap.add_argument(
+        "--snapshot",
+        type=Path,
+        default=REPO_ROOT / "out/pack_overlay/_core/taxonomy_snapshot.json",
+    )
     ap.add_argument("--baseline", default=None)
     ap.add_argument(
         "--collections-db",
@@ -284,6 +344,7 @@ def main() -> int:
     ap.add_argument("--confirm-cost", action="store_true")
     a = ap.parse_args()
     a.workspace_out = REPO_ROOT / "out/workspaces/default/out"
+    a.tag = a.tag or a.arm
     {"roster": cmd_roster, "grade": cmd_grade, "report": cmd_report, "restore": cmd_restore}[a.cmd](
         a
     )
