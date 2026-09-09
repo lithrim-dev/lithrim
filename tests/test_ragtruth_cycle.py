@@ -205,3 +205,24 @@ def test_pin_gate_refuses_a_regressing_demo_set_unless_forced():
     with pytest.raises(SystemExit, match="REFUSING to pin"):
         rc.pin_gate(0.69, 0.76)
     assert "force-pin OVER" in rc.pin_gate(0.69, 0.76, force=True)
+
+
+def test_product_verbs_alias_the_cycle_steps():
+    out = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts/ragtruth_cycle.py"),
+            "--model",
+            "azure/x-2025-01-01",
+            "--from",
+            "grade",
+            "--to",
+            "calibrate",
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=REPO,
+    ).stdout
+    assert "plan: before -> optimize -> pin" in out

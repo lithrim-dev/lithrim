@@ -49,6 +49,18 @@ STEPS = (
     "calib",
     "enrich",
 )
+
+# The product loop is six verbs: load, configure, grade, calibrate, re-grade, export. The
+# cycle's steps are the same loop at finer grain; the verbs are accepted as --from/--to
+# aliases so the demo reads as the product. (export is scripts/ragtruth_export.py.)
+VERB_ALIASES = {
+    "load": "download",  # download + slice + ingest
+    "configure": "judge",  # judge role, model pin, roster
+    "grade": "before",
+    "calibrate": "optimize",  # optimize + the gated pin
+    "re-grade": "after",
+    "regrade": "after",
+}
 ROLE = "ragtruth_detector"
 LENS = ["SOURCE_CONTRADICTION", "UNSUPPORTED_ASSERTION"]
 ROLE_PROMPT = (
@@ -525,10 +537,10 @@ def main() -> int:
     ap.add_argument(
         "--workspace-out", type=Path, default=REPO_ROOT / "out" / "workspaces" / "default" / "out"
     )
-    ap.add_argument("--from", dest="start", choices=STEPS, default=STEPS[0])
+    ap.add_argument("--from", dest="start", choices=STEPS + tuple(VERB_ALIASES), default=STEPS[0])
     # The product loop ends at `after`; `calib` and `enrich` are opt-in calibrate rounds that
     # spend money, so they never run by falling off the end of the step list.
-    ap.add_argument("--to", dest="stop", choices=STEPS, default="after")
+    ap.add_argument("--to", dest="stop", choices=STEPS + tuple(VERB_ALIASES), default="after")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument(
         "--force-pin",
@@ -539,6 +551,10 @@ def main() -> int:
     a = ap.parse_args()
     a.slice = a.out / "slice_full.jsonl"
     a.calib = a.out / "calib_ragtruth.jsonl"
+    a.start = VERB_ALIASES.get(a.start, a.start)
+    a.stop = VERB_ALIASES.get(a.stop, a.stop)
+    if a.stop == "optimize":  # "calibrate" means optimize AND the gated pin
+        a.stop = "pin"
     todo = STEPS[STEPS.index(a.start) : STEPS.index(a.stop) + 1]
     arm = arm_attestation(a.model, a.model_version, a.upgrade_policy)
     print(
