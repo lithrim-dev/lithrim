@@ -392,13 +392,37 @@ def summarize_optimize(opt_dir: Path) -> str:
     )
 
 
+def pin_gate(
+    candidate_graded: float | None, pinned_graded: float | None, *, force: bool = False
+) -> str:
+    """PIN-GATE-1: a demo set is pinned only if its held-out graded score is not below the
+    currently pinned set's (or nothing is pinned yet). The optimizer's delta is the evidence;
+    refusing here means an enriched round that loses cannot ship, even by hand. ``force``
+    records an explicit override in the message, never a silent one."""
+    if pinned_graded is None or candidate_graded is None:
+        return "pinned (no pinned score to compare against)"
+    if candidate_graded >= pinned_graded:
+        return f"pinned (held-out graded {candidate_graded:.2f} >= pinned {pinned_graded:.2f})"
+    if force:
+        return f"pinned by --force-pin OVER a lower held-out graded ({candidate_graded:.2f} < {pinned_graded:.2f})"
+    raise SystemExit(
+        f"REFUSING to pin: held-out graded {candidate_graded:.2f} is below the pinned set's "
+        f"{pinned_graded:.2f}; the optimizer's own delta says this round regresses (--force-pin to override)"
+    )
+
+
 def step_pin(a) -> None:
-    src = (
-        getattr(a, "out_optimize", None) or a.out / "optimize"
-    ) / f"compiled_demos_dspy3b_{ROLE}.json"
+    opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
+    src = opt_dir / f"compiled_demos_dspy3b_{ROLE}.json"
+    score = json.load((opt_dir / f"score_optimized_dspy3b_{ROLE}.json").open())
+    candidate = score.get("graded")
+    sidecar = a.workspace_out / f"compiled_demos_dspy3b_{ROLE}.score.json"
+    pinned = json.load(sidecar.open()).get("graded") if sidecar.exists() else None
+    verdict = pin_gate(candidate, pinned, force=getattr(a, "force_pin", False))
     a.workspace_out.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, a.workspace_out / src.name)
-    print(f"pinned {src.name} into {a.workspace_out}")
+    sidecar.write_text(json.dumps({"graded": candidate, "source": str(src)}, indent=2))
+    print(f"{verdict}: {src.name} -> {a.workspace_out}")
 
 
 def step_after(a) -> None:
@@ -504,6 +528,12 @@ def main() -> int:
     ap.add_argument("--from", dest="start", choices=STEPS, default=STEPS[0])
     ap.add_argument("--to", dest="stop", choices=STEPS, default=STEPS[-1])
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--force-pin",
+        dest="force_pin",
+        action="store_true",
+        help="pin a demo set even if its held-out graded score is below the pinned set's",
+    )
     a = ap.parse_args()
     a.slice = a.out / "slice_full.jsonl"
     a.calib = a.out / "calib_ragtruth.jsonl"

@@ -34,6 +34,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from .spec import (
+    TOOL_ATTRIBUTE_CONSISTENCY,
     TOOL_KB_RAG,
     TOOL_VALUE_GROUNDING,
     TOOL_VALUE_PRESENCE,
@@ -1081,3 +1082,188 @@ class FakeRecordRagTool(RecordRagTool):
         if not qt:
             return 0.0
         return round(len(qt & set(doc.split())) / len(qt), 6)
+
+
+# --------------------------------------------------------------------------- #
+# AttributeConsistencyTool (ATTR-CONSISTENCY-1) — a record-source floor over the record's
+# attribute fields: does every attribute the ARTIFACT asserts agree with the field? The
+# paper's own data-to-text rule applies: a null field is UNKNOWN (a lead for a person), never
+# a negation; a boolean that contradicts the assertion is a violation. Set membership over
+# the record, no inference. Observed 2026-09-09: 7 of 10 judge misses on RAGTruth data-to-text
+# were assertions about parking / seating / Wi-Fi / music / ambience the record decides.
+# --------------------------------------------------------------------------- #
+_AC_DEFAULT_ATTRIBUTES: dict[str, list[str]] = {
+    "attributes.OutdoorSeating": ["outdoor seating", "patio seating", "outdoor dining"],
+    "attributes.WiFi": ["wi-fi", "wifi", "wireless internet"],
+    "attributes.RestaurantsTakeOut": ["takeout", "take-out", "take out"],
+    "attributes.RestaurantsReservations": ["reservations", "reservation"],
+    "attributes.RestaurantsGoodForGroups": ["good for groups", "large groups", "group dining"],
+    "attributes.Music": ["live music", "music"],
+    "attributes.BusinessParking.valet": ["valet"],
+    "attributes.BusinessParking.garage": ["garage parking", "parking garage", "garage"],
+    "attributes.BusinessParking.street": ["street parking"],
+    "attributes.BusinessParking.lot": ["parking lot", "lot parking"],
+    "attributes.BusinessParking.validated": ["validated parking"],
+    "attributes.Ambience.romantic": ["romantic"],
+    "attributes.Ambience.intimate": ["intimate"],
+    "attributes.Ambience.touristy": ["touristy"],
+    "attributes.Ambience.hipster": ["hipster"],
+    "attributes.Ambience.divey": ["divey", "dive bar"],
+    "attributes.Ambience.classy": ["classy"],
+    "attributes.Ambience.trendy": ["trendy"],
+    "attributes.Ambience.upscale": ["upscale"],
+    "attributes.Ambience.casual": ["casual"],
+}
+_AC_DEFAULT_NEGATIONS = (
+    "no ", "not ", "n't ", "without ", "lack", "lacks ", "neither ", "nor ", "rather than ",
+    "instead of ", "never ",
+)
+# Clause boundaries: contrastive joins, comma + conjunction, "and" that starts a new predicate
+# ("and do not accept"), subordinators ("as it has a casual ambiance"), and a comma + "not"
+# ("casual, not hipster"). NOT bare commas or bare "and": "no garage, street, or valet parking"
+# and "street and garage parking are not provided" are one claim each.
+_AC_CLAUSE = re.compile(
+    r";|,\s*(?:and|but|while|although|though)\s"
+    r"|\s(?:but|although|though|while|whereas|because|since)\s"
+    r"|\sand\s(?=(?:it|they|there|he|she|we|you|do|does|did|is|are|was|were|has|have|the)\b)"
+    r"|\sas\s(?=(?:it|they|there|the)\b)"
+    r"|(?=,\s*not\s)"
+)
+# These negate only what FOLLOWS them ("casual rather than romantic").
+_AC_FORWARD_NEGATIONS = ("rather than ", "instead of ")
+# A negation that follows the phrase within its clause ("reservations are not accepted",
+# "WiFi is not available", "valet parking are not").
+_AC_POST_NEGATION = re.compile(
+    r"^\W*(?:\w+\W+){0,4}?(?:(?:is|are|was|were|do|does|did)\s*n[o']t\b|not\s+(?:available|accepted|offered|provided|allowed|permitted|possible)\b)"
+)
+_AC_DEFAULT_EVERYDAY = ("every day", "everyday", "daily", "seven days a week", "7 days a week", "all week")
+_AC_SENTENCE = re.compile(r"(?<=[.!?;])\s+")
+_AC_DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _ac_record_value(value: Any) -> bool | None:
+    """A record field as a boolean claim target: bool as is; Yelp's WiFi strings ("free",
+    "paid" = yes, "no" = no); anything else / null = unknown."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower().strip("'\"")
+        if v in ("free", "paid", "yes", "true"):
+            return True
+        if v in ("no", "none", "false"):
+            return False
+    return None
+
+
+class AttributeConsistencyTool(VerificationTool):
+    name = TOOL_ATTRIBUTE_CONSISTENCY
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        case = claim.source or {}
+        source_kind = str(case.get("source_kind") or "prose")
+        attributes = dict(ref.get("attributes") or _AC_DEFAULT_ATTRIBUTES)
+        negations = tuple(ref.get("negations") or _AC_DEFAULT_NEGATIONS)
+        everyday = tuple(ref.get("everyday_phrases") or _AC_DEFAULT_EVERYDAY)
+        hours_field = str(ref.get("hours_field") or "hours")
+        source_path = ref.get("source_path", "transcript")
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "source_path": source_path,
+            "source_kind": source_kind,
+            "n_attributes": len(attributes),
+            "hours_field": hours_field,
+        }
+        artifact = claim.subject
+        if not isinstance(artifact, str) or not artifact.strip():
+            return VerificationResult(conforms=None, evidence={"reason": "empty or non-text artifact"}, manifest=manifest)
+        if source_kind != "record":
+            return VerificationResult(
+                conforms=None,
+                evidence={"reason": "prose source: no record fields to check attributes against", "source_kind": source_kind},
+                manifest=manifest,
+            )
+        raw = " ".join(str(x) for x in _dig(case, source_path))
+        try:
+            record = json.loads(raw)
+        except (TypeError, ValueError):
+            return VerificationResult(conforms=None, evidence={"reason": "record source is not JSON"}, manifest=manifest)
+        if not isinstance(record, dict):
+            return VerificationResult(conforms=None, evidence={"reason": "record source is not an object"}, manifest=manifest)
+
+        present: list[dict] = []
+        contradictions: list[dict] = []
+        unknown: list[dict] = []
+        seen: set[tuple[str, bool]] = set()
+        for sentence in _AC_SENTENCE.split(artifact):
+            for clause in _AC_CLAUSE.split(sentence):
+                low = " " + clause.lower() + " "
+                for field, phrases in attributes.items():
+                    hit = next((ph for ph in phrases if ph in low), None)
+                    if hit is None:
+                        continue
+                    idx = low.index(hit)
+                    before, after = low[:idx], low[idx + len(hit) :]
+                    pre = any(n in before for n in negations)
+                    post = _AC_POST_NEGATION.search(after) is not None
+                    claimed = not (pre or post)
+                    key = (field, claimed)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    value = _ac_record_value(_dig_path(record, field))
+                    item = {
+                        "field": field,
+                        "claimed": claimed,
+                        "record": value,
+                        "sentence": clause.strip()[:160],
+                    }
+                    if value is None:
+                        unknown.append(item)
+                    elif value == claimed:
+                        present.append(item)
+                    else:
+                        contradictions.append(item)
+        low_all = " " + artifact.lower() + " "
+        hours = record.get(hours_field)
+        if any(ph in low_all for ph in everyday):
+            if isinstance(hours, dict) and hours:
+                days = {str(k).lower() for k in hours}
+                if len(days & set(_AC_DAYS)) < 7:
+                    contradictions.append({"field": hours_field, "claimed": "every day", "record": sorted(days), "sentence": "opening days"})
+                else:
+                    present.append({"field": hours_field, "claimed": "every day", "record": sorted(days), "sentence": "opening days"})
+            else:
+                unknown.append({"field": hours_field, "claimed": "every day", "record": None, "sentence": "opening days"})
+        checked = len(present) + len(contradictions)
+        evidence: dict[str, Any] = {
+            "checked": checked,
+            "present": [f"{i['field']}={i['claimed']}" for i in present],
+            "contradictions": contradictions,
+            "unknown": [f"{i['field']}={i['claimed']} (record null)" for i in unknown],
+            "source_kind": source_kind,
+        }
+        if contradictions:
+            evidence["missing"] = [f"{i['field']}={i['claimed']} vs record {i['record']}" for i in contradictions]
+            evidence["reason"] = "an attribute the artifact asserts contradicts the record's field"
+            return VerificationResult(conforms=False, evidence=evidence, manifest=manifest)
+        if checked:
+            evidence["reason"] = "every asserted attribute with a known field agrees with the record"
+            return VerificationResult(conforms=True, evidence=evidence, manifest=manifest)
+        evidence["reason"] = (
+            "no attribute assertion with a known record field (null fields are unknown, not negations)"
+            if unknown else "no attribute assertions to check"
+        )
+        return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
+
+
+def _dig_path(record: dict, dotted: str) -> Any:
+    cur: Any = record
+    for part in dotted.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur

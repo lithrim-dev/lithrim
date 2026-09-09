@@ -63,6 +63,7 @@ from .spec import (
     RECORD_PRESENCE,
     REFERENCE_CONFORMANCE,
     STRUCTURAL_CONFORMANCE,
+    TOOL_ATTRIBUTE_CONSISTENCY,
     TOOL_DOSAGE_GROUNDING,
     TOOL_IN_ROW,
     TOOL_JUTE_GEN,
@@ -77,6 +78,7 @@ from .spec import (
 )
 from .storyworld_client import StoryWorldAdminClient
 from .tools import (
+    AttributeConsistencyTool,
     FakeRecordRagTool,
     KbRagTool,
     RecordRagTool,
@@ -105,9 +107,11 @@ __all__ = [
     "TOOL_DOSAGE_GROUNDING",
     "TOOL_WEB_SEARCH",
     "TOOL_VALUE_GROUNDING",
+    "TOOL_ATTRIBUTE_CONSISTENCY",
     "VerificationTool",
     "StructuralJuteTool",
     "ValueGroundingTool",
+    "AttributeConsistencyTool",
     "ValuePresenceTool",
     "FactPreservationTool",
     "SpeakerAttributionTool",

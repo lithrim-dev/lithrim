@@ -85,7 +85,7 @@ _EXPECTED_SUPPRESS = {
 }
 # CORE-FLOOR-1: value_presence is a CORE floor (domain-agnostic completeness floor).
 # REPRO-1 R4a/R4b: fact_preservation + speaker_attribution are the core bounded-extraction floors.
-_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "value_grounding",
+_EXPECTED_FLOOR = {"structural_jute", "jute_gen", "value_presence", "value_grounding", "attribute_consistency",
                    "fact_preservation", "speaker_attribution",
                    # SNOMED-SUBSUMPTION-FLOOR-1: the proactive terminology detector floor.
                    "snomed_subsumption_floor"}
@@ -108,6 +108,7 @@ _EXPECTED_CONTRACT_PLUGINS = {
     "jute_gen": ("contract", "core", "service", "grounding.floor"),
     "value_presence": ("contract", "core", "in_process", "grounding.floor"),
     "value_grounding": ("contract", "core", "in_process", "grounding.floor"),
+    "attribute_consistency": ("contract", "core", "in_process", "grounding.floor"),
     # REPRO-1 R4a/R4b: the core bounded-extraction floors (LM via the provider seam, in_process).
     "fact_preservation": ("contract", "core", "in_process", "grounding.floor"),
     "speaker_attribution": ("contract", "core", "in_process", "grounding.floor"),

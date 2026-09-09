@@ -196,3 +196,12 @@ def test_enriched_ids_are_calibration_mismatches_with_a_missed_code_newest_row_w
         {"case_id": "t1", "split": "test"},
     ]
     assert rc.build_enriched_corpus(rows, set(chosen)) == [rows[0], rows[2]]
+
+
+def test_pin_gate_refuses_a_regressing_demo_set_unless_forced():
+    assert rc.pin_gate(0.76, None).startswith("pinned")
+    assert rc.pin_gate(0.76, 0.52).startswith("pinned")
+    assert rc.pin_gate(0.69, 0.69).startswith("pinned")
+    with pytest.raises(SystemExit, match="REFUSING to pin"):
+        rc.pin_gate(0.69, 0.76)
+    assert "force-pin OVER" in rc.pin_gate(0.69, 0.76, force=True)
