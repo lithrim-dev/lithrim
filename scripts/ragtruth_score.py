@@ -81,6 +81,10 @@ def score(slice_rows: list[dict], audits: dict[str, dict]) -> dict:
             continue
         t = per_task[task]
         t["graded"] += 1
+        if any(j.get("errors") for j in audit.get("judges") or []):
+            t["refused"] += (
+                1  # a judge call failed (e.g. a content-filter refusal); decided without it
+            )
         human = [(lab["start"], lab["end"]) for lab in case["ragtruth"]["labels"]]
         gold_hall = bool(human)
         verdict = (audit.get("grounded_verdict") or audit.get("verdict") or "").upper()
@@ -147,6 +151,8 @@ def main() -> int:
         rp, rr, rf = _prf(t["r_tp"], t["r_fp"], t["r_fn"])
         sp, sr, sf = _prf(t["s_tp"], t["s_fp"], t["s_fn"])
         note = f"  ({t['ungraded']} ungraded)" if t.get("ungraded") else ""
+        if t.get("refused"):
+            note += f"  [{t['refused']} judge call(s) refused/failed, decided without the vote]"
         print(
             f"{task:10s} {t['graded']:3d} {_fmt(rp)} {_fmt(rr)} {_fmt(rf)}   |       {_fmt(sp)} {_fmt(sr)} {_fmt(sf)}{note}"
         )

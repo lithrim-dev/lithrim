@@ -88,4 +88,16 @@ def test_scores_response_level_and_span_overlap_per_task():
     assert summ["ungraded"] == 1 and summ["graded"] == 0
     assert (overall["r_tp"], overall["r_fp"], overall["r_fn"], overall["ungraded"]) == (2, 1, 0, 1)
     assert res["unlocated"] == [("c", "definitely not in the text")]
+    assert overall.get("refused", 0) == 0
+
+
+def test_a_failed_judge_call_is_counted_as_refused_per_task():
+    rows = [_case("a", "QA", [(0, 3)])]
+    audit = _audit("PASS", [])
+    audit["judges"][0]["errors"] = ["ContentPolicyViolationError"]
+    res = rs.score(rows, {"a": audit})
+    qa = res["per_task"]["QA"]
+    assert (
+        qa["refused"] == 1 and qa["r_fn"] == 1
+    )  # refused positive: a miss, and visible as refused
     assert rs._prf(2, 1, 0) == (2 / 3, 1.0, 0.8)

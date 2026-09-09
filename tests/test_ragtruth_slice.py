@@ -84,3 +84,61 @@ def test_natural_slice_keeps_the_corpus_rate_and_one_per_source():
         assert len({c["ragtruth"]["source_id"] for c in rows}) == 6
         models = [c["ragtruth"]["model"] for c in rows]
         assert sorted(models.count(m) for m in ("model-a", "model-b")) == [3, 3], "model-balanced"
+
+
+def test_calib_corpus_is_source_disjoint_and_task_interleaved():
+    responses, sources = _corpus()
+    # give the corpus a train split: mirror every test source as a distinct train source
+    train_sources = {}
+    extra = []
+    rid = 1000
+    for task in ("QA", "Summary", "Data2txt"):
+        for i in range(4):
+            sid = f"train-{task}-{i}"
+            info = {"k": "v"} if task == "Data2txt" else f"train text {task} {i}"
+            train_sources[sid] = {
+                "source_id": sid,
+                "task_type": task,
+                "source_info": info,
+                "prompt": "",
+            }
+            rid += 1
+            extra.append(
+                {
+                    "id": str(rid),
+                    "source_id": sid,
+                    "model": "model-a",
+                    "split": "train",
+                    "quality": "good",
+                    "response": f"train resp {rid}",
+                    "labels": [],
+                }
+            )
+    sources.update(train_sources)
+    test_only = [
+        r for r in responses if r["split"] == "test"
+    ]  # drop the planted train copy of QA-0
+    test_cases = [c for _, c in rc.select_slice(test_only, sources, per_task=4, natural=True)]
+    rows = rc.build_calib_corpus(test_only + extra, sources, 4, test_cases)
+    calib = [r for r in rows if r["split"] == "calibration"]
+    test = [r for r in rows if r["split"] == "test"]
+    assert len(calib) == 12 and len(test) == 12
+    assert {r["ragtruth"]["source_id"] for r in calib}.isdisjoint(
+        {r["ragtruth"]["source_id"] for r in test}
+    )
+    assert all(r["ragtruth"]["source_id"].startswith("train-") for r in calib)
+    assert [r["ragtruth"]["task_type"] for r in rows[:3]] == ["Data2txt", "QA", "Summary"], (
+        "interleaved"
+    )
+    assert all(
+        "source_id" in r["ragtruth"] and r["ground_truth_basis"] == "human_annotated" for r in rows
+    )
+
+
+def test_calib_corpus_refuses_a_source_on_both_sides():
+    import pytest
+
+    responses, sources = _corpus()  # row 999 is a TRAIN copy of test source QA-0
+    test_cases = [c for _, c in rc.select_slice(responses, sources, per_task=4, natural=True)]
+    with pytest.raises(SystemExit, match="share 1 source"):
+        rc.build_calib_corpus(responses, sources, 4, test_cases)

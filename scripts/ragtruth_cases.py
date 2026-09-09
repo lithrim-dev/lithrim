@@ -233,6 +233,54 @@ def select_slice(
     return picked
 
 
+def interleave_tasks(cases: list[dict]) -> list[dict]:
+    """Round-robin the three tasks so any prefix cap (the optimizer's ``--limit``) samples
+    every task, not the first task in file order."""
+    by_task: dict[str, list[dict]] = {}
+    for c in cases:
+        by_task.setdefault(c["ragtruth"]["task_type"], []).append(c)
+    out: list[dict] = []
+    for i in range(max((len(v) for v in by_task.values()), default=0)):
+        for task in sorted(by_task):
+            if i < len(by_task[task]):
+                out.append(by_task[task][i])
+    return out
+
+
+def calib_row(case: dict, split: str) -> dict:
+    """One optimizer corpus row (``judge_optimize.load_corpus`` shape) with the provenance the
+    split-hygiene checks need: ``source_id`` (RAGTruth splits per source) and the task type."""
+    return {
+        "case_id": case["case_id"],
+        "transcript": case["transcript"],
+        "artifacts": case["artifacts"],
+        "expected_safety_flags": case["expected_safety_flags"],
+        "ground_truth_basis": case["ground_truth_basis"],
+        "split": split,
+        "ragtruth": {
+            "source_id": case["ragtruth"]["source_id"],
+            "task_type": case["ragtruth"]["task_type"],
+            "model": case["ragtruth"]["model"],
+        },
+    }
+
+
+def build_calib_corpus(
+    responses: list[dict], sources: dict[str, dict], per_task: int, test_cases: list[dict]
+) -> list[dict]:
+    """The holdout-hygienic optimizer corpus: ``calibration`` rows from RAGTruth's TRAIN split
+    (the same natural, model-balanced, one-per-source rule as the test cut) and ``test`` rows
+    from the graded test cut, both task-interleaved. Refuses to build if any source appears
+    on both sides (RAGTruth assigns its split per source, so this should never fire)."""
+    train = [dict(r, split="test") for r in responses if r.get("split") == "train"]
+    calib = interleave_tasks([c for _, c in select_slice(train, sources, per_task, natural=True)])
+    test = interleave_tasks(test_cases)
+    shared = {c["ragtruth"]["source_id"] for c in calib} & {c["ragtruth"]["source_id"] for c in test}
+    if shared:
+        raise SystemExit(f"calibration and test share {len(shared)} source(s): {sorted(shared)[:5]}")
+    return [calib_row(c, "calibration") for c in calib] + [calib_row(c, "test") for c in test]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", type=Path, default=REPO_ROOT / "out/ragtruth")
@@ -247,6 +295,11 @@ def main() -> int:
         "--natural", action="store_true",
         help="with --slice: no label stratification, no source length cap (the paper-comparable "
              "cut; --slice 150 --natural is the whole test split, one response per source)",
+    )
+    ap.add_argument(
+        "--calib-out", type=Path, default=None,
+        help="also write the optimizer corpus: RAGTruth TRAIN-split rows as `calibration` "
+             "(same per-task count and rule as --slice --natural) + this slice as `test`",
     )
     args = ap.parse_args()
     args.data_dir.mkdir(parents=True, exist_ok=True)
@@ -276,6 +329,16 @@ def main() -> int:
         print(f"{rule} {case['case_id']:16s} {rt['task_type']:9s} {rt['model']:22s} "
               f"flags={case['expected_safety_flags']} src_chars={len(case['transcript'])}")
     print(f"wrote {args.out}")
+    if args.calib_out:
+        if not (args.slice and args.natural):
+            sys.exit("--calib-out needs --slice N --natural (the test rows are this natural cut)")
+        rows = build_calib_corpus(responses, sources, args.slice, [c for _, c in picked])
+        args.calib_out.parent.mkdir(parents=True, exist_ok=True)
+        with args.calib_out.open("w") as fh:
+            for row in rows:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        n_cal = sum(1 for r in rows if r["split"] == "calibration")
+        print(f"wrote {args.calib_out}: {n_cal} calibration + {len(rows) - n_cal} test rows")
     return 0
 
 

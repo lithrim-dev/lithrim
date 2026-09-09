@@ -1401,6 +1401,7 @@ def _grade_case(
     # CACHE-TRAP-2: a paid grade that spent nothing is a replay, not a measurement — it must say
     # so on the record instead of returning as an ordinary success.
     record["cache_replay"] = _cache_replay_flag(record, spends=_spends)
+    record["judge_errors"] = _judge_error_count(record)
     # S-BS-56: surface the run's pipeline_run_id so the caller can address the run
     # (run-history + the run→audit leg). It lives on the graded PipelineResult's
     # provenance (replay carries the baseline's id; in_process/live carry a fresh id).
@@ -1428,10 +1429,22 @@ def _cache_replay_flag(record: dict, *, spends: bool) -> bool:
     """
     if not spends:
         return False
+    # JUDGE-ERROR-1: a judge call that FAILED (a provider refusal such as a content filter, a
+    # timeout, malformed output) also spends nothing, but it is not a replay: the model was
+    # asked and did not answer. It is reported under ``judge_errors`` instead (never both).
+    if _judge_error_count(record):
+        return False
     cost = ((record.get("result") or {}).get("provenance") or {}).get("cost_tokens")
     if not isinstance(cost, dict) or cost.get("total") is None:
         return False
     return int(cost.get("total") or 0) == 0
+
+
+def _judge_error_count(record: dict) -> int:
+    """How many of this run's judge votes are recorded FAILURES (``errors`` non-empty on the
+    served vote, VOTE-ERRORS) — excluded from consensus, so the case was decided without them."""
+    votes = ((record.get("council") or {}).get("votes")) or []
+    return sum(1 for v in votes if v.get("errors"))
 
 
 # vote (PASS/WARN/BLOCK as shown to the UI) -> the judge's underlying decision, so the case
@@ -2520,6 +2533,7 @@ def grade_cases_endpoint(
                     # CACHE-TRAP-2: per-case replay tell, so one silently-cached case in a batch
                     # is visible instead of averaging invisibly into the cohort numbers.
                     "cache_replay": bool(rec.get("cache_replay")),
+                    "judge_errors": int(rec.get("judge_errors") or 0),
                     "run_id": rec.get("pipeline_run_id"),
                 }
             )
@@ -2540,6 +2554,11 @@ def grade_cases_endpoint(
         # CACHE-TRAP-2: how many of these cases spent nothing despite being asked to run live.
         # Non-zero means the batch is NOT an independent measurement and must not be quoted.
         "cache_replays": sum(1 for r in rows if r.get("cache_replay")),
+        # JUDGE-ERROR-1: cases where at least one judge call FAILED (provider refusal, timeout,
+        # malformed output) and the case was decided without that vote. Reported separately from
+        # cache_replays: an independent measurement can still contain refusals, and a refused
+        # positive is a miss the reader should be able to see.
+        "judge_errors": sum(1 for r in rows if r.get("judge_errors")),
     }
     # RUN-ALL-1: the consolidated report — score the matrix against each case's gold (in-process,
     # no span-matching; case_id rides every row). Labeled cases only feed accuracy (honest-unlabeled).

@@ -364,6 +364,66 @@ def load_compiled_demos(out_dir: Any, role: str) -> list[Any] | None:
     return deserialize_demos(rows) or None
 
 
+def _sha256_file(path: str | Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _sha256_text(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def demo_sources(demos: list[dict[str, Any]], rows: Iterable[dict[str, Any]]) -> list[str | None]:
+    """The corpus ``case_id`` each compiled demo was bootstrapped from, matched by the demo's
+    ``artifact`` text against the trainset rows (a demo is a traced signature call, so its
+    inputs are the row's projected inputs verbatim). ``None`` when a demo matches no row —
+    reported, never guessed — so a reader can prove every demo came from the calibration split."""
+    by_artifact: dict[str, str] = {}
+    for r in rows:
+        by_artifact.setdefault(_artifact_text(r).strip(), str(_get(r, "case_id", "")))
+    return [by_artifact.get(str(d.get("artifact") or "").strip()) for d in demos]
+
+
+def build_manifest(
+    *,
+    role: str,
+    corpus_path: str | Path,
+    train_rows: list[dict[str, Any]],
+    heldout_rows: list[dict[str, Any]],
+    role_prompt: str,
+    model: str | None,
+    demos: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """PROVENANCE-1: everything a reader needs to reproduce or audit an optimize run from the
+    result file alone: which rows trained, which were held out, the corpus bytes, the prompt
+    the judge ran with, the model string, and where each demo came from. ``demo_source_ids``
+    must be a subset of ``train_case_ids`` for the run to be a clean (out-of-sample) optimize."""
+    train_ids = [str(_get(r, "case_id", "")) for r in train_rows]
+    heldout_ids = [str(_get(r, "case_id", "")) for r in heldout_rows]
+    sources = demo_sources(demos, train_rows)
+    return {
+        "corpus_path": str(corpus_path),
+        "corpus_sha256": _sha256_file(corpus_path),
+        "train_case_ids": train_ids,
+        "heldout_case_ids": heldout_ids,
+        "train_source_ids": sorted({str(_get(_get(r, "ragtruth", {}) or {}, "source_id", "")) for r in train_rows} - {""}),
+        "heldout_source_ids": sorted({str(_get(_get(r, "ragtruth", {}) or {}, "source_id", "")) for r in heldout_rows} - {""}),
+        "role": role,
+        "role_prompt_sha256": _sha256_text(role_prompt),
+        "model": model,
+        "demo_source_ids": sources,
+        "demos_sha256": _sha256_text(json.dumps(demos, sort_keys=True, default=str)),
+        "demos_out_of_sample": all(s is not None and s in set(train_ids) for s in sources),
+    }
+
+
 def _delta(baseline: dict[str, Any], optimized: dict[str, Any]) -> dict[str, Any]:
     keys = ("graded", "precision", "recall")
     delta = {k: round(optimized[k] - baseline[k], 4) for k in keys}
@@ -474,6 +534,15 @@ def run_optimize(
         "baseline": baseline,
         "optimized": optimized,
         "delta": _delta(baseline, optimized),
+        "manifest": build_manifest(
+            role=role,
+            corpus_path=corpus_path,
+            train_rows=train_rows,
+            heldout_rows=heldout_rows,
+            role_prompt=role_prompt,
+            model=getattr(lm, "model", None),
+            demos=demos,
+        ),
     }
 
     out_dir = Path(out_dir)
