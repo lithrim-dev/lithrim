@@ -226,3 +226,45 @@ def test_product_verbs_alias_the_cycle_steps():
         cwd=REPO,
     ).stdout
     assert "plan: before -> optimize -> pin" in out
+
+
+def test_contrastive_ids_interleave_missed_and_spurious_cases_in_equal_number():
+    gold = [
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "m1",
+            "agrees_with_gold": False,
+            "missed": ["A"],
+            "spurious": [],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "m2",
+            "agrees_with_gold": False,
+            "missed": ["A"],
+            "spurious": ["B"],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "s1",
+            "agrees_with_gold": False,
+            "missed": [],
+            "spurious": ["B"],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "ok",
+            "agrees_with_gold": True,
+            "missed": [],
+            "spurious": [],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "t1",
+            "agrees_with_gold": False,
+            "missed": [],
+            "spurious": ["B"],
+        },
+    ]
+    out = rc.contrastive_calibration_ids(gold, {"m1", "m2", "s1", "ok"})
+    assert out == ["m1", "s1"]  # one pair: the first miss with the first spurious-only case

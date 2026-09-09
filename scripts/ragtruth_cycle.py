@@ -198,6 +198,29 @@ def enriched_calibration_ids(gold_rows: list[dict], calibration_ids: set[str]) -
     return [cid for cid, r in latest.items() if not r.get("agrees_with_gold") and r.get("missed")]
 
 
+def contrastive_calibration_ids(gold_rows: list[dict], calibration_ids: set[str]) -> list[str]:
+    """CONTRASTIVE-1: calibration cases from BOTH sides of the boundary, interleaved in equal
+    number: cases the judge under-called (a missed code) and cases it over-called (a spurious
+    code, nothing missed). Newest row per case wins. The bootstrap walks the trainset in this
+    order, so a nailed miss-case yields a positive demo and a nailed spurious-case a clean one."""
+    latest: dict[str, dict] = {}
+    for r in gold_rows:
+        if r.get("schema_version") != "gold-mismatch/1" or r.get("case_id") not in calibration_ids:
+            continue
+        latest[r["case_id"]] = r
+    missed = [c for c, r in latest.items() if not r.get("agrees_with_gold") and r.get("missed")]
+    spurious = [
+        c
+        for c, r in latest.items()
+        if not r.get("agrees_with_gold") and r.get("spurious") and not r.get("missed")
+    ]
+    n = min(len(missed), len(spurious))
+    out: list[str] = []
+    for a, b in zip(missed[:n], spurious[:n]):
+        out += [a, b]
+    return out
+
+
 def build_enriched_corpus(calib_rows: list[dict], chosen: set[str]) -> list[dict]:
     """The optimizer corpus for the enriched round: calibration rows restricted to ``chosen``
     (the mismatch cases), test rows unchanged. The optimizer's own holdout gate still applies."""
@@ -375,6 +398,7 @@ def step_optimize(a) -> None:
     ]
     if a.heldout_cap:
         cmd += ["--limit", str(a.heldout_cap)]
+    cmd += list(getattr(a, "optimize_extra", []) or [])
     _run(cmd, env=env)
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
     print(summarize_optimize(opt_dir))
@@ -484,33 +508,45 @@ def step_calib(a) -> None:
 
 
 def step_enrich(a) -> None:
-    """ENRICH-1: bootstrap demos ONLY from calibration cases the judge got wrong (gold-mismatch
-    rows with agrees_with_gold false and a missed code), then pin and re-grade the test cut."""
+    """ENRICH-1 / CONTRASTIVE-1: bootstrap demos from calibration cases the judge got wrong
+    (miss-only, or both sides of the boundary interleaved with --contrastive), pin through
+    the gate, and re-grade the test cut."""
     log = a.workspace_out / "corrections.ndjson"
     gold = [json.loads(line) for line in log.open() if line.strip()] if log.exists() else []
     calib_rows = [json.loads(line) for line in a.calib.open()]
     calibration_ids = {r["case_id"] for r in calib_rows if r["split"] == "calibration"}
-    chosen = set(enriched_calibration_ids(gold, calibration_ids))
+    contrastive = getattr(a, "contrastive", False)
+    ordered = (
+        contrastive_calibration_ids(gold, calibration_ids)
+        if contrastive
+        else enriched_calibration_ids(gold, calibration_ids)
+    )
+    chosen = set(ordered)
     if not chosen:
         raise SystemExit(
-            "no calibration gold-mismatch rows with a missed code; run the calib step first"
+            "no calibration gold-mismatch rows to learn from; run the calib step first"
         )
-    enriched = a.out / "calib_ragtruth_enriched.jsonl"
+    kind = "contrastive" if contrastive else "enriched"
+    enriched = a.out / f"calib_ragtruth_{kind}.jsonl"
+    by_id = {r["case_id"]: r for r in calib_rows}
     with enriched.open("w") as fh:
-        for r in build_enriched_corpus(calib_rows, chosen):
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(
-        f"enriched corpus: {len(chosen)} mismatch calibration cases + the test rows -> {enriched}"
-    )
+        # calibration rows in the CHOSEN order (the bootstrap walks the file), then the test rows
+        for cid in ordered:
+            fh.write(json.dumps(by_id[cid], ensure_ascii=False) + "\n")
+        for r in calib_rows:
+            if r["split"] == "test":
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(f"{kind} corpus: {len(chosen)} calibration cases + the test rows -> {enriched}")
     saved = a.calib
     a.calib = enriched
     try:
-        a.out_optimize = a.out / "optimize_enriched"
+        a.out_optimize = a.out / f"optimize_{kind}"
+        a.optimize_extra = ["--no-coverage-aware"] if contrastive else []
         step_optimize(a)
         step_pin(a)
     finally:
         a.calib = saved
-    _grade_and_score(a, a.tag if a.tag != "after" else "enriched")
+    _grade_and_score(a, a.tag if a.tag != "after" else kind)
 
 
 def main() -> int:
@@ -542,6 +578,12 @@ def main() -> int:
     # spend money, so they never run by falling off the end of the step list.
     ap.add_argument("--to", dest="stop", choices=STEPS + tuple(VERB_ALIASES), default="after")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--contrastive",
+        action="store_true",
+        help="enrich step: trainset from both sides of the boundary (missed and spurious cases, "
+        "interleaved), coverage ordering off",
+    )
     ap.add_argument(
         "--force-pin",
         dest="force_pin",
