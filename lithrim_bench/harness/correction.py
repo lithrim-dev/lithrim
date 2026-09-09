@@ -16,6 +16,7 @@ all of them.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = "ws0-correction/1"
 FLOOR_SCHEMA_VERSION = "ws3-floor-correction/1"
 WITHSTANDS_SCHEMA_VERSION = "uap3b-withstands-correction/1"
+GOLD_SCHEMA_VERSION = "gold-mismatch/1"
 
 DEFAULT_CORRECTIONS_PATH = REPO_ROOT / "out" / "ws0" / "corrections.ndjson"
 
@@ -240,6 +242,86 @@ def build_withstands_correction(
         "composite_before": composite_before,
         "composite_after": composite_after,
         "ontology_version": ontology.ontology_version,
+    }
+
+
+def corrections_path(out_dir: str | Path | None) -> Path:
+    """CORRECTIONS-SCOPE-1: the corrections log is WORKSPACE state. Given the workspace out
+    dir a grade persists to, its log lives beside the run blobs (``<out_dir>/corrections.ndjson``);
+    with no out dir (the bare CLI default) the legacy repo-level file is kept. Two arms in two
+    workspaces no longer interleave in one file."""
+    return Path(out_dir) / "corrections.ndjson" if out_dir else DEFAULT_CORRECTIONS_PATH
+
+
+def build_gold_mismatch(
+    *,
+    case: dict[str, Any],
+    result: dict[str, Any],
+    final_verdict: str | None,
+    active_codes: Iterable[str],
+    ontology: Ontology | None = None,
+    contract_versions: Iterable[str] = (),
+    case_id: str | None = None,
+    agent_id: str | None = None,
+    pipeline_run_id: str | None = None,
+) -> dict[str, Any] | None:
+    """One ``gold-mismatch/1`` record per graded LABELED case: what the label says, what the
+    system raised (the judges' own codes and the codes standing after the floor), the miss
+    and the spurious sets, whether the verdict agrees, and the judge rollout, with the human
+    evidence spans when the case carries them. Written for EVERY labeled case (agreement is a
+    row too, so the log is a queryable scorecard), never for an unlabeled one (returns None:
+    ``expected_safety_flags`` absent means no answer key, not a clean negative).
+
+    ``agrees_with_gold`` is the strict read: no missed code, no spurious code, verdict match.
+    The label basis rides the row (``by_construction`` | ``human_annotated``) so a training
+    export can tier on it; ``split`` rides too when the case carries one, so a test-side row
+    is never mistaken for a calibration row."""
+    expected_raw = case.get("expected_safety_flags")
+    if not isinstance(expected_raw, list):
+        return None
+    ontology = ontology or load_ontology()
+    expected = sorted({str(c) for c in expected_raw if c})
+    votes = (result.get("semantic") or {}).get("judge_votes") or []
+    judge_codes = sorted({str(c) for v in votes for c in (v.get("findings") or []) if c})
+    final = sorted({str(c) for c in active_codes if c})
+    missed = sorted(set(expected) - set(final))
+    spurious = sorted(set(final) - set(expected))
+    gold_verdict = str(case.get("expected_artifact_verdict") or ("BLOCK" if expected else "PASS")).upper()
+    final_v = str(final_verdict or "").upper()
+    blocked = final_v in ("BLOCK", "REJECT", "WARN", "NEEDS_REVIEW")
+    verdict_match = (gold_verdict in ("BLOCK", "REJECT")) == blocked
+    gold_spans = case.get("gold_spans")
+    if gold_spans is None:
+        gold_spans = ((case.get("ragtruth") or {}).get("labels")) or None
+    return {
+        "schema_version": GOLD_SCHEMA_VERSION,
+        **_identity(case_id, agent_id, pipeline_run_id),
+        "direction": "gold_compare",
+        "ground_truth_basis": case.get("ground_truth_basis"),
+        "split": case.get("split"),
+        "expected_codes": expected,
+        "judge_codes": judge_codes,
+        "raised_codes": final,
+        "missed": missed,
+        "spurious": spurious,
+        "gold_verdict": gold_verdict,
+        "final_verdict": final_v or None,
+        "verdict_match": verdict_match,
+        "agrees_with_gold": verdict_match and not missed and not spurious,
+        "gold_spans": gold_spans,
+        "rollout": [
+            {
+                "judge_role": v.get("judge_role"),
+                "reason": v.get("reason"),
+                "output": {"vote": v.get("vote"), "findings": v.get("findings")},
+                "confidence": v.get("confidence"),
+                "model": v.get("model"),
+                "served_model": v.get("served_model"),
+            }
+            for v in votes
+        ],
+        "ontology_version": ontology.ontology_version,
+        "contract_versions": sorted({str(v) for v in contract_versions if v}),
     }
 
 

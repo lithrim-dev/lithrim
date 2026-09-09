@@ -2211,12 +2211,19 @@ def case_browser_endpoint(
 
     store = provenance_store_for(collections_db)
     counts: dict[str, int] = {}
+    latest_gold: dict[str, dict] = {}  # GOLD-MISMATCH-1: the newest run's label comparison
     for d in run_coro(store.list_all(limit=_BROWSER_MAX_CASES)):
         if d.get("agent_id") == agent and d.get("case_id"):
             counts[d["case_id"]] = counts.get(d["case_id"], 0) + 1
+            if d["case_id"] not in latest_gold and d.get("gold"):
+                latest_gold[d["case_id"]] = d["gold"]
     current_sig = _current_grade_signature(ag, db_path=db_path, workdir=workdir, out_dir=out_dir)
     for r in rows:
         r["runs"] = counts.get(r["case_id"], 0)
+        # "judge disagreed with label": the newest run's strict gold comparison. None = no
+        # label, no run, or a run older than the schema — never inferred.
+        g = latest_gold.get(r["case_id"])
+        r["judge_disagreed_with_label"] = (not g["agrees_with_gold"]) if g else None
         if r["runs"] == 0:
             r["baseline"] = "none"
             continue
@@ -2541,6 +2548,7 @@ def grade_cases_endpoint(
                     # is visible instead of averaging invisibly into the cohort numbers.
                     "cache_replay": bool(rec.get("cache_replay")),
                     "judge_errors": int(rec.get("judge_errors") or 0),
+                    "agrees_with_gold": (rec.get("gold") or {}).get("agrees_with_gold"),
                     "run_id": rec.get("pipeline_run_id"),
                 }
             )
@@ -4624,6 +4632,8 @@ def _run_audit_report(doc: dict, run_id: str) -> dict:
         # in_process run is the cache-served tell (dspy-live-grade-cache-trap) — now visible.
         "grade_signature": doc.get("grade_signature"),
         "cost_tokens": doc.get("cost_tokens"),
+        # GOLD-MISMATCH-1: None on unlabeled cases and pre-schema runs, never a fabricated agreement
+        "agrees_with_gold": (doc.get("gold") or {}).get("agrees_with_gold"),
         "grade_config": doc.get("grade_config"),
     }
 
@@ -4653,6 +4663,8 @@ def _run_summary(doc: dict) -> dict:
         # SIGNATURE-1: same-config comparability + the tokens=0 cache tell, in the list row.
         "grade_signature": doc.get("grade_signature"),
         "cost_tokens": doc.get("cost_tokens"),
+        # GOLD-MISMATCH-1: None on unlabeled cases and pre-schema runs, never a fabricated agreement
+        "agrees_with_gold": (doc.get("gold") or {}).get("agrees_with_gold"),
     }
 
 

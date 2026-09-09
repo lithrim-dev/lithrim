@@ -43,7 +43,9 @@ from lithrim_bench.harness.config import (  # noqa: E402
 from lithrim_bench.harness.correction import (  # noqa: E402
     build_correction,
     build_floor_correction,
+    build_gold_mismatch,
     build_withstands_correction,
+    corrections_path,
     emit,
 )
 from lithrim_bench.harness.grade import grade_inprocess, grade_live, grade_replay  # noqa: E402
@@ -265,6 +267,7 @@ def _enrich_run_blob(
     collections_db: str | Path | None = None,
     grounded_block: dict | None = None,
     grade_config: dict | None = None,
+    gold_block: dict | None = None,
 ) -> None:
     """UAP-3b-2 / S-BS-72: embed the per-judge withstands ruling into the run-PROVENANCE
     blob (stream-2, ``GET /v1/runs/{id}/audit``) — not just the ``AuditLog``/config_audit
@@ -327,6 +330,8 @@ def _enrich_run_blob(
     # head beside the opaque hash — the record is self-describing, not correlate-by-timestamp.
     if grade_config is not None:
         blob["grade_config"] = grade_config
+    if gold_block is not None:
+        blob["gold"] = gold_block  # GOLD-MISMATCH-1: the label comparison rides the run
     _run_sync(store.save_blob(blob))
 
 
@@ -570,6 +575,7 @@ def run(
     cal = calibration(result, expected_block=expected_block(case), labeled=_labeled)
 
     corrections = []
+    _clog = corrections_path(out_dir)  # CORRECTIONS-SCOPE-1: the workspace's own log
     _ident = {
         "case_id": str(case.get("case_id") or agent.dataset.case_id),
         "agent_id": agent.name,
@@ -584,7 +590,7 @@ def run(
             ontology=ontology,
             **_ident,
         )
-        emit(rec)
+        emit(rec, path=_clog)
         corrections.append(rec)
     # WS-3 structural-floor flips emit the inverse correction (council missed it).
     for block in grounded.floor_blocks:
@@ -598,7 +604,7 @@ def run(
             ontology=ontology,
             **_ident,
         )
-        emit(rec)
+        emit(rec, path=_clog)
         corrections.append(rec)
 
     # UAP-3b: audit each pre-consensus withstands-decision (§2B critique ruling) and
@@ -635,8 +641,29 @@ def run(
                 ontology=ontology,
                 **_ident,
             )
-            emit(wrec)
+            emit(wrec, path=_clog)
             corrections.append(wrec)
+
+    # GOLD-MISMATCH-1: every labeled case leaves a queryable row (agreement included) in the
+    # workspace corrections log, and a compact ``gold`` block on the run blob for the read
+    # surfaces (run trail, cohort matrix, case queue).
+    gold_row = build_gold_mismatch(
+        case=case,
+        result=result,
+        final_verdict=grounded.verdict,
+        active_codes=[f.get("code") for f in (grounded.active or []) if isinstance(f, dict)],
+        ontology=ontology,
+        contract_versions=[b["decl"].version for b in (grounded.floor_blocks or []) if b.get("decl")],
+        **_ident,
+    )
+    gold_block = None
+    if gold_row is not None:
+        emit(gold_row, path=_clog)
+        gold_block = {
+            k: gold_row[k]
+            for k in ("expected_codes", "raised_codes", "missed", "spurious", "verdict_match",
+                      "agrees_with_gold", "ground_truth_basis", "split")
+        }
 
     _enrich_run_blob(
         run_id,
@@ -651,6 +678,7 @@ def run(
         grounded_block=_grounded_block(grounded),
         # SIGNATURE-1: the self-describing grade inputs, beside the opaque hash.
         grade_config=grade_config,
+        gold_block=gold_block,
     )
 
     # UAP-3b-2 (the deferred UAP-3b A6): the post-consensus GroundingChecks declared in
@@ -670,6 +698,8 @@ def run(
     )
     paths = persist(agent.dataset.case_id, record, out_dir=out_dir)
     record["_persisted"] = paths
+    if gold_block is not None:
+        record["gold"] = gold_block  # GOLD-MISMATCH-1: the label comparison rides the response
     return record
 
 
