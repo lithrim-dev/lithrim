@@ -165,12 +165,14 @@ def test_train_split_slice_carries_the_calibration_marker_and_matches_the_calib_
                     "labels": [],
                 }
             )
+    test_only = [
+        r for r in responses if r["split"] == "test"
+    ]  # drop the planted train copy of QA-0
     train_cases = [
-        c for _, c in rc.select_slice(responses + extra, sources, 3, natural=True, split="train")
+        c for _, c in rc.select_slice(test_only + extra, sources, 3, natural=True, split="train")
     ]
     assert len(train_cases) == 9 and all(c["split"] == "calibration" for c in train_cases)
     assert all(c["ragtruth"]["source_id"].startswith("train-") for c in train_cases)
-    test_only = [r for r in responses if r["split"] == "test"]
     test_cases = [c for _, c in rc.select_slice(test_only, sources, 3, natural=True)]
     assert all(c["split"] == "test" for c in test_cases)
     calib_rows = rc.build_calib_corpus(test_only + extra, sources, 3, test_cases)
