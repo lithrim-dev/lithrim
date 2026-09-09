@@ -106,6 +106,16 @@ def job_body(
     return body
 
 
+def live_jobs(listing: dict, suffix: str) -> list[dict]:
+    """Jobs with this suffix that are not terminal: a second submit of the same corpus is a
+    duplicate spend (live-caught 2026-09-09: a trial loop created two jobs), never silent."""
+    return [
+        j
+        for j in listing.get("data") or []
+        if j.get("suffix") == suffix and j.get("status") not in ("succeeded", "failed", "cancelled")
+    ]
+
+
 def bind_bodies(deployment: str, role: str) -> tuple[dict, dict, dict]:
     """The three BFF calls that bind a deployed fine-tune as a judge: the provider probe
     (grading plane, azure, per-role), the role's model pin, and the roster."""
@@ -197,6 +207,9 @@ def main() -> int:
         default=None,
         help="Azure trainingType: Standard | GlobalStandard | DeveloperTier",
     )
+    s.add_argument(
+        "--allow-duplicate", action="store_true", help="submit even if a same-suffix job is live"
+    )
     s.add_argument("--confirm-cost", action="store_true")
     st = sub.add_parser("status")
     st.add_argument("--job", required=True)
@@ -238,6 +251,17 @@ def main() -> int:
         if not a.confirm_cost:
             sys.exit(
                 f"REFUSING to submit a paid fine-tuning job: {json.dumps(est)}; re-run with --confirm-cost"
+            )
+        live = live_jobs(
+            _request(
+                "GET", f"{endpoint}/openai/fine_tuning/jobs?api-version={API_VERSION}", key=key
+            ),
+            a.suffix,
+        )
+        if live and not a.allow_duplicate:
+            sys.exit(
+                f"REFUSING: {len(live)} job(s) with suffix {a.suffix!r} already pending/running "
+                f"{[j['id'] for j in live]}; cancel them or pass --allow-duplicate"
             )
         body = job_body(
             a.training_file_id, a.base, a.epochs, a.suffix, a.validation_file_id, a.training_type

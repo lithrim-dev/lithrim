@@ -125,3 +125,15 @@ def test_estimate_is_the_only_networkless_paid_free_path(tmp_path):
         env={"PATH": "/usr/bin"},
     )
     assert out.returncode == 0 and '"rows": 1' in out.stdout and '"priced": true' in out.stdout
+
+
+def test_live_jobs_flags_a_same_suffix_job_that_is_not_terminal():
+    listing = {
+        "data": [
+            {"id": "a", "suffix": "x", "status": "running"},
+            {"id": "b", "suffix": "x", "status": "cancelled"},
+            {"id": "c", "suffix": "y", "status": "pending"},
+        ]
+    }
+    assert [j["id"] for j in ft.live_jobs(listing, "x")] == ["a"]
+    assert ft.live_jobs({"data": []}, "x") == []
