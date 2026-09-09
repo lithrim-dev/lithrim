@@ -117,12 +117,13 @@
       "flag_code": "SOURCE_CONTRADICTION",
       "question": "Is every value the response states (a number, a clock time) present in the source it claims to summarize?",
       "contract_type": "value_grounding",
-      "version": "value-grounding/2",
+      "version": "value-grounding/3",
       "params": {
         "inject_flag_code": "SOURCE_CONTRADICTION",
         "inject_severity": "HIGH",
         "artifact_kind": "generated_response",
-        "on_missing": "by_source_kind"
+        "on_missing": "by_source_kind",
+        "rating_units": ["star"]
       }
     },
     {

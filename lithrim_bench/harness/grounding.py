@@ -1254,7 +1254,9 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
 
     def _value_grounding_ref(params: dict[str, Any]) -> dict[str, Any]:
         ref: dict[str, Any] = {}
-        for opt in ("on_missing", "source_path", "min_digits"):
+        # value-grounding/3: ``rating_units`` (e.g. ["star"]) declares that "<number>-<unit>(s)"
+        # states a rating VALUE on record sources; absent, hyphenated numbers stay names.
+        for opt in ("on_missing", "source_path", "min_digits", "rating_units"):
             if params.get(opt) is not None:
                 ref[opt] = params[opt]
         return ref

@@ -309,3 +309,48 @@ def test_v2_the_5827_shape_is_a_recorded_pass_on_the_record():
     r = ValueGroundingTool().verify(_claim(case["artifacts"][0]["content"], case), _spec())
     assert r.conforms is True, (r.disposition, r.evidence)
     assert "3" not in (r.evidence.get("missing") or [])
+
+
+# ── value-grounding/3: "<number>-star(s)" is a stated RATING value on record sources ─────────
+def test_v3_star_rating_claims_are_values_on_records_only():
+    """After v2, seven human-labeled defects ("4-star" against a 3.5 record) that v1 had caught
+    by accident escalated instead of blocking. A rating claim on a record source has a field to
+    ground against, so the contract may declare ``rating_units``; prose and every other
+    hyphenated number ("COVID-19") are unchanged."""
+    from lithrim_bench.verification.tools import _vg_artifact_values
+
+    assert _vg_artifact_values("a 4-star place with 312 reviews", 1, ["star"]) == ["4", "312"]
+    assert _vg_artifact_values("a 3.5-star place, 4-Stars overall", 1, ["star"]) == ["3.5", "4"]
+    assert _vg_artifact_values("a 4-star place with 312 reviews", 1) == ["312"]  # no units: v2
+    assert _vg_artifact_values("COVID-19 era, a 4-star place", 1, ["star"]) == ["4"]
+
+
+def test_v3_false_rating_is_a_violation_and_a_true_one_passes_on_a_record():
+    record = dict(json.loads(_RECORD), business_stars=3.5)
+    spec = _spec({"rating_units": ["star"]}, version="value-grounding/3")
+
+    def case(text):
+        return {
+            "source_kind": "record",
+            "transcript": json.dumps(record),
+            "artifacts": [{"type": "generated_response", "content": text}],
+        }
+
+    bad = ValueGroundingTool().verify(_claim("The business has a 4-star rating.", case("x")), spec)
+    assert bad.conforms is False and bad.evidence["missing"] == ["4"]
+    assert bad.manifest["rating_units"] == ["star"]
+    good = ValueGroundingTool().verify(_claim("The business has a 3.5-star rating.", case("x")), spec)
+    assert good.conforms is True and good.evidence["present"] == ["3.5"]
+
+
+def test_v3_rating_units_are_ignored_on_prose_sources():
+    spec = _spec({"rating_units": ["star"]}, version="value-grounding/3")
+    r = ValueGroundingTool().verify(_claim("A 4-star effort by the council.", _prose_case("x")), spec)
+    assert r.conforms is None and r.manifest["rating_units"] == []
+
+
+def test_v3_reference_builder_passes_rating_units_through():
+    ex = floor_executors("_core")["value_grounding"]
+    ref = ex.reference_builder({"on_missing": "by_source_kind", "rating_units": ["star"]})
+    assert ref == {"on_missing": "by_source_kind", "rating_units": ["star"]}
+    assert "rating_units" not in ex.reference_builder({"on_missing": "violation"})

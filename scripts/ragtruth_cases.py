@@ -81,8 +81,8 @@ _SPEC = VerificationSpec(
     tool=TOOL_VALUE_GROUNDING,
     applies_to_flags=("SOURCE_CONTRADICTION",),
     locus="",
-    reference={},
-    version="value-grounding/2",
+    reference={"rating_units": ["star"]},
+    version="value-grounding/3",
 )
 
 

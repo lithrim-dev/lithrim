@@ -222,16 +222,30 @@ def _vg_pad_times(text: str) -> str:
     return re.sub(r"(\d{1,2}):(\d)(?!\d)", lambda m: f"{m.group(1)}:{int(m.group(2)):02d}", text)
 
 
-def _vg_artifact_values(text: str, min_digits: int) -> list[str]:
+def _vg_artifact_values(
+    text: str, min_digits: int, rating_units: tuple[str, ...] | list[str] = ()
+) -> list[str]:
     """The values the artifact STATES, first-seen order: clock times (``h:mm``) then numbers.
     List markers (``1.`` / ``2)``) are not claims; hyphen-bound tokens (``COVID-19``, ``5-star``)
-    are names, not values; anything under ``min_digits`` significant digits is ignored."""
+    are names, not values; anything under ``min_digits`` significant digits is ignored.
+
+    value-grounding/3: when the contract declares ``rating_units`` (e.g. ``["star"]``),
+    ``<number>-<unit>(s)`` IS a stated value (``4-star`` claims a rating of 4 against a record
+    whose ``business_stars`` says 3.5). Only those units; every other hyphenated number stays a
+    name. The caller passes units only for record sources (a rating claim needs a field to
+    ground against), so prose behaviour is byte-identical to v2."""
     t = _VG_LIST_MARKER.sub(" ", _vg_pad_times(text))
     out: list[str] = []
     for h, m in _VG_TIME.findall(t):
         v = f"{int(h)}:{int(m):02d}"
         if v not in out:
             out.append(v)
+    if rating_units:
+        units = "|".join(re.escape(u) for u in rating_units)
+        for n in re.findall(rf"(?<![\w.\-])(\d+(?:\.\d+)?)-(?:{units})s?\b", t, flags=re.I):
+            v = _vg_canon(n)
+            if v not in out:
+                out.append(v)
     for n in _VG_NUMBER.findall(_VG_TIME.sub(" ", t)):
         v = _vg_canon(n)
         if v not in out:
@@ -302,6 +316,8 @@ class ValueGroundingTool(VerificationTool):
         on_missing = ref.get("on_missing", "by_source_kind")
         source_path = ref.get("source_path", "transcript")
         min_digits = int(ref.get("min_digits") or (1 if source_kind == "record" else 2))
+        # value-grounding/3: rating units apply on RECORD sources only (a field to ground against)
+        rating_units = tuple(ref.get("rating_units") or ()) if source_kind == "record" else ()
         manifest = {
             "tool": self.name,
             "deterministic": True,
@@ -311,6 +327,7 @@ class ValueGroundingTool(VerificationTool):
             "source_path": source_path,
             "min_digits": min_digits,
             "source_kind": source_kind,
+            "rating_units": list(rating_units),
         }
 
         artifact = claim.subject
@@ -327,7 +344,7 @@ class ValueGroundingTool(VerificationTool):
                 evidence={"reason": f"no source text at '{source_path}'; nothing to ground against"},
                 manifest=manifest,
             )
-        stated = _vg_artifact_values(artifact, min_digits)
+        stated = _vg_artifact_values(artifact, min_digits, rating_units)
         if not stated:
             return VerificationResult(
                 conforms=None,
