@@ -190,7 +190,11 @@ class ValuePresenceTool(VerificationTool):
 # ValueGroundingTool (VALUE-GROUNDING-FLOOR-1) — a value the ARTIFACT states is ABSENT from the
 # source (the inverse of ValuePresenceTool; the record-grounded contradiction mechanism)
 # --------------------------------------------------------------------------- #
-_VG_NUMBER = re.compile(r"(?<![\w.\-])\d[\d,]*(?:\.\d+)?(?![\w\-])")
+# value-grounding/2: a decimal bound to a hyphen (``3.5-star``) is a name like ``5-star``, not
+# a value. v1's trailing lookahead let the match BACKTRACK to the integer part and report ``3``
+# missing from a record that says 3.5 (ragtruth_5827, a clean case blocked); ``(?!\.\d)`` forbids
+# stopping before a decimal part, so a hyphen-bound decimal yields no value at all.
+_VG_NUMBER = re.compile(r"(?<![\w.\-])\d[\d,]*(?:\.\d+)?(?![\w\-]|\.\d)")
 _VG_TIME = re.compile(r"(?<![\w])(\d{1,2}):(\d{2})(?![\w])")
 _VG_LIST_MARKER = re.compile(r"(?m)^\s*\d+[.)]\s")
 _VG_NUMBER_WORDS = {

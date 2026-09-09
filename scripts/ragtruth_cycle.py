@@ -134,6 +134,35 @@ def observed_served(matrix: list[dict]) -> dict[str, int]:
     return counts
 
 
+def cohort_summary(grade: dict, slice_rows: list[dict] | None = None) -> dict:
+    """The cohort-shape numbers a write-up quotes from one grade response: reviewer states,
+    flag precision/recall, verdict accuracy, auto-clear purity (cleared cases that are human-
+    clean), floor counts, genuine defects the floor cleared, judge errors, cache replays."""
+    rows = grade.get("matrix") or []
+    sc = grade.get("scorecard") or {}
+    gold = {r["case_id"]: bool(r.get("expected_safety_flags")) for r in (slice_rows or [])}
+    states: dict[str, int] = {}
+    cleared_clean = cleared_total = 0
+    for r in rows:
+        st = ((r.get("review") or {}).get("state") or "UNKNOWN").upper()
+        states[st] = states.get(st, 0) + 1
+        if st == "CLEARED" and r["case_id"] in gold:
+            cleared_total += 1
+            cleared_clean += 0 if gold[r["case_id"]] else 1
+    floor = sc.get("floor") or {}
+    return {
+        "states": states,
+        "flag_precision": (sc.get("flag") or {}).get("precision"),
+        "flag_recall": (sc.get("flag") or {}).get("recall"),
+        "verdict_accuracy": sc.get("verdict_accuracy"),
+        "auto_clear_purity": (f"{cleared_clean}/{cleared_total}" if cleared_total else None),
+        "floor": {k: floor.get(k) for k in ("enforced", "cleared", "inconclusive")},
+        "gold_defect_clears": len(floor.get("gold_defect_clears") or []),
+        "judge_errors": (grade.get("summary") or {}).get("judge_errors"),
+        "cache_replays": (grade.get("summary") or {}).get("cache_replays"),
+    }
+
+
 def check_measurement(summary: dict) -> str:
     """Refuse a batch that is not an independent measurement; report refusals, never hide them."""
     if summary.get("cache_replays"):
@@ -250,6 +279,8 @@ def _grade_and_score(a, tag: str) -> None:
     out = a.out / f"grade_{tag}.json"
     out.write_text(json.dumps(res, indent=1))
     print(check_measurement(res["summary"]))
+    slice_rows = [json.loads(line) for line in a.slice.open()]
+    print("cohort:", json.dumps(cohort_summary(res, slice_rows)))
     served = observed_served(res.get("matrix") or [])
     print(f"served model versions observed: {served}")
     manifest_path = a.out / "arm_manifest.json"
@@ -339,7 +370,7 @@ def step_pin(a) -> None:
 
 
 def step_after(a) -> None:
-    _grade_and_score(a, "after")
+    _grade_and_score(a, a.tag)
 
 
 def main() -> int:
@@ -354,6 +385,9 @@ def main() -> int:
     )
     ap.add_argument(
         "--upgrade-policy", default=None, help="the deployment's version-upgrade policy"
+    )
+    ap.add_argument(
+        "--tag", default="after", help="name of the final grade's output (grade_<tag>.json)"
     )
     ap.add_argument("--per-task", type=int, default=150)
     ap.add_argument("--heldout-cap", type=int, default=150, help="optimizer --limit (0 = no cap)")

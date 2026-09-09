@@ -30,6 +30,21 @@ WITHSTANDS_SCHEMA_VERSION = "uap3b-withstands-correction/1"
 DEFAULT_CORRECTIONS_PATH = REPO_ROOT / "out" / "ws0" / "corrections.ndjson"
 
 
+def _identity(case_id: str | None, agent_id: str | None, pipeline_run_id: str | None) -> dict[str, Any]:
+    """CORRECTION-IDENTITY-1: which case/agent/run a correction row belongs to, and when it was
+    written. Rows before this carried none of it, so a case's before/after rows could not be
+    selected from the log (observed 2026-09-09 on ragtruth_5827). None-safe for callers that
+    have no run identity (offline builders) — the keys are always present, never fabricated."""
+    from datetime import datetime, timezone
+
+    return {
+        "case_id": case_id,
+        "agent_id": agent_id,
+        "pipeline_run_id": pipeline_run_id,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def build_correction(
     *,
     suppressed_entry: dict[str, Any],
@@ -37,6 +52,9 @@ def build_correction(
     composite_before: str,
     composite_after: str,
     ontology: Ontology | None = None,
+    case_id: str | None = None,
+    agent_id: str | None = None,
+    pipeline_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble one correction record for a disproved (suppressed) finding.
 
@@ -66,6 +84,7 @@ def build_correction(
 
     return {
         "schema_version": SCHEMA_VERSION,
+        **_identity(case_id, agent_id, pipeline_run_id),
         "rollout": rollout,
         "tool_call": {
             "contract": contract.__class__.__name__,
@@ -102,6 +121,9 @@ def build_floor_correction(
     composite_before: str,
     composite_after: str,
     ontology: Ontology | None = None,
+    case_id: str | None = None,
+    agent_id: str | None = None,
+    pipeline_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble one correction record for a WS-3 structural-FLOOR flip.
 
@@ -136,6 +158,7 @@ def build_floor_correction(
 
     return {
         "schema_version": FLOOR_SCHEMA_VERSION,
+        **_identity(case_id, agent_id, pipeline_run_id),
         "direction": "floor_inject",
         "rollout": rollout,
         "tool_call": {
@@ -170,6 +193,9 @@ def build_withstands_correction(
     composite_before: str | None,
     composite_after: str | None,
     ontology: Ontology | None = None,
+    case_id: str | None = None,
+    agent_id: str | None = None,
+    pipeline_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble one correction record for a per-judge withstands-gate correction (UAP-3b).
 
@@ -202,6 +228,7 @@ def build_withstands_correction(
 
     return {
         "schema_version": WITHSTANDS_SCHEMA_VERSION,
+        **_identity(case_id, agent_id, pipeline_run_id),
         "direction": "withstands_correct",
         "role": role,
         "rollout": rollout,

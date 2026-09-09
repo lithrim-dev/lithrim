@@ -117,3 +117,32 @@ def test_observed_served_counts_versions_across_the_cohort():
         {"votes": []},
     ]
     assert rc.observed_served(matrix) == {"gpt-4.1-2025-04-14": 2, "None": 1}
+
+
+def test_cohort_summary_reports_states_purity_and_floor_from_one_grade():
+    grade = {
+        "matrix": [
+            {"case_id": "a", "review": {"state": "CLEARED"}},
+            {"case_id": "b", "review": {"state": "CLEARED"}},
+            {"case_id": "c", "review": {"state": "FLAGGED"}},
+            {"case_id": "d", "review": {"state": "ESCALATED"}},
+        ],
+        "scorecard": {
+            "flag": {"precision": 0.53, "recall": 0.62},
+            "verdict_accuracy": "3/4",
+            "floor": {"enforced": 1, "cleared": 0, "inconclusive": 2, "gold_defect_clears": ["b"]},
+        },
+        "summary": {"judge_errors": 1, "cache_replays": 0},
+    }
+    rows = [
+        {"case_id": "a", "expected_safety_flags": []},
+        {"case_id": "b", "expected_safety_flags": ["X"]},  # a defect the floor cleared: impurity
+        {"case_id": "c", "expected_safety_flags": ["X"]},
+        {"case_id": "d", "expected_safety_flags": []},
+    ]
+    out = rc.cohort_summary(grade, rows)
+    assert out["states"] == {"CLEARED": 2, "FLAGGED": 1, "ESCALATED": 1}
+    assert out["auto_clear_purity"] == "1/2" and out["gold_defect_clears"] == 1
+    assert out["flag_precision"] == 0.53 and out["verdict_accuracy"] == "3/4"
+    assert out["floor"] == {"enforced": 1, "cleared": 0, "inconclusive": 2}
+    assert out["judge_errors"] == 1 and out["cache_replays"] == 0

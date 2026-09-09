@@ -82,7 +82,7 @@ _SPEC = VerificationSpec(
     applies_to_flags=("SOURCE_CONTRADICTION",),
     locus="",
     reference={},
-    version="value-grounding/1",
+    version="value-grounding/2",
 )
 
 

@@ -570,6 +570,11 @@ def run(
     cal = calibration(result, expected_block=expected_block(case), labeled=_labeled)
 
     corrections = []
+    _ident = {
+        "case_id": str(case.get("case_id") or agent.dataset.case_id),
+        "agent_id": agent.name,
+        "pipeline_run_id": (result.get("provenance") or {}).get("pipeline_run_id"),
+    }
     for entry in grounded.suppressed:
         rec = build_correction(
             suppressed_entry=entry,
@@ -577,6 +582,7 @@ def run(
             composite_before=grounded.original_verdict or comp["stage_verdict"],
             composite_after=grounded.verdict,
             ontology=ontology,
+            **_ident,
         )
         emit(rec)
         corrections.append(rec)
@@ -590,6 +596,7 @@ def run(
             composite_before=grounded.original_verdict or comp["stage_verdict"],
             composite_after=grounded.verdict,
             ontology=ontology,
+            **_ident,
         )
         emit(rec)
         corrections.append(rec)
@@ -626,6 +633,7 @@ def run(
                 composite_before=d.decision_before,
                 composite_after=comp["verdict"],
                 ontology=ontology,
+                **_ident,
             )
             emit(wrec)
             corrections.append(wrec)

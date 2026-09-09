@@ -282,3 +282,30 @@ def test_source_kind_is_read_off_the_case(source_kind):
     case = {"source_kind": source_kind, "transcript": _RECORD, "artifacts": [{"content": art}]}
     r = ValueGroundingTool().verify(_claim(art, case), _spec())
     assert r.conforms is (False if source_kind == "record" else None)
+
+
+# ── value-grounding/2: a hyphen-bound DECIMAL is a name, never its integer part ──────────────
+def test_v2_hyphen_bound_decimal_yields_no_value_not_its_integer_part():
+    """ragtruth_5827 (2026-09-09): the response said "a 3.5-star rating", the record said
+    business_stars 3.5, and v1 blocked the clean case with missing ['3'] because the number
+    pattern backtracked from the hyphen to the integer part. ``5-star`` was already a name;
+    ``3.5-star`` must be too, and a real decimal must still be read whole."""
+    from lithrim_bench.verification.tools import _vg_artifact_values
+
+    assert _vg_artifact_values("The business has a 3.5-star rating at 1114 State St.", 1) == ["1114"]
+    assert _vg_artifact_values("a 5-star place", 1) == []
+    assert _vg_artifact_values("rated 3.5 by 312 reviewers, average 4.0.", 1) == ["3.5", "312", "4"]
+    assert _vg_artifact_values("open 11:00-17:00, price $12.50", 1) == ["11:00", "17:00", "12.5"]
+
+
+def test_v2_the_5827_shape_is_a_recorded_pass_on_the_record():
+    record = dict(json.loads(_RECORD), business_stars=3.5)
+    case = {
+        "source_kind": "record",
+        "transcript": json.dumps(record),
+        "artifacts": [{"type": "generated_response", "content":
+                       "With 312 reviews on file, the business has a 3.5-star rating."}],
+    }
+    r = ValueGroundingTool().verify(_claim(case["artifacts"][0]["content"], case), _spec())
+    assert r.conforms is True, (r.disposition, r.evidence)
+    assert "3" not in (r.evidence.get("missing") or [])
