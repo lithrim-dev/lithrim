@@ -193,7 +193,12 @@ def select(responses: list[dict], sources: dict[str, dict]) -> list[tuple[str, d
 
 
 def select_slice(
-    responses: list[dict], sources: dict[str, dict], per_task: int, *, natural: bool = False
+    responses: list[dict],
+    sources: dict[str, dict],
+    per_task: int,
+    *,
+    natural: bool = False,
+    split: str = "test",
 ) -> list[tuple[str, dict]]:
     """A deterministic per-task slice for grading experiments (not the tracked sample): the
     test split, quality good, source under MAX_SOURCE_CHARS, one response per source. Per
@@ -207,7 +212,7 @@ def select_slice(
     rate (the full test split is 450 sources, 150 per task)."""
     pools: dict[str, dict[bool, list[dict]]] = {}
     for r in sorted(responses, key=lambda r: int(r["id"])):
-        if r.get("split") != "test" or r.get("quality") != "good":
+        if r.get("split") != split or r.get("quality") != "good":
             continue
         s = sources[r["source_id"]]
         if not natural and len(_source_text(s)) >= MAX_SOURCE_CHARS:
@@ -236,7 +241,9 @@ def select_slice(
             pools[task][False], per_task - n_lab, used
         )
         for r in rows:
-            picked.append((f"slice:{task}", _case(r, sources[r["source_id"]])))
+            case = _case(r, sources[r["source_id"]])
+            case["split"] = "calibration" if split == "train" else "test"
+            picked.append((f"slice:{task}", case))
     return picked
 
 
@@ -279,8 +286,9 @@ def build_calib_corpus(
     (the same natural, model-balanced, one-per-source rule as the test cut) and ``test`` rows
     from the graded test cut, both task-interleaved. Refuses to build if any source appears
     on both sides (RAGTruth assigns its split per source, so this should never fire)."""
-    train = [dict(r, split="test") for r in responses if r.get("split") == "train"]
-    calib = interleave_tasks([c for _, c in select_slice(train, sources, per_task, natural=True)])
+    calib = interleave_tasks(
+        [c for _, c in select_slice(responses, sources, per_task, natural=True, split="train")]
+    )
     test = interleave_tasks(test_cases)
     shared = {c["ragtruth"]["source_id"] for c in calib} & {c["ragtruth"]["source_id"] for c in test}
     if shared:
@@ -297,6 +305,13 @@ def main() -> int:
         "--slice", type=int, default=0, metavar="N",
         help="write a per-task grading slice of N cases per task (stratified labeled/clean) "
              "instead of the five-rule tracked sample; pair with --out under out/",
+    )
+    ap.add_argument(
+        "--split",
+        choices=["test", "train"],
+        default="test",
+        help="with --slice: which RAGTruth split to cut (train = the calibration side; the "
+        "case carries split=calibration so a gold row is never mistaken for a test row)",
     )
     ap.add_argument(
         "--natural", action="store_true",
@@ -322,7 +337,7 @@ def main() -> int:
         for d in (json.loads(line) for line in (args.data_dir / "source_info.jsonl").open())
     }
     picked = (
-        select_slice(responses, sources, args.slice, natural=args.natural)
+        select_slice(responses, sources, args.slice, natural=args.natural, split=args.split)
         if args.slice
         else select(responses, sources)
     )

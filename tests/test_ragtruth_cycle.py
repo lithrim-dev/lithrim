@@ -146,3 +146,53 @@ def test_cohort_summary_reports_states_purity_and_floor_from_one_grade():
     assert out["flag_precision"] == 0.53 and out["verdict_accuracy"] == "3/4"
     assert out["floor"] == {"enforced": 1, "cleared": 0, "inconclusive": 2}
     assert out["judge_errors"] == 1 and out["cache_replays"] == 0
+
+
+def test_enriched_ids_are_calibration_mismatches_with_a_missed_code_newest_row_wins():
+    gold = [
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "c1",
+            "agrees_with_gold": False,
+            "missed": ["A"],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "c2",
+            "agrees_with_gold": False,
+            "missed": [],
+        },  # spurious only
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "c3",
+            "agrees_with_gold": True,
+            "missed": [],
+        },
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "t1",
+            "agrees_with_gold": False,
+            "missed": ["A"],
+        },  # test side
+        {"schema_version": "ws3-floor-correction/1", "case_id": "c4"},
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "c1",
+            "agrees_with_gold": True,
+            "missed": [],
+        },  # newer: fixed
+        {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "c5",
+            "agrees_with_gold": False,
+            "missed": ["B"],
+        },
+    ]
+    chosen = rc.enriched_calibration_ids(gold, {"c1", "c2", "c3", "c4", "c5"})
+    assert chosen == ["c5"]
+    rows = [
+        {"case_id": "c5", "split": "calibration"},
+        {"case_id": "c1", "split": "calibration"},
+        {"case_id": "t1", "split": "test"},
+    ]
+    assert rc.build_enriched_corpus(rows, set(chosen)) == [rows[0], rows[2]]

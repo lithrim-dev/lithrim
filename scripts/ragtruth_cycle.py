@@ -37,7 +37,18 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-STEPS = ("download", "slice", "ingest", "judge", "before", "optimize", "pin", "after")
+STEPS = (
+    "download",
+    "slice",
+    "ingest",
+    "judge",
+    "before",
+    "optimize",
+    "pin",
+    "after",
+    "calib",
+    "enrich",
+)
 ROLE = "ragtruth_detector"
 LENS = ["SOURCE_CONTRADICTION", "UNSUPPORTED_ASSERTION"]
 ROLE_PROMPT = (
@@ -161,6 +172,24 @@ def cohort_summary(grade: dict, slice_rows: list[dict] | None = None) -> dict:
         "judge_errors": (grade.get("summary") or {}).get("judge_errors"),
         "cache_replays": (grade.get("summary") or {}).get("cache_replays"),
     }
+
+
+def enriched_calibration_ids(gold_rows: list[dict], calibration_ids: set[str]) -> list[str]:
+    """ENRICH-1: the calibration cases whose gold-mismatch row says the judge DISAGREED with
+    the label and MISSED at least one code (the graded meta-labels feeding the next
+    optimization). Newest row per case wins; order is the log's own (stable)."""
+    latest: dict[str, dict] = {}
+    for r in gold_rows:
+        if r.get("schema_version") != "gold-mismatch/1" or r.get("case_id") not in calibration_ids:
+            continue
+        latest[r["case_id"]] = r  # later rows overwrite: the newest run's comparison wins
+    return [cid for cid, r in latest.items() if not r.get("agrees_with_gold") and r.get("missed")]
+
+
+def build_enriched_corpus(calib_rows: list[dict], chosen: set[str]) -> list[dict]:
+    """The optimizer corpus for the enriched round: calibration rows restricted to ``chosen``
+    (the mismatch cases), test rows unchanged. The optimizer's own holdout gate still applies."""
+    return [r for r in calib_rows if r["split"] == "test" or r["case_id"] in chosen]
 
 
 def check_measurement(summary: dict) -> str:
@@ -329,14 +358,15 @@ def step_optimize(a) -> None:
         "--corpus",
         str(a.calib),
         "--out",
-        str(a.out / "optimize"),
+        str(getattr(a, "out_optimize", None) or a.out / "optimize"),
         "--confirm-cost",
     ]
     if a.heldout_cap:
         cmd += ["--limit", str(a.heldout_cap)]
     _run(cmd, env=env)
-    print(summarize_optimize(a.out / "optimize"))
-    result = json.load((a.out / "optimize" / f"result_dspy3b_{ROLE}.json").open())
+    opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
+    print(summarize_optimize(opt_dir))
+    result = json.load((opt_dir / f"result_dspy3b_{ROLE}.json").open())
     if not (result.get("manifest") or {}).get("demos_out_of_sample"):
         raise SystemExit("REFUSING to pin: a compiled demo does not trace to a calibration row")
 
@@ -363,7 +393,9 @@ def summarize_optimize(opt_dir: Path) -> str:
 
 
 def step_pin(a) -> None:
-    src = a.out / "optimize" / f"compiled_demos_dspy3b_{ROLE}.json"
+    src = (
+        getattr(a, "out_optimize", None) or a.out / "optimize"
+    ) / f"compiled_demos_dspy3b_{ROLE}.json"
     a.workspace_out.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, a.workspace_out / src.name)
     print(f"pinned {src.name} into {a.workspace_out}")
@@ -371,6 +403,78 @@ def step_pin(a) -> None:
 
 def step_after(a) -> None:
     _grade_and_score(a, a.tag)
+
+
+def step_calib(a) -> None:
+    """Grade the CALIBRATION slice (RAGTruth train split, split=calibration on every case) so
+    each case leaves a gold-mismatch row in the workspace log; scored against its own human
+    labels for the record. Output grade_calib.json."""
+    train = a.out / "slice_train.jsonl"
+    if not train.exists():
+        _run(
+            [
+                sys.executable,
+                "scripts/ragtruth_cases.py",
+                "--slice",
+                str(a.per_task),
+                "--natural",
+                "--split",
+                "train",
+                "--out",
+                str(train),
+            ]
+        )
+    raw = train.read_text()
+    prev = _post(
+        a.bff, "/v1/cases/ingest/preview", {"raw": raw, "filename": train.name, "agent": a.agent}
+    )
+    assert prev.get("native"), "the calibration slice must ingest natively"
+    _post(
+        a.bff,
+        "/v1/cases/ingest/commit",
+        {
+            "raw": raw,
+            "filename": train.name,
+            "agent": a.agent,
+            "approved_template": prev.get("template"),
+        },
+    )
+    saved_slice = a.slice
+    a.slice = train
+    try:
+        _grade_and_score(a, "calib")
+    finally:
+        a.slice = saved_slice
+
+
+def step_enrich(a) -> None:
+    """ENRICH-1: bootstrap demos ONLY from calibration cases the judge got wrong (gold-mismatch
+    rows with agrees_with_gold false and a missed code), then pin and re-grade the test cut."""
+    log = a.workspace_out / "corrections.ndjson"
+    gold = [json.loads(line) for line in log.open() if line.strip()] if log.exists() else []
+    calib_rows = [json.loads(line) for line in a.calib.open()]
+    calibration_ids = {r["case_id"] for r in calib_rows if r["split"] == "calibration"}
+    chosen = set(enriched_calibration_ids(gold, calibration_ids))
+    if not chosen:
+        raise SystemExit(
+            "no calibration gold-mismatch rows with a missed code; run the calib step first"
+        )
+    enriched = a.out / "calib_ragtruth_enriched.jsonl"
+    with enriched.open("w") as fh:
+        for r in build_enriched_corpus(calib_rows, chosen):
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(
+        f"enriched corpus: {len(chosen)} mismatch calibration cases + the test rows -> {enriched}"
+    )
+    saved = a.calib
+    a.calib = enriched
+    try:
+        a.out_optimize = a.out / "optimize_enriched"
+        step_optimize(a)
+        step_pin(a)
+    finally:
+        a.calib = saved
+    _grade_and_score(a, a.tag if a.tag != "after" else "enriched")
 
 
 def main() -> int:

@@ -142,3 +142,38 @@ def test_calib_corpus_refuses_a_source_on_both_sides():
     test_cases = [c for _, c in rc.select_slice(responses, sources, per_task=4, natural=True)]
     with pytest.raises(SystemExit, match="share 1 source"):
         rc.build_calib_corpus(responses, sources, 4, test_cases)
+
+
+def test_train_split_slice_carries_the_calibration_marker_and_matches_the_calib_corpus():
+    responses, sources = _corpus()
+    extra = []
+    rid = 2000
+    for task in ("QA", "Summary", "Data2txt"):
+        for i in range(3):
+            sid = f"train-{task}-{i}"
+            info = {"k": "v"} if task == "Data2txt" else f"train text {task} {i}"
+            sources[sid] = {"source_id": sid, "task_type": task, "source_info": info, "prompt": ""}
+            rid += 1
+            extra.append(
+                {
+                    "id": str(rid),
+                    "source_id": sid,
+                    "model": "model-a",
+                    "split": "train",
+                    "quality": "good",
+                    "response": f"train resp {rid}",
+                    "labels": [],
+                }
+            )
+    train_cases = [
+        c for _, c in rc.select_slice(responses + extra, sources, 3, natural=True, split="train")
+    ]
+    assert len(train_cases) == 9 and all(c["split"] == "calibration" for c in train_cases)
+    assert all(c["ragtruth"]["source_id"].startswith("train-") for c in train_cases)
+    test_only = [r for r in responses if r["split"] == "test"]
+    test_cases = [c for _, c in rc.select_slice(test_only, sources, 3, natural=True)]
+    assert all(c["split"] == "test" for c in test_cases)
+    calib_rows = rc.build_calib_corpus(test_only + extra, sources, 3, test_cases)
+    assert {r["case_id"] for r in calib_rows if r["split"] == "calibration"} == {
+        c["case_id"] for c in train_cases
+    }
