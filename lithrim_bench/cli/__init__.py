@@ -8,6 +8,7 @@
     lithrim export     --slice out/loop/slice_train.jsonl --split calibration --out out/loop/export.jsonl
     lithrim score      --slice out/loop/slice_full.jsonl [--grade out/loop/grade_after.json]
     lithrim spend
+    lithrim replay                                                   # one round at $0 from committed baselines
     lithrim run        --from load --to regrade ...                  # the loop end to end
 
 Every verb talks to the BFF (``--bff``, default http://localhost:8787) and writes under
@@ -23,6 +24,7 @@ from pathlib import Path
 
 from . import export as _export
 from . import loop as _loop
+from . import replay as _replay
 from . import scoring as _scoring
 from . import spend as _spend
 
@@ -122,6 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("spend", help="the running list-price spend line")
     _spend.add_arguments(p)
     p.set_defaults(_fn=_spend.cmd_spend)
+    p = sub.add_parser("replay", help="one round at $0: replay committed baselines, ground, score")
+    _replay.add_arguments(p)
+    p.set_defaults(_fn=_replay.cmd_replay)
     return ap
 
 

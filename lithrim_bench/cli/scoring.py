@@ -229,10 +229,7 @@ def render(res: dict, vocab=None, *, predictions: bool = False) -> str:
             p, r, f = _prf(c["tp"], c["fp"], c["fn"])
             term = ""
             if vocab:
-                names = (
-                    " / ".join(vocab.terms_for(code))
-                    or vocab.untyped_prediction_class.split(";")[0]
-                )
+                names = " / ".join(vocab.terms_for(code)) or "no dataset term"
                 term = f" [{names}]"
             lines.append(
                 f"  {code}{term}: tp {c['tp']} fp {c['fp']} fn {c['fn']}  "
