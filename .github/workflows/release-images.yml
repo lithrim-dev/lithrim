@@ -49,3 +49,35 @@ jobs:
           tags: |
             ${{ matrix.image }}:${{ github.ref_name }}
             ${{ matrix.image }}:latest
+
+  # The image smoke: the just-built BFF image boots and runs one loop round at $0 (no key, no
+  # network beyond the build): `lithrim replay` on the tracked sample inside the container, and
+  # /health answers. Built for the runner's own arch (no push), so forks get the signal too.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the BFF image for this runner (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.bff
+          load: true
+          push: false
+          tags: lithrim-bff:smoke
+      - name: One loop round at $0 inside the image (lithrim replay)
+        run: |
+          docker run --rm lithrim-bff:smoke lithrim replay --cases samples/ragtruth/cases.jsonl | tee replay.txt
+          grep -q "OVERALL" replay.txt
+          grep -q "Evident Conflict" replay.txt
+      - name: The image boots and /health answers
+        run: |
+          cid=$(docker run -d -p 8787:8787 lithrim-bff:smoke)
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:8787/health >/dev/null; then echo "healthy after ${i}s"; docker rm -f "$cid" >/dev/null; exit 0; fi
+            sleep 1
+          done
+          docker logs "$cid" | tail -50
+          docker rm -f "$cid" >/dev/null
+          exit 1

@@ -6,6 +6,10 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.25] — 2026-09-10
+
+The public cut of the RAGTruth pilot: the loop as a generic CLI, the dataset as an example.
+
 ### Added
 - The `lithrim` CLI (`lithrim load | configure | grade | calibrate | regrade | export | score |
   spend | replay | run`): the product loop from a terminal against a running stack. A dataset
