@@ -17,11 +17,17 @@ artifact itself when it is JSON (`target: artifact`).
 | `field_in_set` | `field`, `allowed` (list), `mode` `in` (default) or `not_in`, `case_insensitive` (default true) | a recorded floor pass | the pinned flag is injected; evidence names the allowed set and the actual value | field absent, no record, prose source |
 
 Unknown is never a violation and never a silent pass: it is surfaced as an inconclusive floor
-result the reviewer can see. A malformed pin (an unknown `op`, a missing bound, `min > max`, an
-empty `allowed`) is refused when the contract is authored, not at grade time.
+result the reviewer can see. A malformed pin (an empty `field`, an unknown `op`, a missing or
+non-numeric bound, `min > max`, an empty or non-list `allowed`, an unknown `mode` or `target`)
+is refused when the contract is authored; the grade applies the same rule.
 
-Author one from the shell with the contract builder (the type list is the pack's registered
-executors), or in the ontology:
+KPI contracts **stack**: a flag can carry several, one per `field` (a latency KPI and a token KPI
+on the same flag), and pinning one never displaces the flag's other checks. A pin with the same
+flag, type and field as an existing one replaces it, whatever its version, so a flag never runs
+two versions of one KPI. Every other contract type stays one per flag, as before.
+
+Author one from the shell with **⌘K → Add a check or KPI contract** (the contract builder; the
+type list is the pack's registered executors), or in the ontology:
 
 ```json
 {
