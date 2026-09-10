@@ -50,3 +50,12 @@ def test_the_journey_page_states_the_acceptance_test_and_is_linked():
     assert "RAGTRUTH_LOOP_UI.md" in (REPO / "docs/README.md").read_text()
     assert "RAGTRUTH_LOOP_UI.md" in (REPO / "README.md").read_text()
     assert "RAGTRUTH_LOOP_UI.md" in (REPO / "docs/reproduction/RAGTRUTH_LOOP.md").read_text()
+
+
+def test_the_kpi_and_otel_page_is_linked_and_names_both_contract_types():
+    page = (REPO / "docs/KPI_CONTRACTS.md").read_text()
+    for needle in ("kpi_threshold", "field_in_set", "resourceSpans", "never a violation"):
+        assert needle in page, needle
+    assert "KPI_CONTRACTS.md" in (REPO / "docs/README.md").read_text()
+    assert "KPI_CONTRACTS.md" in (REPO / "README.md").read_text()
+    assert "kpi_threshold" in (REPO / "docs/CAPABILITY_CARD.md").read_text()

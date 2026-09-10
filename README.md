@@ -224,6 +224,7 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md) | The load / configure / grade / calibrate / re-grade / export loop on a RAGTruth cut, from the published images. |
 | [`docs/reproduction/RAGTRUTH_LOOP_UI.md`](docs/reproduction/RAGTRUTH_LOOP_UI.md) | The same loop from the shell, in one workspace, without a terminal. |
 | [`docs/IMPORTERS.md`](docs/IMPORTERS.md) | Importer manifests and dataset adapters: bringing a labeled dataset into a pack with zero engine edits. |
+| [`docs/KPI_CONTRACTS.md`](docs/KPI_CONTRACTS.md) | KPI contracts the floor proves before any judge runs, and OpenTelemetry trace exports as cases. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
 

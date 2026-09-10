@@ -62,6 +62,9 @@ registered contract type. The shipped contract types:
   must appear in the artifact, else a BLOCK is injected.
 - `fact_preservation` / `speaker_attribution`: bounded-extraction floors over an
   SME-pinned fact or statement, including who-said-it attribution.
+- `kpi_threshold` / `field_in_set`: deterministic KPI checks over a structured record's
+  fields (a number against a bound or range, a value against an allowed set); unknown is
+  never a violation. See `docs/KPI_CONTRACTS.md`.
 
 **Healthcare pack (`../lithrim-pack-healthcare/healthcare/floors.py:684-698`
 registries):**

@@ -6,6 +6,15 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+### Added
+- KPI contracts (`kpi_threshold`, `field_in_set`): deterministic floors over a structured
+  record's fields that prove a KPI before any judge runs; a breach injects the pinned flag
+  with the expected and actual values named, unknown is never a violation; malformed pins
+  are refused at author time (`docs/KPI_CONTRACTS.md`).
+- OpenTelemetry trace exports (OTLP/JSON) as eval cases on the upload front door: one case
+  per LLM span, the prompt as the transcript, the completion as the artifact, the span's
+  attributes, resource, duration and status as the structured record the KPI floor checks.
+
 ## [0.1.26] — 2026-09-10
 
 The RAGTruth loop from the shell: the six verbs reachable from the browser, one workspace
