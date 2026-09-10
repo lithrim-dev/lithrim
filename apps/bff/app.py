@@ -3071,6 +3071,190 @@ def _job_scorecard(
     return card
 
 
+class ExportRequest(BaseModel):
+    # UI-JOURNEY-1 (B8): the Export verb — the graded corpus of one grade job as labeled rows
+    # (``lithrim_bench.cli.export``): the job's split, a label-basis tier per row, the dataset's
+    # vocabulary; a training format only from the calibration split. $0, no model call.
+    agent: str = DEFAULT_AGENT
+    job_id: str
+    format: str = "generic"  # generic | paper | chat
+    filter: str = "supervised"  # supervised | silver | all
+    split: str | None = None  # default: the job's split
+    vocabulary: str | None = None
+    prompt_module: str | None = None  # with format chat: a .py defining fill_prompt
+
+
+def _exports_dir(out_dir: Path) -> Path:
+    return Path(out_dir) / "exports"
+
+
+def _list_exports(out_dir: Path) -> list[dict]:
+    exports = []
+    exports_dir = _exports_dir(out_dir)
+    for path in sorted(exports_dir.glob("*.jsonl")) if exports_dir.exists() else []:
+        entry: dict = {"name": path.name, "bytes": path.stat().st_size}
+        manifest = path.with_suffix(".manifest.json")
+        if manifest.exists():
+            with contextlib.suppress(OSError, ValueError):
+                m = json.loads(manifest.read_text())
+                entry.update(
+                    {k: m.get(k) for k in ("rows", "split", "format", "filter", "tiers", "written", "job_id", "round", "agent")}
+                )
+        exports.append(entry)
+    return exports
+
+
+@app.post("/v1/export")
+def export_endpoint(
+    req: ExportRequest,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B8): write the export of one grade job under ``<workspace out>/exports``
+    (the rows file + its manifest) and return the manifest. The gold row per case comes from
+    the corrections log when it names the job's run, else it is rebuilt from the run blob
+    (same builder). A training format off the calibration split is 422."""
+    from datetime import datetime, timezone
+
+    from lithrim_bench.cli import export as _export
+    from lithrim_bench.harness.plugins import default_importer, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    resolved_out = Path(out_dir if out_dir is not None else ws.out_dir)
+    job = _load_job(resolved_out, req.job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown job {req.job_id!r}")
+    if req.format not in ("generic", "paper", "chat"):
+        raise HTTPException(status_code=422, detail=f"unknown format {req.format!r}")
+    if req.filter not in ("supervised", "silver", "all"):
+        raise HTTPException(status_code=422, detail=f"unknown filter {req.filter!r}")
+    corpus = {c["case_id"]: c for c in _read_ingested_corpus(ws) if c.get("case_id")}
+    targets = [cid for cid in job.get("targets") or [] if cid in corpus]
+    cases = {cid: corpus[cid] for cid in targets}
+    split = req.split or job.get("split")
+    if not split:
+        splits = {c.get("split") for c in cases.values()} - {None}
+        split = next(iter(splits)) if len(splits) == 1 else None
+    if not split:
+        raise HTTPException(
+            status_code=422,
+            detail="the job's cases carry no single split; pass split=test or split=calibration",
+        )
+    if req.format != "generic" and split != "calibration":
+        raise HTTPException(
+            status_code=422,
+            detail="REFUSING: a training format may only be written from the calibration split",
+        )
+    manifests = importer_plugins(ws.pack)
+    vocab = None
+    if req.vocabulary:
+        vocab = next((m for m in manifests if req.vocabulary in (m.id, m.dataset)), None)
+    else:
+        carried = {c.get("importer") for c in cases.values()} - {None}
+        if len(carried) == 1:
+            vocab = next((m for m in manifests if m.id == next(iter(carried))), None)
+        vocab = vocab or default_importer(ws.pack)
+    if vocab is None:
+        raise HTTPException(
+            status_code=422, detail="no importer manifest to export against; pass vocabulary"
+        )
+    run_ids = {r["case_id"]: r.get("run_id") for r in job.get("rows") or [] if r.get("run_id")}
+    store = provenance_store_for(collections_db)
+    blobs: dict[str, dict] = {}
+    for rid in run_ids.values():
+        try:
+            doc = run_coro(store.find_by_id(rid))
+        except Exception:  # noqa: BLE001
+            doc = None
+        if doc is not None:
+            blobs[rid] = doc
+    gold: dict[str, dict] = {}
+    corr_path = correction.corrections_path(resolved_out)
+    if corr_path.exists():
+        for line in corr_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            cid = r.get("case_id")
+            if (
+                r.get("schema_version") == "gold-mismatch/1"
+                and cid in cases
+                and r.get("pipeline_run_id") == run_ids.get(cid)
+            ):
+                gold[cid] = r  # the row of exactly this job's run
+    for cid, rid in run_ids.items():
+        if cid not in gold and rid in blobs:
+            row = _export.gold_from_blob(cases[cid], blobs[rid], pack=ws.pack)
+            if row is not None:
+                gold[cid] = row
+    fill_prompt = None
+    if req.format == "chat":
+        if not req.prompt_module:
+            raise HTTPException(status_code=422, detail="format chat needs prompt_module")
+        try:
+            fill_prompt = _export._load_fill_prompt(req.prompt_module)
+        except (OSError, SystemExit, AttributeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        rows, out_rows = _export.export_rows(
+            cases, gold, blobs, vocab, split=split, filter_mode=req.filter, fmt=req.format,
+            fill_prompt=fill_prompt, pack=ws.pack,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    exports_dir = _exports_dir(resolved_out)
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    name = f"export_{split}_{job.get('round') or 'untagged'}_{req.job_id}_{req.format}.jsonl"
+    path = exports_dir / name
+    path.write_text("".join(json.dumps(o, ensure_ascii=False) + "\n" for o in out_rows))
+    manifest = _export.export_manifest(
+        rows, split=split, filter_mode=req.filter, fmt=req.format, vocab=vocab,
+        graded_from=f"job {req.job_id} ({len(blobs)} run blobs, {sum(1 for c in gold.values() if c.get('direction'))} gold rows)",
+    )
+    manifest.update(
+        {
+            "name": name,
+            "job_id": req.job_id,
+            "round": job.get("round"),
+            "agent": job.get("agent"),
+            "written": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    path.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2))
+    return {**manifest, "path": str(path)}
+
+
+@app.get("/v1/exports")
+def list_exports_endpoint(
+    agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
+) -> dict:
+    """UI-JOURNEY-1 (B8): the exports written under the workspace (newest last)."""
+    resolved_out = Path(out_dir if out_dir is not None else workspace.get_active_workspace().out_dir)
+    exports = [e for e in _list_exports(resolved_out) if not agent or e.get("agent") in (None, agent)]
+    return {"exports": exports}
+
+
+@app.get("/v1/exports/{name}")
+def get_export_endpoint(name: str, out_dir: Path | None = Depends(get_out_dir)):
+    """UI-JOURNEY-1 (B8): serve one export file (JSON lines) for download."""
+    from fastapi.responses import PlainTextResponse
+
+    resolved_out = Path(out_dir if out_dir is not None else workspace.get_active_workspace().out_dir)
+    if "/" in name or "\\" in name or name.startswith(".") or not name.endswith((".jsonl", ".manifest.json")):
+        raise HTTPException(status_code=404, detail=f"unknown export {name!r}")
+    path = _exports_dir(resolved_out) / name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"unknown export {name!r}")
+    media = "application/json" if name.endswith(".json") else "application/x-ndjson"
+    return PlainTextResponse(
+        path.read_text(), media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
 @app.get("/v1/jobs/{job_id}/scorecard")
 def job_scorecard_endpoint(
     job_id: str,
@@ -3642,18 +3826,7 @@ def _workspace_resources(ws, *, agent: str | None, out_dir: Path, collections_db
             corrections["records"] += 1
             if '"gold-mismatch/' in line:
                 corrections["gold_mismatches"] += 1
-    exports_dir = out_dir / "exports"
-    exports = []
-    for path in sorted(exports_dir.glob("*.jsonl")) if exports_dir.exists() else []:
-        entry = {"name": path.name, "bytes": path.stat().st_size}
-        manifest = path.with_suffix(".manifest.json")
-        if manifest.exists():
-            try:
-                m = json.loads(manifest.read_text())
-                entry.update({k: m.get(k) for k in ("rows", "split", "format", "tiers", "written")})
-            except (OSError, ValueError):
-                pass
-        exports.append(entry)
+    exports = _list_exports(out_dir)
     arm_path = out_dir / "arm_manifest.json"
     arm = None
     if arm_path.exists():

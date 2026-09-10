@@ -7,6 +7,7 @@
    (threaded from the shell) opens that case's full run in the artifact pane — the
    sanctioned conversational-first drill-down (the card stays inline; the pane holds detail).
    [[no-static-components-in-live-eval-ui]] */
+import { useState } from "react";
 import { registerTool } from "./registry.js";
 import { flagLabel, verdictLabel } from "./copy.js";
 import { scorecardRead } from "./reportRead.js";
@@ -140,9 +141,21 @@ function pinnedLine(pinned_demos) {
   return entries.map(([role, d]) => `${role}: ${d.demos ?? "?"} demos${d.graded != null ? ` (held-out graded ${Number(d.graded).toFixed(2)})` : ""}`).join(" · ");
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null, pinned_demos = null, onRegrade = null, onReplay = null }) {
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null, pinned_demos = null, onRegrade = null, onReplay = null, onExport = null, onDownload = null }) {
   const pinned = pinnedLine(pinned_demos);
   const ctx = { job_id, round, split };
+  // UI-JOURNEY-1 (B8): the Export verb from the card; the result names exactly what was written.
+  const [exp, setExp] = useState({ phase: "idle", result: null, msg: "" });
+  const runExport = async () => {
+    if (!onExport) return;
+    setExp({ phase: "busy", result: null, msg: "" });
+    try {
+      const r = await onExport(job_id, { format: "generic", filter: "supervised", ...(split ? { split } : {}) });
+      setExp({ phase: "done", result: r, msg: "" });
+    } catch (e) {
+      setExp({ phase: "error", result: null, msg: String(e?.message || e) });
+    }
+  };
   const hasTable = Array.isArray(per_task) && per_task.length > 0;
   if (!cases.length && !hasTable) {
     return (
@@ -212,8 +225,15 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
         </div>
       )}
       {hasTable && <PerTaskTable per_task={per_task} compare={compare} />}
-      {(onRegrade || onReplay) && (
+      {(onRegrade || onReplay || onExport) && (
         <div data-testid="scorecard-round-controls" className="mt-2 flex flex-wrap items-center gap-2">
+          {onExport && job_id && (
+            <button type="button" data-testid="export-corpus" onClick={runExport} disabled={exp.phase === "busy"}
+              className="rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1 text-[11px] text-foreground hover:bg-secondary"
+              title="Writes this round's graded corpus as labeled rows under the workspace: one row per graded labeled case, its label basis (floor-proved, judge-only), both vocabularies.">
+              {exp.phase === "busy" ? "Exporting…" : "Export the graded corpus"}
+            </button>
+          )}
           {onRegrade && (
             <button type="button" data-testid="regrade-pinned" onClick={() => onRegrade(job_id, ctx)}
               className="rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1 text-[11px] text-foreground hover:bg-secondary"
@@ -229,6 +249,20 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
             </button>
           )}
         </div>
+      )}
+      {exp.phase === "done" && exp.result && (
+        <div data-testid="export-result" className="mt-1 font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+          {exp.result.rows} rows written{exp.result.tiers ? ` · ${Object.entries(exp.result.tiers).map(([k, v]) => `${k} ${v}`).join(" · ")}` : ""}{exp.result.name ? ` · ${exp.result.name}` : ""}
+          {onDownload && exp.result.name && (
+            <button type="button" data-testid="export-download" onClick={() => onDownload(exp.result.name).catch(() => {})}
+              className="ml-2 rounded-[var(--radius-sm)] border border-border bg-background px-1.5 py-0.5 text-[10.5px] text-foreground hover:bg-secondary">
+              Download
+            </button>
+          )}
+        </div>
+      )}
+      {exp.phase === "error" && (
+        <div data-testid="export-result" className="mt-1 text-[10.5px]" style={{ color: "var(--accent-ink)" }}>⚠ {exp.msg}</div>
       )}
       {Array.isArray(per_code) && per_code.length > 0 && (
         <div data-testid="scorecard-per-code" className="mt-2 font-[family-name:var(--font-mono)] text-[10.5px]">

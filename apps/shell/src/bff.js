@@ -115,6 +115,28 @@ export const getJobScorecard = (jobId, vocabulary = null, compare = null) => {
   return call(`/v1/jobs/${encodeURIComponent(jobId)}/scorecard${q ? `?${q}` : ""}`);
 };
 
+/* POST /v1/export — UI-JOURNEY-1 (B8): write one grade job's graded corpus as labeled rows under
+   the workspace (the job's split, label-basis tiers, the dataset's vocabulary; a training format
+   only from the calibration split) and return the manifest {name, rows, tiers, ...}. $0. */
+export const exportCorpus = ({ agent = "ws0_default", job_id, format = "generic", filter = "supervised", split = null, vocabulary = null, prompt_module = null } = {}) =>
+  call("/v1/export", { method: "POST", body: { agent, job_id, format, filter, ...(split ? { split } : {}), ...(vocabulary ? { vocabulary } : {}), ...(prompt_module ? { prompt_module } : {}) } });
+
+/* GET /v1/exports?agent= — the exports written under the workspace. */
+export const listExports = (agent = "ws0_default") => call(`/v1/exports?agent=${encodeURIComponent(agent)}`);
+
+/* GET /v1/exports/{name} — fetch one export with the auth token and hand it to the browser as a
+   download (a plain link could not carry the token). */
+export async function downloadExport(name) {
+  const res = await fetch(`${BASE}/v1/exports/${encodeURIComponent(name)}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`GET /v1/exports/${name} → ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return name;
+}
+
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
    find a running or interrupted job again after a reload. */

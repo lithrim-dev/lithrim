@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from lithrim_bench.cli import export as ex
 
 VOCAB = SimpleNamespace(
@@ -179,3 +181,92 @@ def test_training_classes_come_from_the_manifest_with_a_term_fallback():
     )
     assert m.training_class_for("UNSUPPORTED_ASSERTION") == "made up"
     assert m.training_class_for("NOPE") == "nope"
+
+
+def test_gold_from_blob_matches_the_log_row_the_pipeline_writes():
+    """UI-JOURNEY-1 (B8): a service export rebuilds the gold-mismatch row from the run blob
+    with the same builder the pipeline uses for the corrections log."""
+    from lithrim_bench.cli.export import export_manifest, export_rows, gold_from_blob
+    from lithrim_bench.harness.plugins import importer_vocabulary
+
+    case = {
+        "case_id": "c1",
+        "split": "test",
+        "transcript": "src",
+        "artifacts": [{"type": "generated_response", "content": "the sky is green"}],
+        "expected_safety_flags": ["SOURCE_CONTRADICTION"],
+        "expected_artifact_verdict": "BLOCK",
+        "ground_truth_basis": "human_annotated",
+        "ragtruth": {
+            "source_id": "s1",
+            "task_type": "QA",
+            "model": "m",
+            "labels": [
+                {
+                    "start": 11,
+                    "end": 16,
+                    "text": "green",
+                    "label_type": "Evident Conflict",
+                    "code": "SOURCE_CONTRADICTION",
+                }
+            ],
+        },
+    }
+    blob = {
+        "pipeline_run_id": "run-c1",
+        "agent_id": "a",
+        "timestamp": "2026-09-10T00:00:00+00:00",
+        "verdict": "BLOCK",
+        "grounded": {"verdict": "BLOCK", "floor_blocks": [], "floor_passes": []},
+        "findings": ["SOURCE_CONTRADICTION"],
+        "stage_results": {
+            "semantic": {
+                "judge_votes": [
+                    {
+                        "judge_role": "r",
+                        "vote": "BLOCK",
+                        "findings": ["SOURCE_CONTRADICTION"],
+                        "served_model": "gpt-4.1-2025-04-14",
+                    }
+                ],
+                "evidence": [
+                    {
+                        "judge": "r",
+                        "violation_code": "SOURCE_CONTRADICTION",
+                        "spans": [{"quote": "green"}],
+                    }
+                ],
+            }
+        },
+    }
+    vocab = importer_vocabulary("ragtruth", pack="_core")
+    gold = gold_from_blob(case, blob, pack="_core")
+    assert gold["schema_version"] == "gold-mismatch/1"
+    assert (
+        gold["agrees_with_gold"] is True
+        and gold["split"] == "test"
+        and gold["pipeline_run_id"] == "run-c1"
+    )
+    assert gold["gold_spans"][0]["text"] == "green" and gold["ts"] == blob["timestamp"]
+    rows, out = export_rows(
+        {"c1": case}, {"c1": gold}, {"run-c1": blob}, vocab, split="test", pack="_core"
+    )
+    assert len(rows) == 1 and rows[0]["label_basis"] == "judge-only"
+    assert (
+        rows[0]["judge"]["spans"][0]["located"] is True
+        and rows[0]["judge"]["served_model"] == "gpt-4.1-2025-04-14"
+    )
+    assert out == rows
+    m = export_manifest(
+        rows, split="test", filter_mode="supervised", fmt="generic", vocab=vocab, graded_from="x"
+    )
+    assert (
+        m["rows"] == 1
+        and m["tiers"] == {"judge-only": 1}
+        and m["served_models"] == ["gpt-4.1-2025-04-14"]
+    )
+    with pytest.raises(ValueError):
+        export_rows({"c1": case}, {"c1": gold}, {}, vocab, split="test", fmt="paper", pack="_core")
+    assert (
+        gold_from_blob({"case_id": "u", "artifacts": []}, blob, pack="_core") is None
+    )  # unlabeled: no row

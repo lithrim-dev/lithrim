@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard, listJobs } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard, listJobs, exportCorpus, downloadExport } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
@@ -417,6 +417,10 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
     }
   };
+  // UI-JOURNEY-1 (B8): the Export verb from a round's card ($0); the file lands under the
+  // workspace and downloads through the authenticated client.
+  const onExport = (jobId, opts) => exportCorpus({ agent, job_id: jobId, ...(opts || {}) });
+  const onDownload = (name) => downloadExport(name);
   // UI-JOURNEY-1 (B4): the ⌘K "Load a dataset" trigger — GET /v1/importers ($0) and render the
   // tool-import_cases card inline; the card's own Load posts the files. A finished load announces
   // lithrim:cases-changed so the rail's Load step and the case browser re-read the corpus.
@@ -1103,11 +1107,11 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                           return (
                             <details key={j} className="ondemand" data-testid="ondemand-part">
                               <summary>Show {PART_LABELS[part.type] || "details"} ▸</summary>
-                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay })}</div>
+                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay, onExport, onDownload })}</div>
                             </details>
                           );
                         // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay })}</div>;
+                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay, onExport, onDownload })}</div>;
                       })}
                       {/* W1/W2: the non-static working indicator — visible across the WHOLE in-flight
                           window (not only when text is empty), showing the latest tool label. */}

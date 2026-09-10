@@ -366,7 +366,7 @@ def test_export_writes_the_corpus_under_the_workspace_and_serves_it(client):
     path = out / "exports" / body["name"]
     assert path.exists() and path.with_suffix(".manifest.json").exists()
     rows = [json.loads(line) for line in path.read_text().splitlines()]
-    assert len(rows) == body["rows"] and all("label_tier" in r for r in rows)
+    assert len(rows) == body["rows"] and all("label_basis" in r for r in rows)
     listed = cli.get(f"/v1/exports?agent={AGENT}").json()["exports"]
     assert any(e["name"] == body["name"] for e in listed)
     served = cli.get(f"/v1/exports/{body['name']}")
