@@ -28,6 +28,8 @@ import { registerTool } from "./registry.js";
 // Plain DISPLAY labels for the contract-type keys (the underlying value/key is unchanged — these
 // only relabel what the user reads in the Select). Unmapped keys fall through to the raw key.
 const CONTRACT_TYPE_LABELS = {
+  kpi_threshold: "KPI threshold (a number in the record vs a bound or range)",
+  field_in_set: "Field in an allowed set",
   presence_check: "Must be in the record",
   snomed_subsumption: "Terminology match (SNOMED)",
   record_presence: "Was actually recorded",

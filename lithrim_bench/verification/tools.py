@@ -35,7 +35,9 @@ from typing import Any
 
 from .spec import (
     TOOL_ATTRIBUTE_CONSISTENCY,
+    TOOL_FIELD_IN_SET,
     TOOL_KB_RAG,
+    TOOL_KPI_THRESHOLD,
     TOOL_VALUE_GROUNDING,
     TOOL_VALUE_PRESENCE,
     TOOL_WEB_SEARCH,
@@ -1267,3 +1269,178 @@ def _dig_path(record: dict, dotted: str) -> Any:
             return None
         cur = cur.get(part)
     return cur
+
+
+# --------------------------------------------------------------------------- #
+# KPI-FLOOR-1: deterministic record-field checks (threshold / range, allowed set)
+# --------------------------------------------------------------------------- #
+_KPI_OPS = ("<", "<=", ">", ">=", "==", "!=", "between")
+
+
+def _kpi_number(value: Any) -> float | None:
+    """A record cell as a number, or None when it is not one (bools are not numbers here)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _kpi_record(claim: Claim, ref: dict, manifest: dict) -> tuple[dict | None, VerificationResult | None]:
+    """The structured object a KPI check reads: the case's record source (``source_kind: record``,
+    JSON at ``source_path``) by default, or the artifact itself when ``target: artifact``. Returns
+    (record, None) or (None, the inconclusive result) — never a violation for a missing record."""
+    case = claim.source or {}
+    target = str(ref.get("target") or "source")
+    if target == "artifact":
+        raw = claim.subject if isinstance(claim.subject, str) else ""
+        if not raw.strip():
+            return None, VerificationResult(conforms=None, evidence={"reason": "empty or non-text artifact"}, manifest=manifest)
+    else:
+        source_kind = str(case.get("source_kind") or "prose")
+        manifest["source_kind"] = source_kind
+        if source_kind != "record":
+            return None, VerificationResult(
+                conforms=None,
+                evidence={"reason": "prose source: no record fields to check", "source_kind": source_kind},
+                manifest=manifest,
+            )
+        raw = " ".join(str(x) for x in _dig(case, str(ref.get("source_path") or "transcript")))
+    try:
+        record = json.loads(raw)
+    except (TypeError, ValueError):
+        return None, VerificationResult(conforms=None, evidence={"reason": f"{target} is not JSON"}, manifest=manifest)
+    if not isinstance(record, dict):
+        return None, VerificationResult(conforms=None, evidence={"reason": f"{target} is not an object"}, manifest=manifest)
+    return record, None
+
+
+class KpiThresholdTool(VerificationTool):
+    """KPI-FLOOR-1: a numeric field of the record must satisfy ``op`` against ``value`` (or lie in
+    ``[min, max]`` for ``between``). Tri-state: the comparison holds → conforms; fails → violation
+    with the expected and actual values named; the field absent, non-numeric, or no record → unknown."""
+
+    name = TOOL_KPI_THRESHOLD
+
+    @staticmethod
+    def expected(ref: dict) -> dict:
+        op = str(ref.get("op") or "")
+        if op not in _KPI_OPS:
+            raise ValueError(f"kpi_threshold op must be one of {_KPI_OPS}, got {op!r}")
+        if op == "between":
+            lo, hi = _kpi_number(ref.get("min")), _kpi_number(ref.get("max"))
+            if lo is None or hi is None:
+                raise ValueError("kpi_threshold op 'between' needs numeric min and max")
+            if lo > hi:
+                raise ValueError("kpi_threshold 'between' needs min <= max")
+            return {"op": op, "min": lo, "max": hi}
+        val = _kpi_number(ref.get("value"))
+        if val is None:
+            raise ValueError(f"kpi_threshold op {op!r} needs a numeric value")
+        return {"op": op, "value": val}
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        field_name = str(ref.get("field") or "")
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "field": field_name,
+            "target": str(ref.get("target") or "source"),
+        }
+        exp = self.expected(ref)
+        manifest.update(exp)
+        record, out = _kpi_record(claim, ref, manifest)
+        if out is not None:
+            return out
+        raw_actual = _dig_path(record, field_name)
+        actual = _kpi_number(raw_actual)
+        evidence: dict[str, Any] = {"field": field_name, **exp, "actual": raw_actual}
+        if raw_actual is None:
+            evidence["reason"] = "the field is absent from the record (unknown, not a violation)"
+            return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
+        if actual is None:
+            evidence["reason"] = "the field is not numeric (unknown, not a violation)"
+            return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
+        op = exp["op"]
+        if op == "between":
+            holds = exp["min"] <= actual <= exp["max"]
+            expected_text = f"between {exp['min']:g} and {exp['max']:g}"
+        else:
+            v = exp["value"]
+            holds = {
+                "<": actual < v, "<=": actual <= v, ">": actual > v, ">=": actual >= v,
+                "==": actual == v, "!=": actual != v,
+            }[op]
+            expected_text = f"{op} {v:g}"
+        evidence["expected"] = expected_text
+        if holds:
+            evidence["reason"] = f"{field_name} = {actual:g} satisfies {expected_text}"
+            return VerificationResult(conforms=True, evidence=evidence, manifest=manifest)
+        evidence["reason"] = f"{field_name} = {actual:g} violates {expected_text}"
+        evidence["missing"] = [f"{field_name} {expected_text} (actual {actual:g})"]
+        return VerificationResult(conforms=False, evidence=evidence, manifest=manifest)
+
+
+class FieldInSetTool(VerificationTool):
+    """KPI-FLOOR-1: a record field's value must be one of ``allowed`` (``mode: in``, the default)
+    or must not be (``mode: not_in``). Strings compare case-insensitively unless
+    ``case_insensitive: false``. Absent field or no record → unknown, never a violation."""
+
+    name = TOOL_FIELD_IN_SET
+
+    @staticmethod
+    def allowed(ref: dict) -> tuple[list, str, bool]:
+        allowed = ref.get("allowed")
+        if not isinstance(allowed, list) or not allowed:
+            raise ValueError("field_in_set needs a non-empty 'allowed' list")
+        mode = str(ref.get("mode") or "in")
+        if mode not in ("in", "not_in"):
+            raise ValueError("field_in_set mode must be 'in' or 'not_in'")
+        return list(allowed), mode, bool(ref.get("case_insensitive", True))
+
+    def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
+        ref = spec.reference
+        field_name = str(ref.get("field") or "")
+        allowed, mode, fold = self.allowed(ref)
+        manifest = {
+            "tool": self.name,
+            "deterministic": True,
+            "spec_version": spec.version,
+            "locus": spec.locus,
+            "field": field_name,
+            "mode": mode,
+            "n_allowed": len(allowed),
+            "target": str(ref.get("target") or "source"),
+        }
+        record, out = _kpi_record(claim, ref, manifest)
+        if out is not None:
+            return out
+        actual = _dig_path(record, field_name)
+        evidence: dict[str, Any] = {"field": field_name, "allowed": allowed, "mode": mode, "actual": actual}
+        if actual is None:
+            evidence["reason"] = "the field is absent from the record (unknown, not a violation)"
+            return VerificationResult(conforms=None, evidence=evidence, manifest=manifest)
+
+        def _key(v: Any) -> Any:
+            return v.strip().lower() if (fold and isinstance(v, str)) else v
+
+        member = _key(actual) in {_key(a) for a in allowed}
+        holds = member if mode == "in" else not member
+        if holds:
+            evidence["reason"] = f"{field_name} = {actual!r} is {'in' if member else 'not in'} the allowed set"
+            return VerificationResult(conforms=True, evidence=evidence, manifest=manifest)
+        evidence["reason"] = (
+            f"{field_name} = {actual!r} is not one of the allowed values"
+            if mode == "in"
+            else f"{field_name} = {actual!r} is a disallowed value"
+        )
+        evidence["missing"] = [f"{field_name} {mode} {allowed} (actual {actual!r})"]
+        return VerificationResult(conforms=False, evidence=evidence, manifest=manifest)

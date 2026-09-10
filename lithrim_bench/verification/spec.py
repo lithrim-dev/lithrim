@@ -81,7 +81,15 @@ TOOL_SNOMED_SUBSUMPTION_FLOOR = "snomed_subsumption_floor"
 # VIOLATION only when the source is a structured record (precision 0.78 strict / 0.94 any-label);
 # on prose it is a LEAD (precision 0.10) surfaced as inconclusive WITH the values named.
 TOOL_VALUE_GROUNDING = "value_grounding"
+# KPI-FLOOR-1: deterministic checks over a STRUCTURED record's fields — a numeric field against a
+# threshold or range, a field's value against an allowed set. Record-field checks, so absence and
+# a non-record source are UNKNOWN (inconclusive), never a violation; a decided comparison that
+# fails is a violation the floor injects. Pure stdlib.
+TOOL_KPI_THRESHOLD = "kpi_threshold"
+TOOL_FIELD_IN_SET = "field_in_set"
 _KNOWN_TOOLS = {
+    TOOL_KPI_THRESHOLD,
+    TOOL_FIELD_IN_SET,
     TOOL_IN_ROW,
     TOOL_STRUCTURAL_JUTE,
     TOOL_RECORD_RAG,
@@ -150,6 +158,13 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
     # snomed_subsumption_floor: the SME pins WHICH terminology tool answers the is-a lookup; the
     # note-vs-record diagnosis codes are read off the case's pinned.subsumption at grade time.
     TOOL_SNOMED_SUBSUMPTION_FLOOR: {"tool"},
+    # kpi_threshold: the SME pins the record FIELD (dotted) and the comparison ``op`` (>=, <=, >,
+    # <, ==, !=, between); ``value`` or ``min``/``max`` complete it (checked by the executor).
+    # Optional: ``target`` (source|artifact), ``source_path`` (default transcript).
+    TOOL_KPI_THRESHOLD: {"field", "op"},
+    # field_in_set: the FIELD and the ``allowed`` values; optional ``mode`` (in|not_in),
+    # ``case_insensitive``, ``target``, ``source_path``.
+    TOOL_FIELD_IN_SET: {"field", "allowed"},
 }
 
 
