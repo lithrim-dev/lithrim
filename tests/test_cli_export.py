@@ -3,6 +3,7 @@ label-basis tiers; the training class names come from the importer manifest."""
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -270,3 +271,101 @@ def test_gold_from_blob_matches_the_log_row_the_pipeline_writes():
     assert (
         gold_from_blob({"case_id": "u", "artifacts": []}, blob, pack="_core") is None
     )  # unlabeled: no row
+
+
+def test_chat_export_hands_a_json_object_source_to_the_prompt_as_an_object():
+    """A RAGTruth QA source is a {question, passages} object stored as JSON text on a prose
+    case; the chat format crashed on every QA row (the prompt indexes the object)."""
+    from lithrim_bench.cli.export import to_chat
+    from lithrim_bench.harness.plugins import importer_vocabulary
+
+    seen = {}
+
+    def fill(task, src, response):
+        seen[task] = src
+        return f"{task}: {response}"
+
+    vocab = importer_vocabulary("ragtruth", pack="_core")
+    base = {
+        "response": "r",
+        "human": {"spans": [{"text": "r", "code": "SOURCE_CONTRADICTION"}]},
+        "judge": {"spans": []},
+    }
+    to_chat(
+        {
+            **base,
+            "task_type": "QA",
+            "source_kind": "prose",
+            "source": json.dumps({"question": "q", "passages": "p"}),
+        },
+        "supervised",
+        fill,
+        vocab,
+    )
+    to_chat(
+        {
+            **base,
+            "task_type": "Summary",
+            "source_kind": "prose",
+            "source": "an article about {braces}",
+        },
+        "supervised",
+        fill,
+        vocab,
+    )
+    to_chat(
+        {
+            **base,
+            "task_type": "Data2txt",
+            "source_kind": "record",
+            "source": json.dumps({"name": "x"}),
+        },
+        "supervised",
+        fill,
+        vocab,
+    )
+    assert seen["QA"] == {"question": "q", "passages": "p"}
+    assert seen["Summary"] == "an article about {braces}"
+    assert seen["Data2txt"] == {"name": "x"}
+
+
+def test_a_row_the_training_prompt_cannot_fill_is_refused_by_name():
+    from lithrim_bench.cli.export import export_rows
+    from lithrim_bench.harness.plugins import importer_vocabulary
+
+    vocab = importer_vocabulary("ragtruth", pack="_core")
+    case = {
+        "case_id": "q1",
+        "split": "calibration",
+        "transcript": "plain text",
+        "source_kind": "prose",
+        "artifacts": [{"content": "an answer"}],
+        "ragtruth": {"task_type": "QA", "source_id": "s"},
+    }
+    gold = {
+        "q1": {
+            "schema_version": "gold-mismatch/1",
+            "case_id": "q1",
+            "split": "calibration",
+            "agrees_with_gold": True,
+            "raised_codes": [],
+            "expected_codes": [],
+            "gold_spans": [],
+        }
+    }
+
+    def fill(task, src, response):
+        return src["question"]
+
+    with pytest.raises(ValueError, match="q1.*QA"):
+        export_rows(
+            {"q1": case},
+            gold,
+            {},
+            vocab,
+            split="calibration",
+            filter_mode="all",
+            fmt="chat",
+            fill_prompt=fill,
+            pack="_core",
+        )

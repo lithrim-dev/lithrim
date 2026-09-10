@@ -207,7 +207,17 @@ def to_paper(row: dict, mode: str, vocab) -> dict:
 
 def to_chat(row: dict, mode: str, fill_prompt, vocab) -> dict:
     labels = training_labels(row, mode, vocab)
-    src = json.loads(row["source"]) if row["source_kind"] == "record" else row["source"]
+    src = row["source"]
+    if row.get("source_kind") == "record":
+        src = json.loads(src)
+    elif isinstance(src, str) and src.lstrip().startswith("{"):
+        # a structured prose source (e.g. a question with its passages) stored as JSON text
+        try:
+            parsed = json.loads(src)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            src = parsed
     prompt = fill_prompt(row["task_type"], src, row["response"])
     target = json.dumps(
         {"hallucination list": [lab["text"] for lab in labels if lab.get("text")]},
@@ -292,7 +302,16 @@ def export_rows(
     elif fmt == "paper":
         out = [to_paper(r, filter_mode, vocab) for r in rows]
     else:
-        out = [to_chat(r, filter_mode, fill_prompt, vocab) for r in rows]
+        out = []
+        for r in rows:
+            try:
+                out.append(to_chat(r, filter_mode, fill_prompt, vocab))
+            except (KeyError, TypeError, ValueError) as exc:
+                # a row the training prompt cannot fill is refused by name, never dropped
+                raise ValueError(
+                    f"the training prompt could not be filled for {r['case_id']} "
+                    f"(task {r.get('task_type')!r}): {type(exc).__name__}: {exc}"
+                ) from exc
     return rows, out
 
 
