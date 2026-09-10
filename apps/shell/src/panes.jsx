@@ -421,6 +421,19 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // workspace and downloads through the authenticated client.
   const onExport = (jobId, opts) => exportCorpus({ agent, job_id: jobId, ...(opts || {}) });
   const onDownload = (name) => downloadExport(name);
+  // UI-JOURNEY-1 (B10b): the ⌘K "Create a reviewer" / "Edit reviewer <role>" triggers — the
+  // builder and editor cards inline, no assistant needed (Create reviewer / Save stay the writes).
+  useEffect(() => {
+    const onCreate = () => setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-judge_builder", state: "output-available", output: { agent } }] }]);
+    const onEdit = (e) => {
+      const role = e?.detail?.role;
+      if (!role) return;
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-judge_editor", state: "output-available", output: { role, agent } }] }]);
+    };
+    window.addEventListener("lithrim:create-judge", onCreate);
+    window.addEventListener("lithrim:edit-judge", onEdit);
+    return () => { window.removeEventListener("lithrim:create-judge", onCreate); window.removeEventListener("lithrim:edit-judge", onEdit); };
+  }, [agent]);
   // UI-JOURNEY-1 (B10): the ⌘K "How the council decides" trigger — GET /v1/council/rules ($0)
   // rendered as the tool-council_rules card inline.
   useEffect(() => {

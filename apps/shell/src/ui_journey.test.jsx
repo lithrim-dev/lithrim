@@ -255,3 +255,26 @@ describe("B7 rounds through the shell", () => {
     unmount();
   }, 12000);
 });
+
+
+describe("B10b configure from the shell: the reviewer builder and editor open from the palette", () => {
+  it("Create a reviewer renders the builder card; Edit reviewer <role> renders that role's editor", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({
+      "/v1/agent?": { name: "ws0_default", eval_profile: { ontology_ref: "x/1", judges: ["risk_judge"] }, dataset: { case_id: "c1" } },
+      "/v1/ontology": { flags: [{ flag: "SOURCE_CONTRADICTION" }], severity_map: {} },
+      "/v1/models": { models: [] },
+      "/v1/judges/risk_judge": { role: "risk_judge", assigned_flags: [], available_flags: [], base_prompt: "p", rendered_prompt: "p" },
+    });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-create-judge"));
+    expect((await screen.findAllByText(/Create reviewer/)).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByTestId("judge-import").length).toBeGreaterThan(0));
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-edit-judge-risk_judge"));
+    await waitFor(() => expect(screen.getAllByText(/Loading reviewer|Judge · risk_judge/).length).toBeGreaterThan(0));
+    unmount();
+  });
+});
