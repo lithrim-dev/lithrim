@@ -92,7 +92,7 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     openTypeSelect();
     // the fetched (pack-true) set drives the options; record_presence (static fallback only) is
     // NOT offered, since the fetch returned a narrower set. (UX-COPY: keys render as plain labels.)
-    expect((await screen.findAllByText("Medical-term match")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Terminology match (SNOMED)")).length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Was actually recorded")).toHaveLength(0);
   });
 
@@ -107,7 +107,7 @@ describe("ContractBuilder — the live type list drives the UI, with a fallback 
     // is offered. (UX-COPY: the type KEY is preserved as the option value but renders as a plain label.)
     const TYPE_LABEL = {
       presence_check: "Must be in the record",
-      snomed_subsumption: "Medical-term match",
+      snomed_subsumption: "Terminology match (SNOMED)",
       record_presence: "Was actually recorded",
     };
     for (const t of CONTRACT_TYPES) {

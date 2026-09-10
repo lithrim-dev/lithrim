@@ -109,13 +109,21 @@ def _run_grade_subprocess(monkeypatch, *, live: bool, in_process: bool = True) -
 
     def _fake_run(cmd, env=None, **kw):
         captured["env"] = env
-        return SimpleNamespace(returncode=0, stdout="__GRADE_JSON__" + json.dumps({"ok": True}), stderr="")
+        return SimpleNamespace(
+            returncode=0, stdout="__GRADE_JSON__" + json.dumps({"ok": True}), stderr=""
+        )
 
     monkeypatch.setattr(bff.subprocess, "run", _fake_run)
     ws = SimpleNamespace(pack="clinverdict", packs_dir=None)
     bff._grade_via_subprocess(
-        agent_name="ws0_default", config_db=Path("cfg.db"), ontology_path=None,
-        collections_db=None, out_dir=None, live=live, in_process=in_process, ws=ws,
+        agent_name="ws0_default",
+        config_db=Path("cfg.db"),
+        ontology_path=None,
+        collections_db=None,
+        out_dir=None,
+        live=live,
+        in_process=in_process,
+        ws=ws,
     )
     return captured["env"]
 
@@ -135,3 +143,24 @@ def test_replay_grade_subprocess_keeps_cache_default(monkeypatch):
     monkeypatch.delenv("LITHRIM_JUDGE_CACHE", raising=False)
     env = _run_grade_subprocess(monkeypatch, live=False, in_process=False)
     assert env.get("LITHRIM_JUDGE_CACHE") != "0"
+
+
+def test_cache_dir_env_scopes_dspys_disk_cache_to_the_workspace(monkeypatch, tmp_path):
+    """UI-JOURNEY-1 (B10): LITHRIM_JUDGE_CACHE_DIR names dspy's disk cache dir (a grade sets it
+    under the workspace out dir); unset keeps dspy's default dir."""
+    import dspy
+
+    from lithrim_bench.harness import judge_cache
+
+    seen: list[dict] = []
+    monkeypatch.setattr(dspy, "configure_cache", lambda **kw: seen.append(kw))
+    monkeypatch.setenv("LITHRIM_JUDGE_CACHE_DIR", str(tmp_path / "cache"))
+    judge_cache.set_global_judge_cache(True)
+    assert seen[-1] == {
+        "enable_disk_cache": True,
+        "enable_memory_cache": True,
+        "disk_cache_dir": str(tmp_path / "cache"),
+    }
+    monkeypatch.delenv("LITHRIM_JUDGE_CACHE_DIR")
+    judge_cache.set_global_judge_cache(False)
+    assert seen[-1] == {"enable_disk_cache": False, "enable_memory_cache": False}

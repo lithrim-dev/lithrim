@@ -97,6 +97,10 @@ export const gradeCases = ({ agent = "ws0_default", live = false, in_process = f
     body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}), ...(round ? { round } : {}), ...(split ? { split } : {}) },
   });
 
+/* GET /v1/council/rules?agent= — UI-JOURNEY-1 (B10): how the council decides (the frozen rules in
+   plain words, the pack's panel, this agent's roster). $0 read. */
+export const getCouncilRules = (agent = "ws0_default") => call(`/v1/council/rules?agent=${encodeURIComponent(agent)}`);
+
 /* GET /v1/importers — UI-JOURNEY-1 (B4): the dataset importers the workspace's pack declares
    ({id, dataset, citation, license, adapter, files, verdict_rule}). $0 read. */
 export const listImporters = () => call("/v1/importers");

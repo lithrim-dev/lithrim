@@ -38,11 +38,12 @@ const EXPECTED = {
   "tool-criterion_jute_builder": /^Tool-grounded criterion$/, // anchored: the CardTitle, not the footer's lowercase "author a tool-grounded criterion"
   "tool-workspace_card": /No workspace loaded yet/i, // UI-JOURNEY-1 (B3) — the workspace inventory card (empty-state mount)
   "tool-import_cases": /Load a dataset/i, // UI-JOURNEY-1 (B4) — the importer-manifest load card
+  "tool-council_rules": /No council rules loaded yet/i, // UI-JOURNEY-1 (B10) — how the council decides (empty-state mount)
 };
 
 describe("renderTool registry", () => {
-  it("knows all 21 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(21);
+  it("knows all 22 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(22);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

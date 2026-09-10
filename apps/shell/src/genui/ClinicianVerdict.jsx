@@ -32,7 +32,7 @@ export default function ClinicianVerdict({ runId, councilVerdict }) {
   if (!runId)
     return (
       <div className="art-sec" data-testid="clinician-verdict" style={{ marginTop: 4 }}>
-        <div className="art-h2">Clinician verdict <span className="cnt">your independent review</span></div>
+        <div className="art-h2">Reviewer verdict <span className="cnt">your independent review</span></div>
         <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
           Run an evaluation first — your verdict attaches to a specific run.
         </div>
@@ -65,7 +65,7 @@ export default function ClinicianVerdict({ runId, councilVerdict }) {
 
   return (
     <div className="art-sec" data-testid="clinician-verdict" style={{ marginTop: 4 }}>
-      <div className="art-h2">Clinician verdict <span className="cnt">your independent review</span></div>
+      <div className="art-h2">Reviewer verdict <span className="cnt">your independent review</span></div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
         Record your own call on this run — kept as an immutable, audited attestation. It never changes the verdict.
       </div>
@@ -91,7 +91,7 @@ export default function ClinicianVerdict({ runId, councilVerdict }) {
           </div>
         )}
         <textarea aria-label="Rationale" value={rationale} onChange={(e) => setRationale(e.target.value)}
-          placeholder="Why? (the clinical rationale a regulator can read)" rows={2}
+          placeholder="Why? (the rationale a reviewer or a regulator can read)" rows={2}
           style={{ ...field, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={save.state === "saving"}>

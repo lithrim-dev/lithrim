@@ -1080,6 +1080,13 @@ _RUN_EVAL_SCRIPT = REPO_ROOT / "scripts" / "run_eval.py"
 _OPTIMIZE_SCRIPT = REPO_ROOT / "scripts" / "optimize_judge.py"
 
 
+def _judge_cache_dir(out_dir) -> str:
+    """UI-JOURNEY-1 (B10): dspy's disk cache dir for a grade — under the workspace out dir the
+    grade persists to (the request's resolved dir, else the active workspace's)."""
+    base = Path(out_dir) if out_dir is not None else workspace.get_active_workspace().out_dir
+    return str(Path(base) / "cache")
+
+
 def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
                           live, in_process, ws, case_id=None) -> dict:
     """Run the council-bound grade in a subprocess under the active workspace's pack
@@ -1090,6 +1097,9 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    # UI-JOURNEY-1 (B10): dspy's disk cache under THIS workspace's out dir, never shared across
+    # workspaces (a $0 replay must not be served another workspace's cached answers).
+    env["LITHRIM_JUDGE_CACHE_DIR"] = _judge_cache_dir(out_dir)
     if _grade_spends(live=live, in_process=in_process):
         # CACHE-TRAP-1: a PAID grade must actually re-sample — the DSPy LM disk cache otherwise
         # replays an identical re-run byte-for-byte at tokens=0. Scoped to THIS grade process;
@@ -1170,6 +1180,7 @@ def _optimize_via_subprocess(
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     out_dir = Path(out_dir)
+    env["LITHRIM_JUDGE_CACHE_DIR"] = str(out_dir / "cache")  # UI-JOURNEY-1 (B10): per workspace
     # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
     # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
     staging = out_dir / "optimize" / role
@@ -1395,6 +1406,8 @@ def _grade_case(
         # clean and replay/$0 grades are untouched. The gate and its restore below read the
         # SAME predicate; a mismatch would leak the disabled cache into later $0 grades.
         _prior_cache = os.environ.get("LITHRIM_JUDGE_CACHE")
+        _prior_cache_dir = os.environ.get("LITHRIM_JUDGE_CACHE_DIR")
+        os.environ["LITHRIM_JUDGE_CACHE_DIR"] = _judge_cache_dir(out_dir)  # B10: per workspace
         if _spends:
             os.environ["LITHRIM_JUDGE_CACHE"] = "0"
         try:
@@ -1431,6 +1444,10 @@ def _grade_case(
                 ),
             ) from exc
         finally:
+            if _prior_cache_dir is None:
+                os.environ.pop("LITHRIM_JUDGE_CACHE_DIR", None)
+            else:
+                os.environ["LITHRIM_JUDGE_CACHE_DIR"] = _prior_cache_dir
             if _spends:
                 if _prior_cache is None:
                     os.environ.pop("LITHRIM_JUDGE_CACHE", None)
@@ -3654,6 +3671,76 @@ def set_council_roster_endpoint(
     )
     selectable = production + sorted(selectable - set(production))
     return {"status": "ok", "agent": ag.name, "reviewer_roster": cc.get("reviewer_roster"), "panel": production, "selectable": selectable}
+
+
+@app.get("/v1/council/rules")
+def council_rules_endpoint(
+    agent: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """UI-JOURNEY-1 (B10): how the council decides, in plain words, for the active pack — the
+    frozen consensus rules (never edited here, only described), the withstands gate that
+    reconciles a hesitant or contradicted judge against its signals, the floor, and the roster
+    this agent runs. A read: no model call, no write."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    ws = workspace.get_active_workspace()
+    panel = list(_pack_mod.pack_production_judges(ws.pack))
+    roster = None
+    try:
+        ag = _load_agent(agent, db_path)
+        roster = (ag.eval_profile.council_config or {}).get("reviewer_roster")
+    except Exception:  # noqa: BLE001 — an unknown agent still gets the pack's rules
+        pass
+    return {
+        "pack": ws.pack,
+        "agent": agent,
+        "panel": panel,
+        "reviewer_roster": roster,
+        "min_valid_judges": 2,
+        "gate_mode_min_valid_judges": 1,
+        "rules": [
+            {
+                "name": "evidence, not votes",
+                "text": "Every judge returns findings (a taxonomy code with the evidence span), "
+                "not a bare vote; the council groups findings by code and counts how many "
+                "judges raised each one.",
+            },
+            {
+                "name": "tier rules",
+                "text": "Tier 1 (never-events): one judge with evidence blocks. Tier 2 (high "
+                "risk): two judges block, one judge sends the case to a person. Tier 3: noted, "
+                "never decides the verdict. With no evidence-backed finding the majority "
+                "decision stands.",
+            },
+            {
+                "name": "the hesitant or contradicted judge (withstands)",
+                "text": "Before consensus, each judge's findings are checked against the "
+                "deterministic signals (the ontology rules and validator outputs). A finding "
+                "the signals contradict is removed and the judge's decision is down-ranked when "
+                "nothing is left; a finding that withstands stays. Every ruling is written to "
+                "the audit trail with what was weighed.",
+            },
+            {
+                "name": "too few answers",
+                "text": "If fewer than two judges answered (a refusal, a timeout, malformed "
+                "output), the council does not decide: the case goes to a person. In the "
+                "single-judge gate mode one answer is enough by design.",
+            },
+            {
+                "name": "the floor",
+                "text": "After the council, the grounding floor runs the pack's deterministic "
+                "checks: a proven defect blocks whatever the judges said; a disproved finding "
+                "is cleared only on full grounding; anything it cannot ground is left to a "
+                "person. It has never cleared a genuine defect.",
+            },
+            {
+                "name": "corroboration is an absolute two",
+                "text": "A bigger council does not raise the bar: two corroborating judges "
+                "remain two, whatever the panel size. The consensus seam is byte-frozen and "
+                "attested; this page describes it, nothing here edits it.",
+            },
+        ],
+    }
 
 
 @app.get("/v1/council/roster")
@@ -8306,6 +8393,22 @@ def _connected_providers() -> list[str]:
     return [p for p, var in _PROVIDER_SECRET_VAR.items() if env.get(var)]
 
 
+def _provider_sources() -> dict[str, str]:
+    """UI-JOURNEY-1 (B10, audit quirk 5): where each provider's key in force comes from — the
+    in-app connect (``.provider_env``, which overwrites the process env at boot), the process
+    environment (a compose ``.env`` or the shell), or nowhere. Never the key itself."""
+    stored = _parse_env_file(_provider_env_path())
+    out: dict[str, str] = {}
+    for provider, var in _PROVIDER_SECRET_VAR.items():
+        if stored.get(var):
+            out[provider] = "in-app"
+        elif os.environ.get(var):
+            out[provider] = "environment"
+        else:
+            out[provider] = "unset"
+    return out
+
+
 def _read_role_bindings() -> dict:
     """The non-secret per-consumer readout — which {provider, model} each of the 4 roles is bound to,
     from the ``role_bindings`` config DB (ROLE-BINDINGS-DB; was ``.provider_env``). An unbound role is
@@ -8449,6 +8552,7 @@ def roles_bindings_endpoint() -> dict:
         "roles": _read_role_bindings(),
         "connected_providers": _connected_providers(),
         "chat_ready": _chat_ready(),
+        "provider_sources": _provider_sources(),
     }
 
 

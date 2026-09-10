@@ -53,6 +53,23 @@ export default function JudgeBuilder({ agent = "ws0_default", role: seedRole, on
   const [rationale, setRationale] = useState("");
   const [returned, setReturned] = useState(false);
   const [persist, setPersist] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
+  // UI-JOURNEY-1 (B10): prefill from a judge definition file ({role, lens_codes, owned_codes,
+  // role_prompt}, the shape examples/*/judge.*.json and `lithrim configure` use). A $0 prefill;
+  // "Create reviewer" stays the sole write.
+  const [imported, setImported] = useState(null);
+  const importDefinition = (file) => {
+    if (!file) return;
+    file.text().then((text) => {
+      let def;
+      try { def = JSON.parse(text); } catch { setImported({ error: `${file.name} is not JSON` }); return; }
+      if (!def || typeof def !== "object" || !def.role) { setImported({ error: `${file.name} carries no role` }); return; }
+      setRole(String(def.role));
+      setLens(Array.isArray(def.lens_codes) ? def.lens_codes.map(String) : []);
+      setOwned(Array.isArray(def.owned_codes) ? def.owned_codes.map(String) : []);
+      setRolePrompt(typeof def.role_prompt === "string" ? def.role_prompt : "");
+      setImported({ name: file.name, role: def.role, lens: (def.lens_codes || []).length, prompt: (def.role_prompt || "").length });
+    }).catch((e) => setImported({ error: String(e?.message || e) }));
+  };
 
   // The lens codes come from the active pack's ontology (the same source JudgeEditor's lens reads).
   useEffect(() => {
@@ -113,6 +130,15 @@ export default function JudgeBuilder({ agent = "ws0_default", role: seedRole, on
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">a new reviewer (audited)</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3.5">
+        <Field label="Load a definition (optional)">
+          <input type="file" accept=".json" data-testid="judge-import" aria-label="judge definition file"
+            onChange={(e) => importDefinition(e.target.files && e.target.files[0])} />
+          {imported && (
+            <span data-testid="judge-import-note" className="text-[10.5px] text-muted-foreground">
+              {imported.error ? `⚠ ${imported.error}` : `loaded ${imported.name}: role ${imported.role}, ${imported.lens} lens code${imported.lens === 1 ? "" : "s"}, prompt ${imported.prompt} chars — review below, then Create reviewer`}
+            </span>
+          )}
+        </Field>
         <Field label="Reviewer id">
           <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="escalation_reviewer" aria-label="reviewer id" aria-invalid={role.length > 0 && !roleValid} />
         </Field>

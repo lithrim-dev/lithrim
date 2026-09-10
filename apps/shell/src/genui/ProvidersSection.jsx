@@ -39,7 +39,14 @@ const inputStyle = {
 };
 const labelStyle = { fontSize: 11, color: "var(--muted)", fontWeight: 600 };
 
-export default function ProvidersSection({ connected = [], onSaved }) {
+// UI-JOURNEY-1 (B10, audit quirk 5): where the key in force for a provider comes from.
+const SOURCE_COPY = {
+  "in-app": "key in force: connected in this app (.provider_env). It overrides a key set in the environment or a compose .env until you reconnect.",
+  environment: "key in force: from the environment (a compose .env or the shell). Connecting here will override it.",
+  unset: "no key yet for this provider.",
+};
+
+export default function ProvidersSection({ connected = [], sources = null, onSaved }) {
   const [provider, setProvider] = useState("openai");
   const [key, setKey] = useState("");
   const [endpoint, setEndpoint] = useState("");
@@ -93,6 +100,11 @@ export default function ProvidersSection({ connected = [], onSaved }) {
             <option key={p.id} value={p.id}>{p.label} ({p.id})</option>
           ))}
         </select>
+        {sources && sources[provider] && (
+          <div data-testid="providers-source" data-source={sources[provider]} style={{ fontSize: 10.5, color: "var(--muted)" }}>
+            {SOURCE_COPY[sources[provider]] || `key source: ${sources[provider]}`}
+          </div>
+        )}
         {NO_LOGPROBS.has(provider) && (
           <div data-testid="providers-logprobs-hint" style={{ fontSize: 10.5, color: "var(--amber)" }}>
             ⚠ this provider doesn't report a confidence signal — models from it won't show a confidence number

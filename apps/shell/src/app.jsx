@@ -731,6 +731,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
     // UI-JOURNEY-1 (B3): what this workspace holds (cases by split, runs, jobs, pinned demos,
     // corrections, exports, bindings) — the tool-workspace_card inline, $0 read.
+    // UI-JOURNEY-1 (B10): how the council decides — the frozen rules in plain words ($0 read).
+    { id: "show-council-rules", label: "How the council decides — evidence, tiers, the hesitant judge, the floor", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-council-rules")); } catch {} } },
     { id: "show-workspace", label: `Show workspace — what ${activeWs} holds`, run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-workspace", { detail: { workspace: activeWs } })); } catch {} } },
     { id: "new-eval", label: "New evaluation", run: onNewEval },
     { id: "connect-ai", label: "Connect AI — providers & model assignments", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:connect-ai")); } catch {} } },
