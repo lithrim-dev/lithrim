@@ -543,9 +543,12 @@ def run_optimize(
     max_bootstrapped_demos: int = 4,
     max_labeled_demos: int = 0,
     coverage_aware: bool = False,
+    heldout_split: str = "test",
 ) -> dict[str, Any]:
     """The PAID entrypoint: optimize ``role`` on the calibration split, measure the
-    held-out Δ on the test split, persist the compiled demos + both score dicts.
+    held-out Δ on ``heldout_split`` (``test`` by default; ``dev`` when the corpus carries a dev
+    slice carved from the calibration split, so the pin gate never reads the test cut), persist
+    the compiled demos + both score dicts.
 
     Refuses without ``confirm_cost=True`` (the standing cost-confirm rule, mirroring
     ``ab_harness.run_live``). ``limit`` caps each split for the smoke (per-call cost
@@ -559,6 +562,10 @@ def run_optimize(
             "explicit cost check"
         )
 
+    if heldout_split == "calibration":
+        raise ValueError(
+            "the held-out split must not be the trainset (`calibration`); hold out on `dev` or `test`"
+        )
     # Holdout hygiene (REL-OPS-1 O6, docs/POLICY_HOLDOUT_HYGIENE.md): only `calibration`
     # rows may tune. A corpus with no calibration rows is certify-only — refuse HERE,
     # before `import dspy` / LM construction, so no paid work and no possibility of the
@@ -577,7 +584,7 @@ def run_optimize(
 
     lens = LENS_BY_ROLE[role]
     train_rows = [r for r in rows if r.get("split") == "calibration" and role_relevant(r, lens)]
-    heldout_rows = [r for r in rows if r.get("split") == "test" and role_relevant(r, lens)]
+    heldout_rows = [r for r in rows if r.get("split") == heldout_split and role_relevant(r, lens)]
     if limit is not None:
         train_rows = train_rows[:limit]
         heldout_rows = heldout_rows[:limit]

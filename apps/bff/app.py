@@ -1186,34 +1186,49 @@ def _optimize_via_subprocess(
     staging = out_dir / "optimize" / role
     corpus_source = None
     if split:
-        # UI-JOURNEY-1 (B6): the pilot's arrangement — train on the cases tagged ``split`` (the
-        # importer's calibration split), hold out on the ``test`` split; the corpus is written
-        # into staging and handed over as a file, so the optimizer's own split logic is not used.
-        rows = []
-        for c in _read_ingested_corpus(ws):
-            tag = c.get("split")
-            if tag not in (split, "test") or (case_ids and c.get("case_id") not in case_ids):
-                continue
-            rows.append({**c, "split": "calibration" if tag == split else "test"})
+        # HOLDOUT-DEV-1: the corpus is the cases tagged ``split`` (the importer's calibration
+        # split) ALONE: a deterministic, source-disjoint DEV slice (DEV_FRACTION of each task's
+        # sources) is carved from it for the pin gate to score on, the rest trains the demos, and
+        # the test cut never enters the corpus (it stays untouched until the after round). The
+        # corpus is written into staging and handed over as a file.
+        from lithrim_bench.harness.calib_corpus import DEV_FRACTION, carve_dev
+        from lithrim_bench.harness.plugins import case_source_id, case_task
+
+        corpus_all = _read_ingested_corpus(ws)
+        picked = [
+            {**c, "split": "calibration"}
+            for c in corpus_all
+            if c.get("split") == split and not (case_ids and c.get("case_id") not in case_ids)
+        ]
+        rows = carve_dev(
+            picked,
+            source_of=lambda r: case_source_id(r, pack=ws.pack),
+            group_of=lambda r: case_task(r, pack=ws.pack) or "",
+        )
         counts = {
             "calibration": sum(1 for r in rows if r["split"] == "calibration"),
-            "test": sum(1 for r in rows if r["split"] == "test"),
+            "dev": sum(1 for r in rows if r["split"] == "dev"),
         }
-        if not counts["calibration"] or not counts["test"]:
+        if not counts["calibration"] or not counts["dev"]:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"calibrating on split {split!r} needs cases tagged {split!r} and cases tagged "
-                    f"'test' (found {counts}); load both splits first"
+                    f"calibrating on split {split!r} needs at least two sources in it, to carve a "
+                    f"dev slice for the pin gate from the rest (found {counts}); load a larger split"
                 ),
             )
         staging.mkdir(parents=True, exist_ok=True)
         corpus_path = staging / f"calib_{ws.name}.jsonl"
         corpus_path.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
-        corpus_source = {"split": split, **counts, "corpus": str(corpus_path)}
+        corpus_source = {
+            "split": split, **counts, "dev_fraction": DEV_FRACTION,
+            "test_untouched": sum(1 for c in corpus_all if c.get("split") == "test"),
+            "corpus": str(corpus_path),
+        }
         cmd = [
             sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
-            "--corpus", str(corpus_path), "--out", str(staging), "--confirm-cost", "--emit-json",
+            "--corpus", str(corpus_path), "--out", str(staging), "--heldout-split", "dev",
+            "--confirm-cost", "--emit-json",
         ]
     else:
         cmd = [

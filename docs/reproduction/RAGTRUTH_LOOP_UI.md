@@ -70,6 +70,15 @@ the held-out delta, whether every compiled demo traces to a calibration row, and
 verdict: a set that does not regress the pinned one is pinned; a losing round is reported as a
 loss and left unpinned. The reviewer's card reads out the pinned demos in force.
 
+How held-out is chosen: 70% of the calibration split trains the demos and a deterministic,
+source-disjoint 30% `dev` slice of it is what the pin gate scores on. The test split is not
+used at all until the after round, so the before-and-after comparison is on cases no
+calibration decision has seen.
+
+For a training export (the fine-tuning file), grade the calibration split too: the import card
+and `⌘K → Grade the calibration split` run it as its own paid round; its scorecard's export
+offers the `paper` and `azure-chat` formats, which a test-split round never does.
+
 ## 7. The after round
 
 On the before round's scorecard press **Grade again with the pinned demos (paid)** and

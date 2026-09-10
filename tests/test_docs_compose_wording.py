@@ -59,3 +59,11 @@ def test_the_kpi_and_otel_page_is_linked_and_names_both_contract_types():
     assert "KPI_CONTRACTS.md" in (REPO / "docs/README.md").read_text()
     assert "KPI_CONTRACTS.md" in (REPO / "README.md").read_text()
     assert "kpi_threshold" in (REPO / "docs/CAPABILITY_CARD.md").read_text()
+
+
+def test_both_loop_pages_say_how_held_out_is_chosen():
+    """HOLDOUT-DEV-1: the reader can see that the gate scores on a dev slice, not the test cut."""
+    for page in ("docs/reproduction/RAGTRUTH_LOOP.md", "docs/reproduction/RAGTRUTH_LOOP_UI.md"):
+        text = (REPO / page).read_text()
+        assert "source-disjoint" in text and "30%" in text and "dev" in text, page
+    assert "0.68 against the pinned 0.76" in (REPO / "docs/reproduction/RAGTRUTH_LOOP.md").read_text()

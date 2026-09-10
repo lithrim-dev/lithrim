@@ -211,10 +211,17 @@ def contrastive_calibration_ids(gold_rows: list[dict], calibration_ids: set[str]
     return out
 
 
+def heldout_split_for(rows: list[dict]) -> str:
+    """HOLDOUT-DEV-1: the split the optimizer holds out on: ``dev`` when the corpus carries a dev
+    slice carved from the calibration split, else ``test`` (a corpus built before the carve)."""
+    return "dev" if any(r.get("split") == "dev" for r in rows) else "test"
+
+
 def build_enriched_corpus(calib_rows: list[dict], chosen: set[str]) -> list[dict]:
     """The optimizer corpus for the enriched round: calibration rows restricted to ``chosen``
-    (the mismatch cases), test rows unchanged. The optimizer's own holdout gate still applies."""
-    return [r for r in calib_rows if r["split"] == "test" or r["case_id"] in chosen]
+    (the mismatch cases), the held-out rows (dev, or test in an older corpus) unchanged. The
+    optimizer's own holdout gate still applies."""
+    return [r for r in calib_rows if r["split"] != "calibration" or r["case_id"] in chosen]
 
 
 def check_measurement(summary: dict) -> str:
@@ -324,7 +331,8 @@ def step_slice(a) -> None:
     rows = adapter.calibration_corpus(a.data_dir, per_task=a.per_task, test_cases=cases)
     _write_jsonl(a.calib, rows)
     n_cal = sum(1 for r in rows if r.get("split") == "calibration")
-    print(f"wrote {a.calib}: {n_cal} calibration + {len(rows) - n_cal} test rows")
+    held = heldout_split_for(rows)
+    print(f"wrote {a.calib}: {n_cal} calibration + {len(rows) - n_cal} {held} rows (the pin gate's held-out)")
 
 
 def _ingest(a, path: Path) -> int:
@@ -458,6 +466,8 @@ def step_optimize(a) -> None:
         str(a.calib),
         "--out",
         str(opt_dir),
+        "--heldout-split",
+        heldout_split_for(_read_jsonl(a.calib)),
         "--confirm-cost",
     ]
     if a.heldout_cap:
@@ -525,11 +535,12 @@ def step_enrich(a) -> None:
     kind = "contrastive" if contrastive else "enriched"
     enriched = a.out / f"calib_{kind}.jsonl"
     by_id = {r["case_id"]: r for r in calib_rows}
-    # calibration rows in the CHOSEN order (the bootstrap walks the file), then the test rows
+    # calibration rows in the CHOSEN order (the bootstrap walks the file), then the held-out rows
     _write_jsonl(
-        enriched, [by_id[c] for c in ordered] + [r for r in calib_rows if r["split"] == "test"]
+        enriched,
+        [by_id[c] for c in ordered] + [r for r in calib_rows if r["split"] != "calibration"],
     )
-    print(f"{kind} corpus: {len(chosen)} calibration cases + the test rows -> {enriched}")
+    print(f"{kind} corpus: {len(chosen)} calibration cases + the held-out rows -> {enriched}")
     saved = a.calib
     a.calib = enriched
     try:

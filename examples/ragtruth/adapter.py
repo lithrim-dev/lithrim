@@ -285,18 +285,30 @@ def calib_row(case: dict, split: str) -> dict:
 def build_calib_corpus(
     responses: list[dict], sources: dict[str, dict], per_task: int, test_cases: list[dict]
 ) -> list[dict]:
-    """The holdout-hygienic optimizer corpus: ``calibration`` rows from RAGTruth's TRAIN split
-    (the same natural, model-balanced, one-per-source rule as the test cut) and ``test`` rows
-    from the graded test cut, both task-interleaved. Refuses to build if any source appears
-    on both sides (RAGTruth assigns its split per source, so this should never fire)."""
-    calib = interleave_tasks(
-        [c for _, c in select_slice(responses, sources, per_task, natural=True, split="train")]
-    )
-    test = interleave_tasks(test_cases)
-    shared = {c["ragtruth"]["source_id"] for c in calib} & {c["ragtruth"]["source_id"] for c in test}
+    """The holdout-hygienic optimizer corpus, built from RAGTruth's TRAIN split alone (the same
+    natural, model-balanced, one-per-source rule as the test cut): ``calibration`` rows train the
+    demos and a deterministic, source-disjoint ``dev`` slice (``DEV_FRACTION`` of each task's
+    sources) is what the pin gate scores on. The graded test cut is NOT in the corpus: it stays
+    untouched until the after round (HOLDOUT-DEV-1; before 2026-09-10 the gate read the test
+    cut). Refuses to build if any calibration source is also a test source (RAGTruth assigns its
+    split per source, so this should never fire)."""
+    from lithrim_bench.harness.calib_corpus import carve_dev
+
+    calib = [c for _, c in select_slice(responses, sources, per_task, natural=True, split="train")]
+    test_sources = {c["ragtruth"]["source_id"] for c in test_cases}
+    shared = {c["ragtruth"]["source_id"] for c in calib} & test_sources
     if shared:
         raise SystemExit(f"calibration and test share {len(shared)} source(s): {sorted(shared)[:5]}")
-    return [calib_row(c, "calibration") for c in calib] + [calib_row(c, "test") for c in test]
+    rows = [calib_row(c, "calibration") for c in calib]
+    carved = carve_dev(
+        rows,
+        source_of=lambda r: r["ragtruth"]["source_id"],
+        group_of=lambda r: r["ragtruth"]["task_type"],
+    )
+    by_id = {c["case_id"]: c for c in calib}
+    train = interleave_tasks([by_id[r["case_id"]] for r in carved if r["split"] == "calibration"])
+    dev = interleave_tasks([by_id[r["case_id"]] for r in carved if r["split"] == "dev"])
+    return [calib_row(c, "calibration") for c in train] + [calib_row(c, "dev") for c in dev]
 
 
 # --------------------------------------------------------------------------- #

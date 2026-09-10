@@ -84,6 +84,15 @@ docker compose exec bff lithrim regrade   --judge $J --model $M --confirm-cost  
   workspace only if their held-out score is not below the pinned set's. A losing round says so
   and pins nothing (`--force-pin` overrides, recorded in the output). The UI's Optimize button
   goes through the same gate and shows pinned / not pinned.
+- **How held-out is chosen.** The calibration corpus is RAGTruth's train split alone. A
+  deterministic, source-disjoint `dev` slice, 30% of each task's sources ordered by the hash of
+  the source id, is carved from it; the demos train on the rest and the pin gate scores on
+  `dev`. The graded test cut is not in the corpus, so no gate decision reads a test label and
+  the after round is the first time the tuned judge meets the test cut. Before 2026-09-10 the
+  corpus held out on the test cut itself: in the 450-per-task pilot the gate compared two later
+  rounds on those test rows (it refused the contrastive round, 0.68 against the pinned 0.76, and
+  the miss-only round was compared there before a hand pin). No reported number changed, since
+  the first round's pin had no score to compare against, but those were decisions on test labels.
 - Each grade writes `out/loop/grade_<tag>.json` and `out/loop/score_<tag>.txt`.
 
 ## 5. Export and score
