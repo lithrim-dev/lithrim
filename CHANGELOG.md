@@ -6,6 +6,8 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.26] — 2026-09-10
+
 The RAGTruth loop from the shell: the six verbs reachable from the browser, one workspace
 holding everything, the run-time quirks fixed. Acceptance: an uninvolved person on a fresh
 compose stack, with the dataset files and their own key, reproduces the pilot table without a
