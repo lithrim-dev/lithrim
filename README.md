@@ -95,10 +95,10 @@ Then open **http://localhost:5180**, connect your own LLM key from the UI (or pa
 - **BYOK via env** — set keys in your shell or a repo-root `.env` (compose auto-loads `.env`); the `bff` service passes through `OPENAI_API_KEY`, the `AZURE_OPENAI_*` vars, `LITHRIM_LLM_PROVIDER`, `LITHRIM_BFF_TOKEN`, and `LITHRIM_BENCH_PACKS_DIR`. None are required for the offline demo.
 - **Chat (conversational assistant)** — the local `claude` CLI can't run in a container, so in Docker assign the assistant a model in **Connect AI** (⋯ menu, bottom left → Assign models → `chat_assistant`) from **OpenAI, Azure, Gemini, or an OpenAI-compatible endpoint** (env alternative: `LITHRIM_CHAT_PROVIDER=openai` + `LITHRIM_CHAT_API_KEY`/`LITHRIM_CHAT_MODEL`). The Anthropic/BYO-Claude path needs the host CLI and is host-run only. **Grading and the offline demo do not need chat.**
 - **Clean by construction + persistence** — a fresh `docker compose up` seeds only the neutral `_core` sample; it never inherits a dev `./out/`. Your evaluations, config, **and keys you connect from the UI** persist in a Docker-managed named volume (`lithrim_out`) across `up`/`down`; `docker compose down -v` resets everything to the clean seed. Nothing leaves your machine.
-- **Upgrading** — after a `git pull`, rebuild: `docker compose up --build` (a plain `up` reuses the old images and silently runs stale code).
+- **Upgrading** — the compose file pins the image tags, so after a `git pull` a plain `docker compose up -d` pulls the newly pinned images; run `docker compose pull` first to refresh a tag you already have. The images are published, not built here (restore a `build:` block to build from source).
 - **Offline `$0` smoke** — `make demo` (no keys, no network) still runs on the host exactly as above; it does not require the containers.
 
-> The browser talks to the BFF at `http://localhost:8787` (host-published + CORS-allowed) — *not* the container-internal `bff` hostname. Both ports are published to the host. To point the UI at a different published BFF origin, set `VITE_BFF_URL` before `docker compose up --build`.
+> The browser talks to the BFF at `http://localhost:8787` (host-published + CORS-allowed) — *not* the container-internal `bff` hostname. Both ports are published to the host. The published UI image bakes `http://localhost:8787` at build time; to point it at another BFF origin, rebuild it from `Dockerfile.ui` with `--build-arg VITE_BFF_URL=<your BFF origin>` (see `docs/DEPLOY.md` §5).
 >
 > **Owner-run smoke (not automated):** after `docker compose up`, verify `curl -sf http://localhost:8787/health` is OK, the UI loads at `:5180`, and a host-side `make demo` REJECTs (flips PASS→BLOCK) with no keys. Agents lint the compose file (`docker compose config`) but don't start the Docker daemon.
 
@@ -222,6 +222,7 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
 | [`docs/SNOMED_SETUP.md`](docs/SNOMED_SETUP.md) | Optional SNOMED terminology floor: licensing reality first, building the Hermes index, in-container MCP wiring. |
 | [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md) | The load / configure / grade / calibrate / re-grade / export loop on a RAGTruth cut, from the published images. |
+| [`docs/reproduction/RAGTRUTH_LOOP_UI.md`](docs/reproduction/RAGTRUTH_LOOP_UI.md) | The same loop from the shell, in one workspace, without a terminal. |
 | [`docs/IMPORTERS.md`](docs/IMPORTERS.md) | Importer manifests and dataset adapters: bringing a labeled dataset into a pack with zero engine edits. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |

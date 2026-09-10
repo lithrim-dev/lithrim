@@ -52,7 +52,7 @@ export default function ProviderSettings({ onClose, agent }) {
         Providers and reviewer model assignments are shared across all your workspaces.
       </div>
 
-      <ProvidersSection connected={connected} onSaved={refresh} />
+      <ProvidersSection connected={connected} sources={bindings.provider_sources || null} onSaved={refresh} />
       <AssignModelsSection connected={connected} bindings={roles} onBound={refresh} agent={agent} />
     </div>
   );

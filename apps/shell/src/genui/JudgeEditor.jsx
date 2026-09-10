@@ -38,7 +38,7 @@ const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
    A win renders the lift; a ≤0 Δ renders EXPLICITLY as a loss (R1 — never hidden,
    never spun; the accept-gate is never loosened to manufacture a win). */
 function OptimizeDelta({ result }) {
-  const { baseline = {}, optimized = {}, delta = {}, n_train, n_heldout, compile_config = {}, pin = null } = result;
+  const { baseline = {}, optimized = {}, delta = {}, n_train, n_heldout, compile_config = {}, pin = null, out_of_sample = null, corpus_source = null } = result;
   const improved = (delta.graded ?? 0) > 0;
   // PIN-GATE-2: the server decides whether the compiled demos reach the production judge (only a
   // set that does not regress the pinned one). `pin` is absent on a pre-gate server: say nothing
@@ -91,6 +91,19 @@ function OptimizeDelta({ result }) {
           A trainer, not a demo: the accept-gate is never loosened to manufacture a win.
         </span>
       )}
+      {corpus_source && (
+        <span data-testid="optimize-corpus-source" className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
+          trained on the {corpus_source.split} split ({corpus_source.calibration} cases) · held out on the test split ({corpus_source.test})
+        </span>
+      )}
+      {out_of_sample != null && (
+        <span data-testid="optimize-oos" data-oos={out_of_sample ? "yes" : "no"} className="text-[11px]"
+          style={{ color: out_of_sample ? "var(--teal)" : "var(--accent-ink)" }}>
+          {out_of_sample
+            ? "Demos out of sample: every compiled demo traces to a calibration row, none to the held-out split."
+            : "Demos NOT out of sample: a compiled demo does not trace to a calibration row, so the gate refuses to pin it."}
+        </span>
+      )}
       {pinLine && (
         <span data-testid="optimize-pin-note" data-pinned={pin.pinned ? "yes" : "no"} className="text-[11px]"
           style={{ color: pin.pinned ? "var(--teal)" : "var(--muted)" }}>
@@ -134,6 +147,11 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   // SME's chosen subset. Empty selection = whole-workspace (back-compat). A $0 selector, never paid.
   const [cases, setCases] = useState([]);
   const [selectedCaseIds, setSelectedCaseIds] = useState([]);
+  // UI-JOURNEY-1 (B6): when the corpus carries an importer's splits, calibrate on the calibration
+  // split and hold out on the test split (the pilot's arrangement) instead of the stride split.
+  const splitCounts = { calibration: cases.filter((c) => c.split === "calibration").length, test: cases.filter((c) => c.split === "test").length };
+  const splitAvailable = splitCounts.calibration > 0 && splitCounts.test > 0;
+  const [useSplit, setUseSplit] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -250,9 +268,11 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     try {
       // optimize-on-subset: scope to the chosen cases ONLY when a subset is picked — an empty
       // selection sends no case_ids, keeping today's whole-workspace optimize byte-identical.
+      const onSplit = splitAvailable && useSplit;
       const result = await optimizeJudge(role, {
         confirm: true,
-        ...(selectedCaseIds.length ? { caseIds: selectedCaseIds } : {}),
+        ...(onSplit ? { split: "calibration" } : {}),
+        ...(!onSplit && selectedCaseIds.length ? { caseIds: selectedCaseIds } : {}),
       });
       setOpt({ state: "done", result, error: null });
     } catch (e) {
@@ -455,9 +475,24 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             honest held-out Δ on the fixed test split. Did the edit move the number? — win or loss,
             shown straight.
           </p>
+          {judge && (
+            <div data-testid="judge-pinned-demos" className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+              {judge.pinned_demos
+                ? `Pinned demos in force: ${judge.pinned_demos.demos ?? "?"}${judge.pinned_demos.graded != null ? ` · held-out graded ${Number(judge.pinned_demos.graded).toFixed(2)}` : ""}`
+                : "No pinned demos yet: the judge grades on its prompt alone."}
+            </div>
+          )}
+          {splitAvailable && (
+            <label data-testid="optimize-split" className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
+              <input type="checkbox" checked={useSplit} onChange={(e) => setUseSplit(e.target.checked)} />
+              <span>
+                Calibrate on the <b>calibration</b> split ({splitCounts.calibration} cases) and hold out on the <b>test</b> split ({splitCounts.test}); the demos then never see a graded case.
+              </span>
+            </label>
+          )}
           {/* optimize-on-subset: scope the calibration to a CHOSEN case set. No selection =
               the whole workspace (today's behaviour). A $0 selector — the paid confirm is below. */}
-          {cases.length > 0 && (
+          {cases.length > 0 && !(splitAvailable && useSplit) && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between">
                 <Label className="text-[10.5px] text-muted-foreground">

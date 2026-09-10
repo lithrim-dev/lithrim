@@ -28,8 +28,8 @@ describe("CaseCard — Visit + Note inline (the gap is legible in the conversati
     render(<CaseCard agent="ws0_default" onOpenArtifact={() => {}} />);
     expect(await screen.findByText("Source case")).toBeInTheDocument();
     // BOTH panes are present and labeled — the viewer can compare said vs documented.
-    expect(screen.getByText("Visit")).toBeInTheDocument();
-    expect(screen.getByText("Note")).toBeInTheDocument();
+    expect(screen.getByText("Source")).toBeInTheDocument();
+    expect(screen.getByText("Response")).toBeInTheDocument();
     // the refusal (said) is visible inline; the wedge is on screen, not in the voiceover.
     expect(screen.getByText(/I don't want any tetanus vaccine/)).toBeInTheDocument();
     // the note (documented) is visible inline too.

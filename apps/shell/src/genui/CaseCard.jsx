@@ -59,13 +59,13 @@ export default function CaseCard({ agent = "ws0_default", case_id = null, onOpen
       <div className="icard-bd">
         {visit && (
           <div style={{ marginBottom: 9 }}>
-            <div style={lbl}>Visit</div>
+            <div style={lbl}>Source</div>
             <div style={body}>{clip(visit)}</div>
           </div>
         )}
         {note && (
           <div style={{ marginBottom: 9 }}>
-            <div style={lbl}>Note</div>
+            <div style={lbl}>Response</div>
             <div style={body}>{clip(note)}</div>
           </div>
         )}

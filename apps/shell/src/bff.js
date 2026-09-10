@@ -91,11 +91,66 @@ export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false })
    scorecard}. case_ids null → ALL cases. live/in_process are the SAME paid knobs as run-eval; a
    paid cohort grade is the human's cost-confirmed call (never an agent tool). The `scorecard` field
    is the case_id-attributed consolidated report the inline ScorecardCard renders. */
-export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null, background = false, resume = null } = {}) =>
+export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null, background = false, resume = null, round = null, split = null } = {}) =>
   call("/v1/cases/grade", {
     method: "POST",
-    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}) },
+    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}), ...(round ? { round } : {}), ...(split ? { split } : {}) },
   });
+
+/* GET /v1/council/rules?agent= — UI-JOURNEY-1 (B10): how the council decides (the frozen rules in
+   plain words, the pack's panel, this agent's roster). $0 read. */
+export const getCouncilRules = (agent = "ws0_default") => call(`/v1/council/rules?agent=${encodeURIComponent(agent)}`);
+
+/* GET /v1/importers — UI-JOURNEY-1 (B4): the dataset importers the workspace's pack declares
+   ({id, dataset, citation, license, adapter, files, verdict_rule}). $0 read. */
+export const listImporters = () => call("/v1/importers");
+
+/* POST /v1/cases/import — UI-JOURNEY-1 (B4): run the importer's adapter over the dataset's own
+   files (text, keyed by file name) and commit the cut natively, every case tagged with its split
+   and importer. per_task sizes the cut; splits picks test and/or calibration. $0 (no model call). */
+export const importCases = ({ agent = "ws0_default", importer, files, per_task = 30, splits = ["test", "calibration"], natural = true } = {}) =>
+  call("/v1/cases/import", { method: "POST", body: { agent, importer, files, per_task, splits, natural } });
+
+/* GET /v1/jobs/{id}/scorecard?vocabulary= — UI-JOURNEY-1 (B5): the two-vocabulary scorecard for
+   a grade job: per-task rows (response + span P/R/F1, refused), per-code rows with the dataset's
+   own terms, the verdict rule both ways, unlocated quotes, and the rendered text. $0 read. */
+export const getJobScorecard = (jobId, vocabulary = null, compare = null) => {
+  const q = [vocabulary ? `vocabulary=${encodeURIComponent(vocabulary)}` : null, compare ? `compare=${encodeURIComponent(compare)}` : null].filter(Boolean).join("&");
+  return call(`/v1/jobs/${encodeURIComponent(jobId)}/scorecard${q ? `?${q}` : ""}`);
+};
+
+/* POST /v1/export — UI-JOURNEY-1 (B8): write one grade job's graded corpus as labeled rows under
+   the workspace (the job's split, label-basis tiers, the dataset's vocabulary; a training format
+   only from the calibration split) and return the manifest {name, rows, tiers, ...}. $0. */
+export const exportCorpus = ({ agent = "ws0_default", job_id, format = "generic", filter = "supervised", split = null, vocabulary = null, prompt_module = null } = {}) =>
+  call("/v1/export", { method: "POST", body: { agent, job_id, format, filter, ...(split ? { split } : {}), ...(vocabulary ? { vocabulary } : {}), ...(prompt_module ? { prompt_module } : {}) } });
+
+/* GET /v1/exports?agent= — the exports written under the workspace. */
+export const listExports = (agent = "ws0_default") => call(`/v1/exports?agent=${encodeURIComponent(agent)}`);
+
+/* GET /v1/exports/{name} — fetch one export with the auth token and hand it to the browser as a
+   download (a plain link could not carry the token). */
+export async function downloadExport(name) {
+  const res = await fetch(`${BASE}/v1/exports/${encodeURIComponent(name)}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`GET /v1/exports/${name} → ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return name;
+}
+
+/* GET /v1/spend?agent=&since= — UI-JOURNEY-1 (B9): the running spend line: every run priced at
+   list price for the served model ({usd_list_price, prompt_tokens, completion_tokens, runs,
+   runs_priced, runs_unpriced_model, runs_without_cost_record}). $0 read. */
+export const getSpend = (agent = "ws0_default", since = null) =>
+  call(`/v1/spend?agent=${encodeURIComponent(agent)}${since ? `&since=${encodeURIComponent(since)}` : ""}`);
+
+/* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
+   {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
+   find a running or interrupted job again after a reload. */
+export const listJobs = (agent = "ws0_default") => call(`/v1/jobs?agent=${encodeURIComponent(agent)}`);
 
 /* GET /v1/jobs/{id} — GRADE-JOB-1: a background cohort grade's record {status, done, total, rows,
    result}. `result` is the same {matrix, summary, scorecard} envelope the synchronous call returns. */
@@ -237,6 +292,10 @@ export const listAgents = () => call("/v1/agents");
    A workspace owns its config DB / runs / audit / ontology + a pinned domain pack.
    Switching repoints all of it server-side; the shell reloads agents to reflect it. */
 export const listWorkspaces = () => call("/v1/workspaces");
+/* GET /v1/workspaces/{name}/resources — UI-JOURNEY-1 (B3): what the workspace holds (cases by
+   split + importer, runs, jobs, pinned demos, corrections, exports, bindings, arm manifest). */
+export const getWorkspaceResources = (name, agent = null) =>
+  call(`/v1/workspaces/${encodeURIComponent(name)}/resources${agent ? `?agent=${encodeURIComponent(agent)}` : ""}`);
 /* GET /v1/packs — the discoverable domain packs a workspace can pin (P3: 'install a pack'
    = make it discoverable, then it shows up here for selection). */
 export const listPacks = () => call("/v1/packs");
@@ -502,13 +561,14 @@ export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prom
 /* optimize-on-subset: pass caseIds to scope the calibration to a CHOSEN case set (the Cases
    ids), not the whole workspace. Omitted/empty → whole-workspace (back-compat). A selector,
    never a paid knob — confirm=true is still required (mirrors the limit pattern). */
-export const optimizeJudge = (role, { confirm = false, limit, caseIds } = {}) =>
+export const optimizeJudge = (role, { confirm = false, limit, caseIds, split = null } = {}) =>
   call(`/v1/judges/${encodeURIComponent(role)}/optimize`, {
     method: "POST",
     body: {
       confirm,
       ...(limit != null ? { limit } : {}),
       ...(caseIds && caseIds.length ? { case_ids: caseIds } : {}),
+      ...(split ? { split } : {}), // UI-JOURNEY-1 (B6): train on this split, hold out on test
     },
   });
 

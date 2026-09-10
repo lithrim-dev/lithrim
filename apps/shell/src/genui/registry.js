@@ -40,6 +40,9 @@ export const KNOWN_TOOLS = [
   "tool-reliability_card",
   "tool-sweep_card",
   "tool-criterion_jute_builder",
+  "tool-workspace_card",
+  "tool-import_cases",
+  "tool-council_rules",
 ];
 
 const TOOL_REGISTRY = {};

@@ -44,5 +44,14 @@
     "SOURCE_CONTRADICTION": "conflict",
     "UNSUPPORTED_ASSERTION": "baseless info"
   },
-  "admissibility": "a RAGTruth label_type with no code above fails ingest; a response with no spans is a first-class clean negative (expected_safety_flags: [])"
+  "admissibility": "a RAGTruth label_type with no code above fails ingest; a response with no spans is a first-class clean negative (expected_safety_flags: [])",
+  "adapter_module": "examples/ragtruth/adapter.py",
+  "files": [
+    "response.jsonl",
+    "source_info.jsonl"
+  ],
+  "splits": {
+    "test": "test",
+    "calibration": "train"
+  }
 }

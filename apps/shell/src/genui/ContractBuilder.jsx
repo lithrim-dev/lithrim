@@ -29,7 +29,7 @@ import { registerTool } from "./registry.js";
 // only relabel what the user reads in the Select). Unmapped keys fall through to the raw key.
 const CONTRACT_TYPE_LABELS = {
   presence_check: "Must be in the record",
-  snomed_subsumption: "Medical-term match",
+  snomed_subsumption: "Terminology match (SNOMED)",
   record_presence: "Was actually recorded",
 };
 const contractTypeLabel = (t) => CONTRACT_TYPE_LABELS[t] || t;
@@ -104,6 +104,9 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
     version: version.trim() || `${flagCode.trim() || "contract"}/v1`,
   };
   const valid = paramsValid && contract.flag_code && contract.question;
+  // UI-JOURNEY-1 (B10): the version is a scheme, not a free string — <flag>/vN, bumped when the
+  // check's meaning changes; every run's provenance records the contract versions it ran with.
+  const versionScheme = contract.version;
 
   // INLINE-IMPACT-1: a live plain-English restatement so authoring reads as writing a GUARDRAIL, not
   // filling a form — updates as the human edits. value_presence (FLOOR) blocks on an absent stated
@@ -183,6 +186,9 @@ export default function ContractBuilder({ agent = "ws0_default", flagCode: seedF
           </div>
         </Field>
       </CardContent>
+      <div data-testid="contract-version-scheme" className="text-[10.5px] text-muted-foreground">
+        version {versionScheme} · the scheme is &lt;flag&gt;/vN: bump N when the check's meaning changes; every run records the contract versions it ran with (v1 today; v2/v3 when the check is revised)
+      </div>
       <CardFooter>
         <Dialog>
           <DialogTrigger asChild>

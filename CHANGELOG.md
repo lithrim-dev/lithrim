@@ -6,6 +6,44 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.26] — 2026-09-10
+
+The RAGTruth loop from the shell: the six verbs reachable from the browser, one workspace
+holding everything, the run-time quirks fixed. Acceptance: an uninvolved person on a fresh
+compose stack, with the dataset files and their own key, reproduces the pilot table without a
+terminal (`docs/reproduction/RAGTRUTH_LOOP_UI.md`).
+
+### Added
+- Load from the shell: `GET /v1/importers`, `POST /v1/cases/import` (the importer manifest's
+  `adapter_module` / `files` / `splits` fields run the dataset adapter over uploaded files,
+  labels kept, every case tagged with its split), a Load step in the rail, the import card.
+- Grade jobs that survive a reload: `GET /v1/jobs?agent=`, interrupted-job reconciliation and
+  resume (a restart no longer leaves a job that reads as running forever), `round` and
+  `split` on the grade request, a retrying poller and restore-on-mount in the shell.
+- The two-vocabulary scorecard per job: `GET /v1/jobs/{id}/scorecard?vocabulary=&compare=`
+  (per-task response and span P/R/F1, per-code rows in the dataset's terms, the verdict rule
+  both ways, a prior round beside it, the pinned demos in force); `scoring.table`.
+- Calibrate from the shell on the calibration split (`split` on the optimize request), the
+  out-of-sample check in the pin gate, the pinned demos on the judge read and the editor.
+- Rounds: re-grade with the pinned demos, the `$0` replay labelled as not a measurement.
+- Export from the shell: `POST /v1/export`, `GET /v1/exports`, `GET /v1/exports/{name}`;
+  files under `<workspace out>/exports`; the exporter's `gold_from_blob`.
+- The spend line: `GET /v1/spend?agent=&since=`; the status bar shows list-price spend.
+- Workspaces: a first-run picker, `GET /v1/workspaces/{name}/resources`, a workspace card.
+- `GET /v1/council/rules` and a card that describes how the council decides.
+- A judge definition file prefills the reviewer builder; the providers section says where the
+  key in force comes from; the contract version scheme is stated.
+- `LITHRIM_JUDGE_CACHE_DIR`: dspy's disk cache scoped to the workspace (`<workspace out>/cache`).
+
+### Changed
+- Shared components lose their clinical copy (Reviewer verdict, Source/Response labels, a
+  neutral sample criterion, "Terminology match (SNOMED)").
+- README and SETUP no longer say `docker compose up --build`; the compose files pull the
+  pinned published images. The setup-journey sentence lists every rail step.
+
+### Fixed
+- A judge read called directly by the chat tool no longer crashes on the dependency sentinel.
+
 ## [0.1.25] — 2026-09-10
 
 The public cut of the RAGTruth pilot: the loop as a generic CLI, the dataset as an example.

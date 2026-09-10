@@ -228,7 +228,9 @@ def test_deploy_compose_pins_the_bff_and_ui_to_the_package_version():
     the env overrides stay for anyone who wants another tag."""
     import re
 
-    version = re.search(r'^version = "([^"]+)"', (REPO / "pyproject.toml").read_text(), re.M).group(1)
+    version = re.search(r'^version = "([^"]+)"', (REPO / "pyproject.toml").read_text(), re.M).group(
+        1
+    )
     text = _DEPLOY_COMPOSE.read_text()
     assert f"ghcr.io/lithrim-dev/lithrim-bff:v{version}" in text
     assert f"ghcr.io/lithrim-dev/lithrim-ui:v{version}" in text
@@ -236,3 +238,13 @@ def test_deploy_compose_pins_the_bff_and_ui_to_the_package_version():
     root = (REPO / "docker-compose.yml").read_text()
     assert f"lithrim-bff:v{version}" in root and f"lithrim-ui:v{version}" in root
 
+
+def test_package_version_matches_pyproject():
+    """The status bar shows ``lithrim_bench.__version__`` (GET /v1/meta); it drifted to 0.1.24
+    while pyproject said 0.1.25. The two are one number."""
+    import lithrim_bench
+
+    version = re.search(r'^version = "([^"]+)"', (REPO / "pyproject.toml").read_text(), re.M).group(
+        1
+    )
+    assert lithrim_bench.__version__ == version

@@ -20,6 +20,7 @@ The tracked documentation for Lithrim. Start with the repo-root
 | [`SNOMED_SETUP.md`](SNOMED_SETUP.md) | The optional SNOMED terminology floor: licensing reality first, getting Hermes, building the index, the in-container MCP wiring, and one-lookup verification. |
 | [`specs/SPEC_TOOL_CONNECTORS.md`](specs/SPEC_TOOL_CONNECTORS.md) | The tool / MCP connector plane: declaring a connector, transports, secrets, reference connectors. |
 | [`reproduction/RAGTRUTH_LOOP.md`](reproduction/RAGTRUTH_LOOP.md) | The `lithrim` loop (load, configure, grade, calibrate, re-grade, export, score) on a RAGTruth cut from the published images, with the $0 replay round first. |
+| [`reproduction/RAGTRUTH_LOOP_UI.md`](reproduction/RAGTRUTH_LOOP_UI.md) | The same loop from the shell, in one workspace, with your own key: the acceptance test an uninvolved person runs without a terminal. |
 
 ## At the repo root
 

@@ -7,6 +7,7 @@ here is RAGTruth-specific in the engine: the dataset enters through
 `examples/ragtruth/adapter.py`, the reviewer through
 `examples/ragtruth/judge.ragtruth_detector.json`, and the vocabulary through the importer
 manifest `packs/_core/importers/ragtruth.json` (see [`../IMPORTERS.md`](../IMPORTERS.md)).
+The same loop from the browser, with no terminal, is [`RAGTRUTH_LOOP_UI.md`](RAGTRUTH_LOOP_UI.md).
 
 ## 0. What you need
 

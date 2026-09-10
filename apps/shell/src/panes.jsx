@@ -8,9 +8,23 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, getJob, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard, listJobs, exportCorpus, downloadExport, getCouncilRules } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
-import { beginBatch, endBatch, updateBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip; GRADE-JOB-1: server-side done/total
+import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
+import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
+
+// The cohort envelope {matrix, summary, scorecard} as the inline scorecard turn (job fields ride
+// along so the card can name its round and offer the next verbs).
+const scorecardTurn = (resp, job = null) => ({
+  role: "assistant", text: "",
+  parts: [{ type: "tool-scorecard", state: "output-available", output: {
+    ...(resp.scorecard || {}),
+    grade_path: resp.summary?.grade_path,
+    judge_errors: resp.summary?.judge_errors,
+    cache_replays: resp.summary?.cache_replays,
+    ...(job ? { job_id: job.job_id, round: job.round, split: job.split } : {}),
+  } }],
+});
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -384,10 +398,103 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
   // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
   // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  // UI-JOURNEY-1 (B7): the scorecard's round controls. Re-grade = the same split, fresh, with
+  // the pinned demos, through the cost confirm (paid); replay = the $0 grade path over the saved
+  // baselines, tagged "replay" so the card says it is not a measurement.
+  const onRegrade = (_jobId, ctx) => {
+    setPaid({ open: true, busy: false, cohort: true, caseIds: null, round: "after", split: (ctx && ctx.split) || "test" });
+  };
+  const onReplay = async (_jobId, ctx) => {
+    try {
+      const resp = await gradeCases({ agent, live: false, in_process: false, background: true, round: "replay", ...(ctx && ctx.split ? { split: ctx.split } : {}) });
+      if (resp && resp.job_id) {
+        const job = await followJob(resp);
+        if (job.status !== "done") throw new Error(job.error || `replay job ${resp.job_id} ${job.status}`);
+      } else if (resp) {
+        setChat((c) => [...c, scorecardTurn(resp, { round: "replay" })]);
+      }
+    } catch (err) {
+      setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
+    }
+  };
+  // UI-JOURNEY-1 (B8): the Export verb from a round's card ($0); the file lands under the
+  // workspace and downloads through the authenticated client.
+  const onExport = (jobId, opts) => exportCorpus({ agent, job_id: jobId, ...(opts || {}) });
+  const onDownload = (name) => downloadExport(name);
+  // UI-JOURNEY-1 (B10b): the ⌘K "Create a reviewer" / "Edit reviewer <role>" triggers — the
+  // builder and editor cards inline, no assistant needed (Create reviewer / Save stay the writes).
+  useEffect(() => {
+    const onCreate = () => setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-judge_builder", state: "output-available", output: { agent } }] }]);
+    const onEdit = (e) => {
+      const role = e?.detail?.role;
+      if (!role) return;
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-judge_editor", state: "output-available", output: { role, agent } }] }]);
+    };
+    window.addEventListener("lithrim:create-judge", onCreate);
+    window.addEventListener("lithrim:edit-judge", onEdit);
+    return () => { window.removeEventListener("lithrim:create-judge", onCreate); window.removeEventListener("lithrim:edit-judge", onEdit); };
+  }, [agent]);
+  // UI-JOURNEY-1 (B10): the ⌘K "How the council decides" trigger — GET /v1/council/rules ($0)
+  // rendered as the tool-council_rules card inline.
+  useEffect(() => {
+    const onShow = async () => {
+      let output = {};
+      try { output = await getCouncilRules(agent); } catch { output = {}; }
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-council_rules", state: "output-available", output }] }]);
+    };
+    window.addEventListener("lithrim:show-council-rules", onShow);
+    return () => window.removeEventListener("lithrim:show-council-rules", onShow);
+  }, [agent]);
+  // UI-JOURNEY-1 (B4): the ⌘K "Load a dataset" trigger — GET /v1/importers ($0) and render the
+  // tool-import_cases card inline; the card's own Load posts the files. A finished load announces
+  // lithrim:cases-changed so the rail's Load step and the case browser re-read the corpus.
+  useEffect(() => {
+    const onLoad = async () => {
+      let importers = [];
+      try { importers = (await listImporters()).importers || []; } catch { importers = []; }
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-import_cases", state: "output-available", output: { importers, agent } }] }]);
+    };
+    window.addEventListener("lithrim:load-dataset", onLoad);
+    return () => window.removeEventListener("lithrim:load-dataset", onLoad);
+  }, [agent]);
+  // UI-JOURNEY-1 (B3): the ⌘K "Show workspace" trigger — GET /v1/workspaces/{name}/resources ($0
+  // read) rendered as the tool-workspace_card inline; an error shows the card's empty state.
+  useEffect(() => {
+    const onShow = async (e) => {
+      let output = {};
+      try { output = await getWorkspaceResources(e?.detail?.workspace || "default", agent); } catch { output = {}; }
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-workspace_card", state: "output-available", output }] }]);
+    };
+    window.addEventListener("lithrim:show-workspace", onShow);
+    return () => window.removeEventListener("lithrim:show-workspace", onShow);
+  }, [agent]);
+  // UI-JOURNEY-1 (B2): a finished background grade (this tab's, or one found again after a
+  // reload) renders its scorecard as a fresh assistant turn.
+  useEffect(() => {
+    const onJobDone = async (e) => {
+      const job = e?.detail?.job;
+      if (!(job && job.result)) return;
+      // UI-JOURNEY-1 (B5): the two-vocabulary scorecard for the job rides on the same card
+      // (per-task rows, per-code dataset terms, the verdict rule); absent when the read fails.
+      let table = {};
+      try {
+        // UI-JOURNEY-1 (B7): an after round sits beside the agent's latest before round.
+        const t = await getJobScorecard(job.job_id, null, job.round && job.round !== "before" ? "before" : null);
+        table = { per_task: t.per_task, per_code: t.per_code, vocabulary: t.vocabulary, unlocated: t.unlocated, pinned_demos: t.pinned_demos, ...(t.compare ? { compare: t.compare } : {}) };
+      } catch { table = {}; }
+      const turn = scorecardTurn(job.result, job);
+      turn.parts[0].output = { ...turn.parts[0].output, ...table };
+      setChat((c) => [...c, turn]);
+    };
+    window.addEventListener("lithrim:job-done", onJobDone);
+    return () => window.removeEventListener("lithrim:job-done", onJobDone);
+  }, []);
   useEffect(() => {
     const onGradeCohort = (e) => {
       const ids = e?.detail?.case_ids;
-      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null });
+      // UI-JOURNEY-1 (B7): detail.round / detail.split tag the job (the import card's "grade
+      // the test split" and the scorecard's re-grade set them); absent → resolved at confirm.
+      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null, round: e?.detail?.round || null, split: e?.detail?.split || null });
     };
     window.addEventListener("lithrim:grade-cohort", onGradeCohort);
     return () => window.removeEventListener("lithrim:grade-cohort", onGradeCohort);
@@ -692,27 +799,21 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // GRADE-JOB-1: ask for a background job; a server that answers with a job id is polled
           // (done/total feed the chip) until it finishes; an older server answers with the
           // envelope itself and the same code path renders it.
-          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
-          if (resp && resp.job_id) {
-            let job = resp;
-            while (job.status === "running") {
-              await new Promise((r) => setTimeout(r, 2000));
-              job = await getJob(resp.job_id);
-              updateBatch({ done: job.done, total: job.total });
-            }
-            if (job.status !== "done") throw new Error(job.error || `grade job ${resp.job_id} ${job.status}`);
-            resp = job.result;
+          // UI-JOURNEY-1 (B7): the first cohort grade of an agent is its "before" round unless
+          // the caller tagged it; the re-grade button tags "after".
+          let round = paid.round;
+          if (!round) {
+            try { round = ((await listJobs(agent)).jobs || []).some((j) => j.round === "before") ? null : "before"; } catch { round = null; }
           }
-          const output = {
-            ...(resp.scorecard || {}),
-            grade_path: resp.summary?.grade_path,
-            judge_errors: resp.summary?.judge_errors,
-            cache_replays: resp.summary?.cache_replays,
-          };
-          setChat((c) => [
-            ...c,
-            { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },
-          ]);
+          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}), ...(round ? { round } : {}), ...(paid.split ? { split: paid.split } : {}) });
+          if (resp && resp.job_id) {
+            // followJob announces the finished job on the lithrim:job-done bridge (rendered below),
+            // so the card path is the same whether this tab started the job or found it after a reload.
+            const job = await followJob(resp);
+            if (job.status !== "done") throw new Error(job.error || `grade job ${resp.job_id} ${job.status}`);
+          } else {
+            setChat((c) => [...c, scorecardTurn(resp)]);
+          }
         } finally {
           endBatch();
         }
@@ -1030,11 +1131,11 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                           return (
                             <details key={j} className="ondemand" data-testid="ondemand-part">
                               <summary>Show {PART_LABELS[part.type] || "details"} ▸</summary>
-                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>
+                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay, onExport, onDownload })}</div>
                             </details>
                           );
                         // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>;
+                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay, onExport, onDownload })}</div>;
                       })}
                       {/* W1/W2: the non-static working indicator — visible across the WHOLE in-flight
                           window (not only when text is empty), showing the latest tool label. */}
@@ -1068,19 +1169,32 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // COHORT-SUBSET-1 last-mile: a non-empty paid.caseIds means the user picked a SUBSET
           // ("Run selected (N)") — the copy must name the N-case subset, not "all cases". An
           // absent/empty caseIds ("Grade all" / propose_run_all) keeps the whole-cohort copy.
-          ? (paid.caseIds?.length
-            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)?`
-            : "Grade all cases (paid)?")
+          // UI-JOURNEY-1 (B7): a tagged round names its split and, for "after", the pinned demos.
+          ? (paid.round === "after"
+            ? `Grade the ${paid.split || "whole"} split again with the pinned demos (paid)?`
+            : paid.split
+              ? `Grade the ${paid.split} split (paid)?`
+              : paid.caseIds?.length
+                ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)?`
+                : "Grade all cases (paid)?")
           : "Run a live, paid evaluation?"}
         body={paid.cohort
-          ? (paid.caseIds?.length
-            ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`
-            : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
+          ? (paid.round === "after"
+            ? `This grades the ${paid.split || "whole"} split fresh, with the demos now pinned on the judge, as the "after" round (model calls you'll be billed for); the scorecard sits beside the "before" round. The assistant can't do this — only you can authorize it.`
+            : paid.split
+              ? `This grades every case tagged ${paid.split} in one paid batch (model calls you'll be billed for) as the "${paid.round || "before"}" round and shows the scorecard in both vocabularies. The assistant can't do this — only you can authorize it.`
+              : paid.caseIds?.length
+                ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`
+                : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
           : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
         confirmLabel={paid.cohort
-          ? (paid.caseIds?.length
-            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)`
-            : "Grade all cases (paid)")
+          ? (paid.round === "after"
+            ? "Grade again with the pinned demos (paid)"
+            : paid.split
+              ? `Grade the ${paid.split} split (paid)`
+              : paid.caseIds?.length
+                ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)`
+                : "Grade all cases (paid)")
           : "Run live (paid)"}
         warning={readiness && readiness.ok === false
           ? `Setup readiness: this agent has a fact-check that won't run for the ${readiness.pack || "pinned"} pack — a false alarm could go uncaught. Fix it first, or run anyway.`

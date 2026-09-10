@@ -84,7 +84,7 @@ export default function CriterionBuilder({ agent = "ws0_default", code: seedCode
       <CardContent className="flex flex-col gap-3.5">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Code">
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="EVERY_DOSE_IN_SOAP" aria-label="criterion code" aria-invalid={code.length > 0 && !codeValid} />
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="EVERY_VALUE_IN_RESPONSE" aria-label="criterion code" aria-invalid={code.length > 0 && !codeValid} />
           </Field>
           <Field label="Tier">
             <Select value={tier} onValueChange={setTier}>
@@ -99,7 +99,7 @@ export default function CriterionBuilder({ agent = "ws0_default", code: seedCode
           <Input value={ownerRole} onChange={(e) => setOwnerRole(e.target.value)} placeholder="faithfulness_judge" aria-label="owner role" />
         </Field>
         <Field label="Definition">
-          <Input value={definition} onChange={(e) => setDefinition(e.target.value)} placeholder="Every dose stated in the transcript must appear in the SOAP." aria-label="definition" />
+          <Input value={definition} onChange={(e) => setDefinition(e.target.value)} placeholder="Every value stated in the source must appear in the response." aria-label="definition" />
         </Field>
         <Field label="When to use — the lens the owning judge reads">
           <textarea

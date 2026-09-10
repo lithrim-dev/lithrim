@@ -8,8 +8,62 @@ import { CostModal } from "./components/CostModal.jsx";
 import { CommandPalette } from "./palette.jsx";
 import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
 import { subscribeProgress, getProgress } from "./progress.js"; // GRADE-PROGRESS-1: the batch-grade in-flight chip
+import { restoreJobs, resumeJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): find a running/interrupted grade job again after a reload
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// UI-JOURNEY-1 (B3): the browser remembers that a workspace was picked or created here once;
+// until then the shell opens on the picker (the service always seeds a default, so "first run"
+// is this browser's, not the service's).
+export const WS_CHOSEN_KEY = "lithrim.workspace.chosen";
+
+// The first-run screen: pick one of the workspaces the service has, or create a new one. A
+// workspace holds everything for one evaluation, so this is the one choice made before anything
+// else. Offline-safe: it renders only once the workspace list has actually loaded.
+export function FirstRunWorkspace({ workspaces, onPick, onCreate }) {
+  const [name, setName] = useState("");
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const create = async () => {
+    const n = name.trim();
+    if (!n) return;
+    if (!/^[A-Za-z0-9_-]+$/.test(n)) { setErr("Use letters, digits, '-' or '_' only (no spaces)."); return; }
+    setBusy(true);
+    try { await onCreate(n); }
+    catch (e) { setErr(String(e?.message || e) || "Create workspace failed."); }
+    finally { setBusy(false); }
+  };
+  const field = { padding: "7px 9px", fontSize: 13, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" };
+  return (
+    <div data-testid="ws-first-run" role="dialog" aria-label="Pick a workspace"
+      style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, width: 440, boxShadow: "var(--shadow-pop)", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>Where should this work live?</div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.45 }}>
+          A workspace holds everything for one evaluation: the cases you load, the judges, every run and grade job, the pinned demos, the corrections and the exports. Pick one or create a new one.
+        </div>
+        {workspaces.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {workspaces.map((w) => (
+              <button key={w.name} data-testid={`ws-pick-${w.name}`} onClick={() => onPick(w.name)}
+                style={{ ...field, display: "flex", justifyContent: "space-between", cursor: "pointer", textAlign: "left" }}>
+                <span>{w.name}</span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)" }}>{w.pack}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 6 }}>
+          <input value={name} placeholder="workspace name" style={{ ...field, flex: 1 }}
+            onChange={(e) => { setName(e.target.value); if (err) setErr(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
+          <button onClick={create} disabled={busy} style={{ ...field, cursor: "pointer", color: "var(--accent)", fontWeight: 600 }}>Create workspace</button>
+        </div>
+        {err && <div data-testid="ws-first-run-error" style={{ fontSize: 12, color: "var(--amber)" }}>{err}</div>}
+      </div>
+    </div>
+  );
+}
 
 // The workspace switcher (the ws-pill → a domain-setup picker). Switching a workspace
 // repoints the whole config plane + the pinned pack; "New" creates one (its own config DB).
@@ -278,20 +332,22 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
 }
 
 // Live status bar — wired to GET /v1/meta (the active workspace's real state), not demo numbers.
-function StatusBar({ activeWs }) {
+function StatusBar({ activeWs, activeAgent = "ws0_default" }) {
   const [meta, setMeta] = useState(null);
   const [connected, setConnected] = useState(true);
+  // UI-JOURNEY-1 (B9): the running spend line for the active agent (list price, served model).
+  const [spend, setSpend] = useState(null);
   useEffect(() => {
     let alive = true;
     const load = () =>
       import("./bff.js")
-        .then(({ getMeta }) => getMeta())
-        .then((m) => alive && (setMeta(m), setConnected(true)))
+        .then(({ getMeta, getSpend }) => Promise.all([getMeta(), getSpend(activeAgent).catch(() => null)]))
+        .then(([m, s]) => alive && (setMeta(m), setConnected(true), setSpend(s && typeof s.usd_list_price === "number" ? s : null)))
         .catch(() => alive && setConnected(false));
     load();
     const t = setInterval(load, 4000); // reflect workspace switches / new agents / new runs
     return () => { alive = false; clearInterval(t); };
-  }, [activeWs]);
+  }, [activeWs, activeAgent]);
   // GRADE-PROGRESS-1: the module-store chip — the cohort grade is one multi-minute POST; this is
   // the persistent chrome signal it is still running (lives here, outside the modal/pane chrome).
   const prog = useSyncExternalStore(subscribeProgress, getProgress);
@@ -310,9 +366,23 @@ function StatusBar({ activeWs }) {
             : `${prog.label}…`}
         </span>
       )}
+      {!prog.active && prog.interrupted && (
+        <span className="si" data-testid="job-interrupted">
+          <span className="d" style={{ background: "var(--amber)" }} />
+          grade {prog.interrupted.job_id} stopped at {prog.interrupted.done}/{prog.interrupted.total} (the service restarted)
+          <button className="btn btn-ghost" data-testid="job-resume" style={{ marginLeft: 6 }}
+            onClick={() => { resumeJob(prog.interrupted).catch((e) => console.error("Resume failed", e)); }}>Resume</button>
+        </span>
+      )}
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
       {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
       {meta && <span className="si">judges: {meta.judges}</span>}
+      {spend && (
+        <span className="si" data-testid="spend-line"
+          title={`Spend so far for ${activeAgent}: the runs' token counts priced at list price for the served model (USD per 1M tokens). ${spend.runs_without_cost_record || 0} run(s) carry no cost record and count nothing; ${spend.runs_unpriced_model || 0} run(s) are on a model with no list price.`}>
+          ${Number(spend.usd_list_price).toFixed(2)} list · {spend.runs} run{spend.runs === 1 ? "" : "s"}
+        </span>
+      )}
       <div className="right">
         {meta && <span className="si">{plural(meta.runs, "run")}</span>}
         {meta && <span className="si">v{meta.version}</span>}
@@ -367,6 +437,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // P2: the active workspace (the switchable domain setup) + its switcher.
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWs, setActiveWs] = useState("default");
+  // UI-JOURNEY-1 (B3): true once the list has loaded and this browser has never picked one.
+  const [firstRun, setFirstRun] = useState(false);
 
   // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
   // render its composite in the ReportTab. replay is the $0 default; live is one paid call.
@@ -385,13 +457,22 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const onToggleSelect = (cid) =>
     setSelectedIds((prev) => { const next = new Set(prev); if (next.has(cid)) next.delete(cid); else next.add(cid); return next; });
+  // UI-JOURNEY-1 (B4): the corpus size ticks the rail's Load step; a load re-reads it.
+  const [caseCount, setCaseCount] = useState(null);
   const refreshCases = async () => {
     try {
       const { listCases } = await import("./bff.js");
-      return (await listCases()).cases || [];
+      const list = (await listCases()).cases || [];
+      setCaseCount(list.length);
+      return list;
     } catch { return []; }
   };
   useEffect(() => { refreshCases(); }, [activeWs]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onChanged = () => { refreshCases(); };
+    window.addEventListener("lithrim:cases-changed", onChanged);
+    return () => window.removeEventListener("lithrim:cases-changed", onChanged);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelectCase = (cid) => { setActiveCase(cid); setTab("case"); setOpen(true); };
 
   const doRun = async (live = false, caseId = null) => {
@@ -456,6 +537,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     } catch { /* offline-safe */ }
   };
   useEffect(() => { refreshJourney(); }, [activeAgent]);
+  // UI-JOURNEY-1 (B2): a reload or a reconnect must not lose a grade in flight — ask the
+  // service for the agent's running/interrupted job and follow it on the chip again.
+  useEffect(() => { restoreJobs(activeAgent); }, [activeAgent]);
 
   // CRUD-1 (D4): load the config-plane agents for the rail switcher (GET /v1/agents).
   const refreshAgents = async () => {
@@ -489,7 +573,16 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       const out = await listWorkspaces();
       setWorkspaces(out.workspaces || []);
       setActiveWs(out.active || "default");
+      if (Array.isArray(out.workspaces)) {
+        let chosen = null;
+        try { chosen = localStorage.getItem(WS_CHOSEN_KEY); } catch {}
+        setFirstRun(!chosen);
+      }
     } catch { /* offline-safe */ }
+  };
+  const markWorkspaceChosen = (name) => {
+    try { localStorage.setItem(WS_CHOSEN_KEY, name); } catch {}
+    setFirstRun(false);
   };
   useEffect(() => { refreshWorkspaces(); }, []);
 
@@ -605,6 +698,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     sampleLeaked ? null : agentCfg, runs, activeAgent, runResult,
     sampleLeaked ? [] : contracts,
     sampleLeaked ? null : readiness, // READINESS: a pack-declared floor the agent can't run un-ticks Ground truth
+    caseCount, // UI-JOURNEY-1 (B4): the corpus size ticks Load
   );
 
   // F3: the active workspace's pinned domain pack — so the Setup tab can tell whether the
@@ -621,6 +715,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     // longer chat-only; the confirm is still the sole paid path (the palette itself never spends).
     { id: "grade-all", label: "Grade all cases — one paid cohort batch", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: {} })); } catch {} } },
     { id: "explore-case", label: "Explore case — browse the gradeable cases", run: () => openArtifact(activeCase ? "case" : "corpus") },
+    // UI-JOURNEY-1 (B4): the Load verb — a dataset through one of the pack's importer manifests
+    // (the tool-import_cases card inline; $0, no model call).
+    { id: "load-dataset", label: "Load a dataset — through a pack importer (labels kept, split-tagged)", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:load-dataset")); } catch {} } },
     // RELIABILITY-CARD-1: a NON-chat "Show reliability" — dispatch the lithrim:show-reliability
     // bridge (same idiom as lithrim:grade-cohort) the CenterPane fetches GET /v1/reliability/{agent}
     // for and renders the tool-reliability_card INLINE. $0 pure read; adds NO agent tool (the
@@ -632,6 +729,21 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     // the card is emitted by the shell, not the agent).
     { id: "show-sweep", label: "Reliability sweep — self-consistency across K samples (flip-rate · convergence · variance)", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-sweep")); } catch {} } },
     { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
+    // UI-JOURNEY-1 (B3): what this workspace holds (cases by split, runs, jobs, pinned demos,
+    // corrections, exports, bindings) — the tool-workspace_card inline, $0 read.
+    // UI-JOURNEY-1 (B10b): configure from the shell without the assistant — create a reviewer,
+    // and edit any reviewer on this agent's roster (the builder and editor cards inline).
+    { id: "create-judge", label: "Create a reviewer — a new judge over this pack's checks (load a definition file or fill the card)", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:create-judge")); } catch {} } },
+    ...Array.from(new Set([
+      ...((agentCfg && agentCfg.eval_profile && agentCfg.eval_profile.judges) || []),
+      ...((agentCfg && agentCfg.eval_profile && agentCfg.eval_profile.council_config && agentCfg.eval_profile.council_config.reviewer_roster) || []),
+    ])).map((role) => ({
+      id: `edit-judge-${role}`, label: `Edit reviewer ${role} — lens, prompt, model, calibrate`,
+      run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:edit-judge", { detail: { role } })); } catch {} },
+    })),
+    // UI-JOURNEY-1 (B10): how the council decides — the frozen rules in plain words ($0 read).
+    { id: "show-council-rules", label: "How the council decides — evidence, tiers, the hesitant judge, the floor", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-council-rules")); } catch {} } },
+    { id: "show-workspace", label: `Show workspace — what ${activeWs} holds`, run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-workspace", { detail: { workspace: activeWs } })); } catch {} } },
     { id: "new-eval", label: "New evaluation", run: onNewEval },
     { id: "connect-ai", label: "Connect AI — providers & model assignments", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:connect-ai")); } catch {} } },
     { id: "toggle-theme", label: `Switch to the ${theme === "light" ? "dark" : "light"} theme`, run: () => setTheme(theme === "light" ? "dark" : "light") },
@@ -649,6 +761,11 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)}
           actions={paletteActions} agents={agents} activeAgent={activeAgent}
           onSwitchAgent={onSwitchAgent} onSelectCase={onSelectCase} agent={activeAgent} />
+        {firstRun && (
+          <FirstRunWorkspace workspaces={workspaces}
+            onPick={(name) => { markWorkspaceChosen(name); onSwitchWorkspace(name); }}
+            onCreate={async (name) => { await onCreateWorkspace(name, "_core"); markWorkspaceChosen(name); }} />
+        )}
         <CostModal
           open={liveConfirm != null}
           title="Run a live, paid evaluation?"
@@ -688,7 +805,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
             />
           )}
         </div>
-        <StatusBar activeWs={activeWs} />
+        <StatusBar activeWs={activeWs} activeAgent={activeAgent} />
       </div>
     </div>
   );

@@ -95,6 +95,9 @@ start_bff() {
   # watch mode: --reload + --reload-dir scoped to the BFF and the Python it imports
   # (run_eval/harness/runtime) so the reloader ignores node_modules/out/.git/.devstack —
   # watching the repo root storms the reloader. The UI side (vite) is HMR by default.
+  # A save under any watched dir restarts the process and kills an in-flight background
+  # grade job (the record then reads as interrupted and can be resumed); edit elsewhere
+  # or wait for the job while one runs.
   ( cd "$REPO_ROOT" && exec "${pd_env[@]}" nohup "$UVICORN_BIN" app:app --app-dir "$REPO_ROOT/apps/bff" --port "$BFF_PORT" \
       --reload --reload-dir "$REPO_ROOT/apps/bff" --reload-dir "$REPO_ROOT/lithrim_bench" --reload-dir "$REPO_ROOT/scripts" \
       >"$RUN_DIR/bff.log" 2>&1 ) &

@@ -5,17 +5,28 @@ import { render, screen } from "@testing-library/react";
 import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
 import { LeftRail } from "./panes.jsx";
 
-const cfg = (ep) => ({ name: "eval-1", eval_profile: ep });
+// UI-JOURNEY-1 (B4): every agent config pins a sample case (dataset.case_id), which ticks Load.
+const cfg = (ep, extra = {}) => ({ name: "eval-1", eval_profile: ep, dataset: { case_id: "c1" }, ...extra });
 const stateOf = (d, name) => d.steps.find((s) => s.name === name).state;
 
 describe("SHEPHERD-1 W1 — deriveSteps maps live state to the plan", () => {
-  it("an empty agent → Domain current, the rest todo, 0 / 5", () => {
+  it("an empty agent → Domain current, the rest todo (Load ticked by the pinned sample case), 1 / 6", () => {
     const d = deriveSteps(cfg({}), [], "eval-1", null);
     expect(stateOf(d, "Domain")).toBe("current");
+    expect(stateOf(d, "Load")).toBe("done");
     expect(stateOf(d, "Judges")).toBe("todo");
     expect(stateOf(d, "Run")).toBe("todo");
-    expect(d.done).toBe(0);
-    expect(d.total).toBe(5); // KB is optional → excluded from the denominator
+    expect(d.done).toBe(1);
+    expect(d.total).toBe(6); // KB is optional → excluded from the denominator
+  });
+
+  it("Load: no pinned case and no corpus → Load current after Domain; a corpus count ticks it", () => {
+    const bare = deriveSteps(cfg({ ontology_ref: "x/1" }, { dataset: null }), [], "eval-1", null);
+    expect(stateOf(bare, "Load")).toBe("current");
+    expect(stateOf(bare, "Judges")).toBe("todo");
+    const loaded = deriveSteps(cfg({ ontology_ref: "x/1" }, { dataset: null }), [], "eval-1", null, [], null, 90);
+    expect(stateOf(loaded, "Load")).toBe("done");
+    expect(stateOf(loaded, "Judges")).toBe("current");
   });
 
   it("a null agentCfg → all todo with Domain current (the offline / pre-fetch fallback)", () => {
@@ -28,7 +39,7 @@ describe("SHEPHERD-1 W1 — deriveSteps maps live state to the plan", () => {
     const d = deriveSteps(cfg({ ontology_ref: "support_ticket_qa/1" }), [], "eval-1", null);
     expect(stateOf(d, "Domain")).toBe("done");
     expect(stateOf(d, "Judges")).toBe("current");
-    expect(d.done).toBe(1);
+    expect(d.done).toBe(2);
   });
 
   it("+ judges → Judges done, Ground truth current", () => {
@@ -37,7 +48,7 @@ describe("SHEPHERD-1 W1 — deriveSteps maps live state to the plan", () => {
     );
     expect(stateOf(d, "Judges")).toBe("done");
     expect(stateOf(d, "Ground truth")).toBe("current");
-    expect(d.done).toBe(2);
+    expect(d.done).toBe(3);
   });
 
   it("+ tools OR grounding_checks → Ground truth done", () => {
@@ -59,7 +70,7 @@ describe("SHEPHERD-1 W1 — deriveSteps maps live state to the plan", () => {
     expect(stateOf(d, "Knowledge base")).toBe("done");
     expect(stateOf(d, "Ground truth")).toBe("current"); // KB skipped when choosing current
     expect(d.steps.every((s) => !(s.name === "Knowledge base" && s.state === "current"))).toBe(true);
-    expect(d.total).toBe(5); // KB never counts toward the denominator
+    expect(d.total).toBe(6); // KB never counts toward the denominator
   });
 
   it("a run for THIS agent → Run done; a run for ANOTHER agent does not count", () => {
@@ -78,7 +89,7 @@ describe("SHEPHERD-1 W1 — deriveSteps maps live state to the plan", () => {
     expect(stateOf(beforeView, "Review")).toBe("current"); // run exists, not yet reviewed
     const afterView = deriveSteps(cfg(ep), runs, "eval-1", { verdict: "approve" });
     expect(stateOf(afterView, "Review")).toBe("done");
-    expect(afterView.done).toBe(5); // the whole required journey complete
+    expect(afterView.done).toBe(6); // the whole required journey complete
   });
 
   it("nextStep returns the first incomplete required step's name, null when complete", () => {
@@ -99,7 +110,7 @@ describe("SHEPHERD-1 W1 — LeftRail renders the derived plan (the '4 / 6' liter
     const d = deriveSteps(cfg({ ontology_ref: "x/1" }), [], "eval-1", null);
     render(<LeftRail {...base} steps={d.steps} journeyCount={{ done: d.done, total: d.total }} />);
     expect(screen.queryByText("4 / 6")).toBeNull(); // the literal is gone
-    expect(screen.getByText("1 / 5")).toBeInTheDocument(); // Domain done, KB excluded
+    expect(screen.getByText("2 / 6")).toBeInTheDocument(); // Domain + Load done, KB excluded
     expect(screen.getByText("Domain")).toBeInTheDocument();
     expect(screen.getByText("Run")).toBeInTheDocument();
   });
@@ -132,13 +143,13 @@ describe("EVAL-FLOW A2 — Ground truth ticks on a saved grounding contract (the
   it("Ground truth NOT done when no contract exists (contracts=[]) — NON-VACUOUS", () => {
     const d = deriveSteps(cfg(judged), [], "eval-1", null, []);
     expect(stateOf(d, "Ground truth")).toBe("current");
-    expect(d.done).toBe(2); // Domain + Judges only
+    expect(d.done).toBe(3); // Domain + Load + Judges only
   });
 
   it("Ground truth FLIPS done once a verification contract exists (contracts=[{flag_code}])", () => {
     const d = deriveSteps(cfg(judged), [], "eval-1", null, [{ flag_code: "WRONG_DOSAGE" }]);
     expect(stateOf(d, "Ground truth")).toBe("done");
-    expect(d.done).toBe(3); // Domain + Judges + Ground truth
+    expect(d.done).toBe(4); // Domain + Load + Judges + Ground truth
   });
 
   it("the contracts param is the 5th positional arg + defaults to [] (existing call sites stay green)", () => {
@@ -232,8 +243,8 @@ describe("deriveSteps — required-step numbering matches the done/total counter
     expect(byName["Knowledge base"].optional).toBe(true);
     expect(byName["Knowledge base"].num).toBeNull();
     const requiredNums = d.steps.filter((s) => !s.optional).map((s) => s.num);
-    expect(requiredNums).toEqual([1, 2, 3, 4, 5]); // contiguous — Review is 5 of 5, never "6 / 5"
-    expect(d.total).toBe(5);
+    expect(requiredNums).toEqual([1, 2, 3, 4, 5, 6]); // contiguous — Review is 6 of 6, never "7 / 6"
+    expect(d.total).toBe(6);
   });
 });
 

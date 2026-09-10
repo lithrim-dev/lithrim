@@ -218,6 +218,112 @@ def to_chat(row: dict, mode: str, fill_prompt, vocab) -> dict:
     }
 
 
+def gold_from_blob(case: dict, blob: dict, *, pack: str | None = None) -> dict | None:
+    """The ``gold-mismatch/1`` row for a graded labeled case, rebuilt from its run blob when the
+    corrections log has none (a service export reads the run store directly; the pipeline writes
+    the log row itself). Same builder as the log, so the two never drift."""
+    import types
+
+    from lithrim_bench.harness.correction import build_gold_mismatch
+
+    grounded = blob.get("grounded") or {}
+    stage = blob.get("stage_results") or {}
+    votes = (stage.get("semantic") or {}).get("judge_votes") or []
+    active = blob.get("findings") or []
+    active_codes = [
+        f if isinstance(f, str) else (f.get("code") or f.get("flag") or f.get("violation_code"))
+        for f in active
+    ]
+    if not any(active_codes):
+        active_codes = sorted({str(c) for v in votes for c in (v.get("findings") or []) if c})
+    row = build_gold_mismatch(
+        case=case,
+        result=stage,
+        final_verdict=grounded.get("verdict") or blob.get("verdict"),
+        active_codes=[c for c in active_codes if c],
+        ontology=types.SimpleNamespace(
+            ontology_version=blob.get("ontology_version")
+            or (blob.get("grade_config") or {}).get("ontology_version")
+        ),
+        contract_versions=grounded.get("contract_versions") or blob.get("contract_versions") or (),
+        case_id=case.get("case_id"),
+        agent_id=blob.get("agent_id"),
+        pipeline_run_id=blob.get("pipeline_run_id"),
+        pack=pack,
+    )
+    if row is not None:
+        row["ts"] = blob.get("timestamp")
+    return row
+
+
+def export_rows(
+    cases: dict[str, dict],
+    gold: dict[str, dict],
+    blobs: dict[str, dict],
+    vocab,
+    *,
+    split: str,
+    filter_mode: str = "supervised",
+    fmt: str = "generic",
+    fill_prompt=None,
+    pack: str | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """The export as (generic rows, rows in ``fmt``): one row per graded labeled case on
+    ``split`` that passes ``filter_mode``; an ungraded case is no row, never fabricated. A
+    training format off the calibration split is refused (``ValueError``)."""
+    if fmt != "generic" and split != "calibration":
+        raise ValueError(
+            "REFUSING: a training format may only be written from the calibration split"
+        )
+    if fmt == "chat" and fill_prompt is None:
+        raise ValueError("--format chat needs --prompt-module")
+    rows = []
+    for cid, case in cases.items():
+        g = gold.get(cid)
+        if g is None:
+            continue
+        row = build_row(case, g, blobs.get(g.get("pipeline_run_id")), vocab, pack=pack)
+        if row["split"] != split:
+            continue
+        if passes_filter(row, filter_mode):
+            rows.append(row)
+    if fmt == "generic":
+        out = rows
+    elif fmt == "paper":
+        out = [to_paper(r, filter_mode, vocab) for r in rows]
+    else:
+        out = [to_chat(r, filter_mode, fill_prompt, vocab) for r in rows]
+    return rows, out
+
+
+def export_manifest(
+    rows: list[dict], *, split: str, filter_mode: str, fmt: str, vocab, graded_from: str
+) -> dict:
+    tiers: dict[str, int] = {}
+    for r in rows:
+        tiers[r["label_basis"]] = tiers.get(r["label_basis"], 0) + 1
+    return {
+        "rows": len(rows),
+        "split": split,
+        "filter": filter_mode,
+        "format": fmt,
+        "tiers": tiers,
+        "case_ids_sha256": hashlib.sha256(
+            ",".join(sorted(r["case_id"] for r in rows)).encode()
+        ).hexdigest(),
+        "source_ids": sorted({r["source_id"] for r in rows if r.get("source_id")}),
+        "vocabulary": vocab.id,
+        "ontology_versions": sorted(
+            {r["ontology_version"] for r in rows if r.get("ontology_version")}
+        ),
+        "contract_versions": sorted({v for r in rows for v in r.get("contract_versions") or []}),
+        "served_models": sorted(
+            {r["judge"]["served_model"] for r in rows if r["judge"].get("served_model")}
+        ),
+        "graded_from": graded_from,
+    }
+
+
 def load_inputs(a):
     cases = {json.loads(line)["case_id"]: json.loads(line) for line in a.slice.open()}
     gold: dict[str, dict] = {}
@@ -285,58 +391,37 @@ def cmd_export(a) -> int:
     if vocab is None:
         raise SystemExit("no importer manifest to export against; pass --vocabulary")
     cases, gold, blobs = load_inputs(a)
-    if a.format != "generic" and a.split != "calibration":
-        raise SystemExit(
-            "REFUSING: a training format may only be written from the calibration split"
-        )
     fill_prompt = None
     if a.format == "chat":
         if not a.prompt_module:
             raise SystemExit("--format chat needs --prompt-module")
         fill_prompt = _load_fill_prompt(a.prompt_module)
-    rows = []
-    for cid, case in cases.items():
-        g = gold.get(cid)
-        if g is None:
-            continue  # ungraded: no row, never fabricated
-        row = build_row(case, g, blobs.get(g.get("pipeline_run_id")), vocab, pack=a.pack)
-        if row["split"] != a.split:
-            continue  # the split gate
-        if passes_filter(row, a.filter):
-            rows.append(row)
+    try:
+        rows, out_rows = export_rows(
+            cases,
+            gold,
+            blobs,
+            vocab,
+            split=a.split,
+            filter_mode=a.filter,
+            fmt=a.format,
+            fill_prompt=fill_prompt,
+            pack=a.pack,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.open("w") as fh:
-        for row in rows:
-            if a.format == "generic":
-                out = row
-            elif a.format == "paper":
-                out = to_paper(row, a.filter, vocab)
-            else:
-                out = to_chat(row, a.filter, fill_prompt, vocab)
+        for out in out_rows:
             fh.write(json.dumps(out, ensure_ascii=False) + "\n")
-    tiers: dict[str, int] = {}
-    for r in rows:
-        tiers[r["label_basis"]] = tiers.get(r["label_basis"], 0) + 1
-    manifest = {
-        "rows": len(rows),
-        "split": a.split,
-        "filter": a.filter,
-        "format": a.format,
-        "tiers": tiers,
-        "case_ids_sha256": hashlib.sha256(
-            ",".join(sorted(r["case_id"] for r in rows)).encode()
-        ).hexdigest(),
-        "source_ids": sorted({r["source_id"] for r in rows if r.get("source_id")}),
-        "vocabulary": vocab.id,
-        "ontology_versions": sorted(
-            {r["ontology_version"] for r in rows if r.get("ontology_version")}
-        ),
-        "contract_versions": sorted({v for r in rows for v in r.get("contract_versions") or []}),
-        "served_models": sorted(
-            {r["judge"]["served_model"] for r in rows if r["judge"].get("served_model")}
-        ),
-        "graded_from": str(a.corrections),
-    }
+    manifest = export_manifest(
+        rows,
+        split=a.split,
+        filter_mode=a.filter,
+        fmt=a.format,
+        vocab=vocab,
+        graded_from=str(a.corrections),
+    )
     a.out.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2))
     print(
         json.dumps(

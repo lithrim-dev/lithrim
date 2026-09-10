@@ -30,6 +30,7 @@ are therefore exercisable offline ($0, no dspy/openai).
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Iterable
 from pathlib import Path
@@ -411,7 +412,24 @@ def pin_demos(
             "demos_path": None,
         }
     candidate = json.loads(score_path.read_text()).get("graded") if score_path.exists() else None
-    ok, reason = pin_gate(candidate, pinned, force=force)
+    # UI-JOURNEY-1 (B6): a demo that does not trace to a training row is not out of sample; the
+    # result file's manifest says so (None when the round wrote no manifest: not checked).
+    out_of_sample: bool | None = None
+    result_path = staging_dir / f"result_{tag}.json"
+    if result_path.exists():
+        with contextlib.suppress(OSError, ValueError):
+            manifest = json.loads(result_path.read_text()).get("manifest") or {}
+            if "demos_out_of_sample" in manifest:
+                out_of_sample = bool(manifest["demos_out_of_sample"])
+    if out_of_sample is False and not force:
+        ok, reason = False, (
+            "REFUSING to pin: a compiled demo does not trace to a calibration row (the demos "
+            "are not out of sample)"
+        )
+    else:
+        ok, reason = pin_gate(candidate, pinned, force=force)
+        if out_of_sample is False:
+            reason += " (pinned by force although the demos are not out of sample)"
     if not ok:
         return {
             "pinned": False,
@@ -419,6 +437,7 @@ def pin_demos(
             "candidate_graded": candidate,
             "pinned_graded": pinned,
             "demos_path": None,
+            "out_of_sample": out_of_sample,
         }
     workspace_out.mkdir(parents=True, exist_ok=True)
     dst = workspace_out / src.name
@@ -430,6 +449,7 @@ def pin_demos(
         "candidate_graded": candidate,
         "pinned_graded": pinned,
         "demos_path": str(dst),
+        "out_of_sample": out_of_sample,
     }
 
 

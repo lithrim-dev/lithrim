@@ -19,6 +19,9 @@ import "./ToolBuilder.jsx";
 import "./ReadinessCard.jsx";
 import "./ReliabilityCard.jsx";
 import "./SweepCard.jsx";
+import "./WorkspaceCard.jsx";
+import "./ImportCard.jsx";
+import "./CouncilRulesCard.jsx";
 import "./CriterionJuteBuilder.jsx";
 
 export { renderTool, registerTool, getTool, KNOWN_TOOLS } from "./registry.js";
@@ -41,4 +44,7 @@ export { default as ToolBuilder } from "./ToolBuilder.jsx";
 export { default as ReadinessCard } from "./ReadinessCard.jsx";
 export { default as ReliabilityCard } from "./ReliabilityCard.jsx";
 export { default as SweepCard } from "./SweepCard.jsx";
+export { default as WorkspaceCard } from "./WorkspaceCard.jsx";
+export { default as ImportCard } from "./ImportCard.jsx";
+export { default as CouncilRulesCard } from "./CouncilRulesCard.jsx";
 export { default as CriterionJuteBuilder } from "./CriterionJuteBuilder.jsx";

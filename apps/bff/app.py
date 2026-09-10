@@ -86,6 +86,7 @@ from lithrim_bench import picklist  # noqa: E402  (CASE-BROWSER-1: PACK_FILES en
 from lithrim_bench.harness import (  # noqa: E402
     admissibility,
     corpus,
+    correction,
     evalpack,
     workspace,  # noqa: E402
 )
@@ -617,6 +618,10 @@ class OptimizeRequest(BaseModel):
     # PIN-GATE-2: pin a demo set even when its held-out score is below the pinned set's. The
     # override is recorded in the response's ``pin.reason``; never silent.
     force_pin: bool = False
+    # UI-JOURNEY-1 (B6): calibrate on the cases tagged with this split (an importer's
+    # ``calibration`` split), held out on the ``test`` split — the pilot's arrangement. None
+    # keeps the in-corpus stride split over graded cases.
+    split: str | None = None
 
 
 class ChatTurn(BaseModel):
@@ -1075,6 +1080,13 @@ _RUN_EVAL_SCRIPT = REPO_ROOT / "scripts" / "run_eval.py"
 _OPTIMIZE_SCRIPT = REPO_ROOT / "scripts" / "optimize_judge.py"
 
 
+def _judge_cache_dir(out_dir) -> str:
+    """UI-JOURNEY-1 (B10): dspy's disk cache dir for a grade — under the workspace out dir the
+    grade persists to (the request's resolved dir, else the active workspace's)."""
+    base = Path(out_dir) if out_dir is not None else workspace.get_active_workspace().out_dir
+    return str(Path(base) / "cache")
+
+
 def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
                           live, in_process, ws, case_id=None) -> dict:
     """Run the council-bound grade in a subprocess under the active workspace's pack
@@ -1085,6 +1097,9 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     env = {**os.environ, "LITHRIM_BENCH_PACK": ws.pack}
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
+    # UI-JOURNEY-1 (B10): dspy's disk cache under THIS workspace's out dir, never shared across
+    # workspaces (a $0 replay must not be served another workspace's cached answers).
+    env["LITHRIM_JUDGE_CACHE_DIR"] = _judge_cache_dir(out_dir)
     if _grade_spends(live=live, in_process=in_process):
         # CACHE-TRAP-1: a PAID grade must actually re-sample — the DSPy LM disk cache otherwise
         # replays an identical re-run byte-for-byte at tokens=0. Scoped to THIS grade process;
@@ -1141,7 +1156,7 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
 
 
 def _optimize_via_subprocess(
-    *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False
+    *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None
 ) -> dict:
     """Run the PAID in-corpus optimize in a subprocess bound to the workspace's PACK (Phase 2).
 
@@ -1165,22 +1180,56 @@ def _optimize_via_subprocess(
     if ws.packs_dir:
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     out_dir = Path(out_dir)
+    env["LITHRIM_JUDGE_CACHE_DIR"] = str(out_dir / "cache")  # UI-JOURNEY-1 (B10): per workspace
     # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
     # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
     staging = out_dir / "optimize" / role
-    cmd = [
-        sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
-        "--collections-db", str(collections_db), "--out", str(staging),
-        "--calib-out", str(staging / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
-    ]
+    corpus_source = None
+    if split:
+        # UI-JOURNEY-1 (B6): the pilot's arrangement — train on the cases tagged ``split`` (the
+        # importer's calibration split), hold out on the ``test`` split; the corpus is written
+        # into staging and handed over as a file, so the optimizer's own split logic is not used.
+        rows = []
+        for c in _read_ingested_corpus(ws):
+            tag = c.get("split")
+            if tag not in (split, "test") or (case_ids and c.get("case_id") not in case_ids):
+                continue
+            rows.append({**c, "split": "calibration" if tag == split else "test"})
+        counts = {
+            "calibration": sum(1 for r in rows if r["split"] == "calibration"),
+            "test": sum(1 for r in rows if r["split"] == "test"),
+        }
+        if not counts["calibration"] or not counts["test"]:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"calibrating on split {split!r} needs cases tagged {split!r} and cases tagged "
+                    f"'test' (found {counts}); load both splits first"
+                ),
+            )
+        staging.mkdir(parents=True, exist_ok=True)
+        corpus_path = staging / f"calib_{ws.name}.jsonl"
+        corpus_path.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+        corpus_source = {"split": split, **counts, "corpus": str(corpus_path)}
+        cmd = [
+            sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
+            "--corpus", str(corpus_path), "--out", str(staging), "--confirm-cost", "--emit-json",
+        ]
+    else:
+        cmd = [
+            sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
+            "--collections-db", str(collections_db), "--out", str(staging),
+            "--calib-out", str(staging / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
+        ]
     if limit is not None:
         cmd += ["--limit", str(limit)]
     # optimize-on-subset: pass each chosen id as its OWN --case-ids (argparse append). Only when
     # provided — None leaves the cmd byte-identical to the whole-workspace path. The subprocess
     # filters the workspace cases to this set BEFORE the deterministic split (unknown ids dropped
     # with a note; an all-unknown / split-starving subset → the existing clean 422 refusal).
-    for cid in case_ids or []:
-        cmd += ["--case-ids", str(cid)]
+    if not split:
+        for cid in case_ids or []:
+            cmd += ["--case-ids", str(cid)]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         _log.error("optimize subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
@@ -1193,6 +1242,9 @@ def _optimize_via_subprocess(
             from lithrim_bench.runtime.council.judge_optimize import pin_demos
 
             res["pin"] = pin_demos(staging, out_dir, role, force=force_pin)
+            res["out_of_sample"] = res["pin"].get("out_of_sample")
+            if corpus_source:
+                res["corpus_source"] = corpus_source
             return res
     raise HTTPException(status_code=502, detail="optimize subprocess emitted no __OPTIMIZE_JSON__ record")
 
@@ -1354,6 +1406,8 @@ def _grade_case(
         # clean and replay/$0 grades are untouched. The gate and its restore below read the
         # SAME predicate; a mismatch would leak the disabled cache into later $0 grades.
         _prior_cache = os.environ.get("LITHRIM_JUDGE_CACHE")
+        _prior_cache_dir = os.environ.get("LITHRIM_JUDGE_CACHE_DIR")
+        os.environ["LITHRIM_JUDGE_CACHE_DIR"] = _judge_cache_dir(out_dir)  # B10: per workspace
         if _spends:
             os.environ["LITHRIM_JUDGE_CACHE"] = "0"
         try:
@@ -1390,6 +1444,10 @@ def _grade_case(
                 ),
             ) from exc
         finally:
+            if _prior_cache_dir is None:
+                os.environ.pop("LITHRIM_JUDGE_CACHE_DIR", None)
+            else:
+                os.environ["LITHRIM_JUDGE_CACHE_DIR"] = _prior_cache_dir
             if _spends:
                 if _prior_cache is None:
                     os.environ.pop("LITHRIM_JUDGE_CACHE", None)
@@ -1745,13 +1803,13 @@ def corpus_endpoint() -> dict:
     return {"rows": list(corpus.read_corpus())}
 
 
-def _read_ingested_corpus() -> list[dict]:
+def _read_ingested_corpus(ws=None) -> list[dict]:
     """The active workspace's INGESTED cases — the §4.1 envelopes a user dropped via ingest.
     PERSIST-3a: the SSOT ``cases`` table is the source of truth (``cases_store``, the one DB
     selector); the legacy ``ws.out_dir/ingested_cases.jsonl`` is a transition fallback (a corpus
     ingested before 3a). Empty list when none. (Distinct from the correction corpus served by
-    ``/v1/corpus``.)"""
-    ws = workspace.get_active_workspace()
+    ``/v1/corpus``.) ``ws`` names another workspace (UI-JOURNEY-1 B3 resources read)."""
+    ws = ws or workspace.get_active_workspace()
     try:
         from lithrim_bench.harness import cases_store
 
@@ -2081,6 +2139,187 @@ def _merge_source_record(cases: list[dict], sample: Any) -> int:
     return n
 
 
+class ImportCasesRequest(BaseModel):
+    # UI-JOURNEY-1 (B4): the Load verb through a ``kind: importer`` manifest. ``importer`` is the
+    # manifest id or its dataset; ``files`` carries the dataset's own files as text keyed by
+    # name (the manifest says which); ``per_task`` sizes the stratified cut; ``splits`` picks
+    # the loop's splits to load (the manifest maps them to the dataset's names). $0: the
+    # adapter is deterministic, no model call.
+    agent: str = DEFAULT_AGENT
+    importer: str
+    files: dict[str, str]
+    per_task: int = 30
+    splits: list[str] = Field(default_factory=lambda: ["test", "calibration"])
+    natural: bool = True
+
+
+def _importer_public(m) -> dict:
+    return {
+        "id": m.id,
+        "dataset": m.dataset,
+        "version": m.version,
+        "citation": m.citation,
+        "license": m.license,
+        "adapter": bool(m.adapter_module),
+        "files": list(m.files),
+        "splits": dict(m.splits),
+        "label_types": dict(m.label_types),
+        "verdict_rule": dict(m.verdict_rule),
+        "untyped_prediction_class": m.untyped_prediction_class,
+    }
+
+
+@app.get("/v1/importers")
+def list_importers_endpoint() -> dict:
+    """UI-JOURNEY-1 (B4): the dataset importers the active workspace's pack declares (the
+    ``kind: importer`` manifests), with whether each names an adapter the Load verb can run."""
+    from lithrim_bench.harness.plugins import importer_plugins
+
+    ws = workspace.get_active_workspace()
+    return {"pack": ws.pack, "importers": [_importer_public(m) for m in importer_plugins(ws.pack)]}
+
+
+def _write_corpus_rows(ws, cases: list[dict]) -> None:
+    """Upsert cases into the workspace corpus the way ingest does: the legacy jsonl union
+    (transition) plus the SSOT ``cases`` table."""
+    corpus_path = ws.out_dir / "ingested_cases.jsonl"
+    ws.out_dir.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, dict] = {}
+    if corpus_path.exists():
+        for line in corpus_path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("case_id"):
+                existing[row["case_id"]] = row
+    for c in cases:
+        if c.get("case_id"):
+            existing[c["case_id"]] = c
+    corpus_path.write_text(
+        "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
+        + ("\n" if existing else "")
+    )
+    _ssot_upsert_cases(ws, cases)
+
+
+@app.post("/v1/cases/import")
+def import_cases_endpoint(
+    req: ImportCasesRequest,
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """UI-JOURNEY-1 (B4): load a dataset through its importer manifest. The manifest names the
+    adapter (the ``lithrim_bench.cli.adapters`` contract) and the files it reads; the adapter
+    runs in a temporary directory over the uploaded text and yields cases in the pack's shape
+    with labels kept (a dataset label with no taxonomy code fails admissibility, 422). Every
+    case is tagged with its loop split and the importer id, then committed natively (no
+    mapper). The test and calibration splits must not share a source (422)."""
+    import tempfile
+
+    from lithrim_bench.cli.adapters import load_adapter
+    from lithrim_bench.harness.plugins import case_source_id, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    manifest = next(
+        (m for m in importer_plugins(ws.pack) if req.importer in (m.id, m.dataset)), None
+    )
+    if manifest is None:
+        raise HTTPException(
+            status_code=404, detail=f"unknown importer {req.importer!r} for pack {ws.pack!r}"
+        )
+    if not manifest.adapter_module:
+        raise HTTPException(
+            status_code=422, detail=f"importer {manifest.id!r} declares no adapter_module"
+        )
+    missing = [f for f in manifest.files if f not in req.files]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{missing[0]} missing: the {manifest.dataset} importer needs {manifest.files}",
+        )
+    bad = [s for s in req.splits if s not in manifest.splits]
+    if bad or not req.splits:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown split(s) {bad}; this importer knows {sorted(manifest.splits)}",
+        )
+    try:
+        adapter = load_adapter(manifest.adapter_module)
+    except (FileNotFoundError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    loaded: dict[str, list[dict]] = {}
+    with tempfile.TemporaryDirectory(prefix="lithrim-import-") as tmp:
+        data_dir = Path(tmp)
+        for name, text in req.files.items():
+            (data_dir / Path(name).name).write_text(text)
+        for split in req.splits:
+            try:
+                cases = adapter.slice_cases(
+                    data_dir, per_task=req.per_task, split=manifest.splits[split], natural=req.natural
+                )
+            except LookupError as exc:  # a dataset label with no code: admissibility
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except (SystemExit, ValueError, KeyError) as exc:
+                raise HTTPException(
+                    status_code=422, detail=f"the {manifest.dataset} adapter refused: {exc}"
+                ) from exc
+            for c in cases:
+                c["split"] = split
+                c["importer"] = manifest.id
+            loaded[split] = cases
+    if "test" in loaded and "calibration" in loaded:
+        srcs = {
+            s: {case_source_id(c, pack=ws.pack) for c in loaded[s]} - {None}
+            for s in ("test", "calibration")
+        }
+        shared = srcs["test"] & srcs["calibration"]
+        if shared:
+            raise HTTPException(
+                status_code=422,
+                detail=f"test and calibration share {len(shared)} source(s): {sorted(shared)[:5]}",
+            )
+    all_cases = [c for split in req.splits for c in loaded[split]]
+    if not all_cases:
+        raise HTTPException(
+            status_code=422, detail=f"the {manifest.dataset} adapter produced no cases"
+        )
+    _write_corpus_rows(ws, all_cases)
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=_resolve_actor(x_actor, default_actor),
+            action="import",
+            target=Target(type="corpus", id=req.agent),
+            why={
+                "rationale": f"imported {len(all_cases)} cases through importer {manifest.id} "
+                f"(adapter {manifest.adapter_module}, per_task {req.per_task}, "
+                f"splits {req.splits}); labels kept, split-tagged"
+            },
+            before=None,
+            after={
+                "importer": manifest.id,
+                "count": len(all_cases),
+                "imported": {s: len(loaded[s]) for s in req.splits},
+                "case_ids": [c["case_id"] for c in all_cases],
+            },
+        )
+    )
+    return {
+        "importer": manifest.id,
+        "dataset": manifest.dataset,
+        "agent": req.agent,
+        "per_task": req.per_task,
+        "natural": req.natural,
+        "imported": {s: len(loaded[s]) for s in req.splits},
+        "labeled": {s: sum(1 for c in loaded[s] if c.get("expected_safety_flags")) for s in req.splits},
+        "case_ids": {s: [c["case_id"] for c in loaded[s]] for s in req.splits},
+    }
+
+
 @app.get("/v1/cases")
 def list_cases_endpoint() -> dict:
     """NARR-LOOP — list the active workspace's INGESTED corpus (the gradeable cases a user
@@ -2104,6 +2343,11 @@ def list_cases_endpoint() -> dict:
                 "context_kind": row.get("context_kind"),
                 "has_context": _ctx_nonempty(row.get("context")),
                 "has_artifact": bool(arts and (arts[0].get("content") or "")),
+                # UI-JOURNEY-1 (B4): the loop split and importer an imported case carries, and
+                # its gold codes (None when the case has no label field at all).
+                "split": row.get("split"),
+                "importer": row.get("importer"),
+                "expected_safety_flags": row.get("expected_safety_flags"),
             }
         )
     return {"cases": cases, "count": len(cases)}
@@ -2271,6 +2515,11 @@ class GradeCasesRequest(BaseModel):
     # earlier job whose cases without a verdict are graded again (the graded rows are kept).
     background: bool = False
     resume: str | None = None
+    # UI-JOURNEY-1 (B2/B7): ``round`` labels the job (before/after) so two rounds can sit side
+    # by side; ``split`` grades only the cases carrying that split tag (an importer's test or
+    # calibration split). Selectors, never paid knobs.
+    round: str | None = None
+    split: str | None = None
 
 
 class IngestPreviewRequest(BaseModel):
@@ -2653,9 +2902,25 @@ def _load_job(out_dir: Path, job_id: str) -> dict | None:
     if not path.exists():
         return None
     job = json.loads(path.read_text())
+    if job.get("status") == "running":
+        # UI-JOURNEY-1 (B2): no thread in this process owns the record (the process that did
+        # restarted), so it must not read as running forever; say so and let resume pick it up.
+        job["status"] = "interrupted"
+        job["error"] = job.get("error") or "the process running this job restarted"
+        _save_job(out_dir, job)
     with _JOBS_LOCK:
         _JOBS.setdefault(job_id, job)
     return job
+
+
+def _job_summary(job: dict) -> dict:
+    return {
+        k: job.get(k)
+        for k in (
+            "job_id", "agent", "status", "done", "total", "round", "split", "started",
+            "finished", "error",
+        )
+    }
 
 
 def _running_job_for(agent: str, *, exclude: str | None = None) -> dict | None:
@@ -2699,6 +2964,25 @@ def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code
     _save_job(out_dir, job)
 
 
+@app.get("/v1/jobs")
+def list_jobs_endpoint(
+    agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
+) -> dict:
+    """UI-JOURNEY-1 (B2): every grade job recorded under the workspace out dir (newest first),
+    optionally one agent's, as summaries (no rows). The shell reads this on mount to find a
+    running or interrupted job again after a reload or a reconnect."""
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    jobs_dir = resolved_out / "jobs"
+    jobs = []
+    for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+        job = _load_job(resolved_out, path.stem)
+        if job is None or (agent and job.get("agent") != agent):
+            continue
+        jobs.append(_job_summary(job))
+    jobs.sort(key=lambda j: j.get("started") or "", reverse=True)
+    return {"jobs": jobs}
+
+
 @app.get("/v1/jobs/{job_id}")
 def job_status_endpoint(job_id: str, out_dir: Path | None = Depends(get_out_dir)) -> dict:
     """GRADE-JOB-1: a job's record — status (running|done|failed), done/total, the rows so far,
@@ -2708,6 +2992,345 @@ def job_status_endpoint(job_id: str, out_dir: Path | None = Depends(get_out_dir)
     if job is None:
         raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
     return job
+
+
+def _job_scorecard(
+    job: dict,
+    *,
+    vocabulary: str | None,
+    collections_db: Path,
+    out_dir: Path | None = None,
+    compare: str | None = None,
+) -> dict:
+    """UI-JOURNEY-1 (B5): the two-vocabulary scorecard for one grade job — the CLI scorer
+    (``lithrim_bench.cli.scoring``: response- and span-level P/R/F1 per task, per-code rows in
+    the dataset's own terms, the verdict rule stated both ways) over the job's cases and the
+    audits of exactly the runs it produced, read from the run store. ``vocabulary`` names a
+    dataset; else the importer the cases carry; else the pack's only importer; else our codes
+    alone. A job still running scores what is graded so far (``partial``)."""
+    from lithrim_bench.cli import scoring
+    from lithrim_bench.harness.plugins import default_importer, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    corpus = {c["case_id"]: c for c in _read_ingested_corpus(ws) if c.get("case_id")}
+    rows = [r for r in job.get("rows") or [] if r.get("case_id") in corpus]
+    slice_rows = [corpus[r["case_id"]] for r in rows]
+    store = provenance_store_for(collections_db)
+    audits: dict[str, dict] = {}
+    for r in rows:
+        rid = r.get("run_id")
+        if not rid:
+            continue
+        try:
+            doc = run_coro(store.find_by_id(rid))
+        except Exception:  # noqa: BLE001 — a missing blob is an ungraded case, never a 500
+            doc = None
+        if doc is not None:
+            audits[r["case_id"]] = _run_audit_report(doc, rid)
+    manifests = importer_plugins(ws.pack)
+    vocab = None
+    if vocabulary:
+        vocab = next((m for m in manifests if vocabulary in (m.id, m.dataset)), None)
+        if vocab is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"no importer declares dataset {vocabulary!r} in pack {ws.pack!r}",
+            )
+    else:
+        carried = {c.get("importer") for c in slice_rows} - {None}
+        if len(carried) == 1:
+            vocab = next((m for m in manifests if m.id == next(iter(carried))), None)
+        vocab = vocab or default_importer(ws.pack)
+    res = scoring.score(slice_rows, audits, pack=ws.pack)
+    card = {
+        "job_id": job.get("job_id"),
+        "agent": job.get("agent"),
+        "round": job.get("round"),
+        "split": job.get("split"),
+        "status": job.get("status"),
+        "partial": job.get("status") != "done",
+        "cases": len(slice_rows),
+        "audited": len(audits),
+        **scoring.table(res, vocab),
+        "rendered": scoring.render(res, vocab),
+    }
+    if out_dir is not None:
+        # UI-JOURNEY-1 (B7): the demo sets in force when this round was graded (by role), so a
+        # card can say what the judge graded with; and the prior round to sit beside it.
+        card["pinned_demos"] = _pinned_demos(Path(out_dir))
+        if compare:
+            other = _load_job(Path(out_dir), compare)
+            if other is None:
+                jobs_dir = Path(out_dir) / "jobs"
+                candidates = []
+                for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+                    j = _load_job(Path(out_dir), path.stem)
+                    if (
+                        j is not None
+                        and j.get("job_id") != job.get("job_id")
+                        and j.get("agent") == job.get("agent")
+                        and j.get("round") == compare
+                        and j.get("status") == "done"
+                    ):
+                        candidates.append(j)
+                candidates.sort(key=lambda j: j.get("started") or "")
+                other = candidates[-1] if candidates else None
+            if other is not None and other.get("job_id") != job.get("job_id"):
+                prior = _job_scorecard(other, vocabulary=vocabulary, collections_db=collections_db)
+                card["compare"] = {
+                    "job_id": prior["job_id"],
+                    "round": prior["round"],
+                    "per_task": prior["per_task"],
+                    "per_code": prior["per_code"],
+                }
+            else:
+                card["compare"] = None
+    return card
+
+
+class ExportRequest(BaseModel):
+    # UI-JOURNEY-1 (B8): the Export verb — the graded corpus of one grade job as labeled rows
+    # (``lithrim_bench.cli.export``): the job's split, a label-basis tier per row, the dataset's
+    # vocabulary; a training format only from the calibration split. $0, no model call.
+    agent: str = DEFAULT_AGENT
+    job_id: str
+    format: str = "generic"  # generic | paper | chat
+    filter: str = "supervised"  # supervised | silver | all
+    split: str | None = None  # default: the job's split
+    vocabulary: str | None = None
+    prompt_module: str | None = None  # with format chat: a .py defining fill_prompt
+
+
+def _exports_dir(out_dir: Path) -> Path:
+    return Path(out_dir) / "exports"
+
+
+def _list_exports(out_dir: Path) -> list[dict]:
+    exports = []
+    exports_dir = _exports_dir(out_dir)
+    for path in sorted(exports_dir.glob("*.jsonl")) if exports_dir.exists() else []:
+        entry: dict = {"name": path.name, "bytes": path.stat().st_size}
+        manifest = path.with_suffix(".manifest.json")
+        if manifest.exists():
+            with contextlib.suppress(OSError, ValueError):
+                m = json.loads(manifest.read_text())
+                entry.update(
+                    {k: m.get(k) for k in ("rows", "split", "format", "filter", "tiers", "written", "job_id", "round", "agent")}
+                )
+        exports.append(entry)
+    return exports
+
+
+@app.post("/v1/export")
+def export_endpoint(
+    req: ExportRequest,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B8): write the export of one grade job under ``<workspace out>/exports``
+    (the rows file + its manifest) and return the manifest. The gold row per case comes from
+    the corrections log when it names the job's run, else it is rebuilt from the run blob
+    (same builder). A training format off the calibration split is 422."""
+    from datetime import datetime, timezone
+
+    from lithrim_bench.cli import export as _export
+    from lithrim_bench.harness.plugins import default_importer, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    resolved_out = Path(out_dir if out_dir is not None else ws.out_dir)
+    job = _load_job(resolved_out, req.job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown job {req.job_id!r}")
+    if req.format not in ("generic", "paper", "chat"):
+        raise HTTPException(status_code=422, detail=f"unknown format {req.format!r}")
+    if req.filter not in ("supervised", "silver", "all"):
+        raise HTTPException(status_code=422, detail=f"unknown filter {req.filter!r}")
+    corpus = {c["case_id"]: c for c in _read_ingested_corpus(ws) if c.get("case_id")}
+    targets = [cid for cid in job.get("targets") or [] if cid in corpus]
+    cases = {cid: corpus[cid] for cid in targets}
+    split = req.split or job.get("split")
+    if not split:
+        splits = {c.get("split") for c in cases.values()} - {None}
+        split = next(iter(splits)) if len(splits) == 1 else None
+    if not split:
+        raise HTTPException(
+            status_code=422,
+            detail="the job's cases carry no single split; pass split=test or split=calibration",
+        )
+    if req.format != "generic" and split != "calibration":
+        raise HTTPException(
+            status_code=422,
+            detail="REFUSING: a training format may only be written from the calibration split",
+        )
+    manifests = importer_plugins(ws.pack)
+    vocab = None
+    if req.vocabulary:
+        vocab = next((m for m in manifests if req.vocabulary in (m.id, m.dataset)), None)
+    else:
+        carried = {c.get("importer") for c in cases.values()} - {None}
+        if len(carried) == 1:
+            vocab = next((m for m in manifests if m.id == next(iter(carried))), None)
+        vocab = vocab or default_importer(ws.pack)
+    if vocab is None:
+        raise HTTPException(
+            status_code=422, detail="no importer manifest to export against; pass vocabulary"
+        )
+    run_ids = {r["case_id"]: r.get("run_id") for r in job.get("rows") or [] if r.get("run_id")}
+    store = provenance_store_for(collections_db)
+    blobs: dict[str, dict] = {}
+    for rid in run_ids.values():
+        try:
+            doc = run_coro(store.find_by_id(rid))
+        except Exception:  # noqa: BLE001
+            doc = None
+        if doc is not None:
+            blobs[rid] = doc
+    gold: dict[str, dict] = {}
+    corr_path = correction.corrections_path(resolved_out)
+    if corr_path.exists():
+        for line in corr_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            cid = r.get("case_id")
+            if (
+                r.get("schema_version") == "gold-mismatch/1"
+                and cid in cases
+                and r.get("pipeline_run_id") == run_ids.get(cid)
+            ):
+                gold[cid] = r  # the row of exactly this job's run
+    for cid, rid in run_ids.items():
+        if cid not in gold and rid in blobs:
+            row = _export.gold_from_blob(cases[cid], blobs[rid], pack=ws.pack)
+            if row is not None:
+                gold[cid] = row
+    fill_prompt = None
+    if req.format == "chat":
+        if not req.prompt_module:
+            raise HTTPException(status_code=422, detail="format chat needs prompt_module")
+        try:
+            fill_prompt = _export._load_fill_prompt(req.prompt_module)
+        except (OSError, SystemExit, AttributeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        rows, out_rows = _export.export_rows(
+            cases, gold, blobs, vocab, split=split, filter_mode=req.filter, fmt=req.format,
+            fill_prompt=fill_prompt, pack=ws.pack,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    exports_dir = _exports_dir(resolved_out)
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    name = f"export_{split}_{job.get('round') or 'untagged'}_{req.job_id}_{req.format}.jsonl"
+    path = exports_dir / name
+    path.write_text("".join(json.dumps(o, ensure_ascii=False) + "\n" for o in out_rows))
+    manifest = _export.export_manifest(
+        rows, split=split, filter_mode=req.filter, fmt=req.format, vocab=vocab,
+        graded_from=f"job {req.job_id} ({len(blobs)} run blobs, {sum(1 for c in gold.values() if c.get('direction'))} gold rows)",
+    )
+    manifest.update(
+        {
+            "name": name,
+            "job_id": req.job_id,
+            "round": job.get("round"),
+            "agent": job.get("agent"),
+            "written": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    path.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2))
+    return {**manifest, "path": str(path)}
+
+
+@app.get("/v1/spend")
+def spend_endpoint(
+    agent: str | None = None,
+    since: str | None = None,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B9): the running spend line — every run in the store (no 500-row cap),
+    optionally one agent's and at or after ``since`` (ISO), priced at LIST price for the served
+    model (``lithrim_bench.cli.spend``). A run with no cost record contributes nothing and is
+    counted as such, never estimated; an unpriced model is counted too."""
+    from lithrim_bench.cli import spend as _spend
+
+    try:
+        docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+    except Exception:  # noqa: BLE001 — no store yet is no spend, never a 500
+        docs = []
+    rows = _spend.rows_from_docs(docs, agent)
+    if since:
+        rows = [r for r in rows if (r.get("ts") or "") >= since]
+    out = _spend.spend(rows)
+    out.update(
+        {
+            "runs": len(rows),
+            "agent": agent,
+            "since": since,
+            "price_basis": "list price, USD per 1M tokens, by served model",
+            "unpriced_models": sorted(
+                {
+                    str(r.get("served_model") or r.get("model"))
+                    for r in rows
+                    if isinstance(r.get("cost_tokens"), dict)
+                    and r["cost_tokens"].get("total") is not None
+                    and _spend.price_for(r.get("served_model") or r.get("model") or "gpt-4.1") is None
+                }
+            ),
+        }
+    )
+    return out
+
+
+@app.get("/v1/exports")
+def list_exports_endpoint(
+    agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
+) -> dict:
+    """UI-JOURNEY-1 (B8): the exports written under the workspace (newest last)."""
+    resolved_out = Path(out_dir if out_dir is not None else workspace.get_active_workspace().out_dir)
+    exports = [e for e in _list_exports(resolved_out) if not agent or e.get("agent") in (None, agent)]
+    return {"exports": exports}
+
+
+@app.get("/v1/exports/{name}")
+def get_export_endpoint(name: str, out_dir: Path | None = Depends(get_out_dir)):
+    """UI-JOURNEY-1 (B8): serve one export file (JSON lines) for download."""
+    from fastapi.responses import PlainTextResponse
+
+    resolved_out = Path(out_dir if out_dir is not None else workspace.get_active_workspace().out_dir)
+    if "/" in name or "\\" in name or name.startswith(".") or not name.endswith((".jsonl", ".manifest.json")):
+        raise HTTPException(status_code=404, detail=f"unknown export {name!r}")
+    path = _exports_dir(resolved_out) / name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"unknown export {name!r}")
+    media = "application/json" if name.endswith(".json") else "application/x-ndjson"
+    return PlainTextResponse(
+        path.read_text(), media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
+@app.get("/v1/jobs/{job_id}/scorecard")
+def job_scorecard_endpoint(
+    job_id: str,
+    vocabulary: str | None = None,
+    compare: str | None = None,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B5/B7): see ``_job_scorecard``. ``compare`` names a job id or a round
+    (the agent's latest finished job tagged with it) to sit beside this one. 404 on an unknown
+    job or dataset."""
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    job = _load_job(resolved_out, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
+    return _job_scorecard(
+        job, vocabulary=vocabulary, collections_db=collections_db, out_dir=resolved_out,
+        compare=compare,
+    )
 
 
 @app.post("/v1/cases/grade")
@@ -2742,13 +3365,18 @@ def grade_cases_endpoint(
         job["status"], job["error"], job["result"] = "running", None, None
         job["done"] = len(job["rows"])
     else:
-        targets = req.case_ids or [
-            r["case_id"] for r in _read_ingested_corpus() if r.get("case_id")
-        ]
+        corpus = _read_ingested_corpus()
+        if req.split:
+            corpus = [r for r in corpus if r.get("split") == req.split]
+        targets = req.case_ids or [r["case_id"] for r in corpus if r.get("case_id")]
         if not targets:
             raise HTTPException(
                 status_code=400,
-                detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
+                detail=(
+                    f"no ingested cases tagged split={req.split!r} to grade"
+                    if req.split
+                    else "no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)"
+                ),
             )
         job = None
     if not (req.background or req.resume):
@@ -2784,6 +3412,8 @@ def grade_cases_endpoint(
             "started": datetime.now(timezone.utc).isoformat(),
             "finished": None,
             "request": {"live": live, "in_process": in_process, "strict": req.strict},
+            "round": req.round,
+            "split": req.split,
         }
     with _JOBS_LOCK:
         _JOBS[job["job_id"]] = job
@@ -3043,6 +3673,76 @@ def set_council_roster_endpoint(
     return {"status": "ok", "agent": ag.name, "reviewer_roster": cc.get("reviewer_roster"), "panel": production, "selectable": selectable}
 
 
+@app.get("/v1/council/rules")
+def council_rules_endpoint(
+    agent: str = DEFAULT_AGENT, db_path: Path = Depends(get_config_db)
+) -> dict:
+    """UI-JOURNEY-1 (B10): how the council decides, in plain words, for the active pack — the
+    frozen consensus rules (never edited here, only described), the withstands gate that
+    reconciles a hesitant or contradicted judge against its signals, the floor, and the roster
+    this agent runs. A read: no model call, no write."""
+    from lithrim_bench.harness import pack as _pack_mod
+
+    ws = workspace.get_active_workspace()
+    panel = list(_pack_mod.pack_production_judges(ws.pack))
+    roster = None
+    try:
+        ag = _load_agent(agent, db_path)
+        roster = (ag.eval_profile.council_config or {}).get("reviewer_roster")
+    except Exception:  # noqa: BLE001 — an unknown agent still gets the pack's rules
+        pass
+    return {
+        "pack": ws.pack,
+        "agent": agent,
+        "panel": panel,
+        "reviewer_roster": roster,
+        "min_valid_judges": 2,
+        "gate_mode_min_valid_judges": 1,
+        "rules": [
+            {
+                "name": "evidence, not votes",
+                "text": "Every judge returns findings (a taxonomy code with the evidence span), "
+                "not a bare vote; the council groups findings by code and counts how many "
+                "judges raised each one.",
+            },
+            {
+                "name": "tier rules",
+                "text": "Tier 1 (never-events): one judge with evidence blocks. Tier 2 (high "
+                "risk): two judges block, one judge sends the case to a person. Tier 3: noted, "
+                "never decides the verdict. With no evidence-backed finding the majority "
+                "decision stands.",
+            },
+            {
+                "name": "the hesitant or contradicted judge (withstands)",
+                "text": "Before consensus, each judge's findings are checked against the "
+                "deterministic signals (the ontology rules and validator outputs). A finding "
+                "the signals contradict is removed and the judge's decision is down-ranked when "
+                "nothing is left; a finding that withstands stays. Every ruling is written to "
+                "the audit trail with what was weighed.",
+            },
+            {
+                "name": "too few answers",
+                "text": "If fewer than two judges answered (a refusal, a timeout, malformed "
+                "output), the council does not decide: the case goes to a person. In the "
+                "single-judge gate mode one answer is enough by design.",
+            },
+            {
+                "name": "the floor",
+                "text": "After the council, the grounding floor runs the pack's deterministic "
+                "checks: a proven defect blocks whatever the judges said; a disproved finding "
+                "is cleared only on full grounding; anything it cannot ground is left to a "
+                "person. It has never cleared a genuine defect.",
+            },
+            {
+                "name": "corroboration is an absolute two",
+                "text": "A bigger council does not raise the bar: two corroborating judges "
+                "remain two, whatever the panel size. The consensus seam is byte-frozen and "
+                "attested; this page describes it, nothing here edits it.",
+            },
+        ],
+    }
+
+
 @app.get("/v1/council/roster")
 def get_council_roster_endpoint(
     agent: str = DEFAULT_AGENT,
@@ -3193,6 +3893,109 @@ class CreateWorkspaceRequest(BaseModel):
 
 class SwitchWorkspaceRequest(BaseModel):
     name: str
+
+
+def _pinned_demos(out_dir: Path) -> dict:
+    """The demo sets in force per role: ``compiled_demos_<tag>_<role>.json`` + the pin gate's
+    ``.score.json`` sidecar (held-out graded score of the pinned set)."""
+    out: dict[str, dict] = {}
+    for path in sorted(out_dir.glob("compiled_demos_*.json")):
+        if path.name.endswith(".score.json"):
+            continue
+        tag = path.stem[len("compiled_demos_") :]
+        role = tag.split("_", 1)[1] if "_" in tag else tag
+        entry: dict = {"path": path.name, "tag": tag.split("_", 1)[0], "demos": None, "graded": None}
+        try:
+            demos = json.loads(path.read_text())
+            entry["demos"] = len(demos) if isinstance(demos, list) else None
+        except (OSError, ValueError):
+            pass
+        side = path.with_suffix(".score.json")
+        if side.exists():
+            with contextlib.suppress(OSError, ValueError):
+                entry["graded"] = json.loads(side.read_text()).get("graded")
+        out[role] = entry
+    return out
+
+
+def _workspace_resources(ws, *, agent: str | None, out_dir: Path, collections_db: Path) -> dict:
+    """UI-JOURNEY-1 (B3): everything the loop leaves behind in one workspace, by name — the
+    cases (by split, with their importer), the runs, the grade jobs, the pinned demos, the
+    corrections log, the exports, the provider bindings (never a key) and the arm manifest.
+    Counts and names only; the heavy reads stay on their own routes."""
+    corpus = _read_ingested_corpus(ws)
+    by_split: dict[str, int] = {}
+    importers: dict[str, int] = {}
+    for row in corpus:
+        by_split[row.get("split") or "untagged"] = by_split.get(row.get("split") or "untagged", 0) + 1
+        if row.get("importer"):
+            importers[row["importer"]] = importers.get(row["importer"], 0) + 1
+    importer = max(importers, key=importers.get) if importers else None
+    runs: int | None
+    try:
+        docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+        runs = sum(1 for d in docs if not agent or d.get("agent_id") == agent)
+    except Exception:  # noqa: BLE001 — no store yet is "no runs", never a 500 on a fresh workspace
+        runs = 0
+    jobs_dir = out_dir / "jobs"
+    jobs = []
+    for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+        job = _load_job(out_dir, path.stem)
+        if job is not None and (not agent or job.get("agent") == agent):
+            jobs.append(_job_summary(job))
+    jobs.sort(key=lambda j: j.get("started") or "", reverse=True)
+    corr_path = correction.corrections_path(out_dir)
+    corrections = {"records": 0, "gold_mismatches": 0}
+    if corr_path.exists():
+        for line in corr_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            corrections["records"] += 1
+            if '"gold-mismatch/' in line:
+                corrections["gold_mismatches"] += 1
+    exports = _list_exports(out_dir)
+    arm_path = out_dir / "arm_manifest.json"
+    arm = None
+    if arm_path.exists():
+        try:
+            arm = json.loads(arm_path.read_text())
+        except (OSError, ValueError):
+            arm = None
+    return {
+        "name": ws.name,
+        "pack": ws.pack,
+        "agent": agent,
+        "cases": {"total": len(corpus), "by_split": by_split, "importer": importer},
+        "runs": runs,
+        "jobs": jobs,
+        "pinned_demos": _pinned_demos(out_dir),
+        "corrections": corrections,
+        "exports": exports,
+        "bindings": _read_role_bindings(),
+        "arm_manifest": arm,
+    }
+
+
+@app.get("/v1/workspaces/{name}/resources")
+def workspace_resources_endpoint(
+    name: str,
+    agent: str | None = None,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path | None = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B3): what one workspace holds (see ``_workspace_resources``). The active
+    workspace reads through the request's resolved dirs; another workspace through its own."""
+    active = workspace.get_active_workspace()
+    if name == active.name:
+        ws = active
+        resolved_out = out_dir if out_dir is not None else ws.out_dir
+        resolved_coll = collections_db if collections_db is not None else ws.collections_db
+    elif workspace._workspace_exists(name):
+        ws = workspace.read_workspace(name)
+        resolved_out, resolved_coll = ws.out_dir, ws.collections_db
+    else:
+        raise HTTPException(status_code=404, detail=f"unknown workspace {name!r}")
+    return _workspace_resources(ws, agent=agent, out_dir=resolved_out, collections_db=resolved_coll)
 
 
 @app.get("/v1/workspaces")
@@ -3554,6 +4357,7 @@ def get_judge_endpoint(
     ),
     db_path: Path = Depends(get_config_db),
     workdir: Path = Depends(get_ontology_workdir),
+    out_dir: Path | None = Depends(get_out_dir),
 ) -> dict:
     """One judge's full config + the **rendered ``role_key_questions``** the bridge
     will send ($0, no model). ``base_prompt`` is the unassigned render (== the seed
@@ -3574,6 +4378,12 @@ def get_judge_endpoint(
     else:
         effective = summary["assigned_flags"]
     summary["preview_flags"] = effective
+    # UI-JOURNEY-1 (B6): the demo set in force for this role (the pin gate's sidecar score). The
+    # chat tool calls this function directly (S-BS-82), so a Depends sentinel reads as "unset".
+    resolved_out = (
+        out_dir if isinstance(out_dir, (str, Path)) else workspace.get_active_workspace().out_dir
+    )
+    summary["pinned_demos"] = _pinned_demos(Path(resolved_out)).get(role)
     # GENERALIST-1: render the seed prompt against the ACTIVE WORKSPACE's pack, not the in-process
     # boot pack (``_core``). A non-default-pack role (e.g. a clinverdict ``generalist_reviewer``)
     # has no ``.txt`` under ``_core`` → load_role_prompt would FileNotFoundError → a misleading
@@ -3786,7 +4596,7 @@ def optimize_judge_endpoint(
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     return _optimize_via_subprocess(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
-        case_ids=req.case_ids, force_pin=req.force_pin,
+        case_ids=req.case_ids, force_pin=req.force_pin, split=req.split,
     )
 
 
@@ -7583,6 +8393,22 @@ def _connected_providers() -> list[str]:
     return [p for p, var in _PROVIDER_SECRET_VAR.items() if env.get(var)]
 
 
+def _provider_sources() -> dict[str, str]:
+    """UI-JOURNEY-1 (B10, audit quirk 5): where each provider's key in force comes from — the
+    in-app connect (``.provider_env``, which overwrites the process env at boot), the process
+    environment (a compose ``.env`` or the shell), or nowhere. Never the key itself."""
+    stored = _parse_env_file(_provider_env_path())
+    out: dict[str, str] = {}
+    for provider, var in _PROVIDER_SECRET_VAR.items():
+        if stored.get(var):
+            out[provider] = "in-app"
+        elif os.environ.get(var):
+            out[provider] = "environment"
+        else:
+            out[provider] = "unset"
+    return out
+
+
 def _read_role_bindings() -> dict:
     """The non-secret per-consumer readout — which {provider, model} each of the 4 roles is bound to,
     from the ``role_bindings`` config DB (ROLE-BINDINGS-DB; was ``.provider_env``). An unbound role is
@@ -7726,6 +8552,7 @@ def roles_bindings_endpoint() -> dict:
         "roles": _read_role_bindings(),
         "connected_providers": _connected_providers(),
         "chat_ready": _chat_ready(),
+        "provider_sources": _provider_sources(),
     }
 
 

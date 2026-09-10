@@ -123,7 +123,7 @@ seed.
 The published UI image bakes its BFF origin (`VITE_BFF_URL=http://localhost:8787`) at **build** time.
 So the prebuilt path works only when your browser reaches the BFF at `http://localhost:8787`: same
 machine, default ports. The `VITE_BFF_URL` env var in the compose file cannot re-point a prebuilt
-bundle (it is kept only for parity with the build-from-source compose).
+bundle (it is kept only for parity with the in-repo compose file).
 
 To serve the UI from any other origin (a remote host, a reverse proxy, a different port), you must
 rebuild the UI image from the repo's `Dockerfile.ui` with `--build-arg VITE_BFF_URL=<your BFF origin>`
