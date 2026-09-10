@@ -40,3 +40,13 @@ def test_the_prebuilt_compose_does_not_call_the_repo_file_build_from_source():
     text = (REPO / "deploy/docker-compose.yml").read_text()
     assert "build-from-source" not in text
     assert not _compose_has_build(REPO / "deploy/docker-compose.yml")
+
+
+def test_the_journey_page_states_the_acceptance_test_and_is_linked():
+    """UI-JOURNEY-1 (B11): the definition of done is written down where a reader finds it."""
+    page = (REPO / "docs/reproduction/RAGTRUTH_LOOP_UI.md").read_text()
+    for phrase in ("uninvolved person", "without opening a terminal", "own Azure", "both vocabularies"):
+        assert phrase in page, phrase
+    assert "RAGTRUTH_LOOP_UI.md" in (REPO / "docs/README.md").read_text()
+    assert "RAGTRUTH_LOOP_UI.md" in (REPO / "README.md").read_text()
+    assert "RAGTRUTH_LOOP_UI.md" in (REPO / "docs/reproduction/RAGTRUTH_LOOP.md").read_text()

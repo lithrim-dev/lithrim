@@ -222,6 +222,7 @@ Lithrim backs the technical report *A grounded evaluation architecture for clini
 | [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md) | The bundled ingest mapper: what needs it, what doesn't, how to run core-only. |
 | [`docs/SNOMED_SETUP.md`](docs/SNOMED_SETUP.md) | Optional SNOMED terminology floor: licensing reality first, building the Hermes index, in-container MCP wiring. |
 | [`docs/reproduction/RAGTRUTH_LOOP.md`](docs/reproduction/RAGTRUTH_LOOP.md) | The load / configure / grade / calibrate / re-grade / export loop on a RAGTruth cut, from the published images. |
+| [`docs/reproduction/RAGTRUTH_LOOP_UI.md`](docs/reproduction/RAGTRUTH_LOOP_UI.md) | The same loop from the shell, in one workspace, without a terminal. |
 | [`docs/IMPORTERS.md`](docs/IMPORTERS.md) | Importer manifests and dataset adapters: bringing a labeled dataset into a pack with zero engine edits. |
 | [`REPRODUCING.md`](REPRODUCING.md) | Re-running the published study from this repo. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, optional extras, test/lint expectations. |
