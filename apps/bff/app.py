@@ -2181,6 +2181,8 @@ def _importer_public(m) -> dict:
         "label_types": dict(m.label_types),
         "verdict_rule": dict(m.verdict_rule),
         "untyped_prediction_class": m.untyped_prediction_class,
+        # FT-FROM-SHELL-1: the export formats this importer can write (chat needs its prompt)
+        "training_formats": ["generic", "paper"] + (["chat"] if m.training_prompt_module else []),
     }
 
 
@@ -3224,10 +3226,16 @@ def export_endpoint(
                 gold[cid] = row
     fill_prompt = None
     if req.format == "chat":
-        if not req.prompt_module:
-            raise HTTPException(status_code=422, detail="format chat needs prompt_module")
+        # FT-FROM-SHELL-1: the chat row's user turn comes from the importer manifest's training
+        # prompt module unless the caller names one; neither is a 422.
+        prompt_module = req.prompt_module or vocab.training_prompt_module
+        if not prompt_module:
+            raise HTTPException(
+                status_code=422,
+                detail=f"format chat needs a prompt module; importer {vocab.id!r} declares none",
+            )
         try:
-            fill_prompt = _export._load_fill_prompt(req.prompt_module)
+            fill_prompt = _export._load_fill_prompt(prompt_module)
         except (OSError, SystemExit, AttributeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:

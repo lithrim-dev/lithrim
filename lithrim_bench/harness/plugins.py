@@ -195,6 +195,9 @@ class ImporterManifest(BaseModel):
     adapter_module: str | None = None
     files: list[str] = Field(default_factory=list)
     splits: dict[str, str] = Field(default_factory=lambda: {"test": "test", "calibration": "train"})
+    # FT-FROM-SHELL-1: the module whose ``fill_prompt(task, source, response)`` writes the user
+    # turn of a chat fine-tuning row (the export's ``chat`` format); absent, no chat export.
+    training_prompt_module: str | None = None
 
     def training_class_for(self, code: str) -> str:
         """The dataset-side class a training row labels a span with for ``code``."""
