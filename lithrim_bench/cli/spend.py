@@ -53,16 +53,12 @@ def spend(runs: list[dict]) -> dict:
     }
 
 
-def runs_from_db(db_path: str, agent: str) -> list[dict]:
-    """Every run blob for ``agent`` straight from the workspace's collections SQLite (the
-    runs endpoint caps at 500 rows). Projects the fields ``spend`` reads."""
-    import sqlite3
-
-    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+def rows_from_docs(docs, agent: str | None = None) -> list[dict]:
+    """Project run blobs (``agent_id``, ``cost_tokens``, the first judge vote's served model,
+    the timestamp) into the rows ``spend`` prices; ``agent`` filters when given."""
     out: list[dict] = []
-    for (raw,) in con.execute("SELECT json FROM pipeline_runs"):
-        d = json.loads(raw)
-        if d.get("agent_id") != agent:
+    for d in docs:
+        if agent and d.get("agent_id") != agent:
             continue
         votes = ((d.get("stage_results") or {}).get("semantic") or {}).get("judge_votes") or []
         v0 = votes[0] if votes else {}
@@ -75,6 +71,17 @@ def runs_from_db(db_path: str, agent: str) -> list[dict]:
             }
         )
     return out
+
+
+def runs_from_db(db_path: str, agent: str) -> list[dict]:
+    """Every run blob for ``agent`` straight from the workspace's collections SQLite (the
+    runs endpoint caps at 500 rows). Projects the fields ``spend`` reads."""
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    return rows_from_docs(
+        (json.loads(raw) for (raw,) in con.execute("SELECT json FROM pipeline_runs")), agent
+    )
 
 
 def add_arguments(ap) -> None:

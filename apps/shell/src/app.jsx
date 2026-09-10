@@ -332,20 +332,22 @@ function TopBar({ theme, setTheme, artifactOpen, toggleArtifact, onRunEval, runS
 }
 
 // Live status bar — wired to GET /v1/meta (the active workspace's real state), not demo numbers.
-function StatusBar({ activeWs }) {
+function StatusBar({ activeWs, activeAgent = "ws0_default" }) {
   const [meta, setMeta] = useState(null);
   const [connected, setConnected] = useState(true);
+  // UI-JOURNEY-1 (B9): the running spend line for the active agent (list price, served model).
+  const [spend, setSpend] = useState(null);
   useEffect(() => {
     let alive = true;
     const load = () =>
       import("./bff.js")
-        .then(({ getMeta }) => getMeta())
-        .then((m) => alive && (setMeta(m), setConnected(true)))
+        .then(({ getMeta, getSpend }) => Promise.all([getMeta(), getSpend(activeAgent).catch(() => null)]))
+        .then(([m, s]) => alive && (setMeta(m), setConnected(true), setSpend(s && typeof s.usd_list_price === "number" ? s : null)))
         .catch(() => alive && setConnected(false));
     load();
     const t = setInterval(load, 4000); // reflect workspace switches / new agents / new runs
     return () => { alive = false; clearInterval(t); };
-  }, [activeWs]);
+  }, [activeWs, activeAgent]);
   // GRADE-PROGRESS-1: the module-store chip — the cohort grade is one multi-minute POST; this is
   // the persistent chrome signal it is still running (lives here, outside the modal/pane chrome).
   const prog = useSyncExternalStore(subscribeProgress, getProgress);
@@ -375,6 +377,12 @@ function StatusBar({ activeWs }) {
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
       {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
       {meta && <span className="si">judges: {meta.judges}</span>}
+      {spend && (
+        <span className="si" data-testid="spend-line"
+          title={`Spend so far for ${activeAgent}: the runs' token counts priced at list price for the served model (USD per 1M tokens). ${spend.runs_without_cost_record || 0} run(s) carry no cost record and count nothing; ${spend.runs_unpriced_model || 0} run(s) are on a model with no list price.`}>
+          ${Number(spend.usd_list_price).toFixed(2)} list · {spend.runs} run{spend.runs === 1 ? "" : "s"}
+        </span>
+      )}
       <div className="right">
         {meta && <span className="si">{plural(meta.runs, "run")}</span>}
         {meta && <span className="si">v{meta.version}</span>}
@@ -785,7 +793,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
             />
           )}
         </div>
-        <StatusBar activeWs={activeWs} />
+        <StatusBar activeWs={activeWs} activeAgent={activeAgent} />
       </div>
     </div>
   );

@@ -68,11 +68,17 @@ def client(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(bff.workspace, "get_active_workspace", lambda: fake_ws)
 
+    seq = {"n": 0}
+
     def _judged_run(agent, **kw):
         """A perfect judge over the case's own labels, persisted as the run blob the audit and
-        scorecard reads project (the real pipeline writes this itself)."""
+        scorecard reads project (the real pipeline writes this itself). Every call is its own
+        run (unique id), as in the pipeline."""
         rec = _stub_record(agent, **kw)
         cid = agent.dataset.case_id
+        seq["n"] += 1
+        rid = f"run-{cid}-{seq['n']}"
+        rec["result"]["provenance"]["pipeline_run_id"] = rid
         case = next((c for c in bff._read_ingested_corpus(fake_ws) if c.get("case_id") == cid), {})
         flags = list(case.get("expected_safety_flags") or [])
         spans = [
@@ -84,7 +90,7 @@ def client(tmp_path, monkeypatch):
         rec["composite"]["verdict"] = "reject" if flags else "approve"
         rec["composite"]["stage_verdict"] = verdict
         doc = {
-            "pipeline_run_id": f"run-{cid}",
+            "pipeline_run_id": rid,
             "case_id": cid,
             "agent_id": agent.name,
             "timestamp": "2026-09-10T00:00:00+00:00",

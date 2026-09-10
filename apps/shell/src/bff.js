@@ -137,6 +137,12 @@ export async function downloadExport(name) {
   return name;
 }
 
+/* GET /v1/spend?agent=&since= — UI-JOURNEY-1 (B9): the running spend line: every run priced at
+   list price for the served model ({usd_list_price, prompt_tokens, completion_tokens, runs,
+   runs_priced, runs_unpriced_model, runs_without_cost_record}). $0 read. */
+export const getSpend = (agent = "ws0_default", since = null) =>
+  call(`/v1/spend?agent=${encodeURIComponent(agent)}${since ? `&since=${encodeURIComponent(since)}` : ""}`);
+
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
    find a running or interrupted job again after a reload. */

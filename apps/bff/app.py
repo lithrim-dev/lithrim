@@ -3227,6 +3227,46 @@ def export_endpoint(
     return {**manifest, "path": str(path)}
 
 
+@app.get("/v1/spend")
+def spend_endpoint(
+    agent: str | None = None,
+    since: str | None = None,
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B9): the running spend line — every run in the store (no 500-row cap),
+    optionally one agent's and at or after ``since`` (ISO), priced at LIST price for the served
+    model (``lithrim_bench.cli.spend``). A run with no cost record contributes nothing and is
+    counted as such, never estimated; an unpriced model is counted too."""
+    from lithrim_bench.cli import spend as _spend
+
+    try:
+        docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+    except Exception:  # noqa: BLE001 — no store yet is no spend, never a 500
+        docs = []
+    rows = _spend.rows_from_docs(docs, agent)
+    if since:
+        rows = [r for r in rows if (r.get("ts") or "") >= since]
+    out = _spend.spend(rows)
+    out.update(
+        {
+            "runs": len(rows),
+            "agent": agent,
+            "since": since,
+            "price_basis": "list price, USD per 1M tokens, by served model",
+            "unpriced_models": sorted(
+                {
+                    str(r.get("served_model") or r.get("model"))
+                    for r in rows
+                    if isinstance(r.get("cost_tokens"), dict)
+                    and r["cost_tokens"].get("total") is not None
+                    and _spend.price_for(r.get("served_model") or r.get("model") or "gpt-4.1") is None
+                }
+            ),
+        }
+    )
+    return out
+
+
 @app.get("/v1/exports")
 def list_exports_endpoint(
     agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
