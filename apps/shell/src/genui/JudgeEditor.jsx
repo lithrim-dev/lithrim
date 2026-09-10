@@ -17,7 +17,7 @@
    inline. All fetches route through bff.js (S-BS-50 — no hardcoded :8787). Built on
    shadcn primitives + the @theme token bridge. */
 import { useEffect, useState } from "react";
-import { getJudge, listCases, optimizeJudge, putJudge } from "../bff.js";
+import { getJob, getJudge, listCases, listJobs, optimizeJudge, putJudge } from "../bff.js";
 import { Button } from "../components/ui/button.jsx";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../components/ui/card.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog.jsx";
@@ -31,6 +31,7 @@ import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
 const lineCount = (s) => (s ? s.split("\n").length : 0);
+const OPT_POLL_MS = 3000; // OPTIMIZE-JOB-1: a calibration takes minutes; poll gently
 const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
 
 /* The HONEST held-out Δ render (D-G, inline — NOT the calibration_chart reliability
@@ -145,6 +146,46 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [save, setSave] = useState({ state: "idle", msg: "" }); // idle|saving|saved|error
   const [costOpen, setCostOpen] = useState(false); // the in-DOM cost-confirm modal (S-BS-69)
   const [opt, setOpt] = useState({ state: "idle", result: null, error: null }); // idle|running|done|error
+  // OPTIMIZE-JOB-1: a calibration runs as a background job; poll it (dropped polls are retried
+  // with a growing wait, so a reconnect does not lose it) and render its result block.
+  const followOptimize = async (jobId) => {
+    setOpt({ state: "running", result: null, error: null, job: jobId });
+    let failures = 0;
+    for (;;) {
+      let job;
+      try {
+        job = await getJob(jobId);
+        failures = 0;
+      } catch (e) {
+        failures += 1;
+        if (failures > 5) { setOpt({ state: "error", result: null, error: friendlyError(e), job: jobId }); return; }
+        await new Promise((r) => setTimeout(r, Math.min(OPT_POLL_MS * failures, 10000)));
+        continue;
+      }
+      if (job.status === "done") { setOpt({ state: "done", result: job.result, error: null, job: jobId }); return; }
+      if (job.status !== "running") {
+        setOpt({ state: "error", result: null, job: jobId,
+          error: job.status === "interrupted" ? "The calibration stopped when the service restarted; nothing was pinned. Run it again." : (job.error || `calibration ${job.status}`) });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, OPT_POLL_MS));
+    }
+  };
+
+  // On mount: a calibration of this reviewer that is running (or just finished) is found again.
+  useEffect(() => {
+    let live = true;
+    listJobs(agent, "optimize")
+      .then((r) => {
+        if (!live) return;
+        const mine = (r.jobs || []).filter((j) => j.role === role);
+        const latest = mine[0];
+        if (latest && latest.status === "running") followOptimize(latest.job_id);
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [role, agent]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // optimize-on-subset: the workspace cases (same GET /v1/cases the Cases browser reads) + the
   // SME's chosen subset. Empty selection = whole-workspace (back-compat). A $0 selector, never paid.
   const [cases, setCases] = useState([]);
@@ -266,6 +307,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   // The PAID optimize, gated behind the in-DOM cost modal (S-BS-69 — never
   // window.confirm, which freezes the renderer to CDP). Renders the HONEST held-out
   // Δ (win-or-loss) below; a loss is shown as a loss (R1).
+
   const runOptimize = async () => {
     setCostOpen(false);
     setOpt({ state: "running", result: null, error: null });
@@ -275,10 +317,13 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
       const onSplit = splitAvailable && useSplit;
       const result = await optimizeJudge(role, {
         confirm: true,
+        background: true,
+        agent,
         ...(onSplit ? { split: "calibration" } : {}),
         ...(!onSplit && selectedCaseIds.length ? { caseIds: selectedCaseIds } : {}),
       });
-      setOpt({ state: "done", result, error: null });
+      if (result && result.job_id && result.kind === "optimize") { await followOptimize(result.job_id); return; }
+      setOpt({ state: "done", result, error: null }); // an older service answers with the result itself
     } catch (e) {
       setOpt({ state: "error", result: null, error: friendlyError(e) });
     }
@@ -548,13 +593,13 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             </Button>
             {opt.state === "running" && (
               <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
-                running the trainset bootstrap + 2 held-out evals…
+                running the trainset bootstrap + 2 held-out evals{opt.job ? ` · job ${opt.job}; safe to reload, it keeps running` : ""}…
               </span>
             )}
           </div>
           {opt.state === "error" && (
-            <div className="font-[family-name:var(--font-mono)] text-[11px] text-[color:var(--accent-ink)]">
-              Couldn't improve the reviewer — please try again.
+            <div data-testid="optimize-error" className="font-[family-name:var(--font-mono)] text-[11px] text-[color:var(--accent-ink)]">
+              {opt.error || "Couldn't improve the reviewer — please try again."}
             </div>
           )}
           {opt.state === "done" && opt.result && <OptimizeDelta result={opt.result} />}

@@ -58,3 +58,13 @@ describe("followJob / restoreJobs", () => {
     await expect(restoreJobs("a")).resolves.toBeNull();
   });
 });
+
+
+describe("restoreJobs follows grade jobs only (OPTIMIZE-JOB-1)", () => {
+  it("a running calibration job is left to the judge editor, not put on the grade chip", async () => {
+    responses = [{ jobs: [{ job_id: "o1", kind: "optimize", role: "r", agent: "a", status: "running" }] }];
+    await expect(restoreJobs("a", { interval: 1 })).resolves.toBeNull();
+    expect(getProgress().active).toBe(false);
+    expect(getProgress().interrupted).toBeNull();
+  });
+});
