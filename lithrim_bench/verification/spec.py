@@ -168,6 +168,65 @@ _REQUIRED_REFERENCE_KEYS: dict[str, set[str]] = {
 }
 
 
+KPI_OPS = ("<", "<=", ">", ">=", "==", "!=", "between")
+_KPI_TARGETS = ("source", "artifact")
+
+
+def kpi_number(value: object) -> float | None:
+    """A pinned bound or a record cell as a number, or None when it is not one (bools are not)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def kpi_threshold_expected(ref: dict) -> dict:
+    """KPI-PINS-1: validate a ``kpi_threshold`` pin and return the comparison it encodes. The one
+    rule the author-time gate (via ``VerificationSpec``) and the grade-time tool both apply, so
+    a pin that would be skipped at grade time is refused when it is authored."""
+    if not str(ref.get("field") or "").strip():
+        raise ValueError("kpi_threshold needs a non-empty field (a dotted path into the record)")
+    if str(ref.get("target") or "source") not in _KPI_TARGETS:
+        raise ValueError(f"kpi_threshold target must be one of {_KPI_TARGETS}")
+    op = str(ref.get("op") or "")
+    if op not in KPI_OPS:
+        raise ValueError(f"kpi_threshold op must be one of {KPI_OPS}, got {op!r}")
+    if op == "between":
+        lo, hi = kpi_number(ref.get("min")), kpi_number(ref.get("max"))
+        if lo is None:
+            raise ValueError("kpi_threshold op 'between' needs a numeric min")
+        if hi is None:
+            raise ValueError("kpi_threshold op 'between' needs a numeric max")
+        if lo > hi:
+            raise ValueError("kpi_threshold 'between' needs min <= max")
+        return {"op": op, "min": lo, "max": hi}
+    val = kpi_number(ref.get("value"))
+    if val is None:
+        raise ValueError(f"kpi_threshold op {op!r} needs a numeric value")
+    return {"op": op, "value": val}
+
+
+def field_in_set_allowed(ref: dict) -> tuple[list, str, bool]:
+    """KPI-PINS-1: validate a ``field_in_set`` pin; return (allowed, mode, case_insensitive)."""
+    if not str(ref.get("field") or "").strip():
+        raise ValueError("field_in_set needs a non-empty field (a dotted path into the record)")
+    if str(ref.get("target") or "source") not in _KPI_TARGETS:
+        raise ValueError(f"field_in_set target must be one of {_KPI_TARGETS}")
+    allowed = ref.get("allowed")
+    if not isinstance(allowed, list) or not allowed:
+        raise ValueError("field_in_set needs a non-empty 'allowed' list")
+    mode = str(ref.get("mode") or "in")
+    if mode not in ("in", "not_in"):
+        raise ValueError("field_in_set mode must be 'in' or 'not_in'")
+    return list(allowed), mode, bool(ref.get("case_insensitive", True))
+
+
 @dataclass(frozen=True)
 class Claim:
     """The unit under verification: a council flag's assertion about a span of an artifact."""
@@ -223,6 +282,10 @@ class VerificationSpec:
         missing = _REQUIRED_REFERENCE_KEYS[self.tool] - set(self.reference)
         if missing:
             raise ValueError(f"{self.tool} spec missing reference keys: {sorted(missing)}")
+        if self.tool == TOOL_KPI_THRESHOLD:
+            kpi_threshold_expected(self.reference)
+        if self.tool == TOOL_FIELD_IN_SET:
+            field_in_set_allowed(self.reference)
         if self.tool == TOOL_STRUCTURAL_JUTE:
             sel = self.reference.get("mapping_selector")
             if not (isinstance(sel, dict) and sel.get("by") in {"title", "id"} and "value" in sel):

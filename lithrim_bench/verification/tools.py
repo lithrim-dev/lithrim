@@ -44,6 +44,9 @@ from .spec import (
     Claim,
     VerificationResult,
     VerificationSpec,
+    field_in_set_allowed,
+    kpi_number,
+    kpi_threshold_expected,
 )
 
 
@@ -1274,23 +1277,6 @@ def _dig_path(record: dict, dotted: str) -> Any:
 # --------------------------------------------------------------------------- #
 # KPI-FLOOR-1: deterministic record-field checks (threshold / range, allowed set)
 # --------------------------------------------------------------------------- #
-_KPI_OPS = ("<", "<=", ">", ">=", "==", "!=", "between")
-
-
-def _kpi_number(value: Any) -> float | None:
-    """A record cell as a number, or None when it is not one (bools are not numbers here)."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        try:
-            return float(value.strip())
-        except ValueError:
-            return None
-    return None
-
-
 def _kpi_record(claim: Claim, ref: dict, manifest: dict) -> tuple[dict | None, VerificationResult | None]:
     """The structured object a KPI check reads: the case's record source (``source_kind: record``,
     JSON at ``source_path``) by default, or the artifact itself when ``target: artifact``. Returns
@@ -1329,20 +1315,7 @@ class KpiThresholdTool(VerificationTool):
 
     @staticmethod
     def expected(ref: dict) -> dict:
-        op = str(ref.get("op") or "")
-        if op not in _KPI_OPS:
-            raise ValueError(f"kpi_threshold op must be one of {_KPI_OPS}, got {op!r}")
-        if op == "between":
-            lo, hi = _kpi_number(ref.get("min")), _kpi_number(ref.get("max"))
-            if lo is None or hi is None:
-                raise ValueError("kpi_threshold op 'between' needs numeric min and max")
-            if lo > hi:
-                raise ValueError("kpi_threshold 'between' needs min <= max")
-            return {"op": op, "min": lo, "max": hi}
-        val = _kpi_number(ref.get("value"))
-        if val is None:
-            raise ValueError(f"kpi_threshold op {op!r} needs a numeric value")
-        return {"op": op, "value": val}
+        return kpi_threshold_expected(ref)
 
     def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
         ref = spec.reference
@@ -1361,7 +1334,7 @@ class KpiThresholdTool(VerificationTool):
         if out is not None:
             return out
         raw_actual = _dig_path(record, field_name)
-        actual = _kpi_number(raw_actual)
+        actual = kpi_number(raw_actual)
         evidence: dict[str, Any] = {"field": field_name, **exp, "actual": raw_actual}
         if raw_actual is None:
             evidence["reason"] = "the field is absent from the record (unknown, not a violation)"
@@ -1398,13 +1371,7 @@ class FieldInSetTool(VerificationTool):
 
     @staticmethod
     def allowed(ref: dict) -> tuple[list, str, bool]:
-        allowed = ref.get("allowed")
-        if not isinstance(allowed, list) or not allowed:
-            raise ValueError("field_in_set needs a non-empty 'allowed' list")
-        mode = str(ref.get("mode") or "in")
-        if mode not in ("in", "not_in"):
-            raise ValueError("field_in_set mode must be 'in' or 'not_in'")
-        return list(allowed), mode, bool(ref.get("case_insensitive", True))
+        return field_in_set_allowed(ref)
 
     def verify(self, claim: Claim, spec: VerificationSpec) -> VerificationResult:
         ref = spec.reference
