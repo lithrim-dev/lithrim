@@ -88,7 +88,34 @@ def decode_records(raw_text: str, *, fmt: str = "auto", filename: str = "") -> D
         return _decode_jsonl(raw_text)
     if fmt == "csv":
         return _decode_csv(raw_text)
-    raise ValueError(f"unknown ingest format {fmt!r} (expected auto|json|jsonl|csv)")
+    if fmt == "otel":
+        try:
+            obj = json.loads(raw_text)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(f"the uploaded OTLP JSON did not parse: {exc}") from exc
+        return _decode_otel(obj)
+    raise ValueError(f"unknown ingest format {fmt!r} (expected auto|json|jsonl|csv|otel)")
+
+
+def _decode_otel(obj: object) -> DecodeResult:
+    """OTEL-INGEST-1: an OTLP/JSON trace export → native eval cases (one per LLM span with an
+    output), so the engine's verbatim native path takes them with no mapper. The counts ride the
+    columns slot as a readable hint: the front door shows spans / LLM spans / cases."""
+    from lithrim_bench.verification.otel_ingest import cases_from_otlp, is_otlp_trace
+
+    if not is_otlp_trace(obj):
+        raise ValueError("not an OTLP trace export (expected a top-level resourceSpans list)")
+    res = cases_from_otlp(obj)
+    if not res["cases"]:
+        raise ValueError(
+            f"the trace export has {res['spans']} span(s), {res['llm_spans']} LLM span(s), and none "
+            "with an output to grade (a gen_ai.completion / gen_ai.choice / output.value)"
+        )
+    hints = [
+        f"spans={res['spans']}", f"llm_spans={res['llm_spans']}",
+        f"cases={len(res['cases'])}", f"skipped_no_output={res['skipped_no_output']}",
+    ]
+    return DecodeResult(fmt="otel", sample=res["cases"], expected_count=len(res["cases"]), columns=hints)
 
 
 def _dominant_record_collection(obj: dict) -> tuple[str | None, int | None]:
@@ -109,6 +136,11 @@ def _decode_json(raw: str) -> DecodeResult:
         sample = json.loads(raw)
     except (json.JSONDecodeError, ValueError) as exc:
         raise ValueError(f"the uploaded JSON did not parse: {exc}") from exc
+    # OTEL-INGEST-1: a trace export is recognised by its shape, whatever the file is called
+    from lithrim_bench.verification.otel_ingest import is_otlp_trace
+
+    if is_otlp_trace(sample):
+        return _decode_otel(sample)
     if isinstance(sample, list):
         return DecodeResult(fmt="json", sample=sample, expected_count=len(sample))
     if isinstance(sample, dict):

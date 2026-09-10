@@ -14,6 +14,7 @@ The tracked documentation for Lithrim. Start with the repo-root
 | [`CAPABILITY_CARD.md`](CAPABILITY_CARD.md) | The honest capability card: what the deterministic floor verifies, what it does not, how it abstains, and what it depends on. |
 | [`EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md`](EVAL_BENCHMARK_AND_DETERMINISM_SPEC.md) | The determinism spec the engine implements: the defect register (D1–D7) and the by-construction case-generation protocol. |
 | [`IMPORTERS.md`](IMPORTERS.md) | Importer manifests (a dataset's vocabulary and case paths as pack data) and the adapter contract `lithrim load` calls. |
+| [`KPI_CONTRACTS.md`](KPI_CONTRACTS.md) | Deterministic KPI contracts (threshold, range, allowed set) over a structured record, and OpenTelemetry trace exports as cases, one per LLM span. |
 | [`JUTE_MAPPER_ADDON.md`](JUTE_MAPPER_ADDON.md) | The bundled ingest mapper for arbitrary agent-trace JSON: what needs it, what doesn't, and how to run core-only. |
 | [`ONTOLOGY_FLAG_LIFECYCLE.md`](ONTOLOGY_FLAG_LIFECYCLE.md) | Flag classes (reference vs gradeable) and the lifecycle rules that keep labels true by construction. |
 | [`POLICY_HOLDOUT_HYGIENE.md`](POLICY_HOLDOUT_HYGIENE.md) | The tune/certify separation: why a judge is never certified on the rows it was optimized on. |

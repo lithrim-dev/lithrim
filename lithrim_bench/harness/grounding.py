@@ -1241,7 +1241,9 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
     from lithrim_bench.verification import (
         AttributeConsistencyTool,
         FactPreservationTool,
+        FieldInSetTool,
         JuteGenValidatorTool,
+        KpiThresholdTool,
         SnomedSubsumptionFloorTool,
         SpeakerAttributionTool,
         StructuralJuteTool,
@@ -1307,7 +1309,27 @@ def _core_floor_executors() -> dict[str, FloorExecutor]:
 
         return _build
 
+    def _kpi_ref(*opts: str):
+        def _build(params: dict[str, Any]) -> dict[str, Any]:
+            ref: dict[str, Any] = {}
+            for opt in opts:
+                if params.get(opt) is not None:
+                    ref[opt] = params[opt]
+            return ref
+
+        return _build
+
     return {
+        # KPI-FLOOR-1: deterministic record-field checks a user can pin against their own KPIs
+        # before any judge runs: a numeric field vs a threshold or range, a field vs an allowed set.
+        "kpi_threshold": FloorExecutor(
+            tool_factory=lambda http_client: KpiThresholdTool(),
+            reference_builder=_kpi_ref("field", "op", "value", "min", "max", "target", "source_path"),
+        ),
+        "field_in_set": FloorExecutor(
+            tool_factory=lambda http_client: FieldInSetTool(),
+            reference_builder=_kpi_ref("field", "allowed", "mode", "case_insensitive", "target", "source_path"),
+        ),
         "structural_jute": FloorExecutor(
             tool_factory=lambda http_client: StructuralJuteTool(http_client=http_client),
             reference_builder=_structural_jute_ref,

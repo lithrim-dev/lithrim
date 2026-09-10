@@ -17,7 +17,7 @@ import { Icon } from "../icons.jsx";
 import { friendlyError } from "./copy.js";
 import { registerTool } from "./registry.js";
 
-const FMT_LABEL = { json: "JSON", jsonl: "JSONL", csv: "CSV", auto: "file" };
+const FMT_LABEL = { json: "JSON", jsonl: "JSONL", csv: "CSV", otel: "OpenTelemetry trace", auto: "file" };
 
 function clip(s, n = 80) {
   const t = String(s ?? "");
