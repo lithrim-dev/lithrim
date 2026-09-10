@@ -112,6 +112,15 @@ export default function ImportCard({ importers: given = null, agent = "ws0_defau
               </Button>
             </div>
           )}
+          {state.phase === "loaded" && state.result && (state.result.imported || {}).calibration > 0 && (
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-muted-foreground">For a training export: grade the calibration split too.</span>
+              <Button size="sm" variant="outline" data-testid="import-grade-calibration"
+                onClick={() => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { split: "calibration", round: "calibration" } })); } catch {} }}>
+                Grade the calibration split (paid)
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

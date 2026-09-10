@@ -89,3 +89,31 @@ def test_a_demo_from_outside_the_trainset_is_reported_not_guessed(tmp_path):
         demos=demos,
     )
     assert m["demo_source_ids"] == [None] and m["demos_out_of_sample"] is False
+
+
+def test_the_manifest_names_the_held_out_split(tmp_path):
+    corpus = tmp_path / "c.jsonl"
+    corpus.write_text('{"case_id": "a"}\n')
+    m = jo.build_manifest(
+        role="r",
+        corpus_path=corpus,
+        train_rows=[],
+        heldout_rows=[{"case_id": "d1"}],
+        role_prompt="p",
+        model=None,
+        demos=[],
+        heldout_split="dev",
+    )
+    assert m["heldout_split"] == "dev" and m["heldout_case_ids"] == ["d1"]
+    assert (
+        jo.build_manifest(
+            role="r",
+            corpus_path=corpus,
+            train_rows=[],
+            heldout_rows=[],
+            role_prompt="p",
+            model=None,
+            demos=[],
+        )["heldout_split"]
+        == "test"
+    )

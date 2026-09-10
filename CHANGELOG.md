@@ -6,6 +6,32 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.29] — 2026-09-10
+
+Held-out hygiene for the pin gate, and the training export from the shell.
+
+### Fixed
+- The pin gate no longer reads the test cut. The calibration corpus (the RAGTruth adapter's and
+  the shell's split calibrate) is the calibration split alone, with a deterministic,
+  source-disjoint 30% `dev` slice the gate scores on; the test cut stays untouched until the
+  after round. `run_optimize` and `scripts/optimize_judge.py` take the held-out split
+  (`heldout_split` / `--heldout-split`, default `test`).
+- A pinned score is compared only on the same held-out set. The score sidecar records the
+  held-out identity (split, size, digest of the case ids) and the manifest names the split; a
+  set pinned before this change (scored on the test cut) or a changed dev slice is not
+  comparable, so the next round pins with that reason stated instead of being accepted or
+  refused on the difference between two sets.
+- The chat (azure-chat) export no longer crashes on a structured prose source (every RAGTruth QA
+  row); a row the training prompt still cannot fill is refused by name.
+
+### Added
+- Grade the calibration split from the shell (import card, `⌘K`), a paid round of its own that
+  a training export draws on.
+- The export control picks a format (generic, paper, azure-chat) and says which split it
+  exports from; the training formats only from a calibration-split round.
+- The importer manifest's `training_prompt_module` names the prompt a chat training row is
+  written with, so the shell's azure-chat export needs no path.
+
 ## [0.1.28] — 2026-09-10
 
 Fixes from the v0.1.27 published-image test.

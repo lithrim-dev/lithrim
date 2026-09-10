@@ -280,17 +280,18 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
       ...deltaResult({ graded: 0.18, precision: 0.13, recall: 0.03 }),
       pin: { pinned: true, reason: "pinned (no pinned score to compare against)", out_of_sample: true },
       out_of_sample: true,
-      corpus_source: { split: "calibration", calibration: 2, test: 1 },
+      corpus_source: { split: "calibration", calibration: 7, dev: 3, dev_fraction: 0.3, test_untouched: 90 },
     });
     render(<JudgeEditor role="risk_judge" />);
     const opt = await screen.findByTestId("optimize-split");
-    expect(opt.textContent).toMatch(/calibration.*2 cases.*test.*1/);
+    // HOLDOUT-DEV-1: the gate reads a dev slice of the calibration split, never the test split
+    expect(opt.textContent).toMatch(/calibration split \(2 cases\).*30% dev slice decides the pin.*test split \(1 cases\) stays untouched/);
     expect(screen.queryByTestId("optimize-case-ragtruth_1")).toBeNull(); // the subset picker yields to the split
     fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, split: "calibration" }));
     expect((await screen.findByTestId("optimize-oos")).dataset.oos).toBe("yes");
-    expect(screen.getByTestId("optimize-corpus-source").textContent).toMatch(/calibration split \(2 cases\)/);
+    expect(screen.getByTestId("optimize-corpus-source").textContent).toMatch(/7 calibration cases · the pin decided on 3 dev cases \(30%, source-disjoint\) · test split untouched \(90\)/);
     expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("yes");
   });
 
@@ -335,5 +336,20 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
       render(<JudgeEditor role="risk_judge" />);
       expect((await screen.findByTestId("judge-pinned-demos")).textContent).toMatch(/No pinned demos yet/);
     });
+  });
+});
+
+
+describe("JudgeEditor — a pin with no comparable score says so (HOLDOUT-DEV-1)", () => {
+  it("names the different held-out set instead of implying the round beat the pinned set", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: -0.1 }),
+      pin: { pinned: true, comparable: false, reason: "pinned (no comparable score: ...)" },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    const note = await screen.findByTestId("optimize-pin-note");
+    expect(note.textContent).toMatch(/different held-out set, so there was nothing comparable to beat/);
   });
 });

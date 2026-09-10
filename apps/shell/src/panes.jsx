@@ -1184,7 +1184,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
         body={paid.cohort
           ? (paid.round === "after"
             ? `This grades the ${paid.split || "whole"} split fresh, with the demos now pinned on the judge, as the "after" round (model calls you'll be billed for); the scorecard sits beside the "before" round. The assistant can't do this — only you can authorize it.`
-            : paid.split
+            : paid.round === "calibration"
+              ? `This grades every case tagged ${paid.split || "calibration"} in one paid batch (model calls you'll be billed for) as the "calibration" round, so a training export has graded rows to draw on. The test split is not touched. The assistant can't do this — only you can authorize it.`
+              : paid.split
               ? `This grades every case tagged ${paid.split} in one paid batch (model calls you'll be billed for) as the "${paid.round || "before"}" round and shows the scorecard in both vocabularies. The assistant can't do this — only you can authorize it.`
               : paid.caseIds?.length
                 ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`

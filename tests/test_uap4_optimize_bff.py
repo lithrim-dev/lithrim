@@ -43,13 +43,33 @@ _FAKE_RESULT = {
         "n_demos_bootstrapped": 4,
         "n_positive_demos": 1,
     },
-    "baseline": {"accepted": True, "graded": 0.8, "precision": 0.71, "recall": 0.71,
-                 "tp": 5, "fp": 2, "fn": 2, "n": 10},
-    "optimized": {"accepted": False, "graded": 0.7, "precision": 0.44, "recall": 0.57,
-                  "tp": 4, "fp": 5, "fn": 3, "n": 10},
-    "delta": {"graded": -0.1, "precision": -0.27, "recall": -0.14,
-              "accepted": (True, False),
-              "tp_fp_fn": {"baseline": [5, 2, 2], "optimized": [4, 5, 3]}},
+    "baseline": {
+        "accepted": True,
+        "graded": 0.8,
+        "precision": 0.71,
+        "recall": 0.71,
+        "tp": 5,
+        "fp": 2,
+        "fn": 2,
+        "n": 10,
+    },
+    "optimized": {
+        "accepted": False,
+        "graded": 0.7,
+        "precision": 0.44,
+        "recall": 0.57,
+        "tp": 4,
+        "fp": 5,
+        "fn": 3,
+        "n": 10,
+    },
+    "delta": {
+        "graded": -0.1,
+        "precision": -0.27,
+        "recall": -0.14,
+        "accepted": (True, False),
+        "tp_fp_fn": {"baseline": [5, 2, 2], "optimized": [4, 5, 3]},
+    },
 }
 
 
@@ -60,10 +80,15 @@ def client(tmp_path, monkeypatch):
     def _fake_optimize_via_subprocess(
         *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False
     ):
-        calls.append({
-            "role": role, "limit": limit, "collections_db": str(collections_db),
-            "case_ids": case_ids, "force_pin": force_pin,
-        })
+        calls.append(
+            {
+                "role": role,
+                "limit": limit,
+                "collections_db": str(collections_db),
+                "case_ids": case_ids,
+                "force_pin": force_pin,
+            }
+        )
         return {**_FAKE_RESULT, "role": role}
 
     # the PAID optimize is a pack-bound subprocess; inject the seam so no process spawns.
@@ -132,8 +157,11 @@ def test_optimize_subprocess_hydrates_bindings_before_spawn(monkeypatch, tmp_pat
     monkeypatch.setattr(bff.subprocess, "run", _fake_run)
     ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
     res = bff._optimize_via_subprocess(
-        role="faithfulness_judge", ws=ws, collections_db=tmp_path / "c.db",
-        out_dir=tmp_path / "out", limit=None,
+        role="faithfulness_judge",
+        ws=ws,
+        collections_db=tmp_path / "c.db",
+        out_dir=tmp_path / "out",
+        limit=None,
     )
     assert order == ["hydrate", "spawn"]  # hydrate runs FIRST, then the spawn inherits the env
     assert "--role" in captured["cmd"] and "faithfulness_judge" in captured["cmd"]
@@ -163,7 +191,9 @@ def _fake_spawn_writing(result: dict, graded: float):
         (out / f"compiled_demos_{tag}.json").write_text(json.dumps([{"artifact": "x"}]))
         (out / f"score_optimized_{tag}.json").write_text(json.dumps({"graded": graded}))
         return SimpleNamespace(
-            returncode=0, stdout="__OPTIMIZE_JSON__" + json.dumps({**result, "role": role}), stderr=""
+            returncode=0,
+            stdout="__OPTIMIZE_JSON__" + json.dumps({**result, "role": role}),
+            stderr="",
         )
 
     return _run
@@ -174,8 +204,12 @@ def _real_optimize(monkeypatch, tmp_path, graded: float, *, force_pin=False):
     monkeypatch.setattr(bff.subprocess, "run", _fake_spawn_writing(_FAKE_RESULT, graded))
     ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
     return bff._optimize_via_subprocess(
-        role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
-        limit=None, force_pin=force_pin,
+        role=_ROLE,
+        ws=ws,
+        collections_db=tmp_path / "c.db",
+        out_dir=tmp_path / "out",
+        limit=None,
+        force_pin=force_pin,
     )
 
 
@@ -184,13 +218,19 @@ def test_a_losing_optimize_never_lands_demos_in_the_workspace(monkeypatch, tmp_p
 
     (tmp_path / "out").mkdir()
     # a pinned set from an earlier round scored 0.8 on held-out
-    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.json").write_text(json.dumps([{"artifact": "old"}]))
-    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(json.dumps({"graded": 0.8}))
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.json").write_text(
+        json.dumps([{"artifact": "old"}])
+    )
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(
+        json.dumps({"graded": 0.8})
+    )
     res = _real_optimize(monkeypatch, tmp_path, graded=0.7)
     assert res["delta"]["graded"] == -0.1  # the honest loss is still reported
     assert res["pin"]["pinned"] is False and res["pin"]["pinned_graded"] == 0.8
     demos = load_compiled_demos(tmp_path / "out", _ROLE)
-    assert demos and getattr(demos[0], "artifact", None) == "old"  # the next grade keeps the old set
+    assert (
+        demos and getattr(demos[0], "artifact", None) == "old"
+    )  # the next grade keeps the old set
     assert (tmp_path / "out" / "optimize" / _ROLE / f"compiled_demos_dspy3b_{_ROLE}.json").exists()
 
 
@@ -204,7 +244,9 @@ def test_a_first_or_winning_optimize_pins_and_records_the_score(monkeypatch, tmp
 
 def test_force_pin_overrides_the_gate_with_an_explicit_reason(monkeypatch, tmp_path):
     (tmp_path / "out").mkdir()
-    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(json.dumps({"graded": 0.8}))
+    (tmp_path / "out" / f"compiled_demos_dspy3b_{_ROLE}.score.json").write_text(
+        json.dumps({"graded": 0.8})
+    )
     res = _real_optimize(monkeypatch, tmp_path, graded=0.7, force_pin=True)
     assert res["pin"]["pinned"] is True and "force" in res["pin"]["reason"].lower()
 
@@ -213,13 +255,16 @@ def test_endpoint_threads_force_pin_to_the_seam(monkeypatch, tmp_path):
     """Self-contained on the neutral _core pack (no healthcare pack needed)."""
     calls: list[dict] = []
 
-    def _fake(*, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None):
+    def _fake(
+        *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None
+    ):
         calls.append({"role": role, "force_pin": force_pin})
         return {**_FAKE_RESULT, "role": role, "pin": {"pinned": not force_pin}}
 
     monkeypatch.setattr(bff, "_optimize_via_subprocess", _fake)
     monkeypatch.setattr(
-        bff.workspace, "get_active_workspace",
+        bff.workspace,
+        "get_active_workspace",
         lambda: SimpleNamespace(name="ws", pack="_core", packs_dir=None),
     )
     bff.app.dependency_overrides[bff.get_out_dir] = lambda: tmp_path / "out"
@@ -237,6 +282,8 @@ def test_endpoint_threads_force_pin_to_the_seam(monkeypatch, tmp_path):
 
 # ── UI-JOURNEY-1 (B6): calibrate on an importer's calibration split, held out on test ──
 def test_split_optimize_builds_the_corpus_from_the_workspace_splits(monkeypatch, tmp_path):
+    """HOLDOUT-DEV-1: the corpus is the calibration split alone, carved into a training part and
+    a source-disjoint dev slice the gate scores on; the test cut never enters it."""
     seen: dict = {}
 
     def _run(cmd, env=None, **kw):
@@ -252,42 +299,69 @@ def test_split_optimize_builds_the_corpus_from_the_workspace_splits(monkeypatch,
             json.dumps({"manifest": {"demos_out_of_sample": True, "demo_source_ids": ["c1"]}})
         )
         return SimpleNamespace(
-            returncode=0, stdout="__OPTIMIZE_JSON__" + json.dumps({**_FAKE_RESULT, "role": _ROLE}), stderr=""
+            returncode=0,
+            stdout="__OPTIMIZE_JSON__" + json.dumps({**_FAKE_RESULT, "role": _ROLE}),
+            stderr="",
         )
 
     monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: None)
     monkeypatch.setattr(bff.subprocess, "run", _run)
     corpus = [
-        {"case_id": "c1", "split": "calibration", "expected_safety_flags": ["X"]},
-        {"case_id": "c2", "split": "calibration", "expected_safety_flags": []},
+        {
+            "case_id": f"c{i}",
+            "split": "calibration",
+            "source_id": f"s{i}",
+            "task": "QA",
+            "expected_safety_flags": [],
+        }
+        for i in range(10)
+    ] + [
         {"case_id": "t1", "split": "test", "expected_safety_flags": ["X"]},
         {"case_id": "u1", "expected_safety_flags": []},
     ]
     monkeypatch.setattr(bff, "_read_ingested_corpus", lambda ws=None: corpus)
-    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    ws = SimpleNamespace(name="ws", pack="_core", packs_dir=None)
     res = bff._optimize_via_subprocess(
-        role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
-        limit=None, split="calibration",
+        role=_ROLE,
+        ws=ws,
+        collections_db=tmp_path / "c.db",
+        out_dir=tmp_path / "out",
+        limit=None,
+        split="calibration",
     )
-    assert "--collections-db" not in seen["cmd"] and "--case-ids" not in seen["cmd"]
+    cmd = seen["cmd"]
+    assert "--collections-db" not in cmd and "--case-ids" not in cmd
+    assert cmd[cmd.index("--heldout-split") + 1] == "dev"
     splits = {r["case_id"]: r["split"] for r in seen["rows"]}
-    assert splits == {"c1": "calibration", "c2": "calibration", "t1": "test"}  # u1 untagged: out
+    assert "t1" not in splits and "u1" not in splits, "the test cut and untagged cases stay out"
+    assert (
+        sorted(splits.values()).count("dev") == 3
+        and sorted(splits.values()).count("calibration") == 7
+    )
     assert res["corpus_source"] == {
-        "split": "calibration", "calibration": 2, "test": 1,
+        "split": "calibration",
+        "calibration": 7,
+        "dev": 3,
+        "dev_fraction": 0.3,
+        "test_untouched": 1,
         "corpus": str(tmp_path / "out" / "optimize" / _ROLE / "calib_ws.jsonl"),
     }
     assert res["out_of_sample"] is True and res["pin"]["pinned"] is True
 
 
-def test_split_optimize_refuses_when_a_split_is_empty(monkeypatch, tmp_path):
+def test_split_optimize_refuses_when_the_split_is_too_small_to_carve(monkeypatch, tmp_path):
     monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: None)
     monkeypatch.setattr(
         bff, "_read_ingested_corpus", lambda ws=None: [{"case_id": "c1", "split": "calibration"}]
     )
-    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    ws = SimpleNamespace(name="ws", pack="_core", packs_dir=None)
     with pytest.raises(bff.HTTPException) as exc:
         bff._optimize_via_subprocess(
-            role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
-            limit=None, split="calibration",
+            role=_ROLE,
+            ws=ws,
+            collections_db=tmp_path / "c.db",
+            out_dir=tmp_path / "out",
+            limit=None,
+            split="calibration",
         )
-    assert exc.value.status_code == 422 and "load both splits" in exc.value.detail
+    assert exc.value.status_code == 422 and "dev" in exc.value.detail

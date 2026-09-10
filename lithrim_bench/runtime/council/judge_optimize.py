@@ -386,6 +386,17 @@ def pin_gate(
     )
 
 
+def heldout_identity(split: str | None, case_ids) -> dict[str, Any]:
+    """The held-out set a score was measured on: its split name, size, and the SHA-256 of its
+    sorted case ids. Two scores are comparable only when their identities are equal."""
+    ids = sorted(str(c) for c in (case_ids or []))
+    return {
+        "split": split or "test",
+        "n": len(ids),
+        "digest": _sha256_text(",".join(ids)),
+    }
+
+
 def pin_demos(
     staging_dir: str | Path, workspace_out: str | Path, role: str, *, force: bool = False
 ) -> dict[str, Any]:
@@ -402,7 +413,9 @@ def pin_demos(
     src = staging_dir / f"compiled_demos_{tag}.json"
     score_path = staging_dir / f"score_optimized_{tag}.json"
     sidecar = workspace_out / f"compiled_demos_{tag}.score.json"
-    pinned = json.loads(sidecar.read_text()).get("graded") if sidecar.exists() else None
+    side = json.loads(sidecar.read_text()) if sidecar.exists() else {}
+    pinned = side.get("graded")
+    pinned_heldout = side.get("heldout")
     if not src.exists():
         return {
             "pinned": False,
@@ -415,16 +428,42 @@ def pin_demos(
     # UI-JOURNEY-1 (B6): a demo that does not trace to a training row is not out of sample; the
     # result file's manifest says so (None when the round wrote no manifest: not checked).
     out_of_sample: bool | None = None
+    candidate_heldout: dict[str, Any] | None = None
     result_path = staging_dir / f"result_{tag}.json"
     if result_path.exists():
         with contextlib.suppress(OSError, ValueError):
             manifest = json.loads(result_path.read_text()).get("manifest") or {}
             if "demos_out_of_sample" in manifest:
                 out_of_sample = bool(manifest["demos_out_of_sample"])
+            if "heldout_case_ids" in manifest:
+                candidate_heldout = heldout_identity(
+                    manifest.get("heldout_split"), manifest["heldout_case_ids"]
+                )
+    # HOLDOUT-DEV-1: a pinned score is only a bar to beat when it was measured on the SAME
+    # held-out set; a set pinned before the dev slice (scored on the test cut, no identity) or
+    # a changed dev slice is not comparable, and the round pins with that reason stated (the
+    # first-pin rule) rather than refusing or accepting on the difference between two sets.
+    # Neither side recording an identity keeps the pre-identity comparison.
+    comparable = pinned is None or (
+        pinned_heldout == candidate_heldout
+        if (pinned_heldout is not None or candidate_heldout is not None)
+        else True
+    )
     if out_of_sample is False and not force:
         ok, reason = False, (
             "REFUSING to pin: a compiled demo does not trace to a calibration row (the demos "
             "are not out of sample)"
+        )
+    elif not comparable:
+        ok = True
+
+        def _desc(h):
+            return f"{h['split']} ({h['n']} cases)" if h else "an unrecorded held-out set"
+
+        reason = (
+            f"pinned (no comparable score: the pinned set's {pinned:.2f} was measured on a "
+            f"different held-out set, {_desc(pinned_heldout)}, this round on "
+            f"{_desc(candidate_heldout)})"
         )
     else:
         ok, reason = pin_gate(candidate, pinned, force=force)
@@ -438,11 +477,14 @@ def pin_demos(
             "pinned_graded": pinned,
             "demos_path": None,
             "out_of_sample": out_of_sample,
+            "comparable": comparable,
         }
     workspace_out.mkdir(parents=True, exist_ok=True)
     dst = workspace_out / src.name
     shutil.copy(src, dst)
-    sidecar.write_text(json.dumps({"graded": candidate, "source": str(src)}, indent=2))
+    sidecar.write_text(
+        json.dumps({"graded": candidate, "source": str(src), "heldout": candidate_heldout}, indent=2)
+    )
     return {
         "pinned": True,
         "reason": reason,
@@ -450,6 +492,7 @@ def pin_demos(
         "pinned_graded": pinned,
         "demos_path": str(dst),
         "out_of_sample": out_of_sample,
+        "comparable": comparable,
     }
 
 
@@ -490,6 +533,7 @@ def build_manifest(
     model: str | None,
     demos: list[dict[str, Any]],
     pack: str | None = None,
+    heldout_split: str = "test",
 ) -> dict[str, Any]:
     """PROVENANCE-1: everything a reader needs to reproduce or audit an optimize run from the
     result file alone: which rows trained, which were held out, the corpus bytes, the prompt
@@ -511,6 +555,8 @@ def build_manifest(
         "corpus_sha256": _sha256_file(corpus_path),
         "train_case_ids": train_ids,
         "heldout_case_ids": heldout_ids,
+        # HOLDOUT-DEV-1: which split the held-out score (and so the pin gate) read
+        "heldout_split": heldout_split,
         "train_source_ids": _source_ids(train_rows),
         "heldout_source_ids": _source_ids(heldout_rows),
         "role": role,
@@ -543,9 +589,12 @@ def run_optimize(
     max_bootstrapped_demos: int = 4,
     max_labeled_demos: int = 0,
     coverage_aware: bool = False,
+    heldout_split: str = "test",
 ) -> dict[str, Any]:
     """The PAID entrypoint: optimize ``role`` on the calibration split, measure the
-    held-out Δ on the test split, persist the compiled demos + both score dicts.
+    held-out Δ on ``heldout_split`` (``test`` by default; ``dev`` when the corpus carries a dev
+    slice carved from the calibration split, so the pin gate never reads the test cut), persist
+    the compiled demos + both score dicts.
 
     Refuses without ``confirm_cost=True`` (the standing cost-confirm rule, mirroring
     ``ab_harness.run_live``). ``limit`` caps each split for the smoke (per-call cost
@@ -559,6 +608,10 @@ def run_optimize(
             "explicit cost check"
         )
 
+    if heldout_split == "calibration":
+        raise ValueError(
+            "the held-out split must not be the trainset (`calibration`); hold out on `dev` or `test`"
+        )
     # Holdout hygiene (REL-OPS-1 O6, docs/POLICY_HOLDOUT_HYGIENE.md): only `calibration`
     # rows may tune. A corpus with no calibration rows is certify-only — refuse HERE,
     # before `import dspy` / LM construction, so no paid work and no possibility of the
@@ -577,7 +630,7 @@ def run_optimize(
 
     lens = LENS_BY_ROLE[role]
     train_rows = [r for r in rows if r.get("split") == "calibration" and role_relevant(r, lens)]
-    heldout_rows = [r for r in rows if r.get("split") == "test" and role_relevant(r, lens)]
+    heldout_rows = [r for r in rows if r.get("split") == heldout_split and role_relevant(r, lens)]
     if limit is not None:
         train_rows = train_rows[:limit]
         heldout_rows = heldout_rows[:limit]
@@ -640,6 +693,7 @@ def run_optimize(
             role_prompt=role_prompt,
             model=getattr(lm, "model", None),
             demos=demos,
+            heldout_split=heldout_split,
         ),
     }
 

@@ -23,6 +23,11 @@ Every calibration-corpus row carries a `split` field with exactly two grading ro
 
 - `"calibration"`: the trainset, eligible for optimization.
 - `"test"`: the held-out set, eligible only for measurement.
+- `"dev"` (HOLDOUT-DEV-1): in a corpus built from a labeled dataset's calibration split, a
+  deterministic, source-disjoint 30% slice of that split (`carve_dev`,
+  `lithrim_bench/harness/calib_corpus.py`) that the pin gate scores on; the optimizer is told to
+  hold out on it (`run_optimize(heldout_split="dev")`, `--heldout-split dev`), so the dataset's
+  test cut never enters the corpus and no gate decision reads a test label.
 
 `load_corpus` documents and filters on this field
 (`lithrim_bench/runtime/council/judge_optimize.py:53-66`).

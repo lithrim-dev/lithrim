@@ -294,3 +294,23 @@ describe("KPI-PINS-1: KPI contracts from the shell", () => {
     unmount();
   });
 });
+
+
+describe("FT-FROM-SHELL-1: grade the calibration split for a training export", () => {
+  it("the palette entry opens the cost confirm and posts split=calibration as round=calibration", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({ "/v1/cases/grade": { job_id: "job-c", status: "running", done: 0, total: 90 } });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-grade-calibration"));
+    expect(await screen.findByText(/Grade the calibration split \(paid\)\?/)).toBeInTheDocument();
+    expect(screen.getByText(/so a training export has graded rows to draw on\. The test split is not touched/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Grade the calibration split \(paid\)/ }).pop());
+    await waitFor(() => {
+      const sent = calls.find((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+      expect(sent && JSON.parse(sent.body)).toMatchObject({ split: "calibration", round: "calibration", in_process: true });
+    });
+    unmount();
+  });
+});

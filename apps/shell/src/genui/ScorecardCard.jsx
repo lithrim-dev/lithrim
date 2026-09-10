@@ -145,12 +145,16 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
   const pinned = pinnedLine(pinned_demos);
   const ctx = { job_id, round, split };
   // UI-JOURNEY-1 (B8): the Export verb from the card; the result names exactly what was written.
+  // FT-FROM-SHELL-1: a format picker; the training formats (paper, azure-chat) only from a
+  // calibration-split round, matching the service's 422 (a training file never draws on test).
   const [exp, setExp] = useState({ phase: "idle", result: null, msg: "" });
+  const training = split === "calibration";
+  const [fmt, setFmt] = useState("generic");
   const runExport = async () => {
     if (!onExport) return;
     setExp({ phase: "busy", result: null, msg: "" });
     try {
-      const r = await onExport(job_id, { format: "generic", filter: "supervised", ...(split ? { split } : {}) });
+      const r = await onExport(job_id, { format: training ? fmt : "generic", filter: "supervised", ...(split ? { split } : {}) });
       setExp({ phase: "done", result: r, msg: "" });
     } catch (e) {
       setExp({ phase: "error", result: null, msg: String(e?.message || e) });
@@ -227,6 +231,19 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
       {hasTable && <PerTaskTable per_task={per_task} compare={compare} />}
       {(onRegrade || onReplay || onExport) && (
         <div data-testid="scorecard-round-controls" className="mt-2 flex flex-wrap items-center gap-2">
+          {onExport && job_id && (
+            <span data-testid="export-controls" className="inline-flex items-center gap-1.5 text-[11px]">
+              <select data-testid="export-format" aria-label="export format" value={training ? fmt : "generic"} onChange={(e) => setFmt(e.target.value)}
+                className="rounded-[var(--radius-sm)] border border-border bg-background px-1.5 py-1 text-[11px]">
+                <option value="generic">generic (every field, both vocabularies)</option>
+                <option value="paper" disabled={!training}>paper (training spans)</option>
+                <option value="chat" disabled={!training}>azure-chat (fine-tuning JSONL)</option>
+              </select>
+              <span data-testid="export-split" className="text-muted-foreground" title={training ? "A training file draws on graded calibration rows only." : "Training formats need a round graded on the calibration split; the test split is for reporting."}>
+                from the {split || "workspace"} split{training ? "" : " · training formats need the calibration round"}
+              </span>
+            </span>
+          )}
           {onExport && job_id && (
             <button type="button" data-testid="export-corpus" onClick={runExport} disabled={exp.phase === "busy"}
               className="rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1 text-[11px] text-foreground hover:bg-secondary"

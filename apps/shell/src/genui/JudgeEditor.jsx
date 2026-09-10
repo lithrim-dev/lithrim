@@ -45,7 +45,7 @@ function OptimizeDelta({ result }) {
   // about binding rather than the old (false) "binding is the next step" line.
   const pinLine = pin
     ? pin.pinned
-      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : ""}.`
+      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : pin.comparable === false ? " (the pinned set's score came from a different held-out set, so there was nothing comparable to beat)" : ""}.`
       : "Not pinned: the previously pinned demos (or none) stay in force."
     : null;
   const rows = [
@@ -93,7 +93,9 @@ function OptimizeDelta({ result }) {
       )}
       {corpus_source && (
         <span data-testid="optimize-corpus-source" className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
-          trained on the {corpus_source.split} split ({corpus_source.calibration} cases) · held out on the test split ({corpus_source.test})
+          {corpus_source.dev != null
+            ? `trained on ${corpus_source.calibration} ${corpus_source.split} cases · the pin decided on ${corpus_source.dev} dev cases (${Math.round((corpus_source.dev_fraction ?? 0.3) * 100)}%, source-disjoint) · test split untouched${corpus_source.test_untouched != null ? ` (${corpus_source.test_untouched})` : ""}`
+            : `trained on the ${corpus_source.split} split (${corpus_source.calibration} cases) · held out on the test split (${corpus_source.test})`}
         </span>
       )}
       {out_of_sample != null && (
@@ -150,7 +152,9 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   // UI-JOURNEY-1 (B6): when the corpus carries an importer's splits, calibrate on the calibration
   // split and hold out on the test split (the pilot's arrangement) instead of the stride split.
   const splitCounts = { calibration: cases.filter((c) => c.split === "calibration").length, test: cases.filter((c) => c.split === "test").length };
-  const splitAvailable = splitCounts.calibration > 0 && splitCounts.test > 0;
+  // HOLDOUT-DEV-1: the calibration split alone is enough (a dev slice is carved from it); the
+  // test split is never part of the calibration corpus.
+  const splitAvailable = splitCounts.calibration >= 2;
   const [useSplit, setUseSplit] = useState(true);
 
   useEffect(() => {
@@ -486,7 +490,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             <label data-testid="optimize-split" className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
               <input type="checkbox" checked={useSplit} onChange={(e) => setUseSplit(e.target.checked)} />
               <span>
-                Calibrate on the <b>calibration</b> split ({splitCounts.calibration} cases) and hold out on the <b>test</b> split ({splitCounts.test}); the demos then never see a graded case.
+                Calibrate on the <b>calibration</b> split ({splitCounts.calibration} cases): 70% trains the demos and a source-disjoint 30% <b>dev</b> slice decides the pin. The <b>test</b> split ({splitCounts.test} cases) stays untouched until you grade again.
               </span>
             </label>
           )}

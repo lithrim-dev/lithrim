@@ -53,5 +53,6 @@
   "splits": {
     "test": "test",
     "calibration": "train"
-  }
+  },
+  "training_prompt_module": "examples/ragtruth/arms/paper_prompt.py"
 }

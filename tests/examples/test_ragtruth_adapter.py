@@ -113,12 +113,17 @@ def test_calib_corpus_is_source_disjoint_and_task_interleaved():
     test_cases = [c for _, c in rc.select_slice(test_only, sources, per_task=4, natural=True)]
     rows = rc.build_calib_corpus(test_only + extra, sources, 4, test_cases)
     calib = [r for r in rows if r["split"] == "calibration"]
-    test = [r for r in rows if r["split"] == "test"]
-    assert len(calib) == 12 and len(test) == 12
-    assert {r["ragtruth"]["source_id"] for r in calib}.isdisjoint(
-        {r["ragtruth"]["source_id"] for r in test}
+    dev = [r for r in rows if r["split"] == "dev"]
+    # HOLDOUT-DEV-1: 4 train sources per task -> 1 dev (30%, rounded) + 3 calibration; the
+    # graded test cut is not in the corpus at all
+    assert len(calib) == 9 and len(dev) == 3 and not [r for r in rows if r["split"] == "test"]
+    assert {r["ragtruth"]["source_id"] for r in calib + dev}.isdisjoint(
+        {c["ragtruth"]["source_id"] for c in test_cases}
     )
-    assert all(r["ragtruth"]["source_id"].startswith("train-") for r in calib)
+    assert {r["ragtruth"]["source_id"] for r in calib}.isdisjoint(
+        {r["ragtruth"]["source_id"] for r in dev}
+    )
+    assert all(r["ragtruth"]["source_id"].startswith("train-") for r in calib + dev)
     assert [r["ragtruth"]["task_type"] for r in rows[:3]] == ["Data2txt", "QA", "Summary"], (
         "interleaved"
     )
@@ -148,9 +153,9 @@ def test_train_split_slice_carries_the_calibration_marker_and_matches_the_calib_
     test_cases = [c for _, c in rc.select_slice(test_only, sources, 3, natural=True)]
     assert all(c["split"] == "test" for c in test_cases)
     calib_rows = rc.build_calib_corpus(test_only + extra, sources, 3, test_cases)
-    assert {r["case_id"] for r in calib_rows if r["split"] == "calibration"} == {
-        c["case_id"] for c in train_cases
-    }
+    # the corpus is the train-split slice exactly, carved into calibration + dev
+    assert {r["case_id"] for r in calib_rows} == {c["case_id"] for c in train_cases}
+    assert {r["split"] for r in calib_rows} == {"calibration", "dev"}
 
 
 def test_the_adapter_contract_reads_the_two_upstream_files(tmp_path):
@@ -168,6 +173,8 @@ def test_the_adapter_contract_reads_the_two_upstream_files(tmp_path):
     assert len(cases) == 6 and all(c["split"] == "test" for c in cases)
     assert all(c["ragtruth"]["selection_rule"].startswith("slice:") for c in cases)
     rows = rc.calibration_corpus(tmp_path, per_task=2, test_cases=cases)
-    assert sum(1 for r in rows if r["split"] == "calibration") == 6
+    # 2 train sources per task -> 1 dev + 1 calibration each (a task keeps one source to train on)
+    assert sum(1 for r in rows if r["split"] == "calibration") == 3
+    assert sum(1 for r in rows if r["split"] == "dev") == 3
     train = rc.slice_cases(tmp_path, per_task=2, split="train", natural=True)
     assert len(train) == 6 and all(c["split"] == "calibration" for c in train)

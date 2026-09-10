@@ -48,6 +48,10 @@ def _raw_files() -> dict[str, str]:
     # splits must be source-disjoint (the route refuses otherwise), so keep only true test rows
     responses = [r for r in responses if r.get("split") == "test"]
     responses += _train_rows(sources, per_task=2)
+    # RAGTruth keeps a QA source as a {question, passages} object (the paper prompt reads both)
+    for sid, s in sources.items():
+        if s["task_type"] == "QA":
+            s["source_info"] = {"question": f"question {sid}?", "passages": f"passages for {sid}"}
     return {"response.jsonl": _jsonl(responses), "source_info.jsonl": _jsonl(sources.values())}
 
 
@@ -494,3 +498,39 @@ def test_the_loop_from_import_to_export_over_one_workspace(client):
     assert spend["runs"] == 2 * body["imported"]["test"]
     res = cli.get(f"/v1/workspaces/{WS}/resources?agent={AGENT}").json()
     assert len(res["jobs"]) == 2 and len(res["exports"]) == 1
+
+
+# --------------------------------------------------------------------------- FT-FROM-SHELL-1
+def test_a_calibration_round_exports_the_chat_training_file_with_the_importers_prompt(client):
+    """The training export needs graded calibration rows (a round=calibration job) and the
+    chat format's prompt module comes from the importer manifest, so the shell sends none."""
+    cli, out = client
+    body = _import(cli)
+    job_id = cli.post(
+        "/v1/cases/grade",
+        json={
+            "agent": AGENT,
+            "in_process": True,
+            "background": True,
+            "round": "calibration",
+            "split": "calibration",
+        },
+    ).json()["job_id"]
+    job = _wait_done(cli, job_id)
+    assert job["status"] == "done" and job["total"] == body["imported"]["calibration"]
+    res = cli.post(
+        "/v1/export", json={"agent": AGENT, "job_id": job_id, "format": "chat", "filter": "all"}
+    )
+    assert res.status_code == 200, res.text
+    exp = res.json()
+    assert (
+        exp["split"] == "calibration" and exp["format"] == "chat" and exp["round"] == "calibration"
+    )
+    rows = [json.loads(line) for line in (out / "exports" / exp["name"]).read_text().splitlines()]
+    assert len(rows) == exp["rows"] > 0
+    assert all([m["role"] for m in r["messages"]] == ["user", "assistant"] for r in rows)
+    assert all("hallucination list" in r["messages"][1]["content"] for r in rows)
+    imp = next(
+        i for i in cli.get("/v1/importers").json()["importers"] if i["dataset"] == "ragtruth"
+    )
+    assert imp["training_formats"] == ["generic", "paper", "chat"]

@@ -102,6 +102,12 @@ def main() -> None:
         "Omitted → the whole workspace. Unknown ids are dropped with a note.",
     )
     parser.add_argument("--test-stride", type=int, default=3, help="in-corpus split: every Nth case → test (≈70/30)")
+    parser.add_argument(
+        "--heldout-split",
+        default="test",
+        help="the corpus split the held-out score (and so the pin gate) reads: test (default) or "
+        "dev, a slice carved from the calibration split so the gate never reads the test cut",
+    )
     parser.add_argument("--confirm-cost", action="store_true")
     parser.add_argument(
         "--no-coverage-aware",
@@ -198,6 +204,7 @@ def main() -> None:
             out_dir=out_dir,
             limit=2 if args.smoke else args.limit,
             coverage_aware=not args.no_coverage_aware,
+            heldout_split=args.heldout_split,
         )
     except Exception as exc:  # surface the live Azure/dspy failure as data in --emit-json mode
         if args.emit_json:
