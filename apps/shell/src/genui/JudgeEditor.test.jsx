@@ -338,3 +338,18 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
     });
   });
 });
+
+
+describe("JudgeEditor — a pin with no comparable score says so (HOLDOUT-DEV-1)", () => {
+  it("names the different held-out set instead of implying the round beat the pinned set", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: -0.1 }),
+      pin: { pinned: true, comparable: false, reason: "pinned (no comparable score: ...)" },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    const note = await screen.findByTestId("optimize-pin-note");
+    expect(note.textContent).toMatch(/different held-out set, so there was nothing comparable to beat/);
+  });
+});

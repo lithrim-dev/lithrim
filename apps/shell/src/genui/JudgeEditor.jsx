@@ -45,7 +45,7 @@ function OptimizeDelta({ result }) {
   // about binding rather than the old (false) "binding is the next step" line.
   const pinLine = pin
     ? pin.pinned
-      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : ""}.`
+      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : pin.comparable === false ? " (the pinned set's score came from a different held-out set, so there was nothing comparable to beat)" : ""}.`
       : "Not pinned: the previously pinned demos (or none) stay in force."
     : null;
   const rows = [
