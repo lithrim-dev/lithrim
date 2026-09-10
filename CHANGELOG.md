@@ -6,6 +6,10 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.27] — 2026-09-10
+
+KPI contracts the floor proves before any judge, and OpenTelemetry traces as cases.
+
 ### Added
 - KPI contracts (`kpi_threshold`, `field_in_set`): deterministic floors over a structured
   record's fields that prove a KPI before any judge runs; a breach injects the pinned flag
