@@ -1,6 +1,7 @@
 # Lithrim Community Edition: the prebuilt-image stack. No clone, no build, no local
 # Python/Node toolchain. Consumes only published images (GHCR + the digest-pinned
-# JUTE mapper); the in-repo docker-compose.yml is the build-from-source sibling.
+# JUTE mapper); the in-repo docker-compose.yml is the same image-only stack for a
+# checkout (restore a build block there to build from source).
 #
 # Quickstart (an empty directory is enough):
 #
@@ -95,7 +96,7 @@ services:
     environment:
       # Baked into the published bundle at BUILD time (see the header note); the env
       # var here cannot re-point a prebuilt image. Kept for parity with the
-      # build-from-source compose file.
+      # in-repo compose file.
       VITE_BFF_URL: ${VITE_BFF_URL:-http://localhost:8787}
     depends_on:
       bff:

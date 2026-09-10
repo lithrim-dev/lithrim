@@ -25,11 +25,12 @@ deps only), then `make demo` — it replays a built-in case and runs the live fl
 
 ```bash
 git clone https://github.com/lithrim-dev/lithrim && cd lithrim
-docker compose up        # first run builds the images
+docker compose up        # first run pulls the published images
 ```
 
-> **Upgrading later:** after a `git pull`, run `docker compose up --build` — a plain `up` reuses
-> the previously built images and silently runs the old code.
+> **Upgrading later:** the compose file pins the image tags, so after a `git pull` a plain
+> `docker compose up` pulls the newly pinned images (`docker compose pull` refreshes a tag you
+> already have). Nothing is built locally unless you restore a `build:` block.
 
 > **Don't want to clone?** Run the same stack from the published images with no source checkout: see
 > [`docs/DEPLOY.md`](docs/DEPLOY.md). Then pick this walkthrough back up at section 2.
@@ -94,7 +95,7 @@ Grading needs a key; the `_core` offline demo does not.
 ## 3. Create an evaluation
 
 In the left rail under **Evaluations**, click **New evaluation**. This creates an agent (the thing
-under evaluation) and starts a short **Setup journey** (Domain → Judges → Ground truth → Run → Review)
+under evaluation) and starts a short **Setup journey** (Domain → Judges → Ground truth → Knowledge base, optional → Run → Review)
 that guides the rest. Everything below also happens inline in the center conversation.
 
 ---
