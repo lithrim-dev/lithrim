@@ -33,7 +33,7 @@ describe("scorecardRead — the cohort read", () => {
       "3 of 14 notes passed clean, 7 were flagged, 4 need a human look. "
       + "On their own, the three reviewers matched the answer key just 39% of the time: they disagree and they over-flag. "
       + "That noise is expected, it is why the floor exists. "
-      + "The deterministic floor enforced 8 real defects the reviewers missed, cleared 2 false alarms, and cleared zero genuine defects. "
+      + "The deterministic floor enforced 8 defects a deterministic check proved, cleared 2 false alarms, and cleared zero genuine defects. "
       + "The floor lifted verdict accuracy from 39% to 54%. "
       + "Both sides of that number use the same scoring rule, so the lift is the floor's alone.",
     );
@@ -134,7 +134,8 @@ describe("scorecardRead — the cohort read", () => {
     });
     expect(r.hero).toBeNull();
     expect(r.text).not.toMatch(/%/);
-    expect(r.text).toMatch(/The deterministic floor enforced 8 real defects/);
+    expect(r.text).toMatch(/The deterministic floor enforced 8 defects a deterministic check proved/);
+    expect(r.text).not.toMatch(/reviewers missed/); // KPI-PINS-1: the count includes blocks a reviewer also raised
   });
 
   it("never emits an em or en dash", () => {

@@ -398,7 +398,7 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
           <div className="mb-1 font-semibold text-foreground">Deterministic floor</div>
           <div className="flex flex-wrap gap-x-3 font-[family-name:var(--font-mono)]">
             <span style={{ color: "var(--teal)" }} title="False alarms the floor disproved and cleared.">{floor.cleared} cleared</span>
-            <span style={{ color: "var(--accent)" }} title="Blocks the floor enforced that the reviewers missed.">{floor.enforced} enforced</span>
+            <span style={{ color: "var(--accent)" }} title="Blocks a deterministic check enforced (proved defects, whether or not a reviewer also raised them).">{floor.enforced} enforced</span>
             <span className="text-muted-foreground" title="Checks that declined to vote — nothing checkable (a feature, not a failure).">{floor.inconclusive} cannot-ground</span>
             {(floor.gold_defect_clears || []).length === 0
               ? <span style={{ color: "var(--teal)" }} title="The safety property: the floor never cleared a genuine (answer-key) defect.">0 genuine defects cleared ✓</span>

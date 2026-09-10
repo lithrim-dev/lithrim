@@ -1216,6 +1216,31 @@ _CONTRACT_EXECUTORS = {
 _HTTP_CONTRACT_TYPES = {"kb_grounding", "web_search"}
 
 
+# KPI-PINS-1: contract types that STACK per flag, one instance per value of the named param (a
+# flag can carry a latency KPI and a token KPI at once). Every other type is one-per-flag. A
+# contract's identity for replacement is (flag_code, contract_type, that param) for these, and
+# (flag_code) among the one-per-flag types otherwise; never the version, so a new version of a
+# check replaces its predecessor and a flag never runs two versions of one check.
+STACKING_CONTRACT_KEYS: dict[str, str] = {"kpi_threshold": "field", "field_in_set": "field"}
+
+
+def contract_slot(contracts: list[dict], entry: dict) -> int | None:
+    """The index of the contract ``entry`` replaces in ``contracts``, or None to append."""
+    ctype = entry.get("contract_type")
+    flag = entry.get("flag_code")
+    key = STACKING_CONTRACT_KEYS.get(ctype)
+    for i, c in enumerate(contracts):
+        if c.get("flag_code") != flag:
+            continue
+        other = c.get("contract_type")
+        if key is not None:
+            if other == ctype and (c.get("params") or {}).get(key) == (entry.get("params") or {}).get(key):
+                return i
+        elif other not in STACKING_CONTRACT_KEYS:
+            return i
+    return None
+
+
 @dataclass(frozen=True)
 class FloorExecutor:
     """One structural-floor executor: how to build its tool + its pinned reference.

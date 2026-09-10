@@ -741,6 +741,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       id: `edit-judge-${role}`, label: `Edit reviewer ${role} — lens, prompt, model, calibrate`,
       run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:edit-judge", { detail: { role } })); } catch {} },
     })),
+    // KPI-PINS-1: pin a fact-check or a KPI contract without the assistant (the contract builder
+    // inline; Add contract stays the audited write).
+    { id: "add-contract", label: "Add a check or KPI contract — a fact-check or a KPI the floor proves before any judge", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:add-contract")); } catch {} } },
     // UI-JOURNEY-1 (B10): how the council decides — the frozen rules in plain words ($0 read).
     { id: "show-council-rules", label: "How the council decides — evidence, tiers, the hesitant judge, the floor", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-council-rules")); } catch {} } },
     { id: "show-workspace", label: `Show workspace — what ${activeWs} holds`, run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-workspace", { detail: { workspace: activeWs } })); } catch {} } },

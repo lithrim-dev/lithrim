@@ -107,7 +107,9 @@ export function scorecardRead(p = {}) {
     if (clause) sentences.push("That noise is expected, it is why the floor exists.");
   }
   const parts = [];
-  if (enforced) parts.push(`enforced ${enforced} real defect${enforced === 1 ? "" : "s"} the reviewers missed`);
+  // The count covers every block a deterministic check enforced, including ones the reviewers also
+  // raised, so it names what the floor proved, not what the reviewers missed.
+  if (enforced) parts.push(`enforced ${enforced} defect${enforced === 1 ? "" : "s"} a deterministic check proved`);
   if (cleared) parts.push(`cleared ${cleared} false alarm${cleared === 1 ? "" : "s"}`);
   parts.push(genuine
     ? `cleared ${genuine} genuine defect${genuine === 1 ? "" : "s"}, investigate before trusting this run`

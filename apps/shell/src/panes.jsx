@@ -430,9 +430,12 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       if (!role) return;
       setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-judge_editor", state: "output-available", output: { role, agent } }] }]);
     };
+    // KPI-PINS-1: the contract builder card inline (no assistant needed).
+    const onAddContract = () => setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-contract_builder", state: "output-available", output: { agent } }] }]);
+    window.addEventListener("lithrim:add-contract", onAddContract);
     window.addEventListener("lithrim:create-judge", onCreate);
     window.addEventListener("lithrim:edit-judge", onEdit);
-    return () => { window.removeEventListener("lithrim:create-judge", onCreate); window.removeEventListener("lithrim:edit-judge", onEdit); };
+    return () => { window.removeEventListener("lithrim:add-contract", onAddContract); window.removeEventListener("lithrim:create-judge", onCreate); window.removeEventListener("lithrim:edit-judge", onEdit); };
   }, [agent]);
   // UI-JOURNEY-1 (B10): the ⌘K "How the council decides" trigger — GET /v1/council/rules ($0)
   // rendered as the tool-council_rules card inline.

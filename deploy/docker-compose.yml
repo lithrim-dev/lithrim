@@ -34,7 +34,7 @@
 
 services:
   bff:
-    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.27}
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.28}
     ports:
       - "8787:8787"
     environment:
@@ -90,7 +90,7 @@ services:
       - lithrim
 
   ui:
-    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.27}
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.28}
     ports:
       - "5180:5180"
     environment:

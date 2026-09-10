@@ -6,6 +6,24 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.28] — 2026-09-10
+
+Fixes from the v0.1.27 published-image test.
+
+### Fixed
+- A malformed KPI pin (empty field, unknown op, missing or non-numeric bound, `min > max`,
+  empty or non-list `allowed`, unknown mode or target) is now refused when authored, as the
+  docs said; v0.1.27 accepted it and skipped it at grade time, so the KPI never ran. The spec
+  holds the one rule the author gate and the grade share.
+- KPI contracts stack per flag, one per field, and never displace a flag's other checks; a new
+  version of the same KPI replaces its predecessor. Other contracts stay one per flag.
+- An upload through the attach button ticks the rail's Load step without a reload.
+- The scorecard read no longer says the floor's blocks were defects "the reviewers missed"; the
+  count includes blocks a reviewer also raised.
+
+### Added
+- ⌘K "Add a check or KPI contract" opens the contract builder without the assistant.
+
 ## [0.1.27] — 2026-09-10
 
 KPI contracts the floor proves before any judge, and OpenTelemetry traces as cases.
