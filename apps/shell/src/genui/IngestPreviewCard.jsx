@@ -57,6 +57,8 @@ export default function IngestPreviewCard({
       const res = await ingestCommit({ approved_template: prev.template, raw, fmt, filename, extraction_rules: rules, agent });
       setState({ phase: "loaded", msg: `${res.count} case${res.count === 1 ? "" : "s"} loaded into the corpus` });
       onLoaded?.(res);
+      // KPI-PINS-1: the rail's Load step and the case browser re-read the corpus now, not on reload.
+      try { window.dispatchEvent(new CustomEvent("lithrim:cases-changed", { detail: res })); } catch {}
       onResult?.({ ingested: res.count, mapping_id: res.mapping_id });
     } catch (e) {
       setState({ phase: "error", msg: friendlyError(e) });

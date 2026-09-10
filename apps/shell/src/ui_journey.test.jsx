@@ -279,3 +279,18 @@ describe("B10b configure from the shell: the reviewer builder and editor open fr
     unmount();
   });
 });
+
+
+describe("KPI-PINS-1: KPI contracts from the shell", () => {
+  it("the palette's Add a check or KPI contract renders the contract builder with the KPI types", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({ "/v1/grounding-contract/types": { contract_types: ["field_in_set", "kpi_threshold", "value_grounding"], pack: "_core" } });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-add-contract"));
+    expect((await screen.findAllByText("Fact-check")).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("params json")).toBeInTheDocument();
+    unmount();
+  });
+});
