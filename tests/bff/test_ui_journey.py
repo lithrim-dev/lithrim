@@ -67,6 +67,9 @@ def client(tmp_path, monkeypatch):
         dir=tmp_path,
     )
     monkeypatch.setattr(bff.workspace, "get_active_workspace", lambda: fake_ws)
+    # the judge the journey configures is pack STATE: point the authoring writers at a temporary
+    # overlay so the tracked _core pack is never written (PACK-OVERLAY-1)
+    monkeypatch.setenv("LITHRIM_BENCH_PACK_OVERLAY_DIR", str(tmp_path / "overlay"))
 
     seq = {"n": 0}
 
