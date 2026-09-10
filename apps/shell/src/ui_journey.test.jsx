@@ -105,7 +105,8 @@ describe("B4 load: the rail has a Load step and the import card speaks importer 
     expect(inputs.length).toBe(2);
     fireEvent.change(inputs[0], { target: { files: [new File(['{"id":"1"}\n'], "response.jsonl")] } });
     fireEvent.change(inputs[1], { target: { files: [new File(['{"source_id":"s"}\n'], "source_info.jsonl")] } });
-    fireEvent.click(screen.getByRole("button", { name: /load/i }));
+    await waitFor(() => expect(screen.getByTestId("import-load")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("import-load"));
     await waitFor(() => expect(calls.some((c) => c.url.includes("/v1/cases/import") && c.method === "POST")).toBe(true));
     const sent = JSON.parse(calls.find((c) => c.url.includes("/v1/cases/import")).body);
     expect(sent.importer).toBe("ragtruth_vocabulary");

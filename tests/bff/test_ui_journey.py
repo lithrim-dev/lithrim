@@ -44,6 +44,9 @@ def _raw_files() -> dict[str, str]:
     """The two upstream files as text, from the adapter test's synthetic corpus: six test
     sources per task (clean + labeled response each) plus two train rows per task."""
     responses, sources = _corpus()
+    # the adapter fixture's stray train row shares a source with the test split; the loop's
+    # splits must be source-disjoint (the route refuses otherwise), so keep only true test rows
+    responses = [r for r in responses if r.get("split") == "test"]
     responses += _train_rows(sources, per_task=2)
     return {"response.jsonl": _jsonl(responses), "source_info.jsonl": _jsonl(sources.values())}
 

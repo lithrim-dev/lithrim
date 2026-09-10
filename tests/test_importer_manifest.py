@@ -113,3 +113,18 @@ def test_open_closed_a_second_dataset_is_a_second_manifest(tmp_path, monkeypatch
         pack_mod._pack_root.cache_clear()
         pack_mod._manifest.cache_clear()
         pack_mod._load_pack_importers.cache_clear()
+
+
+def test_manifest_names_its_adapter_and_files_so_a_service_can_load_the_dataset():
+    """UI-JOURNEY-1 (B4): the importer manifest, not the engine, says which adapter turns the
+    dataset's files into cases and which files it needs; the adapter honours the CLI contract."""
+    from lithrim_bench.cli.adapters import REQUIRED, load_adapter
+
+    v = importer_vocabulary("ragtruth", pack="_core")
+    assert v.adapter_module and v.adapter_module.startswith("examples/")
+    assert v.files == ["response.jsonl", "source_info.jsonl"]
+    assert v.splits == {"test": "test", "calibration": "train"}
+    adapter = load_adapter(v.adapter_module)
+    assert all(callable(getattr(adapter, fn)) for fn in REQUIRED)
+    bare = ImporterManifest.model_validate({"id": "x", "dataset": "d", "label_types": {}})
+    assert bare.adapter_module is None and bare.files == []

@@ -95,7 +95,7 @@ Grading needs a key; the `_core` offline demo does not.
 ## 3. Create an evaluation
 
 In the left rail under **Evaluations**, click **New evaluation**. This creates an agent (the thing
-under evaluation) and starts a short **Setup journey** (Domain → Judges → Ground truth → Knowledge base, optional → Run → Review)
+under evaluation) and starts a short **Setup journey** (Domain → Load → Judges → Ground truth → Knowledge base, optional → Run → Review)
 that guides the rest. Everything below also happens inline in the center conversation.
 
 ---

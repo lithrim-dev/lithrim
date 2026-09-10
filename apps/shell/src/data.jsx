@@ -5,6 +5,7 @@
 // The onboarding checklist shown in the left rail — domain-agnostic.
 export const STEPS = [
   { name: "Domain", desc: "Pick what kind of AI output to grade", state: "todo" },
+  { name: "Load", desc: "Bring in the cases to grade", state: "todo" },
   { name: "Judges", desc: "Set up the judges that score it", state: "todo" },
   { name: "Ground truth", desc: "Add a fact-check the judges must pass", state: "todo" },
   { name: "Knowledge base", desc: "Connect reference docs (optional)", state: "todo" },

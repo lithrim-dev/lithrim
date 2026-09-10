@@ -97,6 +97,16 @@ export const gradeCases = ({ agent = "ws0_default", live = false, in_process = f
     body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}), ...(round ? { round } : {}), ...(split ? { split } : {}) },
   });
 
+/* GET /v1/importers — UI-JOURNEY-1 (B4): the dataset importers the workspace's pack declares
+   ({id, dataset, citation, license, adapter, files, verdict_rule}). $0 read. */
+export const listImporters = () => call("/v1/importers");
+
+/* POST /v1/cases/import — UI-JOURNEY-1 (B4): run the importer's adapter over the dataset's own
+   files (text, keyed by file name) and commit the cut natively, every case tagged with its split
+   and importer. per_task sizes the cut; splits picks test and/or calibration. $0 (no model call). */
+export const importCases = ({ agent = "ws0_default", importer, files, per_task = 30, splits = ["test", "calibration"], natural = true } = {}) =>
+  call("/v1/cases/import", { method: "POST", body: { agent, importer, files, per_task, splits, natural } });
+
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
    find a running or interrupted job again after a reload. */

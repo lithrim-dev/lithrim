@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
@@ -398,6 +398,18 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
   // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
   // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  // UI-JOURNEY-1 (B4): the ⌘K "Load a dataset" trigger — GET /v1/importers ($0) and render the
+  // tool-import_cases card inline; the card's own Load posts the files. A finished load announces
+  // lithrim:cases-changed so the rail's Load step and the case browser re-read the corpus.
+  useEffect(() => {
+    const onLoad = async () => {
+      let importers = [];
+      try { importers = (await listImporters()).importers || []; } catch { importers = []; }
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-import_cases", state: "output-available", output: { importers, agent } }] }]);
+    };
+    window.addEventListener("lithrim:load-dataset", onLoad);
+    return () => window.removeEventListener("lithrim:load-dataset", onLoad);
+  }, [agent]);
   // UI-JOURNEY-1 (B3): the ⌘K "Show workspace" trigger — GET /v1/workspaces/{name}/resources ($0
   // read) rendered as the tool-workspace_card inline; an error shows the card's empty state.
   useEffect(() => {

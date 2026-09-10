@@ -2082,6 +2082,187 @@ def _merge_source_record(cases: list[dict], sample: Any) -> int:
     return n
 
 
+class ImportCasesRequest(BaseModel):
+    # UI-JOURNEY-1 (B4): the Load verb through a ``kind: importer`` manifest. ``importer`` is the
+    # manifest id or its dataset; ``files`` carries the dataset's own files as text keyed by
+    # name (the manifest says which); ``per_task`` sizes the stratified cut; ``splits`` picks
+    # the loop's splits to load (the manifest maps them to the dataset's names). $0: the
+    # adapter is deterministic, no model call.
+    agent: str = DEFAULT_AGENT
+    importer: str
+    files: dict[str, str]
+    per_task: int = 30
+    splits: list[str] = Field(default_factory=lambda: ["test", "calibration"])
+    natural: bool = True
+
+
+def _importer_public(m) -> dict:
+    return {
+        "id": m.id,
+        "dataset": m.dataset,
+        "version": m.version,
+        "citation": m.citation,
+        "license": m.license,
+        "adapter": bool(m.adapter_module),
+        "files": list(m.files),
+        "splits": dict(m.splits),
+        "label_types": dict(m.label_types),
+        "verdict_rule": dict(m.verdict_rule),
+        "untyped_prediction_class": m.untyped_prediction_class,
+    }
+
+
+@app.get("/v1/importers")
+def list_importers_endpoint() -> dict:
+    """UI-JOURNEY-1 (B4): the dataset importers the active workspace's pack declares (the
+    ``kind: importer`` manifests), with whether each names an adapter the Load verb can run."""
+    from lithrim_bench.harness.plugins import importer_plugins
+
+    ws = workspace.get_active_workspace()
+    return {"pack": ws.pack, "importers": [_importer_public(m) for m in importer_plugins(ws.pack)]}
+
+
+def _write_corpus_rows(ws, cases: list[dict]) -> None:
+    """Upsert cases into the workspace corpus the way ingest does: the legacy jsonl union
+    (transition) plus the SSOT ``cases`` table."""
+    corpus_path = ws.out_dir / "ingested_cases.jsonl"
+    ws.out_dir.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, dict] = {}
+    if corpus_path.exists():
+        for line in corpus_path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("case_id"):
+                existing[row["case_id"]] = row
+    for c in cases:
+        if c.get("case_id"):
+            existing[c["case_id"]] = c
+    corpus_path.write_text(
+        "\n".join(json.dumps(r, sort_keys=True) for r in existing.values())
+        + ("\n" if existing else "")
+    )
+    _ssot_upsert_cases(ws, cases)
+
+
+@app.post("/v1/cases/import")
+def import_cases_endpoint(
+    req: ImportCasesRequest,
+    db_path: Path = Depends(get_config_db),
+    default_actor: Actor = Depends(get_actor),
+    x_actor: str | None = Header(None, alias="X-Actor"),
+) -> dict:
+    """UI-JOURNEY-1 (B4): load a dataset through its importer manifest. The manifest names the
+    adapter (the ``lithrim_bench.cli.adapters`` contract) and the files it reads; the adapter
+    runs in a temporary directory over the uploaded text and yields cases in the pack's shape
+    with labels kept (a dataset label with no taxonomy code fails admissibility, 422). Every
+    case is tagged with its loop split and the importer id, then committed natively (no
+    mapper). The test and calibration splits must not share a source (422)."""
+    import tempfile
+
+    from lithrim_bench.cli.adapters import load_adapter
+    from lithrim_bench.harness.plugins import case_source_id, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    manifest = next(
+        (m for m in importer_plugins(ws.pack) if req.importer in (m.id, m.dataset)), None
+    )
+    if manifest is None:
+        raise HTTPException(
+            status_code=404, detail=f"unknown importer {req.importer!r} for pack {ws.pack!r}"
+        )
+    if not manifest.adapter_module:
+        raise HTTPException(
+            status_code=422, detail=f"importer {manifest.id!r} declares no adapter_module"
+        )
+    missing = [f for f in manifest.files if f not in req.files]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{missing[0]} missing: the {manifest.dataset} importer needs {manifest.files}",
+        )
+    bad = [s for s in req.splits if s not in manifest.splits]
+    if bad or not req.splits:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown split(s) {bad}; this importer knows {sorted(manifest.splits)}",
+        )
+    try:
+        adapter = load_adapter(manifest.adapter_module)
+    except (FileNotFoundError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    loaded: dict[str, list[dict]] = {}
+    with tempfile.TemporaryDirectory(prefix="lithrim-import-") as tmp:
+        data_dir = Path(tmp)
+        for name, text in req.files.items():
+            (data_dir / Path(name).name).write_text(text)
+        for split in req.splits:
+            try:
+                cases = adapter.slice_cases(
+                    data_dir, per_task=req.per_task, split=manifest.splits[split], natural=req.natural
+                )
+            except LookupError as exc:  # a dataset label with no code: admissibility
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except (SystemExit, ValueError, KeyError) as exc:
+                raise HTTPException(
+                    status_code=422, detail=f"the {manifest.dataset} adapter refused: {exc}"
+                ) from exc
+            for c in cases:
+                c["split"] = split
+                c["importer"] = manifest.id
+            loaded[split] = cases
+    if "test" in loaded and "calibration" in loaded:
+        srcs = {
+            s: {case_source_id(c, pack=ws.pack) for c in loaded[s]} - {None}
+            for s in ("test", "calibration")
+        }
+        shared = srcs["test"] & srcs["calibration"]
+        if shared:
+            raise HTTPException(
+                status_code=422,
+                detail=f"test and calibration share {len(shared)} source(s): {sorted(shared)[:5]}",
+            )
+    all_cases = [c for split in req.splits for c in loaded[split]]
+    if not all_cases:
+        raise HTTPException(
+            status_code=422, detail=f"the {manifest.dataset} adapter produced no cases"
+        )
+    _write_corpus_rows(ws, all_cases)
+    AuditLog(db_path=db_path).record(
+        AuditRecord(
+            actor=_resolve_actor(x_actor, default_actor),
+            action="import",
+            target=Target(type="corpus", id=req.agent),
+            why={
+                "rationale": f"imported {len(all_cases)} cases through importer {manifest.id} "
+                f"(adapter {manifest.adapter_module}, per_task {req.per_task}, "
+                f"splits {req.splits}); labels kept, split-tagged"
+            },
+            before=None,
+            after={
+                "importer": manifest.id,
+                "count": len(all_cases),
+                "imported": {s: len(loaded[s]) for s in req.splits},
+                "case_ids": [c["case_id"] for c in all_cases],
+            },
+        )
+    )
+    return {
+        "importer": manifest.id,
+        "dataset": manifest.dataset,
+        "agent": req.agent,
+        "per_task": req.per_task,
+        "natural": req.natural,
+        "imported": {s: len(loaded[s]) for s in req.splits},
+        "labeled": {s: sum(1 for c in loaded[s] if c.get("expected_safety_flags")) for s in req.splits},
+        "case_ids": {s: [c["case_id"] for c in loaded[s]] for s in req.splits},
+    }
+
+
 @app.get("/v1/cases")
 def list_cases_endpoint() -> dict:
     """NARR-LOOP — list the active workspace's INGESTED corpus (the gradeable cases a user
@@ -2105,6 +2286,11 @@ def list_cases_endpoint() -> dict:
                 "context_kind": row.get("context_kind"),
                 "has_context": _ctx_nonempty(row.get("context")),
                 "has_artifact": bool(arts and (arts[0].get("content") or "")),
+                # UI-JOURNEY-1 (B4): the loop split and importer an imported case carries, and
+                # its gold codes (None when the case has no label field at all).
+                "split": row.get("split"),
+                "importer": row.get("importer"),
+                "expected_safety_flags": row.get("expected_safety_flags"),
             }
         )
     return {"cases": cases, "count": len(cases)}

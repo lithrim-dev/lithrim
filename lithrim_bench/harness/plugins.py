@@ -187,6 +187,14 @@ class ImporterManifest(BaseModel):
     # taxonomy code -> the class name a training export in the dataset's own format uses;
     # a code with no entry falls back to its first dataset term, lower-cased.
     training_classes: dict[str, str] = Field(default_factory=dict)
+    # UI-JOURNEY-1 (B4): the dataset adapter that turns the dataset's own files into cases (a
+    # ``.py`` path relative to the repo root or a dotted module; the ``lithrim_bench.cli.adapters``
+    # contract), the raw files it reads from its data dir, and the dataset's names for the loop's
+    # two splits (the graded ``test`` cut and the ``calibration`` pool the optimizer bootstraps
+    # from). Manifest-only: the engine never names a dataset or a file.
+    adapter_module: str | None = None
+    files: list[str] = Field(default_factory=list)
+    splits: dict[str, str] = Field(default_factory=lambda: {"test": "test", "calibration": "train"})
 
     def training_class_for(self, code: str) -> str:
         """The dataset-side class a training row labels a span with for ``code``."""

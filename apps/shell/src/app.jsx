@@ -449,13 +449,22 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const onToggleSelect = (cid) =>
     setSelectedIds((prev) => { const next = new Set(prev); if (next.has(cid)) next.delete(cid); else next.add(cid); return next; });
+  // UI-JOURNEY-1 (B4): the corpus size ticks the rail's Load step; a load re-reads it.
+  const [caseCount, setCaseCount] = useState(null);
   const refreshCases = async () => {
     try {
       const { listCases } = await import("./bff.js");
-      return (await listCases()).cases || [];
+      const list = (await listCases()).cases || [];
+      setCaseCount(list.length);
+      return list;
     } catch { return []; }
   };
   useEffect(() => { refreshCases(); }, [activeWs]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onChanged = () => { refreshCases(); };
+    window.addEventListener("lithrim:cases-changed", onChanged);
+    return () => window.removeEventListener("lithrim:cases-changed", onChanged);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelectCase = (cid) => { setActiveCase(cid); setTab("case"); setOpen(true); };
 
   const doRun = async (live = false, caseId = null) => {
@@ -681,6 +690,7 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     sampleLeaked ? null : agentCfg, runs, activeAgent, runResult,
     sampleLeaked ? [] : contracts,
     sampleLeaked ? null : readiness, // READINESS: a pack-declared floor the agent can't run un-ticks Ground truth
+    caseCount, // UI-JOURNEY-1 (B4): the corpus size ticks Load
   );
 
   // F3: the active workspace's pinned domain pack — so the Setup tab can tell whether the
@@ -697,6 +707,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     // longer chat-only; the confirm is still the sole paid path (the palette itself never spends).
     { id: "grade-all", label: "Grade all cases — one paid cohort batch", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: {} })); } catch {} } },
     { id: "explore-case", label: "Explore case — browse the gradeable cases", run: () => openArtifact(activeCase ? "case" : "corpus") },
+    // UI-JOURNEY-1 (B4): the Load verb — a dataset through one of the pack's importer manifests
+    // (the tool-import_cases card inline; $0, no model call).
+    { id: "load-dataset", label: "Load a dataset — through a pack importer (labels kept, split-tagged)", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:load-dataset")); } catch {} } },
     // RELIABILITY-CARD-1: a NON-chat "Show reliability" — dispatch the lithrim:show-reliability
     // bridge (same idiom as lithrim:grade-cohort) the CenterPane fetches GET /v1/reliability/{agent}
     // for and renders the tool-reliability_card INLINE. $0 pure read; adds NO agent tool (the

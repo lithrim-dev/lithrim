@@ -10,6 +10,7 @@
      - Judges        done ⟺ eval_profile.judges non-empty
      - Ground truth  done ⟺ eval_profile.tools non-empty OR grounding_checks present
      - Knowledge base OPTIONAL — done ⟺ kb_bindings non-empty; never `current`/blocking
+     - Load          done ⟺ the corpus has cases OR the agent pins its own sample case (B4)
      - Run           done ⟺ ≥1 run for the active agent (client-filtered)
      - Review        done ⟺ a run result is loaded/viewed (runResult non-null); else
                      `current` once Run is done — a distinct guided beat, not a Run dupe
@@ -29,8 +30,12 @@ function nonEmptyObj(v) {
 
 // Per-step done predicates, keyed by the template `name`. Pure over (agentCfg, runs,
 // activeAgent, runResult, contracts).
-function isDone(name, ep, runs, activeAgent, runResult, contracts, readiness) {
+function isDone(name, ep, runs, activeAgent, runResult, contracts, readiness, caseCount, agentCfg) {
   switch (name) {
+    case "Load":
+      // UI-JOURNEY-1 (B4): cases to grade exist — an ingested/imported corpus, or the agent's own
+      // pinned sample case (the seeded blank slate grades one case without a corpus).
+      return (caseCount || 0) > 0 || !!(agentCfg && agentCfg.dataset && agentCfg.dataset.case_id);
     case "Domain":
       return !!ep.ontology_ref;
     case "Judges":
@@ -70,9 +75,9 @@ function isDone(name, ep, runs, activeAgent, runResult, contracts, readiness) {
    existing 4-arg call sites stay green; a non-empty list ticks Ground truth (EVAL-FLOW).
    `readiness` (the agent↔pack preflight report) defaults to null (prior behavior); an ERROR
    finding un-ticks Ground truth so a pack floor the agent can't run doesn't read as done. */
-export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null, contracts = [], readiness = null) {
+export function deriveSteps(agentCfg, runs = [], activeAgent = null, runResult = null, contracts = [], readiness = null, caseCount = null) {
   const ep = (agentCfg && agentCfg.eval_profile) || {};
-  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult, contracts, readiness));
+  const doneFlags = STEPS.map((s) => isDone(s.name, ep, runs, activeAgent, runResult, contracts, readiness, caseCount, agentCfg));
 
   // `current` = the first incomplete REQUIRED step (skip the optional KB).
   let currentIdx = -1;
