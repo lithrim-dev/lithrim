@@ -67,7 +67,64 @@ def client(tmp_path, monkeypatch):
         dir=tmp_path,
     )
     monkeypatch.setattr(bff.workspace, "get_active_workspace", lambda: fake_ws)
-    monkeypatch.setattr(bff.run_eval, "run", lambda agent, **kw: _stub_record(agent, **kw))
+
+    def _judged_run(agent, **kw):
+        """A perfect judge over the case's own labels, persisted as the run blob the audit and
+        scorecard reads project (the real pipeline writes this itself)."""
+        rec = _stub_record(agent, **kw)
+        cid = agent.dataset.case_id
+        case = next((c for c in bff._read_ingested_corpus(fake_ws) if c.get("case_id") == cid), {})
+        flags = list(case.get("expected_safety_flags") or [])
+        spans = [
+            {"quote": lab.get("text")}
+            for lab in ((case.get("ragtruth") or {}).get("labels") or [])
+            if lab.get("text")
+        ]
+        verdict = "BLOCK" if flags else "PASS"
+        rec["composite"]["verdict"] = "reject" if flags else "approve"
+        rec["composite"]["stage_verdict"] = verdict
+        doc = {
+            "pipeline_run_id": f"run-{cid}",
+            "case_id": cid,
+            "agent_id": agent.name,
+            "timestamp": "2026-09-10T00:00:00+00:00",
+            "verdict": verdict,
+            "grade_path": "in_process",
+            "stage_results": {
+                "semantic": {
+                    "judge_votes": [
+                        {
+                            "judge_role": "ragtruth_detector",
+                            "vote": verdict,
+                            "model": "azure/gpt-4.1",
+                            "served_model": "gpt-4.1-2025-04-14",
+                            "findings": flags,
+                            "errors": [],
+                            "usage": {
+                                "prompt_tokens": 1000,
+                                "completion_tokens": 50,
+                                "total_tokens": 1050,
+                            },
+                        }
+                    ],
+                    "evidence": [
+                        {
+                            "judge": "ragtruth_detector",
+                            "violation_code": flags[0] if flags else None,
+                            "spans": spans,
+                        }
+                    ]
+                    if spans
+                    else [],
+                }
+            },
+            "grounded": {"verdict": verdict, "suppressed": [], "enforced": []},
+            "cost_tokens": {"prompt": 1000, "completion": 50, "total": 1050},
+        }
+        bff.run_coro(bff.provenance_store_for(fake_ws.collections_db).save_blob(doc))
+        return rec
+
+    monkeypatch.setattr(bff.run_eval, "run", _judged_run)
     monkeypatch.setattr(
         bff, "calibration_check", lambda recs: {"status": "PASS", "n_cases": len(recs)}
     )

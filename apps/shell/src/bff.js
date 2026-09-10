@@ -107,6 +107,12 @@ export const listImporters = () => call("/v1/importers");
 export const importCases = ({ agent = "ws0_default", importer, files, per_task = 30, splits = ["test", "calibration"], natural = true } = {}) =>
   call("/v1/cases/import", { method: "POST", body: { agent, importer, files, per_task, splits, natural } });
 
+/* GET /v1/jobs/{id}/scorecard?vocabulary= — UI-JOURNEY-1 (B5): the two-vocabulary scorecard for
+   a grade job: per-task rows (response + span P/R/F1, refused), per-code rows with the dataset's
+   own terms, the verdict rule both ways, unlocated quotes, and the rendered text. $0 read. */
+export const getJobScorecard = (jobId, vocabulary = null) =>
+  call(`/v1/jobs/${encodeURIComponent(jobId)}/scorecard${vocabulary ? `?vocabulary=${encodeURIComponent(vocabulary)}` : ""}`);
+
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
    find a running or interrupted job again after a reload. */

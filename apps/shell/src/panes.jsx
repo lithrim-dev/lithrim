@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
@@ -424,9 +424,19 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // UI-JOURNEY-1 (B2): a finished background grade (this tab's, or one found again after a
   // reload) renders its scorecard as a fresh assistant turn.
   useEffect(() => {
-    const onJobDone = (e) => {
+    const onJobDone = async (e) => {
       const job = e?.detail?.job;
-      if (job && job.result) setChat((c) => [...c, scorecardTurn(job.result, job)]);
+      if (!(job && job.result)) return;
+      // UI-JOURNEY-1 (B5): the two-vocabulary scorecard for the job rides on the same card
+      // (per-task rows, per-code dataset terms, the verdict rule); absent when the read fails.
+      let table = {};
+      try {
+        const t = await getJobScorecard(job.job_id);
+        table = { per_task: t.per_task, per_code: t.per_code, vocabulary: t.vocabulary, unlocated: t.unlocated };
+      } catch { table = {}; }
+      const turn = scorecardTurn(job.result, job);
+      turn.parts[0].output = { ...turn.parts[0].output, ...table };
+      setChat((c) => [...c, turn]);
     };
     window.addEventListener("lithrim:job-done", onJobDone);
     return () => window.removeEventListener("lithrim:job-done", onJobDone);

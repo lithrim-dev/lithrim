@@ -201,6 +201,64 @@ def resolve_vocabulary(dataset: str | None, pack: str | None = None):
     return default_importer(pack)
 
 
+def table(res: dict, vocab=None) -> dict:
+    """The scorecard as JSON rows (what ``render`` prints, for a service or a UI): per-task
+    rows with response- and span-level P/R/F1 (percent, None when undefined) and the refused
+    count, per-code rows with the dataset's own terms, the unlocated quotes, and the verdict
+    rule in both vocabularies. Dataset-neutral: every dataset word comes from ``vocab``."""
+    pct = lambda x: None if x is None else round(100 * x, 1)  # noqa: E731
+    per_task = []
+    for task in sorted(res["per_task"], key=lambda k: (k == "OVERALL", k)):
+        t = res["per_task"][task]
+        rp, rr, rf = _prf(t["r_tp"], t["r_fp"], t["r_fn"])
+        sp, sr, sf = _prf(t["s_tp"], t["s_fp"], t["s_fn"])
+        per_task.append(
+            {
+                "task": task,
+                "n": t["graded"],
+                "ungraded": t.get("ungraded", 0),
+                "refused": t.get("refused", 0),
+                "P": pct(rp),
+                "R": pct(rr),
+                "F1": pct(rf),
+                "span_P": pct(sp),
+                "span_R": pct(sr),
+                "span_F1": pct(sf),
+                "tp": t["r_tp"],
+                "fp": t["r_fp"],
+                "fn": t["r_fn"],
+                "tn": t["r_tn"],
+            }
+        )
+    per_code = []
+    for code in sorted(res["per_code"]):
+        c = res["per_code"][code]
+        p, r, f = _prf(c["tp"], c["fp"], c["fn"])
+        per_code.append(
+            {
+                "code": code,
+                "dataset_terms": vocab.terms_for(code) if vocab else [],
+                "tp": c["tp"],
+                "fp": c["fp"],
+                "fn": c["fn"],
+                "P": pct(p),
+                "R": pct(r),
+                "F1": pct(f),
+            }
+        )
+    return {
+        "per_task": per_task,
+        "per_code": per_code,
+        "unlocated": [{"case_id": cid, "quote": q} for cid, q in res["unlocated"]],
+        "vocabulary": {
+            "id": vocab.id if vocab else None,
+            "dataset": vocab.dataset if vocab else None,
+            "verdict_rule": dict(vocab.verdict_rule) if vocab else {},
+            "untyped_prediction_class": vocab.untyped_prediction_class if vocab else None,
+        },
+    }
+
+
 def render(res: dict, vocab=None, *, predictions: bool = False) -> str:
     lines = [
         f"{'task':10s} {'n':>3s} {'P':>6s} {'R':>6s} {'F1':>6s}   |  span {'P':>6s} {'R':>6s} {'F1':>6s}"

@@ -90,8 +90,48 @@ function cellSplit(scoresRaw) {
   return [b ? `${b}B` : "", w ? `${w}R` : "", p ? `${p}P` : ""].filter(Boolean).join("/");
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun }) {
-  if (!cases.length) {
+const pct1 = (x) => (x == null ? "—" : Number(x).toFixed(1));
+
+/* UI-JOURNEY-1 (B5): the per-task table in both vocabularies (response + span P/R/F1, refused
+   calls), with a prior round's F1 beside it when `compare` names one. */
+function PerTaskTable({ per_task, compare }) {
+  const prior = compare && Array.isArray(compare.per_task) ? Object.fromEntries(compare.per_task.map((r) => [r.task, r])) : null;
+  return (
+    <div data-testid="scorecard-per-task" className="mt-3 border-t border-border pt-2">
+      <div className="mb-1 text-[10.5px] font-semibold text-foreground">Per task · response and span level{prior ? ` · vs ${compare.round || "prior round"}` : ""}</div>
+      <div className="overflow-x-auto font-[family-name:var(--font-mono)] text-[10.5px]">
+        <table className="w-full border-collapse whitespace-nowrap">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="pr-3 text-left font-normal">task</th><th className="pr-3 text-right font-normal">n</th>
+              <th className="pr-2 text-right font-normal">P</th><th className="pr-2 text-right font-normal">R</th><th className="pr-3 text-right font-normal">F1</th>
+              {prior && <th className="pr-3 text-right font-normal">F1 {compare.round || "prior"}</th>}
+              <th className="pr-2 text-right font-normal">span P</th><th className="pr-2 text-right font-normal">R</th><th className="pr-3 text-right font-normal">F1</th>
+              {prior && <th className="pr-3 text-right font-normal">span F1 {compare.round || "prior"}</th>}
+              <th className="text-left font-normal">refused</th>
+            </tr>
+          </thead>
+          <tbody>
+            {per_task.map((r) => (
+              <tr key={r.task} data-testid={`per-task-${r.task}`} className={r.task === "OVERALL" ? "border-t border-border font-semibold text-foreground" : "text-foreground"}>
+                <td className="pr-3">{r.task}</td><td className="pr-3 text-right">{r.n}</td>
+                <td className="pr-2 text-right">{pct1(r.P)}</td><td className="pr-2 text-right">{pct1(r.R)}</td><td className="pr-3 text-right">{pct1(r.F1)}</td>
+                {prior && <td className="pr-3 text-right text-muted-foreground">{pct1(prior[r.task] && prior[r.task].F1)}</td>}
+                <td className="pr-2 text-right">{pct1(r.span_P)}</td><td className="pr-2 text-right">{pct1(r.span_R)}</td><td className="pr-3 text-right">{pct1(r.span_F1)}</td>
+                {prior && <td className="pr-3 text-right text-muted-foreground">{pct1(prior[r.task] && prior[r.task].span_F1)}</td>}
+                <td className="text-muted-foreground" title="Judge calls the provider refused or failed; the case was decided without that vote and a refused positive counts as a miss.">{r.refused ? `${r.refused} refused` : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null }) {
+  const hasTable = Array.isArray(per_task) && per_task.length > 0;
+  if (!cases.length && !hasTable) {
     return (
       <div className="rounded-[var(--radius)] border border-border bg-secondary px-3.5 py-3 text-xs font-[family-name:var(--font-mono)] text-muted-foreground">
         No cases graded yet — run all cases to see the consolidated scorecard.
@@ -141,6 +181,35 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
               0 genuine defects ever cleared · deterministic on every run
             </div>
           )}
+        </div>
+      )}
+      {(round || job_id) && (
+        <div className="mt-1 font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground" data-testid="scorecard-round">
+          {round ? `round: ${round}` : "round: untagged"}{split ? ` · split: ${split}` : ""}{job_id ? ` · ${job_id}` : ""}
+        </div>
+      )}
+      {hasTable && <PerTaskTable per_task={per_task} compare={compare} />}
+      {Array.isArray(per_code) && per_code.length > 0 && (
+        <div data-testid="scorecard-per-code" className="mt-2 font-[family-name:var(--font-mono)] text-[10.5px]">
+          <div className="mb-0.5 text-[10.5px] font-semibold text-foreground">Per code · case level{vocabulary && vocabulary.dataset ? ` · ${vocabulary.dataset} terms in brackets` : ""}</div>
+          {per_code.map((c) => (
+            <div key={c.code} className="flex flex-wrap gap-x-2 text-foreground">
+              <span>{c.code}</span>
+              <span className="text-muted-foreground">[{c.dataset_terms && c.dataset_terms.length ? c.dataset_terms.join(" / ") : "no dataset term"}]</span>
+              <span className="text-muted-foreground">tp {c.tp} fp {c.fp} fn {c.fn}</span>
+              <span>P {pct1(c.P)} R {pct1(c.R)} F1 {pct1(c.F1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {vocabulary && vocabulary.verdict_rule && vocabulary.verdict_rule.lithrim && (
+        <div data-testid="scorecard-verdict-rule" className="mt-1 text-[10.5px] text-muted-foreground">
+          verdict rule{vocabulary.dataset ? ` (${vocabulary.dataset})` : ""}: {vocabulary.verdict_rule[vocabulary.dataset] || "—"} <span className="text-foreground">==</span> {vocabulary.verdict_rule.lithrim}
+        </div>
+      )}
+      {Array.isArray(unlocated) && unlocated.length > 0 && (
+        <div data-testid="scorecard-unlocated" className="mt-1 text-[10.5px] text-muted-foreground" title="A judge quoted text that is not in the response; counted as a span false positive, never dropped.">
+          {unlocated.length} judge quote{unlocated.length === 1 ? "" : "s"} not located in the response (counted as span FPs)
         </div>
       )}
       {/* plain-English outcome tally — the non-tech headline */}

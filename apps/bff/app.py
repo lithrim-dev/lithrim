@@ -2937,6 +2937,76 @@ def job_status_endpoint(job_id: str, out_dir: Path | None = Depends(get_out_dir)
     return job
 
 
+def _job_scorecard(job: dict, *, vocabulary: str | None, collections_db: Path) -> dict:
+    """UI-JOURNEY-1 (B5): the two-vocabulary scorecard for one grade job — the CLI scorer
+    (``lithrim_bench.cli.scoring``: response- and span-level P/R/F1 per task, per-code rows in
+    the dataset's own terms, the verdict rule stated both ways) over the job's cases and the
+    audits of exactly the runs it produced, read from the run store. ``vocabulary`` names a
+    dataset; else the importer the cases carry; else the pack's only importer; else our codes
+    alone. A job still running scores what is graded so far (``partial``)."""
+    from lithrim_bench.cli import scoring
+    from lithrim_bench.harness.plugins import default_importer, importer_plugins
+
+    ws = workspace.get_active_workspace()
+    corpus = {c["case_id"]: c for c in _read_ingested_corpus(ws) if c.get("case_id")}
+    rows = [r for r in job.get("rows") or [] if r.get("case_id") in corpus]
+    slice_rows = [corpus[r["case_id"]] for r in rows]
+    store = provenance_store_for(collections_db)
+    audits: dict[str, dict] = {}
+    for r in rows:
+        rid = r.get("run_id")
+        if not rid:
+            continue
+        try:
+            doc = run_coro(store.find_by_id(rid))
+        except Exception:  # noqa: BLE001 — a missing blob is an ungraded case, never a 500
+            doc = None
+        if doc is not None:
+            audits[r["case_id"]] = _run_audit_report(doc, rid)
+    manifests = importer_plugins(ws.pack)
+    vocab = None
+    if vocabulary:
+        vocab = next((m for m in manifests if vocabulary in (m.id, m.dataset)), None)
+        if vocab is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"no importer declares dataset {vocabulary!r} in pack {ws.pack!r}",
+            )
+    else:
+        carried = {c.get("importer") for c in slice_rows} - {None}
+        if len(carried) == 1:
+            vocab = next((m for m in manifests if m.id == next(iter(carried))), None)
+        vocab = vocab or default_importer(ws.pack)
+    res = scoring.score(slice_rows, audits, pack=ws.pack)
+    return {
+        "job_id": job.get("job_id"),
+        "agent": job.get("agent"),
+        "round": job.get("round"),
+        "split": job.get("split"),
+        "status": job.get("status"),
+        "partial": job.get("status") != "done",
+        "cases": len(slice_rows),
+        "audited": len(audits),
+        **scoring.table(res, vocab),
+        "rendered": scoring.render(res, vocab),
+    }
+
+
+@app.get("/v1/jobs/{job_id}/scorecard")
+def job_scorecard_endpoint(
+    job_id: str,
+    vocabulary: str | None = None,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B5): see ``_job_scorecard``. 404 on an unknown job or dataset."""
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    job = _load_job(resolved_out, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
+    return _job_scorecard(job, vocabulary=vocabulary, collections_db=collections_db)
+
+
 @app.post("/v1/cases/grade")
 def grade_cases_endpoint(
     req: GradeCasesRequest,
