@@ -6521,7 +6521,9 @@ def _build_tool_context(
             "version": version,
         }
         contracts = ontology.get("verification_contracts") or []
-        idx = next((i for i, c in enumerate(contracts) if c.get("flag_code") == flag_code), None)
+        # KPI-PINS-1: KPI contracts stack per flag (one per field); others stay one-per-flag;
+        # identity never includes the version (a new version replaces its predecessor).
+        idx = _grounding.contract_slot(contracts, entry)
         replaced = idx is not None
         if replaced:
             contracts[idx] = entry
