@@ -6,6 +6,8 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.28] — 2026-09-10
+
 Fixes from the v0.1.27 published-image test.
 
 ### Fixed
