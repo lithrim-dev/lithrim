@@ -618,6 +618,10 @@ class OptimizeRequest(BaseModel):
     # PIN-GATE-2: pin a demo set even when its held-out score is below the pinned set's. The
     # override is recorded in the response's ``pin.reason``; never silent.
     force_pin: bool = False
+    # UI-JOURNEY-1 (B6): calibrate on the cases tagged with this split (an importer's
+    # ``calibration`` split), held out on the ``test`` split — the pilot's arrangement. None
+    # keeps the in-corpus stride split over graded cases.
+    split: str | None = None
 
 
 class ChatTurn(BaseModel):
@@ -1142,7 +1146,7 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
 
 
 def _optimize_via_subprocess(
-    *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False
+    *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None
 ) -> dict:
     """Run the PAID in-corpus optimize in a subprocess bound to the workspace's PACK (Phase 2).
 
@@ -1169,19 +1173,52 @@ def _optimize_via_subprocess(
     # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
     # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
     staging = out_dir / "optimize" / role
-    cmd = [
-        sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
-        "--collections-db", str(collections_db), "--out", str(staging),
-        "--calib-out", str(staging / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
-    ]
+    corpus_source = None
+    if split:
+        # UI-JOURNEY-1 (B6): the pilot's arrangement — train on the cases tagged ``split`` (the
+        # importer's calibration split), hold out on the ``test`` split; the corpus is written
+        # into staging and handed over as a file, so the optimizer's own split logic is not used.
+        rows = []
+        for c in _read_ingested_corpus(ws):
+            tag = c.get("split")
+            if tag not in (split, "test") or (case_ids and c.get("case_id") not in case_ids):
+                continue
+            rows.append({**c, "split": "calibration" if tag == split else "test"})
+        counts = {
+            "calibration": sum(1 for r in rows if r["split"] == "calibration"),
+            "test": sum(1 for r in rows if r["split"] == "test"),
+        }
+        if not counts["calibration"] or not counts["test"]:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"calibrating on split {split!r} needs cases tagged {split!r} and cases tagged "
+                    f"'test' (found {counts}); load both splits first"
+                ),
+            )
+        staging.mkdir(parents=True, exist_ok=True)
+        corpus_path = staging / f"calib_{ws.name}.jsonl"
+        corpus_path.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+        corpus_source = {"split": split, **counts, "corpus": str(corpus_path)}
+        cmd = [
+            sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
+            "--corpus", str(corpus_path), "--out", str(staging), "--confirm-cost", "--emit-json",
+        ]
+    else:
+        cmd = [
+            sys.executable, str(_OPTIMIZE_SCRIPT), "--role", role,
+            "--collections-db", str(collections_db), "--out", str(staging),
+            "--calib-out", str(staging / f"calib_{ws.name}.jsonl"), "--confirm-cost", "--emit-json",
+        ]
     if limit is not None:
         cmd += ["--limit", str(limit)]
     # optimize-on-subset: pass each chosen id as its OWN --case-ids (argparse append). Only when
     # provided — None leaves the cmd byte-identical to the whole-workspace path. The subprocess
     # filters the workspace cases to this set BEFORE the deterministic split (unknown ids dropped
     # with a note; an all-unknown / split-starving subset → the existing clean 422 refusal).
-    for cid in case_ids or []:
-        cmd += ["--case-ids", str(cid)]
+    if not split:
+        for cid in case_ids or []:
+            cmd += ["--case-ids", str(cid)]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         _log.error("optimize subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
@@ -1194,6 +1231,9 @@ def _optimize_via_subprocess(
             from lithrim_bench.runtime.council.judge_optimize import pin_demos
 
             res["pin"] = pin_demos(staging, out_dir, role, force=force_pin)
+            res["out_of_sample"] = res["pin"].get("out_of_sample")
+            if corpus_source:
+                res["corpus_source"] = corpus_source
             return res
     raise HTTPException(status_code=502, detail="optimize subprocess emitted no __OPTIMIZE_JSON__ record")
 
@@ -3972,6 +4012,7 @@ def get_judge_endpoint(
     ),
     db_path: Path = Depends(get_config_db),
     workdir: Path = Depends(get_ontology_workdir),
+    out_dir: Path | None = Depends(get_out_dir),
 ) -> dict:
     """One judge's full config + the **rendered ``role_key_questions``** the bridge
     will send ($0, no model). ``base_prompt`` is the unassigned render (== the seed
@@ -3992,6 +4033,9 @@ def get_judge_endpoint(
     else:
         effective = summary["assigned_flags"]
     summary["preview_flags"] = effective
+    # UI-JOURNEY-1 (B6): the demo set in force for this role (the pin gate's sidecar score).
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    summary["pinned_demos"] = _pinned_demos(Path(resolved_out)).get(role)
     # GENERALIST-1: render the seed prompt against the ACTIVE WORKSPACE's pack, not the in-process
     # boot pack (``_core``). A non-default-pack role (e.g. a clinverdict ``generalist_reviewer``)
     # has no ``.txt`` under ``_core`` → load_role_prompt would FileNotFoundError → a misleading
@@ -4204,7 +4248,7 @@ def optimize_judge_endpoint(
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     return _optimize_via_subprocess(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
-        case_ids=req.case_ids, force_pin=req.force_pin,
+        case_ids=req.case_ids, force_pin=req.force_pin, split=req.split,
     )
 
 

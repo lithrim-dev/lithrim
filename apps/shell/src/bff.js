@@ -527,13 +527,14 @@ export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prom
 /* optimize-on-subset: pass caseIds to scope the calibration to a CHOSEN case set (the Cases
    ids), not the whole workspace. Omitted/empty → whole-workspace (back-compat). A selector,
    never a paid knob — confirm=true is still required (mirrors the limit pattern). */
-export const optimizeJudge = (role, { confirm = false, limit, caseIds } = {}) =>
+export const optimizeJudge = (role, { confirm = false, limit, caseIds, split = null } = {}) =>
   call(`/v1/judges/${encodeURIComponent(role)}/optimize`, {
     method: "POST",
     body: {
       confirm,
       ...(limit != null ? { limit } : {}),
       ...(caseIds && caseIds.length ? { case_ids: caseIds } : {}),
+      ...(split ? { split } : {}), // UI-JOURNEY-1 (B6): train on this split, hold out on test
     },
   });
 

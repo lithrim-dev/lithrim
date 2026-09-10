@@ -60,3 +60,30 @@ def test_pin_demos_with_no_staged_files_is_an_honest_no_pin(tmp_path):
     assert pin["pinned"] is False and "no compiled demos" in pin["reason"]
     missing = jo.pin_demos(tmp_path / "missing", tmp_path / "ws", ROLE)
     assert missing["pinned"] is False and not (tmp_path / "ws").exists()
+
+
+def _result(staging, out_of_sample: bool) -> None:
+    (staging / f"result_{TAG}.json").write_text(
+        json.dumps({"manifest": {"demos_out_of_sample": out_of_sample, "demo_source_ids": ["x"]}})
+    )
+
+
+def test_pin_refuses_demos_that_are_not_out_of_sample_unless_forced(tmp_path):
+    """UI-JOURNEY-1 (B6): the out-of-sample refusal the pilot's CLI made lives in the gate."""
+    staging = _stage(tmp_path, 0.9)
+    _result(staging, False)
+    pin = jo.pin_demos(staging, tmp_path / "ws", ROLE)
+    assert pin["pinned"] is False and "out of sample" in pin["reason"]
+    assert pin["out_of_sample"] is False
+    assert not (tmp_path / "ws" / f"compiled_demos_{TAG}.json").exists()
+    forced = jo.pin_demos(staging, tmp_path / "ws", ROLE, force=True)
+    assert forced["pinned"] is True and "not out of sample" in forced["reason"]
+
+
+def test_pin_reports_out_of_sample_when_the_manifest_says_so_and_none_without_one(tmp_path):
+    staging = _stage(tmp_path, 0.7)
+    _result(staging, True)
+    pin = jo.pin_demos(staging, tmp_path / "ws", ROLE)
+    assert pin["pinned"] is True and pin["out_of_sample"] is True
+    bare = jo.pin_demos(_stage(tmp_path / "b", 0.7), tmp_path / "ws2", ROLE)
+    assert bare["pinned"] is True and bare["out_of_sample"] is None

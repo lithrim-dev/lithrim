@@ -213,7 +213,7 @@ def test_endpoint_threads_force_pin_to_the_seam(monkeypatch, tmp_path):
     """Self-contained on the neutral _core pack (no healthcare pack needed)."""
     calls: list[dict] = []
 
-    def _fake(*, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False):
+    def _fake(*, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None):
         calls.append({"role": role, "force_pin": force_pin})
         return {**_FAKE_RESULT, "role": role, "pin": {"pinned": not force_pin}}
 
@@ -233,3 +233,61 @@ def test_endpoint_threads_force_pin_to_the_seam(monkeypatch, tmp_path):
         assert calls[-1]["force_pin"] is False
     finally:
         bff.app.dependency_overrides.clear()
+
+
+# ── UI-JOURNEY-1 (B6): calibrate on an importer's calibration split, held out on test ──
+def test_split_optimize_builds_the_corpus_from_the_workspace_splits(monkeypatch, tmp_path):
+    seen: dict = {}
+
+    def _run(cmd, env=None, **kw):
+        seen["cmd"] = cmd
+        corpus = Path(cmd[cmd.index("--corpus") + 1])
+        seen["rows"] = [json.loads(line) for line in corpus.read_text().splitlines()]
+        out = Path(cmd[cmd.index("--out") + 1])
+        out.mkdir(parents=True, exist_ok=True)
+        tag = f"dspy3b_{_ROLE}"
+        (out / f"compiled_demos_{tag}.json").write_text(json.dumps([{"artifact": "x"}]))
+        (out / f"score_optimized_{tag}.json").write_text(json.dumps({"graded": 0.7}))
+        (out / f"result_{tag}.json").write_text(
+            json.dumps({"manifest": {"demos_out_of_sample": True, "demo_source_ids": ["c1"]}})
+        )
+        return SimpleNamespace(
+            returncode=0, stdout="__OPTIMIZE_JSON__" + json.dumps({**_FAKE_RESULT, "role": _ROLE}), stderr=""
+        )
+
+    monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: None)
+    monkeypatch.setattr(bff.subprocess, "run", _run)
+    corpus = [
+        {"case_id": "c1", "split": "calibration", "expected_safety_flags": ["X"]},
+        {"case_id": "c2", "split": "calibration", "expected_safety_flags": []},
+        {"case_id": "t1", "split": "test", "expected_safety_flags": ["X"]},
+        {"case_id": "u1", "expected_safety_flags": []},
+    ]
+    monkeypatch.setattr(bff, "_read_ingested_corpus", lambda ws=None: corpus)
+    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    res = bff._optimize_via_subprocess(
+        role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
+        limit=None, split="calibration",
+    )
+    assert "--collections-db" not in seen["cmd"] and "--case-ids" not in seen["cmd"]
+    splits = {r["case_id"]: r["split"] for r in seen["rows"]}
+    assert splits == {"c1": "calibration", "c2": "calibration", "t1": "test"}  # u1 untagged: out
+    assert res["corpus_source"] == {
+        "split": "calibration", "calibration": 2, "test": 1,
+        "corpus": str(tmp_path / "out" / "optimize" / _ROLE / "calib_ws.jsonl"),
+    }
+    assert res["out_of_sample"] is True and res["pin"]["pinned"] is True
+
+
+def test_split_optimize_refuses_when_a_split_is_empty(monkeypatch, tmp_path):
+    monkeypatch.setattr(bff, "_hydrate_role_bindings_into_env", lambda: None)
+    monkeypatch.setattr(
+        bff, "_read_ingested_corpus", lambda ws=None: [{"case_id": "c1", "split": "calibration"}]
+    )
+    ws = SimpleNamespace(name="ws", pack="healthcare", packs_dir=None)
+    with pytest.raises(bff.HTTPException) as exc:
+        bff._optimize_via_subprocess(
+            role=_ROLE, ws=ws, collections_db=tmp_path / "c.db", out_dir=tmp_path / "out",
+            limit=None, split="calibration",
+        )
+    assert exc.value.status_code == 422 and "load both splits" in exc.value.detail

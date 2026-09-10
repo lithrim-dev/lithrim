@@ -2,7 +2,7 @@
    GET /v1/judges/{role}, refreshes the $0 prompt preview as the assignment changes,
    and PUTs the assignment through bff.js (the SME handle on X-Actor). Mocks bff.js
    (no live BFF) — guards the React side the Python round-trip doesn't. */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const SUMMARY = {
@@ -259,5 +259,81 @@ describe("JudgeEditor (tool-judge_editor)", () => {
         caseIds: ["cv_mts_101", "cv_mts_102"],
       }),
     );
+  });
+});
+
+
+// UI-JOURNEY-1 (B6): calibrate from the shell on an importer's calibration split.
+describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
+  const SPLIT_CASES = {
+    cases: [
+      { case_id: "ragtruth_1", labeled: true, split: "calibration" },
+      { case_id: "ragtruth_2", labeled: false, split: "calibration" },
+      { case_id: "ragtruth_9", labeled: true, split: "test" },
+    ],
+    count: 3,
+  };
+
+  it("with split-tagged cases the optimize trains on the calibration split (no case_ids) and shows the out-of-sample line", async () => {
+    listCases.mockResolvedValueOnce(SPLIT_CASES);
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: 0.18, precision: 0.13, recall: 0.03 }),
+      pin: { pinned: true, reason: "pinned (no pinned score to compare against)", out_of_sample: true },
+      out_of_sample: true,
+      corpus_source: { split: "calibration", calibration: 2, test: 1 },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    const opt = await screen.findByTestId("optimize-split");
+    expect(opt.textContent).toMatch(/calibration.*2 cases.*test.*1/);
+    expect(screen.queryByTestId("optimize-case-ragtruth_1")).toBeNull(); // the subset picker yields to the split
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, split: "calibration" }));
+    expect((await screen.findByTestId("optimize-oos")).dataset.oos).toBe("yes");
+    expect(screen.getByTestId("optimize-corpus-source").textContent).toMatch(/calibration split \(2 cases\)/);
+    expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("yes");
+  });
+
+  it("demos that are not out of sample are said so and the gate's refusal is shown", async () => {
+    listCases.mockResolvedValueOnce(SPLIT_CASES);
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: 0.2 }),
+      pin: { pinned: false, reason: "REFUSING to pin: a compiled demo does not trace to a calibration row", out_of_sample: false },
+      out_of_sample: false,
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    await screen.findByTestId("optimize-split");
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    expect((await screen.findByTestId("optimize-oos")).dataset.oos).toBe("no");
+    expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("no");
+  });
+
+  it("unticking the split option falls back to the subset picker", async () => {
+    listCases.mockResolvedValueOnce(SPLIT_CASES);
+    render(<JudgeEditor role="risk_judge" />);
+    const opt = await screen.findByTestId("optimize-split");
+    fireEvent.click(opt.querySelector("input"));
+    expect(await screen.findByTestId("optimize-case-ragtruth_1")).toBeInTheDocument();
+  });
+
+  describe("the judge read's pinned demos", () => {
+    let orig;
+    beforeEach(() => { orig = getJudge.getMockImplementation(); });
+    afterEach(() => { getJudge.mockImplementation(orig); });
+
+    it("are shown with the held-out score", async () => {
+      const base = await orig("risk_judge", { agent: "ws0_default" });
+      getJudge.mockResolvedValue({ ...base, pinned_demos: { demos: 4, graded: 0.67, path: "compiled_demos_dspy3b_risk_judge.json" } });
+      render(<JudgeEditor role="risk_judge" />);
+      expect((await screen.findByTestId("judge-pinned-demos")).textContent).toMatch(/Pinned demos in force: 4 · held-out graded 0.67/);
+    });
+
+    it("none reads as prompt-only", async () => {
+      const base = await orig("risk_judge", { agent: "ws0_default" });
+      getJudge.mockResolvedValue({ ...base, pinned_demos: null });
+      render(<JudgeEditor role="risk_judge" />);
+      expect((await screen.findByTestId("judge-pinned-demos")).textContent).toMatch(/No pinned demos yet/);
+    });
   });
 });
