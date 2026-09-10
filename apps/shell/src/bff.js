@@ -91,11 +91,16 @@ export const runEvalPack = ({ pack_id, agents = ["ws0_default"], live = false })
    scorecard}. case_ids null → ALL cases. live/in_process are the SAME paid knobs as run-eval; a
    paid cohort grade is the human's cost-confirmed call (never an agent tool). The `scorecard` field
    is the case_id-attributed consolidated report the inline ScorecardCard renders. */
-export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null, background = false, resume = null } = {}) =>
+export const gradeCases = ({ agent = "ws0_default", live = false, in_process = false, case_ids = null, background = false, resume = null, round = null, split = null } = {}) =>
   call("/v1/cases/grade", {
     method: "POST",
-    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}) },
+    body: { agent, live, in_process, ...(case_ids ? { case_ids } : {}), ...(background ? { background } : {}), ...(resume ? { resume } : {}), ...(round ? { round } : {}), ...(split ? { split } : {}) },
   });
+
+/* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
+   {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
+   find a running or interrupted job again after a reload. */
+export const listJobs = (agent = "ws0_default") => call(`/v1/jobs?agent=${encodeURIComponent(agent)}`);
 
 /* GET /v1/jobs/{id} — GRADE-JOB-1: a background cohort grade's record {status, done, total, rows,
    result}. `result` is the same {matrix, summary, scorecard} envelope the synchronous call returns. */

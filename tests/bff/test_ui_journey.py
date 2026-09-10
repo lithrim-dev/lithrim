@@ -28,7 +28,7 @@ import app as bff  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from tests._house_fixture import house_agent  # noqa: E402
-from tests.bff.test_corpus_grade_loop import _stub_record  # noqa: E402
+from tests.bff.test_corpus_grade_loop import _envelope, _stub_record, _write_corpus  # noqa: E402
 from tests.examples.test_ragtruth_adapter import _corpus, _train_rows  # noqa: E402
 
 AGENT = "journey_agent"
@@ -94,6 +94,17 @@ def _import(cli, per_task=2) -> dict:
     return res.json()
 
 
+def _split_corpus(out, n_test=3, n_calib=2) -> None:
+    """A corpus already carrying split tags (what the importer writes), so the grade tests do
+    not depend on the import route."""
+    rows = []
+    for i in range(n_test):
+        rows.append({**_envelope(f"t{i}_bad", context=f"Doctor: t{i}"), "split": "test"})
+    for i in range(n_calib):
+        rows.append({**_envelope(f"c{i}_ok", context=f"Doctor: c{i}"), "split": "calibration"})
+    _write_corpus(out, rows)
+
+
 def _wait_done(cli, job_id, timeout=10) -> dict:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -146,8 +157,8 @@ def test_import_refuses_an_unknown_importer_and_a_missing_file(client):
 
 # --------------------------------------------------------------------------- grade (B2, B7)
 def test_jobs_are_listed_per_agent_with_their_round(client):
-    cli, _out = client
-    _import(cli)
+    cli, out = client
+    _split_corpus(out)
     res = cli.post(
         "/v1/cases/grade",
         json={
@@ -163,13 +174,22 @@ def test_jobs_are_listed_per_agent_with_their_round(client):
     _wait_done(cli, job_id)
     listed = cli.get(f"/v1/jobs?agent={AGENT}").json()["jobs"]
     mine = {j["job_id"]: j for j in listed}[job_id]
-    assert mine["status"] == "done" and mine["round"] == "before" and mine["total"] >= 3
+    assert mine["status"] == "done" and mine["round"] == "before" and mine["total"] == 3
+    assert mine["split"] == "test" and "rows" not in mine
+    calib = cli.post(
+        "/v1/cases/grade",
+        json={"agent": AGENT, "in_process": True, "background": True, "split": "calibration"},
+    )
+    assert calib.status_code == 202 and calib.json()["total"] == 2
+    _wait_done(cli, calib.json()["job_id"])
+    none = cli.post("/v1/cases/grade", json={"agent": AGENT, "background": True, "split": "x"})
+    assert none.status_code == 400 and "split" in none.json()["detail"]
     assert cli.get("/v1/jobs?agent=someone_else").json()["jobs"] == []
 
 
 def test_a_job_orphaned_by_a_restart_reads_as_interrupted_and_resumes(client):
     cli, out = client
-    _import(cli)
+    _split_corpus(out)
     job_id = "job-orphan"
     (out / "jobs").mkdir(exist_ok=True)
     (out / "jobs" / f"{job_id}.json").write_text(

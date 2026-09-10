@@ -2271,6 +2271,11 @@ class GradeCasesRequest(BaseModel):
     # earlier job whose cases without a verdict are graded again (the graded rows are kept).
     background: bool = False
     resume: str | None = None
+    # UI-JOURNEY-1 (B2/B7): ``round`` labels the job (before/after) so two rounds can sit side
+    # by side; ``split`` grades only the cases carrying that split tag (an importer's test or
+    # calibration split). Selectors, never paid knobs.
+    round: str | None = None
+    split: str | None = None
 
 
 class IngestPreviewRequest(BaseModel):
@@ -2653,9 +2658,25 @@ def _load_job(out_dir: Path, job_id: str) -> dict | None:
     if not path.exists():
         return None
     job = json.loads(path.read_text())
+    if job.get("status") == "running":
+        # UI-JOURNEY-1 (B2): no thread in this process owns the record (the process that did
+        # restarted), so it must not read as running forever; say so and let resume pick it up.
+        job["status"] = "interrupted"
+        job["error"] = job.get("error") or "the process running this job restarted"
+        _save_job(out_dir, job)
     with _JOBS_LOCK:
         _JOBS.setdefault(job_id, job)
     return job
+
+
+def _job_summary(job: dict) -> dict:
+    return {
+        k: job.get(k)
+        for k in (
+            "job_id", "agent", "status", "done", "total", "round", "split", "started",
+            "finished", "error",
+        )
+    }
 
 
 def _running_job_for(agent: str, *, exclude: str | None = None) -> dict | None:
@@ -2697,6 +2718,25 @@ def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code
         job["error"] = str(exc)
     job["finished"] = datetime.now(timezone.utc).isoformat()
     _save_job(out_dir, job)
+
+
+@app.get("/v1/jobs")
+def list_jobs_endpoint(
+    agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
+) -> dict:
+    """UI-JOURNEY-1 (B2): every grade job recorded under the workspace out dir (newest first),
+    optionally one agent's, as summaries (no rows). The shell reads this on mount to find a
+    running or interrupted job again after a reload or a reconnect."""
+    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    jobs_dir = resolved_out / "jobs"
+    jobs = []
+    for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+        job = _load_job(resolved_out, path.stem)
+        if job is None or (agent and job.get("agent") != agent):
+            continue
+        jobs.append(_job_summary(job))
+    jobs.sort(key=lambda j: j.get("started") or "", reverse=True)
+    return {"jobs": jobs}
 
 
 @app.get("/v1/jobs/{job_id}")
@@ -2742,13 +2782,18 @@ def grade_cases_endpoint(
         job["status"], job["error"], job["result"] = "running", None, None
         job["done"] = len(job["rows"])
     else:
-        targets = req.case_ids or [
-            r["case_id"] for r in _read_ingested_corpus() if r.get("case_id")
-        ]
+        corpus = _read_ingested_corpus()
+        if req.split:
+            corpus = [r for r in corpus if r.get("split") == req.split]
+        targets = req.case_ids or [r["case_id"] for r in corpus if r.get("case_id")]
         if not targets:
             raise HTTPException(
                 status_code=400,
-                detail="no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)",
+                detail=(
+                    f"no ingested cases tagged split={req.split!r} to grade"
+                    if req.split
+                    else "no ingested cases to grade (ingest via chat or POST /v1/connector/ingest first)"
+                ),
             )
         job = None
     if not (req.background or req.resume):
@@ -2784,6 +2829,8 @@ def grade_cases_endpoint(
             "started": datetime.now(timezone.utc).isoformat(),
             "finished": None,
             "request": {"live": live, "in_process": in_process, "strict": req.strict},
+            "round": req.round,
+            "split": req.split,
         }
     with _JOBS_LOCK:
         _JOBS[job["job_id"]] = job

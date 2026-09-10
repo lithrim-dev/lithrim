@@ -9,12 +9,12 @@ afterEach(() => endBatch());
 
 describe("grade-progress store (GRADE-PROGRESS-1)", () => {
   it("starts (and resets to) inactive", () => {
-    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "" });
+    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "", job: null, interrupted: null });
   });
 
   it("beginBatch marks one in-flight span — active, done 0, the given total", () => {
     beginBatch({ total: 14 });
-    expect(getProgress()).toEqual({ active: true, done: 0, total: 14, label: "grading" });
+    expect(getProgress()).toEqual({ active: true, done: 0, total: 14, label: "grading", job: null, interrupted: null });
   });
 
   it("beginBatch with no total (grade-all: the server counts the cohort) stays total null", () => {
@@ -32,13 +32,13 @@ describe("grade-progress store (GRADE-PROGRESS-1)", () => {
 
   it("tickBatch outside an active span is a no-op", () => {
     tickBatch();
-    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "" });
+    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "", job: null, interrupted: null });
   });
 
   it("endBatch resets to inactive", () => {
     beginBatch({ total: 3 });
     endBatch();
-    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "" });
+    expect(getProgress()).toEqual({ active: false, done: 0, total: null, label: "", job: null, interrupted: null });
   });
 
   it("subscribers fire on every transition; unsubscribe stops them", () => {

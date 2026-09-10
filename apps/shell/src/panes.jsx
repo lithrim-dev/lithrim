@@ -8,9 +8,23 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, getJob, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
-import { beginBatch, endBatch, updateBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip; GRADE-JOB-1: server-side done/total
+import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
+import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
+
+// The cohort envelope {matrix, summary, scorecard} as the inline scorecard turn (job fields ride
+// along so the card can name its round and offer the next verbs).
+const scorecardTurn = (resp, job = null) => ({
+  role: "assistant", text: "",
+  parts: [{ type: "tool-scorecard", state: "output-available", output: {
+    ...(resp.scorecard || {}),
+    grade_path: resp.summary?.grade_path,
+    judge_errors: resp.summary?.judge_errors,
+    cache_replays: resp.summary?.cache_replays,
+    ...(job ? { job_id: job.job_id, round: job.round, split: job.split } : {}),
+  } }],
+});
 
 // A friendly DISPLAY name for an evaluation. The raw id (ws0_default / eval-N /
 // <pack>_default) stays the id everywhere it matters — switching, deleting, the API,
@@ -384,6 +398,16 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
   // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
   // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  // UI-JOURNEY-1 (B2): a finished background grade (this tab's, or one found again after a
+  // reload) renders its scorecard as a fresh assistant turn.
+  useEffect(() => {
+    const onJobDone = (e) => {
+      const job = e?.detail?.job;
+      if (job && job.result) setChat((c) => [...c, scorecardTurn(job.result, job)]);
+    };
+    window.addEventListener("lithrim:job-done", onJobDone);
+    return () => window.removeEventListener("lithrim:job-done", onJobDone);
+  }, []);
   useEffect(() => {
     const onGradeCohort = (e) => {
       const ids = e?.detail?.case_ids;
@@ -694,25 +718,13 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // envelope itself and the same code path renders it.
           let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
           if (resp && resp.job_id) {
-            let job = resp;
-            while (job.status === "running") {
-              await new Promise((r) => setTimeout(r, 2000));
-              job = await getJob(resp.job_id);
-              updateBatch({ done: job.done, total: job.total });
-            }
+            // followJob announces the finished job on the lithrim:job-done bridge (rendered below),
+            // so the card path is the same whether this tab started the job or found it after a reload.
+            const job = await followJob(resp);
             if (job.status !== "done") throw new Error(job.error || `grade job ${resp.job_id} ${job.status}`);
-            resp = job.result;
+          } else {
+            setChat((c) => [...c, scorecardTurn(resp)]);
           }
-          const output = {
-            ...(resp.scorecard || {}),
-            grade_path: resp.summary?.grade_path,
-            judge_errors: resp.summary?.judge_errors,
-            cache_replays: resp.summary?.cache_replays,
-          };
-          setChat((c) => [
-            ...c,
-            { role: "assistant", text: "", parts: [{ type: "tool-scorecard", state: "output-available", output }] },
-          ]);
         } finally {
           endBatch();
         }

@@ -8,6 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { CommandPalette } from "./palette.jsx";
 import { deriveSteps, nextStep, isSampleLeaked } from "./journey.js";
 import { subscribeProgress, getProgress } from "./progress.js"; // GRADE-PROGRESS-1: the batch-grade in-flight chip
+import { restoreJobs, resumeJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): find a running/interrupted grade job again after a reload
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -310,6 +311,14 @@ function StatusBar({ activeWs }) {
             : `${prog.label}…`}
         </span>
       )}
+      {!prog.active && prog.interrupted && (
+        <span className="si" data-testid="job-interrupted">
+          <span className="d" style={{ background: "var(--amber)" }} />
+          grade {prog.interrupted.job_id} stopped at {prog.interrupted.done}/{prog.interrupted.total} (the service restarted)
+          <button className="btn btn-ghost" data-testid="job-resume" style={{ marginLeft: 6 }}
+            onClick={() => { resumeJob(prog.interrupted).catch((e) => console.error("Resume failed", e)); }}>Resume</button>
+        </span>
+      )}
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}
       {meta && <span className="si">{plural(meta.agents, "agent")}</span>}
       {meta && <span className="si">judges: {meta.judges}</span>}
@@ -456,6 +465,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     } catch { /* offline-safe */ }
   };
   useEffect(() => { refreshJourney(); }, [activeAgent]);
+  // UI-JOURNEY-1 (B2): a reload or a reconnect must not lose a grade in flight — ask the
+  // service for the agent's running/interrupted job and follow it on the chip again.
+  useEffect(() => { restoreJobs(activeAgent); }, [activeAgent]);
 
   // CRUD-1 (D4): load the config-plane agents for the rail switcher (GET /v1/agents).
   const refreshAgents = async () => {
