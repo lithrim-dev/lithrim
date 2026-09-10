@@ -2977,7 +2977,14 @@ def job_status_endpoint(job_id: str, out_dir: Path | None = Depends(get_out_dir)
     return job
 
 
-def _job_scorecard(job: dict, *, vocabulary: str | None, collections_db: Path) -> dict:
+def _job_scorecard(
+    job: dict,
+    *,
+    vocabulary: str | None,
+    collections_db: Path,
+    out_dir: Path | None = None,
+    compare: str | None = None,
+) -> dict:
     """UI-JOURNEY-1 (B5): the two-vocabulary scorecard for one grade job — the CLI scorer
     (``lithrim_bench.cli.scoring``: response- and span-level P/R/F1 per task, per-code rows in
     the dataset's own terms, the verdict rule stated both ways) over the job's cases and the
@@ -3018,7 +3025,7 @@ def _job_scorecard(job: dict, *, vocabulary: str | None, collections_db: Path) -
             vocab = next((m for m in manifests if m.id == next(iter(carried))), None)
         vocab = vocab or default_importer(ws.pack)
     res = scoring.score(slice_rows, audits, pack=ws.pack)
-    return {
+    card = {
         "job_id": job.get("job_id"),
         "agent": job.get("agent"),
         "round": job.get("round"),
@@ -3030,21 +3037,59 @@ def _job_scorecard(job: dict, *, vocabulary: str | None, collections_db: Path) -
         **scoring.table(res, vocab),
         "rendered": scoring.render(res, vocab),
     }
+    if out_dir is not None:
+        # UI-JOURNEY-1 (B7): the demo sets in force when this round was graded (by role), so a
+        # card can say what the judge graded with; and the prior round to sit beside it.
+        card["pinned_demos"] = _pinned_demos(Path(out_dir))
+        if compare:
+            other = _load_job(Path(out_dir), compare)
+            if other is None:
+                jobs_dir = Path(out_dir) / "jobs"
+                candidates = []
+                for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+                    j = _load_job(Path(out_dir), path.stem)
+                    if (
+                        j is not None
+                        and j.get("job_id") != job.get("job_id")
+                        and j.get("agent") == job.get("agent")
+                        and j.get("round") == compare
+                        and j.get("status") == "done"
+                    ):
+                        candidates.append(j)
+                candidates.sort(key=lambda j: j.get("started") or "")
+                other = candidates[-1] if candidates else None
+            if other is not None and other.get("job_id") != job.get("job_id"):
+                prior = _job_scorecard(other, vocabulary=vocabulary, collections_db=collections_db)
+                card["compare"] = {
+                    "job_id": prior["job_id"],
+                    "round": prior["round"],
+                    "per_task": prior["per_task"],
+                    "per_code": prior["per_code"],
+                }
+            else:
+                card["compare"] = None
+    return card
 
 
 @app.get("/v1/jobs/{job_id}/scorecard")
 def job_scorecard_endpoint(
     job_id: str,
     vocabulary: str | None = None,
+    compare: str | None = None,
     out_dir: Path | None = Depends(get_out_dir),
     collections_db: Path = Depends(get_collections_db),
 ) -> dict:
-    """UI-JOURNEY-1 (B5): see ``_job_scorecard``. 404 on an unknown job or dataset."""
+    """UI-JOURNEY-1 (B5/B7): see ``_job_scorecard``. ``compare`` names a job id or a round
+    (the agent's latest finished job tagged with it) to sit beside this one. 404 on an unknown
+    job or dataset."""
     resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
     job = _load_job(resolved_out, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
-    return _job_scorecard(job, vocabulary=vocabulary, collections_db=collections_db)
+    return _job_scorecard(
+        job, vocabulary=vocabulary, collections_db=collections_db, out_dir=resolved_out,
+        compare=compare,
+    )
 
 
 @app.post("/v1/cases/grade")

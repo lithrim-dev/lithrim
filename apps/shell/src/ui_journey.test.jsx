@@ -203,3 +203,55 @@ describe("B9 spend: the running line", () => {
     unmount();
   });
 });
+
+
+describe("B7 rounds through the shell", () => {
+  it("a finished before round's card offers the re-grade; confirming posts round=after on the same split", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({
+      "/v1/jobs/job-b/scorecard": { job_id: "job-b", round: "before", per_task: [{ task: "OVERALL", n: 3, P: 50, R: 50, F1: 50, span_P: 50, span_R: 50, span_F1: 50, refused: 0 }], per_code: [], vocabulary: { dataset: "ragtruth", verdict_rule: { ragtruth: "x", lithrim: "y" } }, unlocated: [], pinned_demos: { ragtruth_detector: { demos: 4, graded: 0.67 } } },
+      "/v1/cases/grade": { job_id: "job-a", status: "running", done: 0, total: 3 },
+      "/v1/jobs/job-a/scorecard": { job_id: "job-a", round: "after", per_task: [{ task: "OVERALL", n: 3, F1: 60, span_F1: 55 }], per_code: [], vocabulary: {}, unlocated: [], compare: { job_id: "job-b", round: "before", per_task: [{ task: "OVERALL", F1: 50, span_F1: 50 }] } },
+      "/v1/jobs/job-a": { job_id: "job-a", status: "done", done: 3, total: 3, round: "after", split: "test", result: { matrix: [], summary: {}, scorecard: { cases: [] } } },
+    });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    fireEvent(window, new CustomEvent("lithrim:job-done", { detail: { job: { job_id: "job-b", round: "before", split: "test", status: "done", result: { matrix: [], summary: {}, scorecard: { cases: [] } } } } }));
+    const regrade = await screen.findByTestId("regrade-pinned");
+    expect(screen.getByTestId("scorecard-pinned").textContent).toMatch(/ragtruth_detector: 4 demos/);
+    fireEvent.click(regrade);
+    expect(await screen.findByText(/Grade the test split again with the pinned demos \(paid\)\?/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Grade again with the pinned demos \(paid\)/ }).pop()); // the modal's confirm, not the card's control
+    await waitFor(() => {
+      const sent = calls.find((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+      expect(sent && JSON.parse(sent.body)).toMatchObject({ round: "after", split: "test", in_process: true, background: true });
+    });
+    // the after card sits beside the before round
+    await waitFor(() => expect(screen.getAllByTestId("per-task-OVERALL").length).toBe(2), { timeout: 8000 });
+    const table = screen.getAllByTestId("per-task-OVERALL").pop(); // the after card, beside the before one
+    expect(table.textContent).toMatch(/60\.0/);
+    expect(table.textContent).toMatch(/50\.0/);
+    unmount();
+  }, 12000);
+
+  it("the $0 replay posts the free grade path tagged replay and the card says it is not a measurement", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({
+      "/v1/jobs/job-b/scorecard": { job_id: "job-b", round: "before", per_task: [{ task: "OVERALL", n: 3 }], per_code: [], vocabulary: {}, unlocated: [] },
+      "/v1/cases/grade": { job_id: "job-r", status: "running", done: 0, total: 3 },
+      "/v1/jobs/job-r/scorecard": { job_id: "job-r", round: "replay", per_task: [{ task: "OVERALL", n: 3 }], per_code: [], vocabulary: {}, unlocated: [] },
+      "/v1/jobs/job-r": { job_id: "job-r", status: "done", done: 3, total: 3, round: "replay", split: "test", result: { matrix: [], summary: { grade_path: "replay" }, scorecard: { cases: [] } } },
+    });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    fireEvent(window, new CustomEvent("lithrim:job-done", { detail: { job: { job_id: "job-b", round: "before", split: "test", status: "done", result: { matrix: [], summary: {}, scorecard: { cases: [] } } } } }));
+    fireEvent.click(await screen.findByTestId("replay-zero"));
+    await waitFor(() => {
+      const sent = calls.find((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+      expect(sent && JSON.parse(sent.body)).toMatchObject({ round: "replay", split: "test", live: false, in_process: false });
+    });
+    expect(screen.queryByText(/paid\)\?/)).toBeNull(); // no cost gate on the free path
+    expect(await screen.findByTestId("scorecard-replay-note", {}, { timeout: 8000 })).toBeInTheDocument();
+    unmount();
+  }, 12000);
+});

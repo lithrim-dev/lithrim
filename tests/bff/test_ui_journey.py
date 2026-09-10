@@ -469,8 +469,16 @@ def test_the_loop_from_import_to_export_over_one_workspace(client):
     assert _wait_done(cli, after)["status"] == "done"
     rounds = {j["round"] for j in cli.get(f"/v1/jobs?agent={AGENT}").json()["jobs"]}
     assert rounds == {"before", "after"}
-    card = cli.get(f"/v1/jobs/{after}/scorecard?vocabulary=ragtruth").json()
+    (out / "compiled_demos_dspy3b_ragtruth_detector.json").write_text("[1, 2, 3, 4]")
+    card = cli.get(f"/v1/jobs/{after}/scorecard?vocabulary=ragtruth&compare=before").json()
     assert card["round"] == "after"
+    assert card["compare"]["job_id"] == before and card["compare"]["round"] == "before"
+    assert {r["task"] for r in card["compare"]["per_task"]} == {r["task"] for r in card["per_task"]}
+    assert card["pinned_demos"]["ragtruth_detector"]["demos"] == 4
+    lone = cli.get(f"/v1/jobs/{before}/scorecard?compare=before").json()
+    assert lone["compare"] is None, "a round never compares with itself"
+    by_id = cli.get(f"/v1/jobs/{after}/scorecard?compare={before}").json()
+    assert by_id["compare"]["job_id"] == before
     exp = cli.post("/v1/export", json={"agent": AGENT, "job_id": after}).json()
     assert exp["rows"] == body["imported"]["test"]
     spend = cli.get(f"/v1/spend?agent={AGENT}").json()

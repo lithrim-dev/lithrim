@@ -129,7 +129,20 @@ function PerTaskTable({ per_task, compare }) {
   );
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null }) {
+/* UI-JOURNEY-1 (B7): the demo sets the judge graded with — one {role, n, graded} or the
+   service's {role: {demos, graded}} map. */
+function pinnedLine(pinned_demos) {
+  if (!pinned_demos) return null;
+  const entries = pinned_demos.role
+    ? [[pinned_demos.role, { demos: pinned_demos.n ?? pinned_demos.demos, graded: pinned_demos.graded }]]
+    : Object.entries(pinned_demos);
+  if (!entries.length) return null;
+  return entries.map(([role, d]) => `${role}: ${d.demos ?? "?"} demos${d.graded != null ? ` (held-out graded ${Number(d.graded).toFixed(2)})` : ""}`).join(" · ");
+}
+
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null, pinned_demos = null, onRegrade = null, onReplay = null }) {
+  const pinned = pinnedLine(pinned_demos);
+  const ctx = { job_id, round, split };
   const hasTable = Array.isArray(per_task) && per_task.length > 0;
   if (!cases.length && !hasTable) {
     return (
@@ -188,7 +201,35 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
           {round ? `round: ${round}` : "round: untagged"}{split ? ` · split: ${split}` : ""}{job_id ? ` · ${job_id}` : ""}
         </div>
       )}
+      {round === "replay" && (
+        <div data-testid="scorecard-replay-note" className="mt-1 rounded-[var(--radius-sm)] border border-border px-2 py-1 text-[10.5px] text-muted-foreground" style={{ background: "var(--surface-muted)" }}>
+          $0 replay of the saved baselines: the floor and the review states were re-derived, no judge was called. Not a measurement.
+        </div>
+      )}
+      {pinned && (
+        <div data-testid="scorecard-pinned" className="mt-1 font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
+          pinned demos in force · {pinned}
+        </div>
+      )}
       {hasTable && <PerTaskTable per_task={per_task} compare={compare} />}
+      {(onRegrade || onReplay) && (
+        <div data-testid="scorecard-round-controls" className="mt-2 flex flex-wrap items-center gap-2">
+          {onRegrade && (
+            <button type="button" data-testid="regrade-pinned" onClick={() => onRegrade(job_id, ctx)}
+              className="rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1 text-[11px] text-foreground hover:bg-secondary"
+              title="Grades the same split again, fresh, with the demos now pinned on the judge. Paid; the cost confirm follows.">
+              Grade again with the pinned demos (paid)
+            </button>
+          )}
+          {onReplay && (
+            <button type="button" data-testid="replay-zero" onClick={() => onReplay(job_id, ctx)}
+              className="rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground hover:bg-secondary"
+              title="Replays the saved baselines through the floor and the review states with no judge call. Free, and not a measurement.">
+              $0 replay · not a measurement
+            </button>
+          )}
+        </div>
+      )}
       {Array.isArray(per_code) && per_code.length > 0 && (
         <div data-testid="scorecard-per-code" className="mt-2 font-[family-name:var(--font-mono)] text-[10.5px]">
           <div className="mb-0.5 text-[10.5px] font-semibold text-foreground">Per code · case level{vocabulary && vocabulary.dataset ? ` · ${vocabulary.dataset} terms in brackets` : ""}</div>

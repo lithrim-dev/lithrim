@@ -103,6 +103,15 @@ export default function ImportCard({ importers: given = null, agent = "ws0_defau
               {state.phase === "error" ? "⚠ " : "✓ "}{state.msg}
             </div>
           )}
+          {state.phase === "loaded" && state.result && (state.result.imported || {}).test > 0 && (
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-muted-foreground">Next: grade the test split as the before round.</span>
+              <Button size="sm" variant="outline" data-testid="import-grade-test"
+                onClick={() => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { split: "test", round: "before" } })); } catch {} }}>
+                Grade the test split (paid)
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

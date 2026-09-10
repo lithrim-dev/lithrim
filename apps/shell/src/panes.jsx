@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard, listJobs } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
@@ -398,6 +398,25 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
   // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
   // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  // UI-JOURNEY-1 (B7): the scorecard's round controls. Re-grade = the same split, fresh, with
+  // the pinned demos, through the cost confirm (paid); replay = the $0 grade path over the saved
+  // baselines, tagged "replay" so the card says it is not a measurement.
+  const onRegrade = (_jobId, ctx) => {
+    setPaid({ open: true, busy: false, cohort: true, caseIds: null, round: "after", split: (ctx && ctx.split) || "test" });
+  };
+  const onReplay = async (_jobId, ctx) => {
+    try {
+      const resp = await gradeCases({ agent, live: false, in_process: false, background: true, round: "replay", ...(ctx && ctx.split ? { split: ctx.split } : {}) });
+      if (resp && resp.job_id) {
+        const job = await followJob(resp);
+        if (job.status !== "done") throw new Error(job.error || `replay job ${resp.job_id} ${job.status}`);
+      } else if (resp) {
+        setChat((c) => [...c, scorecardTurn(resp, { round: "replay" })]);
+      }
+    } catch (err) {
+      setChat((c) => [...c, { role: "assistant", text: `⚠ ${friendlyError(err)}`, parts: [] }]);
+    }
+  };
   // UI-JOURNEY-1 (B4): the ⌘K "Load a dataset" trigger — GET /v1/importers ($0) and render the
   // tool-import_cases card inline; the card's own Load posts the files. A finished load announces
   // lithrim:cases-changed so the rail's Load step and the case browser re-read the corpus.
@@ -431,8 +450,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       // (per-task rows, per-code dataset terms, the verdict rule); absent when the read fails.
       let table = {};
       try {
-        const t = await getJobScorecard(job.job_id);
-        table = { per_task: t.per_task, per_code: t.per_code, vocabulary: t.vocabulary, unlocated: t.unlocated };
+        // UI-JOURNEY-1 (B7): an after round sits beside the agent's latest before round.
+        const t = await getJobScorecard(job.job_id, null, job.round && job.round !== "before" ? "before" : null);
+        table = { per_task: t.per_task, per_code: t.per_code, vocabulary: t.vocabulary, unlocated: t.unlocated, pinned_demos: t.pinned_demos, ...(t.compare ? { compare: t.compare } : {}) };
       } catch { table = {}; }
       const turn = scorecardTurn(job.result, job);
       turn.parts[0].output = { ...turn.parts[0].output, ...table };
@@ -444,7 +464,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   useEffect(() => {
     const onGradeCohort = (e) => {
       const ids = e?.detail?.case_ids;
-      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null });
+      // UI-JOURNEY-1 (B7): detail.round / detail.split tag the job (the import card's "grade
+      // the test split" and the scorecard's re-grade set them); absent → resolved at confirm.
+      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null, round: e?.detail?.round || null, split: e?.detail?.split || null });
     };
     window.addEventListener("lithrim:grade-cohort", onGradeCohort);
     return () => window.removeEventListener("lithrim:grade-cohort", onGradeCohort);
@@ -749,7 +771,13 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // GRADE-JOB-1: ask for a background job; a server that answers with a job id is polled
           // (done/total feed the chip) until it finishes; an older server answers with the
           // envelope itself and the same code path renders it.
-          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}) });
+          // UI-JOURNEY-1 (B7): the first cohort grade of an agent is its "before" round unless
+          // the caller tagged it; the re-grade button tags "after".
+          let round = paid.round;
+          if (!round) {
+            try { round = ((await listJobs(agent)).jobs || []).some((j) => j.round === "before") ? null : "before"; } catch { round = null; }
+          }
+          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}), ...(round ? { round } : {}), ...(paid.split ? { split: paid.split } : {}) });
           if (resp && resp.job_id) {
             // followJob announces the finished job on the lithrim:job-done bridge (rendered below),
             // so the card path is the same whether this tab started the job or found it after a reload.
@@ -1075,11 +1103,11 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                           return (
                             <details key={j} className="ondemand" data-testid="ondemand-part">
                               <summary>Show {PART_LABELS[part.type] || "details"} ▸</summary>
-                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>
+                              <div className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay })}</div>
                             </details>
                           );
                         // CHATBIND-3: pass onOpenArtifact so a CaseCard's "View case ->" opens the Case tab.
-                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun })}</div>;
+                        return <div key={j} className="reveal">{renderTool(part, { onResult: captureSetup(`chat-${i}-${j}`), onOpenArtifact, onOpenCaseRun, onRegrade, onReplay })}</div>;
                       })}
                       {/* W1/W2: the non-static working indicator — visible across the WHOLE in-flight
                           window (not only when text is empty), showing the latest tool label. */}
@@ -1113,19 +1141,32 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // COHORT-SUBSET-1 last-mile: a non-empty paid.caseIds means the user picked a SUBSET
           // ("Run selected (N)") — the copy must name the N-case subset, not "all cases". An
           // absent/empty caseIds ("Grade all" / propose_run_all) keeps the whole-cohort copy.
-          ? (paid.caseIds?.length
-            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)?`
-            : "Grade all cases (paid)?")
+          // UI-JOURNEY-1 (B7): a tagged round names its split and, for "after", the pinned demos.
+          ? (paid.round === "after"
+            ? `Grade the ${paid.split || "whole"} split again with the pinned demos (paid)?`
+            : paid.split
+              ? `Grade the ${paid.split} split (paid)?`
+              : paid.caseIds?.length
+                ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)?`
+                : "Grade all cases (paid)?")
           : "Run a live, paid evaluation?"}
         body={paid.cohort
-          ? (paid.caseIds?.length
-            ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`
-            : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
+          ? (paid.round === "after"
+            ? `This grades the ${paid.split || "whole"} split fresh, with the demos now pinned on the judge, as the "after" round (model calls you'll be billed for); the scorecard sits beside the "before" round. The assistant can't do this — only you can authorize it.`
+            : paid.split
+              ? `This grades every case tagged ${paid.split} in one paid batch (model calls you'll be billed for) as the "${paid.round || "before"}" round and shows the scorecard in both vocabularies. The assistant can't do this — only you can authorize it.`
+              : paid.caseIds?.length
+                ? `This grades the ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.`
+                : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
           : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
         confirmLabel={paid.cohort
-          ? (paid.caseIds?.length
-            ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)`
-            : "Grade all cases (paid)")
+          ? (paid.round === "after"
+            ? "Grade again with the pinned demos (paid)"
+            : paid.split
+              ? `Grade the ${paid.split} split (paid)`
+              : paid.caseIds?.length
+                ? `Grade ${paid.caseIds.length} selected case${paid.caseIds.length === 1 ? "" : "s"} (paid)`
+                : "Grade all cases (paid)")
           : "Run live (paid)"}
         warning={readiness && readiness.ok === false
           ? `Setup readiness: this agent has a fact-check that won't run for the ${readiness.pack || "pinned"} pack — a false alarm could go uncaught. Fix it first, or run anyway.`

@@ -110,8 +110,10 @@ export const importCases = ({ agent = "ws0_default", importer, files, per_task =
 /* GET /v1/jobs/{id}/scorecard?vocabulary= — UI-JOURNEY-1 (B5): the two-vocabulary scorecard for
    a grade job: per-task rows (response + span P/R/F1, refused), per-code rows with the dataset's
    own terms, the verdict rule both ways, unlocated quotes, and the rendered text. $0 read. */
-export const getJobScorecard = (jobId, vocabulary = null) =>
-  call(`/v1/jobs/${encodeURIComponent(jobId)}/scorecard${vocabulary ? `?vocabulary=${encodeURIComponent(vocabulary)}` : ""}`);
+export const getJobScorecard = (jobId, vocabulary = null, compare = null) => {
+  const q = [vocabulary ? `vocabulary=${encodeURIComponent(vocabulary)}` : null, compare ? `compare=${encodeURIComponent(compare)}` : null].filter(Boolean).join("&");
+  return call(`/v1/jobs/${encodeURIComponent(jobId)}/scorecard${q ? `?${q}` : ""}`);
+};
 
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
