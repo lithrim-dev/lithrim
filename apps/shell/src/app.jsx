@@ -741,6 +741,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       id: `edit-judge-${role}`, label: `Edit reviewer ${role} — lens, prompt, model, calibrate`,
       run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:edit-judge", { detail: { role } })); } catch {} },
     })),
+    // FT-FROM-SHELL-1: the training export needs graded calibration rows — grade that split as
+    // its own round (paid; the cost confirm names it).
+    { id: "grade-calibration", label: "Grade the calibration split — paid, for a training export", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { split: "calibration", round: "calibration" } })); } catch {} } },
     // KPI-PINS-1: pin a fact-check or a KPI contract without the assistant (the contract builder
     // inline; Add contract stays the audited write).
     { id: "add-contract", label: "Add a check or KPI contract — a fact-check or a KPI the floor proves before any judge", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:add-contract")); } catch {} } },

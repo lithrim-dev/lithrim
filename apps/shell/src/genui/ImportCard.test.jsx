@@ -65,3 +65,18 @@ describe("ImportCard", () => {
     expect(screen.getByTestId("import-no-importers")).toBeInTheDocument();
   });
 });
+
+
+describe("ImportCard — the calibration split can be graded for a training export", () => {
+  it("after a load with a calibration split, the card offers the paid calibration grade", async () => {
+    const heard = [];
+    const on = (e) => heard.push(e.detail);
+    window.addEventListener("lithrim:grade-cohort", on);
+    render(<ImportCard importers={IMPORTERS} />);
+    await pickFiles();
+    fireEvent.click(screen.getByTestId("import-load"));
+    fireEvent.click(await screen.findByTestId("import-grade-calibration"));
+    expect(heard).toEqual([{ split: "calibration", round: "calibration" }]);
+    window.removeEventListener("lithrim:grade-cohort", on);
+  });
+});
