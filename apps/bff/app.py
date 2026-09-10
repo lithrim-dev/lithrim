@@ -4291,8 +4291,11 @@ def get_judge_endpoint(
     else:
         effective = summary["assigned_flags"]
     summary["preview_flags"] = effective
-    # UI-JOURNEY-1 (B6): the demo set in force for this role (the pin gate's sidecar score).
-    resolved_out = out_dir if out_dir is not None else workspace.get_active_workspace().out_dir
+    # UI-JOURNEY-1 (B6): the demo set in force for this role (the pin gate's sidecar score). The
+    # chat tool calls this function directly (S-BS-82), so a Depends sentinel reads as "unset".
+    resolved_out = (
+        out_dir if isinstance(out_dir, (str, Path)) else workspace.get_active_workspace().out_dir
+    )
     summary["pinned_demos"] = _pinned_demos(Path(resolved_out)).get(role)
     # GENERALIST-1: render the seed prompt against the ACTIVE WORKSPACE's pack, not the in-process
     # boot pack (``_core``). A non-default-pack role (e.g. a clinverdict ``generalist_reviewer``)
