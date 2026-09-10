@@ -86,6 +86,7 @@ from lithrim_bench import picklist  # noqa: E402  (CASE-BROWSER-1: PACK_FILES en
 from lithrim_bench.harness import (  # noqa: E402
     admissibility,
     corpus,
+    correction,
     evalpack,
     workspace,  # noqa: E402
 )
@@ -1745,13 +1746,13 @@ def corpus_endpoint() -> dict:
     return {"rows": list(corpus.read_corpus())}
 
 
-def _read_ingested_corpus() -> list[dict]:
+def _read_ingested_corpus(ws=None) -> list[dict]:
     """The active workspace's INGESTED cases — the §4.1 envelopes a user dropped via ingest.
     PERSIST-3a: the SSOT ``cases`` table is the source of truth (``cases_store``, the one DB
     selector); the legacy ``ws.out_dir/ingested_cases.jsonl`` is a transition fallback (a corpus
     ingested before 3a). Empty list when none. (Distinct from the correction corpus served by
-    ``/v1/corpus``.)"""
-    ws = workspace.get_active_workspace()
+    ``/v1/corpus``.) ``ws`` names another workspace (UI-JOURNEY-1 B3 resources read)."""
+    ws = ws or workspace.get_active_workspace()
     try:
         from lithrim_bench.harness import cases_store
 
@@ -3240,6 +3241,120 @@ class CreateWorkspaceRequest(BaseModel):
 
 class SwitchWorkspaceRequest(BaseModel):
     name: str
+
+
+def _pinned_demos(out_dir: Path) -> dict:
+    """The demo sets in force per role: ``compiled_demos_<tag>_<role>.json`` + the pin gate's
+    ``.score.json`` sidecar (held-out graded score of the pinned set)."""
+    out: dict[str, dict] = {}
+    for path in sorted(out_dir.glob("compiled_demos_*.json")):
+        if path.name.endswith(".score.json"):
+            continue
+        tag = path.stem[len("compiled_demos_") :]
+        role = tag.split("_", 1)[1] if "_" in tag else tag
+        entry: dict = {"path": path.name, "tag": tag.split("_", 1)[0], "demos": None, "graded": None}
+        try:
+            demos = json.loads(path.read_text())
+            entry["demos"] = len(demos) if isinstance(demos, list) else None
+        except (OSError, ValueError):
+            pass
+        side = path.with_suffix(".score.json")
+        if side.exists():
+            with contextlib.suppress(OSError, ValueError):
+                entry["graded"] = json.loads(side.read_text()).get("graded")
+        out[role] = entry
+    return out
+
+
+def _workspace_resources(ws, *, agent: str | None, out_dir: Path, collections_db: Path) -> dict:
+    """UI-JOURNEY-1 (B3): everything the loop leaves behind in one workspace, by name — the
+    cases (by split, with their importer), the runs, the grade jobs, the pinned demos, the
+    corrections log, the exports, the provider bindings (never a key) and the arm manifest.
+    Counts and names only; the heavy reads stay on their own routes."""
+    corpus = _read_ingested_corpus(ws)
+    by_split: dict[str, int] = {}
+    importers: dict[str, int] = {}
+    for row in corpus:
+        by_split[row.get("split") or "untagged"] = by_split.get(row.get("split") or "untagged", 0) + 1
+        if row.get("importer"):
+            importers[row["importer"]] = importers.get(row["importer"], 0) + 1
+    importer = max(importers, key=importers.get) if importers else None
+    runs: int | None
+    try:
+        docs = run_coro(provenance_store_for(collections_db).list_all(limit=None))
+        runs = sum(1 for d in docs if not agent or d.get("agent_id") == agent)
+    except Exception:  # noqa: BLE001 — no store yet is "no runs", never a 500 on a fresh workspace
+        runs = 0
+    jobs_dir = out_dir / "jobs"
+    jobs = []
+    for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
+        job = _load_job(out_dir, path.stem)
+        if job is not None and (not agent or job.get("agent") == agent):
+            jobs.append(_job_summary(job))
+    jobs.sort(key=lambda j: j.get("started") or "", reverse=True)
+    corr_path = correction.corrections_path(out_dir)
+    corrections = {"records": 0, "gold_mismatches": 0}
+    if corr_path.exists():
+        for line in corr_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            corrections["records"] += 1
+            if '"gold-mismatch/' in line:
+                corrections["gold_mismatches"] += 1
+    exports_dir = out_dir / "exports"
+    exports = []
+    for path in sorted(exports_dir.glob("*.jsonl")) if exports_dir.exists() else []:
+        entry = {"name": path.name, "bytes": path.stat().st_size}
+        manifest = path.with_suffix(".manifest.json")
+        if manifest.exists():
+            try:
+                m = json.loads(manifest.read_text())
+                entry.update({k: m.get(k) for k in ("rows", "split", "format", "tiers", "written")})
+            except (OSError, ValueError):
+                pass
+        exports.append(entry)
+    arm_path = out_dir / "arm_manifest.json"
+    arm = None
+    if arm_path.exists():
+        try:
+            arm = json.loads(arm_path.read_text())
+        except (OSError, ValueError):
+            arm = None
+    return {
+        "name": ws.name,
+        "pack": ws.pack,
+        "agent": agent,
+        "cases": {"total": len(corpus), "by_split": by_split, "importer": importer},
+        "runs": runs,
+        "jobs": jobs,
+        "pinned_demos": _pinned_demos(out_dir),
+        "corrections": corrections,
+        "exports": exports,
+        "bindings": _read_role_bindings(),
+        "arm_manifest": arm,
+    }
+
+
+@app.get("/v1/workspaces/{name}/resources")
+def workspace_resources_endpoint(
+    name: str,
+    agent: str | None = None,
+    out_dir: Path | None = Depends(get_out_dir),
+    collections_db: Path | None = Depends(get_collections_db),
+) -> dict:
+    """UI-JOURNEY-1 (B3): what one workspace holds (see ``_workspace_resources``). The active
+    workspace reads through the request's resolved dirs; another workspace through its own."""
+    active = workspace.get_active_workspace()
+    if name == active.name:
+        ws = active
+        resolved_out = out_dir if out_dir is not None else ws.out_dir
+        resolved_coll = collections_db if collections_db is not None else ws.collections_db
+    elif workspace._workspace_exists(name):
+        ws = workspace.read_workspace(name)
+        resolved_out, resolved_coll = ws.out_dir, ws.collections_db
+    else:
+        raise HTTPException(status_code=404, detail=f"unknown workspace {name!r}")
+    return _workspace_resources(ws, agent=agent, out_dir=resolved_out, collections_db=resolved_coll)
 
 
 @app.get("/v1/workspaces")

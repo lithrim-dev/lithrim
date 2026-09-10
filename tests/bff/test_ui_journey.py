@@ -99,9 +99,21 @@ def _split_corpus(out, n_test=3, n_calib=2) -> None:
     not depend on the import route."""
     rows = []
     for i in range(n_test):
-        rows.append({**_envelope(f"t{i}_bad", context=f"Doctor: t{i}"), "split": "test"})
+        rows.append(
+            {
+                **_envelope(f"t{i}_bad", context=f"Doctor: t{i}"),
+                "split": "test",
+                "importer": "ragtruth_vocabulary",
+            }
+        )
     for i in range(n_calib):
-        rows.append({**_envelope(f"c{i}_ok", context=f"Doctor: c{i}"), "split": "calibration"})
+        rows.append(
+            {
+                **_envelope(f"c{i}_ok", context=f"Doctor: c{i}"),
+                "split": "calibration",
+                "importer": "ragtruth_vocabulary",
+            }
+        )
     _write_corpus(out, rows)
 
 
@@ -341,7 +353,7 @@ def test_spend_prices_the_agents_runs_at_list_price(client):
 # --------------------------------------------------------------------------- workspace (B3)
 def test_workspace_resources_name_everything_the_loop_left_behind(client):
     cli, out = client
-    _import(cli)
+    _split_corpus(out)
     job_id = cli.post(
         "/v1/cases/grade",
         json={

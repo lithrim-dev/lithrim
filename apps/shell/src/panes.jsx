@@ -8,7 +8,7 @@ import { CostModal } from "./components/CostModal.jsx";
 import { Markdown } from "./components/Markdown.jsx";
 import ProviderSettings from "./genui/ProviderSettings.jsx"; // CE-PROVIDER-UI: the "Connect AI" provider-connect panel
 import { STEPS } from "./data.jsx";
-import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
+import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
 import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
@@ -398,6 +398,17 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
   // `lithrim:grade-cohort` window bridge (the same CustomEvent idiom as lithrim:cmdk / connect-ai).
   // detail.case_ids (a subset) → gradeCases scopes to it; omit → ALL. The agent still never spends;
   // the human's confirm (confirmPaidRun, cohort branch) is the sole paid path.
+  // UI-JOURNEY-1 (B3): the ⌘K "Show workspace" trigger — GET /v1/workspaces/{name}/resources ($0
+  // read) rendered as the tool-workspace_card inline; an error shows the card's empty state.
+  useEffect(() => {
+    const onShow = async (e) => {
+      let output = {};
+      try { output = await getWorkspaceResources(e?.detail?.workspace || "default", agent); } catch { output = {}; }
+      setChat((c) => [...c, { role: "assistant", text: "", parts: [{ type: "tool-workspace_card", state: "output-available", output }] }]);
+    };
+    window.addEventListener("lithrim:show-workspace", onShow);
+    return () => window.removeEventListener("lithrim:show-workspace", onShow);
+  }, [agent]);
   // UI-JOURNEY-1 (B2): a finished background grade (this tab's, or one found again after a
   // reload) renders its scorecard as a fresh assistant turn.
   useEffect(() => {

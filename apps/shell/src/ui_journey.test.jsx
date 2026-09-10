@@ -27,7 +27,7 @@ function stubFetch(extra = {}) {
     vi.fn((url, init) => {
       const u = String(url);
       calls.push({ url: u, method: (init && init.method) || "GET", body: init && init.body });
-      const key = Object.keys(routes).find((k) => u.includes(k));
+      const key = Object.keys(routes).filter((k) => u.includes(k)).sort((a, b) => b.length - a.length)[0]; // the most specific route wins
       const hit = key ? routes[key] : {};
       return ok(typeof hit === "function" ? hit(u, init) : hit);
     }),
@@ -43,23 +43,47 @@ beforeEach(() => {
 const openPalette = () => fireEvent.keyDown(window, { key: "k", metaKey: true });
 
 describe("B3 workspace: first run picks or creates one", () => {
-  it("with no workspace yet the shell opens on a create-or-pick screen and creates one", async () => {
+  it("with nothing picked yet the shell opens on the picker; creating a workspace posts it and closes the picker", async () => {
     stubFetch({ "/v1/workspaces": { workspaces: [], active: null } });
     const { unmount } = render(<App mode="shell" setMode={() => {}} />);
-    const picker = await screen.findByTestId("ws-first-run");
+    await screen.findByTestId("ws-first-run");
     fireEvent.change(screen.getByPlaceholderText("workspace name"), { target: { value: "ragtruth-pilot" } });
     fireEvent.click(screen.getByRole("button", { name: /create workspace/i }));
     await waitFor(() =>
       expect(calls.some((c) => c.url.includes("/v1/workspaces") && c.method === "POST" && String(c.body).includes("ragtruth-pilot"))).toBe(true),
     );
-    expect(picker).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId("ws-first-run")).toBeNull());
+    expect(localStorage.getItem("lithrim.workspace.chosen")).toBe("ragtruth-pilot");
     unmount();
   });
 
-  it("with a workspace present there is no first-run screen", async () => {
+  it("picking one of the service's workspaces switches to it and remembers the choice", async () => {
+    stubFetch({ "/v1/workspaces": { workspaces: [{ name: "default", pack: "_core" }, { name: "pilot", pack: "_core" }], active: "default" } });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTestId("ws-first-run");
+    fireEvent.click(screen.getByTestId("ws-pick-pilot"));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/v1/workspace") && c.method === "POST" && String(c.body).includes("pilot"))).toBe(true));
+    await waitFor(() => expect(screen.queryByTestId("ws-first-run")).toBeNull());
+    expect(localStorage.getItem("lithrim.workspace.chosen")).toBe("pilot");
+    unmount();
+  });
+
+  it("once a workspace was picked in this browser there is no first-run screen", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
     const { unmount } = render(<App mode="shell" setMode={() => {}} />);
     await screen.findByTitle("Switch workspace");
     expect(screen.queryByTestId("ws-first-run")).toBeNull();
+    unmount();
+  });
+
+  it("the palette's Show workspace renders the inventory card from the resources route", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({ "/v1/workspaces/default/resources": { name: "default", pack: "_core", cases: { total: 180, by_split: { test: 90, calibration: 90 }, importer: "ragtruth_vocabulary" }, runs: 180, jobs: [], pinned_demos: {}, corrections: { records: 0, gold_mismatches: 0 }, exports: [], bindings: { roles: {} } } });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-show-workspace"));
+    const card = await screen.findByTestId("workspace-card");
+    expect(card.textContent).toMatch(/test 90, calibration 90/);
     unmount();
   });
 });

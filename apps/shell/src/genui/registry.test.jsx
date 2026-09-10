@@ -36,11 +36,12 @@ const EXPECTED = {
   "tool-reliability_card": /No graded runs yet/i, // RIGOR-1 — the reliability-metrics card (empty-state mount)
   "tool-sweep_card": /No sampled runs yet/i, // RIGOR-1 / Q1 (NEW-G3) — the K-sweep self-consistency card (empty-state mount)
   "tool-criterion_jute_builder": /^Tool-grounded criterion$/, // anchored: the CardTitle, not the footer's lowercase "author a tool-grounded criterion"
+  "tool-workspace_card": /No workspace loaded yet/i, // UI-JOURNEY-1 (B3) — the workspace inventory card (empty-state mount)
 };
 
 describe("renderTool registry", () => {
-  it("knows all 19 config tools", () => {
-    expect(KNOWN_TOOLS).toHaveLength(19);
+  it("knows all 20 config tools", () => {
+    expect(KNOWN_TOOLS).toHaveLength(20);
     expect(new Set(KNOWN_TOOLS)).toEqual(new Set(Object.keys(EXPECTED)));
   });
 

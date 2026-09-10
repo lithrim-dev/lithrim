@@ -12,6 +12,59 @@ import { restoreJobs, resumeJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): find a
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// UI-JOURNEY-1 (B3): the browser remembers that a workspace was picked or created here once;
+// until then the shell opens on the picker (the service always seeds a default, so "first run"
+// is this browser's, not the service's).
+export const WS_CHOSEN_KEY = "lithrim.workspace.chosen";
+
+// The first-run screen: pick one of the workspaces the service has, or create a new one. A
+// workspace holds everything for one evaluation, so this is the one choice made before anything
+// else. Offline-safe: it renders only once the workspace list has actually loaded.
+export function FirstRunWorkspace({ workspaces, onPick, onCreate }) {
+  const [name, setName] = useState("");
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const create = async () => {
+    const n = name.trim();
+    if (!n) return;
+    if (!/^[A-Za-z0-9_-]+$/.test(n)) { setErr("Use letters, digits, '-' or '_' only (no spaces)."); return; }
+    setBusy(true);
+    try { await onCreate(n); }
+    catch (e) { setErr(String(e?.message || e) || "Create workspace failed."); }
+    finally { setBusy(false); }
+  };
+  const field = { padding: "7px 9px", fontSize: 13, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)" };
+  return (
+    <div data-testid="ws-first-run" role="dialog" aria-label="Pick a workspace"
+      style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, width: 440, boxShadow: "var(--shadow-pop)", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>Where should this work live?</div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.45 }}>
+          A workspace holds everything for one evaluation: the cases you load, the judges, every run and grade job, the pinned demos, the corrections and the exports. Pick one or create a new one.
+        </div>
+        {workspaces.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {workspaces.map((w) => (
+              <button key={w.name} data-testid={`ws-pick-${w.name}`} onClick={() => onPick(w.name)}
+                style={{ ...field, display: "flex", justifyContent: "space-between", cursor: "pointer", textAlign: "left" }}>
+                <span>{w.name}</span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)" }}>{w.pack}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 6 }}>
+          <input value={name} placeholder="workspace name" style={{ ...field, flex: 1 }}
+            onChange={(e) => { setName(e.target.value); if (err) setErr(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
+          <button onClick={create} disabled={busy} style={{ ...field, cursor: "pointer", color: "var(--accent)", fontWeight: 600 }}>Create workspace</button>
+        </div>
+        {err && <div data-testid="ws-first-run-error" style={{ fontSize: 12, color: "var(--amber)" }}>{err}</div>}
+      </div>
+    </div>
+  );
+}
+
 // The workspace switcher (the ws-pill → a domain-setup picker). Switching a workspace
 // repoints the whole config plane + the pinned pack; "New" creates one (its own config DB).
 export function WorkspaceSwitcher({ active, workspaces, onSwitch, onCreate }) {
@@ -376,6 +429,8 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
   // P2: the active workspace (the switchable domain setup) + its switcher.
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWs, setActiveWs] = useState("default");
+  // UI-JOURNEY-1 (B3): true once the list has loaded and this browser has never picked one.
+  const [firstRun, setFirstRun] = useState(false);
 
   // The real eval-report vertical (WS-5-BFF): drive run_eval.run() via the BFF and
   // render its composite in the ReportTab. replay is the $0 default; live is one paid call.
@@ -501,7 +556,16 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
       const out = await listWorkspaces();
       setWorkspaces(out.workspaces || []);
       setActiveWs(out.active || "default");
+      if (Array.isArray(out.workspaces)) {
+        let chosen = null;
+        try { chosen = localStorage.getItem(WS_CHOSEN_KEY); } catch {}
+        setFirstRun(!chosen);
+      }
     } catch { /* offline-safe */ }
+  };
+  const markWorkspaceChosen = (name) => {
+    try { localStorage.setItem(WS_CHOSEN_KEY, name); } catch {}
+    setFirstRun(false);
   };
   useEffect(() => { refreshWorkspaces(); }, []);
 
@@ -644,6 +708,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     // the card is emitted by the shell, not the agent).
     { id: "show-sweep", label: "Reliability sweep — self-consistency across K samples (flip-rate · convergence · variance)", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-sweep")); } catch {} } },
     { id: "open-report", label: "Open report — the latest run's verdict", run: () => openArtifact("report") },
+    // UI-JOURNEY-1 (B3): what this workspace holds (cases by split, runs, jobs, pinned demos,
+    // corrections, exports, bindings) — the tool-workspace_card inline, $0 read.
+    { id: "show-workspace", label: `Show workspace — what ${activeWs} holds`, run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:show-workspace", { detail: { workspace: activeWs } })); } catch {} } },
     { id: "new-eval", label: "New evaluation", run: onNewEval },
     { id: "connect-ai", label: "Connect AI — providers & model assignments", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:connect-ai")); } catch {} } },
     { id: "toggle-theme", label: `Switch to the ${theme === "light" ? "dark" : "light"} theme`, run: () => setTheme(theme === "light" ? "dark" : "light") },
@@ -661,6 +728,11 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)}
           actions={paletteActions} agents={agents} activeAgent={activeAgent}
           onSwitchAgent={onSwitchAgent} onSelectCase={onSelectCase} agent={activeAgent} />
+        {firstRun && (
+          <FirstRunWorkspace workspaces={workspaces}
+            onPick={(name) => { markWorkspaceChosen(name); onSwitchWorkspace(name); }}
+            onCreate={async (name) => { await onCreateWorkspace(name, "_core"); markWorkspaceChosen(name); }} />
+        )}
         <CostModal
           open={liveConfirm != null}
           title="Run a live, paid evaluation?"
