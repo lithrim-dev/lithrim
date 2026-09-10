@@ -6,6 +6,10 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.29] — 2026-09-10
+
+Held-out hygiene for the pin gate, and the training export from the shell.
+
 ### Fixed
 - The pin gate no longer reads the test cut. The calibration corpus (the RAGTruth adapter's and
   the shell's split calibrate) is the calibration split alone, with a deterministic,
