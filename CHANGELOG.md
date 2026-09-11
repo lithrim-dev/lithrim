@@ -6,6 +6,10 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.30] — 2026-09-11
+
+Calibrate as a background job, so a pilot-scale calibration runs from the shell.
+
 ### Fixed
 - A calibration at the pilot's scale (315 training, 135 dev cases) no longer dies with a 500:
   the optimizer ran inside the request with a hardcoded ten-minute limit. Calibrate now runs as
