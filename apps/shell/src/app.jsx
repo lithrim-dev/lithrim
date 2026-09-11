@@ -743,6 +743,9 @@ function App({ theme: themeProp, setTheme: setThemeProp, mode, setMode } = {}) {
     })),
     // FT-FROM-SHELL-1: the training export needs graded calibration rows — grade that split as
     // its own round (paid; the cost confirm names it).
+    // OPTIMIZE-JOB-1 (a): grade the test split as the before round from anywhere, not only from
+    // the import card right after a load (a reload or a lost browser left only "Grade all").
+    { id: "grade-test-split", label: "Grade the test split — the before round (paid)", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { split: "test", round: "before" } })); } catch {} } },
     { id: "grade-calibration", label: "Grade the calibration split — paid, for a training export", hint: "cost-confirmed", run: () => { try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { split: "calibration", round: "calibration" } })); } catch {} } },
     // KPI-PINS-1: pin a fact-check or a KPI contract without the assistant (the contract builder
     // inline; Add contract stays the audited write).

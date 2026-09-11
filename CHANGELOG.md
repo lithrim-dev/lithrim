@@ -6,6 +6,25 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.30] — 2026-09-11
+
+Calibrate as a background job, so a pilot-scale calibration runs from the shell.
+
+### Fixed
+- A calibration at the pilot's scale (315 training, 135 dev cases) no longer dies with a 500:
+  the optimizer ran inside the request with a hardcoded ten-minute limit. Calibrate now runs as
+  a background job on the grade-job pattern (202 with a job id, the record under the
+  workspace's jobs with kind `optimize`, the role and the full result block, a list filter by
+  kind, restart reconciliation, a 409 for a second calibration of the same role), and the judge
+  editor starts it, polls it, finds it again after a reload, and shows the service's reason on
+  failure. The limit is `LITHRIM_OPTIMIZE_TIMEOUT_S` (default four hours); a timeout is a failed
+  calibration with nothing pinned (504 on the synchronous path). The per-case grade limit is
+  `LITHRIM_GRADE_TIMEOUT_S` (default 600).
+
+### Added
+- ⌘K "Grade the test split", the before round, available after a reload (it was only on the
+  import card right after a load, which left "Grade all cases" as the only way back).
+
 ## [0.1.29] — 2026-09-10
 
 Held-out hygiene for the pin gate, and the training export from the shell.

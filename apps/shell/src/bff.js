@@ -150,7 +150,8 @@ export const getSpend = (agent = "ws0_default", since = null) =>
 /* GET /v1/jobs?agent= — UI-JOURNEY-1 (B2): the agent's grade jobs (newest first) as summaries
    {job_id, status, done, total, round, split, started, finished}; the shell reads it on mount to
    find a running or interrupted job again after a reload. */
-export const listJobs = (agent = "ws0_default") => call(`/v1/jobs?agent=${encodeURIComponent(agent)}`);
+export const listJobs = (agent = "ws0_default", kind = null) =>
+  call(`/v1/jobs?agent=${encodeURIComponent(agent)}${kind ? `&kind=${encodeURIComponent(kind)}` : ""}`);
 
 /* GET /v1/jobs/{id} — GRADE-JOB-1: a background cohort grade's record {status, done, total, rows,
    result}. `result` is the same {matrix, summary, scorecard} envelope the synchronous call returns. */
@@ -561,11 +562,14 @@ export const createJudge = ({ role, lens_codes, owned_codes, model_id, role_prom
 /* optimize-on-subset: pass caseIds to scope the calibration to a CHOSEN case set (the Cases
    ids), not the whole workspace. Omitted/empty → whole-workspace (back-compat). A selector,
    never a paid knob — confirm=true is still required (mirrors the limit pattern). */
-export const optimizeJudge = (role, { confirm = false, limit, caseIds, split = null } = {}) =>
+export const optimizeJudge = (role, { confirm = false, limit, caseIds, split = null, background = false, agent = null } = {}) =>
   call(`/v1/judges/${encodeURIComponent(role)}/optimize`, {
     method: "POST",
     body: {
       confirm,
+      // OPTIMIZE-JOB-1: a background job (202 + job id) the editor polls and finds again
+      ...(background ? { background: true } : {}),
+      ...(agent ? { agent } : {}),
       ...(limit != null ? { limit } : {}),
       ...(caseIds && caseIds.length ? { case_ids: caseIds } : {}),
       ...(split ? { split } : {}), // UI-JOURNEY-1 (B6): train on this split, hold out on test

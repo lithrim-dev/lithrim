@@ -622,6 +622,11 @@ class OptimizeRequest(BaseModel):
     # ``calibration`` split), held out on the ``test`` split — the pilot's arrangement. None
     # keeps the in-corpus stride split over graded cases.
     split: str | None = None
+    # OPTIMIZE-JOB-1: run the calibration as a background job (202 + job id, poll GET
+    # /v1/jobs/{id}); a pilot-scale calibration outlives any single HTTP request. ``agent``
+    # names whose job it is, so the shell can find it again after a reload.
+    background: bool = False
+    agent: str = DEFAULT_AGENT
 
 
 class ChatTurn(BaseModel):
@@ -1087,6 +1092,21 @@ def _judge_cache_dir(out_dir) -> str:
     return str(Path(base) / "cache")
 
 
+def _subprocess_timeout(env_var: str, default: int) -> int:
+    """OPTIMIZE-JOB-1: a subprocess limit in seconds from ``env_var``; a missing or non-numeric
+    value keeps ``default``."""
+    raw = os.environ.get(env_var, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+# A pilot-scale calibration (hundreds of bootstrap and held-out calls) runs for tens of minutes.
+_OPTIMIZE_TIMEOUT_DEFAULT_S = 4 * 3600
+
+
 def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_db, out_dir,
                           live, in_process, ws, case_id=None) -> dict:
     """Run the council-bound grade in a subprocess under the active workspace's pack
@@ -1122,7 +1142,10 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         cmd += ["--collections-db", str(collections_db)]
     if out_dir:
         cmd += ["--out-dir", str(out_dir)]
-    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+    proc = subprocess.run(
+        cmd, env=env, capture_output=True, text=True,
+        timeout=_subprocess_timeout("LITHRIM_GRADE_TIMEOUT_S", 600),
+    )
     if proc.returncode != 0:
         # Keep the raw stderr in the server logs; show the user a plain, calm message.
         _log.error("grade subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
@@ -1245,7 +1268,18 @@ def _optimize_via_subprocess(
     if not split:
         for cid in case_ids or []:
             cmd += ["--case-ids", str(cid)]
-    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+    limit_s = _subprocess_timeout("LITHRIM_OPTIMIZE_TIMEOUT_S", _OPTIMIZE_TIMEOUT_DEFAULT_S)
+    try:
+        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=limit_s)
+    except subprocess.TimeoutExpired as exc:
+        _log.error("optimize subprocess timed out after %ss (pack=%s)", limit_s, ws.pack)
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                f"The calibration run did not finish within {limit_s} s and was stopped; nothing "
+                "was pinned. Raise LITHRIM_OPTIMIZE_TIMEOUT_S on the service for a larger split."
+            ),
+        ) from exc
     if proc.returncode != 0:
         _log.error("optimize subprocess failed (pack=%s): %s", ws.pack, proc.stderr.strip()[-1500:])
         raise HTTPException(status_code=502, detail="The calibration run couldn't complete. Please try again.")
@@ -2934,20 +2968,49 @@ def _job_summary(job: dict) -> dict:
     return {
         k: job.get(k)
         for k in (
-            "job_id", "agent", "status", "done", "total", "round", "split", "started",
-            "finished", "error",
+            "job_id", "kind", "role", "agent", "status", "done", "total", "round", "split",
+            "started", "finished", "error",
         )
-    }
+    } | {"kind": job.get("kind") or "grade"}
 
 
 def _running_job_for(agent: str, *, exclude: str | None = None) -> dict | None:
+    """The agent's running GRADE job (OPTIMIZE-JOB-1: a running calibration does not block a
+    grade; they are separate processes)."""
     with _JOBS_LOCK:
         for job in _JOBS.values():
-            if job["job_id"] == exclude:
+            if job["job_id"] == exclude or (job.get("kind") or "grade") != "grade":
                 continue
             if job.get("agent") == agent and job.get("status") == "running":
                 return job
     return None
+
+
+def _running_optimize_for(role: str) -> dict | None:
+    """OPTIMIZE-JOB-1: the running calibration of ``role``, if any (one at a time per role:
+    two would race on the same staging dir and the same pin)."""
+    with _JOBS_LOCK:
+        for job in _JOBS.values():
+            if job.get("kind") == "optimize" and job.get("role") == role and job.get("status") == "running":
+                return job
+    return None
+
+
+def _run_optimize_job(job: dict, *, out_dir: Path, kwargs: dict) -> None:
+    """OPTIMIZE-JOB-1: the calibration job body. The result block is exactly what the
+    synchronous route returns; a refusal or a timeout inside is a failed record with its reason."""
+    try:
+        job["result"] = _optimize_via_subprocess(**kwargs)
+        job["status"] = "done"
+    except HTTPException as exc:
+        job["status"] = "failed"
+        job["error"] = str(exc.detail)
+        job["error_status"] = exc.status_code
+    except Exception as exc:  # noqa: BLE001 — the failure is the record, never a lost thread
+        job["status"] = "failed"
+        job["error"] = str(exc)
+    job["finished"] = datetime.now(timezone.utc).isoformat()
+    _save_job(out_dir, job)
 
 
 def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code_families) -> None:
@@ -2983,7 +3046,7 @@ def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code
 
 @app.get("/v1/jobs")
 def list_jobs_endpoint(
-    agent: str | None = None, out_dir: Path | None = Depends(get_out_dir)
+    agent: str | None = None, kind: str | None = None, out_dir: Path | None = Depends(get_out_dir)
 ) -> dict:
     """UI-JOURNEY-1 (B2): every grade job recorded under the workspace out dir (newest first),
     optionally one agent's, as summaries (no rows). The shell reads this on mount to find a
@@ -2994,6 +3057,8 @@ def list_jobs_endpoint(
     for path in sorted(jobs_dir.glob("job-*.json")) if jobs_dir.exists() else []:
         job = _load_job(resolved_out, path.stem)
         if job is None or (agent and job.get("agent") != agent):
+            continue
+        if kind and (job.get("kind") or "grade") != kind:
             continue
         jobs.append(_job_summary(job))
     jobs.sort(key=lambda j: j.get("started") or "", reverse=True)
@@ -3381,6 +3446,11 @@ def grade_cases_endpoint(
         job = _load_job(resolved_out, req.resume)
         if job is None:
             raise HTTPException(status_code=404, detail=f"unknown job {req.resume!r}")
+        if (job.get("kind") or "grade") != "grade":
+            raise HTTPException(
+                status_code=422,
+                detail=f"job {req.resume} is a {job.get('kind')} job; only a grade job can be resumed",
+            )
         if job.get("status") == "running":
             raise HTTPException(status_code=409, detail=f"job {req.resume} is still running")
         targets = list(job["targets"])
@@ -4617,9 +4687,39 @@ def optimize_judge_endpoint(
             ),
         )
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
-    return _optimize_via_subprocess(
+    kwargs = dict(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
         case_ids=req.case_ids, force_pin=req.force_pin, split=req.split,
+    )
+    if not req.background:
+        return _optimize_via_subprocess(**kwargs)
+    running = _running_optimize_for(role)
+    if running is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a calibration of {role} is already running: {running['job_id']}",
+        )
+    job = {
+        "job_id": f"job-{uuid.uuid4().hex[:12]}",
+        "kind": "optimize",
+        "role": role,
+        "agent": req.agent,
+        "status": "running",
+        "error": None,
+        "result": None,
+        "started": datetime.now(timezone.utc).isoformat(),
+        "finished": None,
+        "request": {"split": req.split, "limit": req.limit, "case_ids": req.case_ids, "force_pin": req.force_pin},
+    }
+    with _JOBS_LOCK:
+        _JOBS[job["job_id"]] = job
+    _save_job(resolved_out, job)
+    threading.Thread(
+        target=_run_optimize_job, kwargs={"job": job, "out_dir": resolved_out, "kwargs": kwargs}, daemon=True
+    ).start()
+    return JSONResponse(
+        status_code=202,
+        content={k: job[k] for k in ("job_id", "kind", "role", "agent", "status", "started")},
     )
 
 

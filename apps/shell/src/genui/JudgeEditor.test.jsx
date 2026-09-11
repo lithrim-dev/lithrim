@@ -36,6 +36,8 @@ vi.mock("../bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({ status: "ok", role: "risk_judge", actor: { type: "user", id: "sme@acme" } }),
   optimizeJudge: vi.fn(),
+  getJob: vi.fn(),
+  listJobs: vi.fn().mockResolvedValue({ jobs: [] }),
   listCases: vi.fn().mockResolvedValue({
     cases: [
       { case_id: "cv_mts_101", labeled: true },
@@ -47,7 +49,7 @@ vi.mock("../bff.js", () => ({
 }));
 
 import JudgeEditor from "./JudgeEditor.jsx";
-import { getJudge, putJudge, optimizeJudge, listCases } from "../bff.js";
+import { getJudge, putJudge, optimizeJudge, listCases, getJob, listJobs } from "../bff.js";
 
 const deltaResult = (delta, { baseline, optimized } = {}) => ({
   role: "risk_judge",
@@ -164,7 +166,7 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     expect(optimizeJudge).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("optimize-confirm"));
-    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true }));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, background: true, agent: "ws0_default" }));
 
     const delta = await screen.findByTestId("optimize-delta");
     expect(delta).toHaveAttribute("data-outcome", "win");
@@ -239,7 +241,7 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     // no selection → the optimize call carries NO caseIds (today's whole-workspace behaviour)
     fireEvent.click(screen.getByRole("button", { name: /^Optimize$/i }));
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
-    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true }));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, background: true, agent: "ws0_default" }));
   });
 
   it("optimize-on-subset: chosen cases scope the optimize (caseIds threaded, still gated)", async () => {
@@ -256,6 +258,8 @@ describe("JudgeEditor (tool-judge_editor)", () => {
     await waitFor(() =>
       expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", {
         confirm: true,
+        background: true,
+        agent: "ws0_default",
         caseIds: ["cv_mts_101", "cv_mts_102"],
       }),
     );
@@ -289,7 +293,7 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
     expect(screen.queryByTestId("optimize-case-ragtruth_1")).toBeNull(); // the subset picker yields to the split
     fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
-    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, split: "calibration" }));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, background: true, agent: "ws0_default", split: "calibration" }));
     expect((await screen.findByTestId("optimize-oos")).dataset.oos).toBe("yes");
     expect(screen.getByTestId("optimize-corpus-source").textContent).toMatch(/7 calibration cases · the pin decided on 3 dev cases \(30%, source-disjoint\) · test split untouched \(90\)/);
     expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("yes");
@@ -351,5 +355,43 @@ describe("JudgeEditor — a pin with no comparable score says so (HOLDOUT-DEV-1)
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     const note = await screen.findByTestId("optimize-pin-note");
     expect(note.textContent).toMatch(/different held-out set, so there was nothing comparable to beat/);
+  });
+});
+
+
+describe("JudgeEditor — calibration as a background job (OPTIMIZE-JOB-1)", () => {
+  const DONE = { ...deltaResult({ graded: 0.2 }), pin: { pinned: true, reason: "pinned", comparable: true }, out_of_sample: true };
+
+  it("starts a job, polls it, and renders the result block", async () => {
+    optimizeJudge.mockResolvedValueOnce({ job_id: "job-o1", kind: "optimize", role: "risk_judge", status: "running" });
+    getJob.mockReset();
+    getJob.mockResolvedValueOnce({ job_id: "job-o1", status: "running" }).mockResolvedValueOnce({ job_id: "job-o1", status: "done", result: DONE });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    expect(await screen.findByText(/job job-o1; safe to reload, it keeps running/)).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(7000);
+    expect((await screen.findByTestId("optimize-pin-note")).dataset.pinned).toBe("yes");
+    vi.useRealTimers();
+  });
+
+  it("finds a running calibration of this reviewer again on mount and follows it", async () => {
+    listJobs.mockResolvedValueOnce({ jobs: [{ job_id: "job-o2", kind: "optimize", role: "risk_judge", status: "running" }] });
+    getJob.mockReset();
+    getJob.mockResolvedValueOnce({ job_id: "job-o2", status: "done", result: DONE });
+    render(<JudgeEditor role="risk_judge" />);
+    expect((await screen.findByTestId("optimize-pin-note")).dataset.pinned).toBe("yes");
+    expect(listJobs).toHaveBeenCalledWith("ws0_default", "optimize");
+  });
+
+  it("a timed-out calibration shows the service's reason, not a generic failure", async () => {
+    optimizeJudge.mockResolvedValueOnce({ job_id: "job-o3", kind: "optimize", role: "risk_judge", status: "running" });
+    getJob.mockReset();
+    getJob.mockResolvedValueOnce({ job_id: "job-o3", status: "failed", error: "The calibration run did not finish within 14400 s and was stopped; nothing was pinned." });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    expect((await screen.findByTestId("optimize-error")).textContent).toMatch(/did not finish within 14400 s.*nothing was pinned/);
   });
 });

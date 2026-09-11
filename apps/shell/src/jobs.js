@@ -50,6 +50,8 @@ export async function followJob(job, { interval } = {}) {
 export async function restoreJobs(agent, { interval } = {}) {
   let jobs;
   try { jobs = (await listJobs(agent)).jobs || []; } catch { return null; }
+  // OPTIMIZE-JOB-1: calibration jobs share the store; the judge editor follows those.
+  jobs = jobs.filter((j) => (j.kind || "grade") === "grade");
   const running = jobs.find((j) => j.status === "running");
   if (running) return followJob(running, { interval });
   const interrupted = jobs.find((j) => j.status === "interrupted");

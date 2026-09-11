@@ -147,6 +147,11 @@ empty on first `up`:
   [`docs/JUTE_MAPPER_ADDON.md`](JUTE_MAPPER_ADDON.md).
 - **Require inbound auth**: set `LITHRIM_BFF_TOKEN=<token>` to require `Authorization: Bearer <token>`
   on every request (`/health` and CORS preflight stay open).
+- **Long calibrations**: a calibration runs as a background job the judge editor follows
+  across reloads. Its optimizer subprocess stops after `LITHRIM_OPTIMIZE_TIMEOUT_S` seconds
+  (default 14400, four hours) and reports that as a failed calibration with nothing pinned;
+  a single case's grade subprocess stops after `LITHRIM_GRADE_TIMEOUT_S` (default 600). To
+  change either under compose, pass it to the `bff` service in an override file.
 
 ---
 

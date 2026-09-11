@@ -22,6 +22,8 @@ vi.mock("./bff.js", () => ({
   }),
   putJudge: vi.fn().mockResolvedValue({ status: "ok", role: "risk_judge", actor: { type: "user", id: "sme" } }),
   optimizeJudge: vi.fn().mockResolvedValue({}),
+  listJobs: vi.fn().mockResolvedValue({ jobs: [] }), // OPTIMIZE-JOB-1: the editor looks for a running calibration
+  getJob: vi.fn(),
   listCases: vi.fn().mockResolvedValue({ cases: [], count: 0 }),
   chatStream: vi.fn(async (_req, { onEvent } = {}) => {
     if (!onEvent) return;

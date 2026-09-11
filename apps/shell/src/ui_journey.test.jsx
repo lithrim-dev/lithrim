@@ -314,3 +314,22 @@ describe("FT-FROM-SHELL-1: grade the calibration split for a training export", (
     unmount();
   });
 });
+
+
+describe("OPTIMIZE-JOB-1 (a): grade the test split from the palette", () => {
+  it("posts split=test as the before round, not the whole corpus", async () => {
+    localStorage.setItem("lithrim.workspace.chosen", "default");
+    stubFetch({ "/v1/cases/grade": { job_id: "job-t", status: "running", done: 0, total: 450 } });
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    await screen.findByTitle("Switch workspace");
+    openPalette();
+    fireEvent.click(await screen.findByTestId("cmdk-item-grade-test-split"));
+    expect(await screen.findByText(/Grade the test split \(paid\)\?/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Grade the test split \(paid\)/ }).pop());
+    await waitFor(() => {
+      const sent = calls.find((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+      expect(sent && JSON.parse(sent.body)).toMatchObject({ split: "test", round: "before" });
+    });
+    unmount();
+  });
+});
