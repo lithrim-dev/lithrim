@@ -26,6 +26,7 @@ the importer manifest says where a case keeps its source id, task, and gold span
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -461,9 +462,59 @@ def step_before(a) -> None:
     _grade_and_score(a, getattr(a, "tag_before", "before"))
 
 
+def judge_env_for(role: str, model: str | None, base: dict | None = None) -> dict:
+    """CALIBRATE-KEY-1: the per-role provider env the optimizer subprocess needs, built the way
+    the BFF builds it before a grade: the persisted role binding (provider, model, endpoint, api
+    version) first, the ``--model`` pin as the fallback, and the key from the write-only
+    ``.provider_env`` the app writes resolved into ``LITHRIM_LLM_API_KEY_<ROLE>``.
+
+    Without this a calibration ran on the role's DEFAULT deployment — often un-deployed — even
+    though the same key graded fine from the app. The secret is only ever read, never persisted
+    to the binding store, and never printed."""
+    env = dict(os.environ if base is None else base)
+    suffix = role.upper()
+    provider_dir = Path(env.get("LITHRIM_PROVIDER_ENV_DIR") or os.environ.get("LITHRIM_PROVIDER_ENV_DIR") or REPO_ROOT)
+    secrets: dict[str, str] = {}
+    pfile = provider_dir / ".provider_env"
+    if pfile.exists():
+        for line in pfile.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            secrets[name.strip()] = value.strip().strip('"').strip("'")
+    binding: dict = {}
+    with contextlib.suppress(Exception):  # no store yet is not an error
+        from lithrim_bench.harness import role_bindings
+
+        binding = role_bindings.load_bindings(
+            db_path=provider_dir / "provider_config.sqlite"
+        ).get(role) or {}
+    for field, var in (
+        ("provider", f"LITHRIM_LLM_PROVIDER_{suffix}"),
+        ("model", f"LITHRIM_LLM_MODEL_{suffix}"),
+        ("endpoint", f"LITHRIM_LLM_API_BASE_{suffix}"),
+        ("api_version", f"LITHRIM_LLM_API_VERSION_{suffix}"),
+    ):
+        if binding.get(field) is not None:
+            env[var] = str(binding[field])
+    if model and "/" in model:
+        provider, _, name = model.partition("/")
+        env.setdefault(f"LITHRIM_LLM_PROVIDER_{suffix}", provider)
+        env.setdefault(f"LITHRIM_LLM_MODEL_{suffix}", name)
+    key_var = f"LITHRIM_LLM_API_KEY_{suffix}"
+    if not env.get(key_var):
+        for candidate in ("LITHRIM_LLM_API_KEY", "AZURE_OPENAI_API_KEY", "OPENAI_API_KEY"):
+            value = env.get(candidate) or secrets.get(candidate)
+            if value:
+                env[key_var] = value
+                break
+    return env
+
+
 def step_optimize(a) -> None:
     role = a.judge_def["role"]
-    env = dict(os.environ)
+    env = judge_env_for(role, getattr(a, "model", None))
     env.setdefault("LITHRIM_BENCH_PACK_OVERLAY_DIR", str(REPO_ROOT / "out" / "pack_overlay"))
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
     cmd = [
