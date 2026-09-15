@@ -487,7 +487,8 @@ def step_pin(a) -> None:
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
     pin = pin_demos(opt_dir, a.workspace_out, role, force=getattr(a, "force_pin", False))
     if not pin["pinned"]:
-        raise SystemExit(pin["reason"] + " (--force-pin to override)")
+        hint = "" if "force" in pin["reason"].lower() else " (--force-pin to override)"
+        raise SystemExit(pin["reason"] + hint)
     print(f"{pin['reason'].replace('by force', 'by --force-pin')}: {pin['demos_path']}")
 
 

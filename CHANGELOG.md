@@ -38,8 +38,8 @@ Held-out hygiene for the pin gate, and the training export from the shell.
 - A pinned score is compared only on the same held-out set. The score sidecar records the
   held-out identity (split, size, digest of the case ids) and the manifest names the split; a
   set pinned before this change (scored on the test cut) or a changed dev slice is not
-  comparable, so the next round pins with that reason stated instead of being accepted or
-  refused on the difference between two sets.
+  comparable, so the round is refused with that reason rather than pinned (re-scoring the
+  pinned set would be a paid round); `force` pins it deliberately and says so.
 - The chat (azure-chat) export no longer crashes on a structured prose source (every RAGTruth QA
   row); a row the training prompt still cannot fill is refused by name.
 

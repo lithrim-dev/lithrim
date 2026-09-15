@@ -344,17 +344,30 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
 });
 
 
-describe("JudgeEditor — a pin with no comparable score says so (HOLDOUT-DEV-1)", () => {
-  it("names the different held-out set instead of implying the round beat the pinned set", async () => {
+describe("JudgeEditor — a round with no comparable score is refused (PIN-GATE-3)", () => {
+  it("says the round was not pinned and why, instead of implying it beat the pinned set", async () => {
     optimizeJudge.mockResolvedValueOnce({
       ...deltaResult({ graded: -0.1 }),
-      pin: { pinned: true, comparable: false, reason: "pinned (no comparable score: ...)" },
+      pin: { pinned: false, comparable: false, reason: "REFUSING to pin: no comparable score: ..." },
     });
     render(<JudgeEditor role="risk_judge" />);
     fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     const note = await screen.findByTestId("optimize-pin-note");
-    expect(note.textContent).toMatch(/different held-out set, so there was nothing comparable to beat/);
+    expect(note.textContent).toMatch(/Not pinned/);
+    expect(note.textContent).toMatch(/different held-out set/);
+    expect(note.textContent).not.toMatch(/now grades with these demos/);
+  });
+
+  it("names force when an uncomparable round was pinned deliberately", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: -0.1 }),
+      pin: { pinned: true, comparable: false, reason: "pinned by force (no comparable score: ...)" },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    expect((await screen.findByTestId("optimize-pin-note")).textContent).toMatch(/pinned by force, with no comparable held-out score/);
   });
 });
 

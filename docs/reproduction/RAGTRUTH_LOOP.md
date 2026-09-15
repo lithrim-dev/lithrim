@@ -82,8 +82,10 @@ docker compose exec bff lithrim regrade   --judge $J --model $M --confirm-cost  
   the score, never hidden.
 - `calibrate` trains only on `split: calibration` rows and pins the compiled demos into the
   workspace only if their held-out score is not below the pinned set's. A losing round says so
-  and pins nothing (`--force-pin` overrides, recorded in the output). The UI's Optimize button
-  goes through the same gate and shows pinned / not pinned.
+  and pins nothing; so does a round whose held-out set is not the one the pinned demos were
+  scored on, because there is nothing to compare it against (`--force-pin` overrides either,
+  recorded in the output). The UI's Optimize button goes through the same gate and shows
+  pinned / not pinned.
 - **How held-out is chosen.** The calibration corpus is RAGTruth's train split alone. A
   deterministic, source-disjoint `dev` slice, 30% of each task's sources ordered by the hash of
   the source id, is carved from it; the demos train on the rest and the pin gate scores on

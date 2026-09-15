@@ -44,10 +44,13 @@ function OptimizeDelta({ result }) {
   // PIN-GATE-2: the server decides whether the compiled demos reach the production judge (only a
   // set that does not regress the pinned one). `pin` is absent on a pre-gate server: say nothing
   // about binding rather than the old (false) "binding is the next step" line.
+  const forced = /force/i.test(pin?.reason || "");
   const pinLine = pin
     ? pin.pinned
-      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : pin.comparable === false ? " (the pinned set's score came from a different held-out set, so there was nothing comparable to beat)" : ""}.`
-      : "Not pinned: the previously pinned demos (or none) stay in force."
+      ? `Pinned: the production judge now grades with these demos${forced ? (pin.comparable === false ? " (pinned by force, with no comparable held-out score to beat)" : " (pinned by force over a lower held-out score)") : ""}.`
+      : pin.comparable === false
+        ? "Not pinned: this round was scored on a different held-out set from the pinned demos, so there was nothing to compare it against. The pinned demos (or none) stay in force."
+        : "Not pinned: the previously pinned demos (or none) stay in force."
     : null;
   const rows = [
     { k: "graded", label: "Graded (hard-accept)" },

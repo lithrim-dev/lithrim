@@ -119,20 +119,39 @@ def test_the_sidecar_records_which_held_out_set_the_score_came_from(tmp_path):
     )
 
 
-def test_a_score_from_a_different_held_out_set_is_not_compared(tmp_path):
-    """A set pinned before the dev slice (its score from the test cut, no identity) against a
-    new dev-slice round: two held-out sets, so no comparison; the round pins with that reason."""
-    ws = tmp_path / "ws"
-    ws.mkdir()
+def _pinned_without_identity(ws, graded=0.76):
+    ws.mkdir(parents=True, exist_ok=True)
     (ws / f"compiled_demos_{TAG}.json").write_text("[]")
     (ws / f"compiled_demos_{TAG}.score.json").write_text(
-        json.dumps({"graded": 0.76, "source": "old"})
+        json.dumps({"graded": graded, "source": "old"})
     )
+
+
+def test_a_score_from_a_different_held_out_set_is_refused_not_pinned(tmp_path):
+    """PIN-GATE-3. A set pinned before the dev slice (its score from the test cut, no identity)
+    against a new dev-slice round: two held-out sets, so there is nothing to compare. An
+    uncomparable round is REFUSED — pinning it would let a regressing round in by changing the
+    subset it is scored on — and the pinned set stays in place untouched."""
+    ws = tmp_path / "ws"
+    _pinned_without_identity(ws)
     staging = _stage(tmp_path, 0.6)
     _result_with_heldout(staging, "dev", ["d1", "d2"])
     pin = jo.pin_demos(staging, ws, ROLE)
+    assert pin["pinned"] is False and pin["comparable"] is False
+    assert "REFUSING" in pin["reason"] and "no comparable" in pin["reason"]
+    assert "force" in pin["reason"].lower()
+    side = json.loads((ws / f"compiled_demos_{TAG}.score.json").read_text())
+    assert side["graded"] == 0.76 and "heldout" not in side
+
+
+def test_an_uncomparable_round_pins_only_under_force_and_says_so(tmp_path):
+    ws = tmp_path / "ws"
+    _pinned_without_identity(ws)
+    staging = _stage(tmp_path, 0.6)
+    _result_with_heldout(staging, "dev", ["d1", "d2"])
+    pin = jo.pin_demos(staging, ws, ROLE, force=True)
     assert pin["pinned"] is True and pin["comparable"] is False
-    assert "no comparable" in pin["reason"] and "different held-out set" in pin["reason"]
+    assert "force" in pin["reason"].lower() and "no comparable" in pin["reason"]
     assert (
         json.loads((ws / f"compiled_demos_{TAG}.score.json").read_text())["heldout"]["split"]
         == "dev"
@@ -154,8 +173,11 @@ def test_the_same_held_out_set_is_still_gated_and_a_changed_one_is_not(tmp_path)
     )
     moved = _stage(tmp_path / "c", 0.6)
     _result_with_heldout(moved, "dev", ["d1", "d3"])  # the dev slice changed (a new load)
-    pinned = jo.pin_demos(moved, ws, ROLE)
-    assert pinned["pinned"] is True and pinned["comparable"] is False
+    refused_again = jo.pin_demos(moved, ws, ROLE)
+    assert refused_again["pinned"] is False and refused_again["comparable"] is False
+    assert "REFUSING" in refused_again["reason"]
+    kept = json.loads((ws / f"compiled_demos_{TAG}.score.json").read_text())
+    assert kept["graded"] == 0.76 and kept["heldout"] == jo.heldout_identity("dev", ["d1", "d2"])
 
 
 def test_with_no_identity_on_either_side_the_legacy_comparison_holds(tmp_path):
