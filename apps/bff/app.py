@@ -1178,6 +1178,22 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
     raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
 
 
+def _split_tags_in_corpus(ws=None) -> dict[str, int]:
+    """SPLIT-HYGIENE-1: {tag: n} over the workspace's LABELLED cases that carry a ``split``.
+    Empty when the corpus has no splits of its own (the stride path's only honest input)."""
+    tags: dict[str, int] = {}
+    corpus: list[dict] = []
+    with contextlib.suppress(Exception):  # unreadable corpus → no tags; the engine still refuses
+        corpus = _read_ingested_corpus(ws)
+    for case in corpus:
+        if not isinstance(case.get("expected_safety_flags"), list):
+            continue
+        tag = str(case.get("split") or "")
+        if tag:
+            tags[tag] = tags.get(tag, 0) + 1
+    return tags
+
+
 def _optimize_via_subprocess(
     *, role, ws, collections_db, out_dir, limit, case_ids=None, force_pin=False, split=None
 ) -> dict:
@@ -4686,6 +4702,21 @@ def optimize_judge_endpoint(
                 "an explicit cost check."
             ),
         )
+    if not req.split:
+        # SPLIT-HYGIENE-1: without a split the optimizer STRIDES over every labelled case and
+        # ignores the tag each was imported with, so a labelled dataset's held-out rows would
+        # train the demos and decide the pin. Refuse here: before the paid call, before a job.
+        tags = _split_tags_in_corpus(ws)
+        if tags:
+            named = ", ".join(f"{k}: {n}" for k, n in sorted(tags.items()))
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"this workspace's cases carry their own split tags ({named}). Name the "
+                    "split to calibrate on, so the demos never train on rows the dataset held "
+                    "out; calibrating without one would stride across every split."
+                ),
+            )
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     kwargs = dict(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,

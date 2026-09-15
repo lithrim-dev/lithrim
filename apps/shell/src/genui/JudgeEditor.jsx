@@ -198,8 +198,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const splitCounts = { calibration: cases.filter((c) => c.split === "calibration").length, test: cases.filter((c) => c.split === "test").length };
   // HOLDOUT-DEV-1: the calibration split alone is enough (a dev slice is carved from it); the
   // test split is never part of the calibration corpus.
+  // SPLIT-HYGIENE-1: when the corpus carries its own splits this is not a choice — the service
+  // refuses a calibration that strides across them (it would train on held-out rows), so the
+  // split is always sent and the subset picker yields to it.
   const splitAvailable = splitCounts.calibration >= 2;
-  const [useSplit, setUseSplit] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -317,7 +319,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     try {
       // optimize-on-subset: scope to the chosen cases ONLY when a subset is picked — an empty
       // selection sends no case_ids, keeping today's whole-workspace optimize byte-identical.
-      const onSplit = splitAvailable && useSplit;
+      const onSplit = splitAvailable;
       const result = await optimizeJudge(role, {
         confirm: true,
         background: true,
@@ -535,16 +537,13 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             </div>
           )}
           {splitAvailable && (
-            <label data-testid="optimize-split" className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
-              <input type="checkbox" checked={useSplit} onChange={(e) => setUseSplit(e.target.checked)} />
-              <span>
-                Calibrate on the <b>calibration</b> split ({splitCounts.calibration} cases): 70% trains the demos and a source-disjoint 30% <b>dev</b> slice decides the pin. The <b>test</b> split ({splitCounts.test} cases) stays untouched until you grade again.
-              </span>
-            </label>
+            <p data-testid="optimize-split" className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
+              Calibrating on the <b>calibration</b> split ({splitCounts.calibration} cases): 70% trains the demos and a source-disjoint 30% <b>dev</b> slice decides the pin. The <b>test</b> split ({splitCounts.test} cases) stays untouched until you grade again. These cases carry their own splits, so calibration never strides across them.
+            </p>
           )}
           {/* optimize-on-subset: scope the calibration to a CHOSEN case set. No selection =
               the whole workspace (today's behaviour). A $0 selector — the paid confirm is below. */}
-          {cases.length > 0 && !(splitAvailable && useSplit) && (
+          {cases.length > 0 && !splitAvailable && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between">
                 <Label className="text-[10.5px] text-muted-foreground">

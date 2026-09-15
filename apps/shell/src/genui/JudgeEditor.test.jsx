@@ -314,12 +314,24 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
     expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("no");
   });
 
-  it("unticking the split option falls back to the subset picker", async () => {
+  it("offers no way to stride across a corpus that carries its own splits (SPLIT-HYGIENE-1)", async () => {
     listCases.mockResolvedValueOnce(SPLIT_CASES);
     render(<JudgeEditor role="risk_judge" />);
     const opt = await screen.findByTestId("optimize-split");
-    fireEvent.click(opt.querySelector("input"));
-    expect(await screen.findByTestId("optimize-case-ragtruth_1")).toBeInTheDocument();
+    expect(opt.querySelector("input")).toBeNull();
+    expect(opt.textContent).toMatch(/never strides across them/);
+    expect(screen.queryByTestId("optimize-case-ragtruth_1")).toBeNull();
+  });
+
+  it("a corpus with no splits of its own still offers the subset picker and sends no split", async () => {
+    listCases.mockResolvedValueOnce({ cases: [{ case_id: "c1", labeled: true }, { case_id: "c2", labeled: true }], count: 2 });
+    optimizeJudge.mockResolvedValueOnce(deltaResult({ graded: 0.1 }));
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByTestId("optimize-case-c1")).toBeInTheDocument();
+    expect(screen.queryByTestId("optimize-split")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, background: true, agent: "ws0_default" }));
   });
 
   describe("the judge read's pinned demos", () => {

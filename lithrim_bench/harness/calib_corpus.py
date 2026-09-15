@@ -37,8 +37,25 @@ def build_calib_rows(
     narrow tail-split could starve the held-out set of the very flags the role raises).
 
     Returns rows shaped ``{case_id, transcript, artifacts, expected_safety_flags, split}`` — the
-    fields the optimizer's example projection reads. ``test_stride`` defaults to 3 (≈70/30)."""
+    fields the optimizer's example projection reads. ``test_stride`` defaults to 3 (≈70/30).
+
+    SPLIT-HYGIENE-1: the stride is for a corpus that has no splits of its own. A corpus whose
+    cases already carry a ``split`` tag (a labelled dataset's own train/test cut) is REFUSED:
+    striding over it would ignore those tags and train the demos on held-out rows. Calibrate
+    such a corpus by naming the split to train on instead."""
     labeled = [c for c in cases if isinstance(c.get("expected_safety_flags"), list)]
+    tagged: dict[str, int] = {}
+    for c in labeled:
+        tag = str(c.get("split") or "")
+        if tag:
+            tagged[tag] = tagged.get(tag, 0) + 1
+    if tagged:
+        named = ", ".join(f"{k}: {n}" for k, n in sorted(tagged.items()))
+        raise ValueError(
+            f"these cases already carry split tags ({named}), so the calibration/test stride "
+            "would ignore them and train the demos on rows the dataset held out. Calibrate on a "
+            "named split instead (the shell and `lithrim calibrate` send one)."
+        )
     labeled = sorted(labeled, key=lambda c: str(c.get("case_id") or ""))
     rows: list[dict[str, Any]] = []
     for i, c in enumerate(labeled):
