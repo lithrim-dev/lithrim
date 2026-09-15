@@ -1,6 +1,6 @@
 /* jobs.test.js — UI-JOURNEY-1 (B2): the poller survives dropped polls and reports the end state. */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { pollJob, followJob, restoreJobs } from "./jobs.js";
+import { pollJob, followJob, restoreJobs, stopFollowing } from "./jobs.js";
 import { getProgress, endBatch, markInterrupted } from "./progress.js";
 
 let responses;
@@ -66,5 +66,66 @@ describe("restoreJobs follows grade jobs only (OPTIMIZE-JOB-1)", () => {
     await expect(restoreJobs("a", { interval: 1 })).resolves.toBeNull();
     expect(getProgress().active).toBe(false);
     expect(getProgress().interrupted).toBeNull();
+  });
+});
+
+/* JOB-POLLER-1: one poller per job, and none left running for an agent nobody is looking at.
+   Two callers can reach the same job (the tab that started it and the mount-time restore), and
+   the panes re-mount on an agent switch; each extra poller re-entered beginBatch/endBatch, so
+   the chip flickered, one poller's endBatch cleared another's progress, and a poller for the
+   previous agent kept polling and could announce ITS job into the new agent's chrome. */
+describe("JOB-POLLER-1: one poller per job", () => {
+  it("a second follow of the same job joins the first instead of starting another", async () => {
+    responses = [
+      { job_id: "j", status: "running", done: 1, total: 3 },
+      { job_id: "j", status: "done", done: 3, total: 3 },
+    ];
+    const heard = [];
+    const onDone = (e) => heard.push(e.detail.job.job_id);
+    window.addEventListener("lithrim:job-done", onDone);
+    const a = followJob({ job_id: "j", total: 3 }, { interval: 1 });
+    const b = followJob({ job_id: "j", total: 3 }, { interval: 1 });
+    const [ja, jb] = await Promise.all([a, b]);
+    window.removeEventListener("lithrim:job-done", onDone);
+    expect(ja).toBe(jb); // the same record: one poller, one result
+    expect(responses.length).toBe(0); // only the one poller's polls were spent
+    expect(heard).toEqual(["j"]); // announced once, not twice
+    expect(getProgress().active).toBe(false);
+  });
+
+  it("a finished job can be followed again later (the registry does not leak)", async () => {
+    responses = [{ job_id: "j", status: "done", done: 1, total: 1 }];
+    await followJob({ job_id: "j", total: 1 }, { interval: 1 });
+    responses = [{ job_id: "j", status: "done", done: 1, total: 1 }];
+    await followJob({ job_id: "j", total: 1 }, { interval: 1 });
+    expect(responses.length).toBe(0);
+  });
+
+  it("stopFollowing ends a poller without announcing its job or clobbering the chip", async () => {
+    responses = [
+      { job_id: "old", status: "running", done: 1, total: 9 },
+      { job_id: "old", status: "done", done: 9, total: 9 },
+    ];
+    const heard = [];
+    const onDone = (e) => heard.push(e.detail.job.job_id);
+    window.addEventListener("lithrim:job-done", onDone);
+    const p = followJob({ job_id: "old", agent: "agent_a", total: 9 }, { interval: 1 });
+    stopFollowing((st) => st.agent !== "agent_b");
+    await p;
+    window.removeEventListener("lithrim:job-done", onDone);
+    expect(heard).toEqual([]); // the old agent's job never lands in the new agent's chrome
+    expect(getProgress().active).toBe(false);
+  });
+
+  it("restoreJobs for a new agent stops the previous agent's poller", async () => {
+    responses = [
+      { job_id: "old", status: "running", done: 1, total: 9 },
+      { job_id: "old", status: "running", done: 2, total: 9 },
+      { jobs: [] },
+    ];
+    const p = followJob({ job_id: "old", agent: "agent_a", total: 9 }, { interval: 1 });
+    await restoreJobs("agent_b", { interval: 1 });
+    await p;
+    expect(getProgress().active).toBe(false);
   });
 });

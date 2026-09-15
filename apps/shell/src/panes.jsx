@@ -408,7 +408,7 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
     try {
       const resp = await gradeCases({ agent, live: false, in_process: false, background: true, round: "replay", ...(ctx && ctx.split ? { split: ctx.split } : {}) });
       if (resp && resp.job_id) {
-        const job = await followJob(resp);
+        const job = await followJob({ ...resp, agent });
         if (job.status !== "done") throw new Error(job.error || `replay job ${resp.job_id} ${job.status}`);
       } else if (resp) {
         setChat((c) => [...c, scorecardTurn(resp, { round: "replay" })]);
@@ -807,7 +807,7 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // GRADE-CONFIRM-1: a resume spends too (it keeps the first round's paid flags), so it
           // arrives here, through the same dialog, and carries the confirm; resumeJob polls it.
           if (paid.resume) {
-            const job = await resumeJob(paid.resume, { confirm: true });
+            const job = await resumeJob(paid.resume, { confirm: true, onAccepted: () => setPaid({ open: false, busy: false }) });
             if (job && job.status && job.status !== "done") throw new Error(job.error || `grade job ${job.job_id} ${job.status}`);
             setPaid({ open: false, busy: false });
             return;
@@ -817,10 +817,14 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
             try { round = ((await listJobs(agent)).jobs || []).some((j) => j.round === "before") ? null : "before"; } catch { round = null; }
           }
           const resp = await gradeCases({ agent, in_process: true, background: true, confirm: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}), ...(round ? { round } : {}), ...(paid.split ? { split: paid.split } : {}) });
+          // JOB-POLLER-1: the service ACCEPTED it (202 + job id) — hand over to the status-bar
+          // chip and close the dialog now. Waiting for the finished job kept a modal with a
+          // disabled Cancel on screen for the whole run (minutes at cohort size).
+          if (resp && resp.job_id) setPaid({ open: false, busy: false });
           if (resp && resp.job_id) {
             // followJob announces the finished job on the lithrim:job-done bridge (rendered below),
             // so the card path is the same whether this tab started the job or found it after a reload.
-            const job = await followJob(resp);
+            const job = await followJob({ ...resp, agent });
             if (job.status !== "done") throw new Error(job.error || `grade job ${resp.job_id} ${job.status}`);
           } else {
             setChat((c) => [...c, scorecardTurn(resp)]);

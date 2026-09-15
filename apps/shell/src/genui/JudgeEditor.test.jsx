@@ -419,4 +419,24 @@ describe("JudgeEditor — calibration as a background job (OPTIMIZE-JOB-1)", () 
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     expect((await screen.findByTestId("optimize-error")).textContent).toMatch(/did not finish within 14400 s.*nothing was pinned/);
   });
+  // JOB-POLLER-1: the reviewer card can be mounted twice (the chat's card and the editor); each
+  // mount used to start its own poller for the SAME calibration job.
+  it("two cards following the same calibration poll it once and both render the result", async () => {
+    listJobs.mockResolvedValue({ jobs: [{ job_id: "job-o9", kind: "optimize", role: "risk_judge", status: "running" }] });
+    getJob.mockReset();
+    let polls = 0;
+    getJob.mockImplementation(async () => { polls += 1; return { job_id: "job-o9", status: "done", result: DONE }; });
+    render(
+      <>
+        <JudgeEditor role="risk_judge" />
+        <JudgeEditor role="risk_judge" />
+      </>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("optimize-pin-note").length).toBe(2));
+    for (const note of screen.getAllByTestId("optimize-pin-note")) expect(note.dataset.pinned).toBe("yes");
+    expect(polls).toBe(1);
+    listJobs.mockReset();
+    getJob.mockReset();
+  });
+
 });

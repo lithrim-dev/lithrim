@@ -51,6 +51,32 @@ describe("COHORT-SUBSET-1: the ⌘K 'Grade all cases' cohort trigger", () => {
     const sent = JSON.parse(String(init?.body || "{}"));
     expect(sent.in_process).toBe(true);
     expect(sent.case_ids).toBeUndefined(); // "Grade all" carries NO subset — the whole cohort
+    expect(sent.confirm).toBe(true); // GRADE-CONFIRM-1: the dialog's answer reaches the service
+    unmount();
+  });
+
+  // JOB-POLLER-1: the dialog used to sit there, with Cancel disabled, for the WHOLE run — minutes
+  // at cohort size, with no way out — because it waited on the finished job rather than on the
+  // service accepting it. A 202 hands over to the status-bar chip.
+  it("closes as soon as the job is accepted and leaves the chip to report it", async () => {
+    let polls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url) => {
+        const u = String(url);
+        let body = {};
+        if (u.includes("/v1/cases/grade")) body = { job_id: "job-c1", status: "running", done: 0, total: 9 };
+        else if (u.includes("/v1/jobs/job-c1")) body = { job_id: "job-c1", status: ++polls > 3 ? "done" : "running", done: polls, total: 9, result: { matrix: [], summary: {}, scorecard: { cases: [] } } };
+        else if (u.includes("/v1/jobs")) body = { jobs: [] };
+        return Promise.resolve({ ok: true, json: async () => body });
+      }),
+    );
+    const { unmount } = render(<App mode="shell" setMode={() => {}} />);
+    openPalette();
+    fireEvent.click(await screen.findByText(/Grade all cases/i));
+    fireEvent.click(await screen.findByRole("button", { name: /Grade all cases \(paid\)/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(await screen.findByTestId("grade-progress")).toBeInTheDocument(); // the chip took over
     unmount();
   });
 });

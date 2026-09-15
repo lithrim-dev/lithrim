@@ -120,6 +120,42 @@ function OptimizeDelta({ result }) {
   );
 }
 
+// JOB-POLLER-1: the calibration pollers in flight, keyed by job id, shared across every mounted
+// reviewer card so one job is polled once no matter how many cards are on screen.
+const optimizePollers = new Map();
+
+// Poll one calibration job to its end; a dropped poll is retried with a growing wait, more than
+// five in a row is the error. Resolves with the final record, or {status: "error"} shape.
+async function pollOptimizeJob(jobId) {
+  let failures = 0;
+  for (;;) {
+    let job;
+    try {
+      job = await getJob(jobId);
+      failures = 0;
+    } catch (e) {
+      failures += 1;
+      if (failures > 5) return { status: "poll-failed", error: e };
+      await new Promise((r) => setTimeout(r, Math.min(OPT_POLL_MS * failures, 10000)));
+      continue;
+    }
+    if (job.status !== "running") return job;
+    await new Promise((r) => setTimeout(r, OPT_POLL_MS));
+  }
+}
+
+// Write one poller's final record into a card's own state (each mounted card renders it).
+function applyOptimizeJob(jobId, job, setOpt) {
+  if (job.status === "poll-failed") { setOpt({ state: "error", result: null, error: friendlyError(job.error), job: jobId }); return; }
+  if (job.status === "done") { setOpt({ state: "done", result: job.result, error: null, job: jobId }); return; }
+  setOpt({
+    state: "error", result: null, job: jobId,
+    error: job.status === "interrupted"
+      ? "The calibration stopped when the service restarted; nothing was pinned. Run it again."
+      : (job.error || `calibration ${job.status}`),
+  });
+}
+
 export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default", onResult }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [error, setError] = useState(null);
@@ -151,28 +187,26 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [opt, setOpt] = useState({ state: "idle", result: null, error: null }); // idle|running|done|error
   // OPTIMIZE-JOB-1: a calibration runs as a background job; poll it (dropped polls are retried
   // with a growing wait, so a reconnect does not lose it) and render its result block.
+  // JOB-POLLER-1: ONE poller per job id across every mounted card — the reviewer card can be on
+  // screen twice (the chat's card and the editor), and each mount started its own poller for the
+  // same calibration, doubling the polls and racing two writers onto the same result.
   const followOptimize = async (jobId) => {
     setOpt({ state: "running", result: null, error: null, job: jobId });
-    let failures = 0;
-    for (;;) {
-      let job;
-      try {
-        job = await getJob(jobId);
-        failures = 0;
-      } catch (e) {
-        failures += 1;
-        if (failures > 5) { setOpt({ state: "error", result: null, error: friendlyError(e), job: jobId }); return; }
-        await new Promise((r) => setTimeout(r, Math.min(OPT_POLL_MS * failures, 10000)));
-        continue;
-      }
-      if (job.status === "done") { setOpt({ state: "done", result: job.result, error: null, job: jobId }); return; }
-      if (job.status !== "running") {
-        setOpt({ state: "error", result: null, job: jobId,
-          error: job.status === "interrupted" ? "The calibration stopped when the service restarted; nothing was pinned. Run it again." : (job.error || `calibration ${job.status}`) });
-        return;
-      }
-      await new Promise((r) => setTimeout(r, OPT_POLL_MS));
+    const shared = optimizePollers.get(jobId);
+    if (shared) {
+      const job = await shared;
+      applyOptimizeJob(jobId, job, setOpt);
+      return;
     }
+    const run = pollOptimizeJob(jobId);
+    optimizePollers.set(jobId, run);
+    let job;
+    try {
+      job = await run;
+    } finally {
+      optimizePollers.delete(jobId);
+    }
+    applyOptimizeJob(jobId, job, setOpt);
   };
 
   // On mount: a calibration of this reviewer that is running (or just finished) is found again.

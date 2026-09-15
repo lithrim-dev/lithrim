@@ -2568,6 +2568,17 @@ def case_browser_endpoint(
     }
 
 
+def _refuse_a_second_grade(agent: str, *, exclude: str | None) -> None:
+    """409 when a grade job is already running for ``agent`` (``exclude`` is the job being
+    resumed). JOB-STATE-1: callable before any mutation, so a refusal leaves no half-state."""
+    running = _running_job_for(agent, exclude=exclude)
+    if running is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a grade job is already running for {agent}: {running['job_id']}",
+        )
+
+
 def _require_grade_confirm(confirmed: bool, paid: bool, *, resumed: bool) -> None:
     """GRADE-CONFIRM-1: refuse a paid grade that never confirmed its cost (422), the way the
     optimize route does. A resumed job runs on the ORIGINAL job's paid flags, so its own request
@@ -3491,6 +3502,10 @@ def grade_cases_endpoint(
             raise HTTPException(status_code=409, detail=f"job {req.resume} is still running")
         paid = bool((job.get("request") or {}).get("live") or (job.get("request") or {}).get("in_process"))
         _require_grade_confirm(req.confirm, paid, resumed=True)
+        # JOB-STATE-1: every refusal comes BEFORE the record is touched. Flipping it to running
+        # and dropping its unverdicted rows first left a job refused by the 409 below stuck
+        # reading "running" with nothing driving it, and the UI then offered no resume at all.
+        _refuse_a_second_grade(req.agent, exclude=req.resume)
         targets = list(job["targets"])
         job["rows"] = [row for row in job.get("rows") or [] if row.get("verdict")]
         job["status"], job["error"], job["result"] = "running", None, None
@@ -3524,12 +3539,8 @@ def grade_cases_endpoint(
             rows, targets, agent=req.agent, live=live, in_process=in_process, db_path=db_path,
             workdir=workdir, code_families=code_families,
         )
-    running = _running_job_for(req.agent, exclude=req.resume)
-    if running is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"a grade job is already running for {req.agent}: {running['job_id']}",
-        )
+    if not req.resume:  # a resume was already checked, before it touched the record
+        _refuse_a_second_grade(req.agent, exclude=None)
     if job is None:
         job = {
             "job_id": f"job-{uuid.uuid4().hex[:12]}",
