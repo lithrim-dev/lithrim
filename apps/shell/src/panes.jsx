@@ -482,8 +482,18 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       let table = {};
       try {
         // UI-JOURNEY-1 (B7): an after round sits beside the agent's latest before round.
-        const t = await getJobScorecard(job.job_id, null, job.round && job.round !== "before" ? "before" : null);
+        // COMPARE-SPLIT-1: only the AFTER round has a before to sit beside. A replay or a
+        // calibration round asked for one and got whatever before round existed.
+        const t = await getJobScorecard(job.job_id, null, job.round === "after" ? "before" : null);
         table = { per_task: t.per_task, per_code: t.per_code, vocabulary: t.vocabulary, unlocated: t.unlocated, pinned_demos: t.pinned_demos, ...(t.compare ? { compare: t.compare } : {}) };
+        // EXPORT-FORMAT-1: which formats THIS round's importer can write, so the picker never
+        // offers one the service would refuse. A failed read just leaves both offered.
+        try {
+          const dataset = t.vocabulary && t.vocabulary.dataset;
+          const importers = (await listImporters()).importers || [];
+          const mine = importers.find((m) => m.dataset === dataset || m.id === dataset);
+          if (mine && Array.isArray(mine.training_formats)) table.training_formats = mine.training_formats;
+        } catch { /* the picker falls back to offering both */ }
       } catch { table = {}; }
       const turn = scorecardTurn(job.result, job);
       turn.parts[0].output = { ...turn.parts[0].output, ...table };

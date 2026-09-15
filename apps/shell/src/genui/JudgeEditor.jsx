@@ -35,7 +35,9 @@ const OPT_POLL_MS = 3000; // OPTIMIZE-JOB-1: a calibration takes minutes; poll g
 const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
 
 /* The HONEST held-out Δ render (D-G, inline — NOT the calibration_chart reliability
-   diagram). Shows baseline→optimized precision/recall/graded on the FIXED test split.
+   diagram). Shows baseline→optimized precision/recall/graded on the held-out slice the round
+   was scored on: the dev slice carved from the calibration split (HOLDOUT-DEV-1) when the
+   corpus carries splits, else the strided test split.
    A win renders the lift; a ≤0 Δ renders EXPLICITLY as a loss (R1 — never hidden,
    never spun; the accept-gate is never loosened to manufacture a win). */
 function OptimizeDelta({ result }) {
@@ -65,7 +67,7 @@ function OptimizeDelta({ result }) {
       className="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-border bg-secondary px-3 py-2.5"
     >
       <div className="flex items-baseline justify-between">
-        <span className="text-[12px] font-medium text-foreground">Held-out Δ (fixed test split)</span>
+        <span className="text-[12px] font-medium text-foreground">Held-out Δ ({corpus_source && corpus_source.dev != null ? "dev slice of the calibration split" : "held-out split"})</span>
         <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
           n_train {n_train ?? "—"} · n_heldout {n_heldout ?? "—"} · {compile_config.n_demos_bootstrapped ?? 0} demos
         </span>
@@ -559,9 +561,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             </span>
           </div>
           <p className="text-[10.5px] text-muted-foreground">
-            Compile few-shot demos from the by-construction calibration split, then measure the
-            honest held-out Δ on the fixed test split. Did the edit move the number? — win or loss,
-            shown straight.
+            Compile few-shot demos from part of the calibration split, then measure the honest
+            held-out Δ on the rest of it — a source-disjoint dev slice the demos never saw. The
+            test split stays untouched. Did the edit move the number? — win or loss, shown
+            straight.
           </p>
           {judge && (
             <div data-testid="judge-pinned-demos" className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">

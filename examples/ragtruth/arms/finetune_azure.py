@@ -203,7 +203,9 @@ def main() -> int:
     s.add_argument("--epochs", type=int, default=3)
     s.add_argument("--suffix", default="lithrim-ragtruth")
     s.add_argument(
-        "--training-tokens", type=int, default=0, help="from `estimate`, for the cost line"
+        "--training-tokens", type=int, default=0,
+        help="the token total `estimate` printed for this file; prices the cost line only, it "
+             "is never sent to Azure (0 = print no estimate)",
     )
     s.add_argument(
         "--training-type",

@@ -457,6 +457,34 @@ def test_workspace_resources_name_everything_the_loop_left_behind(client):
     assert cli.get("/v1/workspaces/not_here/resources").status_code == 404
 
 
+# COMPARE-SPLIT-1: a round name resolves within the SAME split. A before round on the
+# calibration split (graded for a training export) and a before round on the test split are
+# different measurements on different cases; pairing them read as a swing that never happened.
+def test_a_round_name_compares_only_within_the_same_split(client):
+    cli, _out = client
+    _import(cli)
+    cli.post("/v1/judges?rationale=journey", json=JUDGE)
+
+    def _grade(round_, split):
+        job = cli.post(
+            "/v1/cases/grade",
+            json={"agent": AGENT, "in_process": True, "confirm": True, "background": True,
+                  "round": round_, "split": split},
+        ).json()["job_id"]
+        assert _wait_done(cli, job)["status"] == "done"
+        return job
+
+    calib_before = _grade("before", "calibration")
+    test_before = _grade("before", "test")
+    test_after = _grade("after", "test")
+    card = cli.get(f"/v1/jobs/{test_after}/scorecard?compare=before").json()
+    assert card["compare"]["job_id"] == test_before, "the test round pairs with the test round"
+    assert card["compare"]["job_id"] != calib_before
+    calib_after = _grade("after", "calibration")
+    other = cli.get(f"/v1/jobs/{calib_after}/scorecard?compare=before").json()
+    assert other["compare"]["job_id"] == calib_before
+
+
 # --------------------------------------------------------------------------- the whole chain
 def test_the_loop_from_import_to_export_over_one_workspace(client):
     cli, out = client

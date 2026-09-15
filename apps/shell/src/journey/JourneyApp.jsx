@@ -13,9 +13,10 @@ import { Center4, Artifact4 } from "./jp4.jsx";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// The ws5 BFF (uvicorn :8787) — the journey calls the REAL engine through it (grade + case).
-// CORS is set for :5180. Replay is $0; the journey falls back to the bundled fixtures if it's down.
-const BFF_URL = "http://localhost:8787";
+// The BFF the journey calls the REAL engine through (grade + case). Same resolution as bff.js:
+// VITE_BFF_URL when the image was built with one (a LAN address, a VPC target), else the
+// localhost default. Replay is $0; the journey falls back to the bundled fixtures if it's down.
+const BFF_URL = import.meta.env.VITE_BFF_URL || "http://localhost:8787";
 
 const CENTERS = { 1: Center1, 2: Center2, 3: Center3, 4: Center4 };
 const ARTIFACTS = { 1: Artifact1, 2: Artifact2, 3: Artifact3, 4: Artifact4 };

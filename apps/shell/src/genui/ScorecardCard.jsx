@@ -141,7 +141,7 @@ function pinnedLine(pinned_demos) {
   return entries.map(([role, d]) => `${role}: ${d.demos ?? "?"} demos${d.graded != null ? ` (held-out graded ${Number(d.graded).toFixed(2)})` : ""}`).join(" · ");
 }
 
-export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null, pinned_demos = null, onRegrade = null, onReplay = null, onExport = null, onDownload = null }) {
+export default function ScorecardCard({ cases = [], flag = {}, units = null, verdict_accuracy, by_flag = {}, n_cases, n_labeled, grade_path, by_judge = [], majority = null, judge_matrix = [], floor = null, served = null, judge_errors = null, cache_replays = null, onOpenCaseRun, per_task = null, per_code = null, vocabulary = null, unlocated = null, round = null, job_id = null, split = null, compare = null, pinned_demos = null, training_formats = null, onRegrade = null, onReplay = null, onExport = null, onDownload = null }) {
   const pinned = pinnedLine(pinned_demos);
   const ctx = { job_id, round, split };
   // UI-JOURNEY-1 (B8): the Export verb from the card; the result names exactly what was written.
@@ -149,6 +149,13 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
   // calibration-split round, matching the service's 422 (a training file never draws on test).
   const [exp, setExp] = useState({ phase: "idle", result: null, msg: "" });
   const training = split === "calibration";
+  // EXPORT-FORMAT-1: the importer manifest says which formats it can write (chat needs a
+  // training prompt module). Absent (an older service, no importer) = offer both, as before.
+  const declared = Array.isArray(training_formats) && training_formats.length ? training_formats : null;
+  const undeclared = (f) =>
+    declared && !declared.includes(f)
+      ? `The ${vocabulary?.dataset || "importer"} importer does not declare the ${f} format${f === "chat" ? " (it has no training prompt module)" : ""}.`
+      : null;
   const [fmt, setFmt] = useState("generic");
   const runExport = async () => {
     if (!onExport) return;
@@ -236,8 +243,8 @@ export default function ScorecardCard({ cases = [], flag = {}, units = null, ver
               <select data-testid="export-format" aria-label="export format" value={training ? fmt : "generic"} onChange={(e) => setFmt(e.target.value)}
                 className="rounded-[var(--radius-sm)] border border-border bg-background px-1.5 py-1 text-[11px]">
                 <option value="generic">generic (every field, both vocabularies)</option>
-                <option value="paper" disabled={!training}>paper (training spans)</option>
-                <option value="chat" disabled={!training}>azure-chat (fine-tuning JSONL)</option>
+                <option value="paper" disabled={!training || !!undeclared("paper")} title={undeclared("paper") || undefined}>paper (training spans)</option>
+                <option value="chat" disabled={!training || !!undeclared("chat")} title={undeclared("chat") || undefined}>azure-chat (fine-tuning JSONL)</option>
               </select>
               <span data-testid="export-split" className="text-muted-foreground" title={training ? "A training file draws on graded calibration rows only." : "Training formats need a round graded on the calibration split; the test split is for reporting."}>
                 from the {split || "workspace"} split{training ? "" : " · training formats need the calibration round"}

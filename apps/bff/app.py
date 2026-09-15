@@ -3252,6 +3252,11 @@ def _job_scorecard(
                         and j.get("job_id") != job.get("job_id")
                         and j.get("agent") == job.get("agent")
                         and j.get("round") == compare
+                        # COMPARE-SPLIT-1: a round name resolves within the SAME split — a
+                        # before round on the calibration split and one on the test split are
+                        # measurements on different cases, and pairing them reads as a swing
+                        # that never happened.
+                        and j.get("split") == job.get("split")
                         and j.get("status") == "done"
                     ):
                         candidates.append(j)
@@ -3268,6 +3273,28 @@ def _job_scorecard(
             else:
                 card["compare"] = None
     return card
+
+
+def _resolve_prompt_module(requested: str | None, vocab) -> str:
+    """EXPORT-MODULE-1: the chat row's user turn comes from the module the IMPORTER MANIFEST
+    declares. The route used to import whatever path the request named, so a caller could make
+    the service exec an arbitrary .py; the manifest is the contract, and a request may only
+    repeat it."""
+    declared = getattr(vocab, "training_prompt_module", None)
+    if not declared:
+        raise HTTPException(
+            status_code=422,
+            detail=f"format chat needs a prompt module; importer {vocab.id!r} declares none",
+        )
+    if requested and requested != declared:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"prompt_module {requested!r} is not the module importer {vocab.id!r} declares "
+                f"({declared!r}); the manifest is the contract for what the export may load"
+            ),
+        )
+    return declared
 
 
 class ExportRequest(BaseModel):
@@ -3391,14 +3418,7 @@ def export_endpoint(
                 gold[cid] = row
     fill_prompt = None
     if req.format == "chat":
-        # FT-FROM-SHELL-1: the chat row's user turn comes from the importer manifest's training
-        # prompt module unless the caller names one; neither is a 422.
-        prompt_module = req.prompt_module or vocab.training_prompt_module
-        if not prompt_module:
-            raise HTTPException(
-                status_code=422,
-                detail=f"format chat needs a prompt module; importer {vocab.id!r} declares none",
-            )
+        prompt_module = _resolve_prompt_module(req.prompt_module, vocab)
         try:
             fill_prompt = _export._load_fill_prompt(prompt_module)
         except (OSError, SystemExit, AttributeError) as exc:
