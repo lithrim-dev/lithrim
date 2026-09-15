@@ -2902,6 +2902,9 @@ def _grade_row(
                      "served_model": v.get("served_model"),
                      "latency_ms": v.get("latency_ms"),
                      "usage": v.get("usage"),
+                     # JUDGE-ERROR-1 / GRADE-ABORT-1: the failure text rides the row, so a dead
+                     # run is recognisable (and a reader can see WHY a vote is missing).
+                     "errors": v.get("errors") or [],
                      "scores_raw": v.get("scores_raw")}
                     for v in (rec.get("council") or {}).get("votes", [])
                 ],
@@ -3060,10 +3063,46 @@ def _run_optimize_job(job: dict, *, out_dir: Path, kwargs: dict) -> None:
     _save_job(out_dir, job)
 
 
+# GRADE-ABORT-1: an auth/config failure is the SAME for every case — the key, the deployment or
+# the endpoint is wrong — so a cohort that keeps hitting one is billing for nothing. These are the
+# markers; a provider REFUSAL (a content filter) is deliberately absent: it is case-specific, stays
+# a miss on the row, and never aborts the run.
+_AUTH_ABORT_MARKERS = (
+    "401", "403", "authenticationerror", "invalid api key", "invalid_api_key",
+    "incorrect api key", "invalid subscription key", "access denied", "permissiondenied",
+    "permission denied", "deploymentnotfound", "unauthorized",
+)
+_AUTH_ABORT_AFTER = 3  # consecutive cases whose every judge call failed this way
+
+
+def _auth_failure_reason(row: dict) -> str | None:
+    """The auth/config message behind a row whose judge calls ALL failed, else None. A row with
+    some judge answering is not a dead run; a refusal message matches nothing here."""
+    votes = row.get("votes") or []
+    messages: list[str] = []
+    if row.get("error"):
+        messages.append(str(row["error"]))
+    failed = 0
+    for vote in votes:
+        errors = vote.get("errors") or []
+        if errors:
+            failed += 1
+            messages.extend(str(e) for e in errors)
+    if votes and failed != len(votes):
+        return None  # a judge answered — the run is not dead
+    for message in messages:
+        low = message.lower()
+        if any(marker in low for marker in _AUTH_ABORT_MARKERS):
+            return message
+    return None
+
+
 def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code_families) -> None:
     """The job body: grade every target without a verdict, saving the record after each case
     so a restart can resume; then the cohort report. Any failure lands on the record."""
     r = job["request"]
+    consecutive_auth_failures = 0
+    last_auth_reason: str | None = None
     try:
         done_rows = {row["case_id"]: row for row in job["rows"] if row.get("verdict")}
         for cid in job["targets"]:
@@ -3078,6 +3117,20 @@ def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code
             job["rows"] = [done_rows[c] for c in job["targets"] if c in done_rows]
             job["done"] = sum(1 for x in job["rows"] if x.get("verdict") or x.get("error"))
             _save_job(out_dir, job)
+            # GRADE-ABORT-1: every judge call failing the same auth/config way, case after case,
+            # is a dead run — stop and name it instead of grading the cohort into empty votes.
+            reason = _auth_failure_reason(row)
+            if reason is None:
+                consecutive_auth_failures = 0
+            else:
+                consecutive_auth_failures += 1
+                last_auth_reason = reason
+                if consecutive_auth_failures >= _AUTH_ABORT_AFTER:
+                    raise RuntimeError(
+                        f"stopped after {consecutive_auth_failures} cases in a row whose every "
+                        f"judge call failed the same way: {last_auth_reason}. Nothing further was "
+                        "graded; fix the provider setup and resume this job."
+                    )
         job["result"] = _cohort_report(
             [done_rows[c] for c in job["targets"] if c in done_rows], job["targets"],
             agent=job["agent"], live=r["live"], in_process=r["in_process"], db_path=db_path,
