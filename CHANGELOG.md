@@ -6,6 +6,25 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking (API):** `POST /v1/cases/grade` refuses a PAID grade without `confirm: true`
+  (422), the way `POST /v1/judges/{role}/optimize` always has. This includes `resume`, which
+  runs on the original job's paid flags — the shell's Resume button billed with no cost dialog
+  before. The $0 replay path (neither `live` nor `in_process`) spends nothing and needs no
+  confirm. The shell sends the confirm from its in-DOM dialog and routes Resume through it;
+  `lithrim grade` / `regrade` send it with `--confirm-cost`.
+
+### Fixed
+- A calibration round whose held-out set is not the one the pinned demos were scored on is now
+  refused instead of pinned. The "no comparable score" branch pinned unconditionally, so a
+  regressing round could reach the production judge by changing the subset it was scored on;
+  `force` (`--force-pin`) still pins and the reason says so.
+- Calibrating a corpus that carries its own split tags no longer strides across them. The
+  stride ordered every labelled case by id and took every third as held-out, ignoring the split
+  each case was imported with, so a labelled dataset's test rows could train the demos and
+  decide the pin. The engine refuses such a corpus by name, the optimize route answers 422
+  before any paid call, and the reviewer card no longer offers the stride.
+
 ## [0.1.30] — 2026-09-11
 
 Calibrate as a background job, so a pilot-scale calibration runs from the shell.

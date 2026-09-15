@@ -131,16 +131,24 @@ describe("B2 grade: the running job is found again after a reload", () => {
     unmount();
   }, 10000);
 
-  it("an interrupted job offers resume instead of vanishing", async () => {
+  // GRADE-CONFIRM-1: resume bills — the resumed job keeps the original round's paid flags — so
+  // it goes through the SAME cost dialog as a fresh grade, and posts confirm with it.
+  it("an interrupted job offers resume, and resume asks for the cost confirm before posting", async () => {
     stubFetch({
       "/v1/jobs?": { jobs: [{ job_id: "job-2", agent: "ws0_default", status: "interrupted", done: 4, total: 9, round: "before" }] },
+      "/v1/cases/grade": { job_id: "job-2", status: "running", done: 4, total: 9 },
     });
     const { unmount } = render(<App mode="shell" setMode={() => {}} />);
-    const resume = await screen.findByTestId("job-resume");
-    fireEvent.click(resume);
-    await waitFor(() =>
-      expect(calls.some((c) => c.url.includes("/v1/cases/grade") && c.method === "POST" && String(c.body).includes('"resume":"job-2"'))).toBe(true),
-    );
+    fireEvent.click(await screen.findByTestId("job-resume"));
+    const posted = () => calls.some((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+    const confirm = await screen.findByTestId("cost-confirm");
+    expect(posted()).toBe(false); // not one paid call before the human confirms
+    fireEvent.click(confirm);
+    await waitFor(() => {
+      const post = calls.find((c) => c.url.includes("/v1/cases/grade") && c.method === "POST");
+      expect(post && String(post.body)).toMatch(/"resume":"job-2"/);
+      expect(String(post.body)).toMatch(/"confirm":true/);
+    });
     unmount();
   });
 });

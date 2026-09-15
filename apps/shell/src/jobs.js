@@ -60,8 +60,10 @@ export async function restoreJobs(agent, { interval } = {}) {
 }
 
 // Resume an interrupted job: the server grades only the cases without a verdict.
-export async function resumeJob(job, { interval } = {}) {
-  const resp = await gradeCases({ agent: job.agent, resume: job.job_id, background: true });
+// GRADE-CONFIRM-1: a resume RUNS ON THE ORIGINAL JOB'S PAID FLAGS, so it spends; `confirm` is the
+// human's cost-confirm and the service refuses the resume without it. Never default it to true.
+export async function resumeJob(job, { interval, confirm = false } = {}) {
+  const resp = await gradeCases({ agent: job.agent, resume: job.job_id, background: true, confirm });
   markInterrupted(null);
   return followJob({ ...job, ...resp }, { interval });
 }

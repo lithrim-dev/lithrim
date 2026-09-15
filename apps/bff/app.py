@@ -2568,6 +2568,22 @@ def case_browser_endpoint(
     }
 
 
+def _require_grade_confirm(confirmed: bool, paid: bool, *, resumed: bool) -> None:
+    """GRADE-CONFIRM-1: refuse a paid grade that never confirmed its cost (422), the way the
+    optimize route does. A resumed job runs on the ORIGINAL job's paid flags, so its own request
+    must confirm them again — the resume button billed silently before this."""
+    if not paid or confirmed:
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            ("resuming this job makes PAID judge calls (it keeps the flags the first round ran "
+             "with). " if resumed else "grading makes PAID judge calls, one per case. ")
+            + "Resend with confirm=true only after an explicit cost check."
+        ),
+    )
+
+
 class GradeCasesRequest(BaseModel):
     # NARR-LOOP: batch-grade the ingested corpus (the "evaluate all of them → report" loop).
     # case_ids None → ALL ingested cases. live/in_process are the SAME paid knobs as run-eval
@@ -2587,6 +2603,10 @@ class GradeCasesRequest(BaseModel):
     # calibration split). Selectors, never paid knobs.
     round: str | None = None
     split: str | None = None
+    # GRADE-CONFIRM-1: a PAID grade (live or in_process, new or resumed) crosses this boundary
+    # only with an explicit confirm, the way optimize does. The $0 replay path spends nothing
+    # and stays confirm-free. A resume inherits the original job's paid flags, so it needs one.
+    confirm: bool = False
 
 
 class IngestPreviewRequest(BaseModel):
@@ -3469,6 +3489,8 @@ def grade_cases_endpoint(
             )
         if job.get("status") == "running":
             raise HTTPException(status_code=409, detail=f"job {req.resume} is still running")
+        paid = bool((job.get("request") or {}).get("live") or (job.get("request") or {}).get("in_process"))
+        _require_grade_confirm(req.confirm, paid, resumed=True)
         targets = list(job["targets"])
         job["rows"] = [row for row in job.get("rows") or [] if row.get("verdict")]
         job["status"], job["error"], job["result"] = "running", None, None
@@ -3488,6 +3510,7 @@ def grade_cases_endpoint(
                 ),
             )
         job = None
+        _require_grade_confirm(req.confirm, live or in_process, resumed=False)
     if not (req.background or req.resume):
         rows = [
             _grade_row(

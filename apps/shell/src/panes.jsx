@@ -11,7 +11,7 @@ import { STEPS } from "./data.jsx";
 import { getConversation, putConversation, deleteConversation, hasStoredToken, logout, signIn, runEval, gradeCases, ingestPreview, getRoleBindings, getReliability, getReliabilitySweep, getWorkspaceResources, listImporters, getJobScorecard, listJobs, exportCorpus, downloadExport, getCouncilRules } from "./bff.js"; // PERSIST-CONV: the durable-thread store; UI-LOGIN-1/SESSION-MENU-1: the runtime auth token + the proactive sign-in; CHAT-FRESH-GRADE-1: the cost-gated fresh grade; RUN-ALL-1: the cohort grade; CE-INGEST-FRONTDOOR-1: the upload front door; FIRST-CONTACT-1: the connect-the-assistant signpost; RELIABILITY-CARD-1: the ⌘K "Show reliability" read; SWEEP (RIGOR-1/Q1 NEW-G3): the "Reliability sweep" K-curve read
 import { flagLabel, friendlyError } from "./genui/copy.js"; // UX-COPY: render flag codes as readable issue phrases; UX-COPY-ERR-1: calm, leak-free error lines
 import { beginBatch, endBatch } from "./progress.js"; // GRADE-PROGRESS-1: the StatusBar batch-grade chip
-import { followJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore
+import { followJob, resumeJob } from "./jobs.js"; // UI-JOURNEY-1 (B2): the retrying job poller shared with the mount-time restore; GRADE-CONFIRM-1: the cost-confirmed resume
 
 // The cohort envelope {matrix, summary, scorecard} as the inline scorecard turn (job fields ride
 // along so the card can name its round and offer the next verbs).
@@ -497,7 +497,7 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
       const ids = e?.detail?.case_ids;
       // UI-JOURNEY-1 (B7): detail.round / detail.split tag the job (the import card's "grade
       // the test split" and the scorecard's re-grade set them); absent → resolved at confirm.
-      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null, round: e?.detail?.round || null, split: e?.detail?.split || null });
+      setPaid({ open: true, busy: false, cohort: true, caseIds: Array.isArray(ids) && ids.length ? ids : null, round: e?.detail?.round || null, split: e?.detail?.split || null, resume: e?.detail?.resume || null });
     };
     window.addEventListener("lithrim:grade-cohort", onGradeCohort);
     return () => window.removeEventListener("lithrim:grade-cohort", onGradeCohort);
@@ -804,11 +804,19 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // envelope itself and the same code path renders it.
           // UI-JOURNEY-1 (B7): the first cohort grade of an agent is its "before" round unless
           // the caller tagged it; the re-grade button tags "after".
+          // GRADE-CONFIRM-1: a resume spends too (it keeps the first round's paid flags), so it
+          // arrives here, through the same dialog, and carries the confirm; resumeJob polls it.
+          if (paid.resume) {
+            const job = await resumeJob(paid.resume, { confirm: true });
+            if (job && job.status && job.status !== "done") throw new Error(job.error || `grade job ${job.job_id} ${job.status}`);
+            setPaid({ open: false, busy: false });
+            return;
+          }
           let round = paid.round;
           if (!round) {
             try { round = ((await listJobs(agent)).jobs || []).some((j) => j.round === "before") ? null : "before"; } catch { round = null; }
           }
-          let resp = await gradeCases({ agent, in_process: true, background: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}), ...(round ? { round } : {}), ...(paid.split ? { split: paid.split } : {}) });
+          const resp = await gradeCases({ agent, in_process: true, background: true, confirm: true, ...(paid.caseIds ? { case_ids: paid.caseIds } : {}), ...(round ? { round } : {}), ...(paid.split ? { split: paid.split } : {}) });
           if (resp && resp.job_id) {
             // followJob announces the finished job on the lithrim:job-done bridge (rendered below),
             // so the card path is the same whether this tab started the job or found it after a reload.
@@ -1175,6 +1183,8 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
           // UI-JOURNEY-1 (B7): a tagged round names its split and, for "after", the pinned demos.
           ? (paid.round === "after"
             ? `Grade the ${paid.split || "whole"} split again with the pinned demos (paid)?`
+            : paid.resume
+              ? "Resume the interrupted grade (paid)?"
             : paid.split
               ? `Grade the ${paid.split} split (paid)?`
               : paid.caseIds?.length
@@ -1182,7 +1192,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                 : "Grade all cases (paid)?")
           : "Run a live, paid evaluation?"}
         body={paid.cohort
-          ? (paid.round === "after"
+          ? (paid.resume
+            ? `This finishes grade job ${paid.resume.job_id}: the ${Math.max((paid.resume.total || 0) - (paid.resume.done || 0), 0)} case${(paid.resume.total || 0) - (paid.resume.done || 0) === 1 ? "" : "s"} it never reached, on the same paid settings the round started with (model calls you'll be billed for). The graded cases are kept. The assistant can't do this — only you can authorize it.`
+            : paid.round === "after"
             ? `This grades the ${paid.split || "whole"} split fresh, with the demos now pinned on the judge, as the "after" round (model calls you'll be billed for); the scorecard sits beside the "before" round. The assistant can't do this — only you can authorize it.`
             : paid.round === "calibration"
               ? `This grades every case tagged ${paid.split || "calibration"} in one paid batch (model calls you'll be billed for) as the "calibration" round, so a training export has graded rows to draw on. The test split is not touched. The assistant can't do this — only you can authorize it.`
@@ -1193,7 +1205,9 @@ export function CenterPane({ onOpenArtifact, onOpenCaseRun, artifactOpen, onRunE
                 : "This grades every ingested case in one paid batch (model calls you'll be billed for) and shows a consolidated scorecard. The assistant can't do this — only you can authorize it.")
           : "This runs one real, paid evaluation (model calls you'll be billed for). The assistant can't do this — only you can authorize it."}
         confirmLabel={paid.cohort
-          ? (paid.round === "after"
+          ? (paid.resume
+            ? "Resume the grade (paid)"
+            : paid.round === "after"
             ? "Grade again with the pinned demos (paid)"
             : paid.split
               ? `Grade the ${paid.split} split (paid)`

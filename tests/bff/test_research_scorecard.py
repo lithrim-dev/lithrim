@@ -192,7 +192,7 @@ def test_grade_cases_rows_carry_the_research_fields(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     client = TestClient(bff.app)
-    resp = client.post("/v1/cases/grade", json={"agent": "ws0_default", "in_process": True})
+    resp = client.post("/v1/cases/grade", json={"agent": "ws0_default", "in_process": True, "confirm": True})
     assert resp.status_code == 200, resp.text
     row = resp.json()["matrix"][0]
     assert row["votes"][0]["model"] == "gpt-4.1"

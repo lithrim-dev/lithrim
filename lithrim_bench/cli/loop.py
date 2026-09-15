@@ -390,9 +390,18 @@ def _grade_cohort(a, ids: list[str]) -> dict:
     continues an interrupted job instead of starting one."""
     import time
 
-    body = {"agent": a.agent, "in_process": True, "case_ids": ids, "background": True}
+    # GRADE-CONFIRM-1: the service refuses a paid grade without confirm; --confirm-cost (checked
+    # by the CLI before any paid verb runs) is what carries the human's acknowledgement here. A
+    # resume bills on the original round's flags, so it carries the same confirm.
+    confirmed = bool(getattr(a, "confirm_cost", False))
+    body = {
+        "agent": a.agent, "in_process": True, "case_ids": ids, "background": True,
+        "confirm": confirmed,
+    }
     if getattr(a, "resume_job", None):
-        body = {"agent": a.agent, "resume": a.resume_job, "background": True}
+        body = {
+            "agent": a.agent, "resume": a.resume_job, "background": True, "confirm": confirmed,
+        }
         a.resume_job = None
     res = _post(a.bff, "/v1/cases/grade", body)
     if not res.get("job_id"):

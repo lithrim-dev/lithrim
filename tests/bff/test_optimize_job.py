@@ -168,7 +168,7 @@ def test_a_restart_leaves_an_optimize_job_interrupted_and_it_cannot_be_resumed_a
     got = cli.get("/v1/jobs/job-opt-orphan").json()
     assert got["status"] == "interrupted" and "restarted" in got["error"]
     res = cli.post(
-        "/v1/cases/grade", json={"agent": AGENT, "resume": "job-opt-orphan", "background": True}
+        "/v1/cases/grade", json={"agent": AGENT, "resume": "job-opt-orphan", "background": True, "confirm": True}
     )
     assert res.status_code == 422 and "optimize" in res.json()["detail"]
 
