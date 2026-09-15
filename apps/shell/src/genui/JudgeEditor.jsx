@@ -35,7 +35,9 @@ const OPT_POLL_MS = 3000; // OPTIMIZE-JOB-1: a calibration takes minutes; poll g
 const fmt = (x) => (typeof x === "number" ? x.toFixed(2) : "—");
 
 /* The HONEST held-out Δ render (D-G, inline — NOT the calibration_chart reliability
-   diagram). Shows baseline→optimized precision/recall/graded on the FIXED test split.
+   diagram). Shows baseline→optimized precision/recall/graded on the held-out slice the round
+   was scored on: the dev slice carved from the calibration split (HOLDOUT-DEV-1) when the
+   corpus carries splits, else the strided test split.
    A win renders the lift; a ≤0 Δ renders EXPLICITLY as a loss (R1 — never hidden,
    never spun; the accept-gate is never loosened to manufacture a win). */
 function OptimizeDelta({ result }) {
@@ -44,10 +46,13 @@ function OptimizeDelta({ result }) {
   // PIN-GATE-2: the server decides whether the compiled demos reach the production judge (only a
   // set that does not regress the pinned one). `pin` is absent on a pre-gate server: say nothing
   // about binding rather than the old (false) "binding is the next step" line.
+  const forced = /force/i.test(pin?.reason || "");
   const pinLine = pin
     ? pin.pinned
-      ? `Pinned: the production judge now grades with these demos${/force/i.test(pin.reason || "") ? " (pinned by force over a lower held-out score)" : pin.comparable === false ? " (the pinned set's score came from a different held-out set, so there was nothing comparable to beat)" : ""}.`
-      : "Not pinned: the previously pinned demos (or none) stay in force."
+      ? `Pinned: the production judge now grades with these demos${forced ? (pin.comparable === false ? " (pinned by force, with no comparable held-out score to beat)" : " (pinned by force over a lower held-out score)") : ""}.`
+      : pin.comparable === false
+        ? "Not pinned: this round was scored on a different held-out set from the pinned demos, so there was nothing to compare it against. The pinned demos (or none) stay in force."
+        : "Not pinned: the previously pinned demos (or none) stay in force."
     : null;
   const rows = [
     { k: "graded", label: "Graded (hard-accept)" },
@@ -62,7 +67,7 @@ function OptimizeDelta({ result }) {
       className="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-border bg-secondary px-3 py-2.5"
     >
       <div className="flex items-baseline justify-between">
-        <span className="text-[12px] font-medium text-foreground">Held-out Δ (fixed test split)</span>
+        <span className="text-[12px] font-medium text-foreground">Held-out Δ ({corpus_source && corpus_source.dev != null ? "dev slice of the calibration split" : "held-out split"})</span>
         <span className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
           n_train {n_train ?? "—"} · n_heldout {n_heldout ?? "—"} · {compile_config.n_demos_bootstrapped ?? 0} demos
         </span>
@@ -117,6 +122,42 @@ function OptimizeDelta({ result }) {
   );
 }
 
+// JOB-POLLER-1: the calibration pollers in flight, keyed by job id, shared across every mounted
+// reviewer card so one job is polled once no matter how many cards are on screen.
+const optimizePollers = new Map();
+
+// Poll one calibration job to its end; a dropped poll is retried with a growing wait, more than
+// five in a row is the error. Resolves with the final record, or {status: "error"} shape.
+async function pollOptimizeJob(jobId) {
+  let failures = 0;
+  for (;;) {
+    let job;
+    try {
+      job = await getJob(jobId);
+      failures = 0;
+    } catch (e) {
+      failures += 1;
+      if (failures > 5) return { status: "poll-failed", error: e };
+      await new Promise((r) => setTimeout(r, Math.min(OPT_POLL_MS * failures, 10000)));
+      continue;
+    }
+    if (job.status !== "running") return job;
+    await new Promise((r) => setTimeout(r, OPT_POLL_MS));
+  }
+}
+
+// Write one poller's final record into a card's own state (each mounted card renders it).
+function applyOptimizeJob(jobId, job, setOpt) {
+  if (job.status === "poll-failed") { setOpt({ state: "error", result: null, error: friendlyError(job.error), job: jobId }); return; }
+  if (job.status === "done") { setOpt({ state: "done", result: job.result, error: null, job: jobId }); return; }
+  setOpt({
+    state: "error", result: null, job: jobId,
+    error: job.status === "interrupted"
+      ? "The calibration stopped when the service restarted; nothing was pinned. Run it again."
+      : (job.error || `calibration ${job.status}`),
+  });
+}
+
 export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default", onResult }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [error, setError] = useState(null);
@@ -148,28 +189,26 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const [opt, setOpt] = useState({ state: "idle", result: null, error: null }); // idle|running|done|error
   // OPTIMIZE-JOB-1: a calibration runs as a background job; poll it (dropped polls are retried
   // with a growing wait, so a reconnect does not lose it) and render its result block.
+  // JOB-POLLER-1: ONE poller per job id across every mounted card — the reviewer card can be on
+  // screen twice (the chat's card and the editor), and each mount started its own poller for the
+  // same calibration, doubling the polls and racing two writers onto the same result.
   const followOptimize = async (jobId) => {
     setOpt({ state: "running", result: null, error: null, job: jobId });
-    let failures = 0;
-    for (;;) {
-      let job;
-      try {
-        job = await getJob(jobId);
-        failures = 0;
-      } catch (e) {
-        failures += 1;
-        if (failures > 5) { setOpt({ state: "error", result: null, error: friendlyError(e), job: jobId }); return; }
-        await new Promise((r) => setTimeout(r, Math.min(OPT_POLL_MS * failures, 10000)));
-        continue;
-      }
-      if (job.status === "done") { setOpt({ state: "done", result: job.result, error: null, job: jobId }); return; }
-      if (job.status !== "running") {
-        setOpt({ state: "error", result: null, job: jobId,
-          error: job.status === "interrupted" ? "The calibration stopped when the service restarted; nothing was pinned. Run it again." : (job.error || `calibration ${job.status}`) });
-        return;
-      }
-      await new Promise((r) => setTimeout(r, OPT_POLL_MS));
+    const shared = optimizePollers.get(jobId);
+    if (shared) {
+      const job = await shared;
+      applyOptimizeJob(jobId, job, setOpt);
+      return;
     }
+    const run = pollOptimizeJob(jobId);
+    optimizePollers.set(jobId, run);
+    let job;
+    try {
+      job = await run;
+    } finally {
+      optimizePollers.delete(jobId);
+    }
+    applyOptimizeJob(jobId, job, setOpt);
   };
 
   // On mount: a calibration of this reviewer that is running (or just finished) is found again.
@@ -195,8 +234,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
   const splitCounts = { calibration: cases.filter((c) => c.split === "calibration").length, test: cases.filter((c) => c.split === "test").length };
   // HOLDOUT-DEV-1: the calibration split alone is enough (a dev slice is carved from it); the
   // test split is never part of the calibration corpus.
+  // SPLIT-HYGIENE-1: when the corpus carries its own splits this is not a choice — the service
+  // refuses a calibration that strides across them (it would train on held-out rows), so the
+  // split is always sent and the subset picker yields to it.
   const splitAvailable = splitCounts.calibration >= 2;
-  const [useSplit, setUseSplit] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -314,7 +355,7 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
     try {
       // optimize-on-subset: scope to the chosen cases ONLY when a subset is picked — an empty
       // selection sends no case_ids, keeping today's whole-workspace optimize byte-identical.
-      const onSplit = splitAvailable && useSplit;
+      const onSplit = splitAvailable;
       const result = await optimizeJudge(role, {
         confirm: true,
         background: true,
@@ -520,9 +561,10 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             </span>
           </div>
           <p className="text-[10.5px] text-muted-foreground">
-            Compile few-shot demos from the by-construction calibration split, then measure the
-            honest held-out Δ on the fixed test split. Did the edit move the number? — win or loss,
-            shown straight.
+            Compile few-shot demos from part of the calibration split, then measure the honest
+            held-out Δ on the rest of it — a source-disjoint dev slice the demos never saw. The
+            test split stays untouched. Did the edit move the number? — win or loss, shown
+            straight.
           </p>
           {judge && (
             <div data-testid="judge-pinned-demos" className="font-[family-name:var(--font-mono)] text-[10.5px] text-muted-foreground">
@@ -532,16 +574,13 @@ export default function JudgeEditor({ role = "risk_judge", agent = "ws0_default"
             </div>
           )}
           {splitAvailable && (
-            <label data-testid="optimize-split" className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
-              <input type="checkbox" checked={useSplit} onChange={(e) => setUseSplit(e.target.checked)} />
-              <span>
-                Calibrate on the <b>calibration</b> split ({splitCounts.calibration} cases): 70% trains the demos and a source-disjoint 30% <b>dev</b> slice decides the pin. The <b>test</b> split ({splitCounts.test} cases) stays untouched until you grade again.
-              </span>
-            </label>
+            <p data-testid="optimize-split" className="rounded-[var(--radius-sm)] border border-border bg-background px-2.5 py-1.5 text-[11px]">
+              Calibrating on the <b>calibration</b> split ({splitCounts.calibration} cases): 70% trains the demos and a source-disjoint 30% <b>dev</b> slice decides the pin. The <b>test</b> split ({splitCounts.test} cases) stays untouched until you grade again. These cases carry their own splits, so calibration never strides across them.
+            </p>
           )}
           {/* optimize-on-subset: scope the calibration to a CHOSEN case set. No selection =
               the whole workspace (today's behaviour). A $0 selector — the paid confirm is below. */}
-          {cases.length > 0 && !(splitAvailable && useSplit) && (
+          {cases.length > 0 && !splitAvailable && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between">
                 <Label className="text-[10.5px] text-muted-foreground">

@@ -371,7 +371,11 @@ function StatusBar({ activeWs, activeAgent = "ws0_default" }) {
           <span className="d" style={{ background: "var(--amber)" }} />
           grade {prog.interrupted.job_id} stopped at {prog.interrupted.done}/{prog.interrupted.total} (the service restarted)
           <button className="btn btn-ghost" data-testid="job-resume" style={{ marginLeft: 6 }}
-            onClick={() => { resumeJob(prog.interrupted).catch((e) => console.error("Resume failed", e)); }}>Resume</button>
+            onClick={() => {
+              // GRADE-CONFIRM-1: resuming bills (the job keeps the round's paid flags), so it goes
+              // through the SAME cost dialog as a fresh grade — this button never spends by itself.
+              try { window.dispatchEvent(new CustomEvent("lithrim:grade-cohort", { detail: { resume: prog.interrupted } })); } catch {}
+            }}>Resume</button>
         </span>
       )}
       {meta && <span className="si">{meta.workspace} · {meta.pack}</span>}

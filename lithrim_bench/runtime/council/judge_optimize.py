@@ -439,10 +439,12 @@ def pin_demos(
                 candidate_heldout = heldout_identity(
                     manifest.get("heldout_split"), manifest["heldout_case_ids"]
                 )
-    # HOLDOUT-DEV-1: a pinned score is only a bar to beat when it was measured on the SAME
-    # held-out set; a set pinned before the dev slice (scored on the test cut, no identity) or
-    # a changed dev slice is not comparable, and the round pins with that reason stated (the
-    # first-pin rule) rather than refusing or accepting on the difference between two sets.
+    # HOLDOUT-DEV-1 / PIN-GATE-3: a pinned score is only a bar to beat when it was measured on
+    # the SAME held-out set; a set pinned before the dev slice (scored on the test cut, no
+    # identity) or a changed dev slice is not comparable. With nothing to compare the round is
+    # REFUSED, not pinned: pinning it would let a regressing round through by changing the
+    # subset it is scored on. Re-scoring the pinned set here would be a paid round, so the
+    # honest paths are re-run on the pinned set's slice, or pin deliberately with force.
     # Neither side recording an identity keeps the pre-identity comparison.
     comparable = pinned is None or (
         pinned_heldout == candidate_heldout
@@ -455,16 +457,21 @@ def pin_demos(
             "are not out of sample)"
         )
     elif not comparable:
-        ok = True
 
         def _desc(h):
             return f"{h['split']} ({h['n']} cases)" if h else "an unrecorded held-out set"
 
-        reason = (
-            f"pinned (no comparable score: the pinned set's {pinned:.2f} was measured on a "
-            f"different held-out set, {_desc(pinned_heldout)}, this round on "
-            f"{_desc(candidate_heldout)})"
+        detail = (
+            f"no comparable score: the pinned set's {pinned:.2f} was measured on a different "
+            f"held-out set, {_desc(pinned_heldout)}, this round on {_desc(candidate_heldout)}"
         )
+        if force:
+            ok, reason = True, f"pinned by force ({detail})"
+        else:
+            ok, reason = False, (
+                f"REFUSING to pin: {detail}. Re-run this round on the pinned set's held-out "
+                "slice so the two are comparable, or pin it deliberately with force."
+            )
     else:
         ok, reason = pin_gate(candidate, pinned, force=force)
         if out_of_sample is False:

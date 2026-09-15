@@ -45,8 +45,9 @@ docker compose exec bff lithrim load --adapter examples/ragtruth/adapter.py --pe
 ```
 
 `--per-task 30` is 90 test-split cases (30 per task: news summaries, QA, data-to-text), one
-model-balanced response per source at the corpus's own hallucination rate, plus a 90-case
-calibration corpus cut from RAGTruth's train split (source-disjoint by construction). The cut
+model-balanced response per source at the corpus's own hallucination rate, plus a calibration
+corpus cut from RAGTruth's train split alone (source-disjoint by construction; how the gate
+holds out inside it is stated once, under step 4). The cut
 lands in `out/loop/slice_full.jsonl` and `out/loop/calib.jsonl` on the `lithrim_out` volume and
 the test cases are ingested into the active workspace with their human labels.
 
@@ -55,20 +56,23 @@ the test cases are ingested into the active workspace with their human labels.
 ```bash
 docker compose exec bff lithrim configure \
   --judge examples/ragtruth/judge.ragtruth_detector.json \
-  --model azure/gpt-4.1-2025-04-14
+  --model azure/<your deployment>
 ```
 
 This authors the `ragtruth_detector` judge (the paper's Appendix D detection prompt with a
-two-code lens), pins its model, and sets the roster to that one judge. The model must be a
-dated id or an attested deployment (`--model-version`, `--upgrade-policy`); a floating alias is
-refused because it cannot anchor a before/after.
+two-code lens), pins its model, and sets the roster to that one judge. On Azure the model
+string is `azure/<your deployment name>` — the deployment, not the model family; name a
+deployment of a dated model, or attest a floating one (`--model-version`,
+`--upgrade-policy`). On OpenAI it is the dated model id itself,
+`--model openai/gpt-4.1-2025-04-14`. A floating alias with no attestation is refused, because
+it cannot anchor a before/after.
 
 ## 4. Grade, calibrate, re-grade (paid)
 
 Every paid verb refuses without `--confirm-cost`. On gpt-4.1 the 90-case grade is roughly $1.5
 at list price; a calibrate round (a bootstrap compile over the calibration rows plus two held-out
 evaluations) is about $2. Set `J=examples/ragtruth/judge.ragtruth_detector.json` and
-`M=azure/gpt-4.1-2025-04-14` for brevity:
+`M=azure/<your deployment>` (or `M=openai/gpt-4.1-2025-04-14`) for brevity:
 
 ```bash
 docker compose exec bff lithrim grade     --judge $J --model $M --confirm-cost   # the baseline row
@@ -82,8 +86,10 @@ docker compose exec bff lithrim regrade   --judge $J --model $M --confirm-cost  
   the score, never hidden.
 - `calibrate` trains only on `split: calibration` rows and pins the compiled demos into the
   workspace only if their held-out score is not below the pinned set's. A losing round says so
-  and pins nothing (`--force-pin` overrides, recorded in the output). The UI's Optimize button
-  goes through the same gate and shows pinned / not pinned.
+  and pins nothing; so does a round whose held-out set is not the one the pinned demos were
+  scored on, because there is nothing to compare it against (`--force-pin` overrides either,
+  recorded in the output). The UI's Optimize button goes through the same gate and shows
+  pinned / not pinned.
 - **How held-out is chosen.** The calibration corpus is RAGTruth's train split alone. A
   deterministic, source-disjoint `dev` slice, 30% of each task's sources ordered by the hash of
   the source id, is carved from it; the demos train on the rest and the pin gate scores on

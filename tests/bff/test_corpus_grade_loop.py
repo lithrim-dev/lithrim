@@ -153,7 +153,7 @@ def test_grade_cases_batches_corpus_into_matrix(client):
         _envelope("case_b_ok", context="Doctor: b"),
         _envelope("case_c_bad", context="Doctor: c"),
     ])
-    res = cli.post("/v1/cases/grade", json={"agent": "loop_agent", "in_process": True})
+    res = cli.post("/v1/cases/grade", json={"agent": "loop_agent", "in_process": True, "confirm": True})
     assert res.status_code == 200, res.text
     body = res.json()
     assert {r["case_id"] for r in body["matrix"]} == {"case_a_bad", "case_b_ok", "case_c_bad"}

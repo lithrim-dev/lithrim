@@ -34,7 +34,7 @@
 
 services:
   bff:
-    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.30}
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.31}
     ports:
       - "8787:8787"
     environment:
@@ -64,6 +64,15 @@ services:
       # The pack drop-in path INSIDE the container (the host ./packs-dropin bind
       # below). Empty means a clean neutral `_core` install.
       LITHRIM_BENCH_PACKS_DIR: ${LITHRIM_BENCH_PACKS_DIR:-/dropin-packs}
+      # Serving the UI from another origin (a LAN address, a phone) needs the BFF to
+      # allow it: a comma-separated allow-list of origins, e.g.
+      # LITHRIM_ALLOWED_ORIGINS=http://192.168.1.21:5180. Unset = localhost only.
+      LITHRIM_ALLOWED_ORIGINS: ${LITHRIM_ALLOWED_ORIGINS:-}
+      # How long a background calibration / a grade subprocess may run before the
+      # service stops it (seconds; defaults 14400 and 600). A pilot-scale
+      # calibration needs the first raised.
+      LITHRIM_OPTIMIZE_TIMEOUT_S: ${LITHRIM_OPTIMIZE_TIMEOUT_S:-}
+      LITHRIM_GRADE_TIMEOUT_S: ${LITHRIM_GRADE_TIMEOUT_S:-}
       # The bundled JUTE mapper (arbitrary-JSON ingest) over the compose network.
       # Grading and the demo do not need it; override to point at your own mapper.
       LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-http://jute:3000}
@@ -90,7 +99,7 @@ services:
       - lithrim
 
   ui:
-    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.30}
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.31}
     ports:
       - "5180:5180"
     environment:

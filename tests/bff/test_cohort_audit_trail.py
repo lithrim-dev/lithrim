@@ -127,7 +127,7 @@ def test_cohort_grade_persists_one_record_per_case(client):
     m = len(cases)
     _write_corpus(out, cases)
 
-    res = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True})
+    res = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True, "confirm": True})
     assert res.status_code == 200, res.text
     assert res.json()["summary"]["graded"] == m
 
@@ -157,14 +157,14 @@ def test_second_cohort_grade_appends_and_never_overwrites(client):
 
     # in_process for BOTH rounds: each execution mints a fresh id, so the APPEND assertion is
     # hermetic + true (a replay round would need captured baselines to resolve). Round 1.
-    r1 = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True})
+    r1 = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True, "confirm": True})
     assert r1.status_code == 200, r1.text
     after_round1 = _all_runs(collections_db)
     ids_round1 = {r["pipeline_run_id"] for r in after_round1}
     assert len(after_round1) >= m
 
     # Round 2 — the SAME cohort, again. The trail must GROW (append-only), not overwrite.
-    r2 = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True})
+    r2 = cli.post("/v1/cases/grade", json={"agent": "cohort_agent", "in_process": True, "confirm": True})
     assert r2.status_code == 200, r2.text
     after_round2 = _all_runs(collections_db)
 

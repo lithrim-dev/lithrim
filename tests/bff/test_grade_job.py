@@ -84,7 +84,7 @@ def test_background_grade_returns_a_job_and_the_same_envelope_when_done(client):
         [_envelope("case_a_bad", context="Doctor: a"), _envelope("case_b_ok", context="Doctor: b")],
     )
     res = cli.post(
-        "/v1/cases/grade", json={"agent": "job_agent", "in_process": True, "background": True}
+        "/v1/cases/grade", json={"agent": "job_agent", "in_process": True, "background": True, "confirm": True}
     )
     assert res.status_code == 202, res.text
     body = res.json()
@@ -150,7 +150,7 @@ def test_resume_grades_only_the_cases_without_a_verdict(client):
         )
     )
     res = cli.post(
-        "/v1/cases/grade", json={"agent": "job_agent", "resume": job_id, "background": True}
+        "/v1/cases/grade", json={"agent": "job_agent", "resume": job_id, "background": True, "confirm": True}
     )
     assert res.status_code == 202 and res.json()["job_id"] == job_id and res.json()["done"] == 1
     job = _wait_done(cli, job_id)
@@ -160,10 +160,50 @@ def test_resume_grades_only_the_cases_without_a_verdict(client):
     assert job["result"]["summary"]["graded"] == 2
 
 
+def test_a_resume_refused_by_the_409_leaves_the_job_record_untouched(client):
+    """JOB-STATE-1: the duplicate check ran AFTER the resume branch had already flipped the
+    record to running and dropped its unverdicted rows, so a resume refused because another
+    grade was running left the job stuck reading "running" with nothing driving it — and the
+    UI then offered no resume at all. Nothing may be mutated before the refusal."""
+    cli, out, _captured, gate = client
+    _write_corpus(out, [_envelope("c1", context="Doctor: a"), _envelope("c2", context="Doctor: b")])
+    stalled = json.dumps(
+        {
+            "job_id": "job-halted", "agent": "job_agent", "status": "failed", "error": "died",
+            "targets": ["c1", "c2"], "total": 2, "done": 1,
+            "rows": [
+                {"case_id": "c1", "verdict": "reject", "findings": [], "votes": [], "run_id": "r1"},
+                {"case_id": "c2", "error": "connection reset"},
+            ],
+            "request": {"live": False, "in_process": True, "strict": False},
+        }
+    )
+    (out / "jobs").mkdir(exist_ok=True)
+    (out / "jobs" / "job-halted.json").write_text(stalled)
+
+    gate.clear()  # hold a grade open so the agent has one running
+    running = cli.post(
+        "/v1/cases/grade",
+        json={"agent": "job_agent", "in_process": True, "background": True, "confirm": True},
+    )
+    assert running.status_code == 202
+    res = cli.post(
+        "/v1/cases/grade",
+        json={"agent": "job_agent", "resume": "job-halted", "background": True, "confirm": True},
+    )
+    assert res.status_code == 409, res.text
+    on_disk = json.loads((out / "jobs" / "job-halted.json").read_text())
+    assert on_disk["status"] == "failed" and on_disk["done"] == 1
+    assert [r["case_id"] for r in on_disk["rows"]] == ["c1", "c2"], "the unverdicted row is kept"
+    assert cli.get("/v1/jobs/job-halted").json()["status"] == "failed"
+    gate.set()
+    _wait_done(cli, running.json()["job_id"])
+
+
 def test_unknown_job_is_404(client):
     cli, _out, _c, _g = client
     assert cli.get("/v1/jobs/nope").status_code == 404
     assert (
-        cli.post("/v1/cases/grade", json={"agent": "job_agent", "resume": "nope"}).status_code
+        cli.post("/v1/cases/grade", json={"agent": "job_agent", "resume": "nope", "confirm": True}).status_code
         == 404
     )

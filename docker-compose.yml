@@ -22,7 +22,7 @@ services:
   bff:
     # Published image (GHCR). Override the tag/ref with LITHRIM_BFF_IMAGE; to build locally instead,
     # restore a `build: {context: ., dockerfile: Dockerfile.bff}` block.
-    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.30}
+    image: ${LITHRIM_BFF_IMAGE:-ghcr.io/lithrim-dev/lithrim-bff:v0.1.31}
     ports:
       - "8787:8787"
     environment:
@@ -72,6 +72,15 @@ services:
       # demo do NOT need it; run core-only with `docker compose up bff ui`. Override LITHRIM_JUTE_URL
       # to point at a host/remote mapper instead. Configuration, not a secret.
       LITHRIM_JUTE_URL: ${LITHRIM_JUTE_URL:-http://jute:3000}
+      # Serving the UI from another origin (a LAN address, a phone) needs the BFF to
+      # allow it: a comma-separated allow-list of origins, e.g.
+      # LITHRIM_ALLOWED_ORIGINS=http://192.168.1.21:5180. Unset = localhost only.
+      LITHRIM_ALLOWED_ORIGINS: ${LITHRIM_ALLOWED_ORIGINS:-}
+      # How long a background calibration / a grade subprocess may run before the
+      # service stops it (seconds; defaults 14400 and 600). A pilot-scale
+      # calibration needs the first raised.
+      LITHRIM_OPTIMIZE_TIMEOUT_S: ${LITHRIM_OPTIMIZE_TIMEOUT_S:-}
+      LITHRIM_GRADE_TIMEOUT_S: ${LITHRIM_GRADE_TIMEOUT_S:-}
     volumes:
       # A Docker-managed NAMED VOLUME (not a host bind): a fresh `up` starts EMPTY, so the BFF
       # auto-seeds only the neutral `_core` sample — a CLEAN CE, never the maintainer's host `out/`.
@@ -113,7 +122,7 @@ services:
     # NOTE: VITE_BFF_URL is baked into the JS bundle at BUILD time — this image serves whatever
     # origin it was built with (expected http://localhost:8787). Pointing the UI at a different BFF
     # origin requires a rebuild, not a runtime env var.
-    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.30}
+    image: ${LITHRIM_UI_IMAGE:-ghcr.io/lithrim-dev/lithrim-ui:v0.1.31}
     ports:
       - "5180:5180"
     environment:

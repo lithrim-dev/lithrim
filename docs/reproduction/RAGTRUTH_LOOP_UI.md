@@ -6,8 +6,8 @@ published Docker images, in one workspace, with your own provider key. No termin
 
 **The acceptance test this page is written against:** an uninvolved person, on a fresh
 `docker compose up` of the published images, with the two RAGTruth files and their own Azure
-key entered in the provider screen, reproduces the pilot table for a 30-per-task cut (90 test
-cases, the calibration split beside them) from the shell alone, without opening a terminal:
+or OpenAI key entered in the provider screen, runs the loop end to end without opening a terminal,
+on a 30-per-task cut (90 test cases, the calibration split beside them), from the shell alone:
 load, configure, the before round, calibrate with the pin verdict shown, the after round, the
 export, and the spend line, with the scorecard in both vocabularies. A page reload or a phone
 reconnect during a grade returns to the running job.
@@ -18,8 +18,13 @@ reconnect during a grade returns to the running job.
   [`deploy/docker-compose.yml`](../../deploy/docker-compose.yml)); the UI is at
   `http://localhost:5180`.
 - An Azure OpenAI (or OpenAI) key for the judge model.
-- The two RAGTruth files on your machine: `response.jsonl` and `source_info.jsonl`
-  (MIT, ParticleMedia/RAGTruth).
+- The two RAGTruth files on your machine (MIT, ParticleMedia/RAGTruth; Wu et al.,
+  arXiv:2401.00396):
+
+  ```bash
+  curl -fsSLO https://raw.githubusercontent.com/ParticleMedia/RAGTruth/main/dataset/response.jsonl
+  curl -fsSLO https://raw.githubusercontent.com/ParticleMedia/RAGTruth/main/dataset/source_info.jsonl
+  ```
 
 Every paid step below opens a cost confirm first; nothing spends until you confirm it.
 
@@ -46,12 +51,18 @@ labels kept, every case tagged with its split. The rail's **Load** step ticks.
 
 ## 4. Configure the reviewer
 
-`Create reviewer` (from the chat or the Judges step). Use **Load a definition** with
-[`examples/ragtruth/judge.ragtruth_detector.json`](../../examples/ragtruth/judge.ragtruth_detector.json)
-to prefill the role, the two lens codes and the prompt, review them, and press **Create
+`Create reviewer` (from the chat or the Judges step). Use **Load a definition** with the
+reviewer definition — fetch it from the release you are running, since you have no clone:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.31/examples/ragtruth/judge.ragtruth_detector.json
+```
+
+It prefills the role, the two lens codes and the prompt; review them and press **Create
 reviewer**. Under **Connect AI → Assign models** bind `ragtruth_detector` to your Azure
 deployment (a dated deployment pins the served version; an alias records the version observed
-on the calls). `⌘K → How the council decides` explains the rules the reviewer runs under.
+on the calls). On OpenAI rather than Azure, bind a dated model id (`gpt-4.1-2025-04-14`); a
+floating alias is refused, because it cannot anchor a before/after. `⌘K → How the council decides` explains the rules the reviewer runs under.
 
 ## 5. The before round
 

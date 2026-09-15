@@ -179,6 +179,42 @@ _KNOWN_VALIDATORS = (
 )
 
 
+def _core_verification_tool_names() -> frozenset[str]:
+    """The verification tool names core IMPLEMENTS (one class per name in
+    ``verification/tools.py``). A pack-local tool (the clinical ``dosage_grounding``) is absent
+    here and reaches the offer only through its pack's executor registry."""
+    import inspect
+
+    from lithrim_bench.verification import tools as _tools
+
+    return frozenset(
+        name
+        for _, cls in inspect.getmembers(_tools, inspect.isclass)
+        if isinstance(name := getattr(cls, "name", None), str) and name
+    )
+
+
+def _available_validators(pack: str | None = None) -> list[str]:
+    """VALIDATOR-OFFER-1: the fact-checks the reviewer editor may offer for ``pack`` — the known
+    names this pack can actually RUN: an executor it registers, or a verification tool core
+    implements. The static tuple offered every name whatever the pack, so the neutral ``_core``
+    offered the clinical ``dosage_grounding`` and a reviewer could reference a check nothing
+    could execute. Resolved per request like ``_grounding_contract_types``, so OFFER and GATE
+    agree; an undiscoverable pack falls back to the core-only offer rather than failing a read."""
+    from lithrim_bench.harness import grounding as _grounding
+
+    runnable = set(_core_verification_tool_names())
+    for candidate in (pack, "_core"):  # an undiscoverable pack falls back to the core registries
+        try:
+            runnable |= set(_grounding.suppress_executors(candidate)) | set(
+                _grounding.floor_executors(candidate)
+            )
+            break
+        except Exception:  # noqa: BLE001 — a missing pack must never fail a $0 config read
+            continue
+    return [name for name in _KNOWN_VALIDATORS if name in runnable]
+
+
 def get_config_db() -> Path:
     """The SQLite config plane the BFF resolves agents from — scoped to the ACTIVE
     workspace (switching the workspace switches agents/judges/flags/audit). Override in tests."""
@@ -1176,6 +1212,22 @@ def _grade_via_subprocess(*, agent_name, config_db, ontology_path, collections_d
         if line.startswith("__GRADE_JSON__"):
             return json.loads(line[len("__GRADE_JSON__"):])
     raise HTTPException(status_code=500, detail="grade subprocess emitted no __GRADE_JSON__ record")
+
+
+def _split_tags_in_corpus(ws=None) -> dict[str, int]:
+    """SPLIT-HYGIENE-1: {tag: n} over the workspace's LABELLED cases that carry a ``split``.
+    Empty when the corpus has no splits of its own (the stride path's only honest input)."""
+    tags: dict[str, int] = {}
+    corpus: list[dict] = []
+    with contextlib.suppress(Exception):  # unreadable corpus → no tags; the engine still refuses
+        corpus = _read_ingested_corpus(ws)
+    for case in corpus:
+        if not isinstance(case.get("expected_safety_flags"), list):
+            continue
+        tag = str(case.get("split") or "")
+        if tag:
+            tags[tag] = tags.get(tag, 0) + 1
+    return tags
 
 
 def _optimize_via_subprocess(
@@ -2552,6 +2604,33 @@ def case_browser_endpoint(
     }
 
 
+def _refuse_a_second_grade(agent: str, *, exclude: str | None) -> None:
+    """409 when a grade job is already running for ``agent`` (``exclude`` is the job being
+    resumed). JOB-STATE-1: callable before any mutation, so a refusal leaves no half-state."""
+    running = _running_job_for(agent, exclude=exclude)
+    if running is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a grade job is already running for {agent}: {running['job_id']}",
+        )
+
+
+def _require_grade_confirm(confirmed: bool, paid: bool, *, resumed: bool) -> None:
+    """GRADE-CONFIRM-1: refuse a paid grade that never confirmed its cost (422), the way the
+    optimize route does. A resumed job runs on the ORIGINAL job's paid flags, so its own request
+    must confirm them again — the resume button billed silently before this."""
+    if not paid or confirmed:
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            ("resuming this job makes PAID judge calls (it keeps the flags the first round ran "
+             "with). " if resumed else "grading makes PAID judge calls, one per case. ")
+            + "Resend with confirm=true only after an explicit cost check."
+        ),
+    )
+
+
 class GradeCasesRequest(BaseModel):
     # NARR-LOOP: batch-grade the ingested corpus (the "evaluate all of them → report" loop).
     # case_ids None → ALL ingested cases. live/in_process are the SAME paid knobs as run-eval
@@ -2571,6 +2650,41 @@ class GradeCasesRequest(BaseModel):
     # calibration split). Selectors, never paid knobs.
     round: str | None = None
     split: str | None = None
+    # GRADE-CONFIRM-1: a PAID grade (live or in_process, new or resumed) crosses this boundary
+    # only with an explicit confirm, the way optimize does. The $0 replay path spends nothing
+    # and stays confirm-free. A resume inherits the original job's paid flags, so it needs one.
+    confirm: bool = False
+
+
+# INGEST-LIMIT-1: the front door reads the whole blob into memory before the mapper sees it, so
+# it states a ceiling instead of dying deep inside the decoder on someone's whole trace export.
+_INGEST_MAX_MB_DEFAULT = 64
+
+
+def _ingest_max_bytes() -> int:
+    """The ingest ceiling in bytes (LITHRIM_INGEST_MAX_MB, default 64). A bad value reads as the
+    default rather than refusing every upload."""
+    raw = os.environ.get("LITHRIM_INGEST_MAX_MB")
+    try:
+        mb = int(raw) if raw else _INGEST_MAX_MB_DEFAULT
+    except ValueError:
+        mb = _INGEST_MAX_MB_DEFAULT
+    return max(1, mb) * 1024 * 1024
+
+
+def _refuse_oversized_ingest(raw: str) -> None:
+    """422 naming what arrived, the ceiling, and the knob that raises it."""
+    limit = _ingest_max_bytes()
+    size = len(raw.encode("utf-8", "ignore"))
+    if size > limit:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"this upload is {size / (1024 * 1024):.1f} MB and the ingest limit is "
+                f"{limit // (1024 * 1024)} MB. Load a smaller cut, or raise "
+                "LITHRIM_INGEST_MAX_MB on the service."
+            ),
+        )
 
 
 class IngestPreviewRequest(BaseModel):
@@ -2855,6 +2969,9 @@ def _grade_row(
                      "served_model": v.get("served_model"),
                      "latency_ms": v.get("latency_ms"),
                      "usage": v.get("usage"),
+                     # JUDGE-ERROR-1 / GRADE-ABORT-1: the failure text rides the row, so a dead
+                     # run is recognisable (and a reader can see WHY a vote is missing).
+                     "errors": v.get("errors") or [],
                      "scores_raw": v.get("scores_raw")}
                     for v in (rec.get("council") or {}).get("votes", [])
                 ],
@@ -3013,10 +3130,46 @@ def _run_optimize_job(job: dict, *, out_dir: Path, kwargs: dict) -> None:
     _save_job(out_dir, job)
 
 
+# GRADE-ABORT-1: an auth/config failure is the SAME for every case — the key, the deployment or
+# the endpoint is wrong — so a cohort that keeps hitting one is billing for nothing. These are the
+# markers; a provider REFUSAL (a content filter) is deliberately absent: it is case-specific, stays
+# a miss on the row, and never aborts the run.
+_AUTH_ABORT_MARKERS = (
+    "401", "403", "authenticationerror", "invalid api key", "invalid_api_key",
+    "incorrect api key", "invalid subscription key", "access denied", "permissiondenied",
+    "permission denied", "deploymentnotfound", "unauthorized",
+)
+_AUTH_ABORT_AFTER = 3  # consecutive cases whose every judge call failed this way
+
+
+def _auth_failure_reason(row: dict) -> str | None:
+    """The auth/config message behind a row whose judge calls ALL failed, else None. A row with
+    some judge answering is not a dead run; a refusal message matches nothing here."""
+    votes = row.get("votes") or []
+    messages: list[str] = []
+    if row.get("error"):
+        messages.append(str(row["error"]))
+    failed = 0
+    for vote in votes:
+        errors = vote.get("errors") or []
+        if errors:
+            failed += 1
+            messages.extend(str(e) for e in errors)
+    if votes and failed != len(votes):
+        return None  # a judge answered — the run is not dead
+    for message in messages:
+        low = message.lower()
+        if any(marker in low for marker in _AUTH_ABORT_MARKERS):
+            return message
+    return None
+
+
 def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code_families) -> None:
     """The job body: grade every target without a verdict, saving the record after each case
     so a restart can resume; then the cohort report. Any failure lands on the record."""
     r = job["request"]
+    consecutive_auth_failures = 0
+    last_auth_reason: str | None = None
     try:
         done_rows = {row["case_id"]: row for row in job["rows"] if row.get("verdict")}
         for cid in job["targets"]:
@@ -3031,6 +3184,20 @@ def _run_grade_job(job: dict, *, db_path, out_dir, workdir, collections_db, code
             job["rows"] = [done_rows[c] for c in job["targets"] if c in done_rows]
             job["done"] = sum(1 for x in job["rows"] if x.get("verdict") or x.get("error"))
             _save_job(out_dir, job)
+            # GRADE-ABORT-1: every judge call failing the same auth/config way, case after case,
+            # is a dead run — stop and name it instead of grading the cohort into empty votes.
+            reason = _auth_failure_reason(row)
+            if reason is None:
+                consecutive_auth_failures = 0
+            else:
+                consecutive_auth_failures += 1
+                last_auth_reason = reason
+                if consecutive_auth_failures >= _AUTH_ABORT_AFTER:
+                    raise RuntimeError(
+                        f"stopped after {consecutive_auth_failures} cases in a row whose every "
+                        f"judge call failed the same way: {last_auth_reason}. Nothing further was "
+                        "graded; fix the provider setup and resume this job."
+                    )
         job["result"] = _cohort_report(
             [done_rows[c] for c in job["targets"] if c in done_rows], job["targets"],
             agent=job["agent"], live=r["live"], in_process=r["in_process"], db_path=db_path,
@@ -3152,6 +3319,11 @@ def _job_scorecard(
                         and j.get("job_id") != job.get("job_id")
                         and j.get("agent") == job.get("agent")
                         and j.get("round") == compare
+                        # COMPARE-SPLIT-1: a round name resolves within the SAME split — a
+                        # before round on the calibration split and one on the test split are
+                        # measurements on different cases, and pairing them reads as a swing
+                        # that never happened.
+                        and j.get("split") == job.get("split")
                         and j.get("status") == "done"
                     ):
                         candidates.append(j)
@@ -3168,6 +3340,28 @@ def _job_scorecard(
             else:
                 card["compare"] = None
     return card
+
+
+def _resolve_prompt_module(requested: str | None, vocab) -> str:
+    """EXPORT-MODULE-1: the chat row's user turn comes from the module the IMPORTER MANIFEST
+    declares. The route used to import whatever path the request named, so a caller could make
+    the service exec an arbitrary .py; the manifest is the contract, and a request may only
+    repeat it."""
+    declared = getattr(vocab, "training_prompt_module", None)
+    if not declared:
+        raise HTTPException(
+            status_code=422,
+            detail=f"format chat needs a prompt module; importer {vocab.id!r} declares none",
+        )
+    if requested and requested != declared:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"prompt_module {requested!r} is not the module importer {vocab.id!r} declares "
+                f"({declared!r}); the manifest is the contract for what the export may load"
+            ),
+        )
+    return declared
 
 
 class ExportRequest(BaseModel):
@@ -3291,14 +3485,7 @@ def export_endpoint(
                 gold[cid] = row
     fill_prompt = None
     if req.format == "chat":
-        # FT-FROM-SHELL-1: the chat row's user turn comes from the importer manifest's training
-        # prompt module unless the caller names one; neither is a 422.
-        prompt_module = req.prompt_module or vocab.training_prompt_module
-        if not prompt_module:
-            raise HTTPException(
-                status_code=422,
-                detail=f"format chat needs a prompt module; importer {vocab.id!r} declares none",
-            )
+        prompt_module = _resolve_prompt_module(req.prompt_module, vocab)
         try:
             fill_prompt = _export._load_fill_prompt(prompt_module)
         except (OSError, SystemExit, AttributeError) as exc:
@@ -3453,6 +3640,12 @@ def grade_cases_endpoint(
             )
         if job.get("status") == "running":
             raise HTTPException(status_code=409, detail=f"job {req.resume} is still running")
+        paid = bool((job.get("request") or {}).get("live") or (job.get("request") or {}).get("in_process"))
+        _require_grade_confirm(req.confirm, paid, resumed=True)
+        # JOB-STATE-1: every refusal comes BEFORE the record is touched. Flipping it to running
+        # and dropping its unverdicted rows first left a job refused by the 409 below stuck
+        # reading "running" with nothing driving it, and the UI then offered no resume at all.
+        _refuse_a_second_grade(req.agent, exclude=req.resume)
         targets = list(job["targets"])
         job["rows"] = [row for row in job.get("rows") or [] if row.get("verdict")]
         job["status"], job["error"], job["result"] = "running", None, None
@@ -3472,6 +3665,7 @@ def grade_cases_endpoint(
                 ),
             )
         job = None
+        _require_grade_confirm(req.confirm, live or in_process, resumed=False)
     if not (req.background or req.resume):
         rows = [
             _grade_row(
@@ -3485,12 +3679,8 @@ def grade_cases_endpoint(
             rows, targets, agent=req.agent, live=live, in_process=in_process, db_path=db_path,
             workdir=workdir, code_families=code_families,
         )
-    running = _running_job_for(req.agent, exclude=req.resume)
-    if running is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"a grade job is already running for {req.agent}: {running['job_id']}",
-        )
+    if not req.resume:  # a resume was already checked, before it touched the record
+        _refuse_a_second_grade(req.agent, exclude=None)
     if job is None:
         job = {
             "job_id": f"job-{uuid.uuid4().hex[:12]}",
@@ -4318,7 +4508,9 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
         "assigned_flags": assigned,
         "validator_refs": (list(jc.validator_refs) if jc else []),
         "available_flags": available,
-        "available_validators": list(_KNOWN_VALIDATORS),
+        "available_validators": _available_validators(
+            workspace.get_active_workspace().pack
+        ),
         "questions": questions,
         "authored": jc is not None,
         # Per-reviewer sampling config (independent-axes model). ``k`` falls back to the per-role
@@ -4686,6 +4878,21 @@ def optimize_judge_endpoint(
                 "an explicit cost check."
             ),
         )
+    if not req.split:
+        # SPLIT-HYGIENE-1: without a split the optimizer STRIDES over every labelled case and
+        # ignores the tag each was imported with, so a labelled dataset's held-out rows would
+        # train the demos and decide the pin. Refuse here: before the paid call, before a job.
+        tags = _split_tags_in_corpus(ws)
+        if tags:
+            named = ", ".join(f"{k}: {n}" for k, n in sorted(tags.items()))
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"this workspace's cases carry their own split tags ({named}). Name the "
+                    "split to calibrate on, so the demos never train on rows the dataset held "
+                    "out; calibrating without one would stride across every split."
+                ),
+            )
     resolved_out = out_dir if out_dir is not None else (REPO_ROOT / "out" / "bff" / "optimize")
     kwargs = dict(
         role=role, ws=ws, collections_db=collections_db, out_dir=resolved_out, limit=req.limit,
@@ -8898,6 +9105,7 @@ def ingest_preview_endpoint(
     template, apply it, and return the extracted cases + the template for the human to validate.
     Pins NOTHING and writes NO corpus — the human approves at /commit. A bad blob / non-converging
     transform is a calm 422 (the front door surfaces the reason), never a bare 500."""
+    _refuse_oversized_ingest(req.raw)
     actor = _resolve_actor(x_actor, default_actor)
     agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)
@@ -8922,6 +9130,7 @@ def ingest_commit_endpoint(
 ) -> dict:
     """CE-INGEST-FRONTDOOR-1: pin the human-APPROVED template + upsert the corpus (no LM gen). The
     decode is deterministic, so this reproduces exactly the cases shown in /preview."""
+    _refuse_oversized_ingest(req.raw)
     actor = _resolve_actor(x_actor, default_actor)
     agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)

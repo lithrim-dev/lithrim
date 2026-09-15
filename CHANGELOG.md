@@ -6,6 +6,62 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.31] — 2026-09-15
+
+The three critical findings from the v0.1.30 review, plus the job, provider and docs
+follow-ups behind them.
+
+### Changed
+- **Breaking (API):** `POST /v1/cases/grade` refuses a PAID grade without `confirm: true`
+  (422), the way `POST /v1/judges/{role}/optimize` always has. This includes `resume`, which
+  runs on the original job's paid flags — the shell's Resume button billed with no cost dialog
+  before. The $0 replay path (neither `live` nor `in_process`) spends nothing and needs no
+  confirm. The shell sends the confirm from its in-DOM dialog and routes Resume through it;
+  `lithrim grade` / `regrade` send it with `--confirm-cost`.
+
+### Fixed
+- A calibration round whose held-out set is not the one the pinned demos were scored on is now
+  refused instead of pinned. The "no comparable score" branch pinned unconditionally, so a
+  regressing round could reach the production judge by changing the subset it was scored on;
+  `force` (`--force-pin`) still pins and the reason says so.
+- Calibrating a corpus that carries its own split tags no longer strides across them. The
+  stride ordered every labelled case by id and took every third as held-out, ignoring the split
+  each case was imported with, so a labelled dataset's test rows could train the demos and
+  decide the pin. The engine refuses such a corpus by name, the optimize route answers 422
+  before any paid call, and the reviewer card no longer offers the stride.
+- A resume refused by the duplicate-job 409 no longer leaves the job stuck reading `running`:
+  the record is touched only after every refusal.
+- A grade whose judge calls all fail the same auth/config way (401, 403, a missing deployment)
+  stops after three such cases and fails with the provider's own message, keeping the graded
+  rows for a resume, instead of grading the whole cohort into empty votes. A provider refusal
+  (a content filter) stays a miss and never aborts. The judge's error text rides the row.
+- `lithrim calibrate` runs on the provider binding and the key connected in the app, like a
+  grade; it used to fall back to the role's default deployment and fail after the grade was
+  already paid for.
+- One poller per job in the shell: a second follower joins the first instead of doubling the
+  polls and clobbering the progress chip, an agent switch stops the previous agent's pollers,
+  and the reviewer card shares one poller per calibration across mounted cards. The cost dialog
+  now closes when the service accepts the job instead of waiting out the whole run with Cancel
+  disabled.
+- A round name compares only within its own split, so a calibration round never sits beside a
+  test round as a before/after. The shell asks for a comparison only for the after round.
+- The reviewer editor's fact-check list offers only the checks the ACTIVE pack can run: the
+  static list offered `dosage_grounding` (a clinical floor that ships with the healthcare pack)
+  on the neutral `_core` pack, so a reviewer could reference a check nothing would execute.
+- The export format picker offers only the formats the importer declares (a dataset with no
+  training prompt module cannot write the chat one), instead of sending the human into a 422.
+- Both compose files pass `LITHRIM_ALLOWED_ORIGINS`, `LITHRIM_OPTIMIZE_TIMEOUT_S` and
+  `LITHRIM_GRADE_TIMEOUT_S` through, so the documented knobs work from a compose `.env`.
+- Docs: the stale "held out on the test split" lines, the RAGTruth citation (Wu et al.
+  everywhere), the Azure deployment model string with the OpenAI form beside it, the curls the
+  no-clone reproduction needs, the release the compose file pins, and the README's "pulls".
+
+### Security
+- The chat export loads only the training prompt module the importer manifest declares; the
+  route used to import whatever path the request named.
+- Both ingest routes refuse a blob over `LITHRIM_INGEST_MAX_MB` (default 64) with the two sizes
+  and the knob, instead of reading an unbounded paste into memory.
+
 ## [0.1.30] — 2026-09-11
 
 Calibrate as a background job, so a pilot-scale calibration runs from the shell.
@@ -38,8 +94,8 @@ Held-out hygiene for the pin gate, and the training export from the shell.
 - A pinned score is compared only on the same held-out set. The score sidecar records the
   held-out identity (split, size, digest of the case ids) and the manifest names the split; a
   set pinned before this change (scored on the test cut) or a changed dev slice is not
-  comparable, so the next round pins with that reason stated instead of being accepted or
-  refused on the difference between two sets.
+  comparable, so the round is refused with that reason rather than pinned (re-scoring the
+  pinned set would be a paid round); `force` pins it deliberately and says so.
 - The chat (azure-chat) export no longer crashes on a structured prose source (every RAGTruth QA
   row); a row the training prompt still cannot fill is refused by name.
 

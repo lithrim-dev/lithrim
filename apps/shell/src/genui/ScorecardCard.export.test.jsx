@@ -24,4 +24,24 @@ describe("ScorecardCard export picker", () => {
     await waitFor(() => expect(onExport).toHaveBeenCalledWith("job-c", expect.objectContaining({ format: "chat", split: "calibration" })));
     expect((await screen.findByTestId("export-result")).textContent).toMatch(/120 rows written.*_chat\.jsonl/);
   });
+
+  // EXPORT-FORMAT-1: the importer manifest says which formats it can write (chat needs a
+  // training prompt module). Offering one it does not declare sent the human into a 422.
+  it("a format the importer does not declare is disabled, with the importer named", () => {
+    render(
+      <ScorecardCard cases={[]} per_task={per_task} round="calibration" split="calibration" job_id="job-c"
+        onExport={vi.fn()} training_formats={["generic", "paper"]} vocabulary={{ dataset: "plainset" }} />,
+    );
+    const sel = screen.getByTestId("export-format");
+    expect(sel.querySelector('option[value="paper"]').disabled).toBe(false);
+    const chat = sel.querySelector('option[value="chat"]');
+    expect(chat.disabled).toBe(true);
+    expect(chat.title).toMatch(/plainset/);
+  });
+
+  it("with no importer list the calibration round still offers both training formats", () => {
+    render(<ScorecardCard cases={[]} per_task={per_task} round="calibration" split="calibration" job_id="job-c" onExport={vi.fn()} />);
+    const sel = screen.getByTestId("export-format");
+    expect(sel.querySelector('option[value="chat"]').disabled).toBe(false);
+  });
 });

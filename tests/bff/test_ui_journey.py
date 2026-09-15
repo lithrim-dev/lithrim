@@ -249,6 +249,7 @@ def test_jobs_are_listed_per_agent_with_their_round(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "before",
             "split": "test",
@@ -263,7 +264,7 @@ def test_jobs_are_listed_per_agent_with_their_round(client):
     assert mine["split"] == "test" and "rows" not in mine
     calib = cli.post(
         "/v1/cases/grade",
-        json={"agent": AGENT, "in_process": True, "background": True, "split": "calibration"},
+        json={"agent": AGENT, "in_process": True, "background": True, "split": "calibration", "confirm": True},
     )
     assert calib.status_code == 202 and calib.json()["total"] == 2
     _wait_done(cli, calib.json()["job_id"])
@@ -305,7 +306,7 @@ def test_a_job_orphaned_by_a_restart_reads_as_interrupted_and_resumes(client):
     # as running forever, and resume must be allowed instead of a 409
     got = cli.get(f"/v1/jobs/{job_id}").json()
     assert got["status"] == "interrupted"
-    res = cli.post("/v1/cases/grade", json={"agent": AGENT, "resume": job_id, "background": True})
+    res = cli.post("/v1/cases/grade", json={"agent": AGENT, "resume": job_id, "background": True, "confirm": True})
     assert res.status_code == 202, res.text
     job = _wait_done(cli, job_id)
     assert job["status"] == "done" and job["done"] == 2 and job["round"] == "before"
@@ -321,6 +322,7 @@ def test_scorecard_for_a_job_speaks_both_vocabularies(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "before",
             "split": "test",
@@ -347,7 +349,7 @@ def test_scorecard_without_an_importer_vocabulary_still_scores_in_our_terms(clie
     _import(cli)
     job_id = cli.post(
         "/v1/cases/grade",
-        json={"agent": AGENT, "in_process": True, "background": True, "split": "test"},
+        json={"agent": AGENT, "in_process": True, "background": True, "split": "test", "confirm": True},
     ).json()["job_id"]
     _wait_done(cli, job_id)
     card = cli.get(f"/v1/jobs/{job_id}/scorecard").json()
@@ -364,6 +366,7 @@ def test_export_writes_the_corpus_under_the_workspace_and_serves_it(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "before",
             "split": "test",
@@ -391,7 +394,7 @@ def test_export_refuses_a_training_format_off_the_calibration_split(client):
     _import(cli)
     job_id = cli.post(
         "/v1/cases/grade",
-        json={"agent": AGENT, "in_process": True, "background": True, "split": "test"},
+        json={"agent": AGENT, "in_process": True, "background": True, "split": "test", "confirm": True},
     ).json()["job_id"]
     _wait_done(cli, job_id)
     res = cli.post("/v1/export", json={"agent": AGENT, "job_id": job_id, "format": "paper"})
@@ -404,7 +407,7 @@ def test_spend_prices_the_agents_runs_at_list_price(client):
     _import(cli)
     job_id = cli.post(
         "/v1/cases/grade",
-        json={"agent": AGENT, "in_process": True, "background": True, "split": "test"},
+        json={"agent": AGENT, "in_process": True, "background": True, "split": "test", "confirm": True},
     ).json()["job_id"]
     _wait_done(cli, job_id)
     res = cli.get(f"/v1/spend?agent={AGENT}")
@@ -432,6 +435,7 @@ def test_workspace_resources_name_everything_the_loop_left_behind(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "before",
             "split": "test",
@@ -453,6 +457,34 @@ def test_workspace_resources_name_everything_the_loop_left_behind(client):
     assert cli.get("/v1/workspaces/not_here/resources").status_code == 404
 
 
+# COMPARE-SPLIT-1: a round name resolves within the SAME split. A before round on the
+# calibration split (graded for a training export) and a before round on the test split are
+# different measurements on different cases; pairing them read as a swing that never happened.
+def test_a_round_name_compares_only_within_the_same_split(client):
+    cli, _out = client
+    _import(cli)
+    cli.post("/v1/judges?rationale=journey", json=JUDGE)
+
+    def _grade(round_, split):
+        job = cli.post(
+            "/v1/cases/grade",
+            json={"agent": AGENT, "in_process": True, "confirm": True, "background": True,
+                  "round": round_, "split": split},
+        ).json()["job_id"]
+        assert _wait_done(cli, job)["status"] == "done"
+        return job
+
+    calib_before = _grade("before", "calibration")
+    test_before = _grade("before", "test")
+    test_after = _grade("after", "test")
+    card = cli.get(f"/v1/jobs/{test_after}/scorecard?compare=before").json()
+    assert card["compare"]["job_id"] == test_before, "the test round pairs with the test round"
+    assert card["compare"]["job_id"] != calib_before
+    calib_after = _grade("after", "calibration")
+    other = cli.get(f"/v1/jobs/{calib_after}/scorecard?compare=before").json()
+    assert other["compare"]["job_id"] == calib_before
+
+
 # --------------------------------------------------------------------------- the whole chain
 def test_the_loop_from_import_to_export_over_one_workspace(client):
     cli, out = client
@@ -463,6 +495,7 @@ def test_the_loop_from_import_to_export_over_one_workspace(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "before",
             "split": "test",
@@ -474,6 +507,7 @@ def test_the_loop_from_import_to_export_over_one_workspace(client):
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "after",
             "split": "test",
@@ -511,6 +545,7 @@ def test_a_calibration_round_exports_the_chat_training_file_with_the_importers_p
         json={
             "agent": AGENT,
             "in_process": True,
+            "confirm": True,
             "background": True,
             "round": "calibration",
             "split": "calibration",

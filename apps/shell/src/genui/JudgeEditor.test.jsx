@@ -314,12 +314,24 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
     expect(screen.getByTestId("optimize-pin-note").dataset.pinned).toBe("no");
   });
 
-  it("unticking the split option falls back to the subset picker", async () => {
+  it("offers no way to stride across a corpus that carries its own splits (SPLIT-HYGIENE-1)", async () => {
     listCases.mockResolvedValueOnce(SPLIT_CASES);
     render(<JudgeEditor role="risk_judge" />);
     const opt = await screen.findByTestId("optimize-split");
-    fireEvent.click(opt.querySelector("input"));
-    expect(await screen.findByTestId("optimize-case-ragtruth_1")).toBeInTheDocument();
+    expect(opt.querySelector("input")).toBeNull();
+    expect(opt.textContent).toMatch(/never strides across them/);
+    expect(screen.queryByTestId("optimize-case-ragtruth_1")).toBeNull();
+  });
+
+  it("a corpus with no splits of its own still offers the subset picker and sends no split", async () => {
+    listCases.mockResolvedValueOnce({ cases: [{ case_id: "c1", labeled: true }, { case_id: "c2", labeled: true }], count: 2 });
+    optimizeJudge.mockResolvedValueOnce(deltaResult({ graded: 0.1 }));
+    render(<JudgeEditor role="risk_judge" />);
+    expect(await screen.findByTestId("optimize-case-c1")).toBeInTheDocument();
+    expect(screen.queryByTestId("optimize-split")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    await waitFor(() => expect(optimizeJudge).toHaveBeenCalledWith("risk_judge", { confirm: true, background: true, agent: "ws0_default" }));
   });
 
   describe("the judge read's pinned demos", () => {
@@ -344,17 +356,30 @@ describe("JudgeEditor — calibrate on the calibration split (B6)", () => {
 });
 
 
-describe("JudgeEditor — a pin with no comparable score says so (HOLDOUT-DEV-1)", () => {
-  it("names the different held-out set instead of implying the round beat the pinned set", async () => {
+describe("JudgeEditor — a round with no comparable score is refused (PIN-GATE-3)", () => {
+  it("says the round was not pinned and why, instead of implying it beat the pinned set", async () => {
     optimizeJudge.mockResolvedValueOnce({
       ...deltaResult({ graded: -0.1 }),
-      pin: { pinned: true, comparable: false, reason: "pinned (no comparable score: ...)" },
+      pin: { pinned: false, comparable: false, reason: "REFUSING to pin: no comparable score: ..." },
     });
     render(<JudgeEditor role="risk_judge" />);
     fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     const note = await screen.findByTestId("optimize-pin-note");
-    expect(note.textContent).toMatch(/different held-out set, so there was nothing comparable to beat/);
+    expect(note.textContent).toMatch(/Not pinned/);
+    expect(note.textContent).toMatch(/different held-out set/);
+    expect(note.textContent).not.toMatch(/now grades with these demos/);
+  });
+
+  it("names force when an uncomparable round was pinned deliberately", async () => {
+    optimizeJudge.mockResolvedValueOnce({
+      ...deltaResult({ graded: -0.1 }),
+      pin: { pinned: true, comparable: false, reason: "pinned by force (no comparable score: ...)" },
+    });
+    render(<JudgeEditor role="risk_judge" />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Optimize$/ }));
+    fireEvent.click(await screen.findByTestId("optimize-confirm"));
+    expect((await screen.findByTestId("optimize-pin-note")).textContent).toMatch(/pinned by force, with no comparable held-out score/);
   });
 });
 
@@ -394,4 +419,24 @@ describe("JudgeEditor — calibration as a background job (OPTIMIZE-JOB-1)", () 
     fireEvent.click(await screen.findByTestId("optimize-confirm"));
     expect((await screen.findByTestId("optimize-error")).textContent).toMatch(/did not finish within 14400 s.*nothing was pinned/);
   });
+  // JOB-POLLER-1: the reviewer card can be mounted twice (the chat's card and the editor); each
+  // mount used to start its own poller for the SAME calibration job.
+  it("two cards following the same calibration poll it once and both render the result", async () => {
+    listJobs.mockResolvedValue({ jobs: [{ job_id: "job-o9", kind: "optimize", role: "risk_judge", status: "running" }] });
+    getJob.mockReset();
+    let polls = 0;
+    getJob.mockImplementation(async () => { polls += 1; return { job_id: "job-o9", status: "done", result: DONE }; });
+    render(
+      <>
+        <JudgeEditor role="risk_judge" />
+        <JudgeEditor role="risk_judge" />
+      </>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("optimize-pin-note").length).toBe(2));
+    for (const note of screen.getAllByTestId("optimize-pin-note")) expect(note.dataset.pinned).toBe("yes");
+    expect(polls).toBe(1);
+    listJobs.mockReset();
+    getJob.mockReset();
+  });
+
 });
