@@ -179,6 +179,42 @@ _KNOWN_VALIDATORS = (
 )
 
 
+def _core_verification_tool_names() -> frozenset[str]:
+    """The verification tool names core IMPLEMENTS (one class per name in
+    ``verification/tools.py``). A pack-local tool (the clinical ``dosage_grounding``) is absent
+    here and reaches the offer only through its pack's executor registry."""
+    import inspect
+
+    from lithrim_bench.verification import tools as _tools
+
+    return frozenset(
+        name
+        for _, cls in inspect.getmembers(_tools, inspect.isclass)
+        if isinstance(name := getattr(cls, "name", None), str) and name
+    )
+
+
+def _available_validators(pack: str | None = None) -> list[str]:
+    """VALIDATOR-OFFER-1: the fact-checks the reviewer editor may offer for ``pack`` — the known
+    names this pack can actually RUN: an executor it registers, or a verification tool core
+    implements. The static tuple offered every name whatever the pack, so the neutral ``_core``
+    offered the clinical ``dosage_grounding`` and a reviewer could reference a check nothing
+    could execute. Resolved per request like ``_grounding_contract_types``, so OFFER and GATE
+    agree; an undiscoverable pack falls back to the core-only offer rather than failing a read."""
+    from lithrim_bench.harness import grounding as _grounding
+
+    runnable = set(_core_verification_tool_names())
+    for candidate in (pack, "_core"):  # an undiscoverable pack falls back to the core registries
+        try:
+            runnable |= set(_grounding.suppress_executors(candidate)) | set(
+                _grounding.floor_executors(candidate)
+            )
+            break
+        except Exception:  # noqa: BLE001 — a missing pack must never fail a $0 config read
+            continue
+    return [name for name in _KNOWN_VALIDATORS if name in runnable]
+
+
 def get_config_db() -> Path:
     """The SQLite config plane the BFF resolves agents from — scoped to the ACTIVE
     workspace (switching the workspace switches agents/judges/flags/audit). Override in tests."""
@@ -4472,7 +4508,9 @@ def _judge_summary(role: str, jc, ontology, bindings: dict | None = None) -> dic
         "assigned_flags": assigned,
         "validator_refs": (list(jc.validator_refs) if jc else []),
         "available_flags": available,
-        "available_validators": list(_KNOWN_VALIDATORS),
+        "available_validators": _available_validators(
+            workspace.get_active_workspace().pack
+        ),
         "questions": questions,
         "authored": jc is not None,
         # Per-reviewer sampling config (independent-axes model). ``k`` falls back to the per-role

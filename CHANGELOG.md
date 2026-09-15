@@ -45,6 +45,9 @@ follow-ups behind them.
   disabled.
 - A round name compares only within its own split, so a calibration round never sits beside a
   test round as a before/after. The shell asks for a comparison only for the after round.
+- The reviewer editor's fact-check list offers only the checks the ACTIVE pack can run: the
+  static list offered `dosage_grounding` (a clinical floor that ships with the healthcare pack)
+  on the neutral `_core` pack, so a reviewer could reference a check nothing would execute.
 - The export format picker offers only the formats the importer declares (a dataset with no
   training prompt module cannot write the chat one), instead of sending the human into a 422.
 - Both compose files pass `LITHRIM_ALLOWED_ORIGINS`, `LITHRIM_OPTIMIZE_TIMEOUT_S` and
