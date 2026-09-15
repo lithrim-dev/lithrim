@@ -81,7 +81,7 @@ You provide the key; Lithrim provides the harness. No accounts, no hosted infere
 **Run it in containers — `docker compose up`.** No local Python/Node toolchain needed; a stranger gets the whole stack in two commands:
 
 ```bash
-docker compose up   # builds + starts BFF (:8787), UI (:5180), and the JUTE mapper (:3031)
+docker compose up   # pulls + starts BFF (:8787), UI (:5180), and the JUTE mapper (:3031)
 ```
 
 That's three services: the **BFF** (the API, `:8787`), the **UI** (`:5180`), and the bundled **JUTE mapper** (`:3031`, used only for ingesting arbitrary JSON; see [`docs/JUTE_MAPPER_ADDON.md`](docs/JUTE_MAPPER_ADDON.md)). If you never paste arbitrary JSON, `docker compose up bff ui` runs core-only and skips the mapper.

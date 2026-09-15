@@ -66,7 +66,7 @@ outside the engine: a Python file (or importable module) the CLI loads with
 |---|---|
 | `download(data_dir)` | Optional. Fetch the dataset's files into `data_dir` when absent. |
 | `slice_cases(data_dir, *, per_task, split, natural)` | Return eval cases (the pack's case shape) for `split` (`test` or `train`); `train` rows carry `split: calibration`. |
-| `calibration_corpus(data_dir, *, per_task, test_cases)` | Return the optimizer corpus: calibration rows from the train side plus the given test cases, source-disjoint. |
+| `calibration_corpus(data_dir, *, per_task, test_cases)` | Return the optimizer corpus: calibration rows from the train side ALONE, source-disjoint from `test_cases` (which it must not include — the pin gate scores on a `dev` slice carved from the calibration rows, and the test cut stays untouched until the after round). |
 
 The reference adapter is `examples/ragtruth/adapter.py`; the reviewer it pairs with is
 `examples/ragtruth/judge.ragtruth_detector.json` (`lithrim configure --judge`). The loop is

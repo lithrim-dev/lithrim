@@ -2620,6 +2620,37 @@ class GradeCasesRequest(BaseModel):
     confirm: bool = False
 
 
+# INGEST-LIMIT-1: the front door reads the whole blob into memory before the mapper sees it, so
+# it states a ceiling instead of dying deep inside the decoder on someone's whole trace export.
+_INGEST_MAX_MB_DEFAULT = 64
+
+
+def _ingest_max_bytes() -> int:
+    """The ingest ceiling in bytes (LITHRIM_INGEST_MAX_MB, default 64). A bad value reads as the
+    default rather than refusing every upload."""
+    raw = os.environ.get("LITHRIM_INGEST_MAX_MB")
+    try:
+        mb = int(raw) if raw else _INGEST_MAX_MB_DEFAULT
+    except ValueError:
+        mb = _INGEST_MAX_MB_DEFAULT
+    return max(1, mb) * 1024 * 1024
+
+
+def _refuse_oversized_ingest(raw: str) -> None:
+    """422 naming what arrived, the ceiling, and the knob that raises it."""
+    limit = _ingest_max_bytes()
+    size = len(raw.encode("utf-8", "ignore"))
+    if size > limit:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"this upload is {size / (1024 * 1024):.1f} MB and the ingest limit is "
+                f"{limit // (1024 * 1024)} MB. Load a smaller cut, or raise "
+                "LITHRIM_INGEST_MAX_MB on the service."
+            ),
+        )
+
+
 class IngestPreviewRequest(BaseModel):
     # CE-INGEST-FRONTDOOR-1: the data front door. `raw` is the uploaded file/paste content; `fmt`
     # is auto-detected (by `filename` extension, else content sniff) unless named explicitly.
@@ -9036,6 +9067,7 @@ def ingest_preview_endpoint(
     template, apply it, and return the extracted cases + the template for the human to validate.
     Pins NOTHING and writes NO corpus — the human approves at /commit. A bad blob / non-converging
     transform is a calm 422 (the front door surfaces the reason), never a bare 500."""
+    _refuse_oversized_ingest(req.raw)
     actor = _resolve_actor(x_actor, default_actor)
     agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)
@@ -9060,6 +9092,7 @@ def ingest_commit_endpoint(
 ) -> dict:
     """CE-INGEST-FRONTDOOR-1: pin the human-APPROVED template + upsert the corpus (no LM gen). The
     decode is deterministic, so this reproduces exactly the cases shown in /preview."""
+    _refuse_oversized_ingest(req.raw)
     actor = _resolve_actor(x_actor, default_actor)
     agent = _resolve_chat_agent(req.agent, db_path)
     ctx = _build_tool_context(agent, db_path, out_dir, workdir, collections_db, actor, x_actor)

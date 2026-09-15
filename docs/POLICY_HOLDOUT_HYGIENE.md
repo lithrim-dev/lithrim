@@ -40,8 +40,10 @@ paid optimization entry point (wrapped by `scripts/optimize_judge.py` and the BF
 
 - trains only on `split == "calibration"` rows
   (`lithrim_bench/runtime/council/judge_optimize.py:405`),
-- measures the baseline and the compiled program only on `split == "test"` rows
-  (`judge_optimize.py:406`, `judge_optimize.py:420`, `judge_optimize.py:436`),
+- measures the baseline and the compiled program only on the HELD-OUT split it was told to
+  hold out on (`run_optimize(heldout_split=…)`, default `test`). A corpus built from a labelled
+  dataset's own calibration split holds out on the source-disjoint `dev` slice carved from it
+  (`harness/calib_corpus.py:carve_dev`), so no gate decision reads a test label,
 - reports the delta win-or-loss; the accept gate is never loosened
   (`judge_optimize.py` docstring at `378-380`).
 

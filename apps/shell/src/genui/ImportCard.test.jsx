@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ImportCard from "./ImportCard.jsx";
 
-const IMPORTERS = [{ id: "ragtruth_vocabulary", dataset: "ragtruth", adapter: true, files: ["response.jsonl", "source_info.jsonl"], citation: "Niu et al.", license: "MIT", verdict_rule: { ragtruth: "a response is hallucinated iff it carries at least one annotated span" } }];
+const IMPORTERS = [{ id: "ragtruth_vocabulary", dataset: "ragtruth", adapter: true, files: ["response.jsonl", "source_info.jsonl"], citation: "Wu et al.", license: "MIT", verdict_rule: { ragtruth: "a response is hallucinated iff it carries at least one annotated span" } }];
 
 let calls;
 beforeEach(() => {
@@ -28,7 +28,7 @@ describe("ImportCard", () => {
   it("lists the pack's importers with their provenance and one file input per declared file", async () => {
     render(<ImportCard />);
     await screen.findByTestId("import-importer");
-    expect(screen.getByTestId("import-provenance").textContent).toMatch(/Niu et al.*MIT.*annotated span/);
+    expect(screen.getByTestId("import-provenance").textContent).toMatch(/Wu et al.*MIT.*annotated span/);
     expect(screen.getByTestId("import-cases").querySelectorAll('input[type="file"]')).toHaveLength(2);
     expect(screen.getByTestId("import-load")).toBeDisabled(); // no files yet
   });

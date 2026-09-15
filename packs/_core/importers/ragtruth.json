@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "implements": "importer.dataset_vocabulary",
   "dataset": "ragtruth",
-  "citation": "Niu et al., RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models, arXiv:2401.00396",
+  "citation": "Wu et al., RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models, arXiv:2401.00396",
   "license": "MIT (ParticleMedia/RAGTruth)",
   "label_types": {
     "Evident Conflict": "SOURCE_CONTRADICTION",

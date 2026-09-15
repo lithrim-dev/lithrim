@@ -2,11 +2,11 @@
 
 Steps (each idempotent; ``run --from STEP`` resumes):
   download   the dataset's files into the data dir (the adapter's job)
-  slice      the test cut (--per-task) + the optimizer corpus (calibration + test rows)
+  slice      the test cut (--per-task) + the optimizer corpus (calibration rows alone)
   ingest     the cut into the active workspace through the native front door
   judge      author/refresh the judge from its definition file and pin its model
   before     grade the cut (in-process, judge cache off) and score it: the baseline row
-  optimize   DSPy BootstrapFewShot on the calibration rows, held-out = the test cut
+  optimize   DSPy BootstrapFewShot on the calibration rows, held-out = the dev slice of them
   pin        copy the compiled demos into the workspace out dir through the pin gate
   after      grade the cut again and score it: the optimized row
   calib      grade the calibration slice so every case leaves a gold-mismatch row (opt-in)
