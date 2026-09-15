@@ -150,8 +150,14 @@ empty on first `up`:
 - **Long calibrations**: a calibration runs as a background job the judge editor follows
   across reloads. Its optimizer subprocess stops after `LITHRIM_OPTIMIZE_TIMEOUT_S` seconds
   (default 14400, four hours) and reports that as a failed calibration with nothing pinned;
-  a single case's grade subprocess stops after `LITHRIM_GRADE_TIMEOUT_S` (default 600). To
-  change either under compose, pass it to the `bff` service in an override file.
+  a single case's grade subprocess stops after `LITHRIM_GRADE_TIMEOUT_S` (default 600). Both
+  are passed through by the compose files, so setting them in the `.env` beside the compose
+  file is enough — no override file.
+- **Serve the UI to another device** (a LAN address, a phone or an iPad): set
+  `LITHRIM_ALLOWED_ORIGINS` to a comma-separated allow-list of the origins the UI is served
+  from, e.g. `LITHRIM_ALLOWED_ORIGINS=http://192.168.1.21:5180`; unset means localhost only.
+  The published UI image bakes its BFF URL at build time, so a non-localhost origin also needs
+  a UI image built with `--build-arg VITE_BFF_URL=<your BFF origin>`.
 
 ---
 
