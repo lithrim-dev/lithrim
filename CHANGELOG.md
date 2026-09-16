@@ -15,6 +15,16 @@ date-based pre-1.0 versions.
   binding it is, and `GET /v1/judges/{role}` reports the same pair the grade will use. Found in
   the paid OpenAI reproduction of v0.1.31: 90 cases graded on gpt-4o under a manifest naming
   gpt-4.1-2025-04-14 (Azure masked it, since the default deployment matched).
+- A calibration round that makes the judge WORSE can no longer become the first pin. The gate
+  compared only against a previously pinned score, so a first round pinned whatever it produced
+  ("no pinned score to compare against") — including one whose own held-out graded fell
+  (measured: 0.65 to 0.64 pinned, and the after round then scored below the before round). The
+  round's own baseline, which the optimizer already writes beside the optimized score, is the
+  comparison a first pin has; `force` still pins and the reason says so.
+- The export verb reads the workspace the service is on, like every other verb — its corrections
+  log and collections db defaulted to `default`, so an export could publish another workspace's
+  rounds. With `--grade`, the export also refuses when the served models on its manifest are not
+  the ones that answered the round it names.
 - A paid calibration re-samples instead of replaying the judge cache. The grade path has set
   `LITHRIM_JUDGE_CACHE=0` since CACHE-TRAP-1; the optimize path set only the cache directory, so
   a second calibration could finish in seconds with the previous round's numbers — and the pin

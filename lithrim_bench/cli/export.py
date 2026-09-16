@@ -343,6 +343,26 @@ def export_manifest(
     }
 
 
+def served_models_disagree(export_served, grade_matrix) -> str | None:
+    """EXPORT-SERVED-1: the reason an export's served models contradict the grade it exports
+    from, else None. An export is the artifact people publish, so the models named on it must be
+    the models that answered in the round it draws on. Either side recording nothing is unknown
+    (a $0 replay, a run predating served-model capture) and is never accused."""
+    exported = {str(m).lower() for m in (export_served or []) if m}
+    graded = {
+        str(v.get("served_model")).lower()
+        for row in grade_matrix
+        for v in (row.get("votes") or [])
+        if v.get("served_model")
+    }
+    if not exported or not graded or exported == graded:
+        return None
+    return (
+        f"the export names served model(s) {sorted(exported)} but the grade it exports from was "
+        f"answered by {sorted(graded)}: these rows are not that round's"
+    )
+
+
 def load_inputs(a):
     cases = {json.loads(line)["case_id"]: json.loads(line) for line in a.slice.open()}
     gold: dict[str, dict] = {}
@@ -376,15 +396,20 @@ def _load_fill_prompt(spec: str):
 
 def add_arguments(ap) -> None:
     ap.add_argument("--slice", type=Path, required=True)
+    # WS-DIR-1: unset = the workspace the SERVICE is on, like every other verb. These defaulted to
+    # `default` whatever workspace was active, so an export could read ANOTHER workspace's
+    # corrections log and publish its rounds (measured 2026-09-16: 63 rows carrying the previous
+    # workspace's served model).
+    ap.add_argument("--bff", default="http://localhost:8787")
+    ap.add_argument("--workspace", default=None, help="the workspace to read (default: the service's active one)")
+    ap.add_argument("--corrections", type=Path, default=None)
+    ap.add_argument("--collections-db", type=Path, default=None)
     ap.add_argument(
-        "--corrections",
+        "--grade",
         type=Path,
-        default=REPO_ROOT / "out/workspaces/default/out/corrections.ndjson",
-    )
-    ap.add_argument(
-        "--collections-db",
-        type=Path,
-        default=REPO_ROOT / "out/workspaces/default/collections.sqlite",
+        default=None,
+        help="the grade_<tag>.json these rows came from; the export refuses if its served models "
+             "are not the ones that answered that round",
     )
     ap.add_argument("--split", choices=["calibration", "test"], required=True)
     ap.add_argument("--filter", choices=["all", "supervised", "silver"], default="supervised")
@@ -404,8 +429,19 @@ def add_arguments(ap) -> None:
 
 
 def cmd_export(a) -> int:
+    from .loop import active_workspace, workspace_out_for
     from .scoring import resolve_vocabulary
 
+    ws_out = workspace_out_for(
+        REPO_ROOT / "out",
+        active=lambda: active_workspace(a.bff),
+        workspace=getattr(a, "workspace", None),
+        explicit=None,
+    )
+    if a.corrections is None:
+        a.corrections = ws_out / "corrections.ndjson"
+    if a.collections_db is None:
+        a.collections_db = ws_out.parent / "collections.sqlite"
     vocab = resolve_vocabulary(a.vocabulary, a.pack)
     if vocab is None:
         raise SystemExit("no importer manifest to export against; pass --vocabulary")
@@ -441,6 +477,18 @@ def cmd_export(a) -> int:
         vocab=vocab,
         graded_from=str(a.corrections),
     )
+    # EXPORT-SERVED-1: when the caller names the grade these rows came from, the models on the
+    # manifest must be the models that answered it — an export is what gets published.
+    grade_path = getattr(a, "grade", None)
+    if grade_path:
+        grade = json.loads(Path(grade_path).read_text())
+        disagreement = served_models_disagree(manifest["served_models"], grade.get("matrix") or [])
+        if disagreement:
+            raise SystemExit(
+                f"REFUSING to write this export: {disagreement}. Check that the workspace the "
+                "rows were read from is the one that graded them (lithrim --workspace)."
+            )
+        manifest["graded_from_run"] = str(grade_path)
     a.out.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2))
     print(
         json.dumps(
