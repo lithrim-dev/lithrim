@@ -45,8 +45,12 @@ def _loop_arguments(ap: argparse.ArgumentParser, *, needs_model: bool) -> None:
     ap.add_argument("--bff", default="http://localhost:8787")
     ap.add_argument("--agent", default="ws0_default")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "out" / "loop")
+    # WS-DIR-1: unset = the workspace the SERVICE is on (GET /v1/workspaces `active`), so the CLI
+    # and the service never write into different workspaces. --workspace names one directly.
+    ap.add_argument("--workspace", default=None, help="the workspace to read/write (default: the service's active one)")
     ap.add_argument(
-        "--workspace-out", type=Path, default=REPO_ROOT / "out" / "workspaces" / "default" / "out"
+        "--workspace-out", type=Path, default=None,
+        help="override the workspace out dir outright (default: <out root>/workspaces/<active>/out)",
     )
     ap.add_argument("--adapter", default=None, help="dataset adapter (.py path or module)")
     ap.add_argument("--data-dir", type=Path, default=None, help="the dataset's files")
@@ -80,6 +84,12 @@ def _loop_arguments(ap: argparse.ArgumentParser, *, needs_model: bool) -> None:
 
 
 def _prepare(a: argparse.Namespace, todo: tuple[str, ...]) -> None:
+    a.workspace_out = _loop.workspace_out_for(
+        REPO_ROOT / "out",
+        active=lambda: _loop.active_workspace(a.bff),
+        workspace=getattr(a, "workspace", None),
+        explicit=getattr(a, "workspace_out", None),
+    )
     a.slice = a.out / "slice_full.jsonl"
     a.calib = a.out / "calib.jsonl"
     a.data_dir = a.data_dir or a.out / "data"

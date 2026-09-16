@@ -1256,6 +1256,10 @@ def _optimize_via_subprocess(
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     out_dir = Path(out_dir)
     env["LITHRIM_JUDGE_CACHE_DIR"] = str(out_dir / "cache")  # UI-JOURNEY-1 (B10): per workspace
+    # CACHE-TRAP-3: a calibration is a PAID round whose held-out score decides the pin, so it must
+    # re-sample like a paid grade (CACHE-TRAP-1). Without this the DSPy disk cache replays the
+    # previous round byte-for-byte at tokens=0 and the gate compares a round against itself.
+    env["LITHRIM_JUDGE_CACHE"] = "0"
     # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
     # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
     staging = out_dir / "optimize" / role

@@ -15,6 +15,17 @@ date-based pre-1.0 versions.
   binding it is, and `GET /v1/judges/{role}` reports the same pair the grade will use. Found in
   the paid OpenAI reproduction of v0.1.31: 90 cases graded on gpt-4o under a manifest naming
   gpt-4.1-2025-04-14 (Azure masked it, since the default deployment matched).
+- A paid calibration re-samples instead of replaying the judge cache. The grade path has set
+  `LITHRIM_JUDGE_CACHE=0` since CACHE-TRAP-1; the optimize path set only the cache directory, so
+  a second calibration could finish in seconds with the previous round's numbers — and the pin
+  gate then decided on a replay. Both the service and the CLI now run the optimizer with the
+  cache off.
+- The CLI reads and writes the workspace the SERVICE is on. `--workspace-out` defaulted to
+  `out/workspaces/default/out` whatever workspace was active, so after switching the service the
+  CLI pinned demos into `default` and the next grade in the new workspace refused on a pin that
+  did not belong to it. It resolves the active workspace from `GET /v1/workspaces` (or
+  `--workspace`); an explicit `--workspace-out` still wins and an unreachable service falls back
+  to `default`.
 - An arm whose judge answered on a model other than the dated id it pins is refused instead of
   written out: `served_models_observed` was recorded and never compared. A deployment name or an
   operator attestation is still reported rather than accused, because neither is comparable to a

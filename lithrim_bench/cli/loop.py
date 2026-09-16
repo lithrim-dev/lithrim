@@ -422,6 +422,33 @@ def _grade_cohort(a, ids: list[str]) -> dict:
             raise SystemExit(f"grade job {job_id} {job.get('status')}: {job.get('error')}")
 
 
+def active_workspace(bff: str) -> str | None:
+    """The workspace the SERVICE is on (GET /v1/workspaces ``active``), or None when it names
+    none. Raises whatever the transport raises — the caller decides what an unreachable service
+    means (:func:`workspace_out_for` falls back)."""
+    return (http.get(bff, "/v1/workspaces") or {}).get("active")
+
+
+def workspace_out_for(out_root: Path, *, active, workspace: str | None, explicit: Path | None) -> Path:
+    """WS-DIR-1: the workspace out dir the CLI reads and writes (the pinned demos, the corrections
+    log) — the SERVICE's active workspace, so the CLI and the service never end up in different
+    ones. An explicit --workspace-out wins, then --workspace, then the service; an unreachable
+    service falls back to ``default`` rather than failing the command. The name lands as a
+    directory under the out root, so a name that is a path is refused rather than escaping it."""
+    if explicit is not None:
+        return explicit
+    name = workspace
+    if not name:
+        try:
+            name = active()
+        except Exception:  # noqa: BLE001 — a down service must not fail a local verb
+            name = None
+    name = (name or "default").strip()
+    if name in ("", ".", "..") or "/" in name or "\\" in name:
+        raise SystemExit(f"REFUSING: workspace name {name!r} is not a plain directory name")
+    return out_root / "workspaces" / name / "out"
+
+
 def served_model_mismatch(served: dict, *, model: str, dated: bool) -> str | None:
     """SERVED-MODEL-2: the reason this arm's served model contradicts its pin, else None.
 
@@ -557,6 +584,9 @@ def step_optimize(a) -> None:
     role = a.judge_def["role"]
     env = judge_env_for(role, getattr(a, "model", None))
     env.setdefault("LITHRIM_BENCH_PACK_OVERLAY_DIR", str(REPO_ROOT / "out" / "pack_overlay"))
+    # CACHE-TRAP-3: the paid calibration re-samples; a cached round would decide the pin on
+    # replayed numbers (the service path sets the same knob).
+    env["LITHRIM_JUDGE_CACHE"] = "0"
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
     cmd = [
         sys.executable,
