@@ -6,6 +6,20 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+### Fixed
+- The model a judge is configured with is now the model that grades it. `lithrim configure
+  --model openai/gpt-4.1-2025-04-14` wrote the string onto the judge record, but the council
+  resolves a role's model from the per-role binding env, which was only written for a judge
+  carrying a separate `provider` field — so the CLI's model never reached the council and every
+  vote ran on the provider default. A `provider/model` string on the record is read as the
+  binding it is, and `GET /v1/judges/{role}` reports the same pair the grade will use. Found in
+  the paid OpenAI reproduction of v0.1.31: 90 cases graded on gpt-4o under a manifest naming
+  gpt-4.1-2025-04-14 (Azure masked it, since the default deployment matched).
+- An arm whose judge answered on a model other than the dated id it pins is refused instead of
+  written out: `served_models_observed` was recorded and never compared. A deployment name or an
+  operator attestation is still reported rather than accused, because neither is comparable to a
+  served model id.
+
 ## [0.1.31] — 2026-09-15
 
 The three critical findings from the v0.1.30 review, plus the job, provider and docs
