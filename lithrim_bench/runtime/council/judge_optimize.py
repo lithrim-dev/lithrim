@@ -498,6 +498,13 @@ def pin_demos(
             )
     else:
         ok, reason = pin_gate(candidate, pinned, force=force)
+        # PIN-GATE-4: a first pin cleared its OWN baseline to get here; say that, rather than
+        # "no pinned score to compare against", which understates the evidence.
+        if ok and pinned is None and baseline is not None and candidate is not None:
+            reason = (
+                f"pinned (held-out graded {candidate:.2f} >= its own baseline {baseline:.2f}; "
+                "no earlier pin)"
+            )
         if out_of_sample is False:
             reason += " (pinned by force although the demos are not out of sample)"
     if not ok:

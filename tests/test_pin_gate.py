@@ -238,3 +238,17 @@ def test_the_regression_check_also_applies_when_a_set_is_already_pinned(tmp_path
     later = _stage_with_baseline(tmp_path / "later", baseline=0.65, optimized=0.60)
     pin = jo.pin_demos(later, ws, ROLE)
     assert pin["pinned"] is False and "REFUSING" in pin["reason"]
+
+
+def test_a_first_pin_says_what_it_actually_beat(tmp_path):
+    """The line read "pinned (no pinned score to compare against)" even though the decision now
+    also cleared the round's own baseline — it understated the evidence the gate used."""
+    pin = jo.pin_demos(_stage_with_baseline(tmp_path, baseline=0.67, optimized=0.69), tmp_path / "ws", ROLE)
+    assert pin["pinned"] is True
+    assert "0.69" in pin["reason"] and "0.67" in pin["reason"] and "baseline" in pin["reason"]
+    assert "no earlier pin" in pin["reason"]
+
+
+def test_a_first_pin_with_no_baseline_keeps_the_old_line(tmp_path):
+    pin = jo.pin_demos(_stage(tmp_path, 0.7), tmp_path / "ws", ROLE)
+    assert pin["reason"] == "pinned (no pinned score to compare against)"
