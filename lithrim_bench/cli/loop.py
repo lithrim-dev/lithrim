@@ -422,6 +422,58 @@ def _grade_cohort(a, ids: list[str]) -> dict:
             raise SystemExit(f"grade job {job_id} {job.get('status')}: {job.get('error')}")
 
 
+def active_workspace(bff: str) -> str | None:
+    """The workspace the SERVICE is on (GET /v1/workspaces ``active``), or None when it names
+    none. Raises whatever the transport raises — the caller decides what an unreachable service
+    means (:func:`workspace_out_for` falls back)."""
+    return (http.get(bff, "/v1/workspaces") or {}).get("active")
+
+
+def workspace_out_for(out_root: Path, *, active, workspace: str | None, explicit: Path | None) -> Path:
+    """WS-DIR-1: the workspace out dir the CLI reads and writes (the pinned demos, the corrections
+    log) — the SERVICE's active workspace, so the CLI and the service never end up in different
+    ones. An explicit --workspace-out wins, then --workspace, then the service; an unreachable
+    service falls back to ``default`` rather than failing the command. The name lands as a
+    directory under the out root, so a name that is a path is refused rather than escaping it."""
+    if explicit is not None:
+        return explicit
+    name = workspace
+    if not name:
+        try:
+            name = active()
+        except Exception:  # noqa: BLE001 — a down service must not fail a local verb
+            name = None
+    name = (name or "default").strip()
+    if name in ("", ".", "..") or "/" in name or "\\" in name:
+        raise SystemExit(f"REFUSING: workspace name {name!r} is not a plain directory name")
+    return out_root / "workspaces" / name / "out"
+
+
+def served_model_mismatch(served: dict, *, model: str, dated: bool) -> str | None:
+    """SERVED-MODEL-2: the reason this arm's served model contradicts its pin, else None.
+
+    A DATED model id is a promise about which model answered, so exactly one served id, equal to
+    it, is the only passing shape: a different family, a different date, or two versions inside
+    one arm all fail. A deployment name or an operator attestation is NOT comparable to a served
+    id (an Azure deployment reports the model it serves, under a name of its own), so those are
+    reported and never accused. An arm with no observation at all is unknown, not a mismatch."""
+    versions = [v for v in served if v and v != "None"]
+    if not dated or not versions:
+        return None
+    pinned = (model or "").partition("/")[2] or (model or "")
+    if len(versions) == 1 and versions[0].lower() == pinned.lower():
+        return None
+    if len(versions) > 1:
+        return (
+            f"{len(versions)} served model versions inside one arm ({', '.join(sorted(versions))}) "
+            f"while the pin names {pinned!r}: the deployment moved mid-run"
+        )
+    return (
+        f"the judge answered on {versions[0]!r} but the arm pins {pinned!r}: the before/after "
+        "cannot be reported against a model it did not run on"
+    )
+
+
 def _grade_and_score(a, tag: str) -> None:
     slice_rows = _read_jsonl(a.slice)
     ids = [r["case_id"] for r in slice_rows]
@@ -435,6 +487,22 @@ def _grade_and_score(a, tag: str) -> None:
     manifest_path = a.out / "arm_manifest.json"
     arm = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     arm.setdefault("served_models_observed", {})[tag] = served
+    # SERVED-MODEL-2: the observation was recorded and never checked, so an arm graded on
+    # another model was written out under the pinned id's name. Fail the arm instead.
+    mismatch = served_model_mismatch(
+        served,
+        model=arm.get("model") or getattr(a, "model", "") or "",
+        dated=bool(arm.get("dated_model_id")),
+    )
+    if mismatch:
+        arm.setdefault("served_model_mismatch", {})[tag] = mismatch
+        arm["pinned_by"] = f"REFUSED ({tag}): {mismatch}"
+        manifest_path.write_text(json.dumps(arm, indent=2))
+        raise SystemExit(
+            f"REFUSING to report the {tag} arm: {mismatch}. The graded rows are saved at {out} "
+            "and the mismatch is recorded in the arm manifest; bind the reviewer to the pinned "
+            "model (lithrim configure --model) and grade again."
+        )
     versions = [k for k in served if k != "None"]
     if len(versions) == 1 and not arm.get("dated_model_id"):
         arm["pinned_by"] = (
@@ -516,6 +584,9 @@ def step_optimize(a) -> None:
     role = a.judge_def["role"]
     env = judge_env_for(role, getattr(a, "model", None))
     env.setdefault("LITHRIM_BENCH_PACK_OVERLAY_DIR", str(REPO_ROOT / "out" / "pack_overlay"))
+    # CACHE-TRAP-3: the paid calibration re-samples; a cached round would decide the pin on
+    # replayed numbers (the service path sets the same knob).
+    env["LITHRIM_JUDGE_CACHE"] = "0"
     opt_dir = getattr(a, "out_optimize", None) or a.out / "optimize"
     cmd = [
         sys.executable,

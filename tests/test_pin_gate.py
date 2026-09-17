@@ -185,3 +185,70 @@ def test_with_no_identity_on_either_side_the_legacy_comparison_holds(tmp_path):
     jo.pin_demos(_stage(tmp_path / "a", 0.8), ws, ROLE)
     refused = jo.pin_demos(_stage(tmp_path / "b", 0.7), ws, ROLE)
     assert refused["pinned"] is False and refused["comparable"] is True
+
+
+# ── PIN-GATE-4: a round that makes the judge WORSE than it started cannot be the first pin ──
+def _stage_with_baseline(tmp_path, *, baseline: float, optimized: float):
+    staging = _stage(tmp_path, optimized)
+    (staging / f"score_baseline_{TAG}.json").write_text(json.dumps({"graded": baseline}))
+    return staging
+
+
+def test_a_first_round_whose_own_delta_is_negative_is_refused(tmp_path):
+    """Measured 2026-09-16 on the clean gpt-4.1 run: the optimizer's held-out graded fell
+    0.65 -> 0.64 and the round pinned anyway ("no pinned score to compare against"), because the
+    gate only ever compared against a PREVIOUSLY pinned score. The after round then scored below
+    the before round. The round's own baseline is the comparison a first pin has."""
+    ws = tmp_path / "ws"
+    pin = jo.pin_demos(_stage_with_baseline(tmp_path, baseline=0.65, optimized=0.64), ws, ROLE)
+    assert pin["pinned"] is False
+    assert "REFUSING" in pin["reason"] and "0.65" in pin["reason"] and "0.64" in pin["reason"]
+    assert not (ws / f"compiled_demos_{TAG}.json").exists(), "nothing reached the judge"
+
+
+def test_a_first_round_that_does_not_regress_still_pins(tmp_path):
+    ws = tmp_path / "ws"
+    pin = jo.pin_demos(_stage_with_baseline(tmp_path, baseline=0.60, optimized=0.70), ws, ROLE)
+    assert pin["pinned"] is True and (ws / f"compiled_demos_{TAG}.json").exists()
+
+
+def test_a_round_that_matches_its_baseline_pins(tmp_path):
+    pin = jo.pin_demos(_stage_with_baseline(tmp_path, baseline=0.70, optimized=0.70), tmp_path / "ws", ROLE)
+    assert pin["pinned"] is True
+
+
+def test_a_losing_first_round_pins_under_force_and_the_reason_says_so(tmp_path):
+    pin = jo.pin_demos(
+        _stage_with_baseline(tmp_path, baseline=0.65, optimized=0.64), tmp_path / "ws", ROLE, force=True
+    )
+    assert pin["pinned"] is True and "force" in pin["reason"].lower()
+    assert "0.65" in pin["reason"]
+
+
+def test_a_round_with_no_baseline_recorded_behaves_as_before(tmp_path):
+    """An older round wrote no score_baseline file: unknown, so it is not accused."""
+    pin = jo.pin_demos(_stage(tmp_path, 0.64), tmp_path / "ws", ROLE)
+    assert pin["pinned"] is True
+
+
+def test_the_regression_check_also_applies_when_a_set_is_already_pinned(tmp_path):
+    """A round beating the pinned set while falling below its OWN baseline still regresses."""
+    ws = tmp_path / "ws"
+    jo.pin_demos(_stage(tmp_path / "first", 0.50), ws, ROLE)
+    later = _stage_with_baseline(tmp_path / "later", baseline=0.65, optimized=0.60)
+    pin = jo.pin_demos(later, ws, ROLE)
+    assert pin["pinned"] is False and "REFUSING" in pin["reason"]
+
+
+def test_a_first_pin_says_what_it_actually_beat(tmp_path):
+    """The line read "pinned (no pinned score to compare against)" even though the decision now
+    also cleared the round's own baseline — it understated the evidence the gate used."""
+    pin = jo.pin_demos(_stage_with_baseline(tmp_path, baseline=0.67, optimized=0.69), tmp_path / "ws", ROLE)
+    assert pin["pinned"] is True
+    assert "0.69" in pin["reason"] and "0.67" in pin["reason"] and "baseline" in pin["reason"]
+    assert "no earlier pin" in pin["reason"]
+
+
+def test_a_first_pin_with_no_baseline_keeps_the_old_line(tmp_path):
+    pin = jo.pin_demos(_stage(tmp_path, 0.7), tmp_path / "ws", ROLE)
+    assert pin["reason"] == "pinned (no pinned score to compare against)"

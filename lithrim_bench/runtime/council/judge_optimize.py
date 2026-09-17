@@ -425,6 +425,17 @@ def pin_demos(
             "demos_path": None,
         }
     candidate = json.loads(score_path.read_text()).get("graded") if score_path.exists() else None
+    # PIN-GATE-4: the round's OWN baseline — what the judge scored on the same held-out set
+    # BEFORE these demos. The gate used to compare only against a previously pinned score, so a
+    # FIRST round pinned whatever it produced ("no pinned score to compare against"), including
+    # one that made the judge worse (measured 2026-09-16: held-out graded 0.65 -> 0.64 pinned,
+    # and the after round then scored below the before round). None = an older round that wrote
+    # no baseline file: unknown, never accused.
+    baseline_path = staging_dir / f"score_baseline_{tag}.json"
+    baseline = None
+    if baseline_path.exists():
+        with contextlib.suppress(OSError, ValueError):
+            baseline = json.loads(baseline_path.read_text()).get("graded")
     # UI-JOURNEY-1 (B6): a demo that does not trace to a training row is not out of sample; the
     # result file's manifest says so (None when the round wrote no manifest: not checked).
     out_of_sample: bool | None = None
@@ -451,7 +462,20 @@ def pin_demos(
         if (pinned_heldout is not None or candidate_heldout is not None)
         else True
     )
-    if out_of_sample is False and not force:
+    regresses = (
+        baseline is not None and candidate is not None and candidate < baseline
+    )
+    if regresses and not force:
+        ok, reason = False, (
+            f"REFUSING to pin: this round's held-out graded {candidate:.2f} is BELOW the "
+            f"{baseline:.2f} the judge scored without these demos — the demos make it worse"
+        )
+    elif regresses:
+        ok, reason = True, (
+            f"pinned by force OVER its own baseline (held-out graded {candidate:.2f} < "
+            f"{baseline:.2f} without the demos)"
+        )
+    elif out_of_sample is False and not force:
         ok, reason = False, (
             "REFUSING to pin: a compiled demo does not trace to a calibration row (the demos "
             "are not out of sample)"
@@ -474,6 +498,13 @@ def pin_demos(
             )
     else:
         ok, reason = pin_gate(candidate, pinned, force=force)
+        # PIN-GATE-4: a first pin cleared its OWN baseline to get here; say that, rather than
+        # "no pinned score to compare against", which understates the evidence.
+        if ok and pinned is None and baseline is not None and candidate is not None:
+            reason = (
+                f"pinned (held-out graded {candidate:.2f} >= its own baseline {baseline:.2f}; "
+                "no earlier pin)"
+            )
         if out_of_sample is False:
             reason += " (pinned by force although the demos are not out of sample)"
     if not ok:
@@ -485,6 +516,7 @@ def pin_demos(
             "demos_path": None,
             "out_of_sample": out_of_sample,
             "comparable": comparable,
+            "baseline_graded": baseline,
         }
     workspace_out.mkdir(parents=True, exist_ok=True)
     dst = workspace_out / src.name
@@ -500,6 +532,7 @@ def pin_demos(
         "demos_path": str(dst),
         "out_of_sample": out_of_sample,
         "comparable": comparable,
+        "baseline_graded": baseline,
     }
 
 

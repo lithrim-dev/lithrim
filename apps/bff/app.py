@@ -1256,6 +1256,10 @@ def _optimize_via_subprocess(
         env["LITHRIM_BENCH_PACKS_DIR"] = ws.packs_dir
     out_dir = Path(out_dir)
     env["LITHRIM_JUDGE_CACHE_DIR"] = str(out_dir / "cache")  # UI-JOURNEY-1 (B10): per workspace
+    # CACHE-TRAP-3: a calibration is a PAID round whose held-out score decides the pin, so it must
+    # re-sample like a paid grade (CACHE-TRAP-1). Without this the DSPy disk cache replays the
+    # previous round byte-for-byte at tokens=0 and the gate compares a round against itself.
+    env["LITHRIM_JUDGE_CACHE"] = "0"
     # PIN-GATE-2: the optimizer writes into a STAGING dir, never straight into the workspace out
     # dir the next grade reads; ``pin_demos`` moves a set across only when it does not regress.
     staging = out_dir / "optimize" / role
@@ -4452,7 +4456,10 @@ def _effective_model(jc, role: str, bindings: dict) -> tuple[str, str, str]:
         # WS-JUDGE-BIND: an override authored WITH a workspace provider reports that provider, so
         # the surface names the deployment the grade will actually reach (a bare model override
         # still reports "" — it selects a model on whatever provider the global row bound).
-        return override, (getattr(jc, "provider", "") or "") if jc else "", "override"
+        # MODEL-BIND-1: a `provider/model` override (what `lithrim configure --model` writes)
+        # reports the pair the hydration binds, so the read and the grade agree.
+        provider, model = _judge_provider_and_model(jc)
+        return model, provider, "override"
     b = (bindings or {}).get(role) or {}
     if b.get("model"):
         return b["model"], b.get("provider") or "", "binding"
@@ -8006,6 +8013,25 @@ def _set_role_binding_value(var: str, val: str) -> None:
         pass
 
 
+def _judge_provider_and_model(jc) -> tuple[str, str]:
+    """MODEL-BIND-1: the (provider, model) a judge record BINDS to, as the council resolves it.
+
+    A judge authored from the UI carries them in separate fields. `lithrim configure --model
+    openai/gpt-4.1-2025-04-14` writes the whole string into ``model`` and leaves ``provider``
+    empty — and an empty provider used to mean "bind nothing", so the CLI's model never reached
+    the council and every vote ran on the provider default (90 RAGTruth cases graded on gpt-4o
+    under a manifest naming gpt-4.1-2025-04-14). A ``provider/model`` string IS a binding: the
+    prefix names the provider. Only a KNOWN provider id counts as a prefix, so a model id that
+    merely contains a slash is left alone."""
+    provider = (getattr(jc, "provider", "") or "").strip()
+    model = (getattr(jc, "model", "") or "").strip()
+    if not provider and "/" in model:
+        prefix, _, rest = model.partition("/")
+        if prefix in _PROVIDER_SECRET_VAR and rest:
+            return prefix, rest
+    return provider, model
+
+
 def _hydrate_workspace_judge_bindings_into_env(ws) -> None:
     """WS-JUDGE-BIND: overlay the ACTIVE workspace's per-judge bindings ON TOP of the global
     ``role_bindings`` hydration, so two workspaces sharing role names can grade on different
@@ -8026,15 +8052,16 @@ def _hydrate_workspace_judge_bindings_into_env(ws) -> None:
     from lithrim_bench.harness.judges import list_judges
 
     for role, jc in list_judges(db_path=ws.config_db).items():
-        provider = (getattr(jc, "provider", "") or "").strip()
+        provider, model = _judge_provider_and_model(jc)
         if not provider:
             continue  # unbound in this workspace → the global row keeps whatever it hydrated
         names = _role_binding_env_names(role)
-        for field, var in (
-            ("provider", names["provider"]), ("model", names["model"]),
-            ("endpoint", names["api_base"]), ("api_version", names["api_version"]),
+        for value, var in (
+            (provider, names["provider"]), (model, names["model"]),
+            ((getattr(jc, "endpoint", "") or "").strip(), names["api_base"]),
+            ((getattr(jc, "api_version", "") or "").strip(), names["api_version"]),
         ):
-            _set_role_binding_value(var, (getattr(jc, field, "") or "").strip())
+            _set_role_binding_value(var, value)
         # WS-CRED-1b: the CREDENTIAL for this binding. The frozen resolver reads one global
         # LITHRIM_LLM_API_KEY_<ROLE>, so without this two workspaces binding the same role to
         # different providers would share one key — the arm campaign is exactly that shape.
