@@ -55,7 +55,7 @@ labels kept, every case tagged with its split. The rail's **Load** step ticks.
 reviewer definition — fetch it from the release you are running, since you have no clone:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.31/examples/ragtruth/judge.ragtruth_detector.json
+curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.32/examples/ragtruth/judge.ragtruth_detector.json
 ```
 
 It prefills the role, the two lens codes and the prompt; review them and press **Create

@@ -25,7 +25,7 @@ clone path in [`SETUP.md`](../SETUP.md) instead. Both reach the same UI.
 ```bash
 mkdir lithrim && cd lithrim
 # the tag pins the file AND the images it names; `main` is the latest instead
-curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.31/deploy/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.32/deploy/docker-compose.yml
 docker compose up
 ```
 
@@ -93,7 +93,7 @@ to 6; every step there applies identically to this prebuilt stack.
 
 ## 4. Pin a release, upgrade, reset
 
-**The compose file pins the release it shipped with** (the `v0.1.31` cut), so `docker compose up` on
+**The compose file pins the release it shipped with** (the `v0.1.32` cut), so `docker compose up` on
 the fetched file is reproducible by default. Fetch it from a tag rather than `main`, so the file
 and the images it pins are the same release. To run another release, set the image tags in your
 `.env` or shell before `up`:

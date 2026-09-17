@@ -6,6 +6,11 @@ date-based pre-1.0 versions.
 
 ## [Unreleased]
 
+## [0.1.32] — 2026-09-17
+
+Five defects found by reproducing the documented CLI path on OpenAI, each one a way the harness
+could report something other than what it did.
+
 ### Fixed
 - The model a judge is configured with is now the model that grades it. `lithrim configure
   --model openai/gpt-4.1-2025-04-14` wrote the string onto the judge record, but the council

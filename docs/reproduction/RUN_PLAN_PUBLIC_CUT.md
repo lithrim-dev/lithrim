@@ -39,7 +39,7 @@ No clone. In an empty working dir:
 
 ```
 mkdir lithrim-run && cd lithrim-run
-curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.31/deploy/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/lithrim-dev/lithrim/v0.1.32/deploy/docker-compose.yml
 # pin a release instead of :latest for a reproducible run:
 echo 'LITHRIM_BFF_IMAGE=ghcr.io/lithrim-dev/lithrim-bff:v0.1.0'  >  .env
 echo 'LITHRIM_UI_IMAGE=ghcr.io/lithrim-dev/lithrim-ui:v0.1.0'    >> .env
